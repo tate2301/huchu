@@ -26,6 +26,19 @@ export const EXAM_LEVEL_LABELS: Record<ExamLevel, string> = {
   IGCSE: "IGCSE",
 };
 
+/**
+ * How far through a sitting a series is. The labels stay keyed by plain string
+ * because every screen reads `status` off the wire and falls back to the raw
+ * word; this union is for the one caller that *writes* it.
+ */
+export type SeriesStatus =
+  | "PLANNED"
+  | "ENTRIES_OPEN"
+  | "ENTRIES_CLOSED"
+  | "SAT"
+  | "RESULTS_IN"
+  | "ARCHIVED";
+
 export const SERIES_STATUS_LABELS: Record<string, string> = {
   PLANNED: "Planned",
   ENTRIES_OPEN: "Open for entries",
@@ -139,6 +152,47 @@ export function createSeries(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+/**
+ * Correct a series that was typed wrong, or move it on to its next standing.
+ *
+ * `createSeries` had no companion, so a board, a level, a centre number, six
+ * dates and two fees were all settled by whoever first filled the dialog in.
+ * The date entries close is the one that matters: it is what every countdown on
+ * these screens is counting to, and a school that typed it wrong watched the
+ * wrong deadline go red.
+ *
+ * Every field is optional and the dates and fees take an explicit `null`, so
+ * clearing a late deadline the board withdrew is a request the school can
+ * actually make. Board and level are refused once the roll has candidates on
+ * it — the API answers with the count and says why.
+ */
+export function updateSeries(
+  seriesId: string,
+  input: {
+    name?: string;
+    year?: number;
+    boardId?: string;
+    level?: ExamLevel;
+    centreId?: string | null;
+    cohortLevel?: number | null;
+    entriesOpenAt?: string | null;
+    entriesCloseAt?: string | null;
+    lateEntriesCloseAt?: string | null;
+    startsOn?: string | null;
+    endsOn?: string | null;
+    resultsDueOn?: string | null;
+    feePerSubject?: number | null;
+    lateFeePerSubject?: number | null;
+    currency?: string;
+    status?: SeriesStatus;
+  },
+) {
+  return fetchJson<{ id: string; name: string; status: string }>(
+    `/api/v2/schools/exams/series/${seriesId}`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
 }
 
 export type Blocker = string;

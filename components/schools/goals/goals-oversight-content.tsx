@@ -35,6 +35,7 @@ import {
   fetchSchoolsSubjects,
   fetchSchoolsTerms,
 } from "@/lib/schools/admin-v2";
+import { updateStudentGoal } from "@/lib/schools/goals-v2";
 import { GoalTargetDialog, type GoalTargetValues } from "./goal-target-dialog";
 
 type GoalRow = {
@@ -121,6 +122,11 @@ type BulkWrite = { studentId: string; label: string };
  * work unless you can act on it where you read it. So the verb lives on the
  * row, and once over the filtered set — narrow to Form 2A with no target, set
  * them all a Mathematics target in one pass, move on to Form 2B.
+ *
+ * The same verb on a row that already has one corrects it, which is the other
+ * half of the screen's job: it is here that a department compares achievement
+ * against the target, and a target that came out of a moderation wrong is the
+ * thing the comparison is being read against.
  *
  * ── The narrowing row ──────────────────────────────────────────────────────
  *
@@ -279,6 +285,40 @@ export function GoalsOversightContent() {
       void queryClient.invalidateQueries({ queryKey: ["schools", "goals"] });
     },
   });
+
+  /**
+   * Correcting a target that is already there, which is a different verb.
+   *
+   * The row's "Edit" used to go back through the same POST, and POST is keyed on
+   * pupil, term and subject. Change the number and it worked by luck; change the
+   * subject — the usual reason anyone opens an existing target, because it was
+   * recorded against Geography and meant Mathematics — and the school ended up
+   * with two, the wrong one still sitting on the board. This addresses the goal
+   * by its id, so a moderation moves it instead of copying it.
+   */
+  const reviseTarget = useMutation({
+    mutationFn: (input: { goalId: string; label: string; values: GoalTargetValues }) =>
+      updateStudentGoal({
+        id: input.goalId,
+        subjectId: input.values.subjectId,
+        targetMark: input.values.targetMark,
+        baselineMark: input.values.baselineMark,
+        // An emptied box means clear the column, not leave it — the endpoint
+        // keeps the two apart and so must the form.
+        plan: input.values.plan.trim() || null,
+        teacherNote: input.values.teacherNote.trim() || null,
+      }),
+    onSuccess: (_written, input) => {
+      setEditing(null);
+      setSaved(`${input.label}'s target has been changed.`);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "goals"] });
+    },
+  });
+
+  /** True while the open dialog is correcting a target rather than setting one. */
+  const revising = editing !== null && editing !== "bulk" && editing.goalId !== null;
+  const writeError = setTargets.error ?? reviseTarget.error;
+  const isWriting = setTargets.isPending || reviseTarget.isPending;
 
   const columns = useMemo<ColumnDef<GoalRow>[]>(
     () => [
@@ -455,10 +495,8 @@ export function GoalsOversightContent() {
           onRetry={() => void query.refetch()}
         />
       ) : null}
-      {setTargets.error ? (
-        <SaveError what="The target" error={setTargets.error} />
-      ) : null}
-      {saved && !setTargets.isPending ? (
+      {writeError ? <SaveError what="The target" error={writeError} /> : null}
+      {saved && !isWriting ? (
         <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} />
       ) : null}
 
@@ -596,6 +634,7 @@ export function GoalsOversightContent() {
             if (!next) {
               setEditing(null);
               setTargets.reset();
+              reviseTarget.reset();
             }
           }}
           title={
@@ -610,7 +649,9 @@ export function GoalsOversightContent() {
               ? `Every pupil in view with nothing set gets this target. Pupils who already have one are left alone.${
                   narrowing.length > 0 ? ` In view: ${narrowing.join(", ")}.` : ""
                 }`
-              : "A subject, a number, and how they get there."
+              : revising
+                ? "Change the number, the plan or the subject it was recorded against. The target moves; a second one is not added."
+                : "A subject, a number, and how they get there."
           }
           subjects={subjects}
           defaults={
@@ -631,14 +672,24 @@ export function GoalsOversightContent() {
                 ? "Set the target"
                 : "Save the target"
           }
-          isSubmitting={setTargets.isPending}
-          error={setTargets.error ? getApiErrorMessage(setTargets.error) : null}
+          isSubmitting={isWriting}
+          error={writeError ? getApiErrorMessage(writeError) : null}
           progress={
             editing === "bulk" && setTargets.isPending
               ? `${written} of ${missing.length} written`
               : null
           }
-          onSubmit={(values) =>
+          onSubmit={(values) => {
+            // A pupil who already has one is a correction and goes by id; a
+            // pupil with nothing set, and the whole filtered set, are creates.
+            if (editing !== "bulk" && editing.goalId !== null) {
+              reviseTarget.mutate({
+                goalId: editing.goalId,
+                label: `${editing.firstName} ${editing.lastName}`,
+                values,
+              });
+              return;
+            }
             setTargets.mutate({
               values,
               writes:
@@ -653,8 +704,8 @@ export function GoalsOversightContent() {
                         label: `${editing.firstName} ${editing.lastName}`,
                       },
                     ],
-            })
-          }
+            });
+          }}
         />
       ) : null}
     </div>

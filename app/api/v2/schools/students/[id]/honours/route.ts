@@ -24,12 +24,11 @@ import { schoolPermissionDenial } from "@/lib/schools/permissions";
  * On the grant: `schools.students` at `edit`. An honour is a fact about a pupil
  * kept on their record, and the office that keeps the roll keeps it.
  *
- * There is deliberately no DELETE. One was written and removed before it
- * shipped: the alumnus record draws honours as a joined sentence in a property
- * row, so there is no row to hang a remove verb on and nothing anywhere could
- * have called it. An endpoint with no caller is the exact fault this branch
- * exists to clear out, and adding one back while writing the fix would have
- * been a poor joke. Removal arrives with the surface that needs it.
+ * PATCH and DELETE arrived with the surface that needed them. They were written
+ * and removed once before, when honours were drawn as a joined sentence in a
+ * property row and there was no row to hang a verb on — an endpoint with no
+ * caller being the exact fault this branch exists to clear out. The alumnus
+ * record lists them properly now, so both have somewhere to be called from.
  */
 
 const createSchema = z.object({
@@ -115,5 +114,110 @@ export async function POST(
     }
     console.error("[API] POST /api/v2/schools/students/[id]/honours error:", error);
     return errorResponse("Failed to record the honour");
+  }
+}
+
+const patchSchema = z.object({
+  honourId: z.string().uuid(),
+  kind: z.enum(["PRIZE", "COLOURS", "POST", "OTHER"]).optional(),
+  year: z.coerce.number().int().min(1900).max(2200).optional(),
+  title: z.string().trim().min(1).max(160).optional(),
+  detail: z.string().trim().max(400).nullish(),
+});
+
+/**
+ * Correct an honour.
+ *
+ * A prize list is read out at speech day and copied into a leaving reference
+ * years later, so a year or a title typed wrong is worth being able to fix —
+ * and this is one somebody transcribes from a handwritten sheet.
+ */
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+
+    const denied = schoolPermissionDenial(session, "schools.students", "edit");
+    if (denied) return errorResponse(denied, 403);
+
+    const { id } = await context.params;
+    const companyId = session.user.companyId;
+    const body = patchSchema.parse(await request.json());
+
+    // Both ids are claims: the pupil in the URL, and the honour in the body.
+    // Resolving the honour against BOTH the company and this pupil is what
+    // stops one pupil's record being edited through another's URL.
+    const existing = await prisma.schoolStudentHonour.findFirst({
+      where: { id: body.honourId, companyId, studentId: id },
+      select: { id: true },
+    });
+    if (!existing) return errorResponse("That honour is not on this pupil's record.", 404);
+
+    const updated = await prisma.schoolStudentHonour.update({
+      where: { id: existing.id },
+      data: {
+        ...(body.kind !== undefined ? { kind: body.kind } : {}),
+        ...(body.year !== undefined ? { year: body.year } : {}),
+        ...(body.title !== undefined ? { title: body.title } : {}),
+        // `nullish`, so an explicit null clears the detail and an absent field
+        // leaves whatever is there.
+        ...(body.detail !== undefined ? { detail: body.detail } : {}),
+      },
+      select: { id: true },
+    });
+    return successResponse(updated);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return errorResponse("Validation failed", 400, error.issues);
+    }
+    console.error("[API] PATCH /api/v2/schools/students/[id]/honours error:", error);
+    return errorResponse("Failed to change the honour");
+  }
+}
+
+const deleteQuery = z.object({ honourId: z.string().uuid() });
+
+/**
+ * Take an honour off a record.
+ *
+ * A real delete rather than a retire, and this is the exception the rest of the
+ * module's setup tables are not: nothing anywhere points at an honour, it is a
+ * leaf. One recorded against the wrong pupil is a transcription slip, not
+ * history, and leaving it on their reference would be worse than removing it.
+ */
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+
+    const denied = schoolPermissionDenial(session, "schools.students", "edit");
+    if (denied) return errorResponse(denied, 403);
+
+    const { id } = await context.params;
+    const companyId = session.user.companyId;
+    const { searchParams } = new URL(request.url);
+    const query = deleteQuery.parse(Object.fromEntries(searchParams.entries()));
+
+    const removed = await prisma.schoolStudentHonour.deleteMany({
+      where: { id: query.honourId, companyId, studentId: id },
+    });
+    if (removed.count === 0) {
+      return errorResponse("That honour is not on this pupil's record.", 404);
+    }
+    return successResponse({ honourId: query.honourId });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return errorResponse("Validation failed", 400, error.issues);
+    }
+    console.error("[API] DELETE /api/v2/schools/students/[id]/honours error:", error);
+    return errorResponse("Failed to remove the honour");
   }
 }

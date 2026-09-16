@@ -27,7 +27,23 @@ export class NoticeError extends Error {
 
 export type NoticeAudience = "ALL" | "PARENTS" | "STUDENTS" | "TEACHERS";
 
-const TYPE_FOR: Record<NoticeAudience, "SCHOOL_NOTICE_ALL" | "SCHOOL_NOTICE_PARENTS" | "SCHOOL_NOTICE_STUDENTS" | "SCHOOL_NOTICE_TEACHERS"> = {
+/**
+ * The four `NotificationType` values a school notice can be.
+ *
+ * Named once and exported because more than the sent list needs them. A
+ * company's `Notification` table also holds payroll runs, permit expiries and
+ * lead alerts, and anything that reads or writes "a notice the office sent"
+ * has to say which rows those are — a route that only matched on `companyId`
+ * would be handing the office an edit box over the payroll.
+ */
+export const SCHOOL_NOTICE_TYPES = [
+  "SCHOOL_NOTICE_ALL",
+  "SCHOOL_NOTICE_PARENTS",
+  "SCHOOL_NOTICE_STUDENTS",
+  "SCHOOL_NOTICE_TEACHERS",
+] as const;
+
+const TYPE_FOR: Record<NoticeAudience, (typeof SCHOOL_NOTICE_TYPES)[number]> = {
   ALL: "SCHOOL_NOTICE_ALL",
   PARENTS: "SCHOOL_NOTICE_PARENTS",
   STUDENTS: "SCHOOL_NOTICE_STUDENTS",
@@ -216,6 +232,15 @@ export type SentNotice = {
   className: string | null;
   createdAt: Date;
   expiresAt: Date | null;
+  /**
+   * When the wording was last put right in place, if it ever was. Null for the
+   * ordinary case of a notice that still says what it said when it went out.
+   *
+   * The office's list is the only place an edit is visible: nobody who received
+   * the notice is told, so "sent Monday, reworded Thursday" has to be readable
+   * here or it is readable nowhere.
+   */
+  editedAt: Date | null;
   recipients: number;
   read: number;
 };
@@ -227,20 +252,52 @@ const AUDIENCE_FOR: Record<string, NoticeAudience> = {
   SCHOOL_NOTICE_TEACHERS: "TEACHERS",
 };
 
-/** The year group a notice was addressed to, if the sender narrowed it. */
-function classIdFromPayload(payload: string | null): string | null {
-  if (!payload) return null;
+/** What the sender recorded alongside the notice, or nothing we can read. */
+function parsePayload(payload: string | null): Record<string, unknown> {
+  if (!payload) return {};
   try {
     const parsed: unknown = JSON.parse(payload);
-    if (parsed && typeof parsed === "object" && "classId" in parsed) {
-      const value = (parsed as { classId?: unknown }).classId;
-      return typeof value === "string" ? value : null;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
     }
   } catch {
     // A payload that will not parse is a notice sent by something else. It is
     // still a notice; it simply has no year group, which is what null says.
   }
-  return null;
+  return {};
+}
+
+/** The year group a notice was addressed to, if the sender narrowed it. */
+function classIdFromPayload(payload: string | null): string | null {
+  const value = parsePayload(payload).classId;
+  return typeof value === "string" ? value : null;
+}
+
+/**
+ * Stamp a notice as having been reworded, keeping everything else the sender
+ * wrote down.
+ *
+ * A read-modify-write rather than a fresh payload: the shortlist of pupils, the
+ * year group and the count of families with no account are the only record of
+ * who a notice was actually aimed at, and replacing the payload to note an edit
+ * would throw that away to say "this was edited".
+ *
+ * The stamp exists because an edit reaches nobody. Recipients keep whatever
+ * they have already read and are told nothing, so the office's own list is the
+ * only place the change can show at all; without this, a notice whose wording
+ * was quietly changed on Thursday is indistinguishable from the one sent on
+ * Monday, including to the person who has to answer for what it said.
+ */
+export function noticePayloadWithEdit(
+  payload: string | null,
+  editorUserId: string,
+  at: Date = new Date(),
+): string {
+  return JSON.stringify({
+    ...parsePayload(payload),
+    editedAt: at.toISOString(),
+    editedBy: editorUserId,
+  });
 }
 
 /** What the office has sent, with how far it got. */
@@ -251,14 +308,7 @@ export async function listSentNotices(input: {
   const notices = await prisma.notification.findMany({
     where: {
       companyId: input.companyId,
-      type: {
-        in: [
-          "SCHOOL_NOTICE_ALL",
-          "SCHOOL_NOTICE_PARENTS",
-          "SCHOOL_NOTICE_STUDENTS",
-          "SCHOOL_NOTICE_TEACHERS",
-        ],
-      },
+      type: { in: [...SCHOOL_NOTICE_TYPES] },
     },
     orderBy: { createdAt: "desc" },
     take: input.take ?? 100,
@@ -295,6 +345,7 @@ export async function listSentNotices(input: {
 
   return notices.map((notice) => {
     const classId = classIdFromPayload(notice.payloadJson);
+    const editedAt = parsePayload(notice.payloadJson).editedAt;
     return {
       id: notice.id,
       title: notice.title,
@@ -306,6 +357,7 @@ export async function listSentNotices(input: {
       className: classId ? (classNames.get(classId) ?? null) : null,
       createdAt: notice.createdAt,
       expiresAt: notice.expiresAt,
+      editedAt: typeof editedAt === "string" ? new Date(editedAt) : null,
       recipients: notice.recipients.length,
       // "Read by 12 of 58" is the only honest measure of whether a notice landed.
       read: notice.recipients.filter((row) => row.isRead).length,

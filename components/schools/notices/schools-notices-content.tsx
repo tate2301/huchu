@@ -20,8 +20,13 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/records/states";
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
+import { updateSentNotice, type NoticeSeverity } from "@/lib/schools/notices-v2";
 import {
   fetchSchoolsClasses,
   fetchSchoolsGuardians,
@@ -45,21 +50,29 @@ import { SendNoticeDialog, type Correcting, type NoticeDraft } from "./send-noti
  * families with no portal account is the school's to-do list: a notice cannot
  * reach a guardian who was never invited.
  *
- * ── Why this record has no edit and no delete ──────────────────────────────
+ * ── Two verbs, and the difference between them ─────────────────────────────
  *
- * Every other campus record is created, edited and archived from its list. A
- * notice cannot be, and the difference is not an omission. Sending writes a
- * recipient row per person and the portals show it immediately, so by the time
- * the list renders, hundreds of families have already read it. Editing the
- * stored row would silently rewrite what some of them saw and leave the rest
- * holding the old version; deleting it would make a letter the school demonstr-
- * ably sent disappear from its own record. The send dialog says a notice cannot
- * be recalled, and the sent list has to mean it.
+ * A notice cannot be recalled, and there is no delete here for that reason: a
+ * letter the school demonstrably sent may not vanish out of the school's own
+ * record. But there are two different things an office means by "that notice is
+ * wrong", and for a long time this screen offered only one of them.
  *
- * The update verb is therefore *Send a correction*: a second notice, addressed
- * to exactly the people the first one reached, carrying a link back to it. That
- * is the whole of this record's write surface, and it is deliberately the whole
- * of it.
+ * *Fix the wording* edits the stored row. It is the right verb for a typo, a
+ * wrong room number, a name spelled wrong — and it is smaller than the word
+ * "edit" usually implies, which the dialog says out loud. Nothing in this
+ * product delivers a notice; the portals read the row. So an edit changes what
+ * a family sees the next time they open the app and tells nobody: the hundreds
+ * who read it this morning keep the version they read and get no second ping.
+ * Before this existed, "Sports day moved to Firday" was in eleven hundred
+ * portals for the rest of the year.
+ *
+ * *Send a correction* is the verb for anything that changes what a family has
+ * to do. It is a second notice, addressed to exactly the people the first one
+ * reached, carrying a link back to it — the only correction that actually
+ * arrives anywhere.
+ *
+ * An edited notice carries "Edited" in the list, because the office's own list
+ * is the only place the change is visible at all.
  *
  * ── The filter row ─────────────────────────────────────────────────────────
  *
@@ -101,6 +114,19 @@ type SentNotice = {
   className: string | null;
   createdAt: string;
   expiresAt: string | null;
+  /** Set once the wording has been put right in place. See the verbs above. */
+  editedAt: string | null;
+  recipients: number;
+  read: number;
+};
+
+/** A notice being reworded, as the list knows it. */
+type Editing = {
+  id: string;
+  title: string;
+  body: string;
+  severity: NoticeSeverity;
+  sentOn: string;
   recipients: number;
   read: number;
 };
@@ -140,6 +166,7 @@ export function SchoolsNoticesContent() {
   const queryClient = useQueryClient();
   const [composing, setComposing] = useState(false);
   const [correcting, setCorrecting] = useState<Correcting | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
   const [sent, setSent] = useState<{ recipients: number; withoutAccount: number } | null>(
     null,
   );
@@ -199,6 +226,20 @@ export function SchoolsNoticesContent() {
       setComposing(false);
       setCorrecting(null);
       setSent(result);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "notices"] });
+    },
+  });
+
+  const edit = useMutation({
+    mutationFn: (draft: { id: string; title: string; body: string; severity: NoticeSeverity }) =>
+      updateSentNotice({
+        id: draft.id,
+        title: draft.title.trim(),
+        body: draft.body.trim(),
+        severity: draft.severity,
+      }),
+    onSuccess: () => {
+      setEditing(null);
       void queryClient.invalidateQueries({ queryKey: ["schools", "notices"] });
     },
   });
@@ -301,6 +342,15 @@ export function SchoolsNoticesContent() {
             <div className="font-medium">{row.original.title}</div>
             <div className="line-clamp-1 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
               {row.original.summary}
+              {/* The office's list is the only place an edit shows. Nobody who
+                  received the notice is told it was reworded, so a row that
+                  did not say so would leave the school unable to tell what it
+                  sent on Monday from what it says now. */}
+              {row.original.editedAt ? (
+                <span className="ml-1 italic">
+                  · Edited {SHORT_DATE.format(new Date(row.original.editedAt))}
+                </span>
+              ) : null}
             </div>
           </div>
         ),
@@ -382,8 +432,31 @@ export function SchoolsNoticesContent() {
               label={`Actions for “${row.original.title}”`}
               verbs={[
                 {
+                  // Named for what it actually does. "Edit" would promise the
+                  // families are told; they are not, and the dialog says so
+                  // before anything is saved.
+                  label: "Fix the wording",
+                  action: "notify-families",
+                  onSelect: () => {
+                    setSent(null);
+                    setEditing({
+                      id: row.original.id,
+                      title: row.original.title,
+                      body: row.original.summary,
+                      severity: severityCode(row.original.severity),
+                      sentOn: formatSchoolDate(row.original.createdAt),
+                      recipients: row.original.recipients,
+                      read: row.original.read,
+                    });
+                  },
+                },
+                {
                   label: "Send a correction",
-                  action: "create",
+                  // The grant the endpoint actually checks. It was `create`,
+                  // which only the head holds, so the bursar and the class
+                  // teacher — the two roles that write to families most — had
+                  // this greyed out on a route they are allowed to call.
+                  action: "notify-families",
                   onSelect: () => {
                     setSent(null);
                     setCorrecting({
@@ -411,6 +484,10 @@ export function SchoolsNoticesContent() {
       <PageChrome title="Notices">
         <CreateButton
           resource="schools.reports"
+          // Not `create`, which is the head's alone. Sending is
+          // `notify-families`, and the button has to be gated on the grant the
+          // endpoint checks or the bursar sees a button that answers 403.
+          action="notify-families"
           label="Send a notice"
           onSelect={() => {
             setSent(null);
@@ -420,6 +497,7 @@ export function SchoolsNoticesContent() {
         />
       </PageChrome>
 
+      {edit.error ? <SaveError what="The change" error={edit.error} /> : null}
       {query.error ? (
         <LoadError
           what="what has been sent"
@@ -588,7 +666,180 @@ export function SchoolsNoticesContent() {
         onSend={(draft) => send.mutate(draft)}
         correcting={correcting}
       />
+
+      <EditNoticeDialog
+        notice={editing}
+        onOpenChange={(next) => {
+          if (!next) {
+            setEditing(null);
+            edit.reset();
+          }
+        }}
+        isSaving={edit.isPending}
+        error={edit.error ? getApiErrorMessage(edit.error) : null}
+        onSave={(draft) => edit.mutate(draft)}
+        onSendCorrectionInstead={(notice) => {
+          const row = rows.find((candidate) => candidate.id === notice.id);
+          if (!row) return;
+          setEditing(null);
+          edit.reset();
+          setSent(null);
+          setCorrecting({
+            id: row.id,
+            title: row.title,
+            audience: row.audienceCode,
+            classId: row.classId,
+            severity: severityCode(row.severity),
+            sentOn: formatSchoolDate(row.createdAt),
+          });
+          setComposing(true);
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * Rewording a letter that has already gone out.
+ *
+ * The description is the whole reason this dialog exists rather than an inline
+ * edit on the row. An office reading "Edit" reasonably assumes the families are
+ * told; they are not. Nothing in this product delivers a notice — the portals
+ * read the row — so saving here changes what somebody sees the next time they
+ * open the app and reaches nobody who has already read it. The count of people
+ * who have is on the dialog for that reason: "44 of the 58 have already read
+ * it" is the number that decides which of the two verbs this is.
+ *
+ * So the way out is on the dialog too. An office that opens this to fix a typo
+ * and realises halfway through that the date itself was wrong should not have
+ * to cancel, find the row again and reopen the menu — the correction is one
+ * press away from here.
+ *
+ * The audience is not on this form. Who received the notice was settled when
+ * the recipient rows were written and cannot be changed afterwards; showing it
+ * as a field would offer a choice that is not there.
+ */
+function EditNoticeDialog({
+  notice,
+  onOpenChange,
+  isSaving,
+  error,
+  onSave,
+  onSendCorrectionInstead,
+}: {
+  notice: Editing | null;
+  onOpenChange: (open: boolean) => void;
+  isSaving: boolean;
+  error: string | null;
+  onSave: (draft: {
+    id: string;
+    title: string;
+    body: string;
+    severity: NoticeSeverity;
+  }) => void;
+  onSendCorrectionInstead: (notice: Editing) => void;
+}) {
+  const [draft, setDraft] = useState<Editing | null>(notice);
+  const [wasId, setWasId] = useState(notice?.id ?? null);
+  if ((notice?.id ?? null) !== wasId) {
+    setWasId(notice?.id ?? null);
+    setDraft(notice);
+  }
+
+  const open = Boolean(notice);
+  const ready = Boolean(draft && draft.title.trim() && draft.body.trim());
+
+  return (
+    <RecordDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Fix the wording"
+      description={
+        notice
+          ? `Sent ${notice.sentOn}. This changes what the notice says from now on and tells nobody — the ${notice.read.toLocaleString()} of ${notice.recipients.toLocaleString()} who have already read it keep the version they read. For anything that changes what a family has to do, send a correction instead.`
+          : undefined
+      }
+      errors={error ? [error] : undefined}
+      footer={
+        <>
+          <Button
+            variant="quiet"
+            onClick={() => notice && onSendCorrectionInstead(notice)}
+            disabled={isSaving || !notice}
+          >
+            Send a correction instead
+          </Button>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() =>
+              draft &&
+              onSave({
+                id: draft.id,
+                title: draft.title,
+                body: draft.body,
+                severity: draft.severity,
+              })
+            }
+            disabled={!ready || isSaving}
+          >
+            {isSaving ? "Saving…" : "Save the wording"}
+          </Button>
+        </>
+      }
+    >
+      {draft ? (
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="notice-edit-title">Title</Label>
+            <Input
+              id="notice-edit-title"
+              value={draft.title}
+              maxLength={160}
+              onChange={(event) =>
+                setDraft((current) =>
+                  current ? { ...current, title: event.target.value } : current,
+                )
+              }
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="notice-edit-body">Message</Label>
+            <Textarea
+              id="notice-edit-body"
+              rows={6}
+              value={draft.body}
+              maxLength={4000}
+              onChange={(event) =>
+                setDraft((current) =>
+                  current ? { ...current, body: event.target.value } : current,
+                )
+              }
+            />
+          </div>
+
+          <FilterSelect
+            label="Importance"
+            allLabel="Normal"
+            value={draft.severity === "INFO" ? "" : draft.severity}
+            options={[
+              { value: "WARNING", label: "Important" },
+              { value: "CRITICAL", label: "Urgent" },
+            ]}
+            onChange={(value) =>
+              setDraft((current) =>
+                current
+                  ? { ...current, severity: (value || "INFO") as NoticeSeverity }
+                  : current,
+              )
+            }
+          />
+        </div>
+      ) : null}
+    </RecordDialog>
   );
 }
 

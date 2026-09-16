@@ -33,9 +33,13 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/records/states";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
+import { correctLoan, type LoanCorrection } from "@/lib/schools/library-v2";
 import { LibraryViews } from "@/components/schools/library/library-views";
 
 type Loan = {
@@ -43,6 +47,7 @@ type Loan = {
   borrowedAt: string;
   dueAt: string;
   renewals: number;
+  notes: string | null;
   isOverdue: boolean;
   fineIfReturnedToday: number;
   copy: {
@@ -121,6 +126,7 @@ export function LibraryLoansContent() {
   const [overdueOnly, setOverdueOnly] = useState(true);
   const [lending, setLending] = useState(false);
   const [editing, setEditing] = useState<Loan | null>(null);
+  const [correcting, setCorrecting] = useState<Loan | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -156,7 +162,9 @@ export function LibraryLoansContent() {
   const shelfQuery = useQuery({
     queryKey: ["schools", "library", "shelf-for-lending"],
     queryFn: () => fetchJson<{ books: Book[] }>("/api/v2/schools/library"),
-    enabled: lending || registerLooksEmpty,
+    // Correcting needs the shelf for the same reason lending does: the copy a
+    // book was scanned against is chosen from it.
+    enabled: lending || correcting !== null || registerLooksEmpty,
   });
 
   // Only once the shelf has actually answered — an undefined book list is "not
@@ -210,6 +218,14 @@ export function LibraryLoansContent() {
       action: "edit",
       loading: pendingId === loan.id && desk.isPending,
       onSelect: () => setEditing(loan),
+    },
+    {
+      // Sits below Renew on purpose. Renewing is the everyday verb; this one is
+      // for the morning somebody notices the slip has been wrong all along, and
+      // reaching for it by mistake would spend nothing and change the record.
+      label: "Correct the slip",
+      action: "edit",
+      onSelect: () => setCorrecting(loan),
     },
   ];
 
@@ -354,6 +370,11 @@ export function LibraryLoansContent() {
         onClose={() => setLending(false)}
       />
       <RenewDialog loan={editing} onClose={() => setEditing(null)} />
+      <CorrectDialog
+        loan={correcting}
+        books={shelfQuery.data?.books ?? []}
+        onClose={() => setCorrecting(null)}
+      />
     </div>
   );
 }
@@ -568,6 +589,203 @@ function RenewDialog({ loan, onClose }: { loan: Loan | null; onClose: () => void
               whatever the new date says.
             </p>
           ) : null}
+        </div>
+      ) : null}
+    </RecordDialog>
+  );
+}
+
+/**
+ * The slip was wrong. This is how it stops being wrong.
+ *
+ * Everything else on this screen records something that happened — the book
+ * came back, the loan was extended. This one says the register never described
+ * reality in the first place: the barcode scanned was the twin on the trolley,
+ * the name picked was the other Moyo, the fortnight was typed as a week.
+ * Before it there was no way back from any of those. The wrong child was
+ * chased, the copy on the shelf was shown as out, and the only lever for a date
+ * was Renew, which spends one of the reader's two renewals to pay for the
+ * librarian's typing.
+ *
+ * So it is not a renewal and it does not move the counter. The dialog says so
+ * out loud, because the two verbs sit next to each other in the same menu and
+ * the difference between them is the thing a librarian has to get right.
+ *
+ * Only what the librarian actually touched is sent. Leaving the note alone and
+ * leaving it blank are different requests, and a dialog that posted all four
+ * fields every time would rub out a note nobody meant to touch.
+ */
+function CorrectDialog({
+  loan,
+  books,
+  onClose,
+}: {
+  loan: Loan | null;
+  books: Book[];
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [studentId, setStudentId] = useState("");
+  const [copyId, setCopyId] = useState("");
+  const [dueOn, setDueOn] = useState("");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useOpenTransition(loan !== null, () => {
+    setError(null);
+    setStudentId(loan?.student.id ?? "");
+    setCopyId(loan?.copy.id ?? "");
+    setDueOn(loan?.dueAt.slice(0, 10) ?? "");
+    setNotes(loan?.notes ?? "");
+  });
+
+  const readersQuery = useQuery({
+    queryKey: ["schools", "library", "readers"],
+    queryFn: () => fetchSchoolsStudents({ page: 1, limit: 300, status: "ACTIVE" }),
+    enabled: loan !== null,
+  });
+
+  /**
+   * Every copy that is free, plus the one this loan is already against — which
+   * is never free, because this loan is what is holding it. The same clause
+   * covers the shelf not having answered yet and a copy that has since been
+   * withdrawn: without the current copy in the list the picker would open
+   * showing nothing chosen, and an empty select on a required field reads as a
+   * question rather than as a fact already on file.
+   */
+  const copyOptions = useMemo(() => {
+    if (!loan) return [];
+    const free = books.flatMap((book) =>
+      book.copies
+        .filter((copy) => copy.loans.length === 0)
+        .map((copy) => ({ value: copy.id, label: `${book.title} · ${copy.copyCode}` })),
+    );
+    if (!free.some((option) => option.value === loan.copy.id)) {
+      free.unshift({
+        value: loan.copy.id,
+        label: `${loan.copy.book.title} · ${loan.copy.copyCode}`,
+      });
+    }
+    return free;
+  }, [books, loan]);
+
+  // Same treatment for the borrower: the reader list is the active roll, and a
+  // loan against somebody who has since left is exactly the one needing a fix.
+  const readerOptions = useMemo(() => {
+    if (!loan) return [];
+    const rows = (readersQuery.data?.data ?? []).map((student) => ({
+      value: student.id,
+      label: `${student.firstName} ${student.lastName} · ${student.studentNo}`,
+    }));
+    if (!rows.some((option) => option.value === loan.student.id)) {
+      rows.unshift({
+        value: loan.student.id,
+        label: `${loan.student.firstName} ${loan.student.lastName} · ${loan.student.studentNo}`,
+      });
+    }
+    return rows;
+  }, [readersQuery.data, loan]);
+
+  const changes = useMemo<LoanCorrection>(() => {
+    if (!loan) return {};
+    const next: LoanCorrection = {};
+    if (studentId && studentId !== loan.student.id) next.studentId = studentId;
+    if (copyId && copyId !== loan.copy.id) next.copyId = copyId;
+    if (dueOn && dueOn !== loan.dueAt.slice(0, 10)) {
+      // Midday, not midnight and not the end of the day. The fine is counted
+      // off the UTC date, and a date built at either edge lands on the day
+      // before or after once the browser's offset is applied — a correction
+      // that quietly moves the date by one is worse than no correction.
+      next.dueAt = new Date(`${dueOn}T12:00:00`).toISOString();
+    }
+    const typed = notes.trim();
+    if (typed !== (loan.notes ?? "")) next.notes = typed === "" ? null : typed;
+    return next;
+  }, [loan, studentId, copyId, dueOn, notes]);
+
+  const touched = Object.keys(changes).length > 0;
+
+  const save = useMutation({
+    mutationFn: () => correctLoan(loan?.id ?? "", changes),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["schools", "library"] });
+      onClose();
+    },
+    onError: (cause) => setError(getApiErrorMessage(cause)),
+  });
+
+  return (
+    <RecordDialog
+      open={loan !== null}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title={loan ? `Correct ${loan.copy.book.title}` : "Correct the slip"}
+      description="Who has it, which copy, and when it is wanted back. This is not a renewal and does not use one up."
+      size="sm"
+      errors={error ? [error] : undefined}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!save.isPending && touched) save.mutate();
+      }}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            loading={save.isPending}
+            disabled={!touched}
+          >
+            Put it right
+          </Button>
+        </>
+      }
+    >
+      {loan ? (
+        <div className="space-y-4">
+          <FilterSelect
+            label="Reader"
+            allLabel="Choose a reader"
+            className="space-y-2"
+            value={studentId}
+            options={readerOptions}
+            onChange={setStudentId}
+          />
+          <FilterSelect
+            label="Copy"
+            allLabel="Choose a copy"
+            className="space-y-2"
+            value={copyId}
+            options={copyOptions}
+            onChange={setCopyId}
+          />
+          <div className="space-y-2">
+            <Label htmlFor="loan-due">Wanted back</Label>
+            <Input
+              id="loan-due"
+              type="date"
+              value={dueOn}
+              onChange={(event) => setDueOn(event.target.value)}
+            />
+            <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+              {loan.renewals === 0
+                ? "Moving this date does not count as a renewal."
+                : `Renewed ${loan.renewals} time${loan.renewals === 1 ? "" : "s"} so far. Correcting the date here leaves that count alone.`}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="loan-note">Why</Label>
+            <Textarea
+              id="loan-note"
+              rows={2}
+              value={notes}
+              placeholder="Scanned against the wrong copy at the desk"
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </div>
         </div>
       ) : null}
     </RecordDialog>

@@ -27,6 +27,22 @@ export class DetentionError extends Error {
   }
 }
 
+/**
+ * The tenant boundary, thrown where an id that arrived in a request is not this
+ * school's.
+ *
+ * A subclass rather than a class of its own, so the routes that already answer
+ * `DetentionError` with a 422 keep catching it untouched, and a route that
+ * needs the distinction can make it: "there is no such sitting here" is a 404
+ * and is not the same answer as "you cannot do that to this one".
+ */
+export class DetentionNotFoundError extends DetentionError {
+  constructor(message: string) {
+    super(message);
+    this.name = "DetentionNotFoundError";
+  }
+}
+
 export type SessionSummary = {
   id: string;
   startsAt: Date;
@@ -506,6 +522,125 @@ export async function createSession(args: {
     },
     select: { id: true },
   });
+}
+
+/**
+ * Move a sitting, or change who is standing at the front of it.
+ *
+ * A school books Friday detention into the hall in week two. In week five the
+ * hall is wanted for prize-giving, the teacher supervising it is away, and the
+ * whole thing has to become Monday. None of that was possible: the date, the
+ * room and the supervisor were settled at the moment the sitting was created
+ * and nothing in the product could reach them again, so a school's only way out
+ * was to schedule a second sitting beside the first and leave everybody named
+ * on a register that would never be taken.
+ *
+ * The room and the supervisor arrive as ids in a request body, so both are
+ * resolved against the caller's own company before either is written —
+ * otherwise a school could book another school's room, and the register would
+ * print a stranger as the person in charge of its pupils.
+ */
+export async function updateSession(args: {
+  companyId: string;
+  sessionId: string;
+  startsAt?: Date;
+  endsAt?: Date;
+  roomId?: string | null;
+  supervisorTeacherProfileId?: string | null;
+  label?: string | null;
+}) {
+  const existing = await prisma.schoolDetentionSession.findFirst({
+    where: { id: args.sessionId, companyId: args.companyId },
+    select: { id: true, startsAt: true, endsAt: true },
+  });
+  if (!existing) throw new DetentionNotFoundError("That detention session is not this school's.");
+
+  // Measured against what the sitting will be, not against what was sent. A
+  // correction that moves only the end time has to be checked against the start
+  // time already stored, or 14:00–15:00 could be given an end of 13:30 by a
+  // request that never mentioned the start.
+  const startsAt = args.startsAt ?? existing.startsAt;
+  const endsAt = args.endsAt ?? existing.endsAt;
+  if (endsAt <= startsAt) throw new DetentionError("A session has to end after it starts.");
+
+  const [room, supervisor] = await Promise.all([
+    args.roomId
+      ? prisma.schoolRoom.findFirst({
+          where: { id: args.roomId, companyId: args.companyId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    args.supervisorTeacherProfileId
+      ? prisma.schoolTeacherProfile.findFirst({
+          where: { id: args.supervisorTeacherProfileId, companyId: args.companyId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  if (args.roomId && !room) throw new DetentionError("That room is not this school's.");
+  if (args.supervisorTeacherProfileId && !supervisor) {
+    throw new DetentionError("That teacher is not on this school's staff.");
+  }
+
+  return prisma.schoolDetentionSession.update({
+    where: { id: existing.id },
+    data: {
+      ...(args.startsAt !== undefined ? { startsAt: args.startsAt } : {}),
+      ...(args.endsAt !== undefined ? { endsAt: args.endsAt } : {}),
+      // An explicit `null` gives the room back and takes the supervisor's name
+      // off; a field nobody mentioned is left where it was. Collapsing the two
+      // would mean a school could name a supervisor and never unname one, and
+      // would rub out the room every time somebody corrected the label.
+      ...(args.roomId !== undefined ? { roomId: args.roomId } : {}),
+      ...(args.supervisorTeacherProfileId !== undefined
+        ? { supervisorTeacherProfileId: args.supervisorTeacherProfileId }
+        : {}),
+      ...(args.label !== undefined ? { label: args.label?.trim() || null } : {}),
+    },
+    select: { id: true },
+  });
+}
+
+/**
+ * Call a sitting off.
+ *
+ * `SchoolDetentionSession` carries no cancelled state, and this does not invent
+ * one in a column that does not exist. So the rule is the one the rows
+ * themselves decide:
+ *
+ *   - **nobody named: it goes.** A sitting in the diary that no pupil owes is a
+ *     booking, not a record. Nothing points at it and deleting it takes no
+ *     meaning away from anything.
+ *   - **anybody named: it stays, and the refusal says how many.** Those pupils
+ *     were told to attend, their awards count this sitting towards what they
+ *     owe, and `Moved to Saturday` on another register is a pointer at this row
+ *     that `onDelete: SetNull` would quietly blank — the badge would degrade to
+ *     `Moved elsewhere` and a supervisor would have no register to go and look
+ *     at. Move the awards to another sitting first; once the last one is off
+ *     it, this becomes the empty case above.
+ *
+ * A session people were moved *into* always holds rows of its own, because
+ * `moveToSession` names the pupil on the sitting they are actually serving. So
+ * the one count below covers the moved-in pointers too.
+ */
+export async function cancelSession(args: { companyId: string; sessionId: string }) {
+  const session = await prisma.schoolDetentionSession.findFirst({
+    where: { id: args.sessionId, companyId: args.companyId },
+    select: { id: true, _count: { select: { attendance: true } } },
+  });
+  if (!session) throw new DetentionNotFoundError("That detention session is not this school's.");
+
+  const named = session._count.attendance;
+  if (named > 0) {
+    throw new DetentionError(
+      named === 1
+        ? "One pupil is named on this session and was told to attend it. Move them to another session first, then this one can be called off."
+        : `${named} pupils are named on this session and were told to attend it. Move them to another session first, then this one can be called off.`,
+    );
+  }
+
+  await prisma.schoolDetentionSession.delete({ where: { id: session.id } });
+  return { id: session.id };
 }
 
 /**

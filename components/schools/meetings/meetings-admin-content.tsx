@@ -24,9 +24,20 @@ import {
   SavingOverlay,
 } from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
+import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { dsConfirm } from "@/components/ui/ds-confirm";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsTerms, fetchTeacherProfiles } from "@/lib/schools/admin-v2";
+import { moveEvening, type MoveEveningInput } from "@/lib/schools/meetings-v2";
 import {
   BookSlotDialog,
   type BookSlotValues,
@@ -91,6 +102,21 @@ import { printEvening } from "@/components/schools/meetings/print-evening";
  * dialog seeded with who is coming — and delete is "Release", which cancels the
  * meeting and puts the ten minutes back on the list as free. Opening slots is
  * how the evening itself is created, and it is the app bar's verb.
+ *
+ * ── Correcting the evening itself ──────────────────────────────────────────
+ *
+ * The evening had no verb of its own. An office that opened Thursday when the
+ * hall was booked Tuesday, or cut ten minutes where the department wanted
+ * fifteen, could only release the slots one at a time and open a second night
+ * beside the first. So the date heading inside a teacher's card — which is
+ * exactly one teacher on one night, which is what an evening is — carries
+ * "Move this evening".
+ *
+ * A night families have booked does not move, and the dialog says so before the
+ * office types anything rather than after it presses save. Nothing in this
+ * product tells a family their appointment has changed; the honest order is
+ * release, ring them, then move. The room is the one field that stays open
+ * under a booking, because correcting it costs nobody their ten minutes.
  */
 
 type Slot = {
@@ -215,6 +241,48 @@ function printEveningLabel(teacherName: string) {
 /** The row a booking dialog is seeded from, and what it is doing to it. */
 type BookingIntent = { slot: Slot; mode: "book" | "edit" };
 
+/**
+ * One teacher on one night — the thing the move dialog edits.
+ *
+ * The slots are taken from the unfiltered schedule rather than the card they
+ * were clicked on. The year-group filter hides other years' bookings, and an
+ * evening moved from what is left on screen would leave those slots behind on
+ * the old night and undercount who is booked.
+ */
+type EveningIntent = {
+  teacherProfileId: string;
+  teacherName: string;
+  night: string;
+  slots: Slot[];
+};
+
+/** The move form, and what the night already says. */
+type MoveEveningForm = {
+  onDate: string;
+  startsAt: string;
+  endsAt: string;
+  minutesEach: number;
+  location: string;
+};
+
+const SLOT_LENGTHS = [5, 10, 15, 20, 30];
+
+/** What the evening is now — the form's starting point and its comparison. */
+function eveningDefaults(intent: EveningIntent): MoveEveningForm {
+  const first = intent.slots[0]!;
+  const last = intent.slots[intent.slots.length - 1]!;
+  const minutes = Math.round(
+    (new Date(first.endsAt).getTime() - new Date(first.startsAt).getTime()) / 60000,
+  );
+  return {
+    onDate: intent.night,
+    startsAt: formatTime(first.startsAt),
+    endsAt: formatTime(last.endsAt),
+    minutesEach: minutes > 0 ? minutes : 10,
+    location: first.location ?? "",
+  };
+}
+
 export function MeetingsAdminContent() {
   const queryClient = useQueryClient();
   const access = useSchoolAccess();
@@ -233,6 +301,7 @@ export function MeetingsAdminContent() {
   const [freedFamily, setFreedFamily] = useState<ReleasedSlot | null>(null);
   const [tellingFamily, setTellingFamily] = useState(false);
   const [booking, setBooking] = useState<BookingIntent | null>(null);
+  const [movingEvening, setMovingEvening] = useState<EveningIntent | null>(null);
   const [sent, setSent] = useState<string | null>(null);
   const [printBlocked, setPrintBlocked] = useState(false);
 
@@ -422,6 +491,31 @@ export function MeetingsAdminContent() {
     },
   });
 
+  /**
+   * Moving a night, and the room-only correction that shares the dialog.
+   *
+   * Only what the office actually changed is sent. An absent field leaves the
+   * evening's own value alone, which is what lets "the hall, not Room 4" be a
+   * change that does not re-cut twelve slots — and what stops a dialog opened
+   * to fix the room from quietly re-opening the night at the times it happened
+   * to read out of the first slot.
+   */
+  const moveNight = useMutation({
+    mutationFn: (input: { intent: EveningIntent; body: MoveEveningInput }) =>
+      moveEvening(input.body),
+    onSuccess: (result, input) => {
+      setMovingEvening(null);
+      setOpenResult(null);
+      setFreedFamily(null);
+      setReleased(
+        result.moved
+          ? `${input.intent.teacherName}'s evening has moved — ${result.created} slot${result.created === 1 ? "" : "s"}, and the old ones are off the parents' portal.`
+          : `${input.intent.teacherName}'s evening on ${formatEvening(input.intent.night)} has a new room.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["schools", "meetings", "admin"] });
+    },
+  });
+
   const release = useMutation({
     mutationFn: (meetingId: string) =>
       fetchJson("/api/v2/schools/meetings", {
@@ -461,6 +555,56 @@ export function MeetingsAdminContent() {
         : null,
     );
     release.mutate(slot.id);
+  };
+
+  /**
+   * The evening as the schedule really holds it, not as the filters left it.
+   *
+   * The night is named to the API by its edges — the instant the first slot
+   * starts and the instant the last one ends — because the day a slot belongs
+   * to is this school's local day and the browser is the only side that knows
+   * which one that is.
+   */
+  const startMove = (teacherProfileId: string, teacherName: string, night: string) => {
+    const nightSlots = allSlots.filter(
+      (slot) =>
+        slot.teacherProfile.id === teacherProfileId &&
+        dayKey(new Date(slot.startsAt)) === night,
+    );
+    if (nightSlots.length === 0) return;
+    setReleased(null);
+    setSent(null);
+    setOpenResult(null);
+    moveNight.reset();
+    setMovingEvening({ teacherProfileId, teacherName, night, slots: nightSlots });
+  };
+
+  const submitMove = (intent: EveningIntent, form: MoveEveningForm) => {
+    const was = eveningDefaults(intent);
+    const windowChanged =
+      form.onDate !== was.onDate ||
+      form.startsAt !== was.startsAt ||
+      form.endsAt !== was.endsAt;
+    const room = form.location.trim();
+
+    moveNight.mutate({
+      intent,
+      body: {
+        teacherProfileId: intent.teacherProfileId,
+        eveningFrom: intent.slots[0]!.startsAt,
+        eveningTo: intent.slots[intent.slots.length - 1]!.endsAt,
+        ...(windowChanged
+          ? {
+              from: new Date(`${form.onDate}T${form.startsAt}`).toISOString(),
+              to: new Date(`${form.onDate}T${form.endsAt}`).toISOString(),
+            }
+          : {}),
+        ...(form.minutesEach !== was.minutesEach ? { minutesEach: form.minutesEach } : {}),
+        // Null is a room being taken off, not a room left alone — the two are
+        // different edits and the route keeps them apart.
+        ...(room !== was.location ? { location: room || null } : {}),
+      },
+    });
   };
 
   const filtersPending = termsQuery.isPending || teachersQuery.isPending;
@@ -782,10 +926,35 @@ export function MeetingsAdminContent() {
                         !previous || dayKey(new Date(previous.startsAt)) !== key;
                       return (
                         <li key={slot.id}>
+                          {/*
+                            The date heading is the only place an evening
+                            exists as one thing — this teacher, this night —
+                            so the verb that corrects the night lives on it
+                            rather than on the card, which can span a week.
+                          */}
                           {newDay ? (
-                            <p className="border-b border-[color:var(--border-subtle)] bg-[color:var(--surface-muted)] px-4 py-2 text-[length:var(--type-caption)] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
-                              {formatDay(key)}
-                            </p>
+                            <div className="flex items-center gap-2 border-b border-[color:var(--border-subtle)] bg-[color:var(--surface-muted)] px-4 py-1.5">
+                              <p className="min-w-0 flex-1 truncate text-[length:var(--type-caption)] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
+                                {formatDay(key)}
+                              </p>
+                              <RecordActions
+                                layout="menu"
+                                resource="schools.students"
+                                label={`Actions for ${group.name}'s ${formatDay(key)} evening`}
+                                verbs={[
+                                  {
+                                    label: "Move this evening",
+                                    action: "book-meeting",
+                                    onSelect: () =>
+                                      startMove(
+                                        slot.teacherProfile.id,
+                                        group.name,
+                                        key,
+                                      ),
+                                  },
+                                ]}
+                              />
+                            </div>
                           ) : null}
                           <div className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3">
                             <span className="w-[8.5rem] shrink-0 font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)] tabular-nums text-[color:var(--text-strong)]">
@@ -983,6 +1152,19 @@ export function MeetingsAdminContent() {
         />
       ) : null}
 
+      {movingEvening ? (
+        <MoveEveningDialog
+          intent={movingEvening}
+          isSubmitting={moveNight.isPending}
+          error={moveNight.error ? getApiErrorMessage(moveNight.error) : null}
+          onClose={() => {
+            setMovingEvening(null);
+            moveNight.reset();
+          }}
+          onSubmit={(form) => submitMove(movingEvening, form)}
+        />
+      ) : null}
+
       {tellingFamily && freedFamily ? (
         <SendNoticeDialog
           open
@@ -1008,6 +1190,208 @@ export function MeetingsAdminContent() {
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Moving one teacher's night, or writing a room onto it.
+ *
+ * The form opens on what the evening already is, so the office correcting a
+ * room can see the times it is not touching and the office moving a night can
+ * see what it is moving from. Only the fields it actually changes are sent.
+ *
+ * A night families have booked locks everything but the room, with the count
+ * above the fields. The route refuses that edit too and for the same reason —
+ * a family holding a slot is not told when it moves, because nothing in this
+ * product writes to them — but a dialog that let the office pick a new Tuesday
+ * and then refused it would have taught them nothing except that the button
+ * does not work. Release the bookings, tell the families, then move the night.
+ */
+function MoveEveningDialog({
+  intent,
+  isSubmitting,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  intent: EveningIntent;
+  isSubmitting: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (form: MoveEveningForm) => void;
+}) {
+  const was = eveningDefaults(intent);
+  const [values, setValues] = useState<MoveEveningForm>(was);
+  const set = (patch: Partial<MoveEveningForm>) =>
+    setValues((current) => ({ ...current, ...patch }));
+
+  const booked = intent.slots.filter((slot) => slot.bookedAt).length;
+  const locked = booked > 0;
+
+  const span =
+    values.onDate && values.startsAt && values.endsAt
+      ? (new Date(`${values.onDate}T${values.endsAt}`).getTime() -
+          new Date(`${values.onDate}T${values.startsAt}`).getTime()) /
+        60000
+      : 0;
+  const count = span > 0 ? Math.floor(span / values.minutesEach) : 0;
+
+  const roomChanged = values.location.trim() !== was.location;
+  const windowChanged =
+    values.onDate !== was.onDate ||
+    values.startsAt !== was.startsAt ||
+    values.endsAt !== was.endsAt ||
+    values.minutesEach !== was.minutesEach;
+  // A room being corrected does not have to justify the window it is not
+  // touching — only a move has to cut into at least one slot.
+  const ready = (roomChanged || windowChanged) && (!windowChanged || count > 0);
+
+  return (
+    <RecordDialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title={`Move ${intent.teacherName}'s evening`}
+      description="Correct the night a parents' evening was opened on, how its window is cut, or the room it is held in."
+      footer={
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <p className="flex-1 text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+            {locked ? (
+              <>
+                Currently <span className="tabular-nums">{intent.slots.length}</span> slot
+                {intent.slots.length === 1 ? "" : "s"} on{" "}
+                {formatEvening(intent.night)}
+              </>
+            ) : windowChanged && count > 0 ? (
+              <>
+                <span className="tabular-nums">{count}</span> slot
+                {count === 1 ? "" : "s"} of{" "}
+                <span className="tabular-nums">{values.minutesEach}</span> minutes,
+                replacing <span className="tabular-nums">{intent.slots.length}</span>
+              </>
+            ) : windowChanged ? (
+              "That window is shorter than one slot"
+            ) : (
+              <>
+                <span className="tabular-nums">{intent.slots.length}</span> free slot
+                {intent.slots.length === 1 ? "" : "s"} on {formatEvening(intent.night)}
+              </>
+            )}
+          </p>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!ready || isSubmitting} onClick={() => onSubmit(values)}>
+            {isSubmitting
+              ? "Saving…"
+              : windowChanged
+                ? "Move the evening"
+                : "Save the room"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {error ? (
+          <Alert tone="danger" title="Could not move the evening">
+            {error}
+          </Alert>
+        ) : null}
+
+        {locked ? (
+          <Alert
+            tone="warn"
+            title={`${booked} of these ${intent.slots.length} slots ${booked === 1 ? "is" : "are"} booked`}
+          >
+            The times cannot move while families hold them — nobody is told
+            automatically, so they would arrive on a night that no longer exists.
+            Release those bookings first and the evening is free to move. The room can
+            be corrected either way.
+          </Alert>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="move-evening-date">Date</Label>
+            <Input
+              id="move-evening-date"
+              type="date"
+              value={values.onDate}
+              disabled={locked}
+              onChange={(event) => set({ onDate: event.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="move-evening-length">Slot length</Label>
+            <Select
+              value={String(values.minutesEach)}
+              disabled={locked}
+              onValueChange={(value) => set({ minutesEach: Number(value) })}
+            >
+              <SelectTrigger id="move-evening-length" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SLOT_LENGTHS.map((value) => (
+                  <SelectItem key={value} value={String(value)}>
+                    {value} minutes
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="move-evening-from">From</Label>
+            <Input
+              id="move-evening-from"
+              type="time"
+              value={values.startsAt}
+              disabled={locked}
+              onChange={(event) => set({ startsAt: event.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="move-evening-to">To</Label>
+            <Input
+              id="move-evening-to"
+              type="time"
+              value={values.endsAt}
+              disabled={locked}
+              onChange={(event) => set({ endsAt: event.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="move-evening-where">Where</Label>
+            <Input
+              id="move-evening-where"
+              value={values.location}
+              placeholder="Room 4, the hall, the science lab"
+              onChange={(event) => set({ location: event.target.value })}
+            />
+            <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+              Shown to families on the slot they booked. Clear it to take the room off
+              the evening.
+            </p>
+          </div>
+        </div>
+
+        {/*
+          Said once, plainly. Moving a night cuts its window again, so the rows
+          are not the rows that were there before — which matters the moment a
+          family books one.
+        */}
+        <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+          Moving the evening takes the old slots off the parents&apos; portal and opens
+          the new window in their place. A family that had not booked yet sees the new
+          times.
+        </p>
+      </div>
+    </RecordDialog>
   );
 }
 

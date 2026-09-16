@@ -15,7 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { HONOUR_KIND_LABELS, addHonour, type HonourKind } from "@/lib/schools/leavers-v2";
+import {
+  HONOUR_KIND_LABELS,
+  addHonour,
+  updateHonour,
+  type HonourKind,
+} from "@/lib/schools/leavers-v2";
 
 /**
  * `Record an honour` — what a pupil won while they were here.
@@ -39,27 +44,44 @@ export function AddHonourDialog({
   onOpenChange,
   onSaved,
   defaultYear,
+  existing,
 }: {
   studentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   defaultYear: number;
+  /**
+   * The honour being corrected, where this is an edit rather than a new one.
+   *
+   * One dialog for both: the fields are identical and a second would be a
+   * second place to fix the day somebody adds a field. The caller remounts it
+   * per open, so these are read once as initial values.
+   */
+  existing?: { id: string; kind: string; year: number; title: string; detail: string | null };
 }) {
-  const [kind, setKind] = useState<HonourKind>("POST");
-  const [year, setYear] = useState(String(defaultYear));
-  const [title, setTitle] = useState("");
-  const [detail, setDetail] = useState("");
+  const [kind, setKind] = useState<HonourKind>((existing?.kind as HonourKind) ?? "POST");
+  const [year, setYear] = useState(String(existing?.year ?? defaultYear));
+  const [title, setTitle] = useState(existing?.title ?? "");
+  const [detail, setDetail] = useState(existing?.detail ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
     mutationFn: () =>
-      addHonour(studentId, {
-        kind,
-        year: Number(year),
-        title: title.trim(),
-        detail: detail.trim() || null,
-      }),
+      existing
+        ? updateHonour(studentId, {
+            honourId: existing.id,
+            kind,
+            year: Number(year),
+            title: title.trim(),
+            detail: detail.trim() || null,
+          })
+        : addHonour(studentId, {
+            kind,
+            year: Number(year),
+            title: title.trim(),
+            detail: detail.trim() || null,
+          }),
     onSuccess: () => {
       setError(null);
       onSaved();
@@ -74,7 +96,7 @@ export function AddHonourDialog({
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Record an honour"
+      title={existing ? "Correct an honour" : "Record an honour"}
       description="A post, colours or a prize. It stays on the pupil's record and prints on their reference."
       size="sm"
       footer={

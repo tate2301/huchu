@@ -529,6 +529,45 @@ export function createDetentionSession(input: {
   });
 }
 
+/**
+ * Move a sitting, or change the room or the supervisor on it.
+ *
+ * Send only what changed. `null` for the room or the supervisor gives the room
+ * back and takes the name off — which the register then draws in red as
+ * `Not yet supervised` — and leaving a field out means the sitting keeps what
+ * it has. The two are not the same request and the route does not treat them
+ * as one.
+ */
+export function updateDetentionSession(
+  sessionId: string,
+  input: {
+    startsAt?: string;
+    endsAt?: string;
+    roomId?: string | null;
+    supervisorTeacherProfileId?: string | null;
+    label?: string | null;
+  },
+) {
+  return fetchJson<{ id: string }>(
+    `/api/v2/schools/conduct/detention/sessions/${sessionId}`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+/**
+ * Call a sitting off.
+ *
+ * Refuses with a 409 while anybody is still named on it, and the message counts
+ * them: those pupils were told to attend, and a sitting cannot be taken out
+ * from under them. Move the awards to another session and this goes through.
+ */
+export function cancelDetentionSession(sessionId: string) {
+  return fetchJson<{ id: string }>(
+    `/api/v2/schools/conduct/detention/sessions/${sessionId}`,
+    { method: "DELETE" },
+  );
+}
+
 export function awardDetention(input: {
   studentId: string;
   incidentId?: string | null;

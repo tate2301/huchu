@@ -1070,7 +1070,9 @@ export async function alumnusRecord(args: { companyId: string; alumnusId: string
     alumnus.studentId
       ? prisma.schoolStudentHonour.findMany({
           where: { companyId: args.companyId, studentId: alumnus.studentId },
-          select: { id: true, kind: true, year: true, title: true },
+          // `detail` too, so the record can offer an edit that opens on what
+          // is actually there rather than on a blank field.
+          select: { id: true, kind: true, year: true, title: true, detail: true },
           orderBy: { year: "asc" },
         })
       : Promise.resolve([]),

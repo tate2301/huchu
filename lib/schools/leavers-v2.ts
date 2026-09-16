@@ -285,7 +285,7 @@ export type AlumnusRecord = {
     examSubject: { name: string; level: string };
     series: { name: string; level: string };
   }>;
-  honours: Array<{ id: string; kind: string; year: number; title: string }>;
+  honours: Array<{ id: string; kind: string; year: number; title: string; detail: string | null }>;
   conduct: { incidents: number; merits: number; summary: string };
 };
 
@@ -349,5 +349,36 @@ export function addHonour(
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+/** Correct one — a prize list is transcribed from a handwritten sheet. */
+export function updateHonour(
+  studentId: string,
+  input: {
+    honourId: string;
+    kind?: HonourKind;
+    year?: number;
+    title?: string;
+    detail?: string | null;
+  },
+) {
+  return fetchJson<{ id: string }>(`/api/v2/schools/students/${studentId}/honours`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Take one off the record.
+ *
+ * A real delete, which the module's setup tables deliberately are not: nothing
+ * points at an honour, so one recorded against the wrong pupil is a slip rather
+ * than history, and leaving it on their reference is worse than removing it.
+ */
+export function removeHonour(studentId: string, honourId: string) {
+  return fetchJson<{ honourId: string }>(
+    `/api/v2/schools/students/${studentId}/honours?honourId=${encodeURIComponent(honourId)}`,
+    { method: "DELETE" },
+  );
 }
 

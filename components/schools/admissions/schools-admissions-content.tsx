@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
 import { RecordCell } from "@/components/records/record-table";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { PersonCell } from "@/components/schools/common/identity-cell";
+import { RecordActions } from "@/components/schools/common/record-actions";
+import { EnrollmentCorrectionDialog } from "@/components/schools/admissions/enrollment-correction-dialog";
 import {
   activeFilterCount,
   FilterSelect,
@@ -16,6 +18,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/records/states";
@@ -24,6 +27,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";
 import {
+  deleteSchoolsEnrollment,
   fetchSchoolsClasses,
   fetchSchoolsEnrollments,
   fetchSchoolsTerms,
@@ -58,6 +62,11 @@ export function SchoolsAdmissionsContent() {
   const [classFilter, setClassFilter] = useState("");
   const [termFilter, setTermFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  /** The enrolment being corrected. Null while the dialog is shut. */
+  const [editing, setEditing] = useState<SchoolsEnrollmentRecord | null>(null);
+  const [saveError, setSaveError] = useState<unknown>(null);
+
+  const queryClient = useQueryClient();
 
   const classesQuery = useQuery({
     queryKey: ["schools", "grades"],
@@ -97,6 +106,24 @@ export function SchoolsAdmissionsContent() {
   );
   const total = enrollmentsQuery.data?.pagination.total ?? enrollments.length;
 
+  /*
+    A correction moves a pupil, so it cannot only refresh this list. An active
+    enrolment in the open term also carries the pupil's current class and form
+    room on their own record, which the register, the class lists and the pupil
+    page all read — so the whole module is refetched rather than this screen
+    pretending nothing else changed.
+  */
+  const refresh = () => {
+    setSaveError(null);
+    void queryClient.invalidateQueries({ queryKey: ["schools"] });
+  };
+
+  const removeEnrollment = useMutation({
+    mutationFn: (id: string) => deleteSchoolsEnrollment(id),
+    onSuccess: refresh,
+    onError: (error) => setSaveError(error),
+  });
+
   const namedFilters = [
     classes.find((row) => row.id === classFilter)?.name,
     terms.find((row) => row.id === termFilter)?.name,
@@ -109,6 +136,54 @@ export function SchoolsAdmissionsContent() {
     setTermFilter("");
     setStatusFilter("");
   }
+
+  /*
+    The two verbs an enrolment needs, and they are not the same act.
+
+    "Correct it" is for a row that is right about the pupil and wrong about
+    where they sit. "Remove it" is for a row that should not exist at all —
+    an enrolment stamped with the term that happened to be open when the
+    application was taken. It has to be a delete rather than a status, because
+    one pupil may hold one enrolment per term and the wrong row stands in the
+    way of the right one. Both are `edit` on admissions, which is the registrar
+    and the head: the people who keep the roll.
+  */
+  const enrollmentVerbs = useCallback(
+    (row: SchoolsEnrollmentRecord) => {
+      const pupil = `${row.student.firstName} ${row.student.lastName}`;
+      return (
+        <RecordActions
+          layout="menu"
+          label={`Row actions for ${pupil}`}
+          resource="schools.admissions"
+          verbs={[
+            {
+              label: "Correct it",
+              action: "edit",
+              onSelect: () => {
+                setSaveError(null);
+                setEditing(row);
+              },
+            },
+            {
+              label: "Remove it",
+              action: "edit",
+              tone: "danger",
+              loading: removeEnrollment.isPending,
+              confirm: {
+                title: `Remove ${pupil}'s enrolment in ${row.term.name}?`,
+                description:
+                  "For a row that should never have been written — a pupil may hold one enrolment per term, so a wrong term stands in the way of the right one. Somebody who actually left the school is Withdrawn instead. It is refused if the term already carries a register mark or a result for them.",
+                confirmLabel: "Remove it",
+              },
+              onSelect: () => removeEnrollment.mutate(row.id),
+            },
+          ]}
+        />
+      );
+    },
+    [removeEnrollment],
+  );
 
   const columns = useMemo<ColumnDef<SchoolsEnrollmentRecord>[]>(
     () => [
@@ -168,8 +243,16 @@ export function SchoolsAdmissionsContent() {
             <span className="text-sm text-[var(--text-muted)]">Still enrolled</span>
           ),
       },
+      {
+        id: "actions",
+        header: "",
+        size: 44,
+        cell: ({ row }) => enrollmentVerbs(row.original),
+      },
     ],
-    [],
+    // `enrollmentVerbs` closes over the delete mutation, so the columns are
+    // rebuilt while one is in flight — which is what greys the menu item out.
+    [enrollmentVerbs],
   );
 
   if (enrollmentsQuery.error) {
@@ -200,6 +283,8 @@ export function SchoolsAdmissionsContent() {
           }}
         />
       ) : null}
+
+      {saveError ? <SaveError what="The enrolment" error={saveError} /> : null}
 
       {/* One row over the table, and the four hand-built tiles that used to
           sit between them are gone. "Enrollments 214 / Active 198 / …" was the
@@ -258,23 +343,25 @@ export function SchoolsAdmissionsContent() {
           reflow twice as the rows landed.
         */
         <TableRowsSkeleton
-          headers={["Pupil", "Class", "Status", "Enrolled", "Ended"]}
+          headers={["Pupil", "Class", "Status", "Enrolled", "Ended", ""]}
           columns={[
             { avatar: true, twoLine: true },
             {},
             { width: 100, badge: true },
             { width: 110, align: "right" },
             { width: 110, align: "right" },
+            { width: 44 },
           ]}
           rows={8}
         />
       ) : (
         /*
-          This screen only reads — an enrolment is written from the pipeline
-          when an accepted applicant goes on the roll, and corrected there. The
-          dim is still the right interlock while a filter change is in flight:
-          rows from the old filter under the new one's controls are rows
-          somebody will read as the answer to a question they did not ask.
+          An enrolment is written from the pipeline, when an accepted applicant
+          goes on the roll — and put right here, which is where the school looks
+          at the roll. The dim is still the right interlock while a filter
+          change is in flight: rows from the old filter under the new one's
+          controls are rows somebody will read as the answer to a question they
+          did not ask.
         */
         <SavingOverlay
           saving={enrollmentsQuery.isFetching}
@@ -292,13 +379,19 @@ export function SchoolsAdmissionsContent() {
               // half of them. The same facts, stacked, in the order the table
               // reads them.
               <div className="space-y-1.5">
-                <PersonCell
-                  firstName={row.student.firstName}
-                  lastName={row.student.lastName}
-                  href={recordType("STUDENT").href(row.student.id)}
-                  reference={row.student.studentNo}
-                  context={row.term.name}
-                />
+                <div className="flex items-start justify-between gap-2">
+                  <PersonCell
+                    firstName={row.student.firstName}
+                    lastName={row.student.lastName}
+                    href={recordType("STUDENT").href(row.student.id)}
+                    reference={row.student.studentNo}
+                    context={row.term.name}
+                  />
+                  {/* The verbs come with the card. A correction that can only be
+                      reached on a desktop is one the office cannot make from the
+                      hall on registration morning. */}
+                  {enrollmentVerbs(row)}
+                </div>
                 <div className="flex flex-wrap items-center gap-2 pl-[2.125rem]">
                   {statusBadge(row.status)}
                   <span className="text-sm text-[var(--text-muted)]">
@@ -329,6 +422,24 @@ export function SchoolsAdmissionsContent() {
           />
         </SavingOverlay>
       )}
+
+      {/* Keyed on the row, so opening it on a second pupil starts from that
+          pupil's term and class rather than the last one's. */}
+      <EnrollmentCorrectionDialog
+        key={editing?.id ?? "none"}
+        enrollment={editing}
+        terms={terms}
+        classes={classes}
+        open={editing !== null}
+        onOpenChange={(next) => {
+          if (!next) setEditing(null);
+        }}
+        onSaved={() => {
+          setEditing(null);
+          refresh();
+        }}
+        onError={(error) => setSaveError(error)}
+      />
     </div>
   );
 }

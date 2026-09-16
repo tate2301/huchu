@@ -19,7 +19,7 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
-import { CreateButton } from "@/components/schools/common/record-actions";
+import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { DataTable } from "@/components/ui/data-table";
 import { Certificate, Printer } from "@/lib/icons";
@@ -33,6 +33,7 @@ import {
 } from "@/lib/schools/exams-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import { NewSeriesDialog } from "@/components/schools/exams/new-series-dialog";
+import { EditSeriesDialog } from "@/components/schools/exams/edit-series-dialog";
 
 /**
  * Exam series — the index.
@@ -104,6 +105,9 @@ export function ExamSeriesContent() {
   const [levelFilter, setLevelFilter] = useState("");
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
+  // The series being corrected. Its id is the dialog's identity, so the row
+  // menu opens it and nothing else has to be held in step.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const indexQuery = useQuery({
@@ -253,10 +257,14 @@ export function ExamSeriesContent() {
         header: () => <span className="sr-only">Row actions</span>,
         // Which verb a row carries follows its standing: a series still taking
         // entries opens its candidate roll, one with grades opens its results.
+        //
+        // `Correct the series` sits behind the menu rather than on the row
+        // because it is the rarer act — but it is the only way a board that
+        // moved its deadline, or a date typed a month out, ever gets fixed.
         cell: ({ row }) => {
           const open = row.original.status === "ENTRIES_OPEN" || row.original.status === "PLANNED";
           return (
-            <div className="flex justify-end">
+            <div className="flex items-center justify-end gap-1">
               <Button
                 asChild
                 size="sm"
@@ -272,6 +280,18 @@ export function ExamSeriesContent() {
                   {open ? "Open" : "Results"}
                 </Link>
               </Button>
+              <RecordActions
+                resource="schools.exams"
+                layout="menu"
+                label={`Row actions for ${row.original.board.name} ${row.original.name}`}
+                verbs={[
+                  {
+                    label: "Correct the series",
+                    action: "create",
+                    onSelect: () => setEditingId(row.original.id),
+                  },
+                ]}
+              />
             </div>
           );
         },
@@ -526,6 +546,21 @@ export function ExamSeriesContent() {
         onSaved={() => {
           setNewOpen(false);
           setSaveError(null);
+          void queryClient.invalidateQueries({ queryKey: ["schools", "exams"] });
+        }}
+      />
+
+      <EditSeriesDialog
+        seriesId={editingId}
+        onOpenChange={(next) => {
+          if (!next) setEditingId(null);
+        }}
+        onError={setSaveError}
+        onSaved={() => {
+          setEditingId(null);
+          setSaveError(null);
+          // The whole exams tree: a moved deadline changes the alert, the
+          // countdown table and every days-away figure on the page at once.
           void queryClient.invalidateQueries({ queryKey: ["schools", "exams"] });
         }}
       />

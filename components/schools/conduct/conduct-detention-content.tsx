@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, MobileList } from "@corelithzw/react";
 
+import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordCell } from "@/components/records/record-table";
 import { RecordMark } from "@/components/records/record-mark";
@@ -25,13 +26,25 @@ import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import { DataTable } from "@/components/ui/data-table";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Home, LocalShipping, Printer } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 import {
+  cancelDetentionSession,
   fetchDetentionRegister,
   fetchDetentionSessions,
   markDetention,
+  updateDetentionSession,
+  type DetentionSession,
   type RegisterRow,
 } from "@/lib/schools/conduct-v2";
 import { formatSchoolDate, formatSchoolDayTime } from "@/lib/schools/format";
@@ -76,6 +89,192 @@ function GetsHomeCell({ row }: { row: RegisterRow }) {
   return <span className="text-sm text-[color:var(--text-muted)]">Day</span>;
 }
 
+type Room = { id: string; code: string; name: string };
+type Teacher = {
+  id: string;
+  employeeCode: string;
+  user: { name: string | null; email: string } | null;
+};
+
+/**
+ * Radix will not take an empty string as an option value, and "nobody yet" is a
+ * real answer on both of these pickers rather than the absence of one.
+ */
+const NOT_SET = "__not-set__";
+
+function toLocalInput(iso: string) {
+  const date = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Move a sitting.
+ *
+ * The hall is wanted for prize-giving, the supervisor is away, or 14:00 was
+ * typed for a session that starts at 15:00. All three used to mean scheduling a
+ * second sitting and abandoning the first with the pupils still named on it.
+ *
+ * Only what the deputy head actually changed is sent. Leaving the room on
+ * `No room yet` when it was already empty must not be the same request as
+ * taking a booked room back, or a school correcting the label would hand the
+ * hall over by accident.
+ */
+function MoveSessionDialog({
+  session,
+  onClose,
+  onSaved,
+}: {
+  session: DetentionSession;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const wasStartsAt = toLocalInput(session.startsAt);
+  const wasEndsAt = toLocalInput(session.endsAt);
+  const wasRoomId = session.room?.id ?? "";
+  const wasSupervisorId = session.supervisor?.id ?? "";
+  const wasLabel = session.label ?? "";
+
+  const [startsAt, setStartsAt] = useState(wasStartsAt);
+  const [endsAt, setEndsAt] = useState(wasEndsAt);
+  const [roomId, setRoomId] = useState(wasRoomId);
+  const [supervisorId, setSupervisorId] = useState(wasSupervisorId);
+  const [label, setLabel] = useState(wasLabel);
+  const [error, setError] = useState<string | null>(null);
+
+  const roomsQuery = useQuery({
+    queryKey: ["schools", "rooms"],
+    queryFn: () => fetchJson<{ data: Room[] }>("/api/v2/schools/rooms?limit=200"),
+  });
+
+  const teachersQuery = useQuery({
+    queryKey: ["schools", "teachers", "picker"],
+    queryFn: () => fetchJson<{ data: Teacher[] }>("/api/v2/schools/teachers?limit=200"),
+  });
+
+  const save = useMutation({
+    mutationFn: () => {
+      const patch: Parameters<typeof updateDetentionSession>[1] = {};
+      if (startsAt !== wasStartsAt) patch.startsAt = new Date(startsAt).toISOString();
+      if (endsAt !== wasEndsAt) patch.endsAt = new Date(endsAt).toISOString();
+      if (roomId !== wasRoomId) patch.roomId = roomId || null;
+      if (supervisorId !== wasSupervisorId) {
+        patch.supervisorTeacherProfileId = supervisorId || null;
+      }
+      if (label.trim() !== wasLabel) patch.label = label.trim() || null;
+      return updateDetentionSession(session.id, patch);
+    },
+    onSuccess: () => {
+      setError(null);
+      onSaved();
+    },
+    onError: (mutationError) => setError(getApiErrorMessage(mutationError)),
+  });
+
+  const canSubmit = Boolean(startsAt && endsAt);
+
+  return (
+    <RecordDialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title="Move this session"
+      description="The time, the room and who is standing at the front. Everybody named on it stays named on it."
+      size="md"
+      errors={error ? [error] : undefined}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSubmit && !save.isPending) save.mutate();
+      }}
+      footer={
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={save.isPending}>
+            Leave it
+          </Button>
+          <Button type="submit" variant="primary" disabled={!canSubmit || save.isPending}>
+            {save.isPending ? "Saving…" : "Save the change"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="move-session-starts">Starts</Label>
+          <Input
+            id="move-session-starts"
+            type="datetime-local"
+            value={startsAt}
+            onChange={(event) => setStartsAt(event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="move-session-ends">Ends</Label>
+          <Input
+            id="move-session-ends"
+            type="datetime-local"
+            value={endsAt}
+            onChange={(event) => setEndsAt(event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="move-session-room">Room</Label>
+          <Select
+            value={roomId || NOT_SET}
+            onValueChange={(next) => setRoomId(next === NOT_SET ? "" : next)}
+          >
+            <SelectTrigger id="move-session-room">
+              <SelectValue placeholder="Pick a room" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NOT_SET}>No room yet</SelectItem>
+              {(roomsQuery.data?.data ?? []).map((room) => (
+                <SelectItem key={room.id} value={room.id}>
+                  {room.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="move-session-supervisor">Supervised by</Label>
+          <Select
+            value={supervisorId || NOT_SET}
+            onValueChange={(next) => setSupervisorId(next === NOT_SET ? "" : next)}
+          >
+            <SelectTrigger id="move-session-supervisor">
+              <SelectValue placeholder="Not yet supervised" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NOT_SET}>Not yet supervised</SelectItem>
+              {(teachersQuery.data?.data ?? []).map((teacher) => (
+                <SelectItem key={teacher.id} value={teacher.id}>
+                  {teacher.user?.name ?? teacher.user?.email ?? teacher.employeeCode}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-[color:var(--text-muted)]">
+            Take the name off and the session goes back to showing as needing a supervisor,
+            in red, until somebody else is named.
+          </p>
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="move-session-label">What the school calls it</Label>
+          <Input
+            id="move-session-label"
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder="Friday detention"
+          />
+        </div>
+      </div>
+    </RecordDialog>
+  );
+}
+
 export function ConductDetentionContent() {
   const queryClient = useQueryClient();
   const [sessionId, setSessionId] = useState("");
@@ -91,7 +290,12 @@ export function ConductDetentionContent() {
   });
   const [onlyTwo, setOnlyTwo] = useState<string[] | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  // The sitting being corrected, held as the row it was opened from. Separate
+  // from `actionError` below: a refused mark and a refused cancellation are
+  // read in different halves of the page.
+  const [editing, setEditing] = useState<DetentionSession | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   const sessionsQuery = useQuery({
     queryKey: ["schools", "conduct", "detention", "sessions"],
@@ -130,6 +334,19 @@ export function ConductDetentionContent() {
       invalidate();
     },
     onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
+  const cancelSitting = useMutation({
+    mutationFn: (id: string) => cancelDetentionSession(id),
+    onSuccess: (_result, id) => {
+      setSessionError(null);
+      // The filter cannot go on naming a session that is no longer in the
+      // diary — left pointing at it the register underneath would ask for a
+      // sitting the school has just called off.
+      if (sessionId === id) setSessionId("");
+      invalidate();
+    },
+    onError: (error) => setSessionError(getApiErrorMessage(error)),
   });
 
   const register = registerQuery.data;
@@ -669,6 +886,10 @@ export function ConductDetentionContent() {
                 Schedule a session
               </Button>
             </div>
+            {/* Why a session could not be moved or called off — above the table
+                it is about, and carrying the count of who is named on it, which
+                is the number that decides what the reader does next. */}
+            {sessionError ? <Alert tone="danger" title={sessionError} /> : null}
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-[color:var(--text-muted)]">
@@ -678,6 +899,9 @@ export function ConductDetentionContent() {
                   <th className="w-[80px] py-1 text-right font-normal">Named</th>
                   <th className="w-[190px] py-1 text-right font-normal">
                     <span className="sr-only">Standing</span>
+                  </th>
+                  <th className="w-[44px] py-1 text-right font-normal">
+                    <span className="sr-only">Row actions</span>
                   </th>
                 </tr>
               </thead>
@@ -705,6 +929,47 @@ export function ConductDetentionContent() {
                         <Badge tone="warn">Moved here from another session</Badge>
                       ) : null}
                     </td>
+                    <td className="py-1.5 text-right">
+                      {/* The verbs the sitting itself takes. `Call it off` is
+                          disabled with the count on it while anybody is named,
+                          rather than offered and then refused by the API — the
+                          answer is already in the row. */}
+                      <RecordActions
+                        layout="menu"
+                        size="sm"
+                        label={`Row actions for ${formatSchoolDayTime(session.startsAt)}`}
+                        resource="schools.conduct"
+                        verbs={[
+                          {
+                            label: "Move it",
+                            action: "create",
+                            onSelect: () => {
+                              setSessionError(null);
+                              setEditing(session);
+                            },
+                          },
+                          {
+                            label: "Call it off",
+                            action: "create",
+                            tone: "danger",
+                            loading: cancelSitting.isPending,
+                            unavailable:
+                              session.named > 0
+                                ? `${session.named} ${
+                                    session.named === 1 ? "pupil is" : "pupils are"
+                                  } named on it. Move them to another session first.`
+                                : undefined,
+                            confirm: {
+                              title: "Call this session off",
+                              description:
+                                "Nobody is named on it, so it comes out of the diary. Scheduling another is a minute's work.",
+                              confirmLabel: "Call it off",
+                            },
+                            onSelect: () => cancelSitting.mutate(session.id),
+                          },
+                        ]}
+                      />
+                    </td>
                   </tr>
                 ))}
                 {sessions.length > 0 ? (
@@ -715,6 +980,7 @@ export function ConductDetentionContent() {
                     <td className="py-1.5 text-right font-mono text-xs font-bold">
                       {sessions.reduce((total, session) => total + session.named, 0)}
                     </td>
+                    <td />
                     <td />
                   </tr>
                 ) : null}
@@ -732,6 +998,22 @@ export function ConductDetentionContent() {
           invalidate();
         }}
       />
+
+      {/* Mounted on the row it was opened from and keyed by it, so the fields
+          start on what that sitting actually says rather than on whatever the
+          last one opened said. */}
+      {editing ? (
+        <MoveSessionDialog
+          key={editing.id}
+          session={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            setSessionError(null);
+            invalidate();
+          }}
+        />
+      ) : null}
     </SchoolsPage>
   );
 }

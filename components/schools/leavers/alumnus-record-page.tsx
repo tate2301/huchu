@@ -19,6 +19,7 @@ import {
   DESTINATION_LABELS,
   addAlumniUpdate,
   fetchAlumnus,
+  removeHonour,
 } from "@/lib/schools/leavers-v2";
 import { formatSchoolDate } from "@/lib/schools/format";
 import { AddHonourDialog } from "@/components/schools/leavers/add-honour-dialog";
@@ -41,11 +42,28 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [honourOpen, setHonourOpen] = useState(false);
+  /** The honour being corrected. Null means the dialog is closed. */
+  const [editingHonour, setEditingHonour] = useState<{
+    id: string;
+    kind: string;
+    year: number;
+    title: string;
+    detail: string | null;
+  } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["schools", "alumni", alumnusId],
     queryFn: () => fetchAlumnus(alumnusId),
+  });
+
+  const removeHonourMutation = useMutation({
+    mutationFn: (honourId: string) => removeHonour(alumnus?.studentId ?? "", honourId),
+    onSuccess: () => {
+      setActionError(null);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "alumni"] });
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
   const add = useMutation({
@@ -187,10 +205,14 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
           },
           {
             label: "Prizes and colours",
+            // The count only. The list itself is a section below, because a
+            // joined sentence has no row to hang a correction on — which is
+            // why `PATCH` and `DELETE` on an honour had nowhere to be called
+            // from and were left unbuilt.
             value:
               honours.length === 0
                 ? "None recorded"
-                : honours.map((honour) => `${honour.year} ${honour.title}`).join(" · "),
+                : `${honours.length} recorded`,
           },
         ].map((property) => (
           <div key={property.label} className="flex gap-4 py-2">
@@ -201,6 +223,79 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
           </div>
         ))}
       </dl>
+
+      {/*
+        Prizes and colours, as rows rather than a sentence.
+
+        They were a joined string in the property list — "2019 Head of House ·
+        2019 Full colours" — which reads well and cannot be corrected, because
+        there is nothing to click. A prize list is transcribed off a handwritten
+        sheet at speech day and then copied into a reference years later, so a
+        wrong year matters and somebody has to be able to fix it.
+      */}
+      {alumnus.studentId ? (
+        <section className="space-y-2">
+          <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
+            <span className="text-sm font-semibold text-[color:var(--text-strong)]">
+              Prizes and colours
+            </span>
+            <span className="text-xs text-[color:var(--text-muted)]">
+              {honours.length} {honours.length === 1 ? "recorded" : "recorded"}
+            </span>
+          </h2>
+          {honours.length === 0 ? (
+            <p className="py-3 text-sm text-[color:var(--text-muted)]">
+              Nothing recorded. Head girl, head of house, full colours, a subject prize — this
+              is what a leaving reference is written from.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <tbody>
+                {honours.map((honour) => (
+                  <tr key={honour.id} className="border-b border-[color:var(--border-subtle)]">
+                    <td className="w-[70px] py-2 font-mono text-xs">{honour.year}</td>
+                    <td className="py-2">
+                      {honour.title}
+                      {honour.detail ? (
+                        <span className="block text-xs text-[color:var(--text-muted)]">
+                          {honour.detail}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="w-[44px] py-2">
+                      <RecordActions
+                        layout="menu"
+                        label={`Row actions for ${honour.title}`}
+                        resource="schools.students"
+                        verbs={[
+                          {
+                            label: "Correct it",
+                            action: "edit",
+                            onSelect: () => setEditingHonour(honour),
+                          },
+                          {
+                            label: "Take it off",
+                            action: "edit",
+                            tone: "danger",
+                            loading: removeHonourMutation.isPending,
+                            confirm: {
+                              title: `Take ${honour.title} off the record?`,
+                              description:
+                                "It stops appearing on this alumnus and in anything written from their record. Nothing else points at it.",
+                              confirmLabel: "Take it off",
+                            },
+                            onSelect: () => removeHonourMutation.mutate(honour.id),
+                          },
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="space-y-2">
@@ -305,6 +400,25 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
         isSaving={add.isPending}
         onSubmit={(values) => add.mutate(values)}
       />
+
+      {alumnus.studentId && editingHonour ? (
+        <AddHonourDialog
+          // Keyed on the honour, so correcting a second one opens on ITS values
+          // rather than the one before it.
+          key={editingHonour.id}
+          studentId={alumnus.studentId}
+          open
+          existing={editingHonour}
+          onOpenChange={(next) => {
+            if (!next) setEditingHonour(null);
+          }}
+          defaultYear={alumnus.classOf}
+          onSaved={() => {
+            setEditingHonour(null);
+            void queryClient.invalidateQueries({ queryKey: ["schools", "alumni"] });
+          }}
+        />
+      ) : null}
 
       {alumnus.studentId ? (
         <AddHonourDialog
