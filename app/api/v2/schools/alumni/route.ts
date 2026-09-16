@@ -106,9 +106,29 @@ export async function POST(request: NextRequest) {
     if (denied) return errorResponse(denied, 403);
 
     const body = createSchema.parse(await request.json());
+    const companyId = session.user.companyId;
+
+    /*
+      A `studentId` in a request body is a claim, not a fact.
+
+      `SchoolAlumnus.studentId` is globally unique, so writing an unchecked one
+      both links this school's alumnus to another school's pupil and burns that
+      pupil's only alumnus slot — the other school can then never add them to
+      its own register, and nothing on either side explains why.
+    */
+    if (body.studentId) {
+      const pupil = await prisma.schoolStudent.findFirst({
+        where: { id: body.studentId, companyId },
+        select: { id: true },
+      });
+      if (!pupil) {
+        return errorResponse("That pupil is not on this school's roll.", 404);
+      }
+    }
+
     const alumnus = await prisma.schoolAlumnus.create({
       data: {
-        companyId: session.user.companyId,
+        companyId,
         studentId: body.studentId ?? null,
         firstName: body.firstName,
         lastName: body.lastName,

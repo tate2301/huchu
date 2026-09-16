@@ -13,7 +13,6 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/records/states";
-import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
@@ -35,18 +34,21 @@ import { ExamSeriesTabs } from "@/components/schools/exams/exam-series-tabs";
  * Subject entries, and what they cost.
  *
  * The fee is per subject: ten subjects entered is ten fees, which is why
- * `Total fee` is a column beside `Entries` rather than a figure in the band.
+ * `Total fee` is a column beside `Entries` rather than a figure floated above
+ * the table. The series totals — entries, fees billed, fees paid, what is still
+ * to invoice — are the last row of the by-subject table, each sitting under the
+ * column it totals, where a bursar can read it against the line above it.
  *
  * ## `Build the entry file` is not a submission
  *
  * `SCH-DEP-02` defers direct submission to the exam authority pending external
  * dependency and policy review, and the expansion plan re-confirms it. This
- * screen produces a file and **a human uploads it**. That is why the verb is a
- * band ghost rather than a primary action, why what it leaves behind is a
- * record of what was built rather than a receipt, and why nothing here may grow
- * a board integration. It is the first thing somebody will try to add and the
- * first thing a salesperson will promise; neither is allowed until the
- * dependency is lifted.
+ * screen produces a file and **a human uploads it**. That is why the verb
+ * confirms before it runs and says so in the confirmation, why what it leaves
+ * behind is a record of what was built rather than a receipt, and why nothing
+ * here may grow a board integration. It is the first thing somebody will try to
+ * add and the first thing a salesperson will promise; neither is allowed until
+ * the dependency is lifted.
  */
 
 type Segment = "subject" | "candidate";
@@ -108,65 +110,18 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
   const outside = [...(rule?.below ?? []), ...(rule?.over ?? [])];
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Entries", value: page?.totals.entries ?? "—" },
-            {
-              label: "Still to invoice",
-              value: page ? formatSchoolMoney(page.totals.toInvoice) : "—",
-              tone: Number(page?.totals.toInvoice ?? 0) > 0 ? "warn" : "success",
-            },
-            {
-              label: "Below the minimum",
-              value: rule?.below.length ?? "—",
-              tone: (rule?.below.length ?? 0) > 0 ? "danger" : "neutral",
-            },
-            {
-              label: "Over the maximum",
-              value: rule?.over.length ?? "—",
-              tone: (rule?.over.length ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              label: "Entry file built",
-              value: seriesQuery.data?.lastEntryFile
-                ? formatSchoolDayTime(seriesQuery.data.lastEntryFile.builtAt)
-                : "Not yet",
-              tone: seriesQuery.data?.lastEntryFile ? "success" : "neutral",
-            },
-          ]}
-          actions={
-            <RecordActions
-              layout="inline"
-              size="sm"
-              resource="schools.exams"
-              verbs={[
-                {
-                  label: "Build the entry file",
-                  action: "enter",
-                  loading: build.isPending,
-                  confirm: {
-                    title: "Build the entry file",
-                    description:
-                      "It writes a file of every entry on this series and downloads it to you. Nothing is sent to the board — submission is manual, and this is the record of what you built.",
-                    confirmLabel: "Build it",
-                  },
-                  onSelect: () => build.mutate(),
-                },
-              ]}
-            />
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Subject entries" backHref="/schools/exams" backLabel="Exam series">
+        {/* Every verb this screen has, in the order the term runs them: enter,
+            bill, then hand the board a file. They sit in the app bar together
+            because the three are one job — a file built before the last
+            subject is entered is a file that has to be built again. */}
         <RecordActions
           layout="inline"
           resource="schools.exams"
           verbs={[
             {
-              // The primary verb, because nothing else on this page can happen
+              // The first verb, because nothing else on this page can happen
               // until something is entered: the invoice, the entry file, the
               // seating and the results all read entries.
               label: "Enter a subject",
@@ -188,6 +143,18 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
                 confirmLabel: "Invoice them",
               },
               onSelect: () => invoice.mutate(),
+            },
+            {
+              label: "Build the entry file",
+              action: "enter",
+              loading: build.isPending,
+              confirm: {
+                title: "Build the entry file",
+                description:
+                  "It writes a file of every entry on this series and downloads it to you. Nothing is sent to the board — submission is manual, and this is the record of what you built.",
+                confirmLabel: "Build it",
+              },
+              onSelect: () => build.mutate(),
             },
           ]}
         />
@@ -222,7 +189,13 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
 
       {/* The rule, before the totals: a candidate entered for five subjects is
           a child short of a certificate, and it is not visible in a subject
-          total. */}
+          total.
+
+          This line is where "how many are below the minimum" and "how many are
+          over the maximum" are read, and `Candidates outside the rule` below
+          names them one by one. Two numbers said twice already; a third copy
+          floated above the page would have been the same count with nobody's
+          name on it. */}
       {rule && outside.length > 0 ? (
         <Alert
           tone="warn"
@@ -466,6 +439,10 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
         </section>
       ) : null}
 
+      {/* When the file was last built, and what was in it. The date lives here
+          rather than anywhere higher up because it means nothing on its own —
+          a timestamp is only useful next to the entry count it covers and the
+          sentence saying the board has not seen it. */}
       {seriesQuery.data?.lastEntryFile ? (
         <p className="flex items-center gap-2 text-xs text-[color:var(--text-muted)]">
           <Download className="size-3.5" aria-hidden="true" />

@@ -18,9 +18,8 @@ import {
 } from "@/components/records/states";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
-import { RecordActions } from "@/components/schools/common/record-actions";
+import { RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { DataTable } from "@/components/ui/data-table";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -45,12 +44,14 @@ import { DestinationDialog } from "@/components/schools/leavers/destination-dial
  * `Not asked` is not a soft no. A nullable boolean would collapse "they said
  * no" and "nobody has asked" into one answer, and a school that could not tell
  * them apart would either pester somebody who refused or never ask anybody at
- * all. That is why `Consent never asked` is a band chip rather than a filter
- * nobody sets.
+ * all. So `Not asked` is a consent you can filter the register down to, and
+ * the header above the table counts how many people are in it.
  *
- * `Destination unknown` is drawn the same way and for the same reason: a
+ * How much of the register the school actually keeps — consent, destination, a
+ * way of reaching somebody — is the pair of tables at the foot of the page. A
  * register of 1,412 people with 1,121 unknown destinations is not a failure, it
- * is the number that tells a development office where to start.
+ * is the number that tells a development office where to start, and it is worth
+ * more read year by year than as a single figure at the top.
  */
 
 const CONSENT_OPTIONS: Array<{ value: ContactConsent; label: string }> = [
@@ -165,20 +166,9 @@ export function AlumniContent() {
         cell: ({ row }) => {
           const alumnus = row.original;
           if (alumnus.destinationKind === "UNKNOWN") {
-            return (
-              <RecordActions
-                layout="inline"
-                size="sm"
-                resource="schools.alumni"
-                verbs={[
-                  {
-                    label: "Where did they go?",
-                    action: "record",
-                    onSelect: () => setAsking(alumnus),
-                  },
-                ]}
-              />
-            );
+            // The cell states the gap; asking the question is a verb, and the
+            // verbs live in one menu at the end of the row.
+            return <span className="text-xs text-[color:var(--text-faint)]">Not recorded</span>;
           }
           return (
             <span className="block truncate text-sm">
@@ -194,55 +184,70 @@ export function AlumniContent() {
         },
       },
       {
-        id: "verbs",
-        header: () => <span className="sr-only">Row actions</span>,
-        // The timeline is the thing this register is for. Adding to it from the
-        // list means a development officer who has just had a conversation does
-        // not have to open a record to write down what was said.
-        cell: ({ row }) => (
-          <div className="flex justify-end">
-            <RecordActions
-              layout="inline"
-              size="sm"
-              resource="schools.alumni"
-              verbs={[
-                {
-                  label: "Add an update",
-                  action: "record",
-                  onSelect: () => setUpdating(row.original),
-                },
-              ]}
-            />
-          </div>
-        ),
-      },
-      {
         id: "consent",
         header: "Contact consent",
         cell: ({ row }) => {
+          const consent = row.original.contactConsent;
+          return (
+            <Badge
+              tone={
+                consent === "MAY_CONTACT"
+                  ? "success"
+                  : consent === "NO_CONTACT"
+                    ? "danger"
+                    : "neutral"
+              }
+            >
+              {CONSENT_LABELS[consent]}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "verbs",
+        header: () => <span className="sr-only">Row actions</span>,
+        // Every verb in the row, in one menu, in the last column — three cells
+        // each carrying their own button is what made the school tables too
+        // wide to read (`docs/design-system/12-tables.md`).
+        //
+        // The timeline is the thing this register is for. Adding to it from the
+        // list means a development officer who has just had a conversation does
+        // not have to open a record to write down what was said. The other two
+        // verbs appear only while there is a gap to fill, which is what the
+        // `Not recorded` and `Not asked` cells are saying.
+        cell: ({ row }) => {
           const alumnus = row.original;
+          const verbs: RecordVerb[] = [
+            {
+              label: "Add an update",
+              action: "record",
+              onSelect: () => setUpdating(alumnus),
+            },
+          ];
+          if (alumnus.destinationKind === "UNKNOWN") {
+            verbs.push({
+              label: "Where did they go?",
+              action: "record",
+              onSelect: () => setAsking(alumnus),
+            });
+          }
           if (alumnus.contactConsent === "NOT_ASKED") {
-            return (
-              <RecordActions
-                layout="inline"
-                size="sm"
-                resource="schools.alumni"
-                verbs={[
-                  {
-                    label: "Ask for consent",
-                    action: "record",
-                    loading: consentMutation.isPending,
-                    onSelect: () =>
-                      consentMutation.mutate({ id: alumnus.id, consent: "MAY_CONTACT" }),
-                  },
-                ]}
-              />
-            );
+            verbs.push({
+              label: "Ask for consent",
+              action: "record",
+              loading: consentMutation.isPending,
+              onSelect: () => consentMutation.mutate({ id: alumnus.id, consent: "MAY_CONTACT" }),
+            });
           }
           return (
-            <Badge tone={alumnus.contactConsent === "MAY_CONTACT" ? "success" : "danger"}>
-              {CONSENT_LABELS[alumnus.contactConsent]}
-            </Badge>
+            <div className="flex justify-end">
+              <RecordActions
+                layout="menu"
+                resource="schools.alumni"
+                label={`Row actions for ${alumnus.firstName} ${alumnus.lastName}`}
+                verbs={verbs}
+              />
+            </div>
           );
         },
       },
@@ -251,25 +256,15 @@ export function AlumniContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "On the register", value: tallies?.onTheRegister ?? "—" },
-            { label: "Left this year", value: tallies?.leftThisYear ?? "—", tone: "brand" },
-            {
-              label: "Destination unknown",
-              value: tallies?.destinationUnknown ?? "—",
-            },
-            {
-              label: "Consent never asked",
-              value: tallies?.consentNeverAsked ?? "—",
-              tone: (tallies?.consentNeverAsked ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
+      {/* Each of the four numbers a summary band used to carry is read further
+          down the page, beside what it is a share of. `On the register` is the
+          `Of` column of `How much of the register is kept`, and the count in
+          the header above the table besides. `Destination unknown` is the gap
+          between count and `Of` on that same table's `Destination recorded`
+          row. `Left this year` is the `Of` on the newest row of `Destination
+          recorded, by leaving year`. `Consent never asked` is the Consent
+          filter set to `Not asked` — the header then counts it. */}
       <PageChrome title="Alumni" />
 
       {actionError ? <SaveError what="That change" error={actionError} /> : null}

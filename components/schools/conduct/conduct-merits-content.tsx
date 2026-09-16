@@ -18,10 +18,10 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
+import { PageCaption } from "@/components/schools/records/page-caption";
 import { DataTable } from "@/components/ui/data-table";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Download } from "@/lib/icons";
@@ -47,15 +47,16 @@ import { PupilLedgerDialog } from "@/components/schools/conduct/pupil-ledger-dia
  * screen is built to make askable, which is why `By year group` sits beside
  * `What gets written down` rather than under it.
  *
- * `Net` is deliberately untoned in the band. A net is not good news or bad
- * news, and a screen that coloured it would answer the reader's question for
- * them.
+ * The year group total is deliberately untoned. A net across a whole year is
+ * not good news or bad news, and a screen that coloured it would answer the
+ * reader's question for them. A pupil's own net is toned, because there the
+ * sign is the fact being read.
  *
  * ## Four verbs, not one
  *
  * The artboard draws `Award a merit` and nothing else. `conduct.md` open
  * question 4 flags that as an omission rather than an intent — demerits are
- * half the table, half the chips and half the arithmetic, and nothing created
+ * half the table, half the summary and half the arithmetic, and nothing created
  * one; nothing opened a pupil; nothing corrected an entry made in error, which
  * is the thing that happens with merit points more than with anything else in a
  * school. So this ships with the four the screen contract asks for.
@@ -284,33 +285,14 @@ export function ConductMeritsContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Merits", value: tallies?.merits ?? "—", tone: "success" },
-            { label: "Demerits", value: tallies?.demerits ?? "—", tone: "warn" },
-            {
-              label: "Net",
-              // Untoned on purpose.
-              value:
-                tallies == null
-                  ? "—"
-                  : tallies.net > 0
-                    ? `+${tallies.net}`
-                    : String(tallies.net),
-            },
-            { label: "Pupils with neither", value: tallies?.pupilsWithNeither ?? "—" },
-          ]}
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              <Download className="size-4" />
-              Export the term
-            </Button>
-          }
-        />
-      }
-    >
+    // No band. Three of its four chips were arithmetic the summaries below
+    // already do: merit and demerit points are read from the group headers in
+    // `What gets written down`, beside the occasions they weigh, and the
+    // term's net is the total row of `By year group`. None of the three moved
+    // when the year group filter narrowed the table under them, which is the
+    // whole objection. The fourth — pupils with nothing recorded either way —
+    // has no row anywhere by definition, so it is the caption below.
+    <SchoolsPage>
       <PageChrome title="Merits and demerits">
         <CreateButton
           resource="schools.conduct"
@@ -318,6 +300,19 @@ export function ConductMeritsContent() {
           onSelect={() => setAwarding({ kind: "MERIT" })}
         />
       </PageChrome>
+
+      {/* A pupil with neither a merit nor a demerit is filtered out of the
+          ledger — a row of two zeroes is not a conduct record — and appears in
+          no summary either. It is the whole school and the whole term, so it
+          does not belong on the count row beside a number the filters move. */}
+      {tallies && tallies.pupilsWithNeither > 0 ? (
+        <PageCaption>
+          {tallies.pupilsWithNeither === 1
+            ? "1 pupil has"
+            : `${tallies.pupilsWithNeither.toLocaleString()} pupils have`}{" "}
+          nothing recorded this term, in either direction
+        </PageCaption>
+      ) : null}
 
       {actionError ? <SaveError what="That entry" error={actionError} /> : null}
 
@@ -356,6 +351,15 @@ export function ConductMeritsContent() {
                   onChange={(next) => setSort(next || "net-desc")}
                 />
               </>
+            }
+            // Printing the term acts on the table, not on the page, so it sits
+            // with the controls that decide what would be printed. The app bar
+            // keeps the one verb somebody came here to perform.
+            actions={
+              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                <Download className="size-4" />
+                Export the term
+              </Button>
             }
           />
 
@@ -466,9 +470,13 @@ export function ConductMeritsContent() {
                   </thead>
                   <tbody>
                     {/* One table, two group headers: merits and demerits are
-                        one question. Each header carries two numbers because
-                        they are not the same number — the reasons shown are a
-                        slice of the whole. */}
+                        one question. Each header carries the occasions shown
+                        against the occasions there are, because the reasons
+                        drawn are a slice of the whole, and then the term's
+                        points for that kind — the weight of everything above
+                        the slice, which is the number the reader was getting
+                        off the strip that used to sit at the top of the
+                        page. */}
                     {(["merit", "demerit"] as const).map((kind) => {
                       const block = summary?.[kind];
                       if (!block || block.rows.length === 0) return null;
@@ -481,7 +489,8 @@ export function ConductMeritsContent() {
                             >
                               {kind === "merit" ? "Merits" : "Demerits"} ·{" "}
                               {block.shownTimes.toLocaleString()} of{" "}
-                              {block.totalTimes.toLocaleString()}
+                              {block.totalTimes.toLocaleString()} ·{" "}
+                              {block.totalPoints.toLocaleString()} points
                             </th>
                           </tr>
                           {block.rows.map((row) => (

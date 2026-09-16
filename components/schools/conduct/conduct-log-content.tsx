@@ -20,10 +20,10 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
+import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import { DataTable } from "@/components/ui/data-table";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Download } from "@/lib/icons";
@@ -53,9 +53,14 @@ import { TellHomeDialog } from "@/components/schools/conduct/tell-home-dialog";
  * is missing. *"The parent was never informed"* is the sentence this page
  * exists to prevent, and a blank cell prevents nothing.
  *
- * The repeats table is its own query for the same reason it is its own section:
- * a failure there must not take the log down with it.
+ * `Three or more` is a tab rather than a second table underneath the log,
+ * because it is a second subject: one row per pupil, not one row per incident.
+ * Sharing a screen meant the four filters and the `X of Y` count governed the
+ * top half of it and said nothing about the bottom half. It keeps its own
+ * query as well, so a failure there does not take the log down with it.
  */
+
+type ConductTab = "log" | "repeats";
 
 const SANCTION_OPTIONS = [
   { value: "decided", label: "Decided" },
@@ -79,6 +84,7 @@ function toneBadge(tone: "PLAIN" | "WARN" | "BAD", label: string) {
 export function ConductLogContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<ConductTab>("log");
   const [search, setSearch] = useState("");
   const [classValue, setClassValue] = useState<{ classId: string; streamId: string }>({
     classId: "",
@@ -400,41 +406,10 @@ export function ConductLogContent() {
     [router],
   );
 
+  const onLog = tab === "log";
+
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "This term", value: tallies?.thisTerm ?? "—" },
-            {
-              label: "No sanction decided",
-              value: tallies?.noSanctionDecided ?? "—",
-              tone: (tallies?.noSanctionDecided ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              label: "Home not told",
-              value: tallies?.homeNotTold ?? "—",
-              tone: (tallies?.homeNotTold ?? 0) > 0 ? "danger" : "neutral",
-            },
-            {
-              label: "Three or more",
-              value: tallies?.threeOrMore ?? "—",
-              tone: (tallies?.threeOrMore ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-          actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => window.print()}
-            >
-              <Download className="size-4" />
-              Export the log
-            </Button>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       {/* Named once. The rail says Conduct one column left. */}
       <PageChrome title="Behaviour log">
         <CreateButton
@@ -449,81 +424,112 @@ export function ConductLogContent() {
 
       {actionError ? <SaveError what="That change" error={actionError} /> : null}
 
-      {logQuery.error ? (
-        <LoadError
-          what="the behaviour log"
-          error={logQuery.error}
-          onRetry={() => void logQuery.refetch()}
-        />
-      ) : (
-        <>
-          {/* The section the contract names. A heading on a hairline, no box —
-              and the note counts the rows shown out of the rows this term,
-              which is the one number the band's `This term` chip does not
-              answer. */}
-          <section className="space-y-2">
-          <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
-            <span className="text-sm font-semibold text-[color:var(--text-strong)]">
-              Newest first
-            </span>
-            <span className="text-xs text-[color:var(--text-muted)]">
-              {logQuery.isPending
-                ? ""
-                : `${rows.length} of ${tallies?.thisTerm ?? rows.length}`}
-            </span>
-          </h2>
-          <TableControls
-            sticky
-            search={
-              <TableSearch
-                value={search}
-                onChange={setSearch}
-                placeholder="Search the behaviour log"
-              />
-            }
-            filterCount={activeFilterCount(
-              classValue.classId,
-              categoryFilter,
-              sanctionFilter,
-              homeFilter,
-            )}
-            count={logQuery.isPending ? null : `${rows.length} of ${tallies?.thisTerm ?? rows.length}`}
-            filters={
-              <>
-                <ClassFilter
-                  label="Year group"
-                  allLabel="Every year group"
-                  value={classValue}
-                  onChange={(next) => setClassValue(next)}
-                />
-                <FilterSelect
-                  label="What happened"
-                  allLabel="Anything"
-                  value={categoryFilter}
-                  options={categories.map((category) => ({
-                    value: category.id,
-                    label: category.name,
-                  }))}
-                  onChange={setCategoryFilter}
-                />
-                <FilterSelect
-                  label="Sanction"
-                  allLabel="Any sanction"
-                  value={sanctionFilter}
-                  options={SANCTION_OPTIONS}
-                  onChange={setSanctionFilter}
-                />
-                <FilterSelect
-                  label="Home told"
-                  allLabel="Told or not"
-                  value={homeFilter}
-                  options={HOME_OPTIONS}
-                  onChange={setHomeFilter}
-                />
-              </>
-            }
+      {/* The search, the four filters and the count belong to the log alone,
+          which is why `Three or more` is a tab beside it and not a table under
+          it. `No sanction decided` and `Home not told` used to be totals in a
+          band above this row; they are what the Sanction and Home told filters
+          select, so the way to read either number now is to ask for it — the
+          rows come back and the count beside the filters says how many. */}
+      <TableControls
+        sticky
+        tabs={
+          <PopulationTabs<ConductTab>
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              // How many incidents there are this term is the denominator of
+              // `X of Y` below, so the log's tab does not say it a second
+              // time. How many pupils are at three or more is read nowhere
+              // else, so it is said here.
+              { id: "log", label: "The log" },
+              { id: "repeats", label: "Three or more", count: tallies?.threeOrMore },
+            ]}
           />
+        }
+        search={
+          onLog ? (
+            <TableSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Search the behaviour log"
+            />
+          ) : undefined
+        }
+        filterCount={
+          onLog
+            ? activeFilterCount(
+                classValue.classId,
+                categoryFilter,
+                sanctionFilter,
+                homeFilter,
+              )
+            : undefined
+        }
+        // How many of the term's incidents are in front of you, out of how
+        // many there are — which is where `This term` is read now. The repeats
+        // tab carries its count on the tab itself, so the row says nothing
+        // there rather than counting the wrong table's rows.
+        count={
+          onLog && !logQuery.isPending
+            ? `${rows.length} of ${tallies?.thisTerm ?? rows.length}`
+            : null
+        }
+        filters={
+          onLog ? (
+            <>
+              <ClassFilter
+                label="Year group"
+                allLabel="Every year group"
+                value={classValue}
+                onChange={(next) => setClassValue(next)}
+              />
+              <FilterSelect
+                label="What happened"
+                allLabel="Anything"
+                value={categoryFilter}
+                options={categories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                }))}
+                onChange={setCategoryFilter}
+              />
+              <FilterSelect
+                label="Sanction"
+                allLabel="Any sanction"
+                value={sanctionFilter}
+                options={SANCTION_OPTIONS}
+                onChange={setSanctionFilter}
+              />
+              <FilterSelect
+                label="Home told"
+                allLabel="Told or not"
+                value={homeFilter}
+                options={HOME_OPTIONS}
+                onChange={setHomeFilter}
+              />
+            </>
+          ) : undefined
+        }
+        // The log's verb, on the log's control row. It prints what is on
+        // screen, so it belongs beside the filters that decided what that is.
+        actions={
+          onLog ? (
+            <Button variant="secondary" size="sm" onClick={() => window.print()}>
+              <Download className="size-4" />
+              Export the log
+            </Button>
+          ) : undefined
+        }
+      />
 
+      {onLog ? (
+        logQuery.error ? (
+          <LoadError
+            what="the behaviour log"
+            error={logQuery.error}
+            onRetry={() => void logQuery.refetch()}
+          />
+        ) : (
           <DataTable
             data={rows}
             columns={columns}
@@ -603,51 +609,40 @@ export function ConductLogContent() {
               )
             }
           />
-
-          </section>
-
-          {/* Its own section and its own query: the repeats table failing must
-              not take the log with it. */}
-          <section className="mt-6 space-y-2">
-            <h2 className="border-b border-[color:var(--border-subtle)] pb-1.5 text-sm font-semibold text-[color:var(--text-strong)]">
-              Three or more this term
-            </h2>
-            {repeatsQuery.error ? (
-              <LoadError
-                what="the repeat list"
-                error={repeatsQuery.error}
-                onRetry={() => void repeatsQuery.refetch()}
+        )
+      ) : repeatsQuery.error ? (
+        <LoadError
+          what="the repeat list"
+          error={repeatsQuery.error}
+          onRetry={() => void repeatsQuery.refetch()}
+        />
+      ) : (
+        <DataTable
+          data={repeatsQuery.data?.rows ?? []}
+          columns={repeatColumns}
+          features={{ sorting: false, globalFilter: false, pagination: false }}
+          emptyState={
+            repeatsQuery.isPending ? (
+              <TableRowsSkeleton
+                rows={4}
+                headers={["Pupil", "Year", "Incidents", "What they were", "Last", ""]}
+                columns={[
+                  { avatar: true, twoLine: true },
+                  { width: 64 },
+                  { width: 92, badge: true },
+                  {},
+                  { width: 84 },
+                  { width: 132 },
+                ]}
               />
             ) : (
-              <DataTable
-                data={repeatsQuery.data?.rows ?? []}
-                columns={repeatColumns}
-                features={{ sorting: false, globalFilter: false, pagination: false }}
-                emptyState={
-                  repeatsQuery.isPending ? (
-                    <TableRowsSkeleton
-                      rows={4}
-                      headers={["Pupil", "Year", "Incidents", "What they were", "Last", ""]}
-                      columns={[
-                        { avatar: true, twoLine: true },
-                        { width: 64 },
-                        { width: 92, badge: true },
-                        {},
-                        { width: 84 },
-                        { width: 132 },
-                      ]}
-                    />
-                  ) : (
-                    <NothingLeftToDo
-                      title="Nobody has three or more this term"
-                      body="Nothing to read here is the answer a deputy head wants from this table."
-                    />
-                  )
-                }
+              <NothingLeftToDo
+                title="Nobody has three or more this term"
+                body="Nothing to read here is the answer a deputy head wants from this table."
               />
-            )}
-          </section>
-        </>
+            )
+          }
+        />
       )}
 
       <IncidentFormDialog

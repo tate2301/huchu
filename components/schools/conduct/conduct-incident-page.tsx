@@ -7,7 +7,6 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ListRowsSkeleton, LoadError, RecordNotFound, SaveError } from "@/components/records/states";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { AwardDetentionDialog } from "@/components/schools/conduct/award-detention-dialog";
@@ -296,61 +295,18 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
     },
   ];
 
+  /*
+    No band. This is one incident, not the behaviour module, and the four
+    numbers a band would carry are all read from the record itself about a
+    hundred pixels lower: "Home told" from the property list and the spine's
+    fourth step, "Served" and "Next detention" from the spine's fifth step —
+    which is fed by the same `detail.detention` helper, so they could never
+    have disagreed but could very easily have been read twice — and the term's
+    incident count from the heading of the rail beside them, which also says
+    the merits the band had no room for.
+  */
   return (
-    <SchoolsPage
-      width="detail"
-      band={
-        <PageBand
-          chips={[
-            {
-              label: "Home told",
-              value:
-                detail.homeTold.state === "told"
-                  ? formatSchoolDayTime(detail.homeTold.at)
-                  : detail.homeTold.state === "not-needed"
-                    ? "Not needed"
-                    : "Not yet",
-              tone: detail.homeTold.state === "told" ? "success" : detail.homeTold.state === "not-needed" ? "neutral" : "danger",
-            },
-            // One helper behind both this and the spine's fifth step, so the
-            // two cannot disagree about the same two numbers — which is
-            // `conduct.md` open question 5, drawn four inches apart.
-            ...(detail.detention.owed > 0
-              ? [
-                  {
-                    label: "Served",
-                    value: `${detail.detention.served} of ${detail.detention.owed}`,
-                    tone:
-                      detail.detention.served >= detail.detention.owed
-                        ? ("success" as const)
-                        : ("warn" as const),
-                  },
-                ]
-              : []),
-            ...(detail.detention.nextSession
-              ? [
-                  {
-                    label: "Next detention",
-                    value: formatSchoolDayTime(detail.detention.nextSession.startsAt),
-                    tone: "warn" as const,
-                  },
-                ]
-              : []),
-            {
-              label: "Their term",
-              value: `${detail.thisTerm.length} ${detail.thisTerm.length === 1 ? "incident" : "incidents"}`,
-            },
-          ]}
-          actions={
-            <PrintDocumentButton
-              sourceKey="schools.class-list"
-              filters={{ classId: incident.student.currentClass?.id ?? "" }}
-              label="Print for the file"
-            />
-          }
-        />
-      }
-    >
+    <SchoolsPage width="detail">
       {/* The incident, not the module. The caption carries the identity the
           title does not, and it changes with the record. */}
       <PageChrome
@@ -358,33 +314,43 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
         backHref="/schools/conduct"
         backLabel="Behaviour log"
       >
-        <RecordActions
-          layout="inline"
-          resource="schools.conduct"
-          verbs={[
-            {
-              label: "Add an update",
-              action: "create",
-              onSelect: () => setUpdateOpen(true),
-            },
-            /*
-              The verb the detention surface was waiting for. Its own empty
-              state read "Award a detention from an incident and the pupil
-              appears on the register they are serving" — and there was no such
-              verb anywhere, so `awardDetention` and its endpoint had no caller
-              and the register could never have a name put on it.
-            */
-            {
-              label: "Award a detention",
-              action: "create",
-              onSelect: () => setDetentionOpen(true),
-              unavailable:
-                detail.detention.owed > 0
-                  ? `${detail.detention.served} of ${detail.detention.owed} already served for this incident.`
-                  : undefined,
-            },
-          ]}
-        />
+        <span className="flex items-center gap-2">
+          <RecordActions
+            layout="inline"
+            resource="schools.conduct"
+            verbs={[
+              {
+                label: "Add an update",
+                action: "create",
+                onSelect: () => setUpdateOpen(true),
+              },
+              /*
+                The verb the detention surface was waiting for. Its own empty
+                state read "Award a detention from an incident and the pupil
+                appears on the register they are serving" — and there was no
+                such verb anywhere, so `awardDetention` and its endpoint had no
+                caller and the register could never have a name put on it.
+              */
+              {
+                label: "Award a detention",
+                action: "create",
+                onSelect: () => setDetentionOpen(true),
+                unavailable:
+                  detail.detention.owed > 0
+                    ? `${detail.detention.served} of ${detail.detention.owed} already served for this incident.`
+                    : undefined,
+              },
+            ]}
+          />
+          {/* The paper copy a head of year takes into the meeting. It sits in
+              the bar with the other verbs, the way the pupil and class records
+              carry theirs. */}
+          <PrintDocumentButton
+            sourceKey="schools.class-list"
+            filters={{ classId: incident.student.currentClass?.id ?? "" }}
+            label="Print for the file"
+          />
+        </span>
       </PageChrome>
 
       <PageCaption>

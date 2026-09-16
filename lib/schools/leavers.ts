@@ -130,7 +130,9 @@ export async function deriveClearances(args: {
   const [invoices, loans, allocation, student, publishWindows] = await Promise.all([
     prisma.schoolFeeInvoice.findMany({
       where: { companyId, studentId, status: { notIn: ["VOIDED", "DRAFT"] } },
-      select: { invoiceNo: true, balanceAmount: true },
+      // The currency too. A Zimbabwean school bills in USD and in ZWL, and a
+      // total that adds the two is not a number about anything.
+      select: { invoiceNo: true, balanceAmount: true, currency: true },
     }),
     prisma.schoolBookLoan.findMany({
       where: { companyId, studentId, returnedAt: null },
@@ -152,20 +154,34 @@ export async function deriveClearances(args: {
     }),
   ]);
 
-  const owed = invoices.reduce(
-    (total, invoice) => total.plus(invoice.balanceAmount),
-    new Prisma.Decimal(0),
-  );
+  /*
+    Owed per currency, never summed across them.
+
+    This used to add every `balanceAmount` into one Decimal and print it with a
+    hardcoded `$`. A school that bills tuition in USD and a levy in ZWL got a
+    total that was neither, labelled as dollars — and it is the number a bursar
+    reads before deciding whether a child may leave with their results.
+  */
   const owing = invoices.filter((invoice) => invoice.balanceAmount.greaterThan(0));
+  const owedByCurrency = new Map<string, Prisma.Decimal>();
+  for (const invoice of owing) {
+    const current = owedByCurrency.get(invoice.currency) ?? new Prisma.Decimal(0);
+    owedByCurrency.set(invoice.currency, current.plus(invoice.balanceAmount));
+  }
+  const owedLabel = [...owedByCurrency.entries()]
+    .map(([currency, amount]) =>
+      currency === "USD" ? `$${amount.toFixed(2)}` : `${currency} ${amount.toFixed(2)}`,
+    )
+    .join(" and ");
   const window = publishWindows[0];
   const now = new Date();
   const published = window ? window.openAt <= now : false;
 
   return {
-    FEES: owed.greaterThan(0)
+    FEES: owing.length > 0
       ? {
           proposed: "TODO",
-          detail: `$${owed.toFixed(2)} on ${owing.map((invoice) => invoice.invoiceNo).join(", ")}`,
+          detail: `${owedLabel} on ${owing.map((invoice) => invoice.invoiceNo).join(", ")}`,
         }
       : { proposed: "DONE", detail: "Nothing owed" },
     LIBRARY:

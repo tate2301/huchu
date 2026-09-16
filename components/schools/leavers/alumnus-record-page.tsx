@@ -11,7 +11,6 @@ import {
   RecordNotFound,
   SaveError,
 } from "@/components/records/states";
-import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -32,9 +31,10 @@ import { AddTimelineDialog } from "@/components/schools/leavers/add-timeline-dia
  * onto the alumnus when the record closed. A grade amended after a remark two
  * years later changes what this page says, and a copy would not.
  *
- * `Contact last confirmed` is a chip rather than a field in a list, because it
- * is the number that decides whether the development office writes to this
- * person at all. A destination with no date is a rumour.
+ * `Contact last confirmed` sits in the property list next to the address it
+ * qualifies, because it is what decides whether the development office writes
+ * to this person at all. A destination with no date is a rumour, and a date
+ * read three lines away from the address it belongs to is easy to miss.
  */
 export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
   const queryClient = useQueryClient();
@@ -81,33 +81,7 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
   const { alumnus, results, honours, conduct } = query.data;
 
   return (
-    <SchoolsPage
-      width="detail"
-      band={
-        <PageBand
-          chips={[
-            { label: "Class of", value: alumnus.classOf },
-            {
-              label: "Consent",
-              value: CONSENT_LABELS[alumnus.contactConsent],
-              tone:
-                alumnus.contactConsent === "MAY_CONTACT"
-                  ? "success"
-                  : alumnus.contactConsent === "NO_CONTACT"
-                    ? "danger"
-                    : "warn",
-            },
-            {
-              label: "Contact last confirmed",
-              value: alumnus.destinationConfirmedAt
-                ? formatSchoolDate(alumnus.destinationConfirmedAt)
-                : "Never",
-              tone: alumnus.destinationConfirmedAt ? "neutral" : "warn",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage width="detail">
       <PageChrome
         title={`${alumnus.firstName} ${alumnus.lastName}`}
         backHref="/schools/alumni"
@@ -128,8 +102,16 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
 
       {actionError ? <SaveError what="That update" error={actionError} /> : null}
 
+      {/* The year, the consent and the date contact was last confirmed are facts
+          about this one person that do not move while you look at them, so they
+          read as properties of the record rather than as a strip of counters
+          above it. */}
       <dl className="divide-y divide-[color:var(--border-subtle)]">
         {[
+          {
+            label: "Class of",
+            value: alumnus.classOf,
+          },
           {
             label: "Left as",
             value: [alumnus.finalClassName, alumnus.house ? `${alumnus.house} House` : null]
@@ -150,6 +132,32 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
             value: [alumnus.email, alumnus.phone, alumnus.addressLine]
               .filter(Boolean)
               .join(" · ") || "Nothing on file",
+          },
+          {
+            label: "Last confirmed",
+            // Never is worth saying loudly: an address nobody has checked is
+            // the reason a development office letter comes back.
+            value: alumnus.destinationConfirmedAt ? (
+              formatSchoolDate(alumnus.destinationConfirmedAt)
+            ) : (
+              <Badge tone="warn">Never</Badge>
+            ),
+          },
+          {
+            label: "May we write",
+            value: (
+              <Badge
+                tone={
+                  alumnus.contactConsent === "MAY_CONTACT"
+                    ? "success"
+                    : alumnus.contactConsent === "NO_CONTACT"
+                      ? "danger"
+                      : "warn"
+                }
+              >
+                {CONSENT_LABELS[alumnus.contactConsent]}
+              </Badge>
+            ),
           },
           {
             label: "Conduct",
