@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_TEMPLATE_CATALOG } from "@/lib/documents/default-template-catalog";
+import { buildPaymentRows } from "@/lib/documents/payment-details";
 import { renderDocumentHtml } from "@/lib/documents/html-renderer";
 import type { CompanyBrandingSnapshot, UniversalDocumentPayload } from "@/lib/documents/types";
 
@@ -121,5 +122,27 @@ describe("banking block", () => {
       branding: { displayName: "Floorcode Zimbabwe" },
     });
     expect(html).not.toContain("Payment details");
+  });
+});
+
+describe("one source of truth for the payment block", () => {
+  // The generated document and the public approval page both render these
+  // rows. They used to compute them separately, and the approval page went
+  // blank the moment a tenant moved to multi-currency accounts, because it
+  // read the single legacy field and found it empty. Both now call
+  // buildPaymentRows, and this asserts the document really does.
+  it("renders exactly the rows the approval page is given", () => {
+    const html = render(QUOTATION);
+    const rows = buildPaymentRows(branding);
+
+    expect(rows.length).toBeGreaterThan(0);
+    for (const { label, value } of rows) {
+      expect(html).toContain(label);
+      expect(html).toContain(value);
+    }
+  });
+
+  it("gives the approval page nothing when nothing is configured", () => {
+    expect(buildPaymentRows({ displayName: "Floorcode Zimbabwe" })).toEqual([]);
   });
 });

@@ -58,6 +58,8 @@ export default function BankingPage() {
     currency: "USD",
     openingBalance: "0",
     isActive: true,
+    accountName: "",
+    showOnDocuments: false,
   });
 
   const [transactionForm, setTransactionForm] = useState({
@@ -289,6 +291,8 @@ export default function BankingPage() {
         name: "",
         bankName: "",
         accountNumber: "",
+        accountName: "",
+        showOnDocuments: false,
         currency: "USD",
         openingBalance: "0",
         isActive: true,
@@ -385,6 +389,8 @@ export default function BankingPage() {
       currency: accountForm.currency || "USD",
       openingBalance: Number(accountForm.openingBalance) || 0,
       isActive: accountForm.isActive,
+      accountName: accountForm.accountName.trim() || undefined,
+      showOnDocuments: accountForm.showOnDocuments,
     });
   };
 
@@ -587,6 +593,38 @@ export default function BankingPage() {
                 />
               </div>
             </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">Account Name</label>
+              <Input
+                value={accountForm.accountName}
+                onChange={(event) =>
+                  setAccountForm((prev) => ({ ...prev, accountName: event.target.value }))
+                }
+                placeholder="The name the account is held in"
+              />
+            </div>
+            {/*
+              Opting an account on to customer-facing paper is a separate
+              decision from whether the ledger still uses it, so it is its own
+              control rather than a consequence of "active".
+            */}
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={accountForm.showOnDocuments}
+                onChange={(event) =>
+                  setAccountForm((prev) => ({ ...prev, showOnDocuments: event.target.checked }))
+                }
+              />
+              <span>
+                <span className="block text-sm font-semibold">Show on quotations and invoices</span>
+                <span className="block text-sm text-ink-muted">
+                  Customers are asked to pay into this account. Accounts you only
+                  reconcile should stay off.
+                </span>
+              </span>
+            </label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="submit" className="flex-1" disabled={createAccountMutation.isPending}>
                 Save Account

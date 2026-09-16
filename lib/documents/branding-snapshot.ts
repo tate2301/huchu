@@ -42,8 +42,16 @@ export async function getDocumentBranding(companyId: string): Promise<CompanyBra
     }),
     // Only the accounts somebody has opted in to appearing on paper. An account
     // the ledger reconciles is not automatically an account to be paid into.
+    //
+    // Deliberately NOT filtered on `isActive`. Deactivating an account through
+    // /accounting/banking sets `isActive: false`, and if that also pulled the
+    // account off the paper, retiring it from the ledger would silently change
+    // what the next quotation tells a customer to pay into -- and fall back to
+    // whatever single legacy account `CompanyBranding` still holds. Taking an
+    // account off customer-facing documents is its own decision, so it has its
+    // own flag.
     prisma.bankAccount.findMany({
-      where: { companyId, showOnDocuments: true, isActive: true },
+      where: { companyId, showOnDocuments: true },
       orderBy: [{ documentPosition: "asc" }, { currency: "asc" }],
       select: { currency: true, accountName: true, accountNumber: true },
     }),

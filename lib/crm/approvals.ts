@@ -14,6 +14,7 @@ import { NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { emitCrmNotification } from "@/lib/notifications";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
+import { buildPaymentRows, type PaymentRow } from "@/lib/documents/payment-details";
 
 type Tx = Prisma.TransactionClient;
 
@@ -81,9 +82,12 @@ export type PublicApprovalView = {
     physicalAddress: string | null;
     registrationNumber: string | null;
     vatNumber: string | null;
-    bankName: string | null;
-    bankAccountName: string | null;
-    bankAccountNumber: string | null;
+    /**
+     * The same rows the generated document prints, from the same helper, so a
+     * customer is never told one thing on the PDF and another on the page they
+     * sign. Empty on a quotation, which does not ask for money.
+     */
+    paymentRows: PaymentRow[];
     paymentTerms: string | null;
     footerText: string | null;
   };
@@ -194,9 +198,7 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
       registrationNumber: branding.registrationNumber ?? null,
       vatNumber: branding.vatNumber ?? null,
       // Bank details only belong on a document the client has to pay.
-      bankName: doc.type === "INVOICE" ? (branding.bankName ?? null) : null,
-      bankAccountName: doc.type === "INVOICE" ? (branding.bankAccountName ?? null) : null,
-      bankAccountNumber: doc.type === "INVOICE" ? (branding.bankAccountNumber ?? null) : null,
+      paymentRows: doc.type === "INVOICE" ? buildPaymentRows(branding) : [],
       paymentTerms: branding.paymentTerms ?? null,
       footerText: branding.defaultFooterText ?? null,
     },

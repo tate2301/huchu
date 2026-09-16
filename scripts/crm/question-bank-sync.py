@@ -1,8 +1,26 @@
-import zipfile, re, json, pathlib
+import sys, zipfile, re, json, pathlib
 from xml.etree import ElementTree as ET
-W='{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-ROOT=pathlib.Path('/home/user/huchu')
-SRC=ROOT/'docs/client/FloorCode_Zimbabwe_Site_Visit_Question_Bank (1).docx'
+
+W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+
+# Resolved from this file, not from one machine's absolute path, so the script
+# runs in any clone.
+ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+DEFAULT_SRC = ROOT / 'docs' / 'client' / 'FloorCode_Zimbabwe_Site_Visit_Question_Bank (1).docx'
+
+# The .docx is gitignored, so a fresh clone will not have it. Take a path when
+# it lives somewhere else, and say so plainly when it is missing rather than
+# failing with a traceback.
+SRC = pathlib.Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 else DEFAULT_SRC
+if not SRC.is_file():
+    print(
+        f"Question bank not found: {SRC}\n\n"
+        f"The source .docx is gitignored (see .gitignore), so it is not in a fresh\n"
+        f"clone. Put the client's file at {DEFAULT_SRC}, or pass its path:\n"
+        f"  python3 {pathlib.Path(__file__).relative_to(ROOT)} /path/to/question-bank.docx",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 
 def paras(path):
     doc=ET.fromstring(zipfile.ZipFile(path).read('word/document.xml'))

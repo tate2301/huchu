@@ -1,3 +1,4 @@
+import { buildPaymentRows } from "@/lib/documents/payment-details";
 import type { DocumentTemplateSchema } from "@/lib/documents/template-schema";
 import type {
   CompanyBrandingSnapshot,
@@ -194,42 +195,12 @@ function buildFooter(branding: CompanyBrandingSnapshot, schema: DocumentTemplate
   const columns: string[] = [];
 
   if (schema.footer.showPaymentDetails) {
-    // The bank-level facts first: they are the same whichever account the
-    // customer pays into, so stating them once per account would be noise.
-    const rows: Array<[string, string] | null> = [
-      branding.bankName ? ["Bank", branding.bankName] : null,
-      branding.bankBranch ? ["Branch", branding.bankBranch] : null,
-      branding.bankBranchCode ? ["Branch Code", branding.bankBranchCode] : null,
-      branding.bankAddress ? ["Bank Address", branding.bankAddress] : null,
-      branding.bankSwiftCode ? ["SWIFT/BIC", branding.bankSwiftCode] : null,
-    ];
-
-    // Then the accounts. A tenant banking in two currencies has a row per
-    // account, labelled by currency so nobody pays USD into the ZWG account;
-    // one that has only ever filled in the single legacy account still gets
-    // the block it had before.
-    const accounts = branding.bankAccounts ?? [];
-    if (accounts.length > 0) {
-      for (const account of accounts) {
-        if (account.accountName) {
-          rows.push([`${account.currency} Account Name`, account.accountName]);
-        }
-        if (account.accountNumber) {
-          rows.push([`${account.currency} Account No.`, account.accountNumber]);
-        }
-      }
-    } else {
-      rows.push(branding.bankAccountName ? ["Account Name", branding.bankAccountName] : null);
-      rows.push(branding.bankAccountNumber ? ["Account No.", branding.bankAccountNumber] : null);
-    }
-
-    rows.push(branding.bankIban ? ["IBAN", branding.bankIban] : null);
-
-    const presentRows = rows.filter((row): row is [string, string] => Boolean(row));
+    // Shared with the public approval page, so the two cannot drift.
+    const presentRows = buildPaymentRows(branding);
     if (presentRows.length > 0) {
       columns.push(`<div class="footer-col">
         <div class="footer-title">Payment details</div>
-        ${presentRows.map(([label, value]) => `<div class="footer-kv"><span>${esc(label)}</span><span class="mono">${esc(value)}</span></div>`).join("")}
+        ${presentRows.map(({ label, value }) => `<div class="footer-kv"><span>${esc(label)}</span><span class="mono">${esc(value)}</span></div>`).join("")}
       </div>`);
     }
   }
