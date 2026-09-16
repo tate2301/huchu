@@ -203,6 +203,11 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "schools.boarding", name: "School Boarding", description: "Boarding operations including hostels, beds, and leave/outing workflows.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "schools.teachers", name: "Teacher Management", description: "Teacher profiles, subjects, and class assignment governance.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "schools.results", name: "School Results", description: "Continuous assessments, exams, moderation, and report card publishing.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  // S-13.1. Billable and priced on its own: public exams are the one thing
+  // every Zimbabwean secondary school does that the pack could not, sold as an
+  // add-on at $99 a term. The monthly figure here is that list price spread
+  // over a term; the term price is the one a school is quoted.
+  f({ key: "schools.exams", name: "Public Exams", description: "Public exam series, candidates, entries, seating and results — ZIMSEC and Cambridge. Sold as an add-on at $99 a term; this monthly figure is the list-price equivalent.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 33 }),
   f({ key: "schools.portal.parent", name: "Parent Portal", description: "Parent portal access for student progress and finance visibility.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "schools.portal.student", name: "Student Portal", description: "Student portal access for own timetable, attendance, and results.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "schools.portal.teacher", name: "Teacher Portal", description: "Teacher portal access for registers, marks, and moderation tasks.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),

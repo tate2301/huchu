@@ -341,12 +341,28 @@ export function StudentsListContent() {
       {
         id: "class",
         header: "Class",
-        cell: ({ row }) => (
-          <RecordCell
-            value={row.original.currentStream?.name}
-            className="text-[color:var(--text-muted)]"
-          />
-        ),
+        // The way in to a class's register, and the one the roll itself owes
+        // it: standing in front of the whole school the next question is
+        // nearly always "show me that class", and this is the shortest answer
+        // to it. Where a school runs no streams the cell names the year group
+        // rather than dashing — a column of dashes was no use to anybody, and
+        // it is the only door a school like that would have had.
+        cell: ({ row }) => {
+          const schoolClass = row.original.currentClass;
+          const stream = row.original.currentStream;
+          return (
+            <RecordCell
+              kind={schoolClass ? "relation" : "text"}
+              value={stream?.name ?? schoolClass?.name}
+              href={
+                schoolClass
+                  ? `/schools/students/class/${schoolClass.id}${stream ? `?streamId=${stream.id}` : ""}`
+                  : null
+              }
+              className={schoolClass ? undefined : "text-[color:var(--text-muted)]"}
+            />
+          );
+        },
       },
       {
         id: "guardian",

@@ -107,6 +107,26 @@ const SCREENS = {
   FeeBulkGenerate: '/schools/finance/ledger',
   FeeDialogs: '/schools/finance/ledger',
 
+  // Conduct and pastoral — the expansion canvas, `design/campus/expansion/`.
+  Conduct: '/schools/conduct',
+  ConductIncident: '/schools/conduct/[incidentId]',
+  ConductMerits: '/schools/conduct/merits',
+  ConductDetention: '/schools/conduct/detention',
+  Pastoral: '/schools/conduct/pastoral',
+
+  // Public exams
+  Exams: '/schools/exams',
+  ExamCandidates: '/schools/exams/[seriesId]/candidates',
+  ExamEntries: '/schools/exams/[seriesId]/entries',
+  ExamSeating: '/schools/exams/[seriesId]/seating',
+  ExamResults: '/schools/exams/[seriesId]/results',
+
+  // Leavers and alumni
+  Leavers: '/schools/leavers',
+  LeavingDocuments: '/schools/leavers/documents',
+  Alumni: '/schools/alumni',
+  AlumniRecord: '/schools/alumni/[alumnusId]',
+
   // Services
   Boarding: '/schools/boarding/allocations',
   BoardingHostel: '/schools/boarding/hostels',

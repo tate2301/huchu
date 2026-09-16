@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@corelithzw/react";
 
 import { PageBand } from "@/components/schools/common/page-band";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -76,6 +78,18 @@ export function SchoolsYearsContent() {
             value: calendarQuery.isPending ? "—" : closedDays,
           },
         ]}
+        actions={
+          /* The year boundary, from the page that owns years. Rolling every
+             child up a form is the one thing that happens *because* a year
+             ended, and until now it could only be reached from a button on
+             the students list — so an administrator closing the year off here
+             had no sign the operation existed. It stays a link out rather than
+             a control on this page: it touches every pupil's record and wants
+             its own screen to be reviewed on. */
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/schools/students/roll-up">Roll up the year</Link>
+          </Button>
+        }
       />
 
       <VerticalDataViews

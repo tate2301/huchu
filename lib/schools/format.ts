@@ -108,3 +108,37 @@ export function formatSchoolDayTime(value?: string | Date | null): string {
   if (Number.isNaN(date.getTime())) return "—";
   return `${SHORT_DATE.format(date)} ${SHORT_TIME.format(date)}`;
 }
+
+/**
+ * Small counts, spelled out.
+ *
+ * The campus canvas writes a count as a word inside a sentence or a verb —
+ * `Chase all nine`, `Below the minimum of six`, `Over the school maximum of
+ * nine` — and as a figure in a column. A screen that builds those labels from
+ * data was rendering "Chase all 9", which is the same fact in the wrong
+ * register: a digit in the middle of a phrase reads as a field, and the button
+ * is a sentence somebody says out loud.
+ *
+ * Only to twelve. Past that the word is longer than the number is worth and
+ * the canvas uses figures anyway.
+ */
+const SPELLED = [
+  "nought",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+];
+
+export function spellCount(value: number): string {
+  if (!Number.isInteger(value) || value < 0 || value > 12) return String(value);
+  return SPELLED[value];
+}

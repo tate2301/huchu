@@ -312,6 +312,13 @@ export async function applyYearRollUp(input: {
   };
 
   return prisma.$transaction(async (tx) => {
+    // The term being rolled up out of. Its last day is the nearest thing this
+    // operation knows to a leaving child's last day, and S-13.4 needs one.
+    const leavingTerm = await tx.schoolTerm.findFirst({
+      where: { id: input.fromTermId, companyId: input.companyId },
+      select: { endDate: true },
+    });
+
     const existing = await tx.schoolEnrollment.findMany({
       where: {
         companyId: input.companyId,
@@ -329,6 +336,53 @@ export async function applyYearRollUp(input: {
       }
 
       if (decision.action === "GRADUATE" || decision.action === "WITHDRAW") {
+        // S-13.4. The roll-up is where most pupils leave a school, so it is
+        // where most leavers have to be opened: a queue that only the manual
+        // `Record a leaver` verb could fill would miss the entire Form 4 cohort
+        // every November, and nobody would check whether their books were back.
+        //
+        // Opened rather than closed, and inside this transaction. The five
+        // clearance marks are proposed from the records that own them the first
+        // time the queue is read; what this writes is the row and its last day.
+        // A pupil who already has a leaver row keeps it — the office may have
+        // opened it by hand a fortnight ago.
+        const [alreadyLeaving, leaving] = await Promise.all([
+          tx.schoolLeaver.findFirst({
+            where: { studentId: decision.studentId },
+            select: { id: true },
+          }),
+          // Read before the class is cleared below, because the level is what
+          // tells Form 4 from Upper Six and the next statement removes it.
+          tx.schoolStudent.findFirst({
+            where: { id: decision.studentId },
+            select: { currentClass: { select: { level: true } } },
+          }),
+        ]);
+        const leavingLevel = leaving?.currentClass?.level ?? null;
+        if (!alreadyLeaving) {
+          await tx.schoolLeaver.create({
+            data: {
+              companyId: input.companyId,
+              studentId: decision.studentId,
+              // The last day of the term they are leaving from, which is the
+              // nearest thing the roll-up knows to a child's last day. The
+              // office corrects it on the queue where it differs.
+              lastDay: leavingTerm?.endDate ?? new Date(),
+              reason:
+                decision.action === "GRADUATE"
+                  ? (leavingLevel ?? 0) >= 5
+                    ? "COMPLETED_UPPER_6"
+                    : "COMPLETED_FORM_4"
+                  : "WITHDRAWN_BY_GUARDIAN",
+              reasonNote:
+                decision.action === "WITHDRAW"
+                  ? "Opened by the year roll-up; the office sets the real reason."
+                  : null,
+              openedByUserId: input.actorUserId ?? decision.studentId,
+            },
+          });
+        }
+
         await tx.schoolStudent.update({
           where: { id: decision.studentId },
           data: {

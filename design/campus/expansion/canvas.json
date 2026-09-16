@@ -1,0 +1,163 @@
+{
+  "artboards": [
+    {
+      "file": "Conduct.dc.html",
+      "title": "The behaviour log",
+      "page": "conduct",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ConductIncident.dc.html",
+      "title": "One incident, start to finish",
+      "page": "conduct",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ConductMerits.dc.html",
+      "title": "Merits and demerits",
+      "page": "conduct",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ConductDetention.dc.html",
+      "title": "The detention register",
+      "page": "conduct",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Pastoral.dc.html",
+      "title": "Pastoral notes — who may read this",
+      "page": "conduct",
+      "x": 6880,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Exams.dc.html",
+      "title": "Exam series",
+      "page": "exams",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ExamCandidates.dc.html",
+      "title": "Candidates — ZIMSEC November 2026",
+      "page": "exams",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ExamEntries.dc.html",
+      "title": "Subject entries and what they cost",
+      "page": "exams",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ExamSeating.dc.html",
+      "title": "Seating and invigilation",
+      "page": "exams",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ExamResults.dc.html",
+      "title": "Public results, by subject",
+      "page": "exams",
+      "x": 6880,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Leavers.dc.html",
+      "title": "Leavers — the queue before the record closes",
+      "page": "leavers",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Alumni.dc.html",
+      "title": "The alumni register",
+      "page": "leavers",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "AlumniRecord.dc.html",
+      "title": "Alumnus — Rutendo Chikafu, class of 2019",
+      "page": "leavers",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "LeavingDocuments.dc.html",
+      "title": "Leaving certificate and testimonial",
+      "page": "leavers",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    }
+  ],
+  "annotations": [],
+  "launch": {
+    "view": "canvas",
+    "page": "conduct"
+  },
+  "pages": [
+    {
+      "id": "conduct",
+      "name": "Conduct and pastoral"
+    },
+    {
+      "id": "exams",
+      "name": "Public exams"
+    },
+    {
+      "id": "leavers",
+      "name": "Leavers and alumni"
+    }
+  ]
+}

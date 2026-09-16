@@ -26,7 +26,16 @@ export type SchoolResource =
   | "schools.boarding"
   | "schools.welfare"
   | "schools.results"
-  | "schools.reports";
+  | "schools.reports"
+  | "schools.conduct"
+  // Separate from `schools.conduct`, and not a wider version of it. A pastoral
+  // note is not a discipline record, and a grant on this resource answers only
+  // "may this role read pastoral notes at all" — never "may this person read
+  // this note about this pupil", which is `lib/schools/pastoral-access.ts`.
+  | "schools.pastoral"
+  | "schools.exams"
+  | "schools.leavers"
+  | "schools.alumni";
 
 /** The verbs `SCHOOL_FULL_ACTIONS` enumerates, as a type. */
 export type SchoolAction =
@@ -56,7 +65,21 @@ export type SchoolAction =
   | "notify-families"
   | "reply"
   | "book-meeting"
-  | "lock";
+  | "lock"
+  // Conduct: record a merit or a demerit. Separate from `create` because a
+  // teacher should be able to award one and not to log an incident.
+  | "award"
+  // Conduct: stamp that a guardian was told. The one verb the behaviour log
+  // exists for.
+  | "tell-home"
+  // Detention: mark a register.
+  | "mark"
+  // Exams: enter a candidate for a subject, and build the entry file.
+  | "enter"
+  // Leavers: settle one of the five clearance marks.
+  | "clear"
+  // Leavers and alumni: issue a document, record a destination.
+  | "record";
 
 /**
  * The tenant's own administrators, who are not constrained by a vertical
@@ -136,6 +159,12 @@ const ALL_ACTIONS: SchoolAction[] = [
   "reply",
   "book-meeting",
   "lock",
+  "award",
+  "tell-home",
+  "mark",
+  "enter",
+  "clear",
+  "record",
 ];
 
 /**
@@ -155,6 +184,15 @@ const WHO_CAN: Record<SchoolResource, Partial<Record<SchoolAction, string>>> = {
   "schools.welfare": { create: "the warden or the school nurse", edit: "the warden or the school nurse", archive: "the warden or the school nurse" },
   "schools.results": { moderate: "the head of department", approve: "the head of department", publish: "a school administrator", capture: "the subject teacher, from their portal" },
   "schools.reports": { "notify-families": "the office, the bursar or a class teacher", reply: "the office, the bursar or the head of department" },
+  "schools.conduct": { create: "the deputy head or a head of year", edit: "the deputy head", "tell-home": "the deputy head or the office", award: "any member of teaching staff", mark: "the supervisor named on the session", archive: "the deputy head" },
+  // A pastoral refusal names the pastoral team rather than a role, because
+  // being cleared for a band is a grant to a person and not a rank. Seniority
+  // does not reach a note: the Group Head reads nothing unless he is named on
+  // one.
+  "schools.pastoral": { view: "the head and the pastoral team", create: "the head and the pastoral team", edit: "the note's author", archive: "the head" },
+  "schools.exams": { create: "the exams officer or a school administrator", edit: "the exams officer", enter: "the exams officer", issue: "the bursar", capture: "the exams officer", configure: "a school administrator" },
+  "schools.leavers": { create: "the registrar", clear: "the bursar, the librarian or the warden, each for their own mark", record: "the registrar", archive: "a school administrator" },
+  "schools.alumni": { create: "the registrar", edit: "the registrar", record: "the registrar or the development office" },
 };
 
 export function whoCan(resource: SchoolResource, action: SchoolAction): string | null {

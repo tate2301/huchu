@@ -99,6 +99,19 @@ const SCHOOL_FULL_ACTIONS: string[] = [
    * register — the one act the lock exists to let the office perform over them.
    */
   "lock",
+  // Conduct: record a merit or a demerit. Separate from `create`, so a teacher
+  // can award a point without being able to log an incident.
+  "award",
+  // Conduct: stamp that home was told.
+  "tell-home",
+  // Detention: mark a register.
+  "mark",
+  // Exams: enter a candidate, and build the entry file a human uploads.
+  "enter",
+  // Leavers: settle a clearance mark.
+  "clear",
+  // Leavers and alumni: record a destination, issue a document.
+  "record",
 ];
 
 const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
@@ -123,6 +136,15 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     { resource: "schools.welfare", actions: SCHOOL_FULL_ACTIONS },
     { resource: "schools.results", actions: SCHOOL_FULL_ACTIONS },
     { resource: "schools.reports", actions: SCHOOL_FULL_ACTIONS },
+    { resource: "schools.conduct", actions: SCHOOL_FULL_ACTIONS },
+    // Not `SCHOOL_FULL_ACTIONS`, and not because the head is untrusted. A band
+    // grant answers "may this role read pastoral notes at all"; which notes,
+    // about which pupils, is `SchoolPastoralClearance` and the named readers on
+    // the note itself. The head reads what the head is cleared for.
+    { resource: "schools.pastoral", actions: ["view", "create", "edit", "archive"] },
+    { resource: "schools.exams", actions: SCHOOL_FULL_ACTIONS },
+    { resource: "schools.leavers", actions: SCHOOL_FULL_ACTIONS },
+    { resource: "schools.alumni", actions: SCHOOL_FULL_ACTIONS },
   ],
   REGISTRAR: [
     { resource: "schools.academics", actions: ["view", "create", "edit"] },
@@ -135,6 +157,12 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     { resource: "schools.welfare", actions: ["view", "create", "edit"] },
     { resource: "schools.results", actions: ["view"] },
     { resource: "schools.reports", actions: ["view", "notify-families", "reply"] },
+    { resource: "schools.conduct", actions: ["view", "create", "edit", "tell-home", "award"] },
+    // The registrar keeps the roll, so the exam entry file and the leaving
+    // queue are hers. Results capture is the exams officer's.
+    { resource: "schools.exams", actions: ["view", "create", "edit", "enter"] },
+    { resource: "schools.leavers", actions: ["view", "create", "edit", "clear", "record"] },
+    { resource: "schools.alumni", actions: ["view", "create", "edit", "record"] },
   ],
   BURSAR: [
     { resource: "schools.academics", actions: ["view"] },
@@ -156,6 +184,12 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     },
     { resource: "schools.welfare", actions: ["view"] },
     { resource: "schools.reports", actions: ["view", "notify-families", "reply"] },
+    // The entry fee is a fee: the bursar invoices it and receives it. She does
+    // not decide who is entered.
+    { resource: "schools.exams", actions: ["view", "issue"] },
+    // One of the five leaving marks is hers, which is the whole of her interest
+    // in the queue.
+    { resource: "schools.leavers", actions: ["view", "clear"] },
   ],
   HOD: [
     { resource: "schools.academics", actions: ["view"] },
@@ -168,6 +202,8 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     },
     { resource: "schools.welfare", actions: ["view"] },
     { resource: "schools.reports", actions: ["view", "notify-families", "reply"] },
+    { resource: "schools.conduct", actions: ["view", "create", "award", "mark"] },
+    { resource: "schools.exams", actions: ["view", "capture"] },
   ],
   TEACHER: [
     { resource: "schools.academics", actions: ["view"] },
@@ -178,6 +214,10 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     { resource: "schools.welfare", actions: ["view"] },
     { resource: "schools.results", actions: ["view", "capture", "submit"] },
     { resource: "schools.reports", actions: ["view", "notify-families"] },
+    // A teacher logs what happened in her lesson, awards the point, and marks
+    // the register she is supervising. She does not decide the sanction, and
+    // she does not tell home — a parent hears from the office, once.
+    { resource: "schools.conduct", actions: ["view", "create", "award", "mark"] },
   ],
   WARDEN: [
     { resource: "schools.students", actions: ["view"] },
@@ -196,6 +236,17 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     },
     { resource: "schools.welfare", actions: ["view", "create", "edit", "archive"] },
     { resource: "schools.reports", actions: ["view"] },
+    { resource: "schools.conduct", actions: ["view", "award", "mark"] },
+    // The closest thing this product has to a school nurse is a warden — the
+    // reason is in `app/api/v2/schools/health/route.ts`, verbatim: the persona
+    // that should read medical information about children is the one
+    // responsible for their welfare. `Pastoral` draws Sister Moyo, School
+    // Nurse, cleared for two of the three bands; there is no nurse persona to
+    // grant that to, so the warden carries it and the clearance table decides
+    // which notes she actually sees.
+    { resource: "schools.pastoral", actions: ["view", "create", "edit"] },
+    // The bed is one of the five leaving marks.
+    { resource: "schools.leavers", actions: ["view", "clear"] },
   ],
   PARENT: [
     { resource: "schools.portal.parent", actions: ["view-linked-students", "view-fees", "view-results"] },
