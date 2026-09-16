@@ -18,6 +18,7 @@ import {
 import { PageChrome } from "@/components/layout/page-chrome";
 import { IconButton } from "@/components/ui/icon-button";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EntityLink } from "@/components/records/entity-link";
 import { useRecordTrail } from "@/components/records/record-trail";
 import { DotsThree, SidebarRight, type LucideIcon } from "@/lib/icons";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
@@ -875,14 +876,27 @@ export function RelatedList<T>({
           const rendered = renderItem(item);
           return (
             <li key={`${rendered.href}-${index}`}>
-              <Link
+              {/*
+                `EntityLink`, not `Link`: these rows are the record's edges, and
+                they are where the reader does most of their moving about. As
+                plain links they were the only references in the product that
+                neither carried a trail back nor knew what they pointed at.
+
+                The supporting line steps down in size as well as ink. At the
+                title's size it read as a second title, which on a guardian's
+                children — two names, one under the other — is the one place
+                that ambiguity actually costs something.
+              */}
+              <EntityLink
                 href={rendered.href}
-                className="flex items-center justify-between gap-3 p-3 hover:bg-[var(--surface-hover)]"
+                className="group/row flex items-center justify-between gap-3 p-3 no-underline hover:bg-[var(--surface-hover)] hover:no-underline"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">{rendered.title}</span>
+                  <span className="block truncate text-sm font-medium underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text)]">
+                    {rendered.title}
+                  </span>
                   {rendered.subtitle ? (
-                    <span className="block truncate text-sm text-[var(--text-muted)]">
+                    <span className="acct-caption block truncate text-[var(--text-muted)]">
                       {rendered.subtitle}
                     </span>
                   ) : null}
@@ -892,7 +906,7 @@ export function RelatedList<T>({
                     {rendered.meta}
                   </span>
                 ) : null}
-              </Link>
+              </EntityLink>
             </li>
           );
         })}

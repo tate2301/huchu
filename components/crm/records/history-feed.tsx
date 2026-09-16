@@ -8,7 +8,7 @@ import { ChevronDown, ChevronRight, Download } from "@/lib/icons";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
 import { cn } from "@/lib/utils";
 
-import { bucketByDate } from "./record-list-groups";
+import { bucketByDate } from "@/components/records/record-list-groups";
 
 /**
  * The read-only evidence trail: who did what, when, and what changed.

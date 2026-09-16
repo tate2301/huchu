@@ -73,6 +73,32 @@ const SCHOOL_FULL_ACTIONS: string[] = [
    * fields outlive whoever added them and every record carries them.
    */
   "configure",
+  /**
+   * Writing to a family — a notice, a fee reminder, an absence chase. Separate
+   * from `create` because the routes that send them were guarded on
+   * `schools.reports:create`, a grant only the head holds, so the bursar was
+   * sold an arrears list she could not act on and a teacher's own "tell the
+   * family" button answered 403.
+   */
+  "notify-families",
+  /**
+   * Answering a thread a family started in the office inbox. Also stranded on
+   * `schools.reports:create`, which meant the bursar could read a fee question
+   * and the HOD a results query, and neither could reply.
+   */
+  "reply",
+  /**
+   * Opening a parents' evening slot. It was guarded on `schools.students:edit`,
+   * so a teacher booking a meeting needed the registrar's power to rewrite the
+   * pupil record. Booking a conversation is not editing a pupil.
+   */
+  "book-meeting",
+  /**
+   * Closing a register against further change. `lock` rode on
+   * `attendance:submit`, which teachers hold, so a teacher could seal their own
+   * register — the one act the lock exists to let the office perform over them.
+   */
+  "lock",
 ];
 
 const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
@@ -89,6 +115,12 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     { resource: "schools.attendance", actions: SCHOOL_FULL_ACTIONS },
     { resource: "schools.fees", actions: SCHOOL_FULL_ACTIONS },
     { resource: "schools.boarding", actions: SCHOOL_FULL_ACTIONS },
+    // Health records, consents and sanatorium events are their own resource
+    // rather than part of `schools.boarding`. Gating them as boarding meant a
+    // day school — which has no boarding — had no welfare screen at all, and
+    // the registrar, HOD and class teacher who need a pupil's allergy or
+    // consent flag in front of them could not read one.
+    { resource: "schools.welfare", actions: SCHOOL_FULL_ACTIONS },
     { resource: "schools.results", actions: SCHOOL_FULL_ACTIONS },
     { resource: "schools.reports", actions: SCHOOL_FULL_ACTIONS },
   ],
@@ -97,11 +129,12 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     { resource: "schools.admissions", actions: ["view", "create", "edit", "approve"] },
     { resource: "schools.students", actions: ["view", "create", "edit", "archive", "invite"] },
     { resource: "schools.teachers", actions: ["view", "create", "edit"] },
-    { resource: "schools.attendance", actions: ["view"] },
+    { resource: "schools.attendance", actions: ["view", "lock"] },
     { resource: "schools.fees", actions: ["view"] },
     { resource: "schools.boarding", actions: ["view"] },
+    { resource: "schools.welfare", actions: ["view", "create", "edit"] },
     { resource: "schools.results", actions: ["view"] },
-    { resource: "schools.reports", actions: ["view"] },
+    { resource: "schools.reports", actions: ["view", "notify-families", "reply"] },
   ],
   BURSAR: [
     { resource: "schools.academics", actions: ["view"] },
@@ -121,7 +154,8 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
         "refund",
       ],
     },
-    { resource: "schools.reports", actions: ["view"] },
+    { resource: "schools.welfare", actions: ["view"] },
+    { resource: "schools.reports", actions: ["view", "notify-families", "reply"] },
   ],
   HOD: [
     { resource: "schools.academics", actions: ["view"] },
@@ -132,13 +166,18 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
       resource: "schools.results",
       actions: ["view", "moderate", "request-changes", "approve"],
     },
-    { resource: "schools.reports", actions: ["view"] },
+    { resource: "schools.welfare", actions: ["view"] },
+    { resource: "schools.reports", actions: ["view", "notify-families", "reply"] },
   ],
   TEACHER: [
     { resource: "schools.academics", actions: ["view"] },
-    { resource: "schools.students", actions: ["view"] },
+    { resource: "schools.students", actions: ["view", "book-meeting"] },
+    // No `lock`: the office locks a register, and a teacher who could lock
+    // their own would be signing off their own work.
     { resource: "schools.attendance", actions: ["view", "capture", "submit"] },
+    { resource: "schools.welfare", actions: ["view"] },
     { resource: "schools.results", actions: ["view", "capture", "submit"] },
+    { resource: "schools.reports", actions: ["view", "notify-families"] },
   ],
   WARDEN: [
     { resource: "schools.students", actions: ["view"] },
@@ -155,6 +194,7 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
         "check-out",
       ],
     },
+    { resource: "schools.welfare", actions: ["view", "create", "edit", "archive"] },
     { resource: "schools.reports", actions: ["view"] },
   ],
   PARENT: [

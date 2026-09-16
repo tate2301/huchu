@@ -12,7 +12,7 @@ import {
 } from "@corelithzw/react";
 import { NavRailGroup, NavRailItem } from "@/components/ui/nav-rail";
 import { dsConfirm } from "@/components/ui/ds-confirm";
-import { TableSearch } from "@/components/schools/common/table-controls";
+import { TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
@@ -20,7 +20,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import {
   fetchNotificationPreferences,
   updateNotificationPreferences,
@@ -46,14 +46,7 @@ const SECTIONS: Array<{
     id: "notifications",
     label: "Notifications",
     icon: Bell,
-    rows: [
-      "Notifications in the portal",
-      "Browser push",
-      "Absence alerts",
-      "Daily digest",
-      "Quiet hours",
-      "School-wide announcements",
-    ],
+    rows: ["Notifications in the portal", "Browser push"],
   },
   {
     id: "publishing",
@@ -63,50 +56,27 @@ const SECTIONS: Array<{
       "Who publishes marks",
       "Approval before parents see a mark",
       "Publish window",
-      "Grade instead of the raw mark in messages",
     ],
   },
   {
     id: "appearance",
     label: "Appearance",
     icon: Palette,
-    rows: ["Theme", "Reduced motion", "Compact rows"],
+    rows: ["Reduced motion"],
   },
   {
     id: "security",
     label: "Security",
     icon: Lock,
-    rows: [
-      "Sign out on this device",
-      "Change your password",
-      "Two-step verification",
-      "Sign out everywhere",
-      "Automatic lock",
-    ],
+    rows: ["Sign out on this device"],
   },
   {
     id: "privacy",
     label: "Privacy and data",
     icon: Shield,
-    rows: [
-      "Access to pupil records is logged",
-      "Your photograph",
-      "Export your own data",
-    ],
+    rows: ["Access to pupil records is logged", "Your photograph"],
   },
 ];
-
-/**
- * The label for a setting the demo shows and this product does not store.
- *
- * A switch with nothing behind it is worse than no switch: the teacher flips
- * it, the school never behaves differently, and the portal has quietly lied.
- * These rows stay on the page — the demo is the contract and the intent is
- * real — but they say plainly that they are not wired up yet.
- */
-function NotYetAvailable() {
-  return <Badge tone="outline">Not yet available</Badge>;
-}
 
 /**
  * Notification delivery, against the preference store this repo already has.
@@ -204,37 +174,6 @@ function NotificationsPanel() {
         )}
       </section>
 
-      <section className="settings-section">
-        <h2>School notifications</h2>
-        <p className="t-body t-muted">
-          Nothing behind these yet. They are here because the school asked for
-          them, and they will switch on when the messaging they depend on does.
-        </p>
-        <SettingRow
-          label="Absence alerts"
-          description="A note when a parent reports a child absent, so the register and the reason agree."
-        >
-          <NotYetAvailable />
-        </SettingRow>
-        <SettingRow
-          label="Daily digest"
-          description="One summary each morning instead of a notification per event."
-        >
-          <NotYetAvailable />
-        </SettingRow>
-        <SettingRow
-          label="Quiet hours"
-          description="Hold anything that is not urgent outside school hours."
-        >
-          <NotYetAvailable />
-        </SettingRow>
-        <SettingRow
-          label="School-wide announcements"
-          description="Notices from the head and the office."
-        >
-          <NotYetAvailable />
-        </SettingRow>
-      </section>
     </>
   );
 }
@@ -278,12 +217,6 @@ function PublishingPanel() {
         >
           <Badge tone="outline">Set by the office</Badge>
         </SettingRow>
-        <SettingRow
-          label="Grade instead of the raw mark in messages"
-          description="Sending a parent the grade rather than 17 out of 20. Parent messaging is not built in this portal yet, so there is nothing to format."
-        >
-          <NotYetAvailable />
-        </SettingRow>
       </section>
 
       <Callout tone="info" title="A mark you have saved is not a published mark">
@@ -296,41 +229,24 @@ function PublishingPanel() {
 }
 
 /**
- * Appearance, told the truth.
+ * Appearance.
  *
- * The repo has an appearance provider and a theme control on the preferences
- * screen, but `AppearanceProvider` only reads "light" back out of storage —
- * the package ships one palette and a dark one has never been authored. A
- * three-way theme switch here would appear to work until the next reload.
+ * `AppearanceProvider` only ever reads "light" back out of storage — the
+ * package ships one palette — so a theme switch here would appear to work
+ * until the next reload, and a row offering one option is not a choice.
  * Reduced motion is genuinely handled, and by the device rather than by us:
- * the design system honours `prefers-reduced-motion`, so the honest row points
- * at the system setting instead of adding a second, weaker one.
+ * the design system honours `prefers-reduced-motion`, so the row points at the
+ * system setting instead of adding a second, weaker one.
  */
 function AppearancePanel() {
   return (
     <section className="settings-section">
       <h2>Appearance</h2>
-      <p className="t-body t-muted">
-        The portal is deliberately plain, and built to stay legible on a
-        classroom projector.
-      </p>
-      <SettingRow
-        label="Theme"
-        description="One palette, light. A dark one is not built, so there is nothing to choose between."
-      >
-        <Badge tone="neutral">Light</Badge>
-      </SettingRow>
       <SettingRow
         label="Reduced motion"
         description="Already handled. Turn on reduce motion in your device settings and the portal drops its transitions."
       >
         <Badge tone="success">Follows your device</Badge>
-      </SettingRow>
-      <SettingRow
-        label="Compact rows"
-        description="Tighter rows on the register and the marks book, for a long class list on a small screen."
-      >
-        <NotYetAvailable />
       </SettingRow>
     </section>
   );
@@ -382,30 +298,6 @@ function SecurityPanel() {
           Sign out
         </Button>
       </SettingRow>
-      <SettingRow
-        label="Change your password"
-        description="Not something you can do here. A workspace administrator resets a password, so ask the office and sign in again with the new one."
-      >
-        <NotYetAvailable />
-      </SettingRow>
-      <SettingRow
-        label="Two-step verification"
-        description="A second factor at sign-in for staff who can see marks and pupil records."
-      >
-        <NotYetAvailable />
-      </SettingRow>
-      <SettingRow
-        label="Sign out everywhere"
-        description="Ending a session on a device you no longer have. Sessions are held in the browser rather than listed on the server, so there is nothing here to revoke yet."
-      >
-        <NotYetAvailable />
-      </SettingRow>
-      <SettingRow
-        label="Automatic lock"
-        description="Locking the portal after a few idle minutes on a shared tablet."
-      >
-        <NotYetAvailable />
-      </SettingRow>
     </section>
   );
 }
@@ -428,7 +320,7 @@ function PrivacyPanel() {
         </p>
         <SettingRow
           label="Access to pupil records is logged"
-          description="Privileged actions across the platform are written to an append-only audit trail. The office can read it; there is no teacher-facing view of it yet."
+          description="Privileged actions across the platform are written to an append-only audit trail that the office can read."
         >
           <Badge tone="success">On</Badge>
         </SettingRow>
@@ -437,12 +329,6 @@ function PrivacyPanel() {
           description="Comes from your staff account and appears wherever you are listed. Ask the office to change or remove it."
         >
           <Badge tone="outline">Held by the office</Badge>
-        </SettingRow>
-        <SettingRow
-          label="Export your own data"
-          description="An archive of the marks, registers and comments recorded under your name."
-        >
-          <NotYetAvailable />
         </SettingRow>
       </section>
 

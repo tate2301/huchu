@@ -9,7 +9,7 @@ import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import {
   ClassFilter,
   ALL_CLASSES,
@@ -18,19 +18,19 @@ import {
 import {
   TableControls,
   TableSearch,
-} from "@/components/schools/common/table-controls";
+} from "@/components/records/table-controls";
 import {
   CreateButton,
   RecordActions,
   type RecordVerb,
 } from "@/components/schools/common/record-actions";
 import {
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -338,6 +338,7 @@ export function TransportContent() {
     onSuccess: invalidate,
   });
 
+  const routesLoading = routesQuery.isPending;
   const totalDue = billing.reduce((sum, row) => sum + row.due, 0);
   const totalRiders = billing.reduce((sum, row) => sum + row.riders, 0);
   const failure =
@@ -393,12 +394,16 @@ export function TransportContent() {
 
       {view === "routes" ? (
         <PageBand
+          // A dash until the routes answer, the same way the register's band
+          // waits for its own numbers. "0 riding" and "nothing to bill" are
+          // both things a transport office would act on, and neither is true
+          // while the read is still in flight.
           chips={[
-            { label: "Routes", value: allRoutes.length },
-            { label: "Riding", value: totalRiders, tone: "brand" },
+            { label: "Routes", value: routesLoading ? "—" : allRoutes.length },
+            { label: "Riding", value: routesLoading ? "—" : totalRiders, tone: "brand" },
             {
               label: "Still to bill",
-              value: formatSchoolMoney(totalDue),
+              value: routesLoading ? "—" : formatSchoolMoney(totalDue),
               tone: totalDue > 0 ? "warn" : "success",
             },
           ]}
@@ -482,15 +487,13 @@ export function TransportContent() {
                 />
               </>
             }
+            // How many routes the narrowing left. The band above says how many
+            // there are and what they are worth; this says what is on screen.
+            count={routesLoading ? null : `${routes.length} of ${allRoutes.length}`}
           />
 
-          <p className="text-sm text-muted-foreground">
-            {allRoutes.length} route{allRoutes.length === 1 ? "" : "s"} · {totalRiders}{" "}
-            riders · {formatSchoolMoney(totalDue)} still to bill this term
-          </p>
-
           {routesQuery.isLoading ? (
-            <TableRowsSkeleton columns={[{ twoLine: true }, { width: 140 }, { width: 200 }]} />
+            <ListRowsSkeleton rows={5} avatar={false} label="Loading the routes" />
           ) : routes.length === 0 ? (
             allRoutes.length === 0 ? (
               <NothingYet
@@ -585,9 +588,9 @@ export function TransportContent() {
                     className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
                   >
                     <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--border-subtle)] bg-[color:var(--surface-muted)] px-3 py-2">
-                      <h2 className="m-0 font-medium text-[color:var(--text-strong)]">
+                      <span className="font-medium text-[color:var(--text-strong)]">
                         {routeLabel(route)}
-                      </h2>
+                      </span>
                       <span className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
                         {/* An empty bus says so. Left to interpolation a route
                             nobody rides renders the same "0 riding" anyway, but
@@ -605,7 +608,12 @@ export function TransportContent() {
                       ) : null}
                       {route.isActive ? null : <Badge tone="neutral">Not running</Badge>}
                       <span className="ml-auto">
-                        <RecordActions resource="schools.students" verbs={routeVerbs} />
+                        <RecordActions
+                          layout="menu"
+                          resource="schools.students"
+                          label={`Actions for ${routeLabel(route)}`}
+                          verbs={routeVerbs}
+                        />
                       </span>
                     </div>
 
@@ -644,7 +652,9 @@ export function TransportContent() {
                               </span>
                             </span>
                             <RecordActions
+                              layout="menu"
                               resource="schools.students"
+                              label={`Actions for ${stop.name}`}
                               verbs={[
                                 {
                                   label: "Edit",
@@ -750,6 +760,9 @@ export function TransportContent() {
                 />
               </>
             }
+            // The band says how the morning went; this says how much of the
+            // register the filters left in front of you.
+            count={registerQuery.isPending ? null : `${rows.length} of ${allRows.length}`}
             actions={
               <CreateButton
                 resource="schools.students"
@@ -761,22 +774,8 @@ export function TransportContent() {
             }
           />
 
-          {register ? (
-            // Verbatim from the canvas: the route, then the four counts in the
-            // order somebody reads them off — on, not on, unmarked, of how
-            // many are expected. The date is not repeated here; it is the
-            // filter three inches above, and the app bar's caption.
-            <p className="text-sm text-muted-foreground">
-              {routeShort(register.route)} · {register.summary.on} on,{" "}
-              {register.summary.notOn} not on, {register.summary.unmarked} unmarked
-              of {register.summary.expected}
-            </p>
-          ) : null}
-
           {registerQuery.isLoading ? (
-            <TableRowsSkeleton
-              columns={[{ avatar: true, twoLine: true }, { width: 90 }, { width: 240 }]}
-            />
+            <ListRowsSkeleton rows={10} label="Loading the register" />
           ) : rows.length === 0 ? (
             allRows.length === 0 ? (
               <NothingYet
@@ -825,17 +824,14 @@ export function TransportContent() {
                     key={row.riderId}
                     className="flex flex-wrap items-center gap-3 px-3 py-2"
                   >
-                    <PersonAvatar
-                      firstName={row.student.firstName}
-                      lastName={row.student.lastName}
-                    />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">
-                        {row.student.lastName}, {row.student.firstName}
-                      </span>
-                      <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                        {riderLine(row)}
-                      </span>
+                      <PersonCell
+                        kind="student"
+                        href={`/schools/students/${row.student.id}`}
+                        firstName={row.student.firstName}
+                        lastName={row.student.lastName}
+                        reference={riderLine(row)}
+                      />
                     </span>
                     {marked === null ? <Badge tone="warn">Not marked</Badge> : null}
                     <span className="flex items-center gap-2">
@@ -858,8 +854,15 @@ export function TransportContent() {
                         Not on
                       </Button>
                     </span>
+                    {/* On and Not on stay as buttons: they are the register,
+                        not verbs about the row, and a mark that costs a menu
+                        press is a register nobody finishes. Everything that
+                        changes the rider rather than the morning is behind the
+                        trigger beside them. */}
                     <RecordActions
+                      layout="menu"
                       resource="schools.students"
+                      label={`Actions for ${row.student.firstName} ${row.student.lastName}`}
                       verbs={[
                         {
                           label: "Move stop",
@@ -1326,7 +1329,7 @@ function RiderDialog({
       }}
       title={
         rider
-          ? `${rider.student.lastName}, ${rider.student.firstName}`
+          ? `${rider.student.firstName} ${rider.student.lastName}`
           : "Put a child on the bus"
       }
       description={
@@ -1363,7 +1366,7 @@ function RiderDialog({
             value={studentId}
             options={(studentsQuery.data?.data ?? []).map((student) => ({
               value: student.id,
-              label: `${student.lastName}, ${student.firstName} · ${student.studentNo}`,
+              label: `${student.firstName} ${student.lastName} · ${student.studentNo}`,
             }))}
             onChange={setStudentId}
           />

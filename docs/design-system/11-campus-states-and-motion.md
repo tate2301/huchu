@@ -1,7 +1,7 @@
 # Campus states and motion
 
 Every campus screen has eight states. The canvas draws all of them in
-`design/campus/module/State*.dc.html`; `components/schools/common/states.tsx`
+`design/campus/module/State*.dc.html`; `components/records/states.tsx`
 implements them. **Never write a spinner, an empty `<p>`, or a bare "Loading…"
 string.** They exist, and the audit will catch you.
 

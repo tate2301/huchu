@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { ageingBucket, daysPastDue } from "@/lib/schools/ageing";
 
 // ============================================================================
 // Types
@@ -417,25 +418,14 @@ export async function generateArrearsAgingReport(
     const outstanding = Number(invoice.balanceAmount);
     row.totalOutstanding += outstanding;
 
-    // Calculate days overdue
-    if (invoice.dueDate) {
-      const daysOverdue = Math.floor(
-        (today.getTime() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
-      );
-
-      if (daysOverdue <= 0) {
-        row.current += outstanding;
-      } else if (daysOverdue <= 30) {
-        row.days30 += outstanding;
-      } else if (daysOverdue <= 60) {
-        row.days60 += outstanding;
-      } else if (daysOverdue <= 90) {
-        row.days90 += outstanding;
-      } else {
-        row.days120Plus += outstanding;
-      }
+    // The band boundaries live in lib/schools/ageing.ts so that the screens and
+    // this computation cannot answer differently for the same bill. `days120Plus`
+    // is this endpoint's long-standing name for the 90+ column.
+    const bucket = ageingBucket(daysPastDue(invoice.dueDate, today));
+    if (bucket === "days90Plus") {
+      row.days120Plus += outstanding;
     } else {
-      row.current += outstanding;
+      row[bucket] += outstanding;
     }
   }
 

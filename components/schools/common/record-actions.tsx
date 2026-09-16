@@ -47,36 +47,57 @@ export type RecordVerb = {
   loading?: boolean;
 };
 
+type RecordActionsCommon = {
+  resource: SchoolResource;
+  verbs: RecordVerb[];
+  size?: "sm" | "md";
+};
+
+/**
+ * `inline` puts every verb on the row as a button. `menu` collapses them
+ * behind a single "..." trigger.
+ *
+ * **Use `menu` in a table.** Three text buttons in the last cell is what made
+ * the school tables unreadable: `/schools/students` came to 1,145px of
+ * columns in 1,129px of space, so "Delete" was cut off at the window edge,
+ * and `/people` came to 1,944px in 923px. The verbs are the widest thing in
+ * the row and the least often used — the CRM tables, which are the standard
+ * (see `docs/design-system/12-tables.md`), give the row a chevron and nothing
+ * else.
+ *
+ * `inline` stays the default so the detail-page headers, where the verbs are
+ * the point of the page, keep their buttons.
+ *
+ * Gating is identical in both: a verb somebody cannot use is DISABLED with
+ * the reason on it, never hidden. Hiding it in a menu would quietly undo the
+ * rule this component exists to enforce.
+ */
+type RecordActionsProps = RecordActionsCommon &
+  (
+    | { layout?: "inline"; label?: string }
+    | {
+        layout: "menu";
+        /**
+         * What the trigger is called — "Row actions for Tendai Moyo".
+         *
+         * Required on a menu, and that is the whole point of the split. Left
+         * optional it fell back to "Row actions", which reads correctly on its
+         * own and turns a register of forty rows into forty identically-named
+         * controls — invisible on screen, so it survives review and reaches
+         * somebody navigating by keyboard. `inline` needs none: every verb is a
+         * button carrying its own word.
+         */
+        label: string;
+      }
+  );
+
 export function RecordActions({
   resource,
   verbs,
   size = "sm",
   layout = "inline",
-}: {
-  resource: SchoolResource;
-  verbs: RecordVerb[];
-  size?: "sm" | "md";
-  /**
-   * `inline` puts every verb on the row as a button. `menu` collapses them
-   * behind a single "..." trigger.
-   *
-   * **Use `menu` in a table.** Three text buttons in the last cell is what made
-   * the school tables unreadable: `/schools/students` came to 1,145px of
-   * columns in 1,129px of space, so "Delete" was cut off at the window edge,
-   * and `/people` came to 1,944px in 923px. The verbs are the widest thing in
-   * the row and the least often used — the CRM tables, which are the standard
-   * (see `docs/design-system/12-tables.md`), give the row a chevron and nothing
-   * else.
-   *
-   * `inline` stays the default so the detail-page headers, where the verbs are
-   * the point of the page, keep their buttons.
-   *
-   * Gating is identical in both: a verb somebody cannot use is DISABLED with
-   * the reason on it, never hidden. Hiding it in a menu would quietly undo the
-   * rule this component exists to enforce.
-   */
-  layout?: "inline" | "menu";
-}) {
+  label,
+}: RecordActionsProps) {
   const access = useSchoolAccess();
 
   const resolved = verbs.map((verb) => {
@@ -112,8 +133,11 @@ export function RecordActions({
           <Button
             size={size}
             variant="ghost"
-            className="size-7 p-0"
-            aria-label="Row actions"
+            // 28px is a comfortable mouse target and a poor thumb one, so it
+            // grows on touch — where the extra height buys a hit area rather
+            // than costing a row.
+            className="size-7 p-0 [@media(pointer:coarse)]:size-9"
+            aria-label={label ?? "Row actions"}
           >
             <MoreHorizontal className="size-4" />
           </Button>
@@ -140,41 +164,19 @@ export function RecordActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {verbs.map((verb) => {
-        const permitted = access.can(resource, verb.action);
-        const who = permitted ? null : whoCan(resource, verb.action);
-        const reason = !permitted
-          ? who
-            ? `This is ${who} to do.`
-            : "Changing this is somebody else's job."
-          : verb.unavailable;
-
-        return (
-          <Button
-            key={verb.label}
-            size={size}
-            variant={verb.tone === "danger" ? "danger" : "secondary"}
-            disabled={Boolean(reason) || verb.loading}
-            loading={verb.loading}
-            title={reason ?? undefined}
-            onClick={async () => {
-              if (!verb.confirm) {
-                verb.onSelect();
-                return;
-              }
-              const confirmed = await dsConfirm({
-                title: verb.confirm.title,
-                description: verb.confirm.description,
-                confirmLabel: verb.confirm.confirmLabel,
-                variant: verb.tone ?? "default",
-              });
-              if (confirmed) verb.onSelect();
-            }}
-          >
-            {verb.label}
-          </Button>
-        );
-      })}
+      {resolved.map(({ verb, reason, run }) => (
+        <Button
+          key={verb.label}
+          size={size}
+          variant={verb.tone === "danger" ? "danger" : "secondary"}
+          disabled={Boolean(reason) || verb.loading}
+          loading={verb.loading}
+          title={reason ?? undefined}
+          onClick={() => void run()}
+        >
+          {verb.label}
+        </Button>
+      ))}
     </div>
   );
 }

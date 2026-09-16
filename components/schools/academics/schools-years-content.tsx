@@ -55,27 +55,48 @@ export function SchoolsYearsContent() {
 
   return (
     <div className="space-y-4">
+      {/* "None" in amber is a real answer — the school has not marked a year
+          current and somebody has to — so it must not be said before the
+          question has been asked. While the queries are in flight the chips
+          say nothing and carry the neutral tone. */}
       <PageBand
         chips={[
           {
             label: "Current year",
-            value: currentYear?.name ?? "None",
-            tone: currentYear ? "brand" : "warn",
+            value: yearsQuery.isPending ? "—" : (currentYear?.name ?? "None"),
+            tone: yearsQuery.isPending ? "neutral" : currentYear ? "brand" : "warn",
           },
           {
             label: "Current term",
-            value: currentTerm?.name ?? "None",
-            tone: currentTerm ? "success" : "warn",
+            value: termsQuery.isPending ? "—" : (currentTerm?.name ?? "None"),
+            tone: termsQuery.isPending ? "neutral" : currentTerm ? "success" : "warn",
           },
-          { label: "Days that close the school", value: closedDays },
+          {
+            label: "Days that close the school",
+            value: calendarQuery.isPending ? "—" : closedDays,
+          },
         ]}
       />
 
       <VerticalDataViews
         items={[
-          { id: "years", label: "Academic years", count: years.length },
-          { id: "terms", label: "Terms", count: terms.length },
-          { id: "calendar", label: "Holidays & Events", count: events.length },
+          /* A count that is still loading renders as nothing rather than as
+             a zero, the same way the state rails in the results area do. */
+          {
+            id: "years",
+            label: "Academic years",
+            count: yearsQuery.isPending ? undefined : years.length,
+          },
+          {
+            id: "terms",
+            label: "Terms",
+            count: termsQuery.isPending ? undefined : terms.length,
+          },
+          {
+            id: "calendar",
+            label: "Holidays and events",
+            count: calendarQuery.isPending ? undefined : events.length,
+          },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as YearsView)}
@@ -85,12 +106,7 @@ export function SchoolsYearsContent() {
           <SchoolsCalendarContent view={activeView} />
         ) : null}
 
-        {activeView === "calendar" ? (
-          <div className="space-y-2">
-            <h2 className="text-section-title">Holidays and Events</h2>
-            <SchoolDaysContent />
-          </div>
-        ) : null}
+        {activeView === "calendar" ? <SchoolDaysContent /> : null}
       </VerticalDataViews>
     </div>
   );

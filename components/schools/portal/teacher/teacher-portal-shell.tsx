@@ -1,10 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { accentVar, AppShell, Avatar, NavRail, NavRailGroup } from "@corelithzw/react";
+import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  accentVar,
+  AppShell,
+  Avatar,
+  BottomTabItem,
+  BottomTabs,
+  BottomSheet,
+  NavRail,
+  NavRailGroup,
+} from "@corelithzw/react";
 import { NavRailItem } from "@/components/ui/nav-rail";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
+import { fetchJson } from "@/lib/api-client";
 import {
   BarChart3,
   Bell,
@@ -20,6 +34,7 @@ import {
   Layers,
   ListBullets,
   LogOut,
+  MoreHorizontal,
   Settings2,
   UserRound,
 } from "@/lib/icons";
@@ -90,6 +105,19 @@ const TABS = [
 ];
 
 /**
+ * The phone's own bar. The rail is 252px of chrome a phone does not have, so
+ * below `md` it goes and these five take over: the register and the mark sheet
+ * are what a teacher opens between rooms, and everything else — the class
+ * picker included — lives one tap behind More.
+ */
+const BOTTOM = [
+  { href: "/portal/teacher", label: "Today", icon: Home },
+  { href: "/portal/teacher/attendance", label: "Attendance", icon: CheckCircle },
+  { href: "/portal/teacher/marks", label: "Marks", icon: EditSquare },
+  { href: "/portal/teacher/messages", label: "Messages", icon: ChatCircle },
+];
+
+/**
  * "Thursday · 6 August 2026", built from two single-field formatters.
  *
  * One combined formatter would be shorter and wrong: Node's ICU writes
@@ -108,6 +136,25 @@ function captionDate(date: Date) {
 }
 
 /**
+ * Signing out of a shared staffroom tablet.
+ *
+ * The rail used to link straight at `/api/auth/signout`, which is a GET: a
+ * link preview or a prefetch could sign a teacher out mid-register, and even
+ * when they meant it, a half-taken roll lives only in the screen they were
+ * about to leave. So it asks, and says what is at stake.
+ */
+async function confirmSignOut() {
+  const confirmed = await dsConfirm({
+    title: "Sign out of this tablet?",
+    description:
+      "Anything you have not saved — a register still being taken, marks not yet sent — is lost.",
+    confirmLabel: "Sign out",
+    variant: "warning",
+  });
+  if (confirmed) await signOut({ callbackUrl: "/portal/teacher/login" });
+}
+
+/**
  * The teacher portal's own chrome.
  *
  * A portal is not the dashboard with a different nav: a teacher signs in on a
@@ -121,8 +168,28 @@ function captionDate(date: Date) {
  */
 export function TeacherPortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { day, classSubjectId, setClassSubjectId } = useTeacherPortal();
   const { isOffline } = useOfflineConnectivity();
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  /**
+   * The bell counts families waiting for an answer, which is the only thing on
+   * this shell nobody else is already saying. Papers to mark are the Marks
+   * tab's number; carrying them here as well put the same "20" on the bell, the
+   * tab, the rail and a Today tile while unread messages showed nowhere.
+   *
+   * Same query key as the Messages screen, so opening the inbox clears the
+   * badge from the cache both of them read.
+   */
+  const inbox = useQuery({
+    queryKey: ["schools", "portal", "teacher", "messages"],
+    queryFn: () =>
+      fetchJson<{ threads: Array<{ id: string; unread: boolean }> }>(
+        "/api/v2/schools/portal/teacher/me/messages",
+      ),
+  });
+  const unread = (inbox.data?.threads ?? []).filter((row) => row.unread).length;
 
   const teacherName = day.teacher?.user.name ?? "Teacher";
   const subjects = [...new Set((day.classes).map((row) => row.subjectName))];
@@ -213,9 +280,6 @@ export function TeacherPortalShell({ children }: { children: React.ReactNode }) 
               to={item.href}
               active={isActive(item.href)}
               icon={<item.icon className="size-4" aria-hidden />}
-              {...(item.href === "/portal/teacher/marks" && papers > 0
-                ? { count: papers }
-                : {})}
             >
               {item.label}
             </NavRailItem>
@@ -247,8 +311,8 @@ export function TeacherPortalShell({ children }: { children: React.ReactNode }) 
             </NavRailItem>
           ))}
           <NavRailItem
-            to="/api/auth/signout"
             icon={<LogOut className="size-4" aria-hidden />}
+            onClick={() => void confirmSignOut()}
           >
             Sign out
           </NavRailItem>
@@ -268,11 +332,17 @@ export function TeacherPortalShell({ children }: { children: React.ReactNode }) 
           <span aria-hidden className="pdot" />
           {isOffline ? "Offline" : "Online"}
         </span>
-        <Link href="/portal/teacher/messages" aria-label="Messages" className="te-bell">
+        <Link
+          href="/portal/teacher/messages"
+          aria-label={
+            unread > 0 ? `Messages, ${unread} from families unread` : "Messages"
+          }
+          className="te-bell"
+        >
           <Bell className="size-4" aria-hidden />
-          {papers > 0 ? (
+          {unread > 0 ? (
             <span className="ndot" aria-hidden>
-              {papers}
+              {unread}
             </span>
           ) : null}
         </Link>
@@ -299,6 +369,43 @@ export function TeacherPortalShell({ children }: { children: React.ReactNode }) 
   return (
     <AppShell className="te-portal" sidebar={sidebar} topbar={topbar}>
       {children}
+
+      <BottomTabs className="te-bottom" aria-label="Teacher portal">
+        {BOTTOM.map((tab) => (
+          <BottomTabItem
+            key={tab.href}
+            active={isActive(tab.href)}
+            icon={
+              <span className="b-bt-ic">
+                <tab.icon className="size-[22px]" aria-hidden />
+              </span>
+            }
+            label={tab.label}
+            onClick={() => router.push(tab.href)}
+          />
+        ))}
+        <BottomTabItem
+          active={moreOpen}
+          icon={
+            <span className="b-bt-ic">
+              <MoreHorizontal className="size-[22px]" aria-hidden />
+            </span>
+          }
+          label="More"
+          onClick={() => setMoreOpen(true)}
+        />
+      </BottomTabs>
+
+      {/* Everything the rail holds and the phone's bar has no room for — the
+          class picker first, because it is what the screens underneath are
+          anchored to. */}
+      <BottomSheet
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        title="Your classes and the rest of the portal"
+      >
+        <div className="te-more">{sidebar}</div>
+      </BottomSheet>
     </AppShell>
   );
 }

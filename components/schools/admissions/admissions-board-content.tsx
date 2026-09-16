@@ -10,9 +10,16 @@ import {
   MobileListSectionHeader,
 } from "@corelithzw/react";
 
+import { RecordMark } from "@/components/records/record-mark";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
+import {
+  CreateButton,
+  RecordActions,
+  type RecordVerb,
+} from "@/components/schools/common/record-actions";
 import {
   CardsSkeleton,
   LoadError,
@@ -21,9 +28,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/records/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
@@ -133,6 +138,21 @@ export function AdmissionsBoardContent() {
     [applicationsQuery.data],
   );
   const counts = applicationsQuery.data?.counts ?? {};
+  /**
+   * Every application the board could show for the year group in view. It comes
+   * back beside the rows from its own grouped query rather than being counted
+   * off them, so the figure the count is read against does not move when a
+   * stage filter or the search box does.
+   *
+   * "Could show" is doing the work. Declined and withdrawn applications are in
+   * `counts` but are not in the rows unless the reader asks for them, so
+   * summing every stage sets a denominator the numerator can never reach: a
+   * September board reads "42 of 137" with no filter in force, which says
+   * ninety-five were narrowed away by a toolbar that is doing nothing.
+   */
+  const onFile = Object.entries(counts)
+    .filter(([stage]) => includeClosed || !(CLOSED_STAGES as readonly string[]).includes(stage))
+    .reduce((sum, [, value]) => sum + value, 0);
 
   const now = useMemo(() => new Date(), []);
 
@@ -168,10 +188,15 @@ export function AdmissionsBoardContent() {
     offerHasLapsed(application, now),
   );
 
+  /**
+   * The narrowing in force, in the reader's words. The search term is named
+   * separately by the empty state, so it is not folded in here: a sentence
+   * that lists what was typed among the filters offers to clear filters
+   * nobody set.
+   */
   const namedFilters = [
     classes.find((row) => row.id === classFilter)?.name,
     stageFilter ? STAGE_LABELS[stageFilter as ApplicationStage] : undefined,
-    search.trim() || undefined,
   ].filter((entry): entry is string => Boolean(entry));
 
   function clearFilters() {
@@ -273,19 +298,39 @@ export function AdmissionsBoardContent() {
       {view === "enrolments" ? <SchoolsAdmissionsContent /> : null}
 
       <div className={view === "pipeline" ? "space-y-4" : "hidden"}>
+      {/* The page is named in the bar, and the one verb that fills this board
+          goes with the name rather than sitting in the row that narrows it. */}
+      <PageChrome title="Admissions">
+        <CreateButton
+          resource="schools.admissions"
+          label="New application"
+          onSelect={() => {
+            setEditing(null);
+            setFormOpen(true);
+          }}
+        />
+      </PageChrome>
+
       {/* Pipeline and roll side by side: "61 in, 842 here" is the whole of
           what an admissions office is watching in September. */}
       <PageBand
         chips={[
-          { label: "Pipeline", value: applications.length, tone: "brand" },
+          // An em dash until the board is in. All three are noughts before it
+          // lands, and "Lapsed 0" is a reassurance the screen has not earned
+          // yet — it is the number an admissions office comes here to check.
+          {
+            label: "Pipeline",
+            value: applicationsQuery.data ? applications.length : "—",
+            tone: "brand",
+          },
           {
             label: "Offers out",
-            value: counts.OFFERED ?? 0,
+            value: applicationsQuery.data ? (counts.OFFERED ?? 0) : "—",
             tone: lapsed.length > 0 ? "warn" : "neutral",
           },
           {
             label: "Lapsed",
-            value: lapsed.length,
+            value: applicationsQuery.data ? lapsed.length : "—",
             tone: lapsed.length > 0 ? "danger" : "neutral",
           },
         ]}
@@ -327,49 +372,41 @@ export function AdmissionsBoardContent() {
         </Alert>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <FilterBar>
-          <div className="min-w-0 flex-1 basis-[180px] sm:max-w-[220px]">
-            <Label htmlFor="admissions-search" className="text-sm text-muted-foreground">
-              Find
-            </Label>
-            <Input
-              id="admissions-search"
-              value={search}
-              placeholder="Name or number"
-              onChange={(event) => setSearch(event.target.value)}
+      {/* The one narrowing row every campus list draws, and the count beside
+          it. The line of stage tallies that used to sit under it — "12 enquiry
+          · 9 applied · 4 offered" — said what the band above and the section
+          heading on every column of the board already say, twice. */}
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search a name or an application number"
+          />
+        }
+        filterCount={activeFilterCount(classFilter, stageFilter)}
+        filters={
+          <>
+            <FilterSelect
+              label="Year group"
+              allLabel="Any year group"
+              value={classFilter}
+              options={classes.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setClassFilter}
             />
-          </div>
-          <FilterSelect
-            label="Year group"
-            allLabel="Any year group"
-            value={classFilter}
-            options={classes.map((row) => ({ value: row.id, label: row.name }))}
-            onChange={setClassFilter}
-          />
-          <FilterSelect
-            label="Stage"
-            allLabel="Open stages"
-            value={stageFilter}
-            options={STAGE_OPTIONS}
-            onChange={setStageFilter}
-          />
-        </FilterBar>
-        <CreateButton
-          resource="schools.admissions"
-          label="New application"
-          onSelect={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-        />
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        {PIPELINE_STAGES.map((stage) => `${counts[stage] ?? 0} ${STAGE_LABELS[stage].toLowerCase()}`).join(
-          " · ",
-        )}
-      </p>
+            <FilterSelect
+              label="Stage"
+              allLabel="Open stages"
+              value={stageFilter}
+              options={STAGE_OPTIONS}
+              onChange={setStageFilter}
+            />
+          </>
+        }
+        count={
+          applicationsQuery.isPending ? null : `${applications.length} of ${onFile}`
+        }
+      />
 
       {lapsed.length > 0 ? (
         <Alert
@@ -394,10 +431,11 @@ export function AdmissionsBoardContent() {
           <CardsSkeleton count={6} columns={3} lines={2} />
         </div>
       ) : applications.length === 0 ? (
-        namedFilters.length > 0 ? (
+        namedFilters.length > 0 || search.trim() ? (
           <NothingMatched
             what="applications"
             filters={namedFilters}
+            search={search}
             onClear={clearFilters}
           />
         ) : Object.values(counts).every((count) => !count) ? (
@@ -457,11 +495,96 @@ export function AdmissionsBoardContent() {
                 />
               ) : null}
               {rows.map((application) => {
-                const next = ALLOWED_TRANSITIONS[application.stage];
+                /*
+                  One press moves a child along the ladder, so the step the
+                  stage expects next sits on the row and every other transition
+                  folds into the menu. Nine stages times six transitions was a
+                  board whose verbs ran off the right edge of the card.
+                */
+                const moveVerb = (target: ApplicationStage): RecordVerb => ({
+                  label: STAGE_LABELS[target],
+                  action: "approve",
+                  tone: CLOSED_STAGES.includes(target) ? "danger" : "default",
+                  loading: moveMutation.isPending,
+                  ...(CLOSED_STAGES.includes(target)
+                    ? {
+                        confirm: {
+                          title:
+                            target === "DECLINED"
+                              ? `Turn ${application.firstName} ${application.lastName} down`
+                              : `Mark ${application.firstName} ${application.lastName} withdrawn`,
+                          description:
+                            target === "DECLINED"
+                              ? "The school has said no. The application leaves the board and the place is freed for the waiting list."
+                              : "The family has gone elsewhere. The application leaves the board and the place is freed for the waiting list.",
+                          confirmLabel: STAGE_LABELS[target],
+                        },
+                      }
+                    : {}),
+                  onSelect: () =>
+                    moveMutation.mutate({ id: application.id, stage: target }),
+                });
+
+                const enrolVerb: RecordVerb = {
+                  label: "Enrol",
+                  action: "approve",
+                  loading: enrolMutation.isPending,
+                  confirm: {
+                    title: `Enrol ${application.firstName} ${application.lastName}`,
+                    description:
+                      "A student record is created and a student number allocated. The application closes as enrolled and cannot be walked back through admissions.",
+                    confirmLabel: "Enrol",
+                  },
+                  onSelect: () => enrolMutation.mutate(application.id),
+                };
+
+                const allowed = ALLOWED_TRANSITIONS[application.stage];
+                // Reopening a turned-down or withdrawn application is a
+                // decision somebody takes deliberately, never the obvious next
+                // press, so a closed stage offers nothing inline.
+                const forward = CLOSED_STAGES.includes(application.stage)
+                  ? null
+                  : (allowed.find((target) => !CLOSED_STAGES.includes(target)) ?? null);
+                const primary = forward
+                  ? forward === "ENROLLED"
+                    ? enrolVerb
+                    : moveVerb(forward)
+                  : null;
+
+                const verbs: RecordVerb[] = [
+                  // Correcting the file and deciding on the child are
+                  // different acts with different grants — `edit` and
+                  // `approve` — so they are different verbs, each disabled
+                  // with the reason rather than hidden.
+                  {
+                    label: "Edit",
+                    action: "edit",
+                    onSelect: () => {
+                      setEditing(application);
+                      setFormOpen(true);
+                    },
+                  },
+                  ...allowed
+                    .filter((target) => target !== forward)
+                    .map((target) =>
+                      target === "ENROLLED" ? enrolVerb : moveVerb(target),
+                    ),
+                ];
+
                 return (
                   <MobileList.Row
                     key={application.id}
                     static
+                    // A child with a face, the same mark they will carry on the
+                    // roll the day they are enrolled. A board of nine columns of
+                    // bare names is one nobody can scan.
+                    leading={
+                      <RecordMark
+                        kind="student"
+                        name={`${application.firstName} ${application.lastName}`}
+                        size="sm"
+                      />
+                    }
                     title={`${application.lastName}, ${application.firstName}`}
                     subtitle={
                       <span className="mt-1 flex flex-wrap items-center gap-2">
@@ -481,69 +604,21 @@ export function AdmissionsBoardContent() {
                         {offerHasLapsed(application, now) ? (
                           <Badge tone="danger">Offer lapsed</Badge>
                         ) : null}
-                        {/* Correcting the file and deciding on the child are
-                            different acts with different grants — `edit` and
-                            `approve` — so they are different verbs, each
-                            disabled with the reason rather than hidden. */}
+                      </span>
+                    }
+                    trailing={
+                      <span className="flex items-center gap-2">
+                        {primary ? (
+                          <RecordActions
+                            resource="schools.admissions"
+                            verbs={[primary]}
+                          />
+                        ) : null}
                         <RecordActions
+                          layout="menu"
+                          label={`Row actions for ${application.firstName} ${application.lastName}`}
                           resource="schools.admissions"
-                          verbs={[
-                            {
-                              label: "Edit",
-                              action: "edit",
-                              onSelect: () => {
-                                setEditing(application);
-                                setFormOpen(true);
-                              },
-                            },
-                            ...(application.stage === "ACCEPTED"
-                              ? [
-                                  {
-                                    label: "Enrol",
-                                    action: "approve" as const,
-                                    loading: enrolMutation.isPending,
-                                    confirm: {
-                                      title: `Enrol ${application.firstName} ${application.lastName}`,
-                                      description:
-                                        "A student record is created and a student number allocated. The application closes as enrolled and cannot be walked back through admissions.",
-                                      confirmLabel: "Enrol",
-                                    },
-                                    onSelect: () => enrolMutation.mutate(application.id),
-                                  },
-                                ]
-                              : []),
-                            ...next
-                              .filter((target) => target !== "ENROLLED")
-                              .map((target) => ({
-                                label: STAGE_LABELS[target],
-                                action: "approve" as const,
-                                tone:
-                                  target === "DECLINED" || target === "WITHDRAWN"
-                                    ? ("danger" as const)
-                                    : ("default" as const),
-                                loading: moveMutation.isPending,
-                                ...(target === "DECLINED" || target === "WITHDRAWN"
-                                  ? {
-                                      confirm: {
-                                        title:
-                                          target === "DECLINED"
-                                            ? `Turn ${application.firstName} ${application.lastName} down`
-                                            : `Mark ${application.firstName} ${application.lastName} withdrawn`,
-                                        description:
-                                          target === "DECLINED"
-                                            ? "The school has said no. The application leaves the board and the place is freed for the waiting list."
-                                            : "The family has gone elsewhere. The application leaves the board and the place is freed for the waiting list.",
-                                        confirmLabel: STAGE_LABELS[target],
-                                      },
-                                    }
-                                  : {}),
-                                onSelect: () =>
-                                  moveMutation.mutate({
-                                    id: application.id,
-                                    stage: target,
-                                  }),
-                              })),
-                          ]}
+                          verbs={verbs}
                         />
                       </span>
                     }

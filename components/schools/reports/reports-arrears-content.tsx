@@ -1,22 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useIsMutating } from "@tanstack/react-query";
 import { Alert, Button, Card, StatCard } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { AgeingStrip } from "@/components/schools/common/ageing-strip";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   ALL_CLASSES,
   ClassFilter,
@@ -32,12 +32,14 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { AGEING_BUCKETS, ageingAmount, type AgeingTone } from "@/lib/schools/ageing";
+import { formatSchoolMoney } from "@/lib/schools/format";
 
 /**
- * Arrears Aging Report — who is behind, and by how long.
+ * Arrears ageing — who is behind, and by how long.
  *
  * This is the arrears view off `/schools/reports` given a route of its own,
  * because it is not a report anybody reads next to the other three. A bursar
@@ -85,7 +87,7 @@ type ArrearsResponse = {
 
 type CollectionsResponse = {
   data: Array<{ period: string; termId: string; termName: string; collectionRate: number }>;
-  summary: { overallCollectionRate: number };
+  summary: { totalInvoiced: number; overallCollectionRate: number };
 };
 
 type EnrollmentResponse = {
@@ -98,11 +100,16 @@ type OccupancyResponse = {
 };
 
 /** The other three cuts of the same reporting pack, kept a click away. */
+/*
+ * Each segment addresses its own cut. Three of these used to point at
+ * `/schools/reports` bare, which held its view in state — so "Enrolment" and
+ * "Hostel occupancy" were doors that opened into Collections.
+ */
 const REPORT_VIEWS = [
   { id: "collections", label: "Collections", href: "/schools/reports" },
-  { id: "arrears", label: "Arrears Aging", href: "/schools/finance/arrears" },
-  { id: "enrollment", label: "Enrollment", href: "/schools/reports" },
-  { id: "occupancy", label: "Hostel Occupancy", href: "/schools/reports" },
+  { id: "arrears", label: "Arrears ageing", href: "/schools/finance/arrears" },
+  { id: "enrollment", label: "Enrolment", href: "/schools/reports?view=enrollment" },
+  { id: "occupancy", label: "Hostel occupancy", href: "/schools/reports?view=occupancy" },
 ];
 
 const AGE_OPTIONS = [
@@ -124,57 +131,53 @@ const BOARDING_OPTIONS = [
   { value: "DAY", label: "Day pupils only" },
 ];
 
-function money(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function whole(value: number): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
-}
-
-function percent(value: number): string {
+/**
+ * A rate with nothing behind it is unknown rather than zero: "0%" against
+ * nothing billed reads as a school that collected nothing.
+ */
+function percent(value: number, outOf: number): string {
+  if (!(outOf > 0) || !Number.isFinite(value)) return "—";
   return `${value.toFixed(1)}%`;
 }
 
-/** A collection rate reads as a state, not a number: 96 is fine, 69 is not. */
-function rateTone(rate: number) {
+/**
+ * A collection rate reads as a state, not a number: 96 is fine, 69 is not.
+ * A rate with nothing billed behind it is no state at all, so the tile stays
+ * neutral rather than painting a school that has not billed yet in danger red.
+ */
+function rateTone(rate: number, outOf: number) {
+  if (!(outOf > 0)) return undefined;
   if (rate >= 90) return "success" as const;
   if (rate >= 70) return "warn" as const;
   return "danger" as const;
 }
 
 /**
- * Money in an aging column, warming as it ages.
+ * Money in an ageing column, warming as it ages.
  *
- * Current is quiet, the middle buckets take the warning tone and 90+ takes the
- * danger one, so the shape of a family's debt is legible before the figures
- * are read. Everything is `num` — mono, tabular — so the columns line up
- * digit for digit down the table.
+ * The tone is the band's own, so the shape of a family's debt is legible
+ * before the figures are read. Everything is `num` — mono, tabular — so the
+ * columns line up digit for digit down the table.
  */
-function AgedMoney({
-  amount,
-  bucket,
-}: {
-  amount: number;
-  bucket: "current" | "days30" | "days60" | "days90" | "days120Plus";
-}) {
+function AgedMoney({ amount, tone }: { amount: number; tone: AgeingTone }) {
+  // An em dash, not "$ 0.00". This is a table of figures, where "we have
+  // nothing in this band" is the whole meaning — and five columns of nought
+  // across forty rows is two hundred amounts the eye has to read past to find
+  // the ones that are not.
   if (amount <= 0) {
-    return <NumericCell className="text-[color:var(--text-subtle)]">{money(0)}</NumericCell>;
+    return (
+      <NumericCell className="text-[color:var(--text-faint)]">—</NumericCell>
+    );
   }
-  const tone =
-    bucket === "current"
+  const ink =
+    tone === "good"
       ? "text-[color:var(--text-muted)]"
-      : bucket === "days30"
+      : tone === "neutral"
         ? "text-[color:var(--text-body)]"
-        : bucket === "days60"
-          ? "text-[color:var(--tone-warn)]"
-          : bucket === "days90"
-            ? "font-semibold text-[color:var(--tone-warn)]"
-            : "font-bold text-[color:var(--tone-danger)]";
-  return <NumericCell className={tone}>{money(amount)}</NumericCell>;
+        : tone === "warn"
+          ? "font-semibold text-[color:var(--tone-warn)]"
+          : "font-bold text-[color:var(--tone-danger)]";
+  return <NumericCell className={ink}>{formatSchoolMoney(amount)}</NumericCell>;
 }
 
 export function ReportsArrearsContent() {
@@ -277,19 +280,32 @@ export function ReportsArrearsContent() {
 
   /** Where the 90+ sits: the oldest column, by year group. */
   const oldest = useMemo(() => {
-    const byClass = new Map<string, number>();
+    // Keyed by the class's id rather than its name, so each line keeps the
+    // record it is about and can link to it. Two year groups with the same
+    // name would otherwise be added together and neither could be opened.
+    const byClass = new Map<string, { name: string; classId: string; amount: number }>();
     for (const row of arrears) {
       if (row.days120Plus <= 0) continue;
-      const name = row.className || "No year group";
-      byClass.set(name, (byClass.get(name) ?? 0) + row.days120Plus);
+      const key = row.classId || "none";
+      const seen = byClass.get(key);
+      if (seen) seen.amount += row.days120Plus;
+      else
+        byClass.set(key, {
+          name: row.className || "No year group",
+          classId: row.classId,
+          amount: row.days120Plus,
+        });
     }
-    const ordered = [...byClass.entries()].sort(([, a], [, b]) => b - a);
+    const ordered = [...byClass.values()].sort((a, b) => b.amount - a.amount);
     const top = ordered.slice(0, 4);
-    const rest = ordered.slice(4).reduce((total, [, amount]) => total + amount, 0);
+    const rest = ordered.slice(4).reduce((total, row) => total + row.amount, 0);
     return {
       // Four year groups and a remainder: past that the panel is a second copy
       // of the table with worse columns.
-      rows: rest > 0 ? [...top, ["Everything else", rest] as const] : top,
+      rows:
+        rest > 0
+          ? [...top, { name: "Everything else", classId: "", amount: rest }]
+          : top,
       families: arrears.filter((row) => row.days120Plus > 0).length,
     };
   }, [arrears]);
@@ -362,87 +378,71 @@ export function ReportsArrearsContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar name={row.original.studentName} />
-            <div className="min-w-0">
-              <Link
-                href={`/schools/students/${row.original.studentId}`}
-                className="font-medium hover:underline"
-              >
-                {row.original.studentName}
-              </Link>
-              <div className="font-[family-name:var(--font-mono)] text-xs tabular-nums text-muted-foreground">
-                {row.original.studentNo} · {row.original.className}
-              </div>
-            </div>
-          </div>
+          <PersonCell
+            kind="student"
+            href={`/schools/students/${row.original.studentId}`}
+            name={row.original.studentName}
+            reference={row.original.studentNo}
+            context={row.original.className}
+          />
         ),
       },
       {
         id: "totalOutstanding",
-        header: "Total Outstanding",
+        header: "Total outstanding",
         cell: ({ row }) => (
           <NumericCell className="font-semibold">
-            {money(row.original.totalOutstanding)}
+            {formatSchoolMoney(row.original.totalOutstanding)}
           </NumericCell>
         ),
       },
-      {
-        id: "current",
-        header: "Current",
-        cell: ({ row }) => <AgedMoney amount={row.original.current} bucket="current" />,
-      },
-      {
-        id: "days30",
-        header: "1-30 Days",
-        cell: ({ row }) => <AgedMoney amount={row.original.days30} bucket="days30" />,
-      },
-      {
-        id: "days60",
-        header: "31-60 Days",
-        cell: ({ row }) => <AgedMoney amount={row.original.days60} bucket="days60" />,
-      },
-      {
-        id: "days90",
-        header: "61-90 Days",
-        cell: ({ row }) => <AgedMoney amount={row.original.days90} bucket="days90" />,
-      },
-      {
-        id: "days120Plus",
-        header: "90+ Days",
-        cell: ({ row }) => (
-          <AgedMoney amount={row.original.days120Plus} bucket="days120Plus" />
-        ),
-      },
+      ...AGEING_BUCKETS.map(
+        (bucket): ColumnDef<ArrearsRow> => ({
+          id: bucket.key,
+          header: bucket.label,
+          cell: ({ row }) => (
+            <AgedMoney
+              amount={ageingAmount(row.original, bucket.key)}
+              tone={bucket.tone}
+            />
+          ),
+        }),
+      ),
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            {/* Writing to a family is `notify-families`, which the route
+                enforces and which the bursar and the class teacher hold. This
+                screen asked for `create` instead, so the one person whose job
+                arrears are watched the button stay dark on the page built for
+                her, while the same send worked from the finance overview. */}
+            <RecordActions
               layout="menu"
-            // Writing to a family is the notices grant, which the route
-            // enforces on `schools.reports` create. A bursar sees the button
-            // disabled and learns whose job it is, rather than after composing
-            // the letter.
-            resource="schools.reports"
-            verbs={[
-              {
-                label: "Remind",
-                action: "create",
-                onSelect: () => {
-                  setSent(null);
-                  setReminding([row.original]);
+              resource="schools.reports"
+              label={`Actions for ${row.original.studentName}`}
+              verbs={[
+                {
+                  label: "Remind",
+                  action: "notify-families",
+                  onSelect: () => {
+                    setSent(null);
+                    setReminding([row.original]);
+                  },
                 },
-              },
-            ]}
-          />
+              ]}
+            />
+          </div>
         ),
       },
     ],
     [],
   );
 
-  const canRemind = access.can("schools.reports", "create");
+  const canRemind = access.can("schools.reports", "notify-families");
 
   /**
    * The reminder send lives inside `SendNoticeDialog`. It owns its own error
@@ -458,13 +458,13 @@ export function ReportsArrearsContent() {
         its count is the filtered set, not the school — press it after
         narrowing to Form 4 and it writes to Form 4.
       */}
-      <PageChrome title="School Reports">
+      <PageChrome title="Arrears">
         <Button
           variant="primary"
           disabled={!canRemind || visible.length === 0}
           title={
             !canRemind
-              ? "Writing to families is the head's to do."
+              ? "Writing to families is the office's to do."
               : visible.length === 0
                 ? "Nobody is in arrears in this view."
                 : undefined
@@ -483,14 +483,16 @@ export function ReportsArrearsContent() {
           chips={[
             {
               label: "Outstanding",
-              value: arrearsQuery.isPending ? "—" : whole(summary?.totalOutstanding ?? 0),
+              value: arrearsQuery.isPending
+                ? "—"
+                : formatSchoolMoney(summary?.totalOutstanding ?? 0),
               tone: "danger",
             },
             {
               label: "90+ days",
               value: arrearsQuery.isPending
                 ? "—"
-                : whole(summary?.aging.days120Plus ?? 0),
+                : formatSchoolMoney(summary?.aging.days120Plus ?? 0),
               tone: "warn",
             },
             {
@@ -529,38 +531,54 @@ export function ReportsArrearsContent() {
         {sent ? <Alert tone="success" title={sent} onDismiss={() => setSent(null)} /> : null}
 
         {/*
-          The four report tiles, in the canvas's order and with its footers:
-          "Term 2 to date", "of 842 on the roll", "across 3 terms" and
-          "318 of 370 beds". Every one of them is read off a live endpoint —
-          the term is whichever one is running, the roll is this term's
-          enrolment, the beds are the hostels as they stand — so the tiles are
-          the school's own numbers rather than a caption about the report.
+          One tile per sibling report, each carrying that report's headline
+          number and the footer that gives it a denominator. They are the
+          reason the segments above the table are worth pressing.
+
+          There were four. The fourth was "Students with arrears", which is the
+          Families chip in the band eighty pixels higher, in a different
+          typeface — and a figure stated twice on one screen is a figure the
+          reader has to check against itself. The band keeps it, because the
+          band is the half that stays in view.
+
+          Each is read off a live endpoint and none of them is filtered: the
+          tiles say what the school looks like, not what the filters left
+          behind, and a collection rate that moved when somebody picked a year
+          group would be answering a different question from the one its label
+          asks.
         */}
         {arrearsQuery.isPending || collectionsQuery.isPending ? (
-          <StatsSkeleton count={4} />
+          <StatsSkeleton count={3} />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-3">
             <StatCard
               label="Collection rate"
-              tone={rateTone(collectionsQuery.data?.summary.overallCollectionRate ?? 0)}
-              value={percent(collectionsQuery.data?.summary.overallCollectionRate ?? 0)}
+              tone={rateTone(
+                collectionsQuery.data?.summary.overallCollectionRate ?? 0,
+                collectionsQuery.data?.summary.totalInvoiced ?? 0,
+              )}
+              value={percent(
+                collectionsQuery.data?.summary.overallCollectionRate ?? 0,
+                collectionsQuery.data?.summary.totalInvoiced ?? 0,
+              )}
               footer={termInView ? `${termInView.termName} to date` : "No term in view"}
             />
             <StatCard
-              label="Students with arrears"
-              tone={arrears.length > 0 ? "danger" : "success"}
-              value={arrears.length}
-              footer={rollNow === null ? "of the roll" : `of ${rollNow} on the roll`}
-            />
-            <StatCard
-              label="Avg enrollment"
+              label="Average enrolment"
               value={enrollmentQuery.data?.summary.averageEnrollment ?? 0}
-              footer={`across ${enrollment.length} term${enrollment.length === 1 ? "" : "s"}`}
+              footer={
+                rollNow === null
+                  ? `across ${enrollment.length} term${enrollment.length === 1 ? "" : "s"}`
+                  : `${rollNow} on the roll now`
+              }
             />
             <StatCard
               label="Hostel occupancy"
               tone="brand"
-              value={percent(occupancyQuery.data?.summary.overallOccupancyRate ?? 0)}
+              value={percent(
+                occupancyQuery.data?.summary.overallOccupancyRate ?? 0,
+                occupancyQuery.data?.summary.totalBeds ?? 0,
+              )}
               footer={
                 occupancyQuery.data?.summary
                   ? `${occupancyQuery.data.summary.totalOccupied} of ${occupancyQuery.data.summary.totalBeds} beds`
@@ -598,8 +616,6 @@ export function ReportsArrearsContent() {
           />
         ) : null}
 
-        <h2 className="text-section-title">Arrears Aging Report</h2>
-
         {arrearsQuery.error ? (
           <LoadError
             what="the arrears report"
@@ -612,7 +628,7 @@ export function ReportsArrearsContent() {
           Segments, search and filters in one row, directly above the table
           they govern. The other three report views are a click away rather
           than a segment here: they are different questions with different
-          filters, and switching to Enrollment used to throw away everything
+          filters, and switching to Enrolment used to throw away everything
           set on this one.
         */}
         <TableControls
@@ -674,43 +690,25 @@ export function ReportsArrearsContent() {
               />
             </>
           }
+          count={
+            arrearsQuery.isPending ? null : `${visible.length} of ${arrears.length}`
+          }
         />
 
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0 space-y-4">
             {arrears.length > 0 ? (
-              <TradingViewChartCard
-                title="Aging Distribution"
-                data={[
-                  { label: "Current", value: summary?.aging.current ?? 0 },
-                  { label: "1-30 Days", value: summary?.aging.days30 ?? 0 },
-                  { label: "31-60 Days", value: summary?.aging.days60 ?? 0 },
-                  { label: "61-90 Days", value: summary?.aging.days90 ?? 0 },
-                  { label: "90+ Days", value: summary?.aging.days120Plus ?? 0 },
-                ]}
-                xKey="label"
-                series={[
-                  {
-                    key: "value",
-                    label: "Amount",
-                    type: "bar",
-                    color: "var(--chart-need-changes)",
-                  },
-                ]}
-                valueFormatter={(value) => Number(value).toLocaleString()}
-              />
+              <Card title="How old the debt is">
+                <AgeingStrip amounts={summary?.aging} />
+              </Card>
             ) : null}
 
             {arrearsQuery.isPending ? (
               <TableRowsSkeleton
                 headers={[
                   "Student",
-                  "Total Outstanding",
-                  "Current",
-                  "1-30 Days",
-                  "31-60 Days",
-                  "61-90 Days",
-                  "90+ Days",
+                  "Total outstanding",
+                  ...AGEING_BUCKETS.map((bucket) => bucket.label),
                 ]}
                 columns={[
                   { avatar: true, twoLine: true },
@@ -771,16 +769,32 @@ export function ReportsArrearsContent() {
               ) : (
                 <>
                   <dl className="space-y-1.5">
-                    {oldest.rows.map(([name, amount]) => (
+                    {oldest.rows.map((row) => (
                       <div
-                        key={name}
+                        key={row.classId || row.name}
                         className="flex items-baseline justify-between gap-2"
                       >
-                        <dt className="truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                          {name}
+                        {/* The year group is a record, and "which form is
+                            carrying the 90+" is a question whose next step is
+                            opening that form. The remainder line and a pupil
+                            with no class have no record behind them, so they
+                            stay plain rather than advertising a destination
+                            they do not have. The truncation is on the cell
+                            because the link is an inline child and will not
+                            clamp itself. */}
+                        <dt className="block truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                          {row.classId ? (
+                            <EntityLink
+                              href={`/management/master-data/schools/classes/${row.classId}`}
+                            >
+                              {row.name}
+                            </EntityLink>
+                          ) : (
+                            row.name
+                          )}
                         </dt>
                         <dd className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)] font-bold tabular-nums text-[color:var(--text-strong)]">
-                          {money(amount)}
+                          {formatSchoolMoney(row.amount)}
                         </dd>
                       </div>
                     ))}
@@ -792,24 +806,6 @@ export function ReportsArrearsContent() {
                   </p>
                 </>
               )}
-            </Card>
-
-            <Card title="The missing verb">
-              <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                This screen names {arrears.length} families in arrears and offers no way
-                to reach any of them. The school already has a notices system that lands
-                in every parent’s portal in one send. <strong>Remind</strong> on the row
-                and <strong>Remind the 188</strong> in the band are the same send,
-                addressed to the filtered set.
-              </p>
-            </Card>
-
-            <Card title="Why these buckets">
-              <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                Current, 1–30, 31–60, 61–90 and 90+ are the accounting AR report’s own
-                columns. A bursar comparing the two screens should not have to learn a
-                second layout for the same idea.
-              </p>
             </Card>
           </div>
         </div>
@@ -837,7 +833,7 @@ export function ReportsArrearsContent() {
           defaultSubject="School fees outstanding"
           defaultBody={
             reminding.length === 1
-              ? `Our records show fees of ${money(reminding[0]!.totalOutstanding)} still outstanding on ${reminding[0]!.studentName}'s account. Please settle the balance, or come and see the bursar to arrange terms.`
+              ? `Our records show fees of ${formatSchoolMoney(reminding[0]!.totalOutstanding)} still outstanding on ${reminding[0]!.studentName}'s account. Please settle the balance, or come and see the bursar to arrange terms.`
               : "Our records show school fees still outstanding on your child's account. Please settle the balance, or come and see the bursar to arrange terms. Your statement is on the portal."
           }
           sendLabel={

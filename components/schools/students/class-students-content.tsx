@@ -1,19 +1,22 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordCell, recordCellTone } from "@/components/records/record-table";
+import { RecordMark } from "@/components/records/record-mark";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
-import { FilterSelect } from "@/components/schools/common/filter-select";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { ClassFilter } from "@/components/schools/common/class-filter";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -21,15 +24,16 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { PageCaption } from "@/components/schools/records/page-caption";
-import { RecordTabs } from "@/components/schools/records/record-tabs";
+import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import {
   StudentFormSheet,
   type StudentFormValues,
 } from "@/components/schools/students/student-form-sheet";
 import { DataTable } from "@/components/ui/data-table";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
   createStudent,
@@ -165,6 +169,7 @@ export function ClassStudentsContent({
   });
 
   const students = useMemo(() => studentsQuery.data?.data ?? [], [studentsQuery.data]);
+  const total = studentsQuery.data?.pagination.total ?? students.length;
   const schoolClass = useMemo(
     () => (classesQuery.data?.data ?? []).find((row) => row.id === classId) ?? null,
     [classesQuery.data, classId],
@@ -244,11 +249,12 @@ export function ClassStudentsContent({
         : { key: "unstreamed", label: "Not in a class yet" };
   }, [streamFilter]);
 
+  /** The narrowing in force. The search term is named separately by the empty
+   *  state, so folding it in here would list what was typed twice. */
   const namedFilters = [
     streams.find((row) => row.id === streamFilter)?.name,
     STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label,
     BOARDING_OPTIONS.find((option) => option.value === boardingFilter)?.label,
-    search.trim() || undefined,
   ].filter((entry): entry is string => Boolean(entry));
 
   function clearFilters() {
@@ -267,34 +273,27 @@ export function ClassStudentsContent({
         // rather than read, and the same child is the same colour wherever
         // they appear.
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <PersonAvatar
-              firstName={row.original.firstName}
-              lastName={row.original.lastName}
-            />
-            <div className="min-w-0">
-              <div className="font-medium">
-                <Link
-                  href={`/schools/students/${row.original.id}`}
-                  className="hover:underline"
-                >
-                  {row.original.lastName}, {row.original.firstName}
-                </Link>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {row.original.studentNo}
-                {row.original.admissionNo
-                  ? ` · Admission ${row.original.admissionNo}`
-                  : ""}
-              </div>
-            </div>
-          </div>
+          <PersonCell
+            firstName={row.original.firstName}
+            lastName={row.original.lastName}
+            displayName={`${row.original.lastName}, ${row.original.firstName}`}
+            href={recordType("STUDENT").href(row.original.id)}
+            reference={row.original.studentNo}
+            context={
+              row.original.admissionNo ? `Admission ${row.original.admissionNo}` : undefined
+            }
+          />
         ),
       },
       {
         id: "stream",
         header: "Class",
-        cell: ({ row }) => row.original.currentStream?.name ?? "—",
+        cell: ({ row }) => (
+          <RecordCell
+            value={row.original.currentStream?.name}
+            className="text-[color:var(--text-muted)]"
+          />
+        ),
       },
       {
         id: "status",
@@ -318,24 +317,37 @@ export function ClassStudentsContent({
           if (links.length === 0) {
             return <span className="text-sm text-muted-foreground">No guardian linked</span>;
           }
+          // Each one a way to their record. A class list is read on the way to
+          // ringing somebody, and the names were plain text — so the next move
+          // after finding them was to go and look them up again.
           return (
-            <span className="text-sm">
-              {links
-                .map((link) => `${link.guardian.firstName} ${link.guardian.lastName}`)
-                .join(", ")}
+            <span className="block truncate text-sm">
+              {links.map((link, index) => (
+                <span key={link.guardian.id}>
+                  {index > 0 ? ", " : null}
+                  <EntityLink
+                    href={recordType("GUARDIAN").href(link.guardian.id)}
+                    className={recordCellTone("relation")}
+                  >
+                    {link.guardian.firstName} {link.guardian.lastName}
+                  </EntityLink>
+                </span>
+              ))}
             </span>
           );
         },
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const student = row.original;
           const offRoll = student.status === "WITHDRAWN" || student.status === "GRADUATED";
           return (
             <RecordActions
               layout="menu"
+              label={`Row actions for ${student.firstName} ${student.lastName}`}
               resource="schools.students"
               verbs={[
                 {
@@ -409,7 +421,36 @@ export function ClassStudentsContent({
   const tally = tallyQuery.data;
 
   return (
-    <div className="space-y-4">
+    <SchoolsPage
+      band={
+        <PageBand
+          chips={[
+            { label: "On the roll", value: tally?.roll ?? "—", tone: "success" },
+            { label: "Boarders", value: tally?.boarders ?? "—" },
+            {
+              label: "Suspended",
+              value: tally?.suspended ?? "—",
+              tone: (tally?.suspended ?? 0) > 0 ? "danger" : "neutral",
+            },
+          ]}
+          actions={
+            <>
+              <PrintDocumentButton
+                sourceKey="schools.class-list"
+                filters={{ classId }}
+                label="Class list"
+              />
+              <PrintDocumentButton
+                sourceKey="schools.class-list"
+                filters={{ classId }}
+                format="csv"
+                label="Export"
+              />
+            </>
+          }
+        />
+      }
+    >
       {/* The app bar carries the year group's name — the sidebar already says
           "Students" one column left, so the page does not say it twice. */}
       <PageChrome title={className} backHref="/schools/students" backLabel="All students">
@@ -423,44 +464,19 @@ export function ClassStudentsContent({
         />
       </PageChrome>
 
-      <PageCaption>
-        {[termName, `${tally?.roll ?? "—"} on the roll`].filter(Boolean).join(" · ")}
-      </PageCaption>
-
-      <PageBand
-        chips={[
-          { label: "On the roll", value: tally?.roll ?? "—", tone: "success" },
-          { label: "Boarders", value: tally?.boarders ?? "—" },
-          {
-            label: "Suspended",
-            value: tally?.suspended ?? "—",
-            tone: (tally?.suspended ?? 0) > 0 ? "danger" : "neutral",
-          },
-        ]}
-        actions={
-          <>
-            <PrintDocumentButton
-              sourceKey="schools.class-list"
-              filters={{ classId }}
-              label="Class list"
-            />
-            <PrintDocumentButton
-              sourceKey="schools.class-list"
-              filters={{ classId }}
-              format="csv"
-              label="Export"
-            />
-          </>
-        }
-      />
+      {/* The term, and nothing else. "118 on the roll" was here too, directly
+          over a band chip that says the same number — a caption repeating the
+          state strip under it spends the one line the reader gets for free. */}
+      {termName ? <PageCaption>{termName}</PageCaption> : null}
 
       {actionError ? <SaveError what="That change" error={actionError} /> : null}
 
       {/* Tabs, search and filters in one row, because all three change what
           the table under them shows and nothing else on the page. */}
       <TableControls
+        sticky
         tabs={
-          <RecordTabs<ClassTab>
+          <PopulationTabs<ClassTab>
             value={tab}
             onChange={setTab}
             tabs={[
@@ -476,6 +492,8 @@ export function ClassStudentsContent({
             placeholder="Search this year group"
           />
         }
+        filterCount={activeFilterCount(streamFilter, statusFilter, boardingFilter)}
+        count={studentsQuery.isPending ? null : `${students.length} of ${total}`}
         filters={
           <>
             {/* Every class in the school, not just this one's streams: the
@@ -538,7 +556,11 @@ export function ClassStudentsContent({
                   ) : null}
                   <MobileList.Row
                     leading={
-                      <PersonAvatar firstName={row.firstName} lastName={row.lastName} />
+                      <RecordMark
+                        kind="student"
+                        name={`${row.firstName} ${row.lastName}`}
+                        size="sm"
+                      />
                     }
                     title={`${row.lastName}, ${row.firstName}`}
                     subtitle={[
@@ -560,16 +582,23 @@ export function ClassStudentsContent({
           studentsQuery.isPending ? (
             <TableRowsSkeleton
               rows={8}
+              headers={["Student", "Class", "Status", "Boarding", "Guardians", ""]}
               columns={[
                 { avatar: true, twoLine: true },
                 { width: 90 },
-                { width: 100 },
-                { width: 90 },
+                { width: 100, badge: true },
+                { width: 90, badge: true },
                 {},
+                { width: 44 },
               ]}
             />
-          ) : namedFilters.length > 0 ? (
-            <NothingMatched what="students" filters={namedFilters} onClear={clearFilters} />
+          ) : namedFilters.length > 0 || search.trim() ? (
+            <NothingMatched
+              what="students"
+              filters={namedFilters}
+              search={search}
+              onClear={clearFilters}
+            />
           ) : (
             <NothingYet
               title={`Nobody is in ${className} yet`}
@@ -590,6 +619,6 @@ export function ClassStudentsContent({
         error={saveMutation.isError ? actionError : null}
         onSubmit={(values) => saveMutation.mutate(values)}
       />
-    </div>
+    </SchoolsPage>
   );
 }

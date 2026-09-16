@@ -14,7 +14,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -243,11 +243,12 @@ export function SchoolCustomFieldsPanel() {
             onClear={() => setEntityFilter("")}
           />
         ) : (
-          <ul className="divide-y divide-[color:var(--border-subtle)]">
+          /* Space between rows, not rules. */
+          <ul className="space-y-1">
             {visible.map((row) => (
               <li
                 key={row.id}
-                className="flex flex-wrap items-center justify-between gap-3 py-3"
+                className="flex min-h-11 flex-wrap items-center justify-between gap-3 py-2"
               >
                 <div className="min-w-0">
                   <p className="font-medium text-[color:var(--text-strong)]">
@@ -265,6 +266,8 @@ export function SchoolCustomFieldsPanel() {
                 <div className="flex items-center gap-2">
                   {row.showInTable ? <Badge tone="neutral">On lists</Badge> : null}
                   <RecordActions
+                    layout="menu"
+                    label={`Row actions for ${row.label}`}
                     resource="schools.students"
                     verbs={[
                       {

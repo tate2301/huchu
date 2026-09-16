@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import type { SchoolsApplicationRecord } from "@/lib/schools/admissions-v2";
+import { formatSchoolDate } from "@/lib/schools/format";
 
 const SOURCES = ["Walk-in", "Referral", "Website", "Open day", "Sibling"];
 
@@ -182,7 +183,19 @@ export function ApplicationFormSheet({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="application-dob">Date of birth</Label>
+          {/* The label carries the date in the school's own words. A native
+              date field draws its value in whatever order the reader's browser
+              was set up with, so 06/03 is the third of June at one desk and the
+              sixth of March at the next — and a date of birth read the wrong way
+              round puts a child in the wrong year group. */}
+          <Label htmlFor="application-dob">
+            Date of birth
+            {values.dateOfBirth ? (
+              <span className="ml-1.5 font-normal text-[color:var(--text-subtle)]">
+                {formatSchoolDate(values.dateOfBirth)}
+              </span>
+            ) : null}
+          </Label>
           <Input
             id="application-dob"
             type="date"
@@ -287,7 +300,14 @@ export function ApplicationFormSheet({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="application-assessed">Assessed on</Label>
+              <Label htmlFor="application-assessed">
+                Assessed on
+                {values.assessmentAt ? (
+                  <span className="ml-1.5 font-normal text-[color:var(--text-subtle)]">
+                    {formatSchoolDate(values.assessmentAt)}
+                  </span>
+                ) : null}
+              </Label>
               <Input
                 id="application-assessed"
                 type="date"

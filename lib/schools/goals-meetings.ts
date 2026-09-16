@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
+import { markKey, publishedMarksForTerm } from "./mark-visibility";
+
 /**
  * Student goals and parent meetings.
  *
@@ -83,13 +85,19 @@ export async function saveGoal(input: {
   });
 }
 
-/** A child's goals for a term, with where they actually are. */
+/**
+ * A child's goals for a term, with where they actually are.
+ *
+ * "Where they are" is the released mark and nothing else — see
+ * `mark-visibility.ts`. A goal card measuring progress against a draft would
+ * show a child a mark the school has not finished checking.
+ */
 export async function goalsForStudent(input: {
   companyId: string;
   studentId: string;
   termId: string;
 }) {
-  const [goals, lines] = await Promise.all([
+  const [goals, marks] = await Promise.all([
     prisma.schoolStudentGoal.findMany({
       where: {
         companyId: input.companyId,
@@ -107,21 +115,16 @@ export async function goalsForStudent(input: {
       },
       orderBy: { subject: { name: "asc" } },
     }),
-    prisma.schoolResultLine.findMany({
-      where: {
-        companyId: input.companyId,
-        studentId: input.studentId,
-        sheet: { termId: input.termId },
-      },
-      select: { subjectCode: true, score: true },
+    publishedMarksForTerm({
+      companyId: input.companyId,
+      termId: input.termId,
+      studentIds: [input.studentId],
     }),
   ]);
 
-  const currentBySubject = new Map(lines.map((line) => [line.subjectCode, line.score]));
-
   return goals.map((goal) => {
     const target = goal.targetMark === null ? null : Number(goal.targetMark);
-    const current = currentBySubject.get(goal.subject.code) ?? null;
+    const current = marks.get(markKey(input.studentId, goal.subject.code)) ?? null;
     return {
       ...goal,
       targetMark: target,
@@ -241,7 +244,7 @@ export async function goalsOversight(input: {
 
   const studentIds = students.map((row) => row.id);
 
-  const [goals, lines, subject] = await Promise.all([
+  const [goals, marks, subject] = await Promise.all([
     prisma.schoolStudentGoal.findMany({
       where: {
         companyId: input.companyId,
@@ -262,14 +265,10 @@ export async function goalsOversight(input: {
       orderBy: { subject: { name: "asc" } },
       take: 4000,
     }),
-    prisma.schoolResultLine.findMany({
-      where: {
-        companyId: input.companyId,
-        studentId: { in: studentIds },
-        sheet: { termId: input.termId },
-      },
-      select: { studentId: true, subjectCode: true, score: true },
-      take: 8000,
+    publishedMarksForTerm({
+      companyId: input.companyId,
+      termId: input.termId,
+      studentIds,
     }),
     input.subjectId
       ? prisma.schoolSubject.findFirst({
@@ -279,9 +278,6 @@ export async function goalsOversight(input: {
       : Promise.resolve(null),
   ]);
 
-  const markFor = new Map(
-    lines.map((line) => [`${line.studentId}:${line.subjectCode}`, line.score]),
-  );
   const goalsByStudent = new Map<string, typeof goals>();
   for (const goal of goals) {
     const bucket = goalsByStudent.get(goal.studentId);
@@ -313,7 +309,7 @@ export async function goalsOversight(input: {
         targetMark: null,
         baselineMark: null,
         currentMark: subject
-          ? (markFor.get(`${student.id}:${subject.code}`) ?? null)
+          ? (marks.get(markKey(student.id, subject.code)) ?? null)
           : null,
         onTrack: null,
         achievedAt: null,
@@ -325,7 +321,7 @@ export async function goalsOversight(input: {
 
     for (const goal of theirs) {
       const target = goal.targetMark === null ? null : Number(goal.targetMark);
-      const current = markFor.get(`${student.id}:${goal.subject.code}`) ?? null;
+      const current = marks.get(markKey(student.id, goal.subject.code)) ?? null;
       rows.push({
         ...identity,
         subject: goal.subject,

@@ -3,6 +3,11 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { getTeacherProfile, isPrivilegedRole } from "@/lib/schools/governance-v2";
+import {
+  RegisterError,
+  registerMarkDenial,
+  registerSubmitDenial,
+} from "@/lib/schools/register";
 
 const attendanceEntrySchema = z.object({
   studentId: z.string().uuid(),
@@ -19,6 +24,19 @@ const attendancePayloadSchema = z.object({
   entries: z.array(attendanceEntrySchema).min(1).max(400),
 });
 
+/**
+ * A teacher saving the marks they have taken.
+ *
+ * Saving and sending in are two acts, not one. A register is often taken in
+ * pieces — the roll at the start of the lesson, the child who walks in ten
+ * minutes late — and a save that also filed the day would make the office
+ * chase a correction every time. So this writes marks and nothing else, and
+ * the portal sends the day in afterwards through
+ * `POST /api/v2/schools/attendance/sessions/[id]/submit`, which is the one
+ * place the DRAFT -> SUBMITTED transition lives. The response says which
+ * session was written and whether it is still waiting to be sent, so the
+ * screen does not have to know the state machine to decide.
+ */
 export async function POST(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
@@ -116,8 +134,11 @@ export async function POST(request: NextRequest) {
             createdByUserId: session.user.id,
           },
         });
-      } else if (sessionRow.status === "LOCKED") {
-        throw new Error("SESSION_LOCKED");
+      } else {
+        // A submitted register is still the teacher's to correct; a locked one
+        // is the school's record of the day and is not.
+        const denial = registerMarkDenial(sessionRow.status);
+        if (denial) throw new RegisterError(denial);
       }
 
       for (const entry of validated.entries) {
@@ -146,22 +167,16 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse({
-      success: true,
-      data: {
-        resource: "portal-teacher-attendance",
-        companyId,
-        sessionId: saved.id,
-        status: saved.status,
-        entries: validated.entries.length,
-      },
+      sessionId: saved.id,
+      status: saved.status,
+      marked: validated.entries.length,
+      canSubmit: registerSubmitDenial(saved.status) === null,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
-    if (error instanceof Error && error.message === "SESSION_LOCKED") {
-      return errorResponse("Attendance session is locked and cannot be updated", 409);
-    }
+    if (error instanceof RegisterError) return errorResponse(error.message, 409);
     console.error("[API] POST /api/v2/schools/portal/teacher/me/attendance error:", error);
     return errorResponse("Failed to submit teacher attendance");
   }

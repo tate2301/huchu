@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
-import { Card, StatCard } from "@corelithzw/react";
+import { Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -14,9 +14,8 @@ import {
   NothingMatched,
   NothingYet,
   SavingOverlay,
-  StatsSkeleton,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 
 import {
   LEAVE_STATUSES,
@@ -106,8 +105,7 @@ export function BoardingLeaveContent() {
   const filterNames = [
     hostels.find((hostel) => hostel.id === hostelFilter)?.name,
     status ? leaveStatusLabel(status as LeaveStatus) : null,
-    requestType === "LEAVE" ? "LEAVE" : requestType === "OUTING" ? "OUTING" : null,
-    search.trim() || null,
+    requestType === "LEAVE" ? "Leave" : requestType === "OUTING" ? "Outing" : null,
   ].filter((name): name is string => Boolean(name));
 
   const clearFilters = () => {
@@ -137,12 +135,23 @@ export function BoardingLeaveContent() {
         />
       </PageChrome>
 
+      {/* Dashes, not noughts, until the requests are in. "0 waiting on you" is
+          the answer a warden would act on by closing the screen, and for the
+          frame before the list lands it is wrong. */}
       <PageBand
         chips={[
-          { label: "Waiting on you", value: waiting, tone: waiting > 0 ? "warn" : "success" },
-          { label: "Out of the gate", value: out, tone: out > 0 ? "danger" : "neutral" },
-          { label: "Approved", value: approved },
-          { label: "Back", value: back },
+          {
+            label: "Waiting on you",
+            value: allQuery.isPending ? "—" : waiting,
+            tone: waiting > 0 ? "warn" : "success",
+          },
+          {
+            label: "Out of the gate",
+            value: allQuery.isPending ? "—" : out,
+            tone: out > 0 ? "danger" : "neutral",
+          },
+          { label: "Approved", value: allQuery.isPending ? "—" : approved },
+          { label: "Back", value: allQuery.isPending ? "—" : back },
         ]}
       />
 
@@ -161,27 +170,13 @@ export function BoardingLeaveContent() {
         />
       ) : null}
 
-      {allQuery.isLoading ? (
-        <StatsSkeleton count={4} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Waiting on you"
-            value={waiting}
-            tone={waiting > 0 ? "warn" : "neutral"}
-          />
-          <StatCard label="Approved" value={approved} />
-          <StatCard
-            label="Out of the gate"
-            value={out}
-            tone={out > 0 ? "danger" : "neutral"}
-          />
-          <StatCard label="Back" value={back} tone="success" />
-        </div>
-      )}
-
       <TableControls
-        tabs={<BoardingViews hostels={hostels.length} leave={all.length} />}
+        tabs={
+          <BoardingViews
+            hostels={hostelsQuery.isPending ? undefined : hostels.length}
+            leave={allQuery.isPending ? undefined : all.length}
+          />
+        }
         search={
           <TableSearch
             value={search}
@@ -211,16 +206,17 @@ export function BoardingLeaveContent() {
               allLabel="Leave and outings"
               value={requestType}
               options={[
-                { value: "LEAVE", label: "LEAVE" },
-                { value: "OUTING", label: "OUTING" },
+                { value: "LEAVE", label: "Leave" },
+                { value: "OUTING", label: "Outing" },
               ]}
               onChange={setRequestType}
             />
           </>
         }
+        count={allQuery.isPending ? null : `${inView.length} of ${all.length}`}
       />
 
-      <Card flush title="Leave and Outing Requests" subtitle="the gate book">
+      <Card flush>
         {/* The four gate moves live in the panel, and each one rewrites a
             request's status. While one is in flight the whole book dims: the
             same row still shows Approve and Sign out, and a second tap while
@@ -253,6 +249,7 @@ export function BoardingLeaveContent() {
               <NothingMatched
                 what="requests"
                 filters={filterNames}
+                search={search}
                 onClear={clearFilters}
               />
             </div>

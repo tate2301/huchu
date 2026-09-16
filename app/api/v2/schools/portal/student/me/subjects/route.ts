@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTerm } from "@/lib/schools/calendar";
+import { markKey, publishedMarksForTerm } from "@/lib/schools/mark-visibility";
 import { resolvePortalStudent } from "@/lib/schools/portal-identity";
 
 /**
@@ -18,10 +19,10 @@ import { resolvePortalStudent } from "@/lib/schools/portal-identity";
  * account through `resolvePortalStudent`, which is the only way any portal
  * route in this pack answers "who is this".
  *
- * `currentMark` is computed exactly as `goalsForStudent` computes it — result
- * lines for the term, matched on subject code. Two different answers to "where
- * are you now" on one screen would be a bug, so the two must be read the same
- * way even though it costs a second query.
+ * `currentMark` is whatever `publishedMarksForTerm` says it is, which is what
+ * the goals screen reads too. Two different answers to "where are you now" on
+ * one screen would be a bug, and a mark the school has not released yet is not
+ * an answer at all.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
       return successResponse({ termId: term.id, termName: term.name, subjects: [] });
     }
 
-    const [taught, lines] = await Promise.all([
+    const [taught, marks] = await Promise.all([
       prisma.schoolClassSubject.findMany({
         where: {
           companyId,
@@ -65,13 +66,8 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { subject: { name: "asc" } },
       }),
-      prisma.schoolResultLine.findMany({
-        where: { companyId, studentId: student.id, sheet: { termId: term.id } },
-        select: { subjectCode: true, score: true },
-      }),
+      publishedMarksForTerm({ companyId, termId: term.id, studentIds: [student.id] }),
     ]);
-
-    const markBySubjectCode = new Map(lines.map((line) => [line.subjectCode, line.score]));
 
     // A subject taught both class-wide and to the stream comes back twice. The
     // pupil sits in one of those lessons, so it is one row on their screen.
@@ -86,7 +82,7 @@ export async function GET(request: NextRequest) {
         code: row.subject.code,
         name: row.subject.name,
         teacherName: row.teacherProfile.user.name ?? null,
-        currentMark: markBySubjectCode.get(row.subject.code) ?? null,
+        currentMark: marks.get(markKey(student.id, row.subject.code)) ?? null,
       });
     }
 

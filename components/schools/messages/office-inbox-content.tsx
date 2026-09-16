@@ -4,9 +4,17 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Card } from "@corelithzw/react";
 
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { EntityLink } from "@/components/records/entity-link";
+import {
+  activeFilterCount,
+  FilterSelect,
+} from "@/components/schools/common/filter-select";
+import {
+  TableControls,
+  TableSearch,
+} from "@/components/records/table-controls";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import {
   LoadError,
   NothingLeftToDo,
@@ -14,9 +22,11 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
+import { Textarea } from "@/components/ui/textarea";
 import { fetchJson } from "@/lib/api-client";
 import { fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 
@@ -105,10 +115,17 @@ const SEGMENTS = [
 type SegmentId = (typeof SEGMENTS)[number]["id"];
 
 /** "3 days", "4 hours", "just now" — how long the other side has been waiting. */
-function waitedFor(iso: string): string {
+/**
+ * How long a family has been waiting, against one `now` for the whole render.
+ *
+ * `now` is a parameter rather than a `Date.now()` inside: a queue drawn a row
+ * at a time across a minute boundary labels half its rows "59 minutes" and
+ * half "1 hour", which reads as a list that disagrees with itself.
+ */
+function waitedFor(iso: string, now: number): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "—";
-  const minutes = Math.max(0, Math.round((Date.now() - then) / 60000));
+  const minutes = Math.max(0, Math.round((now - then) / 60000));
   if (minutes < 60) return minutes <= 1 ? "just now" : `${minutes} minutes`;
   const hours = Math.round(minutes / 60);
   if (hours < 48) return hours === 1 ? "1 hour" : `${hours} hours`;
@@ -126,6 +143,8 @@ export function OfficeInboxContent() {
   const [staffFilter, setStaffFilter] = useState("");
   const [search, setSearch] = useState("");
   const [reading, setReading] = useState<ThreadSummary | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const canReply = useSchoolAccess().can("schools.reports", "reply");
   const [assigning, setAssigning] = useState<ThreadSummary | null>(null);
   const [assignTo, setAssignTo] = useState("");
 
@@ -197,6 +216,20 @@ export function OfficeInboxContent() {
     },
   });
 
+  // Answering, which the office could not do at all: a family's fee question
+  // reached a bursar who could read it, route it and end it, but not reply.
+  const reply = useMutation({
+    mutationFn: (input: { threadId: string; body: string }) =>
+      fetchJson("/api/v2/schools/messages", {
+        method: "POST",
+        body: JSON.stringify({ action: "reply", ...input }),
+      }),
+    onSuccess: () => {
+      setReplyBody("");
+      void queryClient.invalidateQueries({ queryKey: ["schools", "messages"] });
+    },
+  });
+
   const close = useMutation({
     mutationFn: (threadId: string) =>
       fetchJson("/api/v2/schools/messages", {
@@ -216,6 +249,12 @@ export function OfficeInboxContent() {
     enabled: Boolean(reading),
   });
 
+  /**
+   * One `now` for the whole render, so the waiting times on a queue of forty
+   * conversations are all measured from the same instant.
+   */
+  const now = new Date().getTime();
+
   const filtersInForce = [
     staffFilter === "__office__"
       ? "the office"
@@ -226,18 +265,21 @@ export function OfficeInboxContent() {
   return (
     <div className="space-y-4">
       <PageBand
+        // A dash until the queues have been counted. A nought in the band reads
+        // as "nothing is waiting", which is the one answer an office must not
+        // be given wrongly.
         chips={[
           {
             label: "Unassigned",
-            value: counts.unassigned,
+            value: threadsQuery.isPending ? "—" : counts.unassigned,
             tone: counts.unassigned > 0 ? "danger" : "neutral",
           },
           {
             label: "Need a reply",
-            value: counts.yours,
+            value: threadsQuery.isPending ? "—" : counts.yours,
             tone: counts.yours > 0 ? "warn" : "neutral",
           },
-          { label: "Open", value: counts.open },
+          { label: "Open", value: threadsQuery.isPending ? "—" : counts.open },
         ]}
       />
 
@@ -250,58 +292,86 @@ export function OfficeInboxContent() {
       ) : null}
       {assign.error ? <SaveError what="The conversation" error={assign.error} /> : null}
       {close.error ? <SaveError what="The conversation" error={close.error} /> : null}
+      {reply.error ? <SaveError what="Your answer" error={reply.error} /> : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {SEGMENTS.map((entry) => (
-          <Button
-            key={entry.id}
-            size="sm"
-            variant={segment === entry.id ? "primary" : "secondary"}
-            onClick={() => setSegment(entry.id)}
-          >
-            {entry.label}
-            <span className="ml-1.5 tabular-nums opacity-70">{counts[entry.id]}</span>
-          </Button>
-        ))}
-      </div>
+      {/*
+        Which queue, then how it is narrowed, then how many are left — one row
+        directly above the conversations, the same order every other register
+        in the module reads in. The five queues were a row of primary buttons
+        and the narrowing a band below them, so "which conversations am I
+        looking at" was answered twice, in two vocabularies.
 
-      <FilterBar>
-        <FilterSelect
-          label="With whom"
-          allLabel="Anyone"
-          value={staffFilter}
-          options={[
-            { value: "__office__", label: "The office — nobody yet" },
-            ...staff.map((row) => ({ value: row.id, label: row.user.name })),
-          ]}
-          onChange={setStaffFilter}
-        />
-        <div className="min-w-0 flex-1 basis-[220px] sm:max-w-[280px]">
-          <label
-            htmlFor="messages-search"
-            className="text-sm text-[color:var(--text-muted)]"
+        A segment REPLACES the population and a filter narrows it, so exactly
+        one segment is ever lit and choosing one never leaves a second control
+        silently in force.
+      */}
+      <TableControls
+        tabs={
+          <div
+            role="tablist"
+            aria-label="Conversation queues"
+            className="flex min-w-0 items-center gap-0.5 self-end overflow-x-auto rounded-[7px] bg-[color:var(--surface-sunken)] p-0.5"
           >
-            Search
-          </label>
-          <input
-            id="messages-search"
+            {SEGMENTS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                role="tab"
+                aria-selected={segment === entry.id}
+                onClick={() => setSegment(entry.id)}
+                className={
+                  segment === entry.id
+                    ? "flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-[color:var(--surface)] px-2.5 text-sm font-bold text-[color:var(--text-strong)] shadow-[var(--shadow-xs)]"
+                    : "flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] px-2.5 text-sm font-medium text-[color:var(--text-muted)] hover:text-[color:var(--text-strong)]"
+                }
+              >
+                <span>{entry.label}</span>
+                {/* A nought is not a count anywhere else in the product and is
+                    not one here — an empty queue says so by being empty. */}
+                {counts[entry.id] > 0 ? (
+                  <span className="font-mono text-sm tabular-nums text-[color:var(--text-subtle)]">
+                    {counts[entry.id]}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        }
+        search={
+          <TableSearch
             value={search}
+            onChange={setSearch}
             placeholder="A family, a pupil, or what it is about"
-            onChange={(event) => setSearch(event.target.value)}
-            className="h-9 w-full rounded-[var(--radius-md)] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 text-[length:var(--type-body-sm)]"
           />
-        </div>
-      </FilterBar>
+        }
+        filters={
+          <FilterSelect
+            label="With whom"
+            allLabel="Anyone"
+            value={staffFilter}
+            options={[
+              // "Nobody yet" is its own entry rather than being folded into
+              // Anyone: a conversation nobody owns is the one this queue is
+              // most often opened to find.
+              { value: "__office__", label: "The office — nobody yet" },
+              ...staff.map((row) => ({ value: row.id, label: row.user.name })),
+            ]}
+            onChange={setStaffFilter}
+          />
+        }
+        filterCount={activeFilterCount(staffFilter)}
+        count={threadsQuery.isPending ? null : `${rows.length} of ${threads.length}`}
+      />
 
       <Card flush>
         {threadsQuery.isPending ? (
           <TableRowsSkeleton
             columns={[
-              { width: 120 },
+              { width: 120, badge: true },
               { avatar: true, twoLine: true },
-              {},
-              { width: 140 },
-              { width: 90 },
+              { width: 160 },
+              { width: 88, align: "right" },
+              { width: 40 },
             ]}
           />
         ) : rows.length === 0 ? (
@@ -348,34 +418,65 @@ export function OfficeInboxContent() {
                     {MOVE_LABEL[move]}
                   </Badge>
 
-                  <PersonAvatar
-                    firstName={thread.guardian.firstName}
-                    lastName={thread.guardian.lastName}
-                    size="sm"
-                  />
+                  {/* The same cell the library register and the bus register
+                      open their rows with, read for a conversation: the mark is
+                      the family's, so one family keeps one colour down the
+                      queue, and what is written beside it is what the thread is
+                      about. `displayName` is what keeps those two apart — a
+                      mark hashed from the subject would give the same family a
+                      new face on every new conversation.
 
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                      {thread.subject}
-                    </p>
-                    <p className="truncate text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {fullName(thread.guardian)}
-                      {thread.student
-                        ? ` · about ${fullName(thread.student)}`
-                        : " · a general enquiry"}
-                    </p>
-                  </div>
+                      No `href`: a conversation is not a record with a page, so
+                      the cell carries no underline. The family and the pupil
+                      underneath it are records, and they are the links. */}
+                  <span className="min-w-0 flex-1">
+                    <PersonCell
+                      kind="guardian"
+                      firstName={thread.guardian.firstName}
+                      lastName={thread.guardian.lastName}
+                      displayName={thread.subject}
+                      supportingProse
+                      reference={
+                        <EntityLink href={`/schools/guardians/${thread.guardian.id}`} muted>
+                          {fullName(thread.guardian)}
+                        </EntityLink>
+                      }
+                      context={
+                        thread.student ? (
+                          <>
+                            {"about "}
+                            <EntityLink href={`/schools/students/${thread.student.id}`} muted>
+                              {fullName(thread.student)}
+                            </EntityLink>
+                          </>
+                        ) : (
+                          "a general enquiry"
+                        )
+                      }
+                    />
+                  </span>
 
                   <span className="w-[10rem] shrink-0 truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
-                    {thread.staff ? thread.staff.name : "The office — nobody yet"}
+                    {/* Whoever has it is a member of staff with a record page,
+                        so their name goes there. Nobody having it is an absence
+                        named in words, and an absence is not a link. */}
+                    {thread.staff ? (
+                      <EntityLink href={`/schools/teachers/${thread.staff.id}`}>
+                        {thread.staff.name}
+                      </EntityLink>
+                    ) : (
+                      "The office — nobody yet"
+                    )}
                   </span>
 
                   <span className="w-[5.5rem] shrink-0 text-right font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                    {waitedFor(thread.lastMessageAt)}
+                    {waitedFor(thread.lastMessageAt, now)}
                   </span>
 
                   <RecordActions
+                    layout="menu"
                     resource="schools.reports"
+                    label={`Actions for “${thread.subject}”`}
                     verbs={[
                       {
                         label: "Read",
@@ -407,7 +508,10 @@ export function OfficeInboxContent() {
       <RecordDialog
         open={Boolean(reading)}
         onOpenChange={(next) => {
-          if (!next) setReading(null);
+          if (!next) {
+            setReading(null);
+            setReplyBody("");
+          }
         }}
         title={reading?.subject ?? ""}
         description={
@@ -472,6 +576,41 @@ export function OfficeInboxContent() {
                 </p>
               </div>
             ))}
+
+            {/* Hidden rather than disabled for anybody without the grant, and
+                for a conversation that has been ended — there is nothing to
+                say about a box that would refuse. */}
+            {canReply && !reading?.closed ? (
+              <div className="space-y-2 border-t border-[color:var(--border)] pt-3">
+                <label
+                  className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]"
+                  htmlFor="office-reply"
+                >
+                  Answer the family
+                </label>
+                <Textarea
+                  id="office-reply"
+                  rows={3}
+                  value={replyBody}
+                  onChange={(event) => setReplyBody(event.target.value)}
+                  placeholder="They see this in their portal."
+                />
+                <div className="flex justify-end">
+                  <Button
+                    variant="primary"
+                    loading={reply.isPending}
+                    disabled={!replyBody.trim()}
+                    onClick={() => {
+                      if (reading && replyBody.trim()) {
+                        reply.mutate({ threadId: reading.id, body: replyBody.trim() });
+                      }
+                    }}
+                  >
+                    Send
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </RecordDialog>

@@ -6,11 +6,13 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
+import { EntityLink } from "@/components/records/entity-link";
+import { recordCellTone } from "@/components/records/record-table";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -18,8 +20,9 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   fetchSchoolsClasses,
   fetchSchoolsGuardians,
@@ -71,6 +74,21 @@ import { SendNoticeDialog, type Correcting, type NoticeDraft } from "./send-noti
  * All four narrow the sent list in the browser rather than at the endpoint: a
  * term's notices are tens of rows, not thousands, and the reach panel beside
  * the table has to count the same set the table is drawn from.
+ *
+ * ── Why this is a table and not a record list ──────────────────────────────
+ *
+ * Classes, subjects and the rest of the campus registers are lists: rows you
+ * open, where the whole row is a link and the underline on the title promises
+ * a page. A notice has no page. It is written, sent, and read in the portals;
+ * there is nowhere in the office for a row to go, and a list row that opens
+ * nothing is an underline making a promise it cannot keep.
+ *
+ * What the reader is doing here is a column question besides: four of the six
+ * columns — when it went, how far it reached, how urgent it was, when it stops
+ * showing — are compared down the column rather than read across one row. That
+ * is what the reach bar is for; "894 of 1,106" and "44 of 48" are the same
+ * story and only one of them looks like it. So the shape is a register, and
+ * the verb sits behind one trigger at the end of the row like every other.
  */
 
 type SentNotice = {
@@ -273,6 +291,12 @@ export function SchoolsNoticesContent() {
       {
         id: "title",
         header: "Notice",
+        // Not `RecordNameCell`, and this is the one place in the module that
+        // is not. That cell sets its supporting line in mono, which is right
+        // where the line is an identifier read character by character — an
+        // admission number, a subject code — and wrong here, where it is the
+        // first sentence of a letter. A notice has no reference to put there
+        // instead; what tells two of them apart is what they say.
         cell: ({ row }) => (
           <div className="min-w-0">
             <div className="font-medium">{row.original.title}</div>
@@ -286,9 +310,24 @@ export function SchoolsNoticesContent() {
         id: "audience",
         header: "Audience",
         cell: ({ row }) => (
-          <span>
+          // `block truncate` on the cell rather than on the link: the link is
+          // an inline child and will not clamp itself, and a long year-group
+          // name wrapping makes its row twice as tall as its neighbours.
+          <span className="block truncate">
             {row.original.audience}
-            {row.original.className ? ` · ${row.original.className}` : ""}
+            {row.original.classId && row.original.className ? (
+              <>
+                {" · "}
+                {/* "What else has Form 2 been told" is the question this cell
+                    gets asked, so the year group is the way there. */}
+                <EntityLink
+                  href={recordType("CLASS").href(row.original.classId)}
+                  className={recordCellTone("relation")}
+                >
+                  {row.original.className}
+                </EntityLink>
+              </>
+            ) : null}
           </span>
         ),
       },
@@ -333,30 +372,35 @@ export function SchoolsNoticesContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            <RecordActions
               layout="menu"
-            resource="schools.reports"
-            verbs={[
-              {
-                label: "Send a correction",
-                action: "create",
-                onSelect: () => {
-                  setSent(null);
-                  setCorrecting({
-                    id: row.original.id,
-                    title: row.original.title,
-                    audience: row.original.audienceCode,
-                    classId: row.original.classId,
-                    severity: severityCode(row.original.severity),
-                    sentOn: formatSchoolDate(row.original.createdAt),
-                  });
-                  setComposing(true);
+              resource="schools.reports"
+              label={`Actions for “${row.original.title}”`}
+              verbs={[
+                {
+                  label: "Send a correction",
+                  action: "create",
+                  onSelect: () => {
+                    setSent(null);
+                    setCorrecting({
+                      id: row.original.id,
+                      title: row.original.title,
+                      audience: row.original.audienceCode,
+                      classId: row.original.classId,
+                      severity: severityCode(row.original.severity),
+                      sentOn: formatSchoolDate(row.original.createdAt),
+                    });
+                    setComposing(true);
+                  },
                 },
-              },
-            ]}
-          />
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -365,33 +409,39 @@ export function SchoolsNoticesContent() {
 
   return (
     <div className="space-y-3">
-      <PageHeading
-        title="School Notices"
-        primaryAction={
-          <CreateButton
-            resource="schools.reports"
-            label="Send a notice"
-            onSelect={() => {
-              setSent(null);
-              setCorrecting(null);
-              setComposing(true);
-            }}
-          />
-        }
-      />
+      <PageChrome title="Notices">
+        <CreateButton
+          resource="schools.reports"
+          label="Send a notice"
+          onSelect={() => {
+            setSent(null);
+            setCorrecting(null);
+            setComposing(true);
+          }}
+        />
+      </PageChrome>
 
+      {/* Nothing here is a zero until it has been counted. A band that reads
+          "Sent this term 0 · Unread 0" for the half-second the query is in
+          flight tells an office the term has been silent, and the green on the
+          second chip says so approvingly. An em dash and the neutral tone say
+          the only true thing, which is that we do not know yet. */}
       <PageBand
         chips={[
-          { label: "Sent this term", value: reach.sent },
+          { label: "Sent this term", value: query.isPending ? "—" : reach.sent },
           {
             label: "Unread",
-            value: reach.unread.toLocaleString(),
-            tone: reach.unread > 0 ? "warn" : "success",
+            value: query.isPending ? "—" : reach.unread.toLocaleString(),
+            tone: query.isPending ? "neutral" : reach.unread > 0 ? "warn" : "success",
           },
           {
             label: "No portal account",
             value: unreachable ? unreachable.guardians + unreachable.students : "—",
-            tone: unreachable && unreachable.guardians + unreachable.students > 0 ? "danger" : "success",
+            tone: !unreachable
+              ? "neutral"
+              : unreachable.guardians + unreachable.students > 0
+                ? "danger"
+                : "success",
             href: "/schools/guardians",
           },
         ]}
@@ -429,43 +479,18 @@ export function SchoolsNoticesContent() {
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card flush title="Notices the school has sent">
-          <div className="px-3 pt-3">
-            <FilterBar>
-              <FilterSelect
-                label="Who it was for"
-                allLabel="Every audience"
-                value={audience}
-                options={AUDIENCES}
-                onChange={setAudience}
-              />
-              <FilterSelect
-                label="Year group"
-                allLabel="The whole school"
-                value={classId}
-                options={classes.map((row) => ({ value: row.id, label: row.name }))}
-                onChange={setClassId}
-              />
-              <FilterSelect
-                label="Importance"
-                allLabel="Any importance"
-                value={importance}
-                options={IMPORTANCE}
-                onChange={setImportance}
-              />
-              <FilterSelect
-                label="When"
-                allLabel={activeTerm ? `${activeTerm.name}` : "This term"}
-                value={when}
-                options={WHEN}
-                onChange={setWhen}
-              />
-            </FilterBar>
-          </div>
-
           {query.isPending ? (
             <TableRowsSkeleton
               rows={6}
-              columns={[{ width: 60 }, { twoLine: true }, { width: 140 }, { width: 90 }, { width: 110 }]}
+              headers={["Sent", "Notice", "Audience", "Importance", "Read", "Expires"]}
+              columns={[
+                { width: 70 },
+                { twoLine: true },
+                { width: 140 },
+                { width: 100, badge: true },
+                { width: 120 },
+                { width: 80 },
+              ]}
             />
           ) : (
             <DataTable
@@ -474,6 +499,41 @@ export function SchoolsNoticesContent() {
               searchPlaceholder="Search sent notices"
               searchSubmitLabel="Search"
               pagination={{ enabled: true }}
+              /* One row answers narrowing. The filters sat on a row of their
+                 own above the search box, so the same question was asked in
+                 two places a band apart. */
+              toolbar={
+                <>
+                  <FilterSelect
+                    label="Who it was for"
+                    allLabel="Every audience"
+                    value={audience}
+                    options={AUDIENCES}
+                    onChange={setAudience}
+                  />
+                  <FilterSelect
+                    label="Year group"
+                    allLabel="The whole school"
+                    value={classId}
+                    options={classes.map((row) => ({ value: row.id, label: row.name }))}
+                    onChange={setClassId}
+                  />
+                  <FilterSelect
+                    label="Importance"
+                    allLabel="Any importance"
+                    value={importance}
+                    options={IMPORTANCE}
+                    onChange={setImportance}
+                  />
+                  <FilterSelect
+                    label="When"
+                    allLabel={activeTerm ? `${activeTerm.name}` : "This term"}
+                    value={when}
+                    options={WHEN}
+                    onChange={setWhen}
+                  />
+                </>
+              }
               emptyState={
                 rows.length === 0 ? (
                   <NothingYet
@@ -509,17 +569,13 @@ export function SchoolsNoticesContent() {
         <div className="flex flex-col gap-3">
           <Card
             title="Who never gets them"
-            subtitle={
-              unreachable
-                ? `${(unreachable.guardians + unreachable.students).toLocaleString()} people`
-                : undefined
-            }
             actions={
               /*
-                The count above is a to-do list, and until now the only way to
-                act on it was the banner that appears for a moment after a send.
-                An office reading this card at any other time could see the
-                number and had nowhere to press. Inviting is what changes it.
+                The two rows below are a to-do list, and until now the only way
+                to act on it was the banner that appears for a moment after a
+                send. An office reading this card at any other time could see
+                the numbers and had nowhere to press. Inviting is what changes
+                them.
               */
               unreachable && unreachable.guardians + unreachable.students > 0 ? (
                 <Button asChild variant="quiet" size="sm">
@@ -542,44 +598,10 @@ export function SchoolsNoticesContent() {
                 href="/schools/students"
               />
             </div>
-            <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              A notice cannot reach somebody the school has never invited. Inviting them is
-              what changes these numbers.
-            </p>
           </Card>
 
           <Card title={reachWindowLabel}>
-            <div className="divide-y divide-[color:var(--border-subtle)]">
-              <ReachRow label="Notices sent" value={reach.sent} />
-              <ReachRow label="Average read" value={`${reach.averageRead}%`} />
-              {/*
-                The canvas's own wording, and the same figure the band's Unread
-                chip carries — a delivery that has been sitting in somebody's
-                portal unopened for the whole window. "Still unread" said the
-                same thing more weakly.
-              */}
-              <ReachRow label="Never opened one" value={reach.unread} />
-            </div>
-            <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              A guardian who has opened nothing in a term is usually a guardian whose invite
-              was never accepted.
-            </p>
-          </Card>
-
-          {/*
-            The canvas draws this as a note rather than a control, and it is the
-            one thing a reader of the sent list has to be told: the rows above
-            are final. It sits under Reach because that is where somebody
-            finishes reading and starts wondering what they can do about a
-            notice that went out wrong.
-          */}
-          <Card title="A notice cannot be recalled">
-            <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              The send dialog says so, and the sent list proves it: no draft, no schedule,
-              and no way to correct one that went out wrong. The smallest honest fix is a{" "}
-              <strong>Send a correction</strong> action on the row, which posts a linked
-              follow-up to exactly the same audience.
-            </p>
+            <ReachRow label="Average read" value={`${reach.averageRead}%`} />
           </Card>
         </div>
       </div>

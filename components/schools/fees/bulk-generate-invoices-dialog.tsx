@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { SaveError } from "@/components/schools/common/states";
+import { SaveError } from "@/components/records/states";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { bulkGenerateInvoices } from "@/lib/schools/fees-v2";
 

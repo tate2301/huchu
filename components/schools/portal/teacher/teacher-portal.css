@@ -248,10 +248,18 @@
   display: flex;
   gap: 2px;
   align-items: center;
-  padding: 0 22px;
   min-width: 0;
+  /* Edge to edge: a strip that stops short of the frame reads as a row of
+     links that has been cut off rather than one you can push along. */
   overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
 }
+.te-portal .te-tabs::-webkit-scrollbar { display: none; }
+.te-portal .te-tabs .tab { scroll-snap-align: start; }
+.te-portal .te-tabs .tab:first-child { padding-left: 22px; }
+.te-portal .te-tabs .tab:last-child { padding-right: 22px; }
 .te-portal .te-tabs .tab {
   display: inline-flex;
   align-items: center;
@@ -487,6 +495,216 @@
 .te-portal .te-count.danger .v { color: var(--tone-danger); }
 .te-portal .te-count.warn { background: var(--tone-warn-bg); }
 .te-portal .te-count.warn .v { color: var(--tone-warn); }
+
+/* ── Register: the roll ────────────────────────────────────────
+   56px rows on a tablet held in one hand: avatar, one line of name,
+   the admission number under it, and the three-way within thumb
+   reach on the right. */
+.te-portal .te-roll {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.te-portal .te-roll-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 56px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.te-portal .te-roll-row:last-child { border-bottom: 0; }
+.te-portal .te-roll-row .who { flex: 1; min-width: 7rem; }
+.te-portal .te-roll-row .nm {
+  font: 500 13px/1.2 var(--font-sans);
+  color: var(--text-strong);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.te-portal .te-roll-row .id {
+  font: 11px/1.3 var(--font-mono);
+  color: var(--text-muted);
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.te-portal .te-roll-row .te-row-menu {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  flex: none;
+}
+
+/* The three-way itself. Segments are 44px tall because the register is
+   taken standing up, and the focus ring is drawn rather than inherited
+   because the keyboard is how it is corrected afterwards. */
+.te-portal .te-mark {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  flex: none;
+}
+.te-portal .te-mark .seg {
+  min-height: 44px;
+  min-width: 4.5rem;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+}
+.te-portal .te-mark .seg:hover:not(:disabled) { color: var(--text-strong); }
+.te-portal .te-mark .seg:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.te-portal .te-mark .seg:disabled { cursor: not-allowed; opacity: 0.5; }
+.te-portal .te-mark .seg[aria-checked="true"] {
+  background: var(--surface);
+  box-shadow: var(--shadow-inset-rest), 0 0 0 1px var(--border);
+}
+.te-portal .te-mark .seg.present[aria-checked="true"] {
+  background: var(--tone-success-bg);
+  color: var(--tone-success);
+}
+.te-portal .te-mark .seg.absent[aria-checked="true"] {
+  background: var(--tone-danger-bg);
+  color: var(--tone-danger);
+}
+.te-portal .te-mark .seg.late[aria-checked="true"] {
+  background: var(--tone-warn-bg);
+  color: var(--tone-warn);
+}
+
+/* ── The bar that follows the roll down ────────────────────────── */
+.te-portal .te-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+}
+.te-portal .te-savebar .counts {
+  flex: 1;
+  min-width: 12rem;
+  font: 13px/1.4 var(--font-sans);
+  color: var(--text-body);
+  margin: 0;
+}
+
+/* ── Phone chrome ──────────────────────────────────────────────
+   `AppShell` carries its 252px rail as an inline grid column, so
+   dropping it on a phone has to beat that. The bottom bar takes over
+   the five destinations, and the tab strip goes with the rail rather
+   than stacking a second row of the same links above it. */
+@media (max-width: 47.99rem) {
+  .te-portal.app-shell { grid-template-columns: 1fr !important; }
+  .te-portal .app-shell-side { display: none; }
+  .te-portal .te-tabs { display: none; }
+  .te-portal .app-shell-content {
+    padding: 16px 16px 76px !important;
+  }
+  .te-portal .te-bar { padding: 0 16px; }
+}
+@media (min-width: 48rem) {
+  .te-bottom { display: none; }
+}
+/* The rail, re-laid inside the More sheet: it is a list to read down
+   there rather than a column beside the page. */
+.te-more { display: flex; flex-direction: column; }
+.te-more .nav-rail { max-height: 60vh; overflow-y: auto; }
+
+/* ── Enter marks: the class at a glance ────────────────────────
+   Four figures on one line, read while marking rather than after. */
+.te-portal .te-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.te-portal .te-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+}
+.te-portal .te-pill .v {
+  font: 600 14px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+.te-portal .te-pill .lbl {
+  font: 500 10.5px/1 var(--font-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Reports: the week-by-week chart frame ─────────────────────
+   The design system draws the series; the grid and the axis are
+   composed around it here because `Chart.Grid` and `Chart.Axis` are
+   containers the caller fills. */
+.te-portal .te-chart { width: 100%; height: auto; }
+.te-portal .te-chart .b-chart-grid line {
+  stroke: var(--border);
+  stroke-dasharray: 4 4;
+}
+.te-portal .te-chart .b-chart-axis text {
+  font: 11px/1 var(--font-sans);
+  fill: var(--text-muted);
+}
+
+/* ── Messages: inbox beside thread ─────────────────────────────
+   One column on a phone, where opening a conversation replaces the
+   list; two from 60rem, where a teacher answers one family while
+   still seeing who else is waiting. */
+.te-portal .te-msg {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.te-portal .te-msg-alerts:empty { display: none; }
+@media (max-width: 59.99rem) {
+  .te-portal .te-msg[data-open="thread"] .te-msg-list { display: none; }
+  .te-portal .te-msg[data-open="list"] .te-msg-thread { display: none; }
+}
+@media (min-width: 60rem) {
+  .te-portal .te-msg { grid-template-columns: 22rem 1fr; }
+  .te-portal .te-msg-alerts { grid-column: 1 / -1; }
+  /* With the list still on screen there is nothing to go back to. */
+  .te-portal .te-msg-back { display: none; }
+}
+
+/* ── Targets on a classroom tablet ─────────────────────────────
+   A portal used standing up, often on a shared tablet, with a class
+   waiting. Anything tapped there gets the 44px minimum; a mouse can
+   keep the denser desktop sizing. */
+@media (pointer: coarse) {
+  .te-portal .segmented-item,
+  .te-portal .btn,
+  .te-portal .te-tabs .tab { min-height: 44px; }
+}
 
 /* ── Screen sweep ──────────────────────────────────────────────
    The demo's visual language across the other screens: section

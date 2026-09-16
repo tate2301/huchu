@@ -20,15 +20,18 @@ import {
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
-  CardsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
-  RecordNotFound,
   SaveError,
-  StatsSkeleton,
-} from "@/components/schools/common/states";
-import { ApiError, fetchJson } from "@/lib/api-client";
+} from "@/components/records/states";
+import {
+  Glance,
+  GlanceList,
+  RecordLoadFailure,
+  RecordPageSkeleton,
+} from "@/components/schools/records/record-page-parts";
+import { fetchJson } from "@/lib/api-client";
 import { FileText, Percent, Tag, ToggleLeft, Users } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
@@ -160,37 +163,17 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
   }, [subject, edit]);
 
   if (query.isPending) {
-    return (
-      // The record's own shape, not two grey slabs. The left column is the mark,
-      // the name and the property list; the right is the class list. A
-      // placeholder that does not match is why the page used to reflow twice.
-      <div
-        className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]"
-        data-testid="subject-record-loading"
-      >
-        <div className="space-y-4">
-          <CardsSkeleton count={1} columns={1} lines={5} />
-          <StatsSkeleton count={3} />
-        </div>
-        <CardsSkeleton count={6} columns={2} lines={2} />
-      </div>
-    );
+    return <RecordPageSkeleton testId="subject-record-loading" sections={6} columns={2} />;
   }
 
   if (query.isError || !subject) {
-    // A subject the ministry retired is a stale link, not a fault; anything
-    // else is. "Back to the subjects" and "try again" are different next steps.
-    const notFound = query.error instanceof ApiError && query.error.status === 404;
-    return notFound ? (
-      <RecordNotFound
-        what="That subject"
-        backHref={config.indexHref}
-        backLabel="Back to the subjects"
-      />
-    ) : (
-      <LoadError
+    return (
+      <RecordLoadFailure
+        notFound="That subject"
         what="this subject's record"
         error={query.error}
+        backHref={config.indexHref}
+        backLabel="Back to the subjects"
         onRetry={() => void query.refetch()}
       />
     );
@@ -371,23 +354,17 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
       onTabChange={setActiveTab}
       rail={
         <RailSection title="At a glance">
-          <dl className="space-y-2 text-sm">
-            <Glance label="Classes" value={String(classes.size)} />
-            <Glance label="Teachers" value={String(teachers.size)} />
-            {/* The number somebody is on this page to fix. */}
-            <Glance label="Without a teacher" value={String(unstaffed)} />
-          </dl>
+          {/* Not how many classes take it — the Classes section carries that
+              count. These two are what the section cannot say: how many people
+              teach it between them, and the number somebody is on this page to
+              fix. */}
+          <GlanceList>
+            <Glance label="Teachers" value={teachers.size || "Nobody"} />
+            <Glance label="Without a teacher" value={unstaffed || "None"} />
+          </GlanceList>
         </RailSection>
       }
     />
   );
 }
 
-function Glance({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[var(--text-muted)]">{label}</dt>
-      <dd className="font-medium text-[var(--text-strong)]">{value}</dd>
-    </div>
-  );
-}

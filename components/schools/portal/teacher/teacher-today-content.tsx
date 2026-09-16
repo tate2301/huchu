@@ -1,9 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card, EmptyState } from "@corelithzw/react";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useTeacherPortal, type TeacherPeriod } from "./teacher-portal-context";
+
+/** As much of a conversation as the Today card shows of it. */
+type Waiting = {
+  id: string;
+  unread: boolean;
+  lastMessagePreview: string;
+  guardian: { firstName: string; lastName: string };
+};
 
 /** Minutes since midnight, in the browser's own clock. */
 function nowMinute() {
@@ -37,6 +46,14 @@ function currentPeriod(periods: TeacherPeriod[], minute: number) {
  */
 export function TeacherTodayContent() {
   const { day, error, setClassSubjectId } = useTeacherPortal();
+
+  /** Same query key as the inbox, so the two never disagree about the count. */
+  const inbox = useQuery({
+    queryKey: ["schools", "portal", "teacher", "messages"],
+    queryFn: () =>
+      fetchJson<{ threads: Waiting[] }>("/api/v2/schools/portal/teacher/me/messages"),
+  });
+  const unread = (inbox.data?.threads ?? []).filter((row) => row.unread).length;
 
   const minute = nowMinute();
   const periods = day?.periods ?? [];
@@ -74,6 +91,42 @@ export function TeacherTodayContent() {
     );
   }
 
+  /**
+   * A tile with nothing over nothing says nothing. "0 registers unmarked of 0
+   * lessons" is a slashed zero the teacher has to read twice to learn that
+   * there was no school today, so it is left out instead.
+   */
+  const papers = day?.workload?.papersToMark ?? 0;
+  const homeworkOpen = day?.workload?.homeworkOpen ?? 0;
+  const tiles = [
+    unmarked === 0 && taught === 0
+      ? null
+      : {
+          label: "Registers unmarked",
+          value: unmarked,
+          warn: unmarked > 0,
+          note: `${taught} lesson${taught === 1 ? "" : "s"} on today`,
+        },
+    papers === 0 && marking.length === 0
+      ? null
+      : {
+          label: "Papers to mark",
+          value: papers,
+          warn: false,
+          note: `Across ${marking.length} assessment${marking.length === 1 ? "" : "s"}`,
+        },
+    homeworkOpen === 0
+      ? null
+      : {
+          label: "Homework open",
+          value: homeworkOpen,
+          warn: false,
+          note: "Set by you, still collecting",
+        },
+  ].filter((tile): tile is { label: string; value: number; warn: boolean; note: string } =>
+    Boolean(tile),
+  );
+
   const upNext = current?.period.lesson ? current : null;
   const upNextSize = upNext
     ? (classes.find((row) => row.classSubjectId === upNext.period.lesson?.classSubjectId)
@@ -96,8 +149,10 @@ export function TeacherTodayContent() {
             {free > 0 ? ` · ${free} free` : ""}
           </div>
         </div>
+        {/* Straight into the dialog: the Homework screen opens its composer on
+            `?new=1`, so setting work is one tap from here rather than two. */}
         <Button variant="secondary" asChild>
-          <Link href="/portal/teacher/homework">Set new homework</Link>
+          <Link href="/portal/teacher/homework?new=1">Set new homework</Link>
         </Button>
       </div>
 
@@ -226,6 +281,40 @@ export function TeacherTodayContent() {
 
       <div className="te-grid-cards">
         <Card
+          title="Parent messages"
+          actions={unread > 0 ? <Badge tone="warn">{unread} new</Badge> : null}
+        >
+          {unread === 0 ? (
+            <EmptyState
+              title="No family is waiting"
+              body="Everyone who has written to you has had an answer."
+            />
+          ) : (
+            <div className="te-rows">
+              {(inbox.data?.threads ?? [])
+                .filter((row) => row.unread)
+                .slice(0, 4)
+                .map((row) => (
+                  <Link
+                    key={row.id}
+                    href={`/portal/teacher/messages?thread=${row.id}`}
+                    className="b-row-card"
+                  >
+                    <div className="b-rc-top">
+                      <div className="b-rc-info">
+                        <div className="b-rc-nm">
+                          {row.guardian.firstName} {row.guardian.lastName}
+                        </div>
+                        <div className="b-rc-sb">{row.lastMessagePreview}</div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+            </div>
+          )}
+        </Card>
+
+        <Card
           title="Papers to mark"
           actions={
             marking.length > 0 ? (
@@ -266,32 +355,22 @@ export function TeacherTodayContent() {
           )}
         </Card>
 
-        <Card
-          title="This week"
-          actions={day?.term ? <Badge tone="neutral">{day.term.name}</Badge> : null}
-        >
-          <div className="te-tiles">
-            <div className="te-tile">
-              <div className="lbl">Registers unmarked</div>
-              <div className={unmarked > 0 ? "v warn" : "v"}>{unmarked}</div>
-              <div className="ds">
-                {taught} lesson{taught === 1 ? "" : "s"} on today
-              </div>
+        {tiles.length > 0 ? (
+          <Card
+            title="This week"
+            actions={day?.term ? <Badge tone="neutral">{day.term.name}</Badge> : null}
+          >
+            <div className="te-tiles">
+              {tiles.map((tile) => (
+                <div key={tile.label} className="te-tile">
+                  <div className="lbl">{tile.label}</div>
+                  <div className={tile.warn ? "v warn" : "v"}>{tile.value}</div>
+                  <div className="ds">{tile.note}</div>
+                </div>
+              ))}
             </div>
-            <div className="te-tile">
-              <div className="lbl">Papers to mark</div>
-              <div className="v">{day?.workload?.papersToMark ?? 0}</div>
-              <div className="ds">
-                Across {marking.length} assessment{marking.length === 1 ? "" : "s"}
-              </div>
-            </div>
-            <div className="te-tile">
-              <div className="lbl">Homework open</div>
-              <div className="v">{day?.workload?.homeworkOpen ?? 0}</div>
-              <div className="ds">Set by you, still collecting</div>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        ) : null}
       </div>
     </>
   );

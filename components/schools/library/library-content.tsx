@@ -6,25 +6,26 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import {
   TableControls,
   TableSearch,
-} from "@/components/schools/common/table-controls";
+} from "@/components/records/table-controls";
 import {
   CreateButton,
   RecordActions,
   type RecordVerb,
 } from "@/components/schools/common/record-actions";
 import {
+  CardsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -214,6 +215,7 @@ export function LibraryContent() {
   const copies = allBooks.reduce((sum, book) => sum + book.copies.length, 0);
 
   const desk = deskMutation.isPending;
+  const shelvesLoading = libraryQuery.isPending;
   const anyFilter = Boolean(shelfFilter || genreFilter || copyFilter || search.trim());
 
   return (
@@ -230,12 +232,15 @@ export function LibraryContent() {
           of it is somewhere else, and how much of that is late. */}
       <PageBand
         chips={[
-          { label: "Copies", value: copies.toLocaleString() },
-          { label: "On the shelf", value: onShelf.toLocaleString() },
-          { label: "Out", value: allLoans.length, tone: "brand" },
+          // A dash until the shelves answer. Every one of these is a count
+          // taken over the catalogue, and a nought before it arrives reads as a
+          // library that owns nothing rather than as a number on its way.
+          { label: "Copies", value: shelvesLoading ? "—" : copies.toLocaleString() },
+          { label: "On the shelf", value: shelvesLoading ? "—" : onShelf.toLocaleString() },
+          { label: "Out", value: shelvesLoading ? "—" : allLoans.length, tone: "brand" },
           {
             label: "Late",
-            value: overdue.length,
+            value: shelvesLoading ? "—" : overdue.length,
             tone: overdue.length > 0 ? "danger" : "success",
           },
         ]}
@@ -298,15 +303,18 @@ export function LibraryContent() {
             />
           </>
         }
+        // How many titles the narrowing left, out of the catalogue. It moves
+        // when the filters move, so it belongs beside them rather than in the
+        // band above — the band's numbers are about the library.
+        count={
+          shelvesLoading
+            ? null
+            : `${books.length.toLocaleString()} of ${allBooks.length.toLocaleString()}`
+        }
       />
 
-      <p className="text-sm text-muted-foreground">
-        {books.length.toLocaleString()} title{books.length === 1 ? "" : "s"} ·{" "}
-        {onShelf.toLocaleString()} cop{onShelf === 1 ? "y" : "ies"} on the shelf
-      </p>
-
       {libraryQuery.isLoading ? (
-        <TableRowsSkeleton columns={[{ twoLine: true }, { width: 120 }]} rows={6} />
+        <CardsSkeleton count={12} columns={4} lines={1} label="Loading the shelves" />
       ) : books.length === 0 ? (
         allBooks.length === 0 ? (
           <NothingYet
@@ -384,7 +392,9 @@ export function LibraryContent() {
                       </span>
                       <span className="ml-auto">
                         <RecordActions
+                          layout="menu"
                           resource="schools.academics"
+                          label={`Actions for ${book.title}`}
                           verbs={[
                             {
                               label: "Edit",
@@ -444,16 +454,40 @@ export function LibraryContent() {
                               <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)]">
                                 {copy.copyCode}
                               </span>
-                              <span className="min-w-0 flex-1 truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                                {loan
-                                  ? `${loan.student.lastName}, ${loan.student.firstName} · back by ${loan.dueAt.slice(0, 10)}`
-                                  : (book.shelfMark ?? "On the shelf")}
+                              <span className="min-w-0 flex-1">
+                                {loan ? (
+                                  // Whoever has it reads exactly as they do on
+                                  // the loans register — the same mark, the
+                                  // same name, the same line underneath — so a
+                                  // borrower met at the shelf and a borrower
+                                  // met on the register are recognisably one
+                                  // child.
+                                  //
+                                  // The date is the raw ISO slice, not a
+                                  // formatted one: it decides whether the badge
+                                  // beside it is late, and a locale-derived
+                                  // string would differ between the server
+                                  // render and the browser's.
+                                  <PersonCell
+                                    kind="student"
+                                    href={`/schools/students/${loan.student.id}`}
+                                    firstName={loan.student.firstName}
+                                    lastName={loan.student.lastName}
+                                    reference={`back by ${loan.dueAt.slice(0, 10)}`}
+                                  />
+                                ) : (
+                                  <span className="block truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                                    {book.shelfMark ?? "On the shelf"}
+                                  </span>
+                                )}
                               </span>
                               <Badge tone={loan ? "brand" : "success"}>
                                 {loan ? "Out" : "In"}
                               </Badge>
                               <RecordActions
+                                layout="menu"
                                 resource="schools.academics"
+                                label={`Actions for copy ${copy.copyCode}`}
                                 verbs={verbs}
                               />
                             </div>
@@ -467,7 +501,7 @@ export function LibraryContent() {
                                   options={(readersQuery.data?.data ?? []).map(
                                     (student) => ({
                                       value: student.id,
-                                      label: `${student.lastName}, ${student.firstName} · ${student.studentNo}`,
+                                      label: `${student.firstName} ${student.lastName} · ${student.studentNo}`,
                                     }),
                                   )}
                                   onChange={setReader}

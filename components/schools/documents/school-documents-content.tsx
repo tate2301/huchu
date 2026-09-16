@@ -2,23 +2,25 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card } from "@corelithzw/react";
+import { Alert, Button, Card } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { PageBand } from "@/components/schools/common/page-band";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
   CardsSkeleton,
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import {
   fetchSchoolsClasses,
@@ -129,7 +131,7 @@ function usePrint(ref: React.RefObject<HTMLDivElement | null>) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Print Document</title>
+          <title>Print document</title>
           <style>
             body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
             table { width: 100%; border-collapse: collapse; }
@@ -258,18 +260,18 @@ function ReportCardPreview({
   }
 
   return (
-    <DocumentFrame title="Report Card Preview">
+    <DocumentFrame title="Report card preview">
       {() => (
         <PdfTemplate
-          title="Student Report Card"
+          title="Student report card"
           subtitle={termName}
           meta={[
-            { label: "Student No", value: student.studentNo },
-            { label: "Admission No", value: student.admissionNo || "-" },
+            { label: "Student no", value: student.studentNo },
+            { label: "Admission no", value: student.admissionNo || "-" },
             { label: "Class", value: student.currentClass?.name ?? "-" },
             { label: "Stream", value: student.currentStream?.name ?? "-" },
             { label: "Status", value: student.status },
-            { label: "Boarding", value: student.isBoarding ? "Boarder" : "Day Scholar" },
+            { label: "Boarding", value: student.isBoarding ? "Boarder" : "Day scholar" },
           ]}
         >
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
@@ -397,17 +399,17 @@ function FeeInvoicePreview({
   }
 
   return (
-    <DocumentFrame title="Fee Invoice Preview">
+    <DocumentFrame title="Fee invoice preview">
       {() => (
         <PdfTemplate
-          title="Fee Invoice"
+          title="Fee invoice"
           subtitle={termName}
           meta={[
-            { label: "Invoice No", value: invoice.invoiceNo },
-            { label: "Student No", value: student.studentNo },
+            { label: "Invoice no", value: invoice.invoiceNo },
+            { label: "Student no", value: student.studentNo },
             { label: "Class", value: student.currentClass?.name ?? "-" },
-            { label: "Invoice Date", value: formatSchoolDate(invoice.issueDate) },
-            { label: "Due Date", value: formatSchoolDate(invoice.dueDate) },
+            { label: "Invoice date", value: formatSchoolDate(invoice.issueDate) },
+            { label: "Due date", value: formatSchoolDate(invoice.dueDate) },
             { label: "Status", value: invoice.status },
           ]}
         >
@@ -466,10 +468,10 @@ function ClassListPreview({
   scope: string;
 }) {
   return (
-    <DocumentFrame title="Class List Preview">
+    <DocumentFrame title="Class list preview">
       {() => (
         <PdfTemplate
-          title="Class List"
+          title="Class list"
           subtitle={scope}
           meta={[
             { label: "Pupils", value: String(students.length) },
@@ -480,7 +482,7 @@ function ClassListPreview({
             <thead>
               <tr style={HEAD_ROW}>
                 <th style={CELL}>#</th>
-                <th style={CELL}>Student No</th>
+                <th style={CELL}>Student no</th>
                 <th style={CELL}>Name</th>
                 <th style={CELL}>Class</th>
                 <th style={CELL}>Stream</th>
@@ -526,10 +528,10 @@ function AttendanceRegisterPreview({
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
   return (
-    <DocumentFrame title="Attendance Register Preview">
+    <DocumentFrame title="Attendance register preview">
       {() => (
         <PdfTemplate
-          title="Attendance Register"
+          title="Attendance register"
           subtitle={scope}
           meta={[
             { label: "Week of", value: formatSchoolDate(new Date()) },
@@ -684,7 +686,7 @@ export function SchoolDocumentsContent() {
 
   return (
     <div className="space-y-3">
-      <PageHeading title="School Documents" />
+      <PageChrome title="Documents" />
 
       <PageBand
         chips={[
@@ -694,7 +696,12 @@ export function SchoolDocumentsContent() {
               ? (classes.find((row) => row.id === classId)?.name ?? "—")
               : "Every year group",
           },
-          { label: "Pupils", value: total.toLocaleString() },
+          {
+            label: "Pupils",
+            // A dash until the roll answers. A nought here reads as a school
+            // with no children in it rather than as a number still arriving.
+            value: studentsQuery.isPending ? "—" : total.toLocaleString(),
+          },
           { label: "Term", value: term ? term.name : "—" },
         ]}
       />
@@ -767,27 +774,31 @@ export function SchoolDocumentsContent() {
 
       <VerticalDataViews
         items={[
-          { id: "report-card", label: "Report Cards" },
-          { id: "fee-invoice", label: "Fee Invoices" },
-          { id: "class-list", label: "Class Lists", count: searched.length },
-          { id: "attendance-register", label: "Attendance Registers", count: searched.length },
+          { id: "report-card", label: "Report cards" },
+          { id: "fee-invoice", label: "Fee invoices" },
+          { id: "class-list", label: "Class lists", count: searched.length },
+          { id: "attendance-register", label: "Attendance registers", count: searched.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as DocumentView)}
-        railLabel="Document Types"
+        railLabel="Document types"
       >
         {perPupil ? (
           <div className="space-y-4">
             <Card
-              title="Select Student"
-              subtitle={`${searched.length} of ${total.toLocaleString()} on the roll`}
+              title="Select a student"
+              subtitle={
+                studentsQuery.isPending
+                  ? undefined
+                  : `${searched.length} of ${total.toLocaleString()} on the roll`
+              }
             >
               <div className="space-y-3">
                 <div>
-                  <Label htmlFor="doc-student-search">Search students</Label>
+                  <Label htmlFor="doc-student-search">Search the roll</Label>
                   <Input
                     id="doc-student-search"
-                    placeholder="Search by name or student number..."
+                    placeholder="Search name or admission number"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />
@@ -798,10 +809,7 @@ export function SchoolDocumentsContent() {
                     // is a scroll of name-shaped rows. The sentence that used to
                     // sit here collapsed the box to one line and then shoved
                     // twenty rows in underneath it.
-                    <TableRowsSkeleton
-                      rows={5}
-                      columns={[{ width: 84 }, { twoLine: true }, { width: 70, badge: true }]}
-                    />
+                    <ListRowsSkeleton rows={5} fact={false} label="Loading the roll" />
                   ) : studentsQuery.isError ? null : searched.length === 0 ? (
                     rollNotStarted ? (
                       // No active pupil, with nothing narrowing it. That is a
@@ -830,15 +838,17 @@ export function SchoolDocumentsContent() {
                         }`}
                         onClick={() => setSelectedStudentId(student.id)}
                       >
-                        <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                          {student.studentNo}
-                        </span>{" "}
-                        {student.firstName} {student.lastName}
-                        {student.currentClass ? (
-                          <Badge tone="outline" className="ml-2">
-                            {student.currentClass.name}
-                          </Badge>
-                        ) : null}
+                        {/* No `href`: this row picks a pupil to print for, it
+                            does not open one, and the cell drops its underline
+                            rather than advertising a destination it has not
+                            got. */}
+                        <PersonCell
+                          kind="student"
+                          firstName={student.firstName}
+                          lastName={student.lastName}
+                          reference={student.studentNo}
+                          context={student.currentClass?.name}
+                        />
                       </button>
                     ))
                   )}
@@ -896,43 +906,6 @@ export function SchoolDocumentsContent() {
           )
         ) : null}
       </VerticalDataViews>
-
-      {/*
-        The three notes the canvas draws under this screen. They are the record
-        of what was wrong with it, kept beside the fix so the next person to
-        open the file knows which decisions were deliberate.
-      */}
-      <div className="grid items-start gap-3 lg:grid-cols-3">
-        <Card title="What ships instead">
-          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-            The report card&rsquo;s subject table used to be a single row reading
-            &ldquo;Results data will be populated from the results module for the
-            selected term.&rdquo; The marks are what the screen is for, so it now reads
-            them from the results module for the term in view, and the fee invoice
-            reads its real lines rather than printing Tuition Fee, Boarding Fee and
-            Total Due each with a literal &ldquo;-&rdquo;.
-          </p>
-        </Card>
-
-        <Card title="The two tabs with no filter">
-          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-            <strong>Class Lists</strong> and <strong>Attendance Registers</strong> reused
-            the student search state but never rendered the search box, so they printed
-            all 842 pupils with no way to narrow to a class. The filter row above is the
-            fix, and it is the same <code>FilterBar</code> every other campus screen
-            already uses.
-          </p>
-        </Card>
-
-        <Card title="Printing">
-          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-            Printing is a hand-rolled <code>window.open</code> plus{" "}
-            <code>document.write</code> of the preview&rsquo;s innerHTML, with its own
-            inline stylesheet — that is what a browser will actually print from, so it
-            stays. A blocked pop-up used to return silently; it now says so on the page.
-          </p>
-        </Card>
-      </div>
     </div>
   );
 }

@@ -5,6 +5,11 @@ import { cn } from "@/lib/utils";
 /**
  * The segmented views that sit at the left of a table's control row.
  *
+ * Named for what it is rather than for what it sits on. `RecordTabs` was also
+ * the name of the component that builds a record page's *sections*, one module
+ * over, and two good components sharing a name cost every reader who met
+ * either of them a path check.
+ *
  * Every records screen has them and they are all the same shape: a handful of
  * cuts of the same rows, each carrying the count of what it holds — "All 879",
  * "Active 842", "Boarders 218". The count is the point. A tab that only says
@@ -21,7 +26,7 @@ import { cn } from "@/lib/utils";
  * to promote it, not before.
  */
 
-export type RecordTab<Id extends string = string> = {
+export type PopulationTab<Id extends string = string> = {
   id: Id;
   /** The name of the cut: "Active", "Boarders", "On the roll". */
   label: string;
@@ -33,13 +38,13 @@ export type RecordTab<Id extends string = string> = {
   count?: number | string;
 };
 
-export function RecordTabs<Id extends string>({
+export function PopulationTabs<Id extends string>({
   tabs,
   value,
   onChange,
   className,
 }: {
-  tabs: Array<RecordTab<Id>>;
+  tabs: Array<PopulationTab<Id>>;
   value: Id;
   onChange: (next: Id) => void;
   className?: string;

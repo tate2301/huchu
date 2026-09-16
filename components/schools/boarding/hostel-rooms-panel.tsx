@@ -13,12 +13,12 @@ import {
   type RecordVerb,
 } from "@/components/schools/common/record-actions";
 import {
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -154,7 +154,7 @@ export function HostelRoomsPanel({ hostelId }: { hostelId: string }) {
       {bedAction.error ? <SaveError what="That bed" error={bedAction.error} /> : null}
 
       {roomsQuery.isLoading ? (
-        <TableRowsSkeleton columns={[{ twoLine: true }, { width: 90 }, { width: 200 }]} rows={5} />
+        <ListRowsSkeleton rows={5} avatar={false} label="Loading the rooms" />
       ) : visible.length === 0 ? (
         rooms.length === 0 ? (
           <NothingYet
@@ -192,7 +192,12 @@ export function HostelRoomsPanel({ hostelId }: { hostelId: string }) {
                 </span>
                 {room.isActive ? null : <Badge tone="neutral">Closed</Badge>}
                 <span className="ml-auto">
-                  <RecordActions resource="schools.boarding" verbs={roomVerbs(room)} />
+                  <RecordActions
+                    layout="menu"
+                    resource="schools.boarding"
+                    label={`Actions for room ${room.code}`}
+                    verbs={roomVerbs(room)}
+                  />
                 </span>
               </div>
 
@@ -227,7 +232,9 @@ export function HostelRoomsPanel({ hostelId }: { hostelId: string }) {
                       </Badge>
                       <span className="ml-auto">
                         <RecordActions
+                          layout="menu"
                           resource="schools.boarding"
+                          label={`Actions for bed ${bed.code}`}
                           verbs={[
                             {
                               label: bed.isActive ? "Take out of use" : "Put back in use",

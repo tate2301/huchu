@@ -8,7 +8,8 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import {
   ClassFilter,
@@ -16,9 +17,9 @@ import {
   classFilterParams,
   type ClassFilterValue,
 } from "@/components/schools/common/class-filter";
-import { FilterSelect } from "@/components/schools/common/filter-select";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
@@ -26,9 +27,12 @@ import {
   NothingYet,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
+import { RecordCell } from "@/components/records/record-table";
 import { DataTable } from "@/components/ui/data-table";
 import { fetchJson } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
+import { formatSchoolDate } from "@/lib/schools/format";
 
 /**
  * Who has been away, and who has not been rung about it.
@@ -140,28 +144,17 @@ export function AbsenceFollowUpContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar name={row.original.name} />
-            <div className="min-w-0">
-              <Link
-                href={`/schools/students/${row.original.studentId}`}
-                className="block truncate font-medium hover:underline"
-              >
-                {row.original.name}
-              </Link>
-              <span className="block truncate text-sm text-muted-foreground">
-                {[
-                  row.original.admissionNo,
-                  [row.original.className, row.original.streamName]
-                    .filter(Boolean)
-                    .join(" "),
-                  row.original.isBoarding ? "boarder" : "day",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-            </div>
-          </div>
+          <PersonCell
+            name={row.original.name}
+            href={recordType("STUDENT").href(row.original.studentId)}
+            reference={row.original.admissionNo}
+            context={[
+              [row.original.className, row.original.streamName].filter(Boolean).join(" "),
+              row.original.isBoarding ? "boarder" : "day",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          />
         ),
       },
       {
@@ -185,29 +178,23 @@ export function AbsenceFollowUpContent() {
       {
         id: "lastAbsent",
         header: "Last away",
-        cell: ({ row }) =>
-          row.original.lastAbsent ? (
-            <span className="font-[family-name:var(--font-mono)] text-sm tabular-nums">
-              {new Date(row.original.lastAbsent).toLocaleDateString(undefined, {
-                day: "numeric",
-                month: "short",
-              })}
-            </span>
-          ) : (
-            "—"
-          ),
+        // The school's date, not the browser's. `toLocaleDateString` here was
+        // read out of whatever locale the reader's machine happens to carry —
+        // so the same register said "3 Jun" in the office and "Jun 3" on the
+        // laptop beside it, and the two renders disagreed across hydration.
+        cell: ({ row }) => (
+          <RecordCell
+            kind="date"
+            value={row.original.lastAbsent ? formatSchoolDate(row.original.lastAbsent) : null}
+          />
+        ),
       },
       {
         id: "contacted",
         header: "Rung home",
         cell: ({ row }) =>
           row.original.lastContactedAt ? (
-            <Badge tone="success">
-              {new Date(row.original.lastContactedAt).toLocaleDateString(undefined, {
-                day: "numeric",
-                month: "short",
-              })}
-            </Badge>
+            <Badge tone="success">{formatSchoolDate(row.original.lastContactedAt)}</Badge>
           ) : (
             <span className="text-sm text-muted-foreground">Not yet</span>
           ),
@@ -217,28 +204,28 @@ export function AbsenceFollowUpContent() {
         header: "Who to ring",
         cell: ({ row }) => {
           const guardian = row.original.guardian;
+          // A state, not a category: a repeat absence the school cannot ring
+          // about is the row on this screen to fix first.
           if (!guardian) return <Badge tone="danger">Nobody on file</Badge>;
           return (
-            <div className="min-w-0">
-              <Link
-                href={`/schools/guardians/${guardian.id}`}
-                className="block truncate hover:underline"
-              >
-                {guardian.name}
-              </Link>
-              <span className="block truncate font-[family-name:var(--font-mono)] text-sm text-muted-foreground">
-                {guardian.phone ?? "No number"} · {guardian.relationship}
-              </span>
-            </div>
+            <PersonCell
+              kind="guardian"
+              name={guardian.name}
+              href={recordType("GUARDIAN").href(guardian.id)}
+              reference={guardian.phone ?? "No number"}
+              context={guardian.relationship}
+            />
           );
         },
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.attendance"
             verbs={[
               {
@@ -271,24 +258,26 @@ export function AbsenceFollowUpContent() {
   const sending = useIsMutating() > 0 && ringing !== null;
 
   return (
-    <>
+    <SchoolsPage
+      band={
+        <PageBand
+          chips={[
+            // The number still to do, not the number on the list. Once the
+            // office has rung home the child stays visible — the absences are
+            // still a fact — but they are no longer work outstanding.
+            { label: "To follow up", value: summary?.toContact ?? 0, tone: "warn" },
+            { label: "Already rung", value: contactedCount, tone: "success" },
+            { label: "Unexplained", value: summary?.unexplained ?? 0 },
+            {
+              label: "Nobody to ring",
+              value: unreachable.length,
+              tone: unreachable.length > 0 ? "danger" : "neutral",
+            },
+          ]}
+        />
+      }
+    >
       <PageChrome title="Absence follow-up" />
-
-      <PageBand
-        chips={[
-          // The number still to do, not the number on the list. Once the office
-          // has rung home the child stays visible — the absences are still a
-          // fact — but they are no longer work outstanding.
-          { label: "To follow up", value: summary?.toContact ?? 0, tone: "warn" },
-          { label: "Already rung", value: contactedCount, tone: "success" },
-          { label: "Unexplained", value: summary?.unexplained ?? 0 },
-          {
-            label: "Nobody to ring",
-            value: unreachable.length,
-            tone: unreachable.length > 0 ? "danger" : "neutral",
-          },
-        ]}
-      />
 
       {unreachable.length > 0 ? (
         <Alert
@@ -308,6 +297,7 @@ export function AbsenceFollowUpContent() {
       ) : null}
 
       <TableControls
+        sticky
         search={
           <TableSearch
             value={search}
@@ -315,6 +305,12 @@ export function AbsenceFollowUpContent() {
             placeholder="Search name or admission number"
           />
         }
+        filterCount={activeFilterCount(
+          classValue.classId,
+          days === "28" ? "" : days,
+          threshold === "2" ? "" : threshold,
+        )}
+        count={followUpQuery.isPending ? null : `${rows.length} to chase`}
         filters={
           <>
             <ClassFilter value={classValue} onChange={setClassValue} />
@@ -343,6 +339,7 @@ export function AbsenceFollowUpContent() {
             "Away, unexplained",
             "With permission",
             "Last away",
+            "Rung home",
             "Who to ring",
             "",
           ]}
@@ -351,8 +348,9 @@ export function AbsenceFollowUpContent() {
             { width: 130, badge: true },
             { width: 120, align: "right" },
             { width: 100, align: "right" },
-            { twoLine: true },
-            { width: 110 },
+            { width: 110, badge: true },
+            { avatar: true, twoLine: true },
+            { width: 44 },
           ]}
         />
       ) : followUpQuery.isError ? (
@@ -400,7 +398,45 @@ export function AbsenceFollowUpContent() {
         )
       ) : (
         <SavingOverlay saving={sending} label="Sending it home…">
-          <DataTable columns={columns} data={rows} />
+          <DataTable
+            columns={columns}
+            data={rows}
+            // The search box is in the row above, where it sits on every other
+            // campus list. Left on, `DataTable` draws a second one inside its
+            // own toolbar — two boxes on one screen searching the same rows by
+            // different rules.
+            features={{ globalFilter: false }}
+            mobileCardRenderer={({ row }) => (
+              // Seven columns at 390px is a sideways scroll showing one and a
+              // half of them. The child, what they have missed, and who to ring
+              // about it — which is the whole of the row.
+              <div className="space-y-2">
+                <PersonCell
+                  name={row.name}
+                  href={recordType("STUDENT").href(row.studentId)}
+                  reference={row.admissionNo}
+                  context={[row.className, row.streamName].filter(Boolean).join(" ")}
+                />
+                <div className="flex flex-wrap items-center gap-2 pl-[2.125rem]">
+                  <Badge tone={row.unexplained >= 6 ? "danger" : "warn"}>
+                    {row.unexplained} unexplained
+                  </Badge>
+                  {row.lastContactedAt ? (
+                    <Badge tone="success">
+                      Rung {formatSchoolDate(row.lastContactedAt)}
+                    </Badge>
+                  ) : null}
+                  {row.guardian ? (
+                    <span className="font-mono text-sm tabular-nums text-[color:var(--text-muted)]">
+                      {row.guardian.phone ?? "No number"}
+                    </span>
+                  ) : (
+                    <Badge tone="danger">Nobody on file</Badge>
+                  )}
+                </div>
+              </div>
+            )}
+          />
         </SavingOverlay>
       )}
 
@@ -435,6 +471,6 @@ export function AbsenceFollowUpContent() {
           }}
         />
       ) : null}
-    </>
+    </SchoolsPage>
   );
 }

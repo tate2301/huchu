@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +16,16 @@ import { cn } from "@/lib/utils";
  *
  * It is sticky because the numbers are the reason the page is open, and a
  * register board scrolled past its own count is a screen you scroll back up.
+ *
+ * Its height is `--page-band-h` rather than whatever its contents come to, for
+ * the same reason the CRM band states one: it is the first band in the sticky
+ * stack, and `SchoolsPage` publishes that height as the offset everything
+ * below it pins to. A band that is 38px on one screen and 46px on the next
+ * puts every table header in the module in a slightly different place.
+ *
+ * What does NOT go here: the row count. "50 of 214" is not state — it is the
+ * answer to whatever the filters just asked, so it moves when they move and it
+ * belongs beside them, in `TableControls`.
  */
 
 export type BandChipTone = "neutral" | "brand" | "success" | "warn" | "danger";
@@ -28,6 +39,14 @@ export type BandChip = {
   /** Makes the whole chip a link to the screen that explains it. */
   href?: string;
 };
+
+/**
+ * What a chip shows in place of a figure it does not have yet. Exported so a
+ * screen writes the same character the band tests for, rather than one that
+ * merely looks like it — a hyphen and an en dash both pass the eye and fail
+ * the comparison.
+ */
+export const EM_DASH = "\u2014";
 
 const TONE_CLASS: Record<BandChipTone, string> = {
   neutral: "border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-body)]",
@@ -52,7 +71,10 @@ export function PageBand({
   return (
     <div
       className={cn(
-        "sticky top-0 z-20 -mx-1 mb-1 flex flex-wrap items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--surface-muted)] px-1 py-2",
+        // z-30, above the options row's z-20: the toolbar pins to the offset
+        // this band publishes, and the two overlap for the frame it takes the
+        // browser to settle a scroll.
+        "sticky top-[var(--stack-top,0px)] z-30 -mx-1 mb-1 flex min-h-[var(--page-band-h)] flex-wrap items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--surface-muted)] px-1 py-2",
         className,
       )}
     >
@@ -67,14 +89,29 @@ export function PageBand({
             </span>
           </>
         );
+        // A chip with no figure yet has no tone yet either.
+        //
+        // The value is already an em dash while its query is out, but the tone
+        // is computed from the figure the caller does not have — `overdue > 0
+        // ? "danger" : "success"` reads an empty array and answers green. The
+        // dash was added so the band would stop asserting a number it did not
+        // know; a green dash asserts the same thing in colour, which is the
+        // half of the chip somebody takes in first and the half they cannot
+        // help reading. Enforced here rather than at every call site, because
+        // "remember to gate the tone too" is a rule that holds until the next
+        // screen.
+        const settled = chip.value !== EM_DASH;
         const chipClass = cn(
           "flex shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border px-2.5 py-1",
-          TONE_CLASS[chip.tone ?? "neutral"],
+          TONE_CLASS[settled ? (chip.tone ?? "neutral") : "neutral"],
         );
+        // `next/link`, not a bare anchor: these point at other campus screens,
+        // and a full document load to read a number is the page you were
+        // reading thrown away.
         return chip.href ? (
-          <a key={chip.label} href={chip.href} className={cn(chipClass, "hover:underline")}>
+          <Link key={chip.label} href={chip.href} className={cn(chipClass, "hover:underline")}>
             {body}
-          </a>
+          </Link>
         ) : (
           <div key={chip.label} className={chipClass}>
             {body}

@@ -10,8 +10,9 @@ import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { AgeingStrip } from "@/components/schools/common/ageing-strip";
+import { PageBand, type BandChip } from "@/components/schools/common/page-band";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import {
@@ -23,11 +24,14 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { AGEING_BUCKETS, ageingAmount, type AgeingTone } from "@/lib/schools/ageing";
+import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsAcademicYears, fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { fetchSchoolFeeStructures } from "@/lib/schools/fees-v2";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /**
  * One frozen empty array for every "the query has not answered yet" case on
@@ -54,8 +58,9 @@ const EMPTY: never[] = [];
  * used to be reading a five-term table and doing it in your head. And
  * `runExport` fetches the file rather than opening it, so a refused export
  * lands on the screen the button is on instead of in a blank tab. What is
- * *still* true is on the "What the screen cannot do" card further down, which
- * names the two reports the filter row does not reach.
+ * *still* true is that the filter row reaches Collections and Arrears only:
+ * Enrolment and Hostel occupancy render whatever their endpoints return,
+ * because neither takes a parameter.
  *
  * The arrears view carried the sharper version of the same problem. It names
  * every family in arrears — that is the whole point of it — and offered no way
@@ -188,31 +193,89 @@ const BOARDING_OPTIONS = [
   { value: "DAY", label: "Day pupils only" },
 ];
 
-function money(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
+/** Counts, not money: receipts written, pupils on the roll. */
 function whole(value: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
 }
 
-function percent(value: number): string {
+/**
+ * A rate with nothing behind it is unknown rather than zero: "0%" against
+ * nothing billed reads as a school that collected nothing.
+ */
+function percent(value: number, outOf: number): string {
+  if (!(outOf > 0) || !Number.isFinite(value)) return "—";
   return `${value.toFixed(1)}%`;
 }
 
-/** A collection rate reads as a state, not a number: 96 is fine, 69 is not. */
-function rateTone(rate: number) {
+/**
+ * A collection rate reads as a state, not a number: 96 is fine, 69 is not.
+ * A rate with nothing billed behind it is no state at all, so the tile stays
+ * neutral rather than painting a school that has not billed yet in danger red.
+ */
+function rateTone(rate: number, outOf: number) {
+  if (!(outOf > 0)) return undefined;
   if (rate >= 90) return "success" as const;
   if (rate >= 70) return "warn" as const;
   return "danger" as const;
 }
 
+/**
+ * Money in an ageing column, warming as it ages.
+ *
+ * The tone is the band's own, so the shape of a family's debt is legible
+ * before the figures are read. Drawn identically on the arrears route, so that
+ * moving between the two screens does not change what a red figure means.
+ *
+ * A band with nothing in it is an em dash rather than "$ 0.00": this is a
+ * table of figures, where "nothing in this band" is the whole meaning, and
+ * five columns of nought across forty rows is two hundred amounts to read past
+ * to find the ones that are not.
+ */
+function AgedMoney({ amount, tone }: { amount: number; tone: AgeingTone }) {
+  if (amount <= 0) {
+    return <NumericCell className="text-[color:var(--text-faint)]">—</NumericCell>;
+  }
+  const ink =
+    tone === "good"
+      ? "text-[color:var(--text-muted)]"
+      : tone === "neutral"
+        ? "text-[color:var(--text-body)]"
+        : tone === "warn"
+          ? "font-semibold text-[color:var(--tone-warn)]"
+          : "font-bold text-[color:var(--tone-danger)]";
+  return <NumericCell className={ink}>{formatSchoolMoney(amount)}</NumericCell>;
+}
+
+const REPORT_VIEWS: ReportView[] = ["collections", "arrears", "enrollment", "occupancy"];
+
+function isReportView(value: string | null): value is ReportView {
+  return value !== null && (REPORT_VIEWS as string[]).includes(value);
+}
+
 export function SchoolsReportsEnhancedContent() {
   const access = useSchoolAccess();
-  const [activeView, setActiveView] = useState<ReportView>("collections");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  /*
+   * Which cut is open lives in the URL, not in state.
+   *
+   * It has to: the segment strip on the arrears route links here by view, so
+   * held in `useState` every one of those links arrived on Collections whatever
+   * its label said. It also makes an enrolment view something a bursar can send
+   * to a head, which is the point of a report.
+   */
+  const viewParam = searchParams.get("view");
+  const activeView: ReportView = isReportView(viewParam) ? viewParam : "collections";
+
+  const setActiveView = (next: ReportView) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "collections") params.delete("view");
+    else params.set("view", next);
+    // `replace`: flicking between four cuts of one pack is not four steps back.
+    router.replace(params.size ? `${pathname}?${params}` : pathname, { scroll: false });
+  };
 
   // Collections filters.
   const [academicYearId, setAcademicYearId] = useState("");
@@ -475,20 +538,24 @@ export function SchoolsReportsEnhancedContent() {
       {
         id: "invoiced",
         header: "Invoiced",
-        cell: ({ row }) => <NumericCell>{money(row.original.invoiced)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{formatSchoolMoney(row.original.invoiced)}</NumericCell>
+        ),
       },
       {
         id: "collected",
         header: "Collected",
-        cell: ({ row }) => <NumericCell>{money(row.original.collected)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{formatSchoolMoney(row.original.collected)}</NumericCell>
+        ),
       },
       {
         id: "collectionRate",
         header: "Collection rate",
         cell: ({ row }) => (
           <NumericCell>
-            <Badge tone={rateTone(row.original.collectionRate)}>
-              {percent(row.original.collectionRate)}
+            <Badge tone={rateTone(row.original.collectionRate, row.original.invoiced)}>
+              {percent(row.original.collectionRate, row.original.invoiced)}
             </Badge>
           </NumericCell>
         ),
@@ -508,15 +575,13 @@ export function SchoolsReportsEnhancedContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar name={row.original.studentName} />
-            <div className="min-w-0">
-              <div className="font-medium">{row.original.studentName}</div>
-              <div className="font-[family-name:var(--font-mono)] text-xs text-muted-foreground">
-                {row.original.studentNo} · {row.original.className}
-              </div>
-            </div>
-          </div>
+          <PersonCell
+            kind="student"
+            href={`/schools/students/${row.original.studentId}`}
+            name={row.original.studentName}
+            reference={row.original.studentNo}
+            context={row.original.className}
+          />
         ),
       },
       {
@@ -524,66 +589,49 @@ export function SchoolsReportsEnhancedContent() {
         header: "Total outstanding",
         cell: ({ row }) => (
           <NumericCell className="font-semibold">
-            {money(row.original.totalOutstanding)}
+            {formatSchoolMoney(row.original.totalOutstanding)}
           </NumericCell>
         ),
       },
-      {
-        id: "current",
-        header: "Current",
-        cell: ({ row }) => <NumericCell>{money(row.original.current)}</NumericCell>,
-      },
-      {
-        id: "days30",
-        header: "1-30 days",
-        cell: ({ row }) => <NumericCell>{money(row.original.days30)}</NumericCell>,
-      },
-      {
-        id: "days60",
-        header: "31-60 days",
-        cell: ({ row }) => <NumericCell>{money(row.original.days60)}</NumericCell>,
-      },
-      {
-        id: "days90",
-        header: "61-90 days",
-        cell: ({ row }) => <NumericCell>{money(row.original.days90)}</NumericCell>,
-      },
-      {
-        id: "days120Plus",
-        header: "90+ days",
-        cell: ({ row }) => (
-          <NumericCell
-            className={
-              row.original.days120Plus > 0
-                ? "font-semibold text-[color:var(--tone-danger)]"
-                : undefined
-            }
-          >
-            {money(row.original.days120Plus)}
-          </NumericCell>
-        ),
-      },
+      ...AGEING_BUCKETS.map(
+        (bucket): ColumnDef<ArrearsRow> => ({
+          id: bucket.key,
+          header: bucket.label,
+          cell: ({ row }) => (
+            <AgedMoney
+              amount={ageingAmount(row.original, bucket.key)}
+              tone={bucket.tone}
+            />
+          ),
+        }),
+      ),
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            {/* Writing to a family is the notices grant, which the route
+                enforces on `schools.reports` create. A bursar sees the verb
+                disabled and learns whose job it is, rather than after
+                composing the letter. */}
+            <RecordActions
               layout="menu"
-            // Writing to a family is the notices grant, which the route enforces
-            // on `schools.reports` create. A bursar sees the button disabled and
-            // learns whose job it is, rather than after composing the letter.
-            resource="schools.reports"
-            verbs={[
-              {
-                label: "Remind",
-                action: "create",
-                onSelect: () => {
-                  setSent(null);
-                  setReminding([row.original]);
+              resource="schools.reports"
+              label={`Actions for ${row.original.studentName}`}
+              verbs={[
+                {
+                  label: "Remind",
+                  action: "create",
+                  onSelect: () => {
+                    setSent(null);
+                    setReminding([row.original]);
+                  },
                 },
-              },
-            ]}
-          />
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -642,13 +690,16 @@ export function SchoolsReportsEnhancedContent() {
       {
         id: "hostel",
         header: "Hostel",
+        // The house is a record, and the question after "which house is full"
+        // is almost always about that house.
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.hostelName}</div>
-            <div className="font-[family-name:var(--font-mono)] text-xs text-muted-foreground">
-              {row.original.hostelCode} · {row.original.genderPolicy}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="hostel"
+            href={`/schools/boarding/${row.original.hostelId}`}
+            name={row.original.hostelName}
+            reference={row.original.hostelCode}
+            context={row.original.genderPolicy}
+          />
         ),
       },
       {
@@ -675,14 +726,16 @@ export function SchoolsReportsEnhancedContent() {
           <NumericCell>
             <Badge
               tone={
-                row.original.occupancyRate >= 95
-                  ? "danger"
-                  : row.original.occupancyRate >= 85
-                    ? "warn"
-                    : "success"
+                row.original.totalBeds === 0
+                  ? "outline"
+                  : row.original.occupancyRate >= 95
+                    ? "danger"
+                    : row.original.occupancyRate >= 85
+                      ? "warn"
+                      : "success"
               }
             >
-              {percent(row.original.occupancyRate)}
+              {percent(row.original.occupancyRate, row.original.totalBeds)}
             </Badge>
           </NumericCell>
         ),
@@ -708,50 +761,80 @@ export function SchoolsReportsEnhancedContent() {
    */
   const sending = useIsMutating() > 0 && reminding !== null;
 
-  const bandChips =
-    activeView === "arrears"
-      ? [
-          {
-            label: "Outstanding",
-            value: arrearsQuery.isPending
-              ? "—"
-              : whole(arrearsSummary?.totalOutstanding ?? 0),
-            tone: "danger" as const,
-          },
-          {
-            label: "90+ days",
-            value: arrearsQuery.isPending
-              ? "—"
-              : whole(arrearsSummary?.aging.days120Plus ?? 0),
-            tone: "warn" as const,
-          },
-          {
-            label: "Families",
-            value: arrearsQuery.isPending ? "—" : arrears.length,
-          },
-        ]
-      : [
-          {
-            label: "Invoiced",
-            value: collectionsQuery.isPending
-              ? "—"
-              : whole(collectionsSummary?.totalInvoiced ?? 0),
-          },
-          {
-            label: "Collected",
-            value: collectionsQuery.isPending
-              ? "—"
-              : whole(collectionsSummary?.totalCollected ?? 0),
-            tone: "success" as const,
-          },
-          {
-            label: "Collection rate",
-            value: collectionsQuery.isPending
-              ? "—"
-              : percent(collectionsSummary?.overallCollectionRate ?? 0),
-            tone: rateTone(collectionsSummary?.overallCollectionRate ?? 0),
-          },
-        ];
+  /*
+    The band carries the state of the view on screen, and nothing the tiles
+    above it already say.
+
+    It used to carry the fee figures on all four views, so somebody reading
+    the enrolment trend was shown a collection rate that had nothing to do
+    with it. And it repeated whichever tile matched — "Collection rate" twice
+    on one screen, in two typefaces, eighty pixels apart — which is a figure
+    the reader has to check against itself.
+  */
+  const bandChips: BandChip[] = (() => {
+    if (activeView === "arrears") {
+      return [
+        {
+          label: "Outstanding",
+          value: arrearsQuery.isPending
+            ? "—"
+            : formatSchoolMoney(arrearsSummary?.totalOutstanding ?? 0),
+          tone: "danger",
+        },
+        {
+          label: "90+ days",
+          value: arrearsQuery.isPending
+            ? "—"
+            : formatSchoolMoney(arrearsSummary?.aging.days120Plus ?? 0),
+          tone: "warn",
+        },
+      ];
+    }
+    if (activeView === "enrollment") {
+      const summary = enrollmentQuery.data?.summary;
+      return [
+        {
+          label: "Boarders",
+          value: enrollmentQuery.isPending
+            ? "—"
+            : whole(summary?.totalBoardingStudents ?? 0),
+        },
+        {
+          label: "Terms counted",
+          value: enrollmentQuery.isPending ? "—" : whole(summary?.totalTerms ?? 0),
+        },
+      ];
+    }
+    if (activeView === "occupancy") {
+      const summary = occupancyQuery.data?.summary;
+      return [
+        {
+          label: "Beds",
+          value: occupancyQuery.isPending ? "—" : whole(summary?.totalBeds ?? 0),
+        },
+        {
+          label: "Free tonight",
+          value: occupancyQuery.isPending ? "—" : whole(summary?.totalAvailable ?? 0),
+          tone: "success",
+        },
+      ];
+    }
+    return [
+      {
+        label: "Invoiced",
+        value: collectionsQuery.isPending
+          ? "—"
+          : formatSchoolMoney(collectionsSummary?.totalInvoiced ?? 0),
+      },
+      {
+        label: "Collected",
+        value: collectionsQuery.isPending
+          ? "—"
+          : formatSchoolMoney(collectionsSummary?.totalCollected ?? 0),
+        tone: "success",
+      },
+    ];
+  })();
 
   return (
     <div className="space-y-4">
@@ -814,8 +897,14 @@ export function SchoolsReportsEnhancedContent() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Collection rate"
-            tone={rateTone(collectionsSummary?.overallCollectionRate ?? 0)}
-            value={percent(collectionsSummary?.overallCollectionRate ?? 0)}
+            tone={rateTone(
+              collectionsSummary?.overallCollectionRate ?? 0,
+              collectionsSummary?.totalInvoiced ?? 0,
+            )}
+            value={percent(
+              collectionsSummary?.overallCollectionRate ?? 0,
+              collectionsSummary?.totalInvoiced ?? 0,
+            )}
             footer={termInView ? `${termInView.termName} to date` : "No term in view"}
           />
           <StatCard
@@ -825,14 +914,17 @@ export function SchoolsReportsEnhancedContent() {
             footer={rollNow === null ? "of the roll" : `of ${rollNow} on the roll`}
           />
           <StatCard
-            label="Avg enrollment"
+            label="Average enrolment"
             value={enrollmentQuery.data?.summary?.averageEnrollment ?? 0}
             footer={`across ${enrollment.length} term${enrollment.length === 1 ? "" : "s"}`}
           />
           <StatCard
             label="Hostel occupancy"
             tone="brand"
-            value={percent(occupancyQuery.data?.summary?.overallOccupancyRate ?? 0)}
+            value={percent(
+              occupancyQuery.data?.summary?.overallOccupancyRate ?? 0,
+              occupancyQuery.data?.summary?.totalBeds ?? 0,
+            )}
             footer={
               occupancyQuery.data?.summary
                 ? `${occupancyQuery.data.summary.totalOccupied} of ${occupancyQuery.data.summary.totalBeds} beds`
@@ -845,9 +937,9 @@ export function SchoolsReportsEnhancedContent() {
       <VerticalDataViews
         items={[
           { id: "collections", label: "Collections", count: collections.length },
-          { id: "arrears", label: "Arrears Aging", count: arrears.length },
-          { id: "enrollment", label: "Enrollment", count: enrollment.length },
-          { id: "occupancy", label: "Hostel Occupancy", count: occupancy.length },
+          { id: "arrears", label: "Arrears ageing", count: arrears.length },
+          { id: "enrollment", label: "Enrolment", count: enrollment.length },
+          { id: "occupancy", label: "Hostel occupancy", count: occupancy.length },
         ]}
         value={activeView}
         onValueChange={(value) => {
@@ -858,8 +950,6 @@ export function SchoolsReportsEnhancedContent() {
       >
         {/* Collections */}
         <div className={activeView === "collections" ? "space-y-4" : "hidden"}>
-          <h2 className="text-section-title">Fee collections report</h2>
-
           <FilterBar>
             <FilterSelect
               label="Academic year"
@@ -963,7 +1053,7 @@ export function SchoolsReportsEnhancedContent() {
                       color: "var(--chart-passing)",
                     },
                   ]}
-                  valueFormatter={(value) => Number(value).toLocaleString()}
+                  valueFormatter={(value) => formatSchoolMoney(Number(value))}
                 />
               ) : null}
 
@@ -1018,11 +1108,17 @@ export function SchoolsReportsEnhancedContent() {
                 {termInView ? (
                   <>
                     <dl className="space-y-1.5">
-                      <PanelLine label="Invoiced" value={money(termInView.invoiced)} />
-                      <PanelLine label="Collected" value={money(termInView.collected)} />
+                      <PanelLine
+                        label="Invoiced"
+                        value={formatSchoolMoney(termInView.invoiced)}
+                      />
+                      <PanelLine
+                        label="Collected"
+                        value={formatSchoolMoney(termInView.collected)}
+                      />
                       <PanelLine
                         label="Still owing"
-                        value={money(
+                        value={formatSchoolMoney(
                           Math.max(termInView.invoiced - termInView.collected, 0),
                         )}
                         tone="danger"
@@ -1035,7 +1131,9 @@ export function SchoolsReportsEnhancedContent() {
                         label="Average receipt"
                         value={
                           termInView.receiptsCount > 0
-                            ? money(termInView.collected / termInView.receiptsCount)
+                            ? formatSchoolMoney(
+                                termInView.collected / termInView.receiptsCount,
+                              )
                             : "—"
                         }
                       />
@@ -1065,36 +1163,17 @@ export function SchoolsReportsEnhancedContent() {
                             {row.className}
                           </span>
                           <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)] font-bold tabular-nums text-[color:var(--text-strong)]">
-                            {Math.round(row.collectionRate)}%
+                            {percent(row.collectionRate, row.invoiced)}
                           </span>
                         </div>
                         <Meter
                           percent={row.collectionRate}
-                          tone={rateTone(row.collectionRate)}
+                          tone={rateTone(row.collectionRate, row.invoiced)}
                         />
                       </li>
                     ))}
                   </ul>
                 )}
-              </Card>
-
-              {/*
-                The canvas draws this card, and what it says has to keep pace
-                with the screen. It was written against a route with no filter
-                of any kind — that is fixed, and Collections and Arrears now
-                narrow properly — so it names the limit that is actually still
-                here: the other two reports ignore the row above them, because
-                neither endpoint takes a parameter. A caveat that has gone stale
-                is worse than no caveat, since somebody reads it and trusts it.
-              */}
-              <Card title="What the screen cannot do" className="h-fit">
-                <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                  The filter row narrows Collections and Arrears only. Enrollment
-                  and Hostel occupancy render everything their endpoints return,
-                  so a year group or fee structure chosen here does not reach
-                  them. Exports carry the filters of the view they were pressed
-                  on, and nothing else.
-                </p>
               </Card>
             </div>
           </div>
@@ -1102,8 +1181,6 @@ export function SchoolsReportsEnhancedContent() {
 
         {/* Arrears */}
         <div className={activeView === "arrears" ? "space-y-4" : "hidden"}>
-          <h2 className="text-section-title">Arrears aging report</h2>
-
           <FilterBar>
             <FilterSelect
               label="Year group"
@@ -1158,26 +1235,9 @@ export function SchoolsReportsEnhancedContent() {
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="min-w-0 space-y-4">
               {arrears.length > 0 ? (
-                <TradingViewChartCard
-                  title="Aging distribution"
-                  data={[
-                    { label: "Current", value: arrearsSummary?.aging.current ?? 0 },
-                    { label: "1-30 days", value: arrearsSummary?.aging.days30 ?? 0 },
-                    { label: "31-60 days", value: arrearsSummary?.aging.days60 ?? 0 },
-                    { label: "61-90 days", value: arrearsSummary?.aging.days90 ?? 0 },
-                    { label: "90+ days", value: arrearsSummary?.aging.days120Plus ?? 0 },
-                  ]}
-                  xKey="label"
-                  series={[
-                    {
-                      key: "value",
-                      label: "Amount",
-                      type: "bar",
-                      color: "var(--chart-need-changes)",
-                    },
-                  ]}
-                  valueFormatter={(value) => Number(value).toLocaleString()}
-                />
+                <Card title="How old the debt is">
+                  <AgeingStrip amounts={arrearsSummary?.aging} />
+                </Card>
               ) : null}
 
               {arrearsQuery.isPending ? (
@@ -1185,11 +1245,7 @@ export function SchoolsReportsEnhancedContent() {
                   headers={[
                     "Student",
                     "Total outstanding",
-                    "Current",
-                    "1-30 days",
-                    "31-60 days",
-                    "61-90 days",
-                    "90+ days",
+                    ...AGEING_BUCKETS.map((bucket) => bucket.label),
                   ]}
                   columns={[
                     { avatar: true, twoLine: true },
@@ -1252,7 +1308,7 @@ export function SchoolsReportsEnhancedContent() {
                 <>
                   <dl className="space-y-1.5">
                     {oldestByYearGroup.rows.map(([name, amount]) => (
-                      <PanelLine key={name} label={name} value={money(amount)} />
+                      <PanelLine key={name} label={name} value={formatSchoolMoney(amount)} />
                     ))}
                   </dl>
                   <p className="mt-3 text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
@@ -1266,10 +1322,8 @@ export function SchoolsReportsEnhancedContent() {
           </div>
         </div>
 
-        {/* Enrollment */}
+        {/* Enrolment */}
         <div className={activeView === "enrollment" ? "space-y-4" : "hidden"}>
-          <h2 className="text-section-title">Enrollment statistics</h2>
-
           {enrollmentQuery.error ? (
             <LoadError
               what="the enrolment report"
@@ -1280,7 +1334,7 @@ export function SchoolsReportsEnhancedContent() {
 
           {enrollment.length > 0 ? (
             <TradingViewChartCard
-              title="Enrollment trends"
+              title="Enrolment over the year"
               data={enrollment.map((row) => ({
                 label: row.termName,
                 boardingCount: row.boardingCount,
@@ -1296,7 +1350,7 @@ export function SchoolsReportsEnhancedContent() {
                 },
                 { key: "dayCount", label: "Day", type: "bar", color: "var(--chart-2)" },
               ]}
-              valueFormatter={(value) => Number(value).toLocaleString()}
+              valueFormatter={(value) => whole(Number(value))}
             />
           ) : null}
 
@@ -1331,8 +1385,6 @@ export function SchoolsReportsEnhancedContent() {
 
         {/* Occupancy */}
         <div className={activeView === "occupancy" ? "space-y-4" : "hidden"}>
-          <h2 className="text-section-title">Hostel occupancy report</h2>
-
           {occupancyQuery.error ? (
             <LoadError
               what="the occupancy report"
@@ -1364,7 +1416,7 @@ export function SchoolsReportsEnhancedContent() {
                   color: "var(--chart-pending)",
                 },
               ]}
-              valueFormatter={(value) => Number(value).toLocaleString()}
+              valueFormatter={(value) => whole(Number(value))}
             />
           ) : null}
 
@@ -1427,7 +1479,7 @@ export function SchoolsReportsEnhancedContent() {
           defaultSubject="School fees outstanding"
           defaultBody={
             reminding.length === 1
-              ? `Our records show fees of ${money(reminding[0]!.totalOutstanding)} still outstanding on ${reminding[0]!.studentName}'s account. Please settle the balance, or come and see the bursar to arrange terms.`
+              ? `Our records show fees of ${formatSchoolMoney(reminding[0]!.totalOutstanding)} still outstanding on ${reminding[0]!.studentName}'s account. Please settle the balance, or come and see the bursar to arrange terms.`
               : "Our records show school fees still outstanding on your child's account. Please settle the balance, or come and see the bursar to arrange terms. Your statement is on the portal."
           }
           sendLabel={
@@ -1480,14 +1532,17 @@ function Meter({
   tone,
 }: {
   percent: number;
-  tone: "success" | "warn" | "danger";
+  /** Absent when there is nothing to rate: the track stays empty rather than red. */
+  tone?: "success" | "warn" | "danger";
 }) {
   const fill =
     tone === "success"
       ? "bg-[color:var(--tone-success)]"
       : tone === "warn"
         ? "bg-[color:var(--tone-warn)]"
-        : "bg-[color:var(--tone-danger)]";
+        : tone === "danger"
+          ? "bg-[color:var(--tone-danger)]"
+          : "bg-[color:var(--surface-muted)]";
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--surface-muted)]">
       <div

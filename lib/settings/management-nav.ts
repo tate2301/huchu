@@ -49,7 +49,7 @@ export const managementModuleItems: ManagementModuleItem[] = [
   },
   {
     id: "master-data",
-    label: "Master Data",
+    label: "Master data",
     href: "/management/master-data",
     icon: MedusaCircleStackIcon,
     matchPrefixes: ["/management/master-data"],
@@ -70,7 +70,7 @@ export const managementModuleItems: ManagementModuleItem[] = [
   },
   {
     id: "document-templates",
-    label: "Document Templates",
+    label: "Document templates",
     href: "/preferences/organization/templates",
     icon: MedusaBookOpenIcon,
     matchPrefixes: ["/settings/templates", "/preferences/organization/templates"],
@@ -86,17 +86,17 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
   ],
   "master-data": [
     { id: "overview", label: "Overview", href: "/management/master-data", icon: Grid3x3 },
-    { id: "job-grades", label: "Job Grades", href: "/management/master-data/hr/job-grades", icon: UserCheck },
+    { id: "job-grades", label: "Job grades", href: "/management/master-data/hr/job-grades", icon: UserCheck },
     { id: "sections", label: "Sections", href: "/management/master-data/operations/sections", icon: Dataset },
     {
       id: "downtime-codes",
-      label: "Downtime Codes",
+      label: "Downtime codes",
       href: "/management/master-data/operations/downtime-codes",
       icon: AlertTriangle,
     },
     {
       id: "gold-expense-types",
-      label: "Settlement Types",
+      label: "Settlement types",
       href: "/management/master-data/operations/gold-expense-types",
       icon: Coins,
       description: "Settlement and variable payout category master data.",
@@ -124,7 +124,7 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
     // data, so it lives with the rest of the company's master data.
     {
       id: "schools-years",
-      label: "Years and Terms",
+      label: "Years and terms",
       href: "/management/master-data/schools/years",
       icon: Dataset,
       description:
@@ -132,7 +132,7 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
     },
     {
       id: "schools-classes",
-      label: "Classes and Streams",
+      label: "Classes and streams",
       href: "/management/master-data/schools/classes",
       icon: Grid3x3,
       description: "The year-group ladder and the streams inside each one.",
@@ -146,14 +146,14 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
     },
     {
       id: "schools-school-day",
-      label: "The School Day",
+      label: "The school day",
       href: "/management/master-data/schools/periods",
       icon: MedusaCircleSlidersIcon,
       description: "Periods and rooms — the grid a timetable is laid out on.",
     },
     {
       id: "schools-grading",
-      label: "Grading and Publishing",
+      label: "Grading and publishing",
       href: "/management/master-data/schools/grading",
       icon: FileCheck,
       description:
@@ -161,7 +161,7 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
     },
     {
       id: "schools-identity",
-      label: "School Records",
+      label: "School records",
       href: "/management/master-data/schools/identity",
       icon: MedusaIdBadgeIcon,
       description:
@@ -176,18 +176,18 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
   ],
   users: [
     { id: "directory", label: "Directory", href: "/preferences/organization/users", icon: MedusaIdBadgeIcon },
-    { id: "create", label: "Create User", href: "/preferences/organization/users", icon: Users },
-    { id: "status", label: "User Status", href: "/preferences/organization/users", icon: ShieldCheck },
+    { id: "create", label: "Create user", href: "/preferences/organization/users", icon: Users },
+    { id: "status", label: "User status", href: "/preferences/organization/users", icon: ShieldCheck },
     {
       id: "password-reset",
-      label: "Password Reset",
+      label: "Password reset",
       href: "/preferences/organization/users",
       icon: RefreshCcw,
     },
-    { id: "role-change", label: "Role Change", href: "/preferences/organization/users", icon: UserCheck },
+    { id: "role-change", label: "Role change", href: "/preferences/organization/users", icon: UserCheck },
   ],
   "document-templates": [
-    { id: "library", label: "Template Library", href: "/preferences/organization/templates", icon: MedusaBookOpenIcon },
+    { id: "library", label: "Template library", href: "/preferences/organization/templates", icon: MedusaBookOpenIcon },
   ],
 };
 

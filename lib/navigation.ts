@@ -1,10 +1,9 @@
 import {
-  MapPin,
   ArrowDownward,
   BarChart3,
   Building2,
-  CalendarCheck,
   Calendar,
+  CalendarCheck,
   ChartLine,
   Checklist,
   ClipboardList,
@@ -17,37 +16,43 @@ import {
   FileText,
   Fuel,
   Funnel,
-  Layers,
-  Mail,
-  MedusaBookOpenIcon,
-  Receipt,
+  Grid3x3,
   History,
-  Zap,
-  LocalShipping,
-  ManageAccounts,
-  NoteAdd,
-  ReceiptLong,
-  ReportProblem,
-  TableRows,
-  TrendingUp,
   Home,
+  Layers,
+  LocalShipping,
+  Mail,
+  ManageAccounts,
+  MapPin,
+  MedusaAcademicCapIcon,
+  MedusaBookOpenIcon,
+  MedusaIdBadgeIcon,
+  Megaphone,
+  NoteAdd,
   Package,
   PackageCheck,
-  ShieldCheck,
-  Scale,
-  Upload,
-  UserRound,
-  Users,
-  UserCheck,
-  Wallet,
   Payments,
   Phone,
+  ReceiptLong,
+  ReportProblem,
+  Scale,
+  Send,
+  ShieldCheck,
+  TableRows,
+  TrendingUp,
+  Upload,
+  UserCheck,
+  UserRound,
+  Users,
+  Wallet,
   Wrench,
+  Zap,
   type LucideIcon,
 } from "@/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
+import type { SchoolAction, SchoolResource } from "@/lib/schools/access";
 
 // Who may reach People and Payroll at all. Mirrored as a Set in `proxy.ts`,
 // which checks it on the route prefix before the page renders.
@@ -64,6 +69,22 @@ export type NavItem = {
    * as it did.
    */
   group?: string;
+  /**
+   * The campus grant this destination needs, where it differs from its band's.
+   *
+   * A band's grant is a default, not a law. Health and welfare sits with the
+   * roll and is `schools.welfare`; the calendar sits with the registers and is
+   * not `schools.attendance`, because a bursar who keeps no register still has
+   * to know whether the school is open. Writing the exception on the row is
+   * what stops a band being split in two to say one true thing about one line.
+   */
+  grant?: SchoolNavGrant;
+};
+
+/** A campus resource and the verb asked of it. `view` unless stated. */
+export type SchoolNavGrant = {
+  resource: SchoolResource;
+  action?: SchoolAction;
 };
 
 /**
@@ -93,6 +114,47 @@ export type NavSection = {
   flattenGroups?: boolean;
   items: NavItem[];
 };
+
+/**
+ * The campus groups, each with the grant that decides whether it renders.
+ *
+ * The grant sits beside the label because the two have to name the same thing:
+ * a group a persona cannot reach is a row of doors into a 403, and the only way
+ * to keep that pairing honest is to write it once. `lib/workspaces.ts` reads it
+ * when it assembles the school sidebar.
+ *
+ * Two of them ask for a working verb rather than `view`. Boarding and Fees
+ * exist to be worked and one persona owns each outright; the question a reader
+ * has — does this child board, has this family paid — is answered on the pupil
+ * record, which is where the person asking it is already standing.
+ */
+type SchoolNavBand = NavGroup & SchoolNavGrant;
+
+const SCHOOL_BANDS: SchoolNavBand[] = [
+  { id: "students", label: "Students", resource: "schools.students" },
+  { id: "school-day", label: "The school day", resource: "schools.attendance" },
+  // Not `schools.academics`: that resource also covers the master-data ladder,
+  // which the bursar reads all day, so gating oversight of classroom work on it
+  // put lesson plans and subject targets in the bursar's rail. `schools.results`
+  // is the grant that means "trusted with how children are doing".
+  { id: "teaching", label: "Teaching", resource: "schools.results" },
+  { id: "results", label: "Results", resource: "schools.results" },
+  { id: "boarding", label: "Boarding", resource: "schools.boarding", action: "allocate-bed" },
+  { id: "fees", label: "Fees", resource: "schools.fees", action: "issue" },
+  // Not "People": the HR module's own rail is called that, and two entries of
+  // one name pointing at different populations is a coin toss every time.
+  { id: "staff", label: "Staff", resource: "schools.teachers" },
+  { id: "families", label: "Families", resource: "schools.reports" },
+  // `edit`, not `view`: the bursar, the head of department and the class
+  // teacher read the ladder all day through other screens, and none of them
+  // should be offered a door that lets them restructure the year.
+  { id: "school", label: "The school", resource: "schools.academics", action: "edit" },
+];
+
+export function schoolBandGrant(groupId: string): SchoolNavGrant | null {
+  const band = SCHOOL_BANDS.find((candidate) => candidate.id === groupId);
+  return band ? { resource: band.resource, action: band.action } : null;
+}
 
 export const navSections: NavSection[] = [
   {
@@ -252,27 +314,39 @@ export const navSections: NavSection[] = [
   // `flattenGroups` makes every group below a root-level entry that opens on
   // its own, so the campus nav *is* the sidebar rather than a second rail
   // hanging off a "School Operations" link. That only works if almost nothing
-  // is left ungrouped: eleven loose items used to render as a flat wall of
-  // links beside the groups, which is what made it read as two navigations.
-  // Overview is the single exception, because an overview is a destination and
-  // not a category to expand.
+  // is left ungrouped, and two things are: the school's own front page, and the
+  // reporting screen. Both are destinations rather than categories to expand,
+  // and `SidebarNavSections` renders them as plain links ahead of the groups.
   //
-  // The bands are the jobs people come here to do, in the order a school day
-  // touches them — who is on the roll, who is in tonight, what is being taught,
-  // what was marked, what is owed, what is lent, what has been said, what gets
-  // printed. A registrar, a bursar, a boarding master and an examinations
-  // officer each own one band and can ignore the rest.
+  // Nine groups, each named with a word a school uses about itself. The shell
+  // register — Setup, Services, Communication, Paperwork — is gone, and with it
+  // the bins those words licensed: "Services" was where Library and Transport
+  // went because neither fitted anywhere else, but a loan belongs to a pupil
+  // and a bus run belongs to a day, so each sits with its subject now.
   //
-  // Classroom work is deliberately absent. Lesson plans, teaching resources,
-  // the scheme of work and mark capture live in the teacher portal, because a
-  // teacher does them and an administrator does not. The office keeps
-  // oversight — who has not marked, moderation, publishing — which is a
-  // different question asked of the same tables.
+  // The group order is the order a school day touches them: who is here, what
+  // is on today, what is being taught, what came of it, who is in tonight, what
+  // is owed, who does the work, what has been said, and how it is all set up.
+  // Checked against every persona, it never puts a group somebody works in
+  // behind a group they only read.
   //
-  // The academic ladder is absent for a different reason: years, terms,
-  // classes, subjects, periods and grading are master data and live under
-  // Management. Two entries reach across to them — "Identity and records" and
-  // "Academic setup" — so nobody has to know they moved.
+  // Nothing here is a second door onto a room already named. The fee ledger's
+  // own tabs were five rail entries, publishing windows was a redirect to the
+  // grading row six lines further down, and library loans was half of a
+  // two-segment strip — ten rows advertising screens the rail had already
+  // advertised. Each is reached from the screen it belongs to.
+  //
+  // Capture is deliberately absent. Writing a lesson plan, uploading a
+  // resource and entering a mark are done in the teacher portal, because a
+  // teacher does them and an administrator does not. What Teaching and Results
+  // hold is the office's view of the same tables — who has not planned, who has
+  // not marked, what is queried, what is ready to go out — which is a different
+  // question and belongs to whoever is arranging cover.
+  //
+  // The academic ladder — years, terms, classes, subjects, the school day,
+  // grading and what a record is made of — is master data and lives under
+  // Management as a route. It is the school's own job, though, so The school
+  // reaches across to it and nobody has to learn where it was filed.
   //
   // Every group shares `schools.core`, so a tenant without the module loses the
   // whole set rather than being left with empty headings.
@@ -282,122 +356,185 @@ export const navSections: NavSection[] = [
     description: "Full school management operations and portals",
     featureKey: "schools.core",
     flattenGroups: true,
-    groups: [
-      { id: "students", label: "Students" },
-      { id: "attendance", label: "Attendance" },
-      { id: "academics", label: "Academics" },
-      { id: "teaching", label: "Teaching" },
-      { id: "results", label: "Results" },
-      { id: "boarding", label: "Boarding" },
-      { id: "fees", label: "Fees" },
-      { id: "people", label: "People" },
-      { id: "communication", label: "Communication" },
-      { id: "services", label: "Services" },
-      { id: "paperwork", label: "Reports and documents" },
-    ],
-    // Alphabetical within every band. A school's nav is a reference list, not a
-    // narrative: nobody reads it top to bottom, they look for a word they
-    // already have in mind, and a hand-ordered band means scanning all of it to
-    // find out the order was somebody's opinion. The only item exempt is an
-    // "Overview" — a band's own front page is not one of its siblings.
+    groups: SCHOOL_BANDS,
+    // The group's own front page leads; everything else is alphabetical.
+    //
+    // Alphabetical is a decision, not a default: a school's nav is a reference
+    // list, nobody reads it top to bottom, they look for a word they already
+    // have in mind, and a hand-ordered band means scanning all of it to find
+    // out the order was somebody's opinion. The one exemption is a group's own
+    // front page, which is not one of its siblings.
     items: [
       { href: "/schools", icon: Building2, label: "Overview" },
+      // "School reports", not "Reports": the reporting module's own section is
+      // called that and can appear in the same rail. It stays a root link
+      // because it is one screen drawn four ways, not a category to expand.
+      {
+        href: "/schools/reports",
+        icon: BarChart3,
+        label: "School reports",
+        grant: { resource: "schools.reports" },
+      },
 
-      // The roll and everything that changes it.
-      { href: "/schools/admissions", icon: NoteAdd, label: "Applications", group: "students" },
-      { href: "/schools/imports", icon: Upload, label: "Import records", group: "students" },
-      { href: "/schools/students/roll-up", icon: History, label: "Roll up the year", group: "students" },
+      // Everything the office holds about a child: the record, the way in, the
+      // family behind it, the medical file, and what the child has out of the
+      // library.
       { href: "/schools/students", icon: Users, label: "Students", group: "students" },
+      {
+        href: "/schools/admissions",
+        icon: NoteAdd,
+        label: "Applications",
+        group: "students",
+        grant: { resource: "schools.admissions" },
+      },
+      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "students" },
+      // An allergy does not care whether a child sleeps at school. Gated as
+      // boarding it was denied to the bursar, the head of department and the
+      // class teacher, all of whom hold `schools.welfare` and all of whom may
+      // be the one standing in front of the child.
+      {
+        href: "/schools/boarding/welfare",
+        icon: ShieldCheck,
+        label: "Health and welfare",
+        group: "students",
+        grant: { resource: "schools.welfare" },
+      },
+      { href: "/schools/library", icon: MedusaBookOpenIcon, label: "Library", group: "students" },
 
+      // What is happening today and whether the school is open.
+      { href: "/schools/attendance", icon: UserCheck, label: "Registers", group: "school-day" },
       // Oversight, not a register. An administrator arrives at the whole school
       // and narrows to a class; the class-by-class rail belongs to the page,
       // which is the only thing that knows tonight's year groups.
-      { href: "/schools/attendance/follow-up", icon: ReportProblem, label: "Absence follow-up", group: "attendance" },
-      { href: "/schools/attendance", icon: UserCheck, label: "Whole school", group: "attendance" },
+      {
+        href: "/schools/attendance/follow-up",
+        icon: ReportProblem,
+        label: "Absence follow-up",
+        group: "school-day",
+      },
+      // Not `schools.academics`: the ladder under master data is where a year
+      // and its terms are defined, and gating the calendar on it would deny the
+      // warden the one screen that answers "are we open on Monday". Everybody
+      // who can see the roll is responsible for a child on a day the school
+      // may be closed.
+      {
+        href: "/schools/calendar",
+        icon: Calendar,
+        label: "Calendar",
+        group: "school-day",
+        grant: { resource: "schools.students" },
+      },
+      {
+        href: "/schools/timetable",
+        icon: Grid3x3,
+        label: "Timetable",
+        group: "school-day",
+        grant: { resource: "schools.academics" },
+      },
+      // A bus run is the shape of a single day, and the screen's second half is
+      // a register. Everybody who can see the roll can see who is on which bus.
+      {
+        href: "/schools/transport",
+        icon: LocalShipping,
+        label: "Transport",
+        group: "school-day",
+        grant: { resource: "schools.students" },
+      },
 
-      // Years, terms, classes, subjects, periods and grading are master data and
-      // live under Management. These reach across so nobody has to know that.
-      {
-        href: "/management/master-data/schools/years",
-        icon: Dataset,
-        label: "Academic setup",
-        group: "academics",
-      },
-      { href: "/schools/calendar", icon: Calendar, label: "Calendar", group: "academics" },
-      {
-        href: "/management/master-data/schools/identity",
-        icon: TableRows,
-        label: "Identity and records",
-        group: "academics",
-      },
-      // Rooms are one half of `school-day-content` — the periods a day is cut
-      // into, and the rooms lessons run in, which are the two axes of the same
-      // timetable. Pointing at the tab beats a second rooms screen that would
-      // drift from it.
-      {
-        href: "/management/master-data/schools/periods?view=rooms",
-        icon: MapPin,
-        label: "Rooms",
-        group: "academics",
-      },
-      { href: "/schools/academics/syllabus", icon: Layers, label: "Scheme of work", group: "academics" },
-
+      // The office's view of classroom work it does not do itself. The gate is
+      // `schools.results` rather than `schools.academics`, which also covers
+      // the master-data ladder and so is held by the bursar — who has no
+      // business being offered lesson plans and subject targets.
       { href: "/schools/homework", icon: ClipboardList, label: "Homework", group: "teaching" },
-      { href: "/schools/teaching/lessons", icon: MedusaBookOpenIcon, label: "Lesson plans", group: "teaching" },
+      { href: "/schools/teaching/lessons", icon: EventNote, label: "Lesson plans", group: "teaching" },
       { href: "/schools/goals", icon: TrendingUp, label: "Subject targets", group: "teaching" },
       { href: "/schools/teaching/resources", icon: FileText, label: "Teaching resources", group: "teaching" },
-      { href: "/schools/timetable", icon: Calendar, label: "Timetable", group: "teaching" },
 
       // A workflow, not a screen: a sheet is submitted, moderated, sent back or
-      // approved, then published, and each of those is somebody different's move.
-      { href: "/schools/results", icon: FileCheck, label: "Overview", group: "results" },
+      // approved, then published, and each of those is somebody different's
+      // move. Separate from Teaching because the head of department signs in to
+      // do exactly one thing and "Teaching" does not name it.
+      { href: "/schools/results", icon: FileCheck, label: "Results", group: "results" },
       { href: "/schools/results/moderation", icon: Scale, label: "Moderation", group: "results" },
-      { href: "/schools/results/publish", icon: FileCheck, label: "Publishing", group: "results" },
-      { href: "/schools/results/publish/windows", icon: Calendar, label: "Publishing windows", group: "results" },
-      { href: "/schools/results/sheets", icon: Checklist, label: "Result sheets", group: "results" },
+      { href: "/schools/results/publish", icon: Send, label: "Publishing", group: "results" },
 
-      { href: "/schools/boarding/allocations", icon: Checklist, label: "Allocations", group: "boarding" },
+      // The house: where there is a free bed, who is in which bed, what the
+      // houses are, and who is out of the gate.
       { href: "/schools/boarding", icon: Home, label: "Bed board", group: "boarding" },
-      { href: "/schools/boarding/welfare", icon: ShieldCheck, label: "Health and welfare", group: "boarding" },
+      { href: "/schools/boarding/allocations", icon: Checklist, label: "Allocations", group: "boarding" },
       { href: "/schools/boarding/hostels", icon: Building2, label: "Hostels", group: "boarding" },
       { href: "/schools/boarding/leave", icon: CalendarCheck, label: "Leave and outings", group: "boarding" },
 
-      // Each ledger label opens the ledger on the tab it names. They used to be
-      // routes of their own that redirected to the year-group PICKER, so
-      // "Waivers" landed a bursar on a grid of class cards — three labels
-      // pointing at a fourth screen. One ledger, one tab per label.
-      { href: "/schools/finance/arrears", icon: ReportProblem, label: "Arrears and ageing", group: "fees" },
-      { href: "/schools/finance/ledger?view=credits", icon: Coins, label: "Credits on account", group: "fees" },
+      // Money owed to the school. Three entries where there were eight: five of
+      // the eight were `?view=` links onto the ledger's own segmented control,
+      // so the rail was four rows deep into a screen it had already named.
       { href: "/schools/finance", icon: ReceiptLong, label: "Fees by year group", group: "fees" },
-      { href: "/schools/finance/ledger?view=invoices", icon: Receipt, label: "Invoices", group: "fees" },
-      { href: "/schools/finance/ledger", icon: Payments, label: "Ledger and structures", group: "fees" },
-      { href: "/schools/finance/ledger?view=receipts", icon: ReceiptLong, label: "Receipts", group: "fees" },
-      { href: "/schools/finance/ledger?view=refunds", icon: Wallet, label: "Refunds", group: "fees" },
-      { href: "/schools/finance/ledger?view=waivers", icon: Scale, label: "Waivers", group: "fees" },
+      { href: "/schools/finance/ledger", icon: Payments, label: "Fee ledger", group: "fees" },
+      // Not a ledger segment. "Who owes, and for how long" is a different
+      // question from "show me the invoices", with its own ageing strip and its
+      // own primary action, and it is what a bursar opens first.
+      { href: "/schools/finance/arrears", icon: ReportProblem, label: "Arrears and ageing", group: "fees" },
 
-      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "people" },
-      { href: "/schools/teachers/assignments", icon: Checklist, label: "Staff assignments", group: "people" },
       // Everybody a school employs who does not teach — the bursar, the nurse,
       // the grounds team. They are HR employees carrying the SCHOOLS
       // assignment, so payroll and leave stay in one place; this is the
       // school's window onto its own.
-      { href: "/schools/staff", icon: ManageAccounts, label: "Support staff", group: "people" },
-      { href: "/schools/teachers", icon: ManageAccounts, label: "Teaching staff", group: "people" },
+      { href: "/schools/staff", icon: MedusaIdBadgeIcon, label: "Support staff", group: "staff" },
+      { href: "/schools/teachers", icon: MedusaAcademicCapIcon, label: "Teaching staff", group: "staff" },
 
-      // What the school has said, and what has been said to it. A notice goes
-      // out to many and cannot be replied to; a message is one family and one
-      // member of staff. Keeping them adjacent is how somebody learns which
-      // one they wanted.
-      { href: "/schools/messages", icon: Mail, label: "Messages", group: "communication" },
-      { href: "/schools/notices", icon: EventNote, label: "Notices", group: "communication" },
-      { href: "/schools/meetings", icon: CalendarCheck, label: "Parent meetings", group: "communication" },
+      // Everything that passes between the school and a home. A notice goes out
+      // to many and cannot be replied to; a message is one family and one
+      // member of staff; a meeting is a slot in somebody's evening; a document
+      // is the thing you print and hand over. Keeping the four adjacent is how
+      // somebody learns which one they wanted.
+      { href: "/schools/documents", icon: FileText, label: "Documents", group: "families" },
+      { href: "/schools/messages", icon: Mail, label: "Messages", group: "families" },
+      { href: "/schools/notices", icon: Megaphone, label: "Notices", group: "families" },
+      { href: "/schools/meetings", icon: CalendarCheck, label: "Parent meetings", group: "families" },
 
-      { href: "/schools/library", icon: Dataset, label: "Library", group: "services" },
-      { href: "/schools/library/loans", icon: MedusaBookOpenIcon, label: "Library loans", group: "services" },
-      { href: "/schools/transport", icon: LocalShipping, label: "Transport", group: "services" },
-
-      { href: "/schools/documents", icon: FileText, label: "Documents", group: "paperwork" },
-      { href: "/schools/reports", icon: BarChart3, label: "School reports", group: "paperwork" },
+      // What the school is, as opposed to what it does — and because a school
+      // arriving from another system brings its history with it, the import
+      // screen. Each label is the thing being set up rather than the shell it
+      // opens in, and the school day carries its rooms because periods and
+      // rooms are the two axes of one timetable and `school-day-content` owns
+      // both.
+      {
+        href: "/management/master-data/schools/classes",
+        icon: Layers,
+        label: "Classes and streams",
+        group: "school",
+      },
+      {
+        href: "/management/master-data/schools/grading",
+        icon: Scale,
+        label: "Grading and publish windows",
+        group: "school",
+      },
+      { href: "/schools/imports", icon: Upload, label: "Import records", group: "school" },
+      {
+        href: "/management/master-data/schools/identity",
+        icon: TableRows,
+        label: "Records and identity",
+        group: "school",
+      },
+      {
+        href: "/management/master-data/schools/periods",
+        icon: MapPin,
+        label: "School day and rooms",
+        group: "school",
+      },
+      {
+        href: "/management/master-data/schools/subjects",
+        icon: MedusaBookOpenIcon,
+        label: "Subjects",
+        group: "school",
+      },
+      {
+        href: "/management/master-data/schools/years",
+        icon: Dataset,
+        label: "Years and terms",
+        group: "school",
+      },
     ],
   },
   {

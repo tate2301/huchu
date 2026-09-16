@@ -7,6 +7,7 @@ import { Alert, Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -14,7 +15,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   createSchoolsAcademicYear,
@@ -183,15 +184,17 @@ export function SchoolsCalendarContent({
       {
         id: "year",
         header: "Academic year",
+        // The module's identity cell rather than a name over a date range.
+        // The code leads the supporting line because it is the half that is
+        // unique, and the dates follow because they are what tells this 2025
+        // from the one somebody set up twice.
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">
-              {row.original.code} - {row.original.name}
-            </div>
-            <div className="text-muted-foreground font-mono">
-              {formatRange(row.original.startDate, row.original.endDate)}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="document"
+            name={row.original.name}
+            reference={row.original.code}
+            context={formatRange(row.original.startDate, row.original.endDate)}
+          />
         ),
       },
       {
@@ -212,10 +215,13 @@ export function SchoolsCalendarContent({
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               ...(row.original.isActive
@@ -263,14 +269,12 @@ export function SchoolsCalendarContent({
         id: "term",
         header: "Term",
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">
-              {row.original.code} - {row.original.name}
-            </div>
-            <div className="text-muted-foreground font-mono">
-              {formatRange(row.original.startDate, row.original.endDate)}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="document"
+            name={row.original.name}
+            reference={row.original.code}
+            context={formatRange(row.original.startDate, row.original.endDate)}
+          />
         ),
       },
       {
@@ -296,10 +300,11 @@ export function SchoolsCalendarContent({
       },
       {
         id: "actions",
-        header: "",
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               ...(row.original.isActive

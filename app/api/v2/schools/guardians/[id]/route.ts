@@ -7,6 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 import { normalizeProvidedId } from "@/lib/id-generator";
 import { buildCustomFieldValues, mergeCustomFields } from "@/lib/crm/custom-fields";
 import { prisma } from "@/lib/prisma";
@@ -210,6 +211,17 @@ export async function PATCH(
   }
 }
 
+/**
+ * Deleting a guardian.
+ *
+ * A real delete, and the only one left on a person record here, because
+ * `SchoolGuardian` has no archived state to move to: unlike a pupil's status
+ * and a teacher's `isActive`, the row is either on file or it is not. So the
+ * act is held to a tenant administrator rather than to whoever holds the roll's
+ * archive grant, and the message says plainly that the record goes. A guardian
+ * still attached to a child is refused outright — unlinking is the act that
+ * comes first, and it is a different one.
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -221,6 +233,12 @@ export async function DELETE(
 
     const denied = schoolPermissionDenial(session, "schools.students", "archive");
     if (denied) return errorResponse(denied, 403);
+    if (!isSchoolAdmin(session.user.role)) {
+      return errorResponse(
+        "Only an administrator can delete a guardian, and the record goes for good",
+        403,
+      );
+    }
     const companyId = session.user.companyId;
     const { id } = await params;
 
@@ -232,6 +250,7 @@ export async function DELETE(
       where: { id, companyId },
       select: {
         id: true,
+        guardianNo: true,
         _count: {
           select: {
             studentLinks: true,
@@ -250,10 +269,23 @@ export async function DELETE(
       );
     }
 
-    await prisma.schoolGuardian.delete({
-      where: { id: existing.id },
+    await prisma.$transaction(async (tx) => {
+      await writeSchoolAuditEvent(tx, {
+        companyId,
+        actorId: session.user.id,
+        eventType: "schools.guardian.deleted",
+        entityType: "SchoolGuardian",
+        entityId: existing.id,
+        payload: { guardianNo: existing.guardianNo },
+      });
+      await tx.schoolGuardian.delete({ where: { id: existing.id } });
     });
-    return successResponse({ id: existing.id, deleted: true });
+
+    return successResponse({
+      id: existing.id,
+      deleted: true,
+      message: "Guardian deleted. The record and its portal invitations are gone for good.",
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

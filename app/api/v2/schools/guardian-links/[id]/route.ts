@@ -52,6 +52,13 @@ export async function PATCH(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
+    // `canViewAnyPortalSubject` admits every member of staff who may look at a
+    // pupil, the bursar included, and on its own it let her change which parent
+    // receives a child's results. Which guardian gets what is a change to the
+    // pupil record, so it takes the registrar's grant first.
+    const denied = schoolPermissionDenial(session, "schools.students", "edit");
+    if (denied) return errorResponse(denied, 403);
+
     if (!canViewAnyPortalSubject(session.user.role)) {
       return errorResponse("Guardian consent is managed by school staff", 403);
     }

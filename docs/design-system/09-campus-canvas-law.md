@@ -105,5 +105,5 @@ the comment explaining why the picker-only version was wrong.
 ## 8. States
 
 Every screen has eight, drawn in `module/State*.dc.html`: loading, empty, error,
-denied, not found, offline, saving, dialog. `components/schools/common/states.tsx`
+denied, not found, offline, saving, dialog. `components/records/states.tsx`
 implements them. Use it rather than inventing a spinner.

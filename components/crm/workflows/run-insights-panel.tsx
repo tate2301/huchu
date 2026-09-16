@@ -7,7 +7,7 @@ import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatRate, type ReportRange } from "@/lib/crm/reports";
 import { formatDuration, type FailureGroup, type RulePerformance, type RunTotals } from "@/lib/crm/run-insights";
-import { RecordList } from "@/components/crm/records/record-list";
+import { RecordList } from "@/components/records/record-list";
 
 type Insights = {
   range: ReportRange;

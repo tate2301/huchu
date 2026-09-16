@@ -22,17 +22,20 @@ import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import {
-  CardsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
-  RecordNotFound,
   SaveError,
-  StatsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
+import {
+  Glance,
+  GlanceList,
+  RecordLoadFailure,
+  RecordPageSkeleton,
+} from "@/components/schools/records/record-page-parts";
 import { TeacherAssignmentsPanel } from "@/components/schools/teachers/teacher-assignments-panel";
 import { TeacherEmployeePanel } from "@/components/schools/teachers/teacher-employee-panel";
-import { ApiError, fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import {
   Badge,
   Buildings,
@@ -230,38 +233,17 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
   }, [teacher, edit]);
 
   if (query.isPending) {
-    return (
-      // Mirrors the record: the standing column with the mark and the property
-      // list, the glance tiles under it, and the timetable panel beside them.
-      <div
-        className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]"
-        data-testid="teacher-record-loading"
-      >
-        <div className="space-y-4">
-          <CardsSkeleton count={1} columns={1} lines={6} />
-          <StatsSkeleton count={3} />
-        </div>
-        <CardsSkeleton count={4} columns={1} lines={2} />
-      </div>
-    );
+    return <RecordPageSkeleton testId="teacher-record-loading" sections={4} columns={1} />;
   }
 
   if (query.isError || !teacher) {
-    // A teacher whose profile was deleted is a stale link, not a fault. Only a
-    // 404 means "gone" — everything else is a read that has to be retried, and
-    // sending somebody back to the staff list would lose the record they were
-    // actually looking at.
-    const notFound = query.error instanceof ApiError && query.error.status === 404;
-    return notFound ? (
-      <RecordNotFound
-        what="That teacher"
-        backHref={config.indexHref}
-        backLabel="Back to the teachers"
-      />
-    ) : (
-      <LoadError
+    return (
+      <RecordLoadFailure
+        notFound="That teacher"
         what="this teacher's record"
         error={query.error}
+        backHref={config.indexHref}
+        backLabel="Back to the teaching staff"
         onRetry={() => void query.refetch()}
       />
     );
@@ -484,22 +466,16 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
       onTabChange={setActiveTab}
       rail={
         <RailSection title="At a glance">
-          <dl className="space-y-2 text-sm">
-            <Glance label="Subjects" value={String(subjects.size)} />
-            <Glance label="Classes" value={String(classes.size)} />
-            <Glance label="Assignments" value={String(assignments.length)} />
-          </dl>
+          {/* Neither the assignment nor the class count: the sections beside
+              this carry both. How many distinct subjects a teacher covers is
+              the fact behind them and the one a timetable is built from. */}
+          <GlanceList>
+            <Glance label="Subjects" value={subjects.size || "None"} />
+            <Glance label="Year groups" value={classes.size || "None"} />
+          </GlanceList>
         </RailSection>
       }
     />
   );
 }
 
-function Glance({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[var(--text-muted)]">{label}</dt>
-      <dd className="font-medium text-[var(--text-strong)]">{value}</dd>
-    </div>
-  );
-}

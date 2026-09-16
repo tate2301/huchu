@@ -75,6 +75,7 @@ export type SchoolAuditEventType =
    * amounts becomes what the school will bill, and archiving one takes it out
    * of use, so both are named separately from an ordinary edit.
    */
+  | "schools.fee.structure.created"
   | "schools.fee.structure.edited"
   | "schools.fee.structure.active"
   | "schools.fee.structure.archived"
@@ -86,7 +87,25 @@ export type SchoolAuditEventType =
    * row names the counts; the rollback row names what was taken back out.
    */
   | "schools.import.committed"
-  | "schools.import.rolled-back";
+  | "schools.import.rolled-back"
+  /**
+   * The office correcting a register a teacher had already sent in. A
+   * submitted day is what the board reports and what a parent is shown, so
+   * moving it to another date or rewriting its note changes an account of who
+   * was in school that somebody else has already read. Correcting a draft is
+   * not the same act and is not recorded: nobody has seen it yet.
+   */
+  | "schools.attendance.session.edited"
+  /**
+   * A pupil or a member of staff taken off the roll. Neither is deleted — the
+   * invoices, marks and registers behind them have to keep making sense — so
+   * the record is moved to a closed state and this row is the only thing that
+   * says who closed it. A guardian genuinely is deleted, because the model has
+   * no closed state to move to, which is why that row matters most of the three.
+   */
+  | "schools.student.archived"
+  | "schools.teacher.archived"
+  | "schools.guardian.deleted";
 
 export type SchoolAuditArgs = {
   companyId: string;

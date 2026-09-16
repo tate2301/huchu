@@ -20,9 +20,13 @@ import {
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { BedBoardContent } from "@/components/schools/boarding/bed-board-content";
 import { HostelRoomsPanel } from "@/components/schools/boarding/hostel-rooms-panel";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  Glance,
+  GlanceList,
+  RecordLoadFailure,
+  RecordPageSkeleton,
+} from "@/components/schools/records/record-page-parts";
+import { fetchJson } from "@/lib/api-client";
 import { Home, Tag, ToggleLeft, UserPlus, Users } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";
@@ -163,20 +167,19 @@ export function HostelRecordPage({ hostelId }: { hostelId: string }) {
   }, [hostel, edit]);
 
   if (query.isPending) {
-    return (
-      <div className="space-y-4" data-testid="hostel-record-loading">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
+    return <RecordPageSkeleton testId="hostel-record-loading" sections={2} columns={1} />;
   }
 
   if (query.isError || !hostel) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>This hostel could not be loaded</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-      </Alert>
+      <RecordLoadFailure
+        notFound="That hostel"
+        what="this hostel"
+        error={query.error}
+        backHref={config.indexHref}
+        backLabel="Back to the hostels"
+        onRetry={() => void query.refetch()}
+      />
     );
   }
 
@@ -280,22 +283,21 @@ export function HostelRecordPage({ hostelId }: { hostelId: string }) {
       onTabChange={setActiveTab}
       rail={
         <RailSection title="At a glance">
-          <dl className="space-y-2 text-sm">
-            <Glance label="Boarders" value={String(occupied)} />
-            <Glance label="Beds free" value={String(free)} />
-            <Glance label="Rooms" value={String(rooms.length)} />
-          </dl>
+          {/* Not the boarder or room counts — the sections beside this carry
+              both. A free bed is the fact the house is worked from, and it is
+              the one number nothing else on the page states. */}
+          <GlanceList>
+            <Glance label="Beds free" value={free > 0 ? free : "None"} />
+            <Glance
+              label="Beds out of use"
+              value={
+                rooms.flatMap((room) => room.beds ?? []).filter((bed) => !bed.isActive).length ||
+                "None"
+              }
+            />
+          </GlanceList>
         </RailSection>
       }
     />
-  );
-}
-
-function Glance({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[var(--text-muted)]">{label}</dt>
-      <dd className="font-medium text-[var(--text-strong)]">{value}</dd>
-    </div>
   );
 }

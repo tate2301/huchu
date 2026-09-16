@@ -3,13 +3,15 @@
 import type { NavSection } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 import {
+  CalendarCheck,
   Gem,
   Home,
   LocalShipping,
+  Mail,
   MedusaAcademicCapIcon,
   MedusaBookOpenIcon,
-  MedusaBuildingsIcon,
   MedusaBuildingStorefrontIcon,
+  MedusaBuildingsIcon,
   MedusaCashIcon,
   MedusaChartBarIcon,
   MedusaCircleSlidersIcon,
@@ -18,6 +20,7 @@ import {
   MedusaDirectionsIcon,
   MedusaGridListIcon,
   MedusaHandTruckIcon,
+  MedusaHouseIcon,
   MedusaIdBadgeIcon,
   Package,
   ReceiptLong,
@@ -44,9 +47,25 @@ const sectionVariantIcons: Record<string, LucideIcon> = {
   "gold-operations": Gem,
   "gold-chain": LocalShipping,
   "gold-control": MedusaChartBarIcon,
-  "schools-campus": MedusaBuildingsIcon,
-  "schools-academics": MedusaBookOpenIcon,
-  "schools-admin": MedusaIdBadgeIcon,
+  // The schools rail is generated group by group from lib/navigation.ts, so
+  // every group needs its own icon here. Without one the group borrows its
+  // first item's, and because items are alphabetical that made Fees and
+  // Attendance open with the red warning triangle belonging to Arrears and
+  // Absence follow-up. One entry per `SCHOOL_BANDS` id, and nothing else.
+  "schools-students": MedusaAcademicCapIcon,
+  "schools-school-day": CalendarCheck,
+  "schools-teaching": MedusaBookOpenIcon,
+  "schools-results": MedusaChartBarIcon,
+  "schools-boarding": MedusaHouseIcon,
+  "schools-fees": Wallet,
+  "schools-staff": MedusaIdBadgeIcon,
+  // The group is the correspondence, not the people: an envelope separates it
+  // from Staff, which is the only other group in the rail drawn from a roll of
+  // names.
+  "schools-families": Mail,
+  // What the school *is*, so the building rather than the sliders that used to
+  // stand for "Setup" — a word this section no longer speaks.
+  "schools-school": MedusaBuildingsIcon,
   "retail-floor": ReceiptLong,
   "retail-range": MedusaGridListIcon,
   "retail-buy": LocalShipping,

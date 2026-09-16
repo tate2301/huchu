@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
 export {
@@ -345,4 +346,104 @@ export async function listSchoolDays(
   }
 
   return days;
+}
+
+// ---------------------------------------------------------------------------
+// Calendar events
+// ---------------------------------------------------------------------------
+
+/**
+ * Accepts anything `new Date()` understands rather than a strict ISO day, so a
+ * caller that posts a full timestamp is not turned away over a suffix.
+ */
+const calendarDateSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+    message: "Invalid date value",
+  });
+
+/** A calendar event as a caller writes one. */
+export const calendarEventCreateSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  kind: z
+    .enum(["HOLIDAY", "PUBLIC_HOLIDAY", "HALF_TERM", "EXAM", "EVENT", "STAFF_ONLY"])
+    .optional(),
+  startDate: calendarDateSchema,
+  endDate: calendarDateSchema,
+  isTeachingDay: z.boolean().optional(),
+  termId: z.string().uuid().nullish(),
+  notes: z.string().trim().max(500).nullish(),
+});
+
+/**
+ * The same event, as an edit sends one: every field optional, because a
+ * correction is usually one field. The dates still have to agree with the term
+ * once the change is applied, which is a question about the stored row as well
+ * as the patch, so `checkCalendarEventWindow` answers it separately.
+ */
+export const calendarEventPatchSchema = calendarEventCreateSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one field must be provided",
+  });
+
+/** The fields a caller drawing a calendar needs. */
+export const CALENDAR_EVENT_SELECT = {
+  id: true,
+  title: true,
+  kind: true,
+  startDate: true,
+  endDate: true,
+  isTeachingDay: true,
+  notes: true,
+  termId: true,
+  term: { select: { id: true, code: true, name: true } },
+} satisfies Prisma.SchoolCalendarEventSelect;
+
+/** Why an event's dates and its term do not agree, and how to answer with it. */
+export type CalendarEventWindowProblem = {
+  status: 400 | 404;
+  message: string;
+};
+
+/**
+ * Whether an event may sit where it is being put. Null when it may.
+ *
+ * A half-term break recorded against a term it falls outside reads as a fact:
+ * the calendar screen prints the term name beside the dates, so the row says
+ * "Term 2" next to a date after Term 2 ended and nobody questions it.
+ */
+export async function checkCalendarEventWindow(
+  input: {
+    companyId: string;
+    termId: string | null;
+    startDate: Date;
+    endDate: Date;
+  },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<CalendarEventWindowProblem | null> {
+  if (input.startDate > input.endDate) {
+    return { status: 400, message: "The event must end on or after it starts" };
+  }
+
+  if (!input.termId) return null;
+
+  const term = await db.schoolTerm.findFirst({
+    where: { id: input.termId, companyId: input.companyId },
+    select: { id: true, name: true, startDate: true, endDate: true },
+  });
+  if (!term) return { status: 404, message: "Term not found" };
+
+  if (input.startDate < term.startDate || input.endDate > term.endDate) {
+    return {
+      status: 400,
+      message: `${term.name} runs ${term.startDate.toISOString().slice(0, 10)} to ${term.endDate
+        .toISOString()
+        .slice(0, 10)} — leave the term blank for a date outside it`,
+    };
+  }
+
+  return null;
 }

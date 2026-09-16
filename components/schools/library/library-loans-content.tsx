@@ -10,7 +10,7 @@ import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import {
   ClassFilter,
   ALL_CLASSES,
@@ -19,21 +19,21 @@ import {
 import {
   TableControls,
   TableSearch,
-} from "@/components/schools/common/table-controls";
+} from "@/components/records/table-controls";
 import {
   CreateButton,
   RecordActions,
   type RecordVerb,
 } from "@/components/schools/common/record-actions";
 import {
+  ListRowsSkeleton,
   LoadError,
   NothingLeftToDo,
   NothingMatched,
   NothingYet,
   SaveError,
   SavingOverlay,
-  TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
@@ -216,7 +216,7 @@ export function LibraryLoansContent() {
 
   return (
     <div className="space-y-4">
-      <PageChrome title="Library">
+      <PageChrome title="Library loans">
         <CreateButton
           resource="schools.academics"
           action="edit"
@@ -276,6 +276,12 @@ export function LibraryLoansContent() {
             includeStreams={false}
           />
         }
+        // How many loans the narrowing left, out of everything that is out. It
+        // moves when the filters move, so it sits with them; the band above
+        // keeps the numbers that are about the library itself.
+        count={
+          loansQuery.isPending ? null : `${loans.length} of ${summary?.out ?? loans.length}`
+        }
         actions={
           <Button variant="secondary" onClick={() => setOverdueOnly((on) => !on)}>
             {overdueOnly ? "Show everything out" : "Only what is late"}
@@ -283,21 +289,11 @@ export function LibraryLoansContent() {
         }
       />
 
-      <p className="text-sm text-muted-foreground">
-        {loans.length} book{loans.length === 1 ? "" : "s"} out
-        {summary && summary.late > 0 ? `, ${summary.late} late` : ""}
-      </p>
-
       {loansQuery.isLoading ? (
-        <TableRowsSkeleton
-          headers={["Borrower", "What they have", "State", ""]}
-          columns={[
-            { avatar: true, twoLine: true },
-            { width: 180 },
-            { width: 150, badge: true },
-            { width: 200 },
-          ]}
-        />
+        // A row list, so a row-list skeleton: the register is 44px rows with a
+        // mark, a name and one line under it, and a table skeleton standing in
+        // for it makes the page jump when the loans land.
+        <ListRowsSkeleton rows={8} label="Loading what is out" />
       ) : loansQuery.isError ? null : loans.length === 0 ? (
         anyFilter ? (
           <NothingMatched
@@ -346,24 +342,26 @@ export function LibraryLoansContent() {
           <ul className="divide-y divide-[color:var(--border-subtle)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
             {loans.map((loan) => (
               <li key={loan.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
-                <PersonAvatar
-                  firstName={loan.student.firstName}
-                  lastName={loan.student.lastName}
-                />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">
-                    {loan.student.lastName}, {loan.student.firstName}
-                  </span>
-                  <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                    {loanLine(loan)}
-                  </span>
+                  <PersonCell
+                    kind="student"
+                    href={`/schools/students/${loan.student.id}`}
+                    firstName={loan.student.firstName}
+                    lastName={loan.student.lastName}
+                    reference={loanLine(loan)}
+                  />
                 </span>
                 <Badge tone={loan.isOverdue ? "danger" : "warn"}>
                   {loan.isOverdue
                     ? `Late · ${formatSchoolMoney(loan.fineIfReturnedToday)} if back today`
                     : "Out"}
                 </Badge>
-                <RecordActions resource="schools.academics" verbs={verbsFor(loan)} />
+                <RecordActions
+                  layout="menu"
+                  resource="schools.academics"
+                  label={`Actions for ${loan.student.firstName} ${loan.student.lastName}'s loan`}
+                  verbs={verbsFor(loan)}
+                />
               </li>
             ))}
           </ul>
@@ -504,7 +502,7 @@ function LendDialog({
           value={studentId}
           options={(readersQuery.data?.data ?? []).map((student) => ({
             value: student.id,
-            label: `${student.lastName}, ${student.firstName} · ${student.studentNo}`,
+            label: `${student.firstName} ${student.lastName} · ${student.studentNo}`,
           }))}
           onChange={setStudentId}
         />
@@ -549,7 +547,7 @@ function RenewDialog({ loan, onClose }: { loan: Loan | null; onClose: () => void
       title={loan ? `Renew ${loan.copy.book.title}` : "Renew"}
       description={
         loan
-          ? `${loan.student.lastName}, ${loan.student.firstName} · ${loan.copy.copyCode}`
+          ? `${loan.student.firstName} ${loan.student.lastName} · ${loan.copy.copyCode}`
           : undefined
       }
       size="sm"

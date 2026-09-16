@@ -12,7 +12,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { CALENDAR_KIND_LABELS } from "@/lib/schools/calendar-kinds";
 import { zimbabwePublicHolidays } from "@/components/schools/academics/zimbabwe-public-holidays";
@@ -326,6 +326,8 @@ export function SchoolDaysContent() {
                         <Badge tone="neutral">School closed</Badge>
                       )}
                       <RecordActions
+                        layout="menu"
+                        label={`Row actions for ${event.title}`}
                         resource="schools.academics"
                         verbs={[
                           {

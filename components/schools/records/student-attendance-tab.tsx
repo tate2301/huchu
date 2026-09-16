@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Badge, StatCard } from "@corelithzw/react";
 
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
+import { TableControls } from "@/components/records/table-controls";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -14,7 +15,7 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
 
@@ -226,50 +227,58 @@ export function StudentAttendanceTab({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <FilterBar>
-          <FilterSelect
-            label="Mark"
-            allLabel="Every morning"
-            value={status}
-            options={STATUS_OPTIONS}
-            onChange={setStatus}
-          />
-          <FilterSelect
-            label="Explained"
-            allLabel="With a reason or without"
-            value={explained}
-            options={EXPLAINED_OPTIONS}
-            onChange={setExplained}
-          />
-        </FilterBar>
-
-        <RecordActions
-          resource="schools.attendance"
-          verbs={[
-            {
-              label: "Tell the family",
-              action: "create",
-              loading: tellTheFamily.isPending,
-              // A letter about attendance to a family whose child has not
-              // missed a morning is a letter that damages the next one.
-              unavailable:
-                unexplained === 0
-                  ? "Every absence on file has a reason against it, so there is nothing to raise."
-                  : undefined,
-              onSelect: () => {
-                setSent(null);
-                tellTheFamily.mutate({
-                  title: `${child} — attendance`,
-                  body: `${child} has been away ${unexplained} ${
-                    unexplained === 1 ? "morning" : "mornings"
-                  } with no explanation on file. Please contact the school office.`,
-                });
+      {/* The one row every other campus list draws over its records: what
+          narrows them on the left, what acts on them on the right, the count
+          between the two, and the filters behind one button on a phone. */}
+      <TableControls
+        filterCount={activeFilterCount(status, explained)}
+        count={`${visible.length} of ${data.recent.length}`}
+        filters={
+          <>
+            <FilterSelect
+              label="Mark"
+              allLabel="Every morning"
+              value={status}
+              options={STATUS_OPTIONS}
+              onChange={setStatus}
+            />
+            <FilterSelect
+              label="Explained"
+              allLabel="With a reason or without"
+              value={explained}
+              options={EXPLAINED_OPTIONS}
+              onChange={setExplained}
+            />
+          </>
+        }
+        actions={
+          <RecordActions
+            resource="schools.attendance"
+            verbs={[
+              {
+                label: "Tell the family",
+                action: "create",
+                loading: tellTheFamily.isPending,
+                // A letter about attendance to a family whose child has not
+                // missed a morning is a letter that damages the next one.
+                unavailable:
+                  unexplained === 0
+                    ? "Every absence on file has a reason against it, so there is nothing to raise."
+                    : undefined,
+                onSelect: () => {
+                  setSent(null);
+                  tellTheFamily.mutate({
+                    title: `${child} — attendance`,
+                    body: `${child} has been away ${unexplained} ${
+                      unexplained === 1 ? "morning" : "mornings"
+                    } with no explanation on file. Please contact the school office.`,
+                  });
+                },
               },
-            },
-          ]}
-        />
-      </div>
+            ]}
+          />
+        }
+      />
 
       {visible.length === 0 ? (
         <NothingMatched what="mornings" filters={filtersInForce} onClear={clearFilters} />

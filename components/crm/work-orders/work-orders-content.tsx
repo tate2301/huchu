@@ -16,12 +16,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RecordMark } from "@/components/records/record-mark";
-import { LayoutSwitch, type RecordLayout } from "@/components/crm/records/layout-switch";
+import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
 import {
   RecordList,
   RecordListPager,
   type RecordListRow,
-} from "@/components/crm/records/record-list";
+} from "@/components/records/record-list";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import {
   RecordCell,

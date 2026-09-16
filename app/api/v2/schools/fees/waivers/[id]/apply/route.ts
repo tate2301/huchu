@@ -3,7 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { isSchoolAdmin, schoolPermissionDenial } from "@/lib/schools/permissions";
 import {
   exceeds,
   resolveBaseCurrency,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/schools/money";
 import {
   emitSchoolFeeAccountingEvent,
+  FeeCreditError,
   refreshFeeInvoiceBalance,
 } from "../../../_helpers";
 
@@ -68,15 +69,42 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         throw new Error("Cannot apply a rejected or reversed waiver");
       }
 
+      // Applying used to fall back to `approvedById ?? session.user.id`,
+      // which meant a waiver nobody had approved became one approved by
+      // whoever happened to apply it — an authorisation invented by the act it
+      // was supposed to authorise. Both refusals sit here, before the first
+      // write, so a rejected application leaves the bill exactly as it was.
+      if (waiver.status !== "APPROVED" || !waiver.approvedById) {
+        throw new FeeCreditError(
+          "This waiver has not been approved; have someone approve it first, then apply it",
+          409,
+        );
+      }
+      // The point of the control: the person who grants a discount and the
+      // person who signs it off are two people. A tenant administrator is
+      // allowed through because in a small school office there may be nobody
+      // else, and the head answering for it is the school's own decision.
+      if (
+        waiver.approvedById === waiver.createdById &&
+        !isSchoolAdmin(session.user.role)
+      ) {
+        throw new FeeCreditError(
+          "This waiver was approved by the person who raised it; a second approver, or a school administrator, has to apply it",
+          409,
+        );
+      }
+
       const invoice =
         waiver.invoiceId || validated.invoiceId
           ? await tx.schoolFeeInvoice.findFirst({
+              // Read whatever the waiver names, whatever state it is in, so a
+              // draft bill can be refused by name rather than reported as no
+              // invoice at all.
               where: {
                 id: waiver.invoiceId ?? validated.invoiceId,
                 companyId,
                 studentId: waiver.studentId,
                 termId: waiver.termId,
-                status: { in: ["ISSUED", "PART_PAID", "DRAFT"] },
               },
               select: {
                 id: true,
@@ -95,7 +123,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 companyId,
                 studentId: waiver.studentId,
                 termId: waiver.termId,
-                status: { in: ["ISSUED", "PART_PAID", "DRAFT"] },
+                status: { in: ["ISSUED", "PART_PAID"] },
                 balanceAmount: { gt: 0 },
               },
               orderBy: [{ dueDate: "asc" }, { issueDate: "asc" }],
@@ -113,7 +141,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             });
 
       if (!invoice) {
-        throw new Error("No eligible invoice found to apply waiver");
+        throw new FeeCreditError(
+          "No issued invoice with an outstanding balance for this pupil and term; issue the invoice first, then apply the waiver",
+          400,
+        );
+      }
+      // A draft bill has not been asked for, so there is nothing yet to
+      // discount and no issue journal for the reduction to sit against.
+      if (invoice.status !== "ISSUED" && invoice.status !== "PART_PAID") {
+        throw new FeeCreditError(
+          `Invoice ${invoice.invoiceNo} is ${invoice.status.toLowerCase()}; issue it before taking a waiver off it`,
+          400,
+        );
       }
       // Post S-2.1 Float→Decimal: exact, not `> 0.009`.
       if (exceeds(waiver.amount, invoice.balanceAmount)) {
@@ -135,8 +174,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           // the bill reach the ledger through the same conversion.
           exchangeRate: invoice.exchangeRate,
           baseAmount: toBaseAmount(waiver.amount, invoice.exchangeRate),
-          approvedById: waiver.approvedById ?? session.user.id,
-          approvedAt: waiver.approvedAt ?? new Date(),
           appliedById: session.user.id,
           appliedAt: new Date(),
           reason: validated.reason
@@ -241,10 +278,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
+    if (error instanceof FeeCreditError) {
+      return errorResponse(error.message, error.status);
+    }
     const message = error instanceof Error ? error.message : "Failed to apply fee waiver";
     if (
       message === "Cannot apply a rejected or reversed waiver" ||
-      message === "No eligible invoice found to apply waiver" ||
       message === "Waiver amount exceeds invoice outstanding balance" ||
       message === "Waiver currency does not match the invoice currency" ||
       message === "Failed to refresh invoice after waiver application"

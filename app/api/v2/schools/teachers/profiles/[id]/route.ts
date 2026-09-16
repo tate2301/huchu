@@ -6,6 +6,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 import { prisma } from "@/lib/prisma";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 import {
@@ -158,6 +159,16 @@ export async function PATCH(
   }
 }
 
+/**
+ * Archiving a teacher profile.
+ *
+ * The grant this checks is `archive`, and it now does that: `isActive` goes
+ * false and the profile stays. It used to call `delete`, which cascades the
+ * person out of the timetable and the cover rota, and the "linked to class
+ * assignments" refusal meant the one act the staff list offers — taking a
+ * teacher who has left off it — was impossible for every teacher who had ever
+ * taught. Reinstating is an ordinary PATCH of the same field.
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -178,32 +189,35 @@ export async function DELETE(
 
     const existing = await prisma.schoolTeacherProfile.findFirst({
       where: { id, companyId },
-      select: {
-        id: true,
-        _count: {
-          select: {
-            assignments: true,
-          },
-        },
-      },
+      select: { id: true, isActive: true },
     });
     if (!existing) {
       return errorResponse("Teacher profile not found", 404);
     }
 
-    if (existing._count.assignments > 0) {
-      return errorResponse(
-        "Cannot delete teacher profile because it is linked to class assignments",
-        409,
-      );
+    if (!existing.isActive) {
+      return successResponse({ id: existing.id, isActive: existing.isActive });
     }
 
-    await prisma.schoolTeacherProfile.delete({
-      where: { id: existing.id },
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.schoolTeacherProfile.update({
+        where: { id: existing.id },
+        data: { isActive: false },
+        select: { id: true, isActive: true },
+      });
+      await writeSchoolAuditEvent(tx, {
+        companyId,
+        actorId: session.user.id,
+        eventType: "schools.teacher.archived",
+        entityType: "SchoolTeacherProfile",
+        entityId: row.id,
+      });
+      return row;
     });
-    return successResponse({ id: existing.id, deleted: true });
+
+    return successResponse(updated);
   } catch (error) {
     console.error("[API] DELETE /api/v2/schools/teachers/profiles/[id] error:", error);
-    return errorResponse("Failed to delete teacher profile");
+    return errorResponse("Failed to archive teacher profile");
   }
 }

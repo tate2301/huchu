@@ -101,7 +101,10 @@ export function AssignmentFormDialog({
     enabled: open && !lockedTeacherName,
   });
 
-  const classes = classesQuery.data?.data ?? [];
+  // Memoised rather than `?? []` inline: a fresh empty array every render is a
+  // fresh identity, and the stream list hanging off it would recompute on
+  // every keystroke in the dialog.
+  const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
   const streams = useMemo(
     () => classes.find((entry) => entry.id === form.classId)?.streams ?? [],
     [classes, form.classId],

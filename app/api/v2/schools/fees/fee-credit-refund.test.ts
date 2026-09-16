@@ -98,6 +98,39 @@ async function makeInvoice(total: number, structure = feeStructureId) {
   return invoice.id;
 }
 
+/** The same bill, never issued. What may not happen to one of these is the point. */
+async function makeDraftInvoice(total: number, structure = feeStructureId) {
+  const invoice = await prisma.schoolFeeInvoice.create({
+    data: {
+      companyId,
+      invoiceNo: `DRAFT-${stamp}-${Math.random().toString(36).slice(2, 10)}`,
+      studentId,
+      termId,
+      feeStructureId: structure,
+      issueDate: new Date("2026-05-01T00:00:00.000Z"),
+      dueDate: new Date("2026-05-31T00:00:00.000Z"),
+      status: "DRAFT",
+      lines: {
+        create: {
+          companyId,
+          feeCode: "TUITION",
+          description: "Tuition",
+          quantity: new Prisma.Decimal(1),
+          unitAmount: new Prisma.Decimal(total),
+          lineTotal: new Prisma.Decimal(total),
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  const { refreshFeeInvoiceBalance } = await import("./_helpers");
+  await prisma.$transaction((tx) =>
+    refreshFeeInvoiceBalance(tx, { companyId, invoiceId: invoice.id }),
+  );
+  return invoice.id;
+}
+
 async function readInvoice(id: string) {
   return prisma.schoolFeeInvoice.findUniqueOrThrow({
     where: { id },
@@ -726,6 +759,148 @@ describe("S-2.6 — a bursar can refund a parent", () => {
     const body = await response.json();
     expect(body.pagination.total).toBe(1);
     expect(body.data[0].receipt.receiptNo).toBeTruthy();
+  });
+});
+
+// =============================================================================
+// A draft bill takes no money
+// =============================================================================
+
+describe("a draft invoice cannot be allocated to", () => {
+  it("refuses a payment handed over against a draft invoice", async () => {
+    const invoiceId = await makeDraftInvoice(450);
+
+    const response = await postReceipt(
+      post("/api/v2/schools/fees/receipts", {
+        invoiceId,
+        amount: 450,
+        method: "CASH",
+      }),
+    );
+    // Without the guard this posted the money and flipped the bill to PAID
+    // without it ever having been issued, so the receivable stood in the
+    // ledger with no issue journal behind it.
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/still a draft/i);
+
+    const invoice = await readInvoice(invoiceId);
+    expect(invoice.status).toBe("DRAFT");
+    expect(invoice.paidAmount.toFixed(2)).toBe("0.00");
+    expect(await prisma.schoolFeeReceipt.count({ where: { companyId } })).toBe(0);
+  });
+
+  it("refuses a named allocation to a draft invoice", async () => {
+    const invoiceId = await makeDraftInvoice(450);
+
+    const response = await postReceipt(
+      post("/api/v2/schools/fees/receipts", {
+        studentId,
+        receiptDate: "2026-05-10",
+        paymentMethod: "CASH",
+        amountReceived: 450,
+        allocations: [{ invoiceId, allocatedAmount: 450 }],
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/issue it before/i);
+  });
+
+  it("refuses to spend an existing credit on a draft invoice", async () => {
+    const paidInvoiceId = await makeInvoice(450);
+    const receipt = await postReceipt(
+      post("/api/v2/schools/fees/receipts", {
+        invoiceId: paidInvoiceId,
+        amount: 500,
+        method: "CASH",
+      }),
+    ).then((response) => response.json());
+    expect(Number(receipt.amountUnallocated)).toBe(50);
+
+    const draftId = await makeDraftInvoice(200, otherFeeStructureId);
+    const response = await allocateCredit(
+      post(`/api/v2/schools/fees/receipts/${receipt.id}/allocate`, {
+        allocations: [{ invoiceId: draftId }],
+      }),
+      { params: Promise.resolve({ id: receipt.id }) },
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/still a draft/i);
+
+    // The credit is untouched and still spendable on a real bill.
+    expect((await readReceipt(receipt.id)).amountUnallocated.toFixed(2)).toBe("50.00");
+  });
+});
+
+// =============================================================================
+// A receipt ZIMRA has seen cannot be unmade locally
+// =============================================================================
+
+describe("voiding a fiscalised receipt", () => {
+  async function postedReceipt(amount: number) {
+    const invoiceId = await makeInvoice(450);
+    const response = await postReceipt(
+      post("/api/v2/schools/fees/receipts", { invoiceId, amount, method: "CASH" }),
+    );
+    expect(response.status).toBe(201);
+    return (await response.json()).id as string;
+  }
+
+  function fiscalise(receiptId: string, status: "SUCCESS" | "PENDING" | "FAILED") {
+    return prisma.fiscalReceipt.create({
+      data: {
+        companyId,
+        schoolReceiptId: receiptId,
+        status,
+        fiscalNumber: status === "SUCCESS" ? `FN-${stamp}` : null,
+      },
+      select: { id: true },
+    });
+  }
+
+  function attemptVoid(receiptId: string) {
+    return voidReceipt(
+      post(`/api/v2/schools/fees/receipts/${receiptId}/void`, {
+        reason: "Receipted the wrong pupil",
+      }),
+      { params: Promise.resolve({ id: receiptId }) },
+    );
+  }
+
+  it("refuses a receipt ZIMRA has accepted, and names the credit note", async () => {
+    const receiptId = await postedReceipt(450);
+    await fiscalise(receiptId, "SUCCESS");
+
+    const response = await attemptVoid(receiptId);
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/credit note/i);
+    // Still standing, because the fiscal day says it happened.
+    expect((await readReceipt(receiptId)).status).toBe("POSTED");
+  });
+
+  it("refuses one still holding its place in the fiscal day", async () => {
+    const receiptId = await postedReceipt(450);
+    await fiscalise(receiptId, "PENDING");
+
+    const response = await attemptVoid(receiptId);
+    expect(response.status).toBe(409);
+    expect((await readReceipt(receiptId)).status).toBe("POSTED");
+  });
+
+  it("still voids a receipt whose fiscalisation failed", async () => {
+    const receiptId = await postedReceipt(450);
+    await fiscalise(receiptId, "FAILED");
+
+    const response = await attemptVoid(receiptId);
+    expect(response.status).toBe(200);
+    expect((await readReceipt(receiptId)).status).toBe("VOIDED");
+  });
+
+  it("still voids a receipt that was never sent", async () => {
+    const receiptId = await postedReceipt(450);
+
+    const response = await attemptVoid(receiptId);
+    expect(response.status).toBe(200);
+    expect((await readReceipt(receiptId)).status).toBe("VOIDED");
   });
 });
 

@@ -4,16 +4,17 @@ import { useMemo, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge } from "@corelithzw/react";
 
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  TableRowsSkeleton,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { fetchJson } from "@/lib/api-client";
 import { normaliseGender } from "@/lib/schools/boarding-rules";
@@ -224,10 +225,13 @@ export function BedBoardContent({
       ) : null}
       {freeBed.error ? <SaveError what="That bed" error={freeBed.error} /> : null}
 
-      {loaded.length > 0 ? (
+      {/* Only where nothing above has already said it. On the whole-school
+          board the page band carries the same count and keeps it in view;
+          inside one house — the hostels screen, a hostel record — there is no
+          band, so the line is the only place the total is stated. */}
+      {!schoolWide && loaded.length > 0 ? (
         <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          {taken} of {beds.length} bed{beds.length === 1 ? "" : "s"} taken across{" "}
-          {loaded.length} house{loaded.length === 1 ? "" : "s"}.
+          {taken} of {beds.length} bed{beds.length === 1 ? "" : "s"} taken.
         </p>
       ) : null}
 
@@ -236,8 +240,15 @@ export function BedBoardContent({
           tone="warn"
           title={`${unbedded.length} boarder${unbedded.length === 1 ? " has" : "s have"} no bed`}
         >
-          {unbedded.map((row) => `${row.lastName}, ${row.firstName}`).join(" · ")} —
-          allocated to a house but not to a bed.
+          {unbedded.map((row, index) => (
+            <span key={row.id}>
+              {index > 0 ? " · " : ""}
+              <EntityLink href={`/schools/students/${row.id}`}>
+                {row.firstName} {row.lastName}
+              </EntityLink>
+            </span>
+          ))}{" "}
+          — allocated to a house but not to a bed.
         </Alert>
       ) : null}
 
@@ -281,17 +292,11 @@ export function BedBoardContent({
             />
           </>
         }
+        count={loading ? null : `${visible.length} of ${beds.length}`}
       />
 
       {loading ? (
-        <TableRowsSkeleton
-          columns={[
-            { width: 90 },
-            { avatar: true, twoLine: true },
-            { width: 80 },
-            { width: 170 },
-          ]}
-        />
+        <ListRowsSkeleton rows={10} label="Loading the beds" />
       ) : grouped.length === 0 ? (
         beds.length === 0 ? (
           <NothingYet
@@ -323,31 +328,32 @@ export function BedBoardContent({
                         Bed {bed.code}
                       </span>
                       {bed.student ? (
-                        <span className="flex min-w-0 flex-1 items-center gap-2">
-                          <PersonAvatar
+                        <span className="min-w-0 flex-1">
+                          <PersonCell
+                            kind="student"
+                            href={`/schools/students/${bed.student.id}`}
                             firstName={bed.student.firstName}
                             lastName={bed.student.lastName}
+                            reference={bed.student.studentNo}
+                            context={gender ? (gender === "MALE" ? "boy" : "girl") : undefined}
                           />
-                          <span className="min-w-0">
-                            <span className="block truncate">
-                              {bed.student.lastName}, {bed.student.firstName}
-                            </span>
-                            <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                              {bed.student.studentNo}
-                              {gender ? ` · ${gender === "MALE" ? "boy" : "girl"}` : ""}
-                            </span>
-                          </span>
                         </span>
                       ) : (
                         <span className="min-w-0 flex-1 text-[color:var(--text-muted)]">
-                          Free
+                          Nobody in it
                         </span>
                       )}
                       <Badge tone={bed.student ? "brand" : "success"}>
                         {bed.student ? "Taken" : "Free"}
                       </Badge>
                       <RecordActions
+                        layout="menu"
                         resource="schools.boarding"
+                        label={
+                          bed.student
+                            ? `Actions for bed ${bed.code}, ${bed.student.firstName} ${bed.student.lastName}`
+                            : `Actions for free bed ${bed.code}`
+                        }
                         verbs={
                           bed.student
                             ? [

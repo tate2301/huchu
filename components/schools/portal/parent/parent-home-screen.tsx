@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
@@ -7,12 +8,24 @@ import {
   CardsSkeleton,
   LoadError,
   NothingYet,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
-import { ArrowRight, Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@/lib/icons";
+import {
+  ArrowRight,
+  Bell,
+  CalendarCheck,
+  ChatCircle,
+  ChevronRight,
+  HelpCircle,
+  Info,
+  Receipt,
+  UserRound,
+} from "@/lib/icons";
 
+import { ParentHowToPaySheet } from "./parent-how-to-pay-sheet";
 import { useParentPortal } from "./parent-portal-context";
+import { formatShortDate, daysUntil, useHydrated } from "./parent-portal-format";
 
 /**
  * S-6.3 — what changed for this child.
@@ -25,7 +38,9 @@ import { useParentPortal } from "./parent-portal-context";
  * A figure a parent may not see is not shown as zero. A guardian without
  * `canReceiveFinancials` gets no fee hero at all — the loader does not even fetch
  * the balance — because "0.00 owed" is a wrong answer where "not shown to you" is
- * a true one.
+ * a true one. The same rule is why a family that owes nothing is led with what
+ * they have paid rather than with the zero they have left: the biggest figure on
+ * the screen should be the one worth reading.
  *
  * Two of the eight states are missing on purpose, and the audit reads text, so
  * they are named here rather than left looking forgotten: there is no
@@ -43,6 +58,8 @@ type Notice = {
   isRead: boolean;
 };
 
+type Mark = { id: string; score: number };
+
 /** The greeting caption. Real time of day on the phone holding it. */
 function greeting(now: Date) {
   const hour = now.getHours();
@@ -56,13 +73,23 @@ function nowMinute(now: Date) {
   return now.getHours() * 60 + now.getMinutes();
 }
 
+/** "12 days to go", and the two edges of it that read wrong as a number. */
+function countdown(days: number) {
+  if (days === 0) return "due today";
+  if (days === 1) return "1 day to go";
+  return `${days} days to go`;
+}
+
 const NOTICE_TONE: Record<string, string> = {
   CRITICAL: "danger",
   WARNING: "warn",
 };
 
 export function ParentHomeScreen() {
-  const { guardian, child, term, schoolName, unreadNotices } = useParentPortal();
+  const { guardian, child, children: household, term, schoolName, unreadNotices } =
+    useParentPortal();
+  const [howToPay, setHowToPay] = useState(false);
+  const hydrated = useHydrated();
 
   /**
    * The first few notices, for the preview.
@@ -75,6 +102,28 @@ export function ParentHomeScreen() {
     queryKey: ["portal", "parent", "notices"],
     queryFn: () =>
       fetchJson<{ notices: Notice[]; unread: number }>("/api/v2/schools/portal/parent/notices"),
+  });
+
+  const inbox = useQuery({
+    queryKey: ["portal", "parent", "messages"],
+    queryFn: () =>
+      fetchJson<{ threads: Array<{ id: string; unread: boolean }> }>(
+        "/api/v2/schools/portal/parent/messages",
+      ),
+  });
+
+  /**
+   * Marks, for the Quick look tile's figure. A tile is a place for a number; the
+   * word that used to sit here told a parent the marks were "Ready" without
+   * telling them anything about them. Same query key as the Marks screen.
+   */
+  const marks = useQuery({
+    queryKey: ["portal", "parent", "marks", child?.id],
+    queryFn: () =>
+      fetchJson<{ marks: Mark[] }>(
+        `/api/v2/schools/portal/parent/child/marks?childId=${child!.id}`,
+      ),
+    enabled: Boolean(child?.id) && Boolean(child?.canSeeResults),
   });
 
   if (!guardian) {
@@ -111,6 +160,16 @@ export function ParentHomeScreen() {
   const billed = Number(fees?.billed ?? 0);
   const paid = Number(fees?.paid ?? 0);
   const paidPct = billed > 0 ? Math.max(0, Math.min(100, Math.round((paid / billed) * 100))) : 0;
+  const daysToGo = daysUntil(fees?.nextDueDate);
+  // Nothing billed is not the same as nothing owed. The Fees tab carries the
+  // "no bill yet" state; a hero here would be a second one stacked on it.
+  const showHero = Boolean(fees) && billed > 0;
+
+  const scored = marks.data?.marks ?? [];
+  const averageMark =
+    scored.length > 0
+      ? Math.round(scored.reduce((sum, mark) => sum + mark.score, 0) / scored.length)
+      : null;
 
   // The next lesson still to come. "UP NEXT" is only true of one row, and only
   // while the school day is running.
@@ -118,6 +177,7 @@ export function ParentHomeScreen() {
 
   const previewNotices = (notices.data?.notices ?? []).slice(0, 3);
   const unread = notices.data?.unread ?? unreadNotices;
+  const unreadMessages = (inbox.data?.threads ?? []).filter((row) => row.unread).length;
 
   return (
     <div className="pp-page">
@@ -140,42 +200,61 @@ export function ParentHomeScreen() {
         </div>
       </div>
 
-      {fees ? (
+      {showHero && fees ? (
         <div className="b-stat-hero">
           <div className="b-sh-lead">
-            <div className="b-sh-l">
-              {outstanding > 0 ? "You still owe" : "Fees for the term"} · {child.firstName}
-            </div>
-            <div className="b-sh-v">{formatSchoolMoney(outstanding, fees.currency)}</div>
-            <div className="b-sh-d">
-              {outstanding === 0
-                ? `${term?.name ?? "This term"} fees fully paid — thank you.`
-                : overdue > 0
-                  ? `${formatSchoolMoney(overdue, fees.currency)} of this is past its due date.`
-                  : fees.nextDueDate
-                    ? `${term?.name ?? "This term"} fees · pay by ${formatSchoolDate(fees.nextDueDate)}`
-                    : `Across ${fees.invoices} ${fees.invoices === 1 ? "bill" : "bills"}.`}
-            </div>
-            {billed > 0 ? (
-              <div className="fh-progress">
-                <div className="bar">
-                  <span style={{ width: `${paidPct}%` }} />
+            {outstanding > 0 ? (
+              <>
+                <div className="b-sh-l">You still owe · {child.firstName}</div>
+                <div className="b-sh-v">{formatSchoolMoney(outstanding, fees.currency)}</div>
+                <div className="b-sh-d">
+                  {overdue > 0
+                    ? `${formatSchoolMoney(overdue, fees.currency)} of this is past its due date.`
+                    : fees.nextDueDate
+                      ? `Pay by ${formatShortDate(fees.nextDueDate)}${
+                          // The count is held back one render: a server in UTC and
+                          // a phone two hours ahead of it disagree about what day
+                          // it is, and the difference is a hydration error.
+                          hydrated && daysToGo !== null && daysToGo >= 0
+                            ? ` · ${countdown(daysToGo)}`
+                            : ""
+                        }`
+                      : `Across ${fees.invoices} ${fees.invoices === 1 ? "bill" : "bills"}.`}
                 </div>
-                <div className="meta">
-                  <span>Paid · {formatSchoolMoney(paid, fees.currency)}</span>
-                  <span>Total · {formatSchoolMoney(billed, fees.currency)}</span>
+                <div className="fh-progress">
+                  <div className="bar">
+                    <span style={{ width: `${paidPct}%` }} />
+                  </div>
+                  <div className="meta">
+                    <span>Paid · {formatSchoolMoney(paid, fees.currency)}</span>
+                    <span>Total · {formatSchoolMoney(billed, fees.currency)}</span>
+                  </div>
                 </div>
-              </div>
-            ) : null}
-            <div className="fh-actions">
-              <Link href="/portal/parent/fees" className="btn solid">
-                See fee statement
-                <ArrowRight className="size-[13px]" aria-hidden />
-              </Link>
-              <Link href="/portal/parent/notices" className="btn">
-                From the school
-              </Link>
-            </div>
+                <div className="fh-actions">
+                  <button type="button" className="btn solid" onClick={() => setHowToPay(true)}>
+                    How to pay
+                    <ArrowRight className="size-[13px]" aria-hidden />
+                  </button>
+                  <Link href="/portal/parent/fees" className="btn">
+                    Statement
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="b-sh-l">Paid for {term?.name ?? "this term"}</div>
+                <div className="b-sh-v">{formatSchoolMoney(paid, fees.currency)}</div>
+                <div className="b-sh-d">
+                  {`Across ${fees.invoices} ${fees.invoices === 1 ? "bill" : "bills"} for ${child.firstName}.`}
+                </div>
+                <div className="fh-actions">
+                  <Link href="/portal/parent/fees" className="btn solid">
+                    See receipt
+                    <ArrowRight className="size-[13px]" aria-hidden />
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         </div>
       ) : null}
@@ -226,12 +305,12 @@ export function ParentHomeScreen() {
         </Link>
         {child.canSeeResults ? (
           <Link href="/portal/parent/marks" className="stat-tile">
-            <span className="l">Marks</span>
-            <span className="v">{child.hasPublishedMarks ? "Ready" : "Not yet"}</span>
+            <span className="l">Average mark</span>
+            <span className="v">{averageMark === null ? "—" : `${averageMark}%`}</span>
             <span className="sb">
-              {child.hasPublishedMarks
-                ? `${term?.name ?? "This term"}'s marks are out`
-                : "Released once they are checked"}
+              {averageMark === null
+                ? "Released once they are checked"
+                : `Across ${scored.length} ${scored.length === 1 ? "subject" : "subjects"}`}
             </span>
           </Link>
         ) : (
@@ -241,6 +320,31 @@ export function ParentHomeScreen() {
             <span className="sb">{child.attendance.late} late this term</span>
           </Link>
         )}
+      </div>
+
+      {/* The screens with no tab of their own. Four tabs is what a phone holds,
+          so this row is how the rest are reached. */}
+      <div className="section-h">Shortcuts</div>
+      <div className="pill-row">
+        <Link href="/portal/parent/messages" className="pill-btn">
+          <ChatCircle className="size-[13px]" aria-hidden />
+          Messages
+          {unreadMessages > 0 ? <span className="ct">{unreadMessages}</span> : null}
+        </Link>
+        <Link href="/portal/parent/fees" className="pill-btn">
+          <Receipt className="size-[13px]" aria-hidden />
+          Receipts
+        </Link>
+        {household.length > 1 ? (
+          <Link href="/portal/parent/profile" className="pill-btn">
+            <UserRound className="size-[13px]" aria-hidden />
+            Your children
+          </Link>
+        ) : null}
+        <Link href="/portal/parent/help" className="pill-btn">
+          <HelpCircle className="size-[13px]" aria-hidden />
+          Help
+        </Link>
       </div>
 
       <div className="section-h">
@@ -286,7 +390,7 @@ export function ParentHomeScreen() {
             return (
               <Link
                 key={notice.id}
-                href="/portal/parent/notices"
+                href={`/portal/parent/notice/${notice.id}`}
                 className={notice.isRead ? "notice-row" : "notice-row unread"}
               >
                 <span className={tone ? `ic ${tone}` : "ic"}>
@@ -309,6 +413,8 @@ export function ParentHomeScreen() {
           })}
         </div>
       )}
+
+      {howToPay ? <ParentHowToPaySheet onClose={() => setHowToPay(false)} /> : null}
     </div>
   );
 }

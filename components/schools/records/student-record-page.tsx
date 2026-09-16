@@ -7,11 +7,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@corelithzw/react";
 
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
+import { EntityLink } from "@/components/records/entity-link";
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
 import { RecordMark } from "@/components/records/record-mark";
 import {
   RailSection,
   RecordPageShell,
+  RecordRelated,
   RelatedList,
   type RecordTab,
 } from "@/components/records/record-page-shell";
@@ -21,14 +23,17 @@ import { SubjectNotes, type SubjectNote } from "@/components/records/subject-tab
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
-  CardsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
-  RecordNotFound,
   SaveError,
-  StatsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
+import {
+  Glance,
+  GlanceList,
+  RecordLoadFailure,
+  RecordPageSkeleton,
+} from "@/components/schools/records/record-page-parts";
 import {
   RecordFilesTab,
   type RecordFile,
@@ -46,7 +51,7 @@ import {
   updateStudent,
   type StudentRollRecord,
 } from "@/lib/schools/students-v2";
-import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
   Badge,
@@ -409,39 +414,17 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
   });
 
   if (query.isPending) {
-    return (
-      // The record's own shape: the standing column carries the mark, the name
-      // and eleven property rows; the section beside it carries the overview's
-      // cards. Two grey slabs meant the page reflowed twice as the real
-      // columns arrived.
-      <div
-        className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]"
-        data-testid="student-record-loading"
-      >
-        <div className="space-y-4">
-          <CardsSkeleton count={1} columns={1} lines={8} />
-          <StatsSkeleton count={3} />
-        </div>
-        <CardsSkeleton count={4} columns={2} lines={4} />
-      </div>
-    );
+    return <RecordPageSkeleton testId="student-record-loading" />;
   }
 
   if (query.isError || !student) {
-    // A 404 is a stale link, not a fault; anything else is. Saying so is the
-    // difference between "go back to the roll" and "try again".
-    const notFound =
-      query.error instanceof ApiError && query.error.status === 404;
-    return notFound ? (
-      <RecordNotFound
-        what="That pupil"
-        backHref={config.indexHref}
-        backLabel="Back to the roll"
-      />
-    ) : (
-      <LoadError
+    return (
+      <RecordLoadFailure
+        notFound="That pupil"
         what="this pupil's record"
         error={query.error}
+        backHref={config.indexHref}
+        backLabel="Back to the roll"
         onRetry={() => void query.refetch()}
       />
     );
@@ -461,6 +444,17 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
     (student.guardianLinks ?? [])[0] ??
     null;
   const primaryGuardianEmail = primaryGuardian?.guardian.email ?? null;
+
+  /** The house they are in tonight, which is the allocation with no end date. */
+  const currentHostel =
+    (student.boardingAllocations ?? []).find(
+      (allocation) => !allocation.endDate && allocation.hostel,
+    )?.hostel ?? null;
+
+  /** Invoices with something still on them, which is what "does this family owe" means. */
+  const outstanding = (student.feeInvoices ?? []).filter(
+    (invoice) => Number(invoice.balanceAmount) > 0,
+  );
 
   /**
    * Whether the hard delete would be refused. Mirrors the dependency check in
@@ -786,6 +780,38 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
           size="lg"
         />
       }
+      /* The records this child is attached to, under the sections rail. Their
+         class, their house and the person the school rings are three places
+         somebody moves to from here constantly, and each was a fact printed on
+         the page with no way through to the record behind it. One line each,
+         because this answers "what is this attached to" and not "what has
+         happened to it". */
+      related={
+        <RecordRelated
+          items={[
+            student.currentClass
+              ? {
+                  href: recordType("CLASS").href(student.currentClass.id),
+                  label: student.currentStream
+                    ? `${student.currentClass.name} · ${student.currentStream.name}`
+                    : student.currentClass.name,
+                }
+              : null,
+            currentHostel
+              ? {
+                  href: recordType("HOSTEL").href(currentHostel.id),
+                  label: currentHostel.name,
+                }
+              : null,
+            primaryGuardian
+              ? {
+                  href: recordType("GUARDIAN").href(primaryGuardian.guardian.id),
+                  label: `${primaryGuardian.guardian.firstName} ${primaryGuardian.guardian.lastName}`,
+                }
+              : null,
+          ].filter((item): item is { href: string; label: string } => item !== null)}
+        />
+      }
       attributes={
         <div className="space-y-3">
           {/* The year-group and class rows choose from this ladder, so a read
@@ -818,12 +844,30 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       onTabChange={setActiveTab}
       rail={
         <div className="space-y-6">
+          {/* What the section rail cannot say. It already carries how many
+              guardians, enrolments and invoices there are, so a glance list
+              repeating those three was the same three numbers twice inside
+              200px; what it could not say is whether the family owes anything,
+              which is the question asked at the counter. */}
           <RailSection title="At a glance">
-            <dl className="space-y-2 text-sm">
-              <Glance label="Guardians" value={String(student.guardianLinks?.length ?? 0)} />
-              <Glance label="Enrolments" value={String(student.enrollments?.length ?? 0)} />
-              <Glance label="Invoices" value={String(student.feeInvoices?.length ?? 0)} />
-            </dl>
+            <GlanceList>
+              <Glance
+                label="Guardian to ring"
+                value={
+                  primaryGuardian ? (
+                    <EntityLink href={recordType("GUARDIAN").href(primaryGuardian.guardian.id)}>
+                      {primaryGuardian.guardian.firstName} {primaryGuardian.guardian.lastName}
+                    </EntityLink>
+                  ) : (
+                    "Nobody on file"
+                  )
+                }
+              />
+              <Glance
+                label="Invoices outstanding"
+                value={outstanding.length > 0 ? String(outstanding.length) : "None"}
+              />
+            </GlanceList>
           </RailSection>
 
           <RailSection title="The portal">
@@ -900,14 +944,5 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         onSubmit={(values) => saveMutation.mutate(values)}
       />
     </RecordPageShell>
-  );
-}
-
-function Glance({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[var(--text-muted)]">{label}</dt>
-      <dd className="font-medium text-[var(--text-strong)]">{value}</dd>
-    </div>
   );
 }

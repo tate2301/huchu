@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils";
 import { RecordCell, type RecordCellKind } from "@/components/records/record-table";
 
 /**
- * The CRM record list.
+ * The record list, for any surface whose rows are records.
  *
- * People, companies, sites, collections and the rest are lists of things you
- * open, not grids of numbers you compare — so they get the list pattern rather
- * than a data table. Each row is a title, a supporting line, and a small
+ * People, companies, sites, classes, subjects and the rest are lists of things
+ * you open, not grids of numbers you compare — so they get the list pattern
+ * rather than a data table. Each row is a title, a supporting line, and a small
  * cluster of facts on the right; the whole row is the link, which is what makes
  * it work with a thumb as well as a mouse.
  *

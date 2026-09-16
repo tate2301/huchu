@@ -1,16 +1,16 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { ClassRecordPage } from "@/components/schools/records/class-record-page";
 import { authOptions } from "@/lib/auth";
 
 /**
  * One class, as a record.
  *
- * Inside the Master Data shell rather than the school's, because the list it
- * is reached from moved there. The record page draws its own heading, so the
- * shell's is the section name.
+ * Inside the management shell rather than the school's, because the list it is
+ * reached from lives here. The band keeps naming the section it was opened
+ * from, and the record page below draws the class itself.
  */
 export default async function ClassRecordMasterDataRoute({
   params,
@@ -25,8 +25,8 @@ export default async function ClassRecordMasterDataRoute({
   const { id } = await params;
 
   return (
-    <MasterDataShell activeTab="schools-classes" title="Classes and Streams">
+    <ManagementShell area="master-data" title="Classes and streams">
       <ClassRecordPage classId={id} />
-    </MasterDataShell>
+    </ManagementShell>
   );
 }

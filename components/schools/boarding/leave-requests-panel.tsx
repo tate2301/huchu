@@ -1,12 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -14,7 +13,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
@@ -22,6 +21,7 @@ import { fetchJson } from "@/lib/api-client";
 import {
   dateWindow,
   fetchLeaveRequests,
+  leaveStatusLabel,
   leaveTone,
   type LeaveRequest,
   type LeaveStatus,
@@ -121,32 +121,25 @@ export function LeaveRequestsPanel({
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <PersonAvatar
-              firstName={row.original.student.firstName}
-              lastName={row.original.student.lastName}
-            />
-            <Link
-              href={`/schools/students/${row.original.student.id}`}
-              className="min-w-0 hover:underline"
-            >
-              <div className="truncate font-medium">
-                {row.original.student.lastName}, {row.original.student.firstName}
-              </div>
-              <div className="truncate font-mono text-xs text-muted-foreground">
-                {row.original.student.studentNo}
-                {row.original.allocation ? ` · ${row.original.allocation.hostel.name}` : ""}
-              </div>
-            </Link>
-          </div>
+          <PersonCell
+            kind="student"
+            href={`/schools/students/${row.original.student.id}`}
+            firstName={row.original.student.firstName}
+            lastName={row.original.student.lastName}
+            reference={row.original.student.studentNo}
+            context={row.original.allocation?.hostel.name}
+          />
         ),
       },
       {
         id: "type",
         header: "Type",
+        // A category, not a state: which kind of absence this is never needs
+        // acting on, so it is neutral ink and sentence case rather than a
+        // second coloured chip competing with the status beside it.
         cell: ({ row }) => (
-          <Badge tone={row.original.requestType === "LEAVE" ? "brand" : "info"}>
-            {row.original.requestType === "LEAVE" ? "LEAVE" : "OUTING"}
+          <Badge tone="neutral">
+            {row.original.requestType === "LEAVE" ? "Leave" : "Outing"}
           </Badge>
         ),
       },
@@ -163,12 +156,16 @@ export function LeaveRequestsPanel({
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge tone={leaveTone(row.original.status)}>{row.original.status}</Badge>
+          <Badge tone={leaveTone(row.original.status)}>
+            {leaveStatusLabel(row.original.status)}
+          </Badge>
         ),
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const request = row.original;
           const busy = pendingId === request.id;
@@ -258,7 +255,16 @@ export function LeaveRequestsPanel({
             },
           });
 
-          return <RecordActions resource="schools.boarding" verbs={verbs} />;
+          return (
+            <div className="flex justify-end">
+              <RecordActions
+                layout="menu"
+                resource="schools.boarding"
+                label={`Actions for ${request.student.firstName} ${request.student.lastName}`}
+                verbs={verbs}
+              />
+            </div>
+          );
         },
       },
     ],
@@ -283,20 +289,26 @@ export function LeaveRequestsPanel({
 
       {loading ? (
         <TableRowsSkeleton
+          headers={["Student", "Type", "Window", "Status", ""]}
           columns={[
             { avatar: true, twoLine: true },
-            { width: 90 },
-            { width: 140 },
-            { width: 110 },
-            { width: 240 },
+            { width: 90, badge: true },
+            { width: 150 },
+            { width: 110, badge: true },
+            { width: 40 },
           ]}
         />
       ) : (
         <DataTable
           data={rows}
           columns={columns}
-          searchPlaceholder="Search leave requests"
-          searchSubmitLabel="Search"
+          /* Its own search box only where the screen above it has none. The
+             gate book screen owns one in its control row and narrows `rows`
+             with it; a second one inside the table is two boxes over one list,
+             and whichever you type into, the other looks broken. */
+          {...(filters.search === undefined
+            ? { searchPlaceholder: "Search leave requests", searchSubmitLabel: "Search" }
+            : {})}
           pagination={{ enabled: true }}
           emptyState={
             anyFilter ? (

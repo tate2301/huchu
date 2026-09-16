@@ -3,12 +3,15 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty } from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { getApiErrorMessage } from "@/lib/api-client";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+} from "@/components/records/states";
+import { TableSearch } from "@/components/records/table-controls";
+import { ChevronRight } from "@/lib/icons";
 import { fetchSchoolsClasses, type SchoolsClassRecord } from "@/lib/schools/admin-v2";
 
 /**
@@ -23,6 +26,15 @@ import { fetchSchoolsClasses, type SchoolsClassRecord } from "@/lib/schools/admi
  * Shared rather than copied per surface: students, attendance and anything else
  * that starts "which class?" should pick the same way, and a second
  * implementation is where the two drift apart.
+ *
+ * ## Why cards and not a list
+ *
+ * A school has a dozen year groups, not four hundred, and each is a
+ * destination with its own streams hanging off it — so this is a menu rather
+ * than a register. The list shape would put those streams on a second line
+ * that is either truncated or twice the height of the row, and there is no
+ * column here anybody scans down. Below `sm` the same records are rows,
+ * because two columns of cards at 390px is one card and a half.
  */
 export function GradePicker({
   basePath,
@@ -63,93 +75,109 @@ export function GradePicker({
     ((schoolClass: SchoolsClassRecord) =>
       `${schoolClass._count.students} student${schoolClass._count.students === 1 ? "" : "s"}`);
 
-  if (classesQuery.error) {
+  if (classesQuery.isError) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>Unable to load year groups</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(classesQuery.error)}</AlertDescription>
-      </Alert>
+      <LoadError
+        what="the year groups"
+        error={classesQuery.error}
+        onRetry={() => void classesQuery.refetch()}
+      />
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="min-w-0 sm:max-w-[320px]">
-        <Label htmlFor="grade-search" className="text-sm text-muted-foreground">
-          Find a year group
-        </Label>
-        <Input
-          id="grade-search"
+      {/* The search box only earns its place once there are enough year groups
+          to hunt through; under that it is a control above a list you can
+          already read in one look. */}
+      {classes.length > 8 ? (
+        <TableSearch
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Form 2, Grade 5…"
+          onChange={setSearch}
+          placeholder="Find a year group"
         />
-      </div>
-
-      {classes.length === 0 && !classesQuery.isLoading ? (
-        <Alert>
-          <AlertTitle>No classes yet</AlertTitle>
-          <AlertDescription>
-            {emptyHint ??
-              "Everything here is organised by year group. Set the class ladder up under Academics first."}
-          </AlertDescription>
-        </Alert>
       ) : null}
 
-      {/* Cards where there is room, a list on a phone. Streams are links of
-          their own: "Form 2 Blue" is the unit a class teacher works in, and
-          making them open Form 2 and filter again would put the thing they came
-          for one level too deep. */}
-      <div className="hidden gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3">
-        {matching.map((schoolClass) => (
-          <div
-            key={schoolClass.id}
-            className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface)] p-4"
-          >
-            <Link
-              href={`${basePath}/class/${schoolClass.id}`}
-              className="text-base font-medium hover:underline"
-            >
-              {schoolClass.name}
-            </Link>
-            <p className="text-sm text-muted-foreground">{describe(schoolClass)}</p>
-            {schoolClass.streams && schoolClass.streams.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {schoolClass.streams.map((stream) => (
-                  <Link
-                    key={stream.id}
-                    href={`${basePath}/class/${schoolClass.id}?streamId=${stream.id}`}
-                    className="rounded-md border border-[var(--edge-subtle)] px-2 py-1 text-sm text-muted-foreground hover:bg-[var(--surface-muted)]"
-                  >
-                    {stream.name}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ))}
-      </div>
-
-      <div className="sm:hidden">
-        <MobileList>
-          {matching.length === 0 ? (
-            <MobileListEmpty>
-              {classesQuery.isLoading ? "Loading year groups…" : "No year groups found."}
-            </MobileListEmpty>
-          ) : (
-            matching.map((schoolClass) => (
-              <MobileList.Row
+      {classesQuery.isPending ? (
+        <CardsSkeleton count={6} columns={3} lines={1} label="Loading the year groups" />
+      ) : classes.length === 0 ? (
+        <NothingYet
+          title="No year groups yet"
+          body={
+            emptyHint ??
+            "Everything here is organised by year group. Set the class ladder up under Years and terms first."
+          }
+        />
+      ) : matching.length === 0 ? (
+        <NothingMatched what="year groups" search={search} onClear={() => setSearch("")} />
+      ) : (
+        <>
+          <div className="hidden gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3">
+            {matching.map((schoolClass) => (
+              <div
                 key={schoolClass.id}
-                title={schoolClass.name}
-                subtitle={describe(schoolClass)}
-                onClick={() => {
-                  window.location.href = `${basePath}/class/${schoolClass.id}`;
-                }}
-              />
-            ))
-          )}
-        </MobileList>
-      </div>
+                className="rounded-[var(--card-radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4"
+              >
+                {/* A standing underline, not one that arrives with the
+                    pointer: a cue nobody sees until they are already on the
+                    link is not a cue, and it is invisible on a phone. */}
+                <Link
+                  href={`${basePath}/class/${schoolClass.id}`}
+                  className="text-base font-semibold text-[color:var(--text-strong)] underline decoration-[color:var(--border)] underline-offset-2 hover:decoration-[color:var(--text-muted)]"
+                >
+                  {schoolClass.name}
+                </Link>
+                <p className="text-sm text-[color:var(--text-muted)]">{describe(schoolClass)}</p>
+                {/* Streams are links of their own: "Form 2 Blue" is the unit a
+                    class teacher works in, and making them open Form 2 and
+                    filter again would put the thing they came for one level
+                    too deep. */}
+                {schoolClass.streams && schoolClass.streams.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {schoolClass.streams.map((stream) => (
+                      <Link
+                        key={stream.id}
+                        href={`${basePath}/class/${schoolClass.id}?streamId=${stream.id}`}
+                        className="rounded-[var(--radius-md)] border border-[color:var(--border)] px-2 py-1 text-sm text-[color:var(--text-muted)] hover:bg-[color:var(--surface-muted)]"
+                      >
+                        {stream.name}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          {/* Rows on a phone. Separated by space rather than rules, and 44px
+              tall, which is the floor a thumb needs — `py-2` alone comes to
+              about 40, which is a near-miss rather than a miss. */}
+          <ul className="space-y-1 sm:hidden">
+            {matching.map((schoolClass) => (
+              <li key={schoolClass.id}>
+                <Link
+                  href={`${basePath}/class/${schoolClass.id}`}
+                  className="flex min-h-11 items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[color:var(--border-subtle)] bg-[color:var(--surface)] px-3 py-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-[color:var(--text-strong)] underline decoration-[color:var(--border)] underline-offset-2">
+                      {schoolClass.name}
+                    </span>
+                    <span className="acct-caption block truncate font-mono">
+                      {describe(schoolClass)}
+                    </span>
+                  </span>
+                  {/* Nothing else in the row says there is anywhere to go. */}
+                  <ChevronRight
+                    className="size-4 shrink-0 text-[color:var(--text-disabled)]"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

@@ -1,24 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Badge } from "@corelithzw/react";
 
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordList, type RecordListRow } from "@/components/records/record-list";
+import { RecordMark } from "@/components/records/record-mark";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  TableRowsSkeleton,
-} from "@/components/schools/common/states";
-import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   fetchSchoolsSubjects,
   type SchoolsSubjectRecord,
@@ -33,11 +33,28 @@ import type { StandardSubject } from "@/components/schools/subjects/standard-sub
  * The module grew three separate subject lists with two different create
  * dialogs between them, and none of the three could edit or retire a row. This
  * is the one that survives; the others now link here.
+ *
+ * ## Why it is a list and not a table
+ *
+ * Nobody scans a column of pass marks looking for an outlier. The catalogue is
+ * opened to find Combined Science and open it, which is what a list is for —
+ * and the table it used to be spent a header row and seven columns (Code,
+ * Name, Type, Pass mark, Classes, Status, verbs) saying what one row of text
+ * says: the mark, the name, the code and the word that tells a core subject
+ * from an elective. The two figures a subject carries are still there, on the
+ * right of the row, where a fact belongs when it is supporting rather than the
+ * thing being compared.
+ *
+ * "Core" and "Elective" are a category rather than a state, so they are words
+ * on the supporting line and not a coloured chip; "Retired" is a state and
+ * gets one. A green "Active" badge on every row of a catalogue that is almost
+ * entirely active is a column of noise.
  */
 export function SchoolsSubjectsContent() {
   const queryClient = useQueryClient();
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [standardOpen, setStandardOpen] = useState(false);
   const [editing, setEditing] = useState<SchoolsSubjectRecord | null>(null);
@@ -52,17 +69,17 @@ export function SchoolsSubjectsContent() {
     [subjectsQuery.data],
   );
 
-  const visible = useMemo(
-    () =>
-      subjects.filter((row) => {
-        if (typeFilter === "core" && !row.isCore) return false;
-        if (typeFilter === "elective" && row.isCore) return false;
-        if (statusFilter === "active" && !row.isActive) return false;
-        if (statusFilter === "retired" && row.isActive) return false;
-        return true;
-      }),
-    [subjects, typeFilter, statusFilter],
-  );
+  const visible = useMemo(() => {
+    const typed = search.trim().toLowerCase();
+    return subjects.filter((row) => {
+      if (typeFilter === "core" && !row.isCore) return false;
+      if (typeFilter === "elective" && row.isCore) return false;
+      if (statusFilter === "active" && !row.isActive) return false;
+      if (statusFilter === "retired" && row.isActive) return false;
+      if (typed && !`${row.name} ${row.code}`.toLowerCase().includes(typed)) return false;
+      return true;
+    });
+  }, [subjects, typeFilter, statusFilter, search]);
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["schools", "subjects"] });
@@ -135,99 +152,61 @@ export function SchoolsSubjectsContent() {
     onSuccess: invalidate,
   });
 
-  const columns = useMemo<ColumnDef<SchoolsSubjectRecord>[]>(
-    () => [
-      {
-        accessorKey: "code",
-        header: "Code",
-        cell: ({ row }) => (
-          <Link
-            href={`/management/master-data/schools/subjects/${row.original.id}`}
-            className="font-medium text-primary hover:underline"
-          >
-            {row.original.code}
-          </Link>
+  const rows = useMemo<RecordListRow[]>(
+    () =>
+      visible.map((subject) => ({
+        id: subject.id,
+        href: recordType("SUBJECT").href(subject.id),
+        leading: <RecordMark kind="subject" name={subject.name} size="sm" />,
+        title: subject.name,
+        // The code leads because it is the half that is unique — it is what a
+        // timetable slot and a mark sheet line name the subject by — and the
+        // word after it is what tells a compulsory subject from a choice.
+        subtitle: (
+          <>
+            <span className="font-mono">{subject.code}</span>
+            {" · "}
+            {subject.isCore ? "Core" : "Elective"}
+          </>
         ),
-      },
-      {
-        accessorKey: "name",
-        header: "Name",
-        cell: ({ row }) => (
-          <Link
-            href={`/management/master-data/schools/subjects/${row.original.id}`}
-            className="hover:underline"
-          >
-            {row.original.name}
-          </Link>
-        ),
-      },
-      {
-        id: "type",
-        header: "Type",
-        cell: ({ row }) => (
-          <Badge tone={row.original.isCore ? "brand" : "neutral"}>
-            {row.original.isCore ? "Core" : "Elective"}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: "passMark",
-        header: "Pass Mark",
-        cell: ({ row }) => <NumericCell>{row.original.passMark}</NumericCell>,
-      },
-      {
-        id: "classes",
-        header: "Classes",
-        cell: ({ row }) => (
-          <NumericCell>{row.original._count.classSubjects}</NumericCell>
-        ),
-      },
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => (
-          <Badge tone={row.original.isActive ? "success" : "neutral"}>
-            {row.original.isActive ? "Active" : "Inactive"}
-          </Badge>
-        ),
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
+        status: subject.isActive ? undefined : <Badge tone="neutral">Retired</Badge>,
+        facts: [
+          { label: "Pass mark", value: subject.passMark, mono: true },
+          { label: "Classes", value: subject._count.classSubjects, kind: "number" },
+        ],
+        actions: (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${subject.name}`}
             resource="schools.academics"
             verbs={[
               {
                 label: "Edit",
                 action: "edit",
                 onSelect: () => {
-                  setEditing(row.original);
+                  setEditing(subject);
                   setDialogOpen(true);
                 },
               },
-              row.original.isActive
+              subject.isActive
                 ? {
                     label: "Retire",
                     action: "edit" as const,
                     tone: "warning" as const,
                     loading: setTaught.isPending,
                     confirm: {
-                      title: `Retire ${row.original.name}?`,
+                      title: `Retire ${subject.name}?`,
                       description:
                         "Every mark already recorded against it stays. It stops appearing on new timetables and mark sheets.",
                       confirmLabel: "Retire the subject",
                     },
-                    onSelect: () =>
-                      setTaught.mutate({ id: row.original.id, isActive: false }),
+                    onSelect: () => setTaught.mutate({ id: subject.id, isActive: false }),
                   }
                 : {
                     label: "Teach again",
                     action: "edit" as const,
                     loading: setTaught.isPending,
-                    onSelect: () =>
-                      setTaught.mutate({ id: row.original.id, isActive: true }),
+                    onSelect: () => setTaught.mutate({ id: subject.id, isActive: true }),
                   },
               {
                 label: "Delete",
@@ -235,19 +214,18 @@ export function SchoolsSubjectsContent() {
                 tone: "danger",
                 loading: remove.isPending,
                 confirm: {
-                  title: `Delete ${row.original.name}?`,
+                  title: `Delete ${subject.name}?`,
                   description:
                     "The subject leaves the catalogue entirely. It is refused while any class still takes it — retire it instead.",
                   confirmLabel: "Delete the subject",
                 },
-                onSelect: () => remove.mutate(row.original.id),
+                onSelect: () => remove.mutate(subject.id),
               },
             ]}
           />
         ),
-      },
-    ],
-    [remove, setTaught],
+      })),
+    [visible, remove, setTaught],
   );
 
   const narrowed = [
@@ -259,19 +237,36 @@ export function SchoolsSubjectsContent() {
         : "",
   ].filter(Boolean);
 
+  const clearFilters = () => {
+    setTypeFilter("");
+    setStatusFilter("");
+    setSearch("");
+  };
+
   return (
     <div className="space-y-4">
+      {/* Counted off a list that is empty until the catalogue arrives, so
+          nothing here is a zero before it has been counted: "On the catalogue
+          0" for the half-second in between reads as a school that teaches
+          nothing. */}
       <PageBand
         chips={[
-          { label: "On the catalogue", value: subjects.length },
+          {
+            label: "On the catalogue",
+            value: subjectsQuery.isPending ? "—" : subjects.length,
+          },
           {
             label: "Currently taught",
-            value: subjects.filter((row) => row.isActive).length,
+            value: subjectsQuery.isPending
+              ? "—"
+              : subjects.filter((row) => row.isActive).length,
             tone: "success",
           },
           {
             label: "Core",
-            value: subjects.filter((row) => row.isCore).length,
+            value: subjectsQuery.isPending
+              ? "—"
+              : subjects.filter((row) => row.isCore).length,
             tone: "brand",
           },
         ]}
@@ -296,40 +291,43 @@ export function SchoolsSubjectsContent() {
         <SaveError what="The standard subjects" error={seed.error} />
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <FilterBar>
-          <FilterSelect
-            label="Subject type"
-            allLabel="Every subject"
-            value={typeFilter}
-            options={[
-              { value: "core", label: "Core" },
-              { value: "elective", label: "Elective" },
-            ]}
-            onChange={setTypeFilter}
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search name or code"
           />
-          <FilterSelect
-            label="Status"
-            allLabel="Taught or retired"
-            value={statusFilter}
-            options={[
-              { value: "active", label: "Currently taught" },
-              { value: "retired", label: "Retired" },
-            ]}
-            onChange={setStatusFilter}
-          />
-        </FilterBar>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Offered until the catalogue exists. Once a school has its
-              subjects, a second "add the standard ones" button is a way to
-              create twenty-two duplicates. */}
-          {subjects.length === 0 ? (
-            <CreateButton
-              resource="schools.academics"
-              label="Add the standard subjects"
-              onSelect={() => setStandardOpen(true)}
+        }
+        filterCount={activeFilterCount(typeFilter, statusFilter)}
+        filters={
+          <>
+            <FilterSelect
+              label="Subject type"
+              allLabel="Every subject"
+              value={typeFilter}
+              options={[
+                { value: "core", label: "Core" },
+                { value: "elective", label: "Elective" },
+              ]}
+              onChange={setTypeFilter}
             />
-          ) : null}
+            <FilterSelect
+              label="Status"
+              allLabel="Taught or retired"
+              value={statusFilter}
+              options={[
+                { value: "active", label: "Currently taught" },
+                { value: "retired", label: "Retired" },
+              ]}
+              onChange={setStatusFilter}
+            />
+          </>
+        }
+        count={
+          subjectsQuery.isLoading ? null : `${visible.length} of ${subjects.length}`
+        }
+        actions={
           <CreateButton
             resource="schools.academics"
             label="New subject"
@@ -338,70 +336,35 @@ export function SchoolsSubjectsContent() {
               setDialogOpen(true);
             }}
           />
-        </div>
-      </div>
+        }
+      />
 
       {subjectsQuery.isLoading ? (
-        <TableRowsSkeleton
-          headers={["Code", "Name", "Type", "Pass Mark", "Classes", "Status"]}
-          columns={[
-            { width: 110 },
-            {},
-            { width: 100, badge: true },
-            { width: 90, align: "right" },
-            { width: 90, align: "right" },
-            { width: 100, badge: true },
-          ]}
-          rows={8}
-        />
+        <ListRowsSkeleton rows={8} label="Reading the catalogue" />
       ) : subjects.length === 0 ? (
         <NothingYet
           title="Nothing on the catalogue yet"
           body="A subject is what the school teaches — Mathematics, English Language, Combined Science, Shona, Geography, History, Latin. Timetable slots, mark sheets and report cards all name one. Add the standard catalogue in one press, or enter your own."
+          /* The seeder is offered here and nowhere else. Once a school has
+             its subjects, a standing "add the standard ones" button beside
+             the rows is a way to create twenty-two duplicates. */
+          action={
+            <CreateButton
+              resource="schools.academics"
+              label="Add the standard subjects"
+              onSelect={() => setStandardOpen(true)}
+            />
+          }
         />
       ) : visible.length === 0 ? (
         <NothingMatched
           what="subjects"
           filters={narrowed}
-          onClear={() => {
-            setTypeFilter("");
-            setStatusFilter("");
-          }}
+          search={search}
+          onClear={clearFilters}
         />
       ) : (
-        <DataTable
-          data={visible}
-          columns={columns}
-          searchPlaceholder="Search subjects"
-          searchSubmitLabel="Search"
-          pagination={{ enabled: true }}
-          mobileListRenderer={({ rows }) => (
-            <MobileList>
-              {rows.length === 0 ? (
-                <MobileListEmpty>No subjects matched.</MobileListEmpty>
-              ) : (
-                rows.map(({ row }) => (
-                  <MobileList.Row
-                    key={row.id}
-                    title={row.name}
-                    subtitle={[
-                      row.code,
-                      row.isCore ? "Core" : "Elective",
-                      `Pass ${row.passMark}`,
-                      row.isActive ? null : "Retired",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    onClick={() => {
-                      window.location.href = `/management/master-data/schools/subjects/${row.id}`;
-                    }}
-                  />
-                ))
-              )}
-            </MobileList>
-          )}
-          emptyState={<NothingMatched what="subjects" />}
-        />
+        <RecordList rows={rows} />
       )}
 
       <AddStandardSubjectsDialog

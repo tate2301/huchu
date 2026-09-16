@@ -10,8 +10,8 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { StreamFormDialog, type StreamFormValues } from "@/components/schools/classes/stream-form-dialog";
 
@@ -127,37 +127,37 @@ export function ClassStreamsPanel({
           refusal names the stream — so it reads as itself, not as the panel. */}
       {remove.error ? <SaveError what="The stream" error={remove.error} /> : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          {streamsQuery.isPending
-            ? "Reading the streams…"
-            : streams.length === 0
-              ? "This class is not streamed."
-              : `${streams.length} stream${streams.length === 1 ? "" : "s"} in ${className}.`}
-        </p>
-        <CreateButton
-          resource="schools.academics"
-          label="Add a stream"
-          onSelect={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        />
-      </div>
+      {/* One row for the count, the search and the verb, the way every campus
+          register states them — rather than a sentence over here and a search
+          box over there. The sentence said "4 streams in Form 2", which is a
+          third phrasing of a figure the module writes as "4 of 7" everywhere
+          else, and it said "This class is not streamed" directly above an
+          empty state that says the same thing in a heading.
 
-      {/* The box appears only once there is enough to hunt through. Three
-          streams do not need finding. */}
-      {streams.length > 4 ? (
-        <TableControls
-          search={
+          The search box still appears only once there is enough to hunt
+          through: three streams do not need finding. */}
+      <TableControls
+        search={
+          streams.length > 4 ? (
             <TableSearch
               value={search}
               onChange={setSearch}
               placeholder="Find a stream"
             />
-          }
-        />
-      ) : null}
+          ) : undefined
+        }
+        count={streamsQuery.isPending ? null : `${visible.length} of ${streams.length}`}
+        actions={
+          <CreateButton
+            resource="schools.academics"
+            label="Add a stream"
+            onSelect={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+          />
+        }
+      />
 
       {streamsQuery.isPending ? (
         <TableRowsSkeleton
@@ -183,13 +183,15 @@ export function ClassStreamsPanel({
           onClear={() => setSearch("")}
         />
       ) : (
-        <ul className="divide-y divide-[color:var(--border-subtle)]">
+        /* Separated by space, not by rules — the rows stop reading as a ruled
+           ledger and there is one less line to cross per stream. */
+        <ul className="space-y-1">
           {visible.map((stream, index) => (
             <li
               key={stream.id}
               // The same 40ms cascade the skeleton left on, so the real rows
               // arrive where the placeholder bars were rather than snapping in.
-              className="campus-row-in flex flex-wrap items-center justify-between gap-3 py-3"
+              className="campus-row-in flex min-h-11 flex-wrap items-center justify-between gap-3 py-2"
               style={{ animationDelay: `${index * 40}ms` }}
             >
               <div className="min-w-0">
@@ -204,6 +206,8 @@ export function ClassStreamsPanel({
                 </p>
               </div>
               <RecordActions
+                layout="menu"
+                label={`Row actions for ${stream.name}`}
                 resource="schools.academics"
                 verbs={[
                   {

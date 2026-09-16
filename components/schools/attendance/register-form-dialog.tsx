@@ -17,6 +17,7 @@ import {
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
+import { formatSchoolDate } from "@/lib/schools/format";
 
 /**
  * Opening a register for a class, or moving one onto the right day.
@@ -180,7 +181,19 @@ export function RegisterFormDialog({
       ) : null}
 
       <div className="space-y-1.5">
-        <Label htmlFor="register-date">Date</Label>
+        {/* The label carries the date in the school's own words. A native
+            date field draws its value in whatever order the reader's browser
+            was set up with, so 06/03 is the third of June at one desk and the
+            sixth of March at the next — and a date of birth read the wrong way
+            round puts a child in the wrong year group. */}
+        <Label htmlFor="register-date">
+          Date
+          {values.attendanceDate ? (
+            <span className="ml-1.5 font-normal text-[color:var(--text-subtle)]">
+              {formatSchoolDate(values.attendanceDate)}
+            </span>
+          ) : null}
+        </Label>
         <Input
           id="register-date"
           type="date"

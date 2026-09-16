@@ -246,7 +246,10 @@ export async function GET(request: NextRequest) {
         { lastName: { contains: query.search, mode: "insensitive" } },
       ];
     }
-    if (query.status) where.status = query.status;
+    // A withdrawn pupil has left the school, so the roll does not show them
+    // unless it is asked to. The record stays reachable by id — the invoices
+    // and marks behind it still have to make sense.
+    where.status = query.status ?? { not: "WITHDRAWN" };
     if (query.classId) where.currentClassId = query.classId;
     if (query.streamId) where.currentStreamId = query.streamId;
     if (query.isBoarding !== undefined) where.isBoarding = query.isBoarding;

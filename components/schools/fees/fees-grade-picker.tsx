@@ -10,10 +10,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { LoadError, NothingMatched, NothingYet, StatsSkeleton } from "@/components/schools/common/states";
+import {
+  ListRowsSkeleton,
+  LoadError,
+  NothingLeftToDo,
+  NothingMatched,
+  NothingYet,
+  StatsSkeleton,
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { formatSchoolMoney } from "@/lib/schools/format";
@@ -135,6 +142,7 @@ export function FeesGradePicker() {
     );
   }
 
+  const feesPending = feesQuery.isPending;
   const totals = feesQuery.data?.totals;
   const ageing = feesQuery.data?.ageing;
   const overdue = feesQuery.data?.longestOverdue ?? [];
@@ -195,25 +203,33 @@ export function FeesGradePicker() {
 
   return (
     <div className="space-y-4">
+      {/* Nothing but dashes until the figures are in. A band that reads
+          "$ 0.00 outstanding" or "0 overdue" for the frame before the totals
+          land is a figure a bursar can act on, and it is wrong. `isPending`
+          rather than `isLoading`, because a refetch behind a page already on
+          screen is not a reason to blank it. */}
       <PageBand
         chips={[
-          { label: "Billed", value: formatSchoolMoney(totals?.billed ?? 0, currency) },
+          {
+            label: "Billed",
+            value: feesPending ? "—" : formatSchoolMoney(totals?.billed ?? 0, currency),
+          },
           {
             label: "Collected",
-            value: formatSchoolMoney(totals?.collected ?? 0, currency),
+            value: feesPending ? "—" : formatSchoolMoney(totals?.collected ?? 0, currency),
             tone: "success",
           },
           {
             label: "Outstanding",
-            value: formatSchoolMoney(totals?.outstanding ?? 0, currency),
+            value: feesPending ? "—" : formatSchoolMoney(totals?.outstanding ?? 0, currency),
             tone: "danger",
           },
-          { label: "Year groups", value: yearGroups },
-          { label: "Classes", value: classes },
-          { label: "Students", value: students },
+          { label: "Year groups", value: feesPending ? "—" : yearGroups },
+          { label: "Classes", value: classesQuery.isPending ? "—" : classes },
+          { label: "Students", value: feesPending ? "—" : students },
           {
             label: "Overdue",
-            value: ageing?.accounts ?? 0,
+            value: feesPending ? "—" : (ageing?.accounts ?? 0),
             tone: "danger",
             href: "/schools/finance/arrears",
           },
@@ -336,14 +352,25 @@ export function FeesGradePicker() {
                       className="cursor-pointer border-b border-[color:var(--border-subtle)] hover:bg-[color:var(--surface-muted)]"
                       onClick={() => router.push(`/schools/finance/class/${row.id}`)}
                     >
+                      {/* The same identity cell a year group gets everywhere
+                          else in the module — its tile, its name, its code
+                          underneath — rather than a bare link that happens to
+                          be bold. It points at this page's own fee view rather
+                          than at the class record, so it stays an ordinary
+                          link.
+
+                          No stop on the cell: the link and the row point at the
+                          same href, so there is nothing for the row handler to
+                          do twice, and a stop across the whole cell would make
+                          its padding a dead patch where the rest of the row
+                          navigates. */}
                       <td className="px-3 py-2">
-                        <Link
+                        <RecordNameCell
+                          kind="class"
                           href={`/schools/finance/class/${row.id}`}
-                          className="font-medium hover:underline"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {row.name}
-                        </Link>
+                          name={row.name}
+                          reference={row.code}
+                        />
                       </td>
                       <td className="px-3 py-2">
                         <NumericCell>{row.students}</NumericCell>
@@ -435,9 +462,11 @@ export function FeesGradePicker() {
           }
         >
           {feesQuery.isPending ? (
-            <StatsSkeleton count={3} />
+            <ListRowsSkeleton rows={5} label="Working out who is behind" />
           ) : overdue.length === 0 ? (
-            <NothingYet
+            // Good news, so no verb on it: there is nothing to create here,
+            // and offering one would answer a question nobody asked.
+            <NothingLeftToDo
               title="Nothing is late"
               body="Every bill that has fallen due has been settled."
             />
@@ -445,15 +474,15 @@ export function FeesGradePicker() {
             <ul className="divide-y divide-[color:var(--border-subtle)]">
               {overdue.map((person) => (
                 <li key={person.id} className="flex items-center gap-3 py-2">
-                  <PersonAvatar firstName={person.firstName} lastName={person.lastName} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {person.firstName} {person.lastName}
-                    </div>
-                    <div className="truncate text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {person.streamName ?? person.className ?? "No year group"}
-                    </div>
-                  </div>
+                  <span className="min-w-0 flex-1">
+                    <PersonCell
+                      kind="student"
+                      href={`/schools/students/${person.id}`}
+                      firstName={person.firstName}
+                      lastName={person.lastName}
+                      reference={person.streamName ?? person.className ?? "No year group"}
+                    />
+                  </span>
                   <span className="font-[family-name:var(--font-mono)] text-sm font-semibold tabular-nums">
                     {formatSchoolMoney(person.amount, currency)}
                   </span>

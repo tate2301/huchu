@@ -11,7 +11,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { whoCan, type SchoolResource } from "@/lib/schools/access";
 import { fetchJson } from "@/lib/api-client";

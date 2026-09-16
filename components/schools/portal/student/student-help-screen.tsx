@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, HelpCircle, Info } from "@/lib/icons";
+import { ChevronRight, HelpCircle, Mail, Phone } from "@/lib/icons";
+import { useStudentPortal } from "./student-portal-context";
 
 /**
  * Help, written for the reader.
@@ -46,6 +47,11 @@ const QUESTIONS = [
 ] as const;
 
 export function StudentHelpScreen() {
+  const { school } = useStudentPortal();
+  // A number with spaces in it dials; one with spaces in the href does not.
+  const phone = school?.phone?.trim() || null;
+  const email = school?.email?.trim() || null;
+
   return (
     <div className="flex flex-col">
       <div className="sp-psh">How to use the app</div>
@@ -65,21 +71,44 @@ export function StudentHelpScreen() {
         </details>
       ))}
 
-      <div className="sp-psh">Talk to someone</div>
-      <div className="sp-group">
-        <div className="sp-setting-row">
-          <span className="sp-sr-ic">
-            <Info className="size-4" aria-hidden />
-          </span>
-          <span className="sp-sr-body">
-            <span className="sp-sr-nm block">The school office</span>
-            <span className="sp-sr-sb block">
-              Anything about your class, your marks or your fees is theirs to
-              change — this app only shows you what they have recorded.
-            </span>
-          </span>
-        </div>
-      </div>
+      {phone || email ? (
+        <>
+          <div className="sp-psh">The school office</div>
+          <div className="sp-group">
+            {phone ? (
+              <a
+                href={`tel:${phone.replace(/\s+/g, "")}`}
+                className="sp-setting-row"
+              >
+                <span className="sp-sr-ic">
+                  <Phone className="size-4" aria-hidden />
+                </span>
+                <span className="sp-sr-body">
+                  <span className="sp-sr-nm block">Ring them</span>
+                  <span className="sp-sr-sb block">{phone}</span>
+                </span>
+                <span className="sp-sr-chev">
+                  <ChevronRight className="size-4" aria-hidden />
+                </span>
+              </a>
+            ) : null}
+            {email ? (
+              <a href={`mailto:${email}`} className="sp-setting-row">
+                <span className="sp-sr-ic">
+                  <Mail className="size-4" aria-hidden />
+                </span>
+                <span className="sp-sr-body">
+                  <span className="sp-sr-nm block">Email them</span>
+                  <span className="sp-sr-sb block truncate">{email}</span>
+                </span>
+                <span className="sp-sr-chev">
+                  <ChevronRight className="size-4" aria-hidden />
+                </span>
+              </a>
+            ) : null}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

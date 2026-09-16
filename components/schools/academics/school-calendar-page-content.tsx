@@ -29,6 +29,16 @@ export function SchoolCalendarPageContent() {
   });
 
   const chips = useMemo(() => {
+    // Both figures are counted off a list that is empty until the calendar
+    // arrives, and "Closures ahead 0" is exactly the answer somebody opens
+    // this page hoping for. It has to be counted before it is said.
+    if (calendarQuery.isPending) {
+      return [
+        { label: "Still to come", value: "—" },
+        { label: "Closures ahead", value: "—" },
+      ];
+    }
+
     const events = calendarQuery.data?.events ?? [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -47,7 +57,7 @@ export function SchoolCalendarPageContent() {
         tone: closures.length > 0 ? ("warn" as const) : ("neutral" as const),
       },
     ];
-  }, [calendarQuery.data]);
+  }, [calendarQuery.data, calendarQuery.isPending]);
 
   return (
     <>

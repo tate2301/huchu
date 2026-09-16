@@ -57,10 +57,16 @@ const { POST: issueInvoice } = await import("./invoices/[id]/issue/route");
 const { POST: writeOffInvoice } = await import("./invoices/[id]/write-off/route");
 const { POST: bulkGenerate } = await import("./invoices/bulk-generate/route");
 const { POST: createWaiver } = await import("./waivers/route");
+const { PATCH: patchWaiver } = await import("./waivers/[id]/route");
 const { POST: applyWaiver } = await import("./waivers/[id]/apply/route");
+const { POST: createStructure } = await import("./structures/route");
 
 let companyId: string;
 let actorId: string;
+/** A second bursar, so a waiver can be approved by someone who did not raise it. */
+let approverId: string;
+/** The head. A tenant administrator may apply a waiver they approved themselves. */
+let adminId: string;
 let termId: string;
 let classId: string;
 let studentId: string;
@@ -74,6 +80,36 @@ function post(url: string, body: unknown) {
     body: JSON.stringify(body),
     headers: { "content-type": "application/json" },
   });
+}
+
+function patch(url: string, body: unknown) {
+  return new NextRequest(`http://school.test${url}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    headers: { "content-type": "application/json" },
+  });
+}
+
+/** Who the next call is made by. Segregation of duties turns on this differing per call. */
+function asUser(id: string, role: string) {
+  validateSessionMock.mockResolvedValue({
+    session: { user: { id, companyId, role } },
+  });
+}
+
+/**
+ * Sign a draft waiver off as somebody, then hand the session back to the
+ * bursar the suite otherwise runs as. Approving is `PATCH /waivers/[id]`,
+ * which is a different call from applying it, and that separation is the point.
+ */
+async function approveWaiverAs(waiverId: string, byId: string, role = "BURSAR") {
+  asUser(byId, role);
+  const response = await patchWaiver(
+    patch(`/api/v2/schools/fees/waivers/${waiverId}`, { status: "APPROVED" }),
+    { params: Promise.resolve({ id: waiverId }) },
+  );
+  expect(response.status).toBe(200);
+  asUser(actorId, "BURSAR");
 }
 
 async function auditEvents() {
@@ -154,6 +190,29 @@ beforeAll(async () => {
     select: { id: true },
   });
   actorId = actor.id;
+
+  const [approver, admin] = await Promise.all([
+    prisma.user.create({
+      data: {
+        companyId,
+        email: `second-bursar-${stamp}@audit-school.test`,
+        name: "Second bursar",
+        role: "BURSAR",
+      },
+      select: { id: true },
+    }),
+    prisma.user.create({
+      data: {
+        companyId,
+        email: `head-${stamp}@audit-school.test`,
+        name: "Head",
+        role: "SCHOOL_ADMIN",
+      },
+      select: { id: true },
+    }),
+  ]);
+  approverId = approver.id;
+  adminId = admin.id;
 
   const year = await prisma.schoolAcademicYear.create({
     data: {
@@ -429,7 +488,8 @@ describe("S-2.8 — a write-off leaves a record", () => {
 });
 
 describe("S-2.8 — a waiver leaves a record", () => {
-  async function waiver(status: "DRAFT" | "APPROVED", invoiceId?: string) {
+  /** A draft waiver, raised by the bursar the suite signs in as by default. */
+  async function waiver(invoiceId?: string) {
     const response = await createWaiver(
       post("/api/v2/schools/fees/waivers", {
         studentId,
@@ -438,7 +498,6 @@ describe("S-2.8 — a waiver leaves a record", () => {
         waiverType: "SCHOLARSHIP",
         amount: 120,
         reason: "Bursary awarded by the board",
-        status,
       }),
     );
     expect(response.status).toBe(201);
@@ -446,7 +505,7 @@ describe("S-2.8 — a waiver leaves a record", () => {
   }
 
   it("writes a created event for a draft, and no approval", async () => {
-    await waiver("DRAFT");
+    await waiver();
 
     const event = await eventOfType("schools.fee.waiver.created");
     expect(event.entityType).toBe("SchoolFeeWaiver");
@@ -461,15 +520,52 @@ describe("S-2.8 — a waiver leaves a record", () => {
     expect(types).not.toContain("schools.fee.waiver.approved");
   });
 
-  it("writes an approval when the same call grants one", async () => {
-    const waiverId = await waiver("APPROVED");
+  it("cannot be created already approved", async () => {
+    // The create route used to accept a status and stamp the caller as the
+    // approver in the same call, which is the whole of the control gap. The
+    // field is gone, so a caller still sending it gets a draft like everybody
+    // else and nobody has authorised anything.
+    const response = await createWaiver(
+      post("/api/v2/schools/fees/waivers", {
+        studentId,
+        termId,
+        waiverType: "SCHOLARSHIP",
+        amount: 120,
+        status: "APPROVED",
+      }),
+    );
+    expect(response.status).toBe(201);
+
+    const created = await prisma.schoolFeeWaiver.findFirstOrThrow({
+      where: { companyId },
+      select: { status: true, approvedById: true, approvedAt: true, appliedById: true },
+    });
+    expect(created.status).toBe("DRAFT");
+    expect(created.approvedById).toBeNull();
+    expect(created.approvedAt).toBeNull();
+    expect(created.appliedById).toBeNull();
+
+    const types = (await auditEvents()).map((row) => row.eventType);
+    expect(types).toEqual(["schools.fee.waiver.created"]);
+  });
+
+  it("writes an approval when a second person signs it off", async () => {
+    const waiverId = await waiver();
+    await approveWaiverAs(waiverId, approverId);
 
     const approved = await eventOfType("schools.fee.waiver.approved");
     expect(approved.entityId).toBe(waiverId);
-    expect(approved.actor).toBe(actorId);
-    expect(approved.payload.amount).toBe(120);
-    expect(approved.payload.currency).toBe("USD");
-    expect(approved.payload.approvedAt).toBeTruthy();
+    expect(approved.actor).toBe(approverId);
+    expect(approved.payload.statusBefore).toBe("DRAFT");
+    expect(approved.payload.statusAfter).toBe("APPROVED");
+
+    const row = await prisma.schoolFeeWaiver.findUniqueOrThrow({
+      where: { id: waiverId },
+      select: { approvedById: true, approvedAt: true, createdById: true },
+    });
+    expect(row.approvedById).toBe(approverId);
+    expect(row.approvedAt).toBeTruthy();
+    expect(row.createdById).toBe(actorId);
 
     // Both halves of what happened, in order.
     const types = (await auditEvents()).map((row) => row.eventType);
@@ -481,7 +577,8 @@ describe("S-2.8 — a waiver leaves a record", () => {
 
   it("writes an event when the waiver comes off a bill", async () => {
     const invoiceId = await issuedInvoice(400);
-    const waiverId = await waiver("APPROVED", invoiceId);
+    const waiverId = await waiver(invoiceId);
+    await approveWaiverAs(waiverId, approverId);
     await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
 
     const response = await applyWaiver(
@@ -504,7 +601,8 @@ describe("S-2.8 — a waiver leaves a record", () => {
 
   it("keeps no record of a waiver application that rolled back", async () => {
     const invoiceId = await issuedInvoice(400);
-    const waiverId = await waiver("APPROVED", invoiceId);
+    const waiverId = await waiver(invoiceId);
+    await approveWaiverAs(waiverId, approverId);
     await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
 
     auditFailure.after = true;
@@ -531,6 +629,208 @@ describe("S-2.8 — a waiver leaves a record", () => {
   });
 });
 
+// =============================================================================
+// The person who grants a discount is not the person who signs it off
+// =============================================================================
+
+describe("segregation of duties on waivers", () => {
+  async function draftWaiver(invoiceId: string) {
+    const response = await createWaiver(
+      post("/api/v2/schools/fees/waivers", {
+        studentId,
+        termId,
+        invoiceId,
+        waiverType: "SCHOLARSHIP",
+        amount: 120,
+      }),
+    );
+    expect(response.status).toBe(201);
+    return (await response.json()).id as string;
+  }
+
+  function apply(waiverId: string) {
+    return applyWaiver(post(`/api/v2/schools/fees/waivers/${waiverId}/apply`, {}), {
+      params: Promise.resolve({ id: waiverId }),
+    });
+  }
+
+  it("refuses to apply a waiver nobody has approved", async () => {
+    const invoiceId = await issuedInvoice(400);
+    const waiverId = await draftWaiver(invoiceId);
+
+    const response = await apply(waiverId);
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/not been approved/i);
+
+    // The refusal happens before any write: the waiver is still a draft and
+    // the family still owes the whole bill.
+    const waiverRow = await prisma.schoolFeeWaiver.findUniqueOrThrow({
+      where: { id: waiverId },
+      select: { status: true, approvedById: true, appliedById: true },
+    });
+    expect(waiverRow.status).toBe("DRAFT");
+    expect(waiverRow.approvedById).toBeNull();
+    expect(waiverRow.appliedById).toBeNull();
+    const invoice = await prisma.schoolFeeInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      select: { balanceAmount: true },
+    });
+    expect(invoice.balanceAmount.toFixed(2)).toBe("400.00");
+  });
+
+  it("refuses a bursar applying a waiver they approved themselves", async () => {
+    const invoiceId = await issuedInvoice(400);
+    const waiverId = await draftWaiver(invoiceId);
+    await approveWaiverAs(waiverId, actorId);
+
+    const response = await apply(waiverId);
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/approved by the person who raised it/i);
+
+    const invoice = await prisma.schoolFeeInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      select: { balanceAmount: true },
+    });
+    expect(invoice.balanceAmount.toFixed(2)).toBe("400.00");
+  });
+
+  it("lets a school administrator apply a waiver they approved themselves", async () => {
+    const invoiceId = await issuedInvoice(400);
+    // Raised and approved by the head, who in a small office is both.
+    asUser(adminId, "SCHOOL_ADMIN");
+    const created = await createWaiver(
+      post("/api/v2/schools/fees/waivers", {
+        studentId,
+        termId,
+        invoiceId,
+        waiverType: "HARDSHIP",
+        amount: 120,
+      }),
+    );
+    expect(created.status).toBe(201);
+    const waiverId = (await created.json()).id as string;
+    await approveWaiverAs(waiverId, adminId, "SCHOOL_ADMIN");
+    // The head applies it as well, which is allowed only for an administrator.
+    asUser(adminId, "SCHOOL_ADMIN");
+
+    const response = await apply(waiverId);
+    expect(response.status).toBe(200);
+
+    const invoice = await prisma.schoolFeeInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      select: { balanceAmount: true },
+    });
+    expect(invoice.balanceAmount.toFixed(2)).toBe("280.00");
+  });
+
+  it("applies cleanly when a second bursar approved it", async () => {
+    const invoiceId = await issuedInvoice(400);
+    const waiverId = await draftWaiver(invoiceId);
+    await approveWaiverAs(waiverId, approverId);
+
+    const response = await apply(waiverId);
+    expect(response.status).toBe(200);
+
+    const waiverRow = await prisma.schoolFeeWaiver.findUniqueOrThrow({
+      where: { id: waiverId },
+      select: { status: true, approvedById: true, appliedById: true },
+    });
+    expect(waiverRow.status).toBe("APPLIED");
+    // The approver is the one recorded, not whoever applied it.
+    expect(waiverRow.approvedById).toBe(approverId);
+    expect(waiverRow.appliedById).toBe(actorId);
+  });
+});
+
+// =============================================================================
+// A draft bill is not a bill yet
+// =============================================================================
+
+describe("draft invoices take no relief", () => {
+  it("refuses to apply a waiver to a draft invoice", async () => {
+    const invoiceId = await raiseInvoice(400);
+    const created = await createWaiver(
+      post("/api/v2/schools/fees/waivers", {
+        studentId,
+        termId,
+        invoiceId,
+        waiverType: "DISCOUNT",
+        amount: 100,
+      }),
+    );
+    expect(created.status).toBe(201);
+    const waiverId = (await created.json()).id as string;
+    await approveWaiverAs(waiverId, approverId);
+
+    const response = await applyWaiver(
+      post(`/api/v2/schools/fees/waivers/${waiverId}/apply`, {}),
+      { params: Promise.resolve({ id: waiverId }) },
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/issue it before/i);
+
+    const invoice = await prisma.schoolFeeInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      select: { status: true, waivedAmount: true },
+    });
+    expect(invoice.status).toBe("DRAFT");
+    expect(invoice.waivedAmount.toFixed(2)).toBe("0.00");
+  });
+
+  it("refuses to write off a draft invoice, and says to discard it instead", async () => {
+    const invoiceId = await raiseInvoice(400);
+
+    const response = await writeOffInvoice(
+      post(`/api/v2/schools/fees/invoices/${invoiceId}/write-off`, {
+        reason: "Family emigrated",
+      }),
+      { params: Promise.resolve({ id: invoiceId }) },
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/discard it instead/i);
+
+    const invoice = await prisma.schoolFeeInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      select: { status: true },
+    });
+    expect(invoice.status).toBe("DRAFT");
+  });
+});
+
+// =============================================================================
+// The one structure verb that said nothing
+// =============================================================================
+
+describe("creating a fee structure leaves a record", () => {
+  it("names who wrote the sheet of amounts, and what it totals", async () => {
+    const response = await createStructure(
+      post("/api/v2/schools/fees/structures", {
+        name: `Form 1 Term 3 ${stamp}`,
+        termId,
+        classId,
+        currency: "USD",
+        lines: [
+          { feeCode: "TUITION", description: "Tuition", amount: 300 },
+          { feeCode: "LEVY", description: "Development levy", amount: 50 },
+        ],
+      }),
+    );
+    expect(response.status).toBe(201);
+    const structureId = (await response.json()).id as string;
+
+    const event = await eventOfType("schools.fee.structure.created");
+    expect(event.actor).toBe(actorId);
+    expect(event.entityType).toBe("SchoolFeeStructure");
+    expect(event.entityId).toBe(structureId);
+    expect(event.payload.termId).toBe(termId);
+    expect(event.payload.classId).toBe(classId);
+    expect(event.payload.status).toBe("DRAFT");
+    expect(event.payload.lineCount).toBe(2);
+    expect(event.payload.totalAmount).toBe(350);
+    expect(typeof event.payload.totalAmount).toBe("number");
+  });
+});
+
 describe("S-2.8 — the chain holds across the whole fee surface", () => {
   it("chains every fee event it writes to the one before it", async () => {
     const invoiceId = await issuedInvoice(400);
@@ -541,9 +841,9 @@ describe("S-2.8 — the chain holds across the whole fee surface", () => {
         invoiceId,
         waiverType: "HARDSHIP",
         amount: 100,
-        status: "APPROVED",
       }),
     ).then(async (response) => (await response.json()).id as string);
+    await approveWaiverAs(waiverId, approverId);
     await applyWaiver(post(`/api/v2/schools/fees/waivers/${waiverId}/apply`, {}), {
       params: Promise.resolve({ id: waiverId }),
     });
@@ -563,7 +863,15 @@ describe("S-2.8 — the chain holds across the whole fee surface", () => {
       "schools.fee.waiver.applied",
       "schools.fee.invoice.written-off",
     ]);
-    expect(events.every((event) => event.actor === actorId)).toBe(true);
+    // Every row but the approval is the bursar's; the approval is the second
+    // person's, which is the point of it.
+    expect(
+      events.every((event) =>
+        event.eventType === "schools.fee.waiver.approved"
+          ? event.actor === approverId
+          : event.actor === actorId,
+      ),
+    ).toBe(true);
     // Everything after the first names its predecessor.
     expect(events.slice(1).every((event) => Boolean(event.prevEventHash))).toBe(true);
   });

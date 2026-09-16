@@ -90,7 +90,12 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const denied = schoolPermissionDenial(session, "schools.students", "edit");
+    // Opening, booking and releasing a slot are all one grant, `book-meeting`.
+    // They were on `schools.students` edit, which meant a teacher could not put
+    // their own parents' evening up without also holding the registrar's power
+    // to rewrite a pupil record. Arranging a conversation is not editing a
+    // pupil.
+    const denied = schoolPermissionDenial(session, "schools.students", "book-meeting");
     if (denied) return errorResponse(denied, 403);
     const companyId = session.user.companyId;
 

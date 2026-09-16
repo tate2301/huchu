@@ -1,51 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { EmptyState } from "@corelithzw/react";
 import {
-  BarChart3,
+  NothingLeftToDo,
+  NothingYet,
+} from "@/components/records/states";
+import {
+  AlertTriangle,
   Bell,
   ChevronRight,
+  Clock,
   MapPin,
   MedusaBookOpenIcon,
-  ListBullets,
 } from "@/lib/icons";
+import { formatSchoolMoney } from "@/lib/schools/format";
 import { useStudentPortal } from "./student-portal-context";
+import { subjectAccentClass } from "./student-subject-accent";
 
 /**
- * The demo's "Quick links" grid: where the rest of the app lives, since only
- * four things get a bottom tab.
+ * "Due today", "2 days late" — the sentence a pupil reads before the title.
+ *
+ * The days are the server's count, as they are on the homework screen: a phone
+ * with the wrong date would otherwise disagree with the teacher about whether
+ * the work is late.
  */
-const QUICK_LINKS = [
-  {
-    href: "/portal/student/homework",
-    label: "Homework",
-    value: "See all",
-    body: "What is set and what you handed in",
-    icon: ListBullets,
-  },
-  {
-    href: "/portal/student/library",
-    label: "Library",
-    value: "Books out",
-    body: "Borrow a book, or see what you have",
-    icon: MedusaBookOpenIcon,
-  },
-  {
-    href: "/portal/student/goals",
-    label: "My goals",
-    value: "Your targets",
-    body: "What you are aiming for each subject",
-    icon: BarChart3,
-  },
-  {
-    href: "/portal/student/notifications",
-    label: "Messages",
-    value: "From school",
-    body: "School news · marks · homework",
-    icon: Bell,
-  },
-];
+function deadline(days: number | null) {
+  if (days === null) return "No date to hand it in by";
+  if (days < 0) {
+    const late = Math.abs(days);
+    return `${late} ${late === 1 ? "day" : "days"} late`;
+  }
+  if (days === 0) return "Due today";
+  if (days === 1) return "Due tomorrow";
+  return `Due in ${days} days`;
+}
 
 function nowMinute() {
   const now = new Date();
@@ -53,23 +41,24 @@ function nowMinute() {
 }
 
 /**
- * A pupil's home screen: what is happening now, and what is next.
+ * A pupil's home screen: what is due, what is next, and how it is going.
  *
- * The order is the prototype's — greeting, next class, this week's numbers,
- * then the quick links — because the day is what a pupil opens the app to check
- * between lessons. Everything else on the phone is one tap from here, which is
- * why only four things earn a bottom tab: a row of eight is a row nobody reads.
+ * What is due comes first. A child opens this between lessons to find out what
+ * they owe somebody, not to be told what period it is — the period is on the
+ * bell and on the wall, and the essay due at two o'clock is not. The next class
+ * follows, then the numbers, then the two screens that are not tabs.
  *
- * The demo also carries a week-at-a-glance strip and an eight-test sparkline.
- * Both need numbers this screen is not given — the layout hands down today's
- * periods and nothing else — so they are left out rather than invented.
+ * Every tile carries a figure. The counts ride down with the pupil's own record
+ * from `student-day-loader.ts`, so the whole screen paints at once rather than
+ * filling in four tiles from four requests while the reader watches.
  */
 export function StudentHomeScreen() {
-  const { student, term, periods } = useStudentPortal();
+  const { student, term, periods, homework, latestMark, library, unread } =
+    useStudentPortal();
 
   if (!student) {
     return (
-      <EmptyState
+      <NothingYet
         title="This account is not linked to a pupil"
         body="Ask the school office to link your sign-in to your student record. Until they do, there is nothing here to show you."
       />
@@ -78,10 +67,6 @@ export function StudentHomeScreen() {
 
   const minute = nowMinute();
   const lessons = periods.filter((period) => period.lesson);
-  const current =
-    periods.find(
-      (period) => minute >= period.startMinute && minute < period.endMinute,
-    ) ?? null;
   const next = periods.find(
     (period) => period.startMinute > minute && period.lesson !== null,
   );
@@ -96,6 +81,50 @@ export function StudentHomeScreen() {
           .filter(Boolean)
           .join(" · ") || "No year group yet"}
       </div>
+
+      <div className="sp-psh">
+        {/* The rows below show three; the count says how many there are. */}
+        Due soon · {homework.due}
+        {homework.overdue > 0 ? ` · ${homework.overdue} late` : ""}
+        <Link href="/portal/student/homework" className="sp-psh-link">
+          All homework
+        </Link>
+      </div>
+      {homework.soon.length === 0 ? (
+        <NothingLeftToDo
+          title="Nothing to hand in"
+          body="Everything your teachers have set is in. New homework turns up here as soon as it is given out."
+        />
+      ) : (
+        <div className="sp-list">
+          {homework.soon.map((row) => (
+            <Link
+              key={row.id}
+              href="/portal/student/homework"
+              className="sp-list-row"
+            >
+              <span
+                className={`sp-ic-tile ${subjectAccentClass(row.subjectName)}`}
+              >
+                {row.isOverdue ? (
+                  <AlertTriangle className="size-4" aria-hidden />
+                ) : (
+                  <Clock className="size-4" aria-hidden />
+                )}
+              </span>
+              <span className="block min-w-0">
+                <span className="sp-lr-nm block truncate">{row.title}</span>
+                <span className="sp-lr-sb block truncate">
+                  {row.subjectName} · {deadline(row.dueInDays)}
+                </span>
+              </span>
+              <span className="sp-lr-chev">
+                <ChevronRight className="size-4" aria-hidden />
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="sp-psh">
         Your next class
@@ -137,7 +166,7 @@ export function StudentHomeScreen() {
           </span>
         </Link>
       ) : (
-        <EmptyState
+        <NothingLeftToDo
           title="Nothing left today"
           body={
             lessons.length > 0
@@ -148,7 +177,7 @@ export function StudentHomeScreen() {
       )}
 
       <div className="sp-psh">
-        This week
+        How it is going
         <Link href="/portal/student/timetable" className="sp-psh-link">
           Whole week
         </Link>
@@ -163,33 +192,51 @@ export function StudentHomeScreen() {
               : `${periods.length} periods on your day`}
           </span>
         </Link>
-        <Link href="/portal/student/timetable" className="sp-kpi brand">
-          <span className="sp-kpi-l block">Right now</span>
-          <span
-            className={`sp-kpi-v block truncate${current?.lesson ? " sm" : ""}`}
-          >
-            {current?.lesson?.subjectName ?? (current ? "Free" : "—")}
+        {latestMark ? (
+          <Link href="/portal/student/marks" className="sp-kpi brand">
+            <span className="sp-kpi-l block">Latest mark</span>
+            <span className="sp-kpi-v block">
+              {latestMark.score}
+              {latestMark.delta === null ? null : (
+                <span
+                  className={`sp-kpi-delta${latestMark.delta < 0 ? " down" : ""}`}
+                >
+                  {latestMark.delta > 0 ? "+" : ""}
+                  {latestMark.delta}
+                </span>
+              )}
+            </span>
+            <span className="sp-kpi-sb block truncate">
+              {latestMark.subject}
+            </span>
+          </Link>
+        ) : null}
+        <Link href="/portal/student/library" className="sp-kpi">
+          <span className="sp-kpi-l flex items-center gap-1.5">
+            <MedusaBookOpenIcon className="size-3.5" aria-hidden />
+            Books out
           </span>
+          <span className="sp-kpi-v block">{library.out}</span>
           <span className="sp-kpi-sb block">
-            {current
-              ? `${current.startsAt} – ${current.endsAt}`
-              : "No lesson at the moment"}
+            {library.fines > 0
+              ? `${formatSchoolMoney(library.fines)} to pay`
+              : library.overdue > 0
+                ? `${library.overdue} to bring back`
+                : "Nothing to bring back"}
           </span>
         </Link>
-      </div>
-
-      <div className="sp-psh">Quick links</div>
-      <div className="sp-kpi-row">
-        {QUICK_LINKS.map((item) => (
-          <Link key={item.href} href={item.href} className="sp-kpi">
-            <span className="sp-kpi-l flex items-center gap-1.5">
-              <item.icon className="size-3.5" aria-hidden />
-              {item.label}
-            </span>
-            <span className="sp-kpi-v sm block">{item.value}</span>
-            <span className="sp-kpi-sb block">{item.body}</span>
-          </Link>
-        ))}
+        <Link href="/portal/student/notifications" className="sp-kpi">
+          <span className="sp-kpi-l flex items-center gap-1.5">
+            <Bell className="size-3.5" aria-hidden />
+            New messages
+          </span>
+          <span className="sp-kpi-v block">{unread}</span>
+          <span className="sp-kpi-sb block">
+            {unread === 0
+              ? "You are caught up"
+              : "School news · marks · homework"}
+          </span>
+        </Link>
       </div>
     </div>
   );

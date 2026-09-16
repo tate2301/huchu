@@ -1,9 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { Alert } from "@corelithzw/react";
-import { Bell, ChevronRight, Lock, Mail } from "@/lib/icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@corelithzw/react";
+import { SaveError } from "@/components/records/states";
+import {
+  fetchNotificationPreferences,
+  updateNotificationPreferences,
+  type UserNotificationPreferences,
+} from "@/lib/api";
+import { Bell, ChatCircle, ChevronRight, Mail } from "@/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
+
+const PREFERENCES_KEY = ["notifications", "preferences"] as const;
 
 /**
  * Settings, honestly.
@@ -13,19 +22,36 @@ import { useStudentPortal } from "./student-portal-context";
  * that is the shape a phone's settings screen has and a pupil already knows how
  * to read it.
  *
- * What is *not* here is three of the prototype's controls: a theme switch, a
- * notification cadence and a PIN. Two of the three have nowhere to be stored yet
- * — there is no per-pupil preference table and portal sign-in is a password
- * rather than a PIN — so they are named as not built rather than rendered as
- * switches that forget what you told them. A switch that silently does nothing
- * is worse than no switch, because it costs the reader their trust in the ones
- * that work.
+ * Only what works is on it. The prototype's theme switch, alert cadence and PIN
+ * have nowhere to keep a setting yet, so they are not drawn: a switch that
+ * silently forgets what it was told costs the reader their trust in the ones
+ * that work, and a row greyed out with a note about what the product cannot do
+ * yet is the school's problem being explained to a child.
  */
 export function StudentSettingsScreen() {
   const { student } = useStudentPortal();
+  const queryClient = useQueryClient();
+
+  const preferences = useQuery({
+    queryKey: PREFERENCES_KEY,
+    queryFn: fetchNotificationPreferences,
+    enabled: Boolean(student),
+  });
+
+  const save = useMutation({
+    mutationFn: (input: Partial<UserNotificationPreferences>) =>
+      updateNotificationPreferences(input),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(PREFERENCES_KEY, updated);
+    },
+  });
+
+  const alertsOn = preferences.data?.inAppEnabled ?? true;
 
   return (
     <div className="flex flex-col">
+      {save.error ? <SaveError what="That setting" error={save.error} /> : null}
+
       <div className="sp-psh">Your sign-in</div>
       <div className="sp-group">
         <div className="sp-setting-row">
@@ -41,47 +67,45 @@ export function StudentSettingsScreen() {
             </span>
           </span>
         </div>
-        <Link href="/settings/profile" className="sp-setting-row">
-          <span className="sp-sr-ic">
-            <Lock className="size-4" aria-hidden />
-          </span>
-          <span className="sp-sr-body">
-            <span className="sp-sr-nm block">Change your password</span>
-            <span className="sp-sr-sb block">
-              You sign in with a password, not a PIN
-            </span>
-          </span>
-          <span className="sp-sr-chev">
-            <ChevronRight className="size-4" aria-hidden />
-          </span>
-        </Link>
       </div>
 
-      <div className="sp-psh">Notifications</div>
+      <div className="sp-psh">Alerts</div>
       <div className="sp-group">
-        <Link href="/portal/student/notifications" className="sp-setting-row">
+        <div className="sp-setting-row">
           <span className="sp-sr-ic">
             <Bell className="size-4" aria-hidden />
           </span>
           <span className="sp-sr-body">
+            <span className="sp-sr-nm block">
+              Tell me when something arrives
+            </span>
+            <span className="sp-sr-sb block">
+              Marks going up, homework set, notices from the office
+            </span>
+          </span>
+          <Switch
+            aria-label="Tell me when something arrives"
+            checked={alertsOn}
+            disabled={preferences.isPending || save.isPending}
+            onChange={(event) =>
+              save.mutate({ inAppEnabled: event.target.checked })
+            }
+          />
+        </div>
+        <Link href="/portal/student/notifications" className="sp-setting-row">
+          <span className="sp-sr-ic">
+            <ChatCircle className="size-4" aria-hidden />
+          </span>
+          <span className="sp-sr-body">
             <span className="sp-sr-nm block">Your messages</span>
             <span className="sp-sr-sb block">
-              You are told when your school publishes something for you
+              Everything the school has sent you
             </span>
           </span>
           <span className="sp-sr-chev">
             <ChevronRight className="size-4" aria-hidden />
           </span>
         </Link>
-      </div>
-
-      <div className="mt-3">
-        <Alert tone="info" title="Three things from the design are not here yet">
-          A PIN instead of a password, choosing how often you are told, and
-          picking a theme. All three need somewhere to keep the setting, which the
-          school portal does not have yet. They are on the plan rather than
-          hidden.
-        </Alert>
       </div>
     </div>
   );

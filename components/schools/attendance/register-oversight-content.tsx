@@ -11,18 +11,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataTable } from "@/components/ui/data-table";
 import { PageBand } from "@/components/schools/common/page-band";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
-import { FilterSelect } from "@/components/schools/common/filter-select";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
+import { formatSchoolDate } from "@/lib/schools/format";
 import { RegisterFormDialog, type RegisterDraft } from "@/components/schools/attendance/register-form-dialog";
 
 /**
@@ -152,6 +157,7 @@ export function RegisterOversightContent({
   initialDate?: string;
 }) {
   const queryClient = useQueryClient();
+  const access = useSchoolAccess();
   const [date, setDate] = useState(initialDate ?? today());
   const [yearGroup, setYearGroup] = useState<ClassFilterValue>({
     classId: "",
@@ -309,6 +315,25 @@ export function RegisterOversightContent({
     },
   });
 
+  /**
+   * Closing a day off, which is oversight rather than register-taking: the
+   * grant is `lock`, not `submit`, so the teacher who took the register cannot
+   * sign off their own work and a bursar — who holds neither — is not offered
+   * it at all. `/attendance/sessions/[id]/lock` asks the same question.
+   */
+  const lockDay = useMutation({
+    mutationFn: ({ session }: { session: StoredSession; className: string }) =>
+      fetchJson(`/api/v2/schools/attendance/sessions/${session.id}/lock`, {
+        method: "POST",
+      }),
+    onSuccess: (_result, { className }) => {
+      setSaved(
+        `The ${className} register is locked for ${date}. Its marks are the school's record now.`,
+      );
+      invalidate();
+    },
+  });
+
   const takeBack = useMutation({
     mutationFn: (session: StoredSession) =>
       fetchJson(`/api/v2/schools/attendance/sessions/${session.id}`, {
@@ -371,6 +396,7 @@ export function RegisterOversightContent({
     [missing],
   );
   const expectRegisters = board?.schoolDay?.isSchoolDay !== false;
+  const canLock = access.can("schools.attendance", "lock");
   const anyFilter = Boolean(classId || streamId || state || search);
 
   const copyMissing = async () => {
@@ -390,13 +416,16 @@ export function RegisterOversightContent({
       {
         id: "className",
         header: "Year group",
+        // The same composed cell the roll draws for a child: the class's tile,
+        // its name, and its code under it. A standing underline rather than one
+        // that arrives with the pointer — a cue nobody can see is not a cue.
         cell: ({ row }) => (
-          <Link
-            href={`/schools/classes/${row.original.classId}`}
-            className="font-semibold hover:underline"
-          >
-            {row.original.className}
-          </Link>
+          <RecordNameCell
+            kind="class"
+            name={row.original.className}
+            href={recordType("CLASS").href(row.original.classId)}
+            reference={row.original.classCode}
+          />
         ),
       },
       {
@@ -434,8 +463,11 @@ export function RegisterOversightContent({
         header: "Form teacher",
         cell: ({ row }) =>
           row.original.formTeacher ? (
-            <span>{row.original.formTeacher.name}</span>
+            <PersonCell kind="teacher" name={row.original.formTeacher.name} />
           ) : (
+            // Named in words: a year group with nobody against it is the row
+            // the reminder cannot be sent to, and a dash here would read as a
+            // column that failed rather than a gap to fill.
             <span className="text-[color:var(--text-muted)]">
               Unassigned — no form teacher
             </span>
@@ -454,12 +486,19 @@ export function RegisterOversightContent({
             );
           }
           if (record.state === "DRAFT") return <Badge tone="warn">Draft</Badge>;
+          // A locked day is a fourth state to a reader even though the board
+          // counts it as submitted: it is the one the office can no longer
+          // reopen, and the row verbs refuse on it.
+          if (sessionByClass.get(record.classId)?.status === "LOCKED") {
+            return <Badge tone="brand">Locked</Badge>;
+          }
           return <Badge tone="success">Submitted</Badge>;
         },
       },
       {
         id: "verb",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const record = row.original;
           const session = sessionByClass.get(record.classId) ?? null;
@@ -472,7 +511,8 @@ export function RegisterOversightContent({
                 </span>
               ) : null}
               <RecordActions
-              layout="menu"
+                layout="menu"
+                label={`Row actions for ${record.className}`}
                 resource="schools.attendance"
                 verbs={[
                   ...(record.state === "SUBMITTED"
@@ -538,6 +578,28 @@ export function RegisterOversightContent({
                             });
                           },
                         },
+                        ...(canLock && session?.status === "SUBMITTED"
+                          ? [
+                              {
+                                label: "Lock the day",
+                                action: "lock" as const,
+                                loading:
+                                  lockDay.isPending &&
+                                  lockDay.variables?.session.id === session.id,
+                                confirm: {
+                                  title: `Lock the ${record.className} register for ${date}`,
+                                  description:
+                                    "It becomes the school's record for the day. Nobody can change a mark on it afterwards, the class teacher included, and the office cannot take it back.",
+                                  confirmLabel: "Lock the day",
+                                },
+                                onSelect: () =>
+                                  lockDay.mutate({
+                                    session,
+                                    className: record.className,
+                                  }),
+                              },
+                            ]
+                          : []),
                         {
                           label: "Take it back",
                           action: "archive" as const,
@@ -567,7 +629,7 @@ export function RegisterOversightContent({
         },
       },
     ],
-    [expectRegisters, remind, takeBack, startRegister, sessionByClass, date],
+    [expectRegisters, remind, takeBack, lockDay, canLock, startRegister, sessionByClass, date],
   );
 
   if (boardQuery.error) {
@@ -581,7 +643,43 @@ export function RegisterOversightContent({
   }
 
   return (
-    <div className="space-y-3">
+    <SchoolsPage
+      band={
+        <PageBand
+          chips={[
+            {
+              label: "Registers in",
+              value: board
+                ? `${board.summary.withRegister} of ${board.summary.yearGroups}`
+                : "—",
+              tone: board && board.summary.missing > 0 ? "warn" : "success",
+            },
+            {
+              label: "Still to come",
+              value: board ? board.summary.missing : "—",
+              tone: board && board.summary.missing > 0 ? "danger" : "success",
+            },
+            { label: "Present", value: board ? board.summary.present.toLocaleString() : "—" },
+          ]}
+          actions={
+            <>
+              <Button variant="secondary" size="sm" onClick={() => setDate(stepDay(date, -1))}>
+                Yesterday
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={missing.length === 0}
+                title={missing.length === 0 ? "Every register is in." : undefined}
+                onClick={() => void copyMissing()}
+              >
+                Copy the missing list
+              </Button>
+            </>
+          }
+        />
+      }
+    >
       <PageChrome title="Attendance">
         <CreateButton
           resource="schools.attendance"
@@ -601,38 +699,6 @@ export function RegisterOversightContent({
         />
       </PageChrome>
 
-      <PageBand
-        chips={[
-          {
-            label: "Registers in",
-            value: board ? `${board.summary.withRegister} of ${board.summary.yearGroups}` : "—",
-            tone: board && board.summary.missing > 0 ? "warn" : "success",
-          },
-          {
-            label: "Still to come",
-            value: board ? board.summary.missing : "—",
-            tone: board && board.summary.missing > 0 ? "danger" : "success",
-          },
-          { label: "Present", value: board ? board.summary.present.toLocaleString() : "—" },
-        ]}
-        actions={
-          <>
-            <Button variant="secondary" size="sm" onClick={() => setDate(stepDay(date, -1))}>
-              Yesterday
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={missing.length === 0}
-              title={missing.length === 0 ? "Every register is in." : undefined}
-              onClick={() => void copyMissing()}
-            >
-              Copy the missing list
-            </Button>
-          </>
-        }
-      />
-
       {copied ? (
         <Alert tone="info" title="The missing list" onDismiss={() => setCopied(null)}>
           {copied}
@@ -650,6 +716,7 @@ export function RegisterOversightContent({
       ) : null}
       {remind.error ? <SaveError what="The reminder" error={remind.error} /> : null}
       {remindAll.error ? <SaveError what="The reminders" error={remindAll.error} /> : null}
+      {lockDay.error ? <SaveError what="The lock" error={lockDay.error} /> : null}
       {takeBack.error ? <SaveError what="The register" error={takeBack.error} /> : null}
 
       {board && !expectRegisters ? (
@@ -689,13 +756,6 @@ export function RegisterOversightContent({
         </Alert>
       ) : null}
 
-      {board && expectRegisters ? (
-        <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          {board.summary.withRegister} of {board.summary.yearGroups} year groups have a
-          register for {date}.
-        </p>
-      ) : null}
-
       {/*
         The date, the year group, the stream, the state and the search box all
         narrow the ladder underneath them and nothing else, so they are one row
@@ -703,6 +763,7 @@ export function RegisterOversightContent({
         filter does.
       */}
       <TableControls
+        sticky
         search={
           <TableSearch
             label="Search"
@@ -711,11 +772,22 @@ export function RegisterOversightContent({
             placeholder="Search a year group"
           />
         }
+        filterCount={activeFilterCount(classId, streamId, state)}
+        count={boardQuery.isPending ? null : `${filtered.length} of ${rows.length}`}
         filters={
           <>
             <div className="min-w-0 flex-1 basis-[180px] sm:max-w-[200px]">
+              {/* The label says which day the board is showing, in the school's
+                  own words. A native date field draws its value in whatever
+                  order the reader's browser was set up with — 06/03 is the
+                  third of June in this office and the sixth of March on the
+                  laptop beside it — and the register that is in or missing
+                  depends on knowing which. */}
               <Label htmlFor="oversight-date" className="text-sm text-muted-foreground">
                 Date
+                <span className="ml-1.5 text-[color:var(--text-subtle)]">
+                  {formatSchoolDate(date)}
+                </span>
               </Label>
               <Input
                 id="oversight-date"
@@ -755,11 +827,7 @@ export function RegisterOversightContent({
       />
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card
-          flush
-          title="Year groups"
-          subtitle={`${rows.length} on the ladder`}
-        >
+        <Card flush title="Year groups">
           {boardQuery.isPending ? (
             <TableRowsSkeleton
               rows={8}
@@ -770,6 +838,10 @@ export function RegisterOversightContent({
               data={filtered}
               columns={columns}
               pagination={{ enabled: true }}
+              // The search box is in the row above. Left on, `DataTable` draws
+              // a second one in its own toolbar — two boxes on one screen
+              // searching the same rows by different rules.
+              features={{ globalFilter: false }}
               emptyState={
                 rows.length === 0 ? (
                   <NothingYet
@@ -835,32 +907,6 @@ export function RegisterOversightContent({
             </div>
           </Card>
 
-          {/*
-            The calendar is checked before the classes are counted. Without it a
-            public holiday reads as every class failing to send a register,
-            which is the wrong thing to chase — so the board says so when the
-            day was closed, and says why here when it was not.
-          */}
-          <Card title="When the school was closed">
-            {board && !expectRegisters ? (
-              <Alert
-                tone="info"
-                title={`Not a school day — ${board.schoolDay?.reason ?? "the school was closed"}`}
-              >
-                No registers are expected. Anything above was taken anyway.
-              </Alert>
-            ) : (
-              <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                {date} is a school day, so every year group is expected to send a
-                register.
-              </p>
-            )}
-            <p className="mt-2 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              The school calendar is read before the classes are counted, so a public
-              holiday does not read as every class failing to send one in.
-            </p>
-          </Card>
-
           {unchaseable.length > 0 ? (
             <Card title="Nobody to chase">
               <p className="text-[length:var(--type-body-sm)]">
@@ -871,10 +917,6 @@ export function RegisterOversightContent({
                 */}
                 {unchaseable.map((row) => row.className).join(", ")}{" "}
                 {unchaseable.length === 1 ? "has" : "have"} no form teacher
-              </p>
-              <p className="mt-2 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                A missing register with nobody attached to it cannot be chased. Assign a
-                form teacher under Classes.
               </p>
               <div className="mt-3">
                 <Button asChild variant="secondary" size="sm">
@@ -903,6 +945,6 @@ export function RegisterOversightContent({
           onSubmit={(next) => startRegister.mutate(next)}
         />
       ) : null}
-    </div>
+    </SchoolsPage>
   );
 }

@@ -14,9 +14,9 @@ import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 import { useDebounced } from "@/hooks/use-debounced";
 
 import { CompanyFormSheet } from "./company-form-sheet";
-import { RecordListPager, type RecordListRow } from "./record-list";
+import { RecordListPager, type RecordListRow } from "@/components/records/record-list";
 import { RecordTable, RecordTableName, type RecordTableColumn } from "@/components/records/record-table";
-import { LayoutSwitch, type RecordLayout } from "./layout-switch";
+import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordBoard } from "./record-board";
 import { ColumnPicker } from "@/components/ui/column-picker";
@@ -25,7 +25,7 @@ import {
   GroupedRecordList,
   bucketByLetter,
   type RecordListSection,
-} from "./record-list-groups";
+} from "@/components/records/record-list-groups";
 import { RecordListShell } from "./record-list-shell";
 
 const PAGE_SIZE = 50;

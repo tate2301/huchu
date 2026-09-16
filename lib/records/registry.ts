@@ -72,6 +72,20 @@ export type RecordTypeConfig = {
   /** The REST resource its attributes are PATCHed to, for the shared editor. */
   apiPath: (id: string) => string;
   /**
+   * Where a one-glance summary of this record is fetched from, for the peek.
+   *
+   * Separate from `href` because they answer different questions. `href` is a
+   * routing fact — this path IS a record, which is what tells a link it points
+   * at one and earns it the trail. Whether that record can be *summarised
+   * without travelling to it* is an API fact, and the two do not have to agree.
+   *
+   * Left off, a link to the type is still a record link and still leaves a
+   * trail; it just opens the page rather than a panel. That is the honest
+   * behaviour for a type with no summary endpoint, and better than a peek that
+   * opens on a 404.
+   */
+  summaryPath?: (id: string) => string;
+  /**
    * The query key a saved attribute must invalidate. Kept here so a type cannot
    * be edited on one screen and stay stale on another.
    */
@@ -89,6 +103,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/crm/people",
     href: (id) => `/crm/people/${id}`,
     apiPath: (id) => `/api/v2/crm/people/${id}`,
+    summaryPath: (id) => `/api/v2/crm/records/person/${id}/summary`,
     queryKey: (id) => ["crm", "person", id],
   },
   {
@@ -101,6 +116,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/crm/companies",
     href: (id) => `/crm/companies/${id}`,
     apiPath: (id) => `/api/v2/crm/companies/${id}`,
+    summaryPath: (id) => `/api/v2/crm/records/company/${id}/summary`,
     queryKey: (id) => ["crm", "company", id],
   },
   {
@@ -113,6 +129,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/crm/leads",
     href: (id) => `/crm/leads/${id}`,
     apiPath: (id) => `/api/v2/crm/leads/${id}`,
+    summaryPath: (id) => `/api/v2/crm/records/lead/${id}/summary`,
     queryKey: (id) => ["crm", "lead", id],
   },
   {
@@ -125,6 +142,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/crm/deals",
     href: (id) => `/crm/deals/${id}`,
     apiPath: (id) => `/api/v2/crm/deals/${id}`,
+    summaryPath: (id) => `/api/v2/crm/records/deal/${id}/summary`,
     queryKey: (id) => ["crm", "deal", id],
   },
   {
@@ -137,6 +155,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/crm/sites",
     href: (id) => `/crm/sites/${id}`,
     apiPath: (id) => `/api/v2/crm/sites/${id}`,
+    summaryPath: (id) => `/api/v2/crm/records/site/${id}/summary`,
     queryKey: (id) => ["crm", "site", id],
   },
   {
@@ -149,6 +168,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/crm/reps",
     href: (id) => `/crm/reps/${id}`,
     apiPath: (id) => `/api/v2/crm/reps/${id}`,
+    summaryPath: (id) => `/api/v2/crm/records/rep/${id}/summary`,
     queryKey: (id) => ["crm", "rep", id],
   },
   {
@@ -161,6 +181,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/schools/students",
     href: (id) => `/schools/students/${id}`,
     apiPath: (id) => `/api/v2/schools/students/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/student/${id}/summary`,
     queryKey: (id) => ["schools", "student", id],
   },
   {
@@ -173,6 +194,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/schools/guardians",
     href: (id) => `/schools/guardians/${id}`,
     apiPath: (id) => `/api/v2/schools/guardians/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/guardian/${id}/summary`,
     queryKey: (id) => ["schools", "guardian", id],
   },
   {
@@ -185,6 +207,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/schools/teachers",
     href: (id) => `/schools/teachers/${id}`,
     apiPath: (id) => `/api/v2/schools/teachers/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/teacher/${id}/summary`,
     queryKey: (id) => ["schools", "teacher", id],
   },
   {
@@ -199,6 +222,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/management/master-data/schools/classes",
     href: (id) => `/management/master-data/schools/classes/${id}`,
     apiPath: (id) => `/api/v2/schools/classes/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/class/${id}/summary`,
     queryKey: (id) => ["schools", "class", id],
   },
   {
@@ -211,6 +235,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/management/master-data/schools/subjects",
     href: (id) => `/management/master-data/schools/subjects/${id}`,
     apiPath: (id) => `/api/v2/schools/subjects/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/subject/${id}/summary`,
     queryKey: (id) => ["schools", "subject", id],
   },
   {
@@ -223,6 +248,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/schools/boarding",
     href: (id) => `/schools/boarding/${id}`,
     apiPath: (id) => `/api/v2/schools/boarding/hostels/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/hostel/${id}/summary`,
     queryKey: (id) => ["schools", "hostel", id],
   },
 ];

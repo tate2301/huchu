@@ -1,25 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { ClassFilter, ALL_CLASSES, classFilterParams, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { DataTable } from "@/components/ui/data-table";
 import { fetchJson } from "@/lib/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
@@ -124,39 +124,57 @@ export function TeacherAssignmentsContent() {
   );
   const subjects = useMemo(() => subjectsQuery.data?.data ?? [], [subjectsQuery.data]);
 
+  /**
+   * Null until the grid is in hand. Counted off the rows, so before they land
+   * all three read nought — and "Nobody teaching 0" is the one reassurance
+   * this screen must never give while it does not yet know.
+   */
   const counts = useMemo(() => {
+    if (!assignmentsQuery.data) return null;
     const unassigned = assignments.filter((row) => !row.teacherProfile).length;
     const teachers = new Set(
       assignments.map((row) => row.teacherProfile?.id).filter(Boolean),
     ).size;
     return { total: assignments.length, unassigned, teachers };
-  }, [assignments]);
+  }, [assignments, assignmentsQuery.data]);
 
   const columns = useMemo<ColumnDef<Assignment>[]>(
     () => [
       {
         id: "class",
         header: "Class",
-        cell: ({ row }) => (
-          <div className="min-w-0">
-            <span className="block truncate font-medium">
-              {row.original.class?.name ?? "—"}
-              {row.original.stream ? ` ${row.original.stream.name}` : ""}
-            </span>
-            <span className="block truncate text-sm text-muted-foreground">
-              {row.original.term?.name ?? "No term"}
-            </span>
-          </div>
-        ),
+        cell: ({ row }) =>
+          row.original.class ? (
+            <RecordNameCell
+              kind="class"
+              href={`/management/master-data/schools/classes/${row.original.class.id}`}
+              name={`${row.original.class.name}${
+                row.original.stream ? ` ${row.original.stream.name}` : ""
+              }`}
+              reference={row.original.term?.name ?? "No term"}
+            />
+          ) : (
+            <span className="text-[color:var(--text-muted)]">No year group</span>
+          ),
       },
       {
         id: "subject",
         header: "Subject",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate">{row.original.subject?.name ?? "—"}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate">
+              {row.original.subject ? (
+                <EntityLink
+                  href={`/management/master-data/schools/subjects/${row.original.subject.id}`}
+                >
+                  {row.original.subject.name}
+                </EntityLink>
+              ) : (
+                <span className="text-[color:var(--text-muted)]">No subject</span>
+              )}
+            </span>
             {row.original.subject?.isCore ? <Badge tone="brand">Core</Badge> : null}
-          </div>
+          </span>
         ),
       },
       {
@@ -169,20 +187,12 @@ export function TeacherAssignmentsContent() {
             return <Badge tone="warn">Nobody teaches it</Badge>;
           }
           return (
-            <div className="flex min-w-0 items-center gap-2">
-              <PersonAvatar name={profile.user?.name ?? "?"} />
-              <div className="min-w-0">
-                <Link
-                  href={`/schools/teachers/${profile.id}`}
-                  className="block truncate hover:underline"
-                >
-                  {profile.user?.name ?? "Unnamed"}
-                </Link>
-                <span className="block truncate text-sm text-muted-foreground">
-                  {profile.employeeCode ?? profile.user?.email ?? ""}
-                </span>
-              </div>
-            </div>
+            <PersonCell
+              kind="teacher"
+              href={`/schools/teachers/${profile.id}`}
+              name={profile.user?.name ?? "Unnamed"}
+              reference={profile.employeeCode ?? profile.user?.email ?? undefined}
+            />
           );
         },
       },
@@ -205,12 +215,15 @@ export function TeacherAssignmentsContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) =>
           row.original.teacherProfile ? (
             <RecordActions
               layout="menu"
               resource="schools.teachers"
+              label={`Actions for ${row.original.subject?.name ?? "this lesson"}`}
               verbs={[
                 {
                   label: "Take it off them",
@@ -245,13 +258,13 @@ export function TeacherAssignmentsContent() {
 
       <PageBand
         chips={[
-          { label: "Allocations", value: counts.total },
+          { label: "Allocations", value: counts ? counts.total : "—" },
           {
             label: "Nobody teaching",
-            value: counts.unassigned,
-            tone: counts.unassigned > 0 ? "warn" : "neutral",
+            value: counts ? counts.unassigned : "—",
+            tone: counts && counts.unassigned > 0 ? "warn" : "neutral",
           },
-          { label: "Teachers", value: counts.teachers },
+          { label: "Teachers", value: counts ? counts.teachers : "—" },
         ]}
       />
 

@@ -1,24 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button } from "@corelithzw/react";
+import { Button, MobileList } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordCell } from "@/components/records/record-table";
+import { PersonCell } from "@/components/schools/common/identity-cell";
+import { RecordMark } from "@/components/records/record-mark";
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import {
+  activeFilterCount,
+  FilterSelect,
+} from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { DataTable } from "@/components/ui/data-table";
 import { Plus } from "@/lib/icons";
 import { fetchJson } from "@/lib/api-client";
@@ -101,7 +106,7 @@ export function SchoolStaffContent() {
       if (search) params.set("search", search);
       if (departmentId) params.set("departmentId", departmentId);
       if (position) params.set("position", position);
-      return fetchJson<{ data: EmployeeSummary[] }>(
+      return fetchJson<{ data: EmployeeSummary[]; pagination: { total: number } }>(
         `/api/v2/schools/staff?${params.toString()}`,
       );
     },
@@ -137,87 +142,92 @@ export function SchoolStaffContent() {
     [departmentsQuery.data],
   );
 
+  const total = staffQuery.data?.pagination.total ?? staff.length;
+
+  /**
+   * Null until the list is in hand. Both are counted off the rows, so before
+   * they land the band would read "0 on the staff" — a school that appears to
+   * employ nobody, for as long as it takes the query to answer.
+   */
   const counts = useMemo(() => {
+    if (!staffQuery.data) return null;
     const active = staff.filter((employee) => employee.isActive).length;
     const withoutAccount = staff.filter((employee) => !employee.user).length;
-    return { total: staff.length, active, withoutAccount };
-  }, [staff]);
+    return { active, withoutAccount };
+  }, [staff, staffQuery.data]);
 
   const columns = useMemo<ColumnDef<EmployeeSummary>[]>(
     () => [
       {
         accessorKey: "name",
         header: "Staff member",
+        /*
+          The staff number leads the supporting line and the job title follows
+          it. The number was a column of its own and the job title was the
+          whole subtitle, which left a blank line under every caretaker with no
+          title recorded — and a row with a hole in it reads as a row that
+          failed to load. The reference always exists, so the line never
+          empties.
+        */
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar name={row.original.name} />
-            <div className="min-w-0">
-              <Link
-                href={`/people/${row.original.id}`}
-                className="block truncate font-medium hover:underline"
-              >
-                {row.original.name}
-              </Link>
-              <span className="block truncate text-sm text-muted-foreground">
-                {row.original.jobTitle ?? positionLabel(row.original.position)}
-              </span>
-            </div>
-          </div>
-        ),
-      },
-      {
-        accessorKey: "employeeId",
-        header: "Staff number",
-        cell: ({ row }) => (
-          <span className="font-[family-name:var(--font-mono)] text-sm tabular-nums">
-            {row.original.employeeId}
-          </span>
+          <PersonCell
+            kind="person"
+            href={`/people/${row.original.id}`}
+            name={row.original.name}
+            reference={row.original.employeeId}
+            context={row.original.jobTitle ?? positionLabel(row.original.position)}
+          />
         ),
       },
       {
         accessorKey: "department",
         header: "Department",
-        cell: ({ row }) => row.original.department?.name ?? "—",
+        cell: ({ row }) => row.original.department?.name ?? "Unassigned",
       },
       {
         accessorKey: "phone",
         header: "Phone",
-        cell: ({ row }) => (
-          <span className="font-[family-name:var(--font-mono)] text-sm">
-            {row.original.phone}
-          </span>
-        ),
+        // Through the shared resolver, so a phone number here is the same ink
+        // and the same face as a phone number anywhere else in the product —
+        // and it is a `tel:` only where tapping it could place a call.
+        cell: ({ row }) => <RecordCell kind="phone" value={row.original.phone} />,
       },
       {
         id: "account",
         header: "Account",
+        // An address is somewhere you can write to, so it is a real `mailto:`
+        // in the relation blue rather than a green chip: the green was saying
+        // "this one is fine", which is a judgement about a category.
         cell: ({ row }) =>
           row.original.user ? (
-            <Badge tone="success">{row.original.user.email}</Badge>
+            <RecordCell kind="email" value={row.original.user.email} />
           ) : (
-            <span className="text-sm text-muted-foreground">No sign-in</span>
+            <span className="text-sm text-[color:var(--text-muted)]">No sign-in</span>
           ),
       },
       {
         id: "payroll",
         header: "Payroll record",
         cell: ({ row }) => (
-          <Link
-            href={`/payroll?employee=${row.original.id}`}
-            className="text-sm hover:underline"
-          >
-            Open in payroll
-          </Link>
+          <span className="block truncate">
+            <EntityLink href={`/payroll?employee=${row.original.id}`}>
+              {row.original.employeeId}
+            </EntityLink>
+          </span>
         ),
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            <RecordActions
               layout="menu"
-            resource="schools.teachers"
-            verbs={[
+              resource="schools.teachers"
+              label={`Actions for ${row.original.name}`}
+              verbs={[
               {
                 label: "Edit",
                 action: "edit",
@@ -248,8 +258,9 @@ export function SchoolStaffContent() {
                     },
                   ]
                 : []),
-            ]}
-          />
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -272,8 +283,8 @@ export function SchoolStaffContent() {
 
       <PageBand
         chips={[
-          { label: "On the staff", value: counts.active },
-          { label: "No sign-in", value: counts.withoutAccount, tone: "warn" },
+          { label: "On the staff", value: counts ? counts.active : "—" },
+          { label: "No sign-in", value: counts ? counts.withoutAccount : "—", tone: "warn" },
         ]}
       />
 
@@ -303,6 +314,8 @@ export function SchoolStaffContent() {
             placeholder="Search name or staff number"
           />
         }
+        filterCount={activeFilterCount(position, departmentId)}
+        count={staffQuery.isPending ? null : `${staff.length} of ${total}`}
         filters={
           <>
             <FilterSelect
@@ -331,21 +344,13 @@ export function SchoolStaffContent() {
 
       {staffQuery.isPending ? (
         <TableRowsSkeleton
-          headers={[
-            "Staff member",
-            "Staff number",
-            "Department",
-            "Phone",
-            "Account",
-            "Payroll record",
-          ]}
+          headers={["Staff member", "Department", "Phone", "Account", "Payroll record"]}
           columns={[
             { avatar: true, twoLine: true },
-            { width: 90 },
             { width: 120 },
+            { width: 130 },
+            { width: 180 },
             { width: 110 },
-            { width: 140, badge: true },
-            { width: 100, badge: true },
           ]}
         />
       ) : staffQuery.isError ? (
@@ -374,7 +379,39 @@ export function SchoolStaffContent() {
           />
         )
       ) : (
-        <DataTable columns={columns} data={staff} />
+        <DataTable
+          columns={columns}
+          data={staff}
+          // Six columns at 390px is a sideways scroll showing one and a half
+          // of them. The phone gets the name, the number and the one fact
+          // somebody rings about.
+          mobileListRenderer={({ rows }) => (
+            <MobileList>
+              {rows.map(({ row }) => (
+                <MobileList.Row
+                  key={row.id}
+                  static
+                  // The same mark the table draws, hashed from the same name,
+                  // so a caretaker is the same colour and the same two letters
+                  // at either width.
+                  leading={<RecordMark kind="person" name={row.name} size="sm" />}
+                  title={row.name}
+                  subtitle={[
+                    row.employeeId,
+                    row.jobTitle ?? positionLabel(row.position),
+                    row.department?.name,
+                    row.user ? null : "No sign-in",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  trailing={
+                    <span className="font-mono text-xs">{row.phone}</span>
+                  }
+                />
+              ))}
+            </MobileList>
+          )}
+        />
       )}
 
       {endEmploymentMutation.isError ? (

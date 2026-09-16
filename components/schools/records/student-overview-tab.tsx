@@ -6,15 +6,17 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   StatsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import { fetchTeacherAssignments } from "@/lib/schools/admin-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 
@@ -558,25 +560,11 @@ export function StudentOverviewTab({
         {/* The pupil themselves. Everything on this card is a fact that does
             not change week to week, which is why it is a property list and not
             a set of chips. */}
+        {/* No mark and no name at the head of it. The record's own identity —
+            the same face, the same name, the same number — is in the app bar
+            and at the top of the standing column, and a third copy of it
+            arrived 200px below the second. */}
         <Card title="Student" subtitle={student.studentNo}>
-          <div className="flex items-center gap-3 pb-3">
-            <PersonAvatar
-              firstName={student.firstName}
-              lastName={student.lastName}
-              size="lg"
-            />
-            <div className="min-w-0">
-              <div className="text-[length:var(--type-body)] font-bold">{name}</div>
-              <div className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                {[
-                  student.currentStream?.name ?? student.currentClass?.name,
-                  currentBoarding?.hostel?.name,
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || "Not placed yet"}
-              </div>
-            </div>
-          </div>
           <dl>
             <Fact label="Admitted" value={formatSchoolDate(student.admissionDate) || "—"} />
             <Fact
@@ -608,9 +596,7 @@ export function StudentOverviewTab({
             <Fact
               label="Transport"
               value={
-                <Link href="/schools/transport" className="hover:underline">
-                  Not registered
-                </Link>
+                <EntityLink href="/schools/transport">Not registered</EntityLink>
               }
             />
           </dl>
@@ -833,25 +819,21 @@ export function StudentOverviewTab({
           ) : (
             <ul className="space-y-2">
               {student.guardianLinks.map((link) => (
-                <li key={link.id} className="flex items-center gap-2">
-                  <PersonAvatar
+                <li key={link.id}>
+                  {/* The same cell the guardians register draws, so the person
+                      the office is about to ring reads the same here as they do
+                      on their own list — number first, then what they are to
+                      the child. */}
+                  <PersonCell
+                    kind="guardian"
                     firstName={link.guardian.firstName}
                     lastName={link.guardian.lastName}
-                    size="xs"
+                    href={recordType("GUARDIAN").href(link.guardian.id)}
+                    reference={link.guardian.phone}
+                    context={[link.relationship, link.isPrimary ? "primary" : null]
+                      .filter(Boolean)
+                      .join(" · ")}
                   />
-                  <span className="min-w-0">
-                    <Link
-                      href={`/schools/guardians/${link.guardian.id}`}
-                      className="block text-[length:var(--type-body-sm)] font-medium hover:underline"
-                    >
-                      {link.guardian.firstName} {link.guardian.lastName}
-                    </Link>
-                    <span className="block text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {[link.relationship, link.isPrimary ? "primary" : null, link.guardian.phone]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </span>
                 </li>
               ))}
             </ul>
@@ -967,11 +949,14 @@ export function StudentOverviewTab({
                     className="campus-row-in flex items-baseline justify-between gap-3"
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
+                    {/* A standing underline, the same cue every other reference
+                        on this page carries. One that only arrives with the
+                        pointer is not a cue. */}
                     <a
                       href={file.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="min-w-0 truncate text-[length:var(--type-body-sm)] hover:underline"
+                      className="min-w-0 truncate text-[length:var(--type-body-sm)] underline decoration-[var(--border)] underline-offset-2 hover:decoration-[var(--text)]"
                     >
                       {file.name}
                     </a>

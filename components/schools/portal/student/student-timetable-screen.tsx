@@ -9,7 +9,7 @@ import {
   NothingMatched,
   NothingYet,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { MedusaBookOpenIcon } from "@/lib/icons";
 import { DAY_NAMES } from "@/lib/schools/timetable-format";
@@ -27,8 +27,7 @@ type WeekSlot = {
 type Week = { slots: WeekSlot[] };
 
 /** Mon–Fri, which is the school week the prototype's grid draws. */
-const DAYS = [1, 2, 3, 4, 5, 6] as const;
-const GRID_DAYS = [1, 2, 3, 4, 5] as const;
+const DAYS = [1, 2, 3, 4, 5] as const;
 
 function minuteLabel(minute: number) {
   return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
@@ -67,11 +66,20 @@ export function StudentTimetableScreen() {
     const day = new Date().getDay();
     return day === 0 ? 7 : day;
   })();
-  const [day, setDay] = useState<string>(String(Math.min(todayIso, 6)));
+  const lastDay = DAYS[DAYS.length - 1];
+  const [day, setDay] = useState<string>(String(Math.min(todayIso, lastDay)));
 
   const week = useQuery({
-    queryKey: ["schools", "portal", "student", "week", student?.currentClassId, term?.id],
-    queryFn: () => fetchJson<Week>("/api/v2/schools/portal/student/me/timetable"),
+    queryKey: [
+      "schools",
+      "portal",
+      "student",
+      "week",
+      student?.currentClassId,
+      term?.id,
+    ],
+    queryFn: () =>
+      fetchJson<Week>("/api/v2/schools/portal/student/me/timetable"),
     enabled: Boolean(student?.currentClassId && term),
   });
 
@@ -102,7 +110,12 @@ export function StudentTimetableScreen() {
   ].sort((left, right) => left.startMinute - right.startMinute);
 
   const byCell = new Map<string, WeekSlot>();
-  for (const slot of slots) byCell.set(`${slot.dayOfWeek}-${slot.period.id}`, slot);
+  for (const slot of slots)
+    byCell.set(`${slot.dayOfWeek}-${slot.period.id}`, slot);
+
+  // A week with nothing in it is one fact, said once: no grid, no day picker to
+  // narrow an empty list with, and no second empty state under the first.
+  const blankWeek = !week.isPending && !week.error && periodRows.length === 0;
 
   // Today comes from the shell, already loaded; other days come from the week.
   const isToday = Number(day) === todayIso;
@@ -145,7 +158,12 @@ export function StudentTimetableScreen() {
         </span>
       </div>
 
-      {week.isPending ? (
+      {blankWeek ? (
+        <NothingYet
+          title="No lessons on your class timetable"
+          body="Nothing has been timetabled for your class this term. The office builds the timetable, so nobody can fix this from the app."
+        />
+      ) : week.isPending ? (
         /* The grid is a real table — five day columns against a time column —
            so the wait carries its headers and its column widths, and the real
            grid drops into the same shape rather than pushing the page down. */
@@ -161,19 +179,14 @@ export function StudentTimetableScreen() {
           ]}
           rows={6}
         />
-      ) : periodRows.length === 0 ? (
-        <NothingYet
-          title="No lessons on your class timetable"
-          body="Nothing has been timetabled for your class this term. The office builds the timetable, so nobody can fix this from the app."
-        />
       ) : (
         <div className="sp-tt">
           <div
             className="sp-tt-tbl"
-            style={{ gridTemplateColumns: `36px repeat(${GRID_DAYS.length}, 1fr)` }}
+            style={{ gridTemplateColumns: `36px repeat(${DAYS.length}, 1fr)` }}
           >
             <div className="sp-tt-hd" />
-            {GRID_DAYS.map((value) => (
+            {DAYS.map((value) => (
               <div
                 key={`hd-${value}`}
                 className={`sp-tt-hd${value === todayIso ? " today" : ""}`}
@@ -183,8 +196,10 @@ export function StudentTimetableScreen() {
             ))}
             {periodRows.map((period) => (
               <div key={period.id} className="contents">
-                <div className="sp-tt-tm">{minuteLabel(period.startMinute)}</div>
-                {GRID_DAYS.map((value) => {
+                <div className="sp-tt-tm">
+                  {minuteLabel(period.startMinute)}
+                </div>
+                {DAYS.map((value) => {
                   const slot = byCell.get(`${value}-${period.id}`);
                   return (
                     <div
@@ -197,7 +212,9 @@ export function StudentTimetableScreen() {
                           title={`${slot.subjectName}${slot.roomName ? ` · ${slot.roomName}` : ""}`}
                         >
                           <span className="sp-pd-nm">{slot.subjectName}</span>
-                          <span className="sp-pd-rm">{shortRoom(slot.roomName)}</span>
+                          <span className="sp-pd-rm">
+                            {shortRoom(slot.roomName)}
+                          </span>
                         </div>
                       ) : (
                         <div className="sp-pd free">
@@ -213,59 +230,67 @@ export function StudentTimetableScreen() {
         </div>
       )}
 
-      <div className="sp-tt-days">
-        <SegmentedControl
-          aria-label="Day of the week"
-          size="sm"
-          value={day}
-          onValueChange={setDay}
-          options={DAYS.map((value) => ({
-            value: String(value),
-            label: (DAY_NAMES[value] ?? "").slice(0, 3),
-          }))}
-        />
-      </div>
+      {blankWeek ? null : (
+        <>
+          <div className="sp-tt-days">
+            <SegmentedControl
+              aria-label="Day of the week"
+              size="sm"
+              value={day}
+              onValueChange={setDay}
+              options={DAYS.map((value) => ({
+                value: String(value),
+                label: (DAY_NAMES[value] ?? "").slice(0, 3),
+              }))}
+            />
+          </div>
 
-      <div className="sp-psh">
-        {isToday
-          ? `Today (${DAY_NAMES[Number(day)] ?? ""})`
-          : (DAY_NAMES[Number(day)] ?? "That day")}
-      </div>
+          <div className="sp-psh">
+            {isToday
+              ? `Today (${DAY_NAMES[Number(day)] ?? ""})`
+              : (DAY_NAMES[Number(day)] ?? "That day")}
+          </div>
 
-      {!isToday && week.isPending ? (
-        <CardsSkeleton count={5} columns={1} lines={1} />
-      ) : rows.length === 0 ? (
-        /* The day picker above is the filter, so this names the day it emptied
+          {!isToday && week.isPending ? (
+            <CardsSkeleton count={5} columns={1} lines={1} />
+          ) : rows.length === 0 ? (
+            /* The day picker above is the filter, so this names the day it emptied
            and offers to go back to today rather than saying "no lessons" flat —
-           a Saturday with nothing on it is not a broken timetable. */
-        <NothingMatched
-          what="lessons"
-          filters={[DAY_NAMES[Number(day)] ?? "that day"]}
-          onClear={() => setDay(String(Math.min(todayIso, 6)))}
-        />
-      ) : (
-        <div className="sp-list">
-          {rows.map((row) => (
-            <div key={row.key} className="sp-list-row">
-              <span className={`sp-ic-tile ${subjectAccentClass(row.subject)}`}>
-                <MedusaBookOpenIcon className="size-4" aria-hidden />
-              </span>
-              <span className="block min-w-0">
-                <span className="sp-lr-nm block truncate">
-                  {row.subject ?? "Free"}
-                </span>
-                <span className="sp-lr-sb block truncate">
-                  {row.subject
-                    ? [row.time, row.teacher, row.room].filter(Boolean).join(" · ")
-                    : `${row.time} · no lesson`}
-                </span>
-              </span>
-              {/* No chevron: unlike Profile's rows, a lesson row here does not
+           a games afternoon with nothing on it is not a broken timetable. */
+            <NothingMatched
+              what="lessons"
+              filters={[DAY_NAMES[Number(day)] ?? "that day"]}
+              onClear={() => setDay(String(Math.min(todayIso, lastDay)))}
+            />
+          ) : (
+            <div className="sp-list">
+              {rows.map((row) => (
+                <div key={row.key} className="sp-list-row">
+                  <span
+                    className={`sp-ic-tile ${subjectAccentClass(row.subject)}`}
+                  >
+                    <MedusaBookOpenIcon className="size-4" aria-hidden />
+                  </span>
+                  <span className="block min-w-0">
+                    <span className="sp-lr-nm block truncate">
+                      {row.subject ?? "Free"}
+                    </span>
+                    <span className="sp-lr-sb block truncate">
+                      {row.subject
+                        ? [row.time, row.teacher, row.room]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : `${row.time} · no lesson`}
+                    </span>
+                  </span>
+                  {/* No chevron: unlike Profile's rows, a lesson row here does not
                   go anywhere, and a chevron that opens nothing is a lie. */}
-              <span />
+                  <span />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

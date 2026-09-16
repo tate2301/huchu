@@ -7,8 +7,13 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { defaultIsTeachingDay, getSchoolDay } from "@/lib/schools/calendar";
-import { dateInputSchema } from "../_helpers";
+import {
+  CALENDAR_EVENT_SELECT,
+  calendarEventCreateSchema,
+  checkCalendarEventWindow,
+  defaultIsTeachingDay,
+  getSchoolDay,
+} from "@/lib/schools/calendar";
 
 const querySchema = z.object({
   from: z.string().date().optional(),
@@ -16,30 +21,6 @@ const querySchema = z.object({
   /** Ask whether one particular day is a school day, and why not. */
   on: z.string().date().optional(),
 });
-
-const createSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  kind: z
-    .enum(["HOLIDAY", "PUBLIC_HOLIDAY", "HALF_TERM", "EXAM", "EVENT", "STAFF_ONLY"])
-    .optional(),
-  startDate: dateInputSchema,
-  endDate: dateInputSchema,
-  isTeachingDay: z.boolean().optional(),
-  termId: z.string().uuid().nullish(),
-  notes: z.string().trim().max(500).nullish(),
-});
-
-const eventSelect = {
-  id: true,
-  title: true,
-  kind: true,
-  startDate: true,
-  endDate: true,
-  isTeachingDay: true,
-  notes: true,
-  termId: true,
-  term: { select: { id: true, code: true, name: true } },
-};
 
 /**
  * The calendar, and the school-day verdict derived from it.
@@ -74,7 +55,7 @@ export async function GET(request: NextRequest) {
         ...(query.from ? { endDate: { gte: new Date(query.from) } } : {}),
         ...(query.to ? { startDate: { lte: new Date(query.to) } } : {}),
       },
-      select: eventSelect,
+      select: CALENDAR_EVENT_SELECT,
       orderBy: [{ startDate: "asc" }],
     });
 
@@ -98,34 +79,17 @@ export async function POST(request: NextRequest) {
     if (denied) return errorResponse(denied, 403);
     const companyId = session.user.companyId;
 
-    const validated = createSchema.parse(await request.json());
+    const validated = calendarEventCreateSchema.parse(await request.json());
     const startDate = new Date(validated.startDate);
     const endDate = new Date(validated.endDate);
 
-    if (startDate > endDate) {
-      return errorResponse("The event must end on or after it starts", 400);
-    }
-
-    if (validated.termId) {
-      const term = await prisma.schoolTerm.findFirst({
-        where: { id: validated.termId, companyId },
-        select: { id: true, name: true, startDate: true, endDate: true },
-      });
-      if (!term) return errorResponse("Term not found", 404);
-
-      // A half-term break that falls outside its term is a data entry slip
-      // that reads as a fact — the calendar screen prints the term name beside
-      // the dates, so the row would say "Term 2" next to a date after Term 2
-      // ended and nobody would question it.
-      if (startDate < term.startDate || endDate > term.endDate) {
-        return errorResponse(
-          `${term.name} runs ${term.startDate.toISOString().slice(0, 10)} to ${term.endDate
-            .toISOString()
-            .slice(0, 10)} — leave the term blank for a date outside it`,
-          400,
-        );
-      }
-    }
+    const problem = await checkCalendarEventWindow({
+      companyId,
+      termId: validated.termId ?? null,
+      startDate,
+      endDate,
+    });
+    if (problem) return errorResponse(problem.message, problem.status);
 
     const kind = validated.kind ?? "EVENT";
 
@@ -140,7 +104,7 @@ export async function POST(request: NextRequest) {
         isTeachingDay: validated.isTeachingDay ?? defaultIsTeachingDay(kind),
         notes: validated.notes ?? null,
       },
-      select: eventSelect,
+      select: CALENDAR_EVENT_SELECT,
     });
 
     return successResponse(created, 201);

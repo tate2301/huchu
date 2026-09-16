@@ -16,7 +16,7 @@ import {
   fetchCrmSites,
 } from "@/lib/crm/crm-v2";
 
-import { RecordList, type RecordListRow } from "./record-list";
+import { RecordList, type RecordListRow } from "@/components/records/record-list";
 import { RecordMark, type RecordKind } from "@/components/records/record-mark";
 
 /**

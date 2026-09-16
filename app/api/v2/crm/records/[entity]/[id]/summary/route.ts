@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
+import { recordSummaryPath, RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
+import { day, kept, money, type PeekSummary, type PeekTone } from "@/lib/records/peek-summary";
 
 /**
  * One record, small enough to look at without going there.
@@ -23,37 +24,24 @@ import { RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
  * live editor for six entity types is a second record page, not a peek.
  */
 
-export type PeekTone = "neutral" | "info" | "success" | "warn" | "danger";
+/**
+ * The entities this route is actually the summary for.
+ *
+ * `RECORD_ENTITIES` is every record type the platform has, schools included —
+ * it answers "is this a record", which is a broader question than "does this
+ * route know how to describe it". Guarding on the broad list let a pupil's id
+ * past the door and down to the final branch, which reads `User` and would
+ * have answered "that is not a colleague" about a child.
+ *
+ * So: the types whose registry entry points its summary at *this* route. A
+ * school entity that later grows a summary of its own drops out of this list
+ * by gaining that endpoint, with nothing here to remember to change.
+ */
+const HERE = "/api/v2/crm/records/";
 
-export type PeekSummary = {
-  entity: RecordEntity;
-  id: string;
-  href: string;
-  title: string;
-  /** CRMD-0142, DEAL-0039 — the thing people quote at each other. */
-  reference: string | null;
-  /** Where it stands, when that means anything for this entity. */
-  status: { label: string; tone: PeekTone } | null;
-  /** The line under the title: a company, a job title, a town. */
-  subtitle: string | null;
-  properties: Array<{ label: string; value: string }>;
-  /** Archived records are still reachable by link, and should say so. */
-  archived: boolean;
-};
-
-const money = (value: number | null | undefined, currency: string | null | undefined) =>
-  value == null
-    ? null
-    : `${currency ?? "USD"} ${value.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
-
-const day = (value: Date | null | undefined) => (value ? value.toISOString().slice(0, 10) : null);
-
-/** Drop the properties that have no answer rather than printing "—" five times. */
-const kept = (rows: Array<{ label: string; value: string | null | undefined }>) =>
-  rows.filter((row): row is { label: string; value: string } => Boolean(row.value));
+const SERVED: RecordEntity[] = RECORD_ENTITIES.filter((entity) =>
+  recordSummaryPath({ entity, id: "-" })?.startsWith(HERE),
+);
 
 const LEAD_TONE: Record<string, PeekTone> = {
   NEW: "info",
@@ -76,7 +64,7 @@ export async function GET(
     const { session } = sessionResult;
     const { entity, id } = await params;
 
-    if (!RECORD_ENTITIES.includes(entity as RecordEntity)) {
+    if (!SERVED.includes(entity as RecordEntity)) {
       return errorResponse("Unknown record type", 400);
     }
     const companyId = session.user.companyId;
@@ -287,6 +275,11 @@ export async function GET(
     }
 
     // A rep is a colleague, and lives in `User` rather than in a CRM table.
+    // Named rather than reached by falling off the end of the other branches:
+    // a fall-through answers for whatever the guard let through, which is how
+    // widening the guard above turned every unmatched id into a lookup here.
+    if (kind !== "rep") return errorResponse("Unknown record type", 400);
+
     const rep = await prisma.user.findFirst({
       where: { id, companyId },
       select: { id: true, name: true, email: true, role: true, isActive: true },

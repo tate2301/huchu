@@ -91,7 +91,6 @@ const createSchema = z.object({
   /** S-2.2. Omitted means the school's own currency. */
   currency: z.string().trim().min(3).max(10).optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
-  postNow: z.boolean().optional(),
   allocations: z.array(allocationSchema).optional(),
   invoiceId: z.string().uuid().optional(),
 });
@@ -496,11 +495,18 @@ export async function POST(request: NextRequest) {
           currency: documentCurrency.currency,
           exchangeRate: documentCurrency.exchangeRate,
           baseAmount: toBaseAmount(receiptAmount, documentCurrency.exchangeRate),
-          status: validated.postNow === false ? "DRAFT" : "POSTED",
+          // A counter receipt is posted at the moment the money is taken.
+          // The route used to honour `postNow: false` and write a DRAFT, but
+          // nothing could then post it — there was no post route, and both
+          // allocate and void require POSTED — so the payment sat in a state
+          // it could never leave and the family's bill never moved. No screen
+          // ever offered the draft, so the escape hatch is gone rather than
+          // completed.
+          status: "POSTED",
           notes: validated.notes ?? null,
           createdById: session.user.id,
-          postedById: validated.postNow === false ? null : session.user.id,
-          postedAt: validated.postNow === false ? null : new Date(),
+          postedById: session.user.id,
+          postedAt: new Date(),
           allocations:
             allocations.length > 0
               ? {
@@ -514,7 +520,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      if (receipt.status === "POSTED" && allocations.length > 0) {
+      if (allocations.length > 0) {
         for (const allocation of allocations) {
           await refreshFeeInvoiceBalance(tx, {
             companyId,
@@ -574,57 +580,54 @@ export async function POST(request: NextRequest) {
     // The posting outcome travels back with the receipt. Swallowing it would
     // put the school exactly where it was before: money taken, ledger silent,
     // and nobody told until a reconciliation months later.
-    let accounting: SchoolFeePostingResult | null = null;
-    if (created.status === "POSTED") {
-      // S-2.3. What settled a bill and what did not are two different accounts:
-      // the settled part clears the family's receivable, the surplus is money
-      // the school owes back until an invoice claims it. Apportioned rather
-      // than converted twice, so the two halves add up to the cent.
-      const receivedInBase = apportionBase({
-        amount: created.amountReceived,
-        part: created.amountAllocated,
-        exchangeRate: created.exchangeRate,
-      });
-      accounting = await emitSchoolFeeAccountingEvent({
-        actorRole: session.user.role,
-        companyId,
-        actorId: session.user.id,
-        eventType: "SCHOOL_FEE_RECEIPT_POSTED",
-        sourceId: created.id,
-        sourceRef: created.receiptNo,
-        entryDate: created.receiptDate,
-        // S-2.2: the ledger takes the base-currency figure.
-        amount: created.baseAmount,
-        netAmount: created.baseAmount,
-        taxAmount: 0,
-        grossAmount: created.baseAmount,
-        allocatedAmount: receivedInBase.basePart,
-        currency: documentCurrency.baseCurrency,
-        documentCurrency: created.currency,
-        documentAmount: created.amountReceived,
-        exchangeRate: created.exchangeRate,
-        payload: {
-          receiptNo: created.receiptNo,
-          studentId: created.studentId,
-          allocationCount: created.allocations.length,
-          allocations: created.allocations.map((allocation) => ({
-            invoiceId: allocation.invoiceId,
-            // Post S-2.1 Float→Decimal: a `Prisma.Decimal` dropped into a
-            // `Record<string, unknown>` payload is not a type error, and
-            // `JSON.stringify` would silently store it as a string.
-            allocatedAmount: toNumberOrZero(allocation.allocatedAmount),
-          })),
-        },
-      }).catch((error) => {
-        console.error("[Accounting] School fee receipt posting failed:", error);
-        return {
-          accountingStatus: "FAILED" as const,
-          journalEntryId: null,
-          accountingError:
-            error instanceof Error ? error.message : "Accounting posting failed",
-        };
-      });
-    }
+    // S-2.3. What settled a bill and what did not are two different accounts:
+    // the settled part clears the family's receivable, the surplus is money
+    // the school owes back until an invoice claims it. Apportioned rather
+    // than converted twice, so the two halves add up to the cent.
+    const receivedInBase = apportionBase({
+      amount: created.amountReceived,
+      part: created.amountAllocated,
+      exchangeRate: created.exchangeRate,
+    });
+    const accounting: SchoolFeePostingResult = await emitSchoolFeeAccountingEvent({
+      actorRole: session.user.role,
+      companyId,
+      actorId: session.user.id,
+      eventType: "SCHOOL_FEE_RECEIPT_POSTED",
+      sourceId: created.id,
+      sourceRef: created.receiptNo,
+      entryDate: created.receiptDate,
+      // S-2.2: the ledger takes the base-currency figure.
+      amount: created.baseAmount,
+      netAmount: created.baseAmount,
+      taxAmount: 0,
+      grossAmount: created.baseAmount,
+      allocatedAmount: receivedInBase.basePart,
+      currency: documentCurrency.baseCurrency,
+      documentCurrency: created.currency,
+      documentAmount: created.amountReceived,
+      exchangeRate: created.exchangeRate,
+      payload: {
+        receiptNo: created.receiptNo,
+        studentId: created.studentId,
+        allocationCount: created.allocations.length,
+        allocations: created.allocations.map((allocation) => ({
+          invoiceId: allocation.invoiceId,
+          // Post S-2.1 Float→Decimal: a `Prisma.Decimal` dropped into a
+          // `Record<string, unknown>` payload is not a type error, and
+          // `JSON.stringify` would silently store it as a string.
+          allocatedAmount: toNumberOrZero(allocation.allocatedAmount),
+        })),
+      },
+    }).catch((error) => {
+      console.error("[Accounting] School fee receipt posting failed:", error);
+      return {
+        accountingStatus: "FAILED" as const,
+        journalEntryId: null,
+        accountingError:
+          error instanceof Error ? error.message : "Accounting posting failed",
+      };
+    });
 
     // S-2.7. The ZIMRA leg, and it runs last for a reason: the money is taken,
     // the invoices are settled and the ledger has been told before FDMS is
@@ -632,13 +635,10 @@ export async function POST(request: NextRequest) {
     // leaving the process; a school with it gets whatever the connector said,
     // and a failure leaves a retryable `FiscalReceipt` row rather than losing
     // the payment. `tryIssue…` cannot throw.
-    const fiscal: SchoolFiscalOutcome | null =
-      created.status === "POSTED"
-        ? await tryIssueSchoolFeeReceiptFiscalisation({
-            companyId,
-            receiptId: created.id,
-          })
-        : null;
+    const fiscal: SchoolFiscalOutcome = await tryIssueSchoolFeeReceiptFiscalisation({
+      companyId,
+      receiptId: created.id,
+    });
 
     return successResponse({ ...created, accounting, fiscal }, 201);
   } catch (error) {

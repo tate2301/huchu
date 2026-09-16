@@ -1,10 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty } from "@corelithzw/react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { MobileList } from "@corelithzw/react";
 
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { DataTable } from "@/components/ui/data-table";
+import { NumericCell } from "@/components/ui/numeric-cell";
+import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
+import { RowCount } from "@/components/schools/fees/row-count";
+import {
+  activeFilterCount,
+  FilterSelect,
+} from "@/components/schools/common/filter-select";
+import { TableSearch } from "@/components/records/table-controls";
 import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
@@ -14,12 +24,9 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+} from "@/components/records/states";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
-import { formatSchoolMoney } from "@/lib/schools/format";
+import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import {
   discardSchoolFeeInvoice,
   fetchSchoolFeeInvoices,
@@ -137,12 +144,158 @@ export function ClassFeesContent({
     (invoice) => invoice.status === "PAID" || invoice.status === "WRITEOFF",
   ).length;
 
-  const filtered = Boolean(streamFilter || statusFilter || search);
+  const filterCount = activeFilterCount(streamFilter, statusFilter, search);
   const clearFilters = () => {
     setStreamFilter("");
     setStatusFilter("");
     setSearch("");
   };
+
+  /*
+    The verbs a bill can take, given where it has got to.
+
+    Built once and handed to both arrangements, so the table and the phone list
+    cannot drift into offering different things about the same invoice. All of
+    them live behind one trigger: three text buttons in a trailing slot is what
+    pushed "Take payment" off the right edge at every width, and the one the
+    row is waiting for leads the menu instead.
+  */
+  const rowVerbs = useCallback(
+    (invoice: SchoolFeeInvoiceRecord): RecordVerb[] => {
+      const settledRow =
+        invoice.status === "PAID" ||
+        invoice.status === "VOIDED" ||
+        invoice.status === "WRITEOFF";
+      const verbs: RecordVerb[] = [];
+
+      if (invoice.status === "DRAFT") {
+        verbs.push({
+          label: "Issue",
+          action: "issue",
+          loading: issue.isPending,
+          confirm: {
+            title: `Issue ${invoice.invoiceNo}`,
+            description: `${formatSchoolMoney(invoice.totalAmount, invoice.currency)} is added to the family's outstanding balance.`,
+            confirmLabel: "Issue it",
+          },
+          onSelect: () => issue.mutate(invoice.id),
+        });
+        verbs.push({
+          label: "Discard",
+          action: "void",
+          tone: "danger",
+          loading: discard.isPending,
+          confirm: {
+            title: `Discard ${invoice.invoiceNo}`,
+            description:
+              "The draft is deleted outright. Nothing has reached the family, so nothing is withdrawn.",
+            confirmLabel: "Discard it",
+          },
+          onSelect: () => discard.mutate(invoice.id),
+        });
+      }
+      if (invoice.balanceAmount > 0 && invoice.status !== "DRAFT") {
+        verbs.push({
+          label: "Take payment",
+          action: "receive-payment",
+          onSelect: () => setReceiptFor(invoice),
+        });
+        verbs.push({
+          label: "Write off",
+          action: "write-off",
+          tone: "danger",
+          onSelect: () => setWriteOffTarget(invoice),
+        });
+      }
+      verbs.push({
+        label: "Edit",
+        action: "edit",
+        unavailable: settledRow ? "A settled bill cannot be edited." : undefined,
+        onSelect: () => setEditing(invoice),
+      });
+
+      return verbs;
+    },
+    [discard, issue],
+  );
+
+  /*
+    A table, not a row list.
+
+    The question this screen is opened with is a column question — who in this
+    year group still owes, and how much — and a stack of two-line rows cannot
+    answer it because the figures never line up. Below `md` it becomes the row
+    list it used to be everywhere, because seven columns at 390px is a table
+    you have to operate rather than one you can read.
+  */
+  const columns = useMemo<ColumnDef<SchoolFeeInvoiceRecord>[]>(
+    () => [
+      {
+        id: "student",
+        header: "Student",
+        cell: ({ row }) => (
+          <PersonCell
+            kind="student"
+            href={`/schools/students/${row.original.student.id}`}
+            firstName={row.original.student.firstName}
+            lastName={row.original.student.lastName}
+            reference={row.original.student.studentNo}
+          />
+        ),
+      },
+      {
+        id: "invoiceNo",
+        header: "Invoice no",
+        cell: ({ row }) => <NumericCell align="left">{row.original.invoiceNo}</NumericCell>,
+      },
+      { id: "term", header: "Term", cell: ({ row }) => row.original.term.name },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => <InvoiceStatusBadge status={row.original.status} />,
+      },
+      {
+        id: "totalAmount",
+        header: "Billed",
+        cell: ({ row }) => (
+          <NumericCell>
+            {formatSchoolMoney(row.original.totalAmount, row.original.currency)}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "balanceAmount",
+        header: "Outstanding",
+        cell: ({ row }) => (
+          <NumericCell className="font-medium">
+            {formatSchoolMoney(row.original.balanceAmount, row.original.currency)}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "dueDate",
+        header: "Due",
+        cell: ({ row }) => <NumericCell>{formatSchoolDate(row.original.dueDate)}</NumericCell>,
+      },
+      {
+        id: "actions",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <RecordActions
+              layout="menu"
+              resource="schools.fees"
+              label={`Actions for ${row.original.invoiceNo}`}
+              verbs={rowVerbs(row.original)}
+            />
+          </div>
+        ),
+      },
+    ],
+    [rowVerbs],
+  );
 
   if (invoicesQuery.error) {
     return (
@@ -156,65 +309,29 @@ export function ClassFeesContent({
 
   return (
     <div className="space-y-4">
+      {/* Nothing but dashes until the figures are in. "$ 0.00 outstanding"
+          a second before the real total lands is worse than an empty chip: it
+          is a number a bursar can act on, and it is wrong. `isPending` rather
+          than `isLoading`, because a refetch of a list already on screen is
+          not a reason to blank the total. */}
       <PageBand
         chips={[
           {
             label: "Outstanding",
-            value: formatSchoolMoney(outstanding),
+            value: invoicesQuery.isPending ? "—" : formatSchoolMoney(outstanding),
             tone: "danger",
           },
-          { label: "Families", value: owing },
-          { label: "Settled", value: settled, tone: "success" },
+          { label: "Families owing", value: invoicesQuery.isPending ? "—" : owing },
+          {
+            label: "Settled",
+            value: invoicesQuery.isPending ? "—" : settled,
+            tone: "success",
+          },
         ]}
       />
 
-      <FilterBar>
-        {streams.length > 0 ? (
-          <FilterSelect
-            label="Class"
-            allLabel="Every class"
-            value={streamFilter}
-            options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
-            onChange={setStreamFilter}
-          />
-        ) : null}
-        <FilterSelect
-          label="Status"
-          allLabel="Any status"
-          value={statusFilter}
-          options={STATUS_OPTIONS}
-          onChange={setStatusFilter}
-        />
-        <div className="min-w-0 flex-1 basis-[220px] sm:max-w-[280px]">
-          <Label htmlFor="class-fees-search" className="text-sm text-muted-foreground">
-            Search
-          </Label>
-          <Input
-            id="class-fees-search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search invoices"
-          />
-        </div>
-      </FilterBar>
-
-      {/* Silent about money until the figures are in. Reading
-          "$0.00 outstanding across 0 students" a second before the real total
-          lands is worse than reading nothing: it is a number a bursar can act on
-          and it is wrong. `isPending` rather than `isLoading` — a refetch of a
-          list already on screen is not a reason to blank the total. */}
-      <p className="text-sm text-muted-foreground">
-        {invoicesQuery.isPending ? (
-          "Adding up what this year group owes…"
-        ) : (
-          <>
-            <span className="tabular-nums">{formatSchoolMoney(outstanding)}</span> outstanding
-            across {owing} student
-            {owing === 1 ? "" : "s"}, from {invoices.length} invoice
-            {invoices.length === 1 ? "" : "s"}.
-          </>
-        )}
-      </p>
+      {issue.error ? <SaveError what="The invoice" error={issue.error} /> : null}
+      {discard.error ? <SaveError what="The draft" error={discard.error} /> : null}
 
       {/* Good news, said out loud — but the rows stay, because "show me the
           Form 2 bills" is still a reasonable thing to want on a year group
@@ -226,119 +343,111 @@ export function ClassFeesContent({
         />
       ) : null}
 
-      {issue.error ? <SaveError what="The invoice" error={issue.error} /> : null}
-      {discard.error ? <SaveError what="The draft" error={discard.error} /> : null}
-
-      {invoicesQuery.isPending ? (
-        <TableRowsSkeleton columns={[{ avatar: true, twoLine: true }, { width: 90 }]} />
-      ) : invoices.length === 0 ? (
-        filtered ? (
-          <NothingMatched
-            what="invoices"
-            filters={[
-              streams.find((stream) => stream.id === streamFilter)?.name ?? "",
-              STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label ?? "",
-              search,
-            ]}
-            onClear={clearFilters}
-          />
-        ) : (
-          <NothingYet
-            title="Nothing billed to this year group yet"
-            body="Generate a term's invoices from its fee sheet on the whole-school ledger."
-          />
-        )
-      ) : (
-        <MobileList>
-          {invoices.length === 0 ? (
-            <MobileListEmpty>No invoices for this year group yet.</MobileListEmpty>
-          ) : (
-            invoices.map((invoice) => {
-              const settledRow =
-                invoice.status === "PAID" ||
-                invoice.status === "VOIDED" ||
-                invoice.status === "WRITEOFF";
-              const verbs: RecordVerb[] = [];
-
-              if (invoice.status === "DRAFT") {
-                verbs.push({
-                  label: "Issue",
-                  action: "issue",
-                  loading: issue.isPending,
-                  confirm: {
-                    title: `Issue ${invoice.invoiceNo}`,
-                    description: `${formatSchoolMoney(invoice.totalAmount, invoice.currency)} is added to the family's outstanding balance.`,
-                    confirmLabel: "Issue it",
-                  },
-                  onSelect: () => issue.mutate(invoice.id),
-                });
-                verbs.push({
-                  label: "Discard",
-                  action: "void",
-                  tone: "danger",
-                  loading: discard.isPending,
-                  confirm: {
-                    title: `Discard ${invoice.invoiceNo}`,
-                    description:
-                      "The draft is deleted outright. Nothing has reached the family, so nothing is withdrawn.",
-                    confirmLabel: "Discard it",
-                  },
-                  onSelect: () => discard.mutate(invoice.id),
-                });
-              }
-              if (invoice.balanceAmount > 0 && invoice.status !== "DRAFT") {
-                verbs.push({
-                  label: "Take payment",
-                  action: "receive-payment",
-                  onSelect: () => setReceiptFor(invoice),
-                });
-                verbs.push({
-                  label: "Write off",
-                  action: "write-off",
-                  tone: "danger",
-                  onSelect: () => setWriteOffTarget(invoice),
-                });
-              }
-              verbs.push({
-                label: "Edit",
-                action: "edit",
-                unavailable: settledRow ? "A settled bill cannot be edited." : undefined,
-                onSelect: () => setEditing(invoice),
-              });
-
-              return (
-                <MobileList.Row
-                  key={invoice.id}
-                  static
-                  leading={
-                    <PersonAvatar
-                      firstName={invoice.student.firstName}
-                      lastName={invoice.student.lastName}
-                    />
-                  }
-                  title={`${invoice.student.lastName}, ${invoice.student.firstName}`}
-                  subtitle={
-                    <span className="mt-1 flex flex-wrap items-center gap-2">
-                      <span>
-                        {invoice.invoiceNo} · {invoice.term.name} ·{" "}
-                        <span className="tabular-nums">
-                          {formatSchoolMoney(invoice.totalAmount, invoice.currency)}
-                        </span>{" "}
-                        billed
-                        {invoice.balanceAmount > 0
-                          ? ` · ${formatSchoolMoney(invoice.balanceAmount, invoice.currency)} outstanding`
-                          : ""}
-                      </span>
-                      <InvoiceStatusBadge status={invoice.status} />
+      <DataTable
+        data={invoices}
+        columns={columns}
+        pagination={{ enabled: true }}
+        toolbar={
+          <>
+            <TableSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Search name, admission or invoice number"
+            />
+            {streams.length > 0 ? (
+              <FilterSelect
+                label="Class"
+                allLabel="Every class"
+                value={streamFilter}
+                options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
+                onChange={setStreamFilter}
+              />
+            ) : null}
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={statusFilter}
+              options={STATUS_OPTIONS}
+              onChange={setStatusFilter}
+            />
+            <RowCount
+              showing={invoices.length}
+              total={invoicesQuery.data?.pagination.total}
+              pending={invoicesQuery.isPending}
+            />
+          </>
+        }
+        mobileListRenderer={({ rows }) => (
+          <MobileList>
+            {rows.map(({ row }) => (
+              <MobileList.Row
+                key={row.id}
+                static
+                leading={
+                  <PersonAvatar
+                    firstName={row.student.firstName}
+                    lastName={row.student.lastName}
+                  />
+                }
+                title={`${row.student.firstName} ${row.student.lastName}`}
+                subtitle={
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono">
+                      {row.invoiceNo} · {row.term.name}
                     </span>
-                  }
-                  trailing={<RecordActions resource="schools.fees" verbs={verbs} />}
-                />
-              );
-            })
-          )}
-        </MobileList>
-      )}
+                    <InvoiceStatusBadge status={row.status} />
+                  </span>
+                }
+                trailing={
+                  <span className="flex items-center gap-2">
+                    {/* Stripped of its column head, the outstanding balance is
+                        the one figure that still says what the row is about. */}
+                    <span className="font-medium tabular-nums">
+                      {formatSchoolMoney(row.balanceAmount, row.currency)}
+                    </span>
+                    <RecordActions
+                      layout="menu"
+                      resource="schools.fees"
+                      label={`Actions for ${row.invoiceNo}`}
+                      verbs={rowVerbs(row)}
+                    />
+                  </span>
+                }
+              />
+            ))}
+          </MobileList>
+        )}
+        emptyState={
+          invoicesQuery.isPending ? (
+            <TableRowsSkeleton
+              headers={["Student", "Invoice no", "Term", "Status", "Outstanding"]}
+              columns={[
+                { avatar: true, twoLine: true },
+                { width: 120 },
+                {},
+                { badge: true },
+                { width: 110, align: "right" },
+              ]}
+            />
+          ) : filterCount > 0 ? (
+            <NothingMatched
+              what="invoices"
+              search={search}
+              filters={[
+                streams.find((stream) => stream.id === streamFilter)?.name ?? "",
+                STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label ?? "",
+              ]}
+              onClear={clearFilters}
+            />
+          ) : (
+            <NothingYet
+              title="Nothing billed to this year group yet"
+              body="Generate a term's invoices from its fee sheet on the whole-school ledger."
+            />
+          )
+        }
+      />
+
 
       <ReceiptFormDialog
         open={receiptFor !== null}

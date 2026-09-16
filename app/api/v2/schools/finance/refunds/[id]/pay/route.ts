@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 import { resolveBaseCurrency, toNumberOrZero } from "@/lib/schools/money";
+import { recordSchoolFeePosting } from "@/lib/schools/fee-posting-status";
 import {
   emitSchoolFeeAccountingEvent,
   FeeCreditError,
@@ -78,6 +79,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           status: "PAID",
           paidAt,
           paidById: session.user.id,
+          // Claimed in the same transaction as the payment, before the
+          // posting engine is called. Money leaving the school with no journal
+          // entry is the worst version of this defect, and a row that dies
+          // between the commit and the emit below stays PENDING, which is what
+          // `listUnpostedSchoolFeeDocuments` reads.
+          accountingStatus: "PENDING",
           ...(validated.reference !== undefined
             ? { reference: validated.reference }
             : {}),
@@ -157,6 +164,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         accountingError:
           error instanceof Error ? error.message : "Accounting posting failed",
       };
+    });
+
+    // On the refund itself, not only in the response body — a refund that
+    // posted nothing is money out of the building with no ledger entry, and
+    // until this column existed nothing could list it.
+    await recordSchoolFeePosting({
+      companyId,
+      document: "REFUND",
+      documentId: result.id,
+      outcome: accounting,
     });
 
     return successResponse({ ...result, accounting });

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -14,17 +14,16 @@ import {
   ALL_CLASSES,
   type ClassFilterValue,
 } from "@/components/schools/common/class-filter";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  StatsSkeleton,
-  TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -270,17 +269,25 @@ export function WelfareContent() {
         />
       </PageChrome>
 
+      {/* Dashes, not noughts, until the list is in. "0 allergy, no consent" is
+          the chip a nurse reads to decide she has nothing to chase, and for the
+          frame before the roll lands it is wrong. */}
       <PageBand
         chips={[
-          { label: "Children", value: allRows.length },
+          { label: "Children", value: listQuery.isPending ? "—" : allRows.length },
+          {
+            label: "Complete",
+            value: listQuery.isPending ? "—" : complete,
+            tone: "success",
+          },
           {
             label: "Still to record",
-            value: missing,
+            value: listQuery.isPending ? "—" : missing,
             tone: missing > 0 ? "warn" : "success",
           },
           {
             label: "Allergy, no consent",
-            value: urgent,
+            value: listQuery.isPending ? "—" : urgent,
             tone: urgent > 0 ? "danger" : "neutral",
           },
         ]}
@@ -298,20 +305,6 @@ export function WelfareContent() {
       {clearMutation.error ? (
         <SaveError what="That health record" error={clearMutation.error} />
       ) : null}
-
-      {listQuery.isLoading ? (
-        <StatsSkeleton count={3} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard label="Complete" value={complete} tone="success" />
-          <StatCard label="Still to record" value={missing} tone={missing > 0 ? "warn" : "neutral"} />
-          <StatCard
-            label="Allergy, no consent"
-            value={urgent}
-            tone={urgent > 0 ? "danger" : "neutral"}
-          />
-        </div>
-      )}
 
       {urgent > 0 ? (
         <Alert
@@ -352,6 +345,7 @@ export function WelfareContent() {
             />
           </>
         }
+        count={listQuery.isPending ? null : `${rows.length} of ${allRows.length}`}
         actions={
           // A toggle rather than a third dropdown: it has two states, one of
           // them is the whole school, and the button says which one you get by
@@ -362,15 +356,8 @@ export function WelfareContent() {
         }
       />
 
-      <p className="text-sm text-muted-foreground">
-        {allRows.length} child{allRows.length === 1 ? "" : "ren"}, {missing} with something
-        still to record.
-      </p>
-
       {listQuery.isLoading ? (
-        <TableRowsSkeleton
-          columns={[{ avatar: true, twoLine: true }, { width: 220 }, { width: 190 }]}
-        />
+        <ListRowsSkeleton rows={8} label="Loading the welfare list" />
       ) : grouped.length === 0 ? (
         allRows.length === 0 ? (
           <NothingYet
@@ -414,25 +401,22 @@ export function WelfareContent() {
                     key={row.student.id}
                     className="flex flex-wrap items-center gap-3 px-3 py-2"
                   >
-                    <span className="flex min-w-0 flex-1 items-center gap-2">
-                      <PersonAvatar
+                    <span className="min-w-0 flex-1">
+                      <PersonCell
+                        kind="student"
+                        href={`/schools/students/${row.student.id}`}
                         firstName={row.student.firstName}
                         lastName={row.student.lastName}
+                        reference={row.student.studentNo}
+                        context={[
+                          row.student.isBoarding ? "boarder" : "day",
+                          row.record?.allergies
+                            ? `allergic to ${row.record.allergies}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       />
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">
-                          {row.student.lastName}, {row.student.firstName}
-                        </span>
-                        <span className="block truncate text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                          <span className="font-[family-name:var(--font-mono)]">
-                            {row.student.studentNo}
-                          </span>
-                          {row.student.isBoarding ? " · boarder" : " · day"}
-                          {row.record?.allergies
-                            ? ` · allergic to ${row.record.allergies}`
-                            : ""}
-                        </span>
-                      </span>
                     </span>
                     <span className="flex flex-wrap items-center gap-1.5">
                       {row.gaps.length === 0 ? (
@@ -448,48 +432,55 @@ export function WelfareContent() {
                         ))
                       )}
                     </span>
-                    <RecordActions
-                      resource="schools.boarding"
-                      verbs={[
-                        {
-                          label: row.record ? "Update" : "Record",
-                          action: "edit",
-                          onSelect: () => {
-                            setEditing(row);
-                            setDraft(draftFrom(row));
-                            setActionError(null);
+                    {/* One trigger. Filling the record in is what the row is
+                        for, so it leads the menu; three verbs spelled out ran
+                        off the right edge of the card at every width. */}
+                    <span className="flex items-center gap-2">
+                      <RecordActions
+                        layout="menu"
+                        resource="schools.boarding"
+                        label={`Actions for ${row.student.firstName} ${row.student.lastName}`}
+                        verbs={[
+                          {
+                            label: row.record ? "Update" : "Record",
+                            action: "edit",
+                            onSelect: () => {
+                              setEditing(row);
+                              setDraft(draftFrom(row));
+                              setActionError(null);
+                            },
                           },
-                        },
-                        {
-                          label: "Log a visit",
-                          action: "create",
-                          onSelect: () => {
-                            setLogAnybody(false);
-                            setLoggingFor(row);
+                          {
+                            label: "Log a visit",
+                            action: "create",
+                            onSelect: () => {
+                              setLogAnybody(false);
+                              setLoggingFor(row);
+                            },
                           },
-                        },
-                        {
-                          label: "Clear",
-                          action: "archive",
-                          tone: "danger",
-                          loading: clearingId === row.student.id,
-                          unavailable: row.record
-                            ? undefined
-                            : "There is nothing recorded to clear.",
-                          confirm: {
-                            title: `Clear ${row.student.lastName}, ${row.student.firstName}`,
-                            description:
-                              "Every allergy, condition and consent on this child goes for good, and the row goes back to saying nothing is recorded. Use it for a record entered against the wrong child — a record that is merely out of date is corrected, not cleared.",
-                            confirmLabel: "Clear it",
+                          {
+                            label: "Clear",
+                            action: "archive",
+                            tone: "danger",
+                            loading: clearingId === row.student.id,
+                            unavailable: row.record
+                              ? undefined
+                              : "There is nothing recorded to clear.",
+                            confirm: {
+                              title: `Clear ${row.student.firstName} ${row.student.lastName}`,
+                              description:
+                                "Every allergy, condition and consent on this child goes for good, and the row goes back to saying nothing is recorded. Use it for a record entered against the wrong child — a record that is merely out of date is corrected, not cleared.",
+                              confirmLabel: "Clear it",
+                            },
+                            onSelect: () => {
+                              setActionError(null);
+                              setClearingId(row.student.id);
+                              clearMutation.mutate(row);
+                            },
                           },
-                          onSelect: () => {
-                            setActionError(null);
-                            setClearingId(row.student.id);
-                            clearMutation.mutate(row);
-                          },
-                        },
-                      ]}
-                    />
+                        ]}
+                      />
+                    </span>
                   </li>
                 ))}
               </ul>

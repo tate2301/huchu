@@ -3,12 +3,17 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Card, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Card, MobileList, MobileListEmpty } from "@corelithzw/react";
+
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordMark } from "@/components/records/record-mark";
+import { recordCellTone } from "@/components/records/record-table";
 
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
+import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -18,8 +23,9 @@ import {
   SaveError,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   fetchSchoolsClasses,
   fetchSchoolsSubjects,
@@ -282,37 +288,56 @@ export function HomeworkOversightContent() {
       {
         id: "subject",
         header: "Subject and class",
+        // The subject tile, the subject, and the class it was set for. Both
+        // halves are references rather than words about the row, so "what else
+        // has Form 2 been given this week" is a click rather than a filter.
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="font-medium">{row.original.subjectName}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.className}
-              {row.original.streamName ? ` · ${row.original.streamName}` : ""}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="subject"
+            name={row.original.subjectName}
+            href={recordType("SUBJECT").href(row.original.subjectId)}
+            reference={[row.original.className, row.original.streamName]
+              .filter(Boolean)
+              .join(" ")}
+          />
         ),
       },
       {
         id: "title",
         header: "Homework",
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="font-medium">{row.original.title}</div>
-            <div className="text-xs text-muted-foreground">
+          <span className="block min-w-0">
+            <span className="block truncate text-sm font-medium text-[color:var(--text-strong)]">
+              {row.original.title}
+            </span>
+            {/* Never blank: "Nothing marked yet" is the fact a deputy scanning
+                this column is looking for, and an empty line under a title
+                reads as a row that failed to load. */}
+            <span className="mt-0.5 block truncate font-mono text-sm text-[color:var(--text-subtle)]">
               {row.original.marked > 0
                 ? `${row.original.marked} marked`
                 : "Nothing marked yet"}
               {row.original.late > 0 ? ` · ${row.original.late} in late` : ""}
-            </div>
-          </div>
+            </span>
+          </span>
         ),
       },
       {
         id: "teacher",
         header: "Teacher",
-        cell: ({ row }) => (
-          <span className="text-sm">{row.original.teacherName ?? "Unassigned"}</span>
-        ),
+        cell: ({ row }) =>
+          row.original.teacherName ? (
+            <EntityLink
+              href={recordType("TEACHER").href(row.original.teacherProfileId)}
+              className={recordCellTone("relation")}
+            >
+              {row.original.teacherName}
+            </EntityLink>
+          ) : (
+            // Named rather than dashed: homework nobody is against is the row
+            // the nudge cannot be sent on, which is why the verb below says so.
+            <span className="text-sm text-[color:var(--text-muted)]">Unassigned</span>
+          ),
       },
       {
         id: "setOn",
@@ -362,10 +387,13 @@ export function HomeworkOversightContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.title}`}
             resource="schools.academics"
             verbs={[
               {
@@ -433,30 +461,6 @@ export function HomeworkOversightContent() {
       {nudged ? (
         <Alert tone="success" title={nudged} onDismiss={() => setNudged(null)} />
       ) : null}
-
-      {query.isPending ? (
-        <StatsSkeleton count={3} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard
-            label="Set and running"
-            value={summary?.open ?? 0}
-            footer="Published, deadline not yet passed"
-          />
-          <StatCard
-            label="Due this week"
-            value={summary?.dueThisWeek ?? 0}
-            tone="warn"
-            footer="Monday to Sunday"
-          />
-          <StatCard
-            label="Overdue"
-            value={summary?.overdue ?? 0}
-            tone="danger"
-            footer="Past the deadline with work still missing"
-          />
-        </div>
-      )}
 
       <FilterBar>
         <FilterSelect
@@ -527,6 +531,33 @@ export function HomeworkOversightContent() {
               searchSubmitLabel="Search"
               pagination={{ enabled: true }}
               exportConfig={{ enabled: true, title: "Homework", fileName: "homework" }}
+              // Seven columns at 390px is a sideways scroll. On a phone the
+              // row is the piece of work, and the figure the board turns on —
+              // how many of the class have handed it in — is the last thing on
+              // the line under it.
+              mobileListRenderer={({ rows: shown }) => (
+                <MobileList>
+                  {shown.length === 0 ? (
+                    <MobileListEmpty>No homework matched.</MobileListEmpty>
+                  ) : (
+                    shown.map(({ row }) => (
+                      <MobileList.Row
+                        key={row.id}
+                        leading={<RecordMark kind="subject" name={row.subjectName} size="sm" />}
+                        title={`${row.subjectName} · ${row.title}`}
+                        subtitle={[
+                          [row.className, row.streamName].filter(Boolean).join(" "),
+                          row.dueAt ? `due ${formatDate(row.dueAt)}` : "no deadline",
+                          `${row.handedIn} of ${row.onRoll} in`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        onClick={() => setOpenAssignmentId(row.id)}
+                      />
+                    ))
+                  )}
+                </MobileList>
+              )}
               emptyState={
                 narrowing.length > 0 ? (
                   <NothingMatched
@@ -556,10 +587,9 @@ export function HomeworkOversightContent() {
         </div>
 
         {/*
-          The side column: which class is drowning, the roll figure the board
-          turns on, and the two notes explaining why the rows go somewhere and
-          why the tiles do not move. One flex column so they stack under each
-          other rather than each claiming a grid cell of their own.
+          The side column: which class is drowning, and the roll figure the
+          board turns on. One flex column so they stack under each other rather
+          than each claiming a grid cell of their own.
         */}
         <div className="flex flex-col gap-4">
         <Card
@@ -616,43 +646,11 @@ export function HomeworkOversightContent() {
           {query.isPending ? (
             <StatsSkeleton count={1} />
           ) : (
-            <>
-              <p className="font-[family-name:var(--font-mono)] text-[length:var(--type-heading-sm)] font-bold tabular-nums text-[color:var(--text-strong)]">
-                {(summary?.handedIn ?? 0).toLocaleString()} of{" "}
-                {(summary?.onRoll ?? 0).toLocaleString()}
-              </p>
-              <p className="mt-2 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                Across every piece of work in view. A bare tally of what arrived
-                cannot tell a full class from an empty one, so the roll travels with
-                every row rather than the count alone.
-              </p>
-            </>
+            <p className="font-[family-name:var(--font-mono)] text-[length:var(--type-heading-sm)] font-bold tabular-nums text-[color:var(--text-strong)]">
+              {(summary?.handedIn ?? 0).toLocaleString()} of{" "}
+              {(summary?.onRoll ?? 0).toLocaleString()}
+            </p>
           )}
-        </Card>
-
-        {/*
-          Two notes the canvas draws as cards. They are the reasoning a reader
-          needs to trust the numbers above them — why the rows now go
-          somewhere, and why the tiles do not move when the State filter does.
-        */}
-        <Card title="Every row is a dead end" className="h-fit">
-          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-            That was the fault this board was built to fix. Nothing on this table
-            linked anywhere, so a deputy who spots{" "}
-            <strong>4 of 31 handed in</strong> cannot open the homework, see who is
-            missing, or chase them. <strong>Who has not handed in</strong> on the row
-            opens the class list, and <strong>Message the class</strong> writes to the
-            families of exactly the children who are missing.
-          </p>
-        </Card>
-
-        <Card title="Why the tiles ignore the filter" className="h-fit">
-          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-            The three tiles count the term and the class filters, never the{" "}
-            <strong>State</strong> filter below them: a head reads &ldquo;7
-            overdue&rdquo;, then narrows the table to see which seven. Narrowing the
-            tiles too would leave every tile reading its own filter back at itself.
-          </p>
         </Card>
         </div>
       </div>

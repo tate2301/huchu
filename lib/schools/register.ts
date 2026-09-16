@@ -29,6 +29,56 @@ export class RegisterError extends Error {
   }
 }
 
+export type RegisterStatus = "DRAFT" | "SUBMITTED" | "LOCKED";
+
+/**
+ * The three states a register can be in, and what each one still allows.
+ *
+ * The rules were scattered across the four routes that touch a session and
+ * disagreed with each other: the teacher's save refused only a locked day, the
+ * office's submit demanded a draft, and the lock route wrote its own version of
+ * both. A register a teacher cannot correct after sending it in is a phone call
+ * to the office over a mis-tap, and a register nobody can send in at all is
+ * what the parent app has been showing as "not yet submitted" every day of the
+ * term. Those are decisions about one small state machine, so they are written
+ * down once here and the routes ask.
+ *
+ * Each returns null when the act is allowed, or the sentence to refuse with —
+ * the same shape as `schoolPermissionDenial`, and for the same reason: every
+ * school route answers through `errorResponse`, so a thrown error would come
+ * back as a 500.
+ */
+
+/**
+ * Marking stops only at a locked day. A submitted register is still the
+ * teacher's to correct, because the office has not yet made it the record.
+ */
+export function registerMarkDenial(status: RegisterStatus): string | null {
+  if (status === "LOCKED") {
+    return "The office has locked this register, so its marks can no longer be changed.";
+  }
+  return null;
+}
+
+/** Sending in happens once. A day already sent in, or locked, has nowhere to go. */
+export function registerSubmitDenial(status: RegisterStatus): string | null {
+  if (status === "SUBMITTED") return "This register has already been sent to the office.";
+  if (status === "LOCKED") return "The office has locked this register.";
+  return null;
+}
+
+/**
+ * Locking is the office signing off a day the teacher has sent in, so there
+ * has to be something to sign off: a draft is still being taken.
+ */
+export function registerLockDenial(status: RegisterStatus): string | null {
+  if (status === "DRAFT") {
+    return "This register has not been sent in yet, so there is nothing to lock.";
+  }
+  if (status === "LOCKED") return "This register is already locked.";
+  return null;
+}
+
 /** Y-M-D midnight in UTC, matching how attendance dates are stored. */
 export function attendanceDay(value: Date) {
   return new Date(
@@ -139,9 +189,19 @@ export async function classRegister(input: {
       termName: classSubject.term.name,
     },
     onDate: attendanceDate.toISOString().slice(0, 10),
-    // A locked register is read-only: the office has closed the day.
+    /**
+     * The state machine answered here rather than in the screen. A register
+     * with no session yet has been neither marked nor sent in, so the portal
+     * treats a null session as both open to marks and ready to be sent.
+     */
     session: session
-      ? { id: session.id, status: session.status, notes: session.notes }
+      ? {
+          id: session.id,
+          status: session.status,
+          notes: session.notes,
+          canMark: registerMarkDenial(session.status) === null,
+          canSubmit: registerSubmitDenial(session.status) === null,
+        }
       : null,
     rows,
     counts: registerCounts(rows),

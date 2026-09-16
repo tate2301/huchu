@@ -255,22 +255,28 @@ export async function claimPortalInvite(input: {
       );
     }
 
-    const user = existing
-      ? await tx.user.update({
-          where: { id: existing.id },
-          data: { password: passwordHash, name, role },
-          select: { id: true, email: true, name: true, role: true },
-        })
-      : await tx.user.create({
-          data: {
-            companyId: invite.companyId,
-            email: invite.sentTo,
-            name,
-            password: passwordHash,
-            role,
-          },
-          select: { id: true, email: true, name: true, role: true },
-        });
+    // Claiming an invite opens an account; it never takes one over. Whoever
+    // issues the invite chooses the address, so updating an existing user here
+    // would let them set the password and role of any account in the tenant by
+    // inviting a record to that address — a teacher's login included.
+    // Re-issuing the invite to an address the office controls is the way back.
+    if (existing) {
+      throw new InviteError(
+        "That email address already has an account. Ask the school office to invite a different address.",
+        409,
+      );
+    }
+
+    const user = await tx.user.create({
+      data: {
+        companyId: invite.companyId,
+        email: invite.sentTo,
+        name,
+        password: passwordHash,
+        role,
+      },
+      select: { id: true, email: true, name: true, role: true },
+    });
 
     if (isStudent) {
       await tx.schoolStudent.update({

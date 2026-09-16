@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 
 import { BoardColumnHeader } from "./board-column-header";
 import { MobileBoard } from "./board-mobile";
-import type { RecordListRow } from "./record-list";
+import type { RecordListRow } from "@/components/records/record-list";
 
 const DROP_ANIMATION: DropAnimation = {
   duration: 220,

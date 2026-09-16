@@ -11,7 +11,7 @@ import { ViewToolbar } from "@/components/records/view-toolbar";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
 import { Checklist, Plus } from "@/lib/icons";
-import { bucketByDueDate } from "@/components/crm/records/record-list-groups";
+import { bucketByDueDate } from "@/components/records/record-list-groups";
 
 import { TaskFormSheet } from "./task-form-sheet";
 import { TaskList } from "./task-list";

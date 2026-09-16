@@ -25,7 +25,7 @@ import {
 import { fetchCrmRep, type CrmRepDetail } from "@/lib/crm/crm-v2";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
-import { RecordList, type RecordListRow } from "@/components/crm/records/record-list";
+import { RecordList, type RecordListRow } from "@/components/records/record-list";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordAttributes } from "@/components/records/record-attributes";
 import { HistoryFeed, type HistoryEvent } from "@/components/crm/records/history-feed";

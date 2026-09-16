@@ -4,23 +4,22 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Card, StatCard } from "@corelithzw/react";
+import { Badge, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { ClassFilter, ALL_CLASSES, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
@@ -29,7 +28,6 @@ import {
   ALLOCATION_STATUSES,
   allocationStatusLabel,
   allocationTone,
-  bedLocation,
   fetchBoardingDashboard,
   fetchLeaveRequests,
   shortDate,
@@ -41,7 +39,7 @@ import { BoardingViews } from "@/components/schools/boarding/boarding-views";
 import { LeaveRequestsPanel } from "@/components/schools/boarding/leave-requests-panel";
 
 /**
- * Boarding Management — who is in which bed, this term.
+ * Who is in which bed, this term.
  *
  * Two cards, in the order the canvas draws them. The allocations table is the
  * screen; the leave and outing table under it is there because a warden reading
@@ -121,38 +119,39 @@ export function BoardingAllocationsContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <PersonAvatar
-              firstName={row.original.student.firstName}
-              lastName={row.original.student.lastName}
-            />
-            <Link
-              href={`/schools/students/${row.original.student.id}`}
-              className="min-w-0 hover:underline"
-            >
-              <div className="truncate font-medium">
-                {row.original.student.lastName}, {row.original.student.firstName}
-              </div>
-              <div className="truncate font-mono text-xs text-muted-foreground">
-                {row.original.student.studentNo}
-                {row.original.student.currentClass
-                  ? ` · ${row.original.student.currentClass.name}`
-                  : ""}
-              </div>
-            </Link>
-          </div>
+          <PersonCell
+            kind="student"
+            href={`/schools/students/${row.original.student.id}`}
+            firstName={row.original.student.firstName}
+            lastName={row.original.student.lastName}
+            reference={row.original.student.studentNo}
+            context={row.original.student.currentClass?.name}
+          />
         ),
       },
       {
         id: "location",
-        header: "Hostel / Room / Bed",
+        header: "Hostel / room / bed",
+        // One cell rather than three: where a child sleeps is an address, the
+        // thing a warden reads out over the phone at nine on a Sunday night,
+        // and split across columns the reader reassembles it on every row.
+        //
+        // The house is a record, so it takes the same cell a house takes
+        // everywhere else — its tile, its name, and the room and bed as the
+        // line underneath, which is the half that tells two boarders in the
+        // same house apart. A plain click opens the house beside the board and
+        // the warden keeps the row they were reading.
+        //
+        // A dash stands in for a part that is missing: an allocation to a
+        // house with no bed yet is a real state, and hiding the gap makes it
+        // invisible.
         cell: ({ row }) => (
-          <Link
-            href={`/schools/boarding/hostels?hostel=${row.original.hostel.id}`}
-            className="hover:underline"
-          >
-            {bedLocation(row.original)}
-          </Link>
+          <RecordNameCell
+            kind="hostel"
+            href={`/schools/boarding/${row.original.hostel.id}`}
+            name={row.original.hostel.name}
+            reference={`${row.original.room?.code ?? "—"} / ${row.original.bed?.code ?? "—"}`}
+          />
         ),
       },
       {
@@ -183,7 +182,9 @@ export function BoardingAllocationsContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const allocation = row.original;
           const verbs: RecordVerb[] = [
@@ -226,7 +227,16 @@ export function BoardingAllocationsContent() {
               allocationAction.mutate({ id: allocation.id, remove: true });
             },
           });
-          return <RecordActions resource="schools.boarding" verbs={verbs} />;
+          return (
+            <div className="flex justify-end">
+              <RecordActions
+                layout="menu"
+                resource="schools.boarding"
+                label={`Actions for ${allocation.student.firstName} ${allocation.student.lastName}`}
+                verbs={verbs}
+              />
+            </div>
+          );
         },
       },
     ],
@@ -243,7 +253,6 @@ export function BoardingAllocationsContent() {
   const filterNames = [
     hostels.find((hostel) => hostel.id === hostelFilter)?.name,
     status ? allocationStatusLabel(status as AllocationStatus) : null,
-    search.trim() || null,
   ].filter((name): name is string => Boolean(name));
 
   const clearFilters = () => {
@@ -255,7 +264,7 @@ export function BoardingAllocationsContent() {
 
   return (
     <>
-      <PageChrome title="Boarding Management">
+      <PageChrome title="Allocations">
         <CreateButton
           resource="schools.boarding"
           action="allocate-bed"
@@ -267,12 +276,27 @@ export function BoardingAllocationsContent() {
         />
       </PageChrome>
 
+      {/* Dashes, not noughts, until each query answers. "0 waiting on you" for
+          the frame before the leave requests land is the chip a warden opens
+          this screen to read, and it is wrong. */}
       <PageBand
         chips={[
           { label: "Term", value: activeTerm?.code ?? "—" },
-          { label: "Beds", value: `${taken} of ${beds}`, tone: "brand" },
-          { label: "Waiting on you", value: waiting, tone: waiting > 0 ? "warn" : "neutral" },
-          { label: "Out of the gate", value: out, tone: out > 0 ? "warn" : "neutral" },
+          {
+            label: "Beds",
+            value: boardQuery.isPending ? "—" : `${taken} of ${beds}`,
+            tone: "brand",
+          },
+          {
+            label: "Waiting on you",
+            value: leaveQuery.isPending ? "—" : waiting,
+            tone: waiting > 0 ? "warn" : "neutral",
+          },
+          {
+            label: "Out of the gate",
+            value: leaveQuery.isPending ? "—" : out,
+            tone: out > 0 ? "warn" : "neutral",
+          },
         ]}
       />
 
@@ -287,31 +311,19 @@ export function BoardingAllocationsContent() {
         <SaveError what="That allocation" error={allocationAction.error} />
       ) : null}
 
-      {boardQuery.isLoading ? (
-        <StatsSkeleton count={5} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <StatCard label="Active Allocations" value={summary?.activeAllocations ?? 0} />
-          <StatCard label="Total Allocations" value={summary?.totalAllocations ?? 0} />
-          <StatCard label="Hostels" value={summary?.hostels ?? 0} />
-          <StatCard label="Rooms" value={summary?.rooms ?? 0} />
-          <StatCard label="Beds" value={summary?.beds ?? 0} />
-        </div>
-      )}
-
       <TableControls
         tabs={
           <BoardingViews
             allocations={summary?.totalAllocations}
             hostels={summary?.hostels}
-            leave={leaveRequests.length}
+            leave={leaveQuery.isPending ? undefined : leaveRequests.length}
           />
         }
         search={
           <TableSearch
             value={search}
             onChange={setSearch}
-            placeholder="Search allocations"
+            placeholder="Search name or admission number"
           />
         }
         filters={
@@ -333,27 +345,38 @@ export function BoardingAllocationsContent() {
             />
           </>
         }
+        count={
+          // Against the whole register, not against the response. The house and
+          // status filters are applied by the server, so reading the
+          // denominator off `boardQuery` makes it agree with the numerator the
+          // moment either is used — "12 of 12" on a school with three hundred
+          // allocations, which is the control saying nothing precisely when it
+          // is being asked something. `totalAllocations` is the unnarrowed
+          // figure and is already what the tab beside it counts.
+          boardQuery.isPending
+            ? null
+            : `${allocations.length} of ${summary?.totalAllocations ?? allocations.length}`
+        }
       />
 
-      <Card flush title="Boarding Allocations" subtitle={`${allocations.length} on the board`}>
+      <Card flush>
         {boardQuery.isLoading ? (
           <TableRowsSkeleton
+            headers={["Student", "Hostel / room / bed", "Term", "Status", "Start", "End", ""]}
             columns={[
               { avatar: true, twoLine: true },
               {},
               { width: 70 },
-              { width: 100 },
-              { width: 70 },
-              { width: 70 },
-              { width: 220 },
+              { width: 100, badge: true },
+              { width: 80 },
+              { width: 80 },
+              { width: 40 },
             ]}
           />
         ) : (
           <DataTable
             data={allocations}
             columns={columns}
-            searchPlaceholder="Search allocations"
-            searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={
               hostels.length === 0 ? (
@@ -366,10 +389,11 @@ export function BoardingAllocationsContent() {
                     </Button>
                   }
                 />
-              ) : filterNames.length > 0 || classValue.classId ? (
+              ) : filterNames.length > 0 || classValue.classId || search.trim() ? (
                 <NothingMatched
                   what="allocations"
                   filters={filterNames}
+                  search={search}
                   onClear={clearFilters}
                 />
               ) : (
@@ -385,8 +409,7 @@ export function BoardingAllocationsContent() {
 
       <Card
         flush
-        title="Leave and Outing Workflow"
-        subtitle="the other view"
+        title="Leave and outings"
         actions={
           <Button asChild variant="secondary" size="sm">
             <Link href="/schools/boarding/leave">Open leave and outings</Link>

@@ -22,7 +22,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
@@ -335,10 +335,6 @@ export function TeacherMeetingsScreen() {
               }}
               isDateDisabled={(date) => !byDay.has(dayKey(date))}
             />
-            <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              Only evenings with slots on them can be picked. Open one to put a date
-              on the calendar.
-            </p>
             <div className="grid gap-2 sm:grid-cols-2">
               <StatCard
                 label="Evenings open"

@@ -7,6 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 import { normalizeProvidedId } from "@/lib/id-generator";
 import { buildCustomFieldValues, mergeCustomFields } from "@/lib/crm/custom-fields";
 import { prisma } from "@/lib/prisma";
@@ -310,6 +311,17 @@ export async function PATCH(
   }
 }
 
+/**
+ * Archiving a pupil.
+ *
+ * The grant this checks is `archive`, and it now does that: the pupil's status
+ * moves to WITHDRAWN and the record stays. It used to call `delete`, and
+ * `SchoolFeeInvoice.student` and its siblings cascade, so the only thing
+ * between a registrar and a child's whole fee history was a dependency count
+ * that says "cannot delete" — which is the wrong answer to "take this pupil off
+ * the roll" as well as the wrong protection. Putting the status back is an
+ * ordinary PATCH, so nothing is lost and nothing needs an undelete.
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -330,64 +342,36 @@ export async function DELETE(
 
     const existing = await prisma.schoolStudent.findFirst({
       where: { id, companyId },
-      select: {
-        id: true,
-        _count: {
-          select: {
-            guardianLinks: true,
-            enrollments: true,
-            boardingAllocations: true,
-            leaveRequests: true,
-            boardingMovementLogs: true,
-            resultLines: true,
-            attendanceSessionLines: true,
-            feeInvoices: true,
-            feeReceipts: true,
-            feeWaivers: true,
-          },
-        },
-      },
+      select: { id: true, status: true },
     });
     if (!existing) {
       return errorResponse("Student not found", 404);
     }
 
-    const dependencyCounts = {
-      guardianLinks: existing._count.guardianLinks,
-      enrollments: existing._count.enrollments,
-      boardingAllocations: existing._count.boardingAllocations,
-      leaveRequests: existing._count.leaveRequests,
-      boardingMovementLogs: existing._count.boardingMovementLogs,
-      resultLines: existing._count.resultLines,
-      attendanceSessionLines: existing._count.attendanceSessionLines,
-      feeInvoices: existing._count.feeInvoices,
-      feeReceipts: existing._count.feeReceipts,
-      feeWaivers: existing._count.feeWaivers,
-    };
-    const inUseBy = Object.fromEntries(
-      Object.entries(dependencyCounts).filter(([, count]) => count > 0),
-    );
-
-    if (Object.keys(inUseBy).length > 0) {
-      return errorResponse(
-        "Cannot delete student because related records exist",
-        409,
-        { inUseBy },
-      );
+    if (existing.status === "WITHDRAWN") {
+      return successResponse({ id: existing.id, status: existing.status });
     }
 
-    await prisma.schoolStudent.delete({
-      where: { id: existing.id },
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.schoolStudent.update({
+        where: { id: existing.id },
+        data: { status: "WITHDRAWN" },
+        select: { id: true, status: true },
+      });
+      await writeSchoolAuditEvent(tx, {
+        companyId,
+        actorId: session.user.id,
+        eventType: "schools.student.archived",
+        entityType: "SchoolStudent",
+        entityId: row.id,
+        payload: { previousStatus: existing.status },
+      });
+      return row;
     });
-    return successResponse({ id: existing.id, deleted: true });
+
+    return successResponse(updated);
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2003"
-    ) {
-      return errorResponse("Cannot delete student because related records exist", 409);
-    }
     console.error("[API] DELETE /api/v2/schools/students/[id] error:", error);
-    return errorResponse("Failed to delete student");
+    return errorResponse("Failed to archive student");
   }
 }

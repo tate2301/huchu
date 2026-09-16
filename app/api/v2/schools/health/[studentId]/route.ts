@@ -51,7 +51,7 @@ export async function GET(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const denied = schoolPermissionDenial(session, "schools.boarding", "view");
+    const denied = schoolPermissionDenial(session, "schools.welfare", "view");
     if (denied) return errorResponse(denied, 403);
     const companyId = session.user.companyId;
 
@@ -93,7 +93,7 @@ export async function PUT(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const denied = schoolPermissionDenial(session, "schools.boarding", "edit");
+    const denied = schoolPermissionDenial(session, "schools.welfare", "edit");
     if (denied) return errorResponse(denied, 403);
 
     const { studentId } = await context.params;
@@ -126,7 +126,7 @@ export async function POST(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const denied = schoolPermissionDenial(session, "schools.boarding", "edit");
+    const denied = schoolPermissionDenial(session, "schools.welfare", "edit");
     if (denied) return errorResponse(denied, 403);
 
     const { studentId } = await context.params;
@@ -169,7 +169,7 @@ export async function DELETE(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const denied = schoolPermissionDenial(session, "schools.boarding", "archive");
+    const denied = schoolPermissionDenial(session, "schools.welfare", "archive");
     if (denied) return errorResponse(denied, 403);
 
     const { studentId } = await context.params;

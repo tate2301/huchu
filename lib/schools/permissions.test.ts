@@ -37,6 +37,39 @@ describe("a teacher cannot touch money", () => {
   });
 });
 
+describe("a teacher can reach a family without becoming the registrar", () => {
+  it("can open a parents' evening and tell a family about a report", () => {
+    expect(canSchoolRoleDo("TEACHER", "schools.students", "book-meeting")).toBe(true);
+    expect(canSchoolRoleDo("TEACHER", "schools.reports", "notify-families")).toBe(true);
+  });
+
+  it("still cannot edit or archive a pupil", () => {
+    expect(canSchoolRoleDo("TEACHER", "schools.students", "edit")).toBe(false);
+    expect(canSchoolRoleDo("TEACHER", "schools.students", "archive")).toBe(false);
+  });
+
+  it("does not answer the office inbox", () => {
+    expect(canSchoolRoleDo("TEACHER", "schools.reports", "reply")).toBe(false);
+  });
+});
+
+describe("locking a register is oversight, not the teacher's own act", () => {
+  it("refuses the teacher who took the register", () => {
+    expect(canSchoolRoleDo("TEACHER", "schools.attendance", "submit")).toBe(true);
+    expect(canSchoolRoleDo("TEACHER", "schools.attendance", "lock")).toBe(false);
+  });
+
+  it("allows the office", () => {
+    expect(canSchoolRoleDo("REGISTRAR", "schools.attendance", "lock")).toBe(true);
+    expect(canSchoolRoleDo("SCHOOL_ADMIN", "schools.attendance", "lock")).toBe(true);
+  });
+
+  it("is not something the warden or the HOD does either", () => {
+    expect(canSchoolRoleDo("WARDEN", "schools.attendance", "lock")).toBe(false);
+    expect(canSchoolRoleDo("HOD", "schools.attendance", "lock")).toBe(false);
+  });
+});
+
 describe("a bursar cannot touch marks", () => {
   it("holds the fee ledger", () => {
     for (const action of ["view", "issue", "receive-payment", "waive", "write-off", "refund"]) {
@@ -53,6 +86,16 @@ describe("a bursar cannot touch marks", () => {
   it("cannot enrol or take a register", () => {
     expect(canSchoolRoleDo("BURSAR", "schools.admissions", "create")).toBe(false);
     expect(canSchoolRoleDo("BURSAR", "schools.attendance", "capture")).toBe(false);
+  });
+
+  it("can chase arrears and answer a fee question", () => {
+    expect(canSchoolRoleDo("BURSAR", "schools.reports", "notify-families")).toBe(true);
+    expect(canSchoolRoleDo("BURSAR", "schools.reports", "reply")).toBe(true);
+  });
+
+  it("does not gain the head's reporting powers by being able to write to families", () => {
+    expect(canSchoolRoleDo("BURSAR", "schools.reports", "create")).toBe(false);
+    expect(canSchoolRoleDo("BURSAR", "schools.reports", "edit")).toBe(false);
   });
 });
 
@@ -71,6 +114,11 @@ describe("an HOD moderates but does not capture", () => {
   it("cannot touch fees or boarding", () => {
     expect(canSchoolRoleDo("HOD", "schools.fees", "view")).toBe(false);
     expect(canSchoolRoleDo("HOD", "schools.boarding", "allocate-bed")).toBe(false);
+  });
+
+  it("can answer a results query in the office inbox", () => {
+    expect(canSchoolRoleDo("HOD", "schools.reports", "reply")).toBe(true);
+    expect(canSchoolRoleDo("HOD", "schools.reports", "notify-families")).toBe(true);
   });
 });
 
@@ -94,10 +142,42 @@ describe("a registrar runs records", () => {
     expect(canSchoolRoleDo("REGISTRAR", "schools.students", "invite")).toBe(true);
   });
 
+  it("can lock a register it did not take, and write to families", () => {
+    expect(canSchoolRoleDo("REGISTRAR", "schools.attendance", "lock")).toBe(true);
+    expect(canSchoolRoleDo("REGISTRAR", "schools.reports", "notify-families")).toBe(true);
+    expect(canSchoolRoleDo("REGISTRAR", "schools.reports", "reply")).toBe(true);
+  });
+
   it("can see fees but not move money", () => {
     expect(canSchoolRoleDo("REGISTRAR", "schools.fees", "view")).toBe(true);
     expect(canSchoolRoleDo("REGISTRAR", "schools.fees", "receive-payment")).toBe(false);
     expect(canSchoolRoleDo("REGISTRAR", "schools.fees", "write-off")).toBe(false);
+  });
+});
+
+describe("welfare belongs to the school, not to the boarding house", () => {
+  it("is readable by the staff who meet the pupil, boarding or not", () => {
+    for (const role of ["REGISTRAR", "HOD", "TEACHER", "BURSAR", "WARDEN"]) {
+      expect(canSchoolRoleDo(role, "schools.welfare", "view")).toBe(true);
+    }
+  });
+
+  it("is written by the warden, the office and the registrar", () => {
+    expect(canSchoolRoleDo("WARDEN", "schools.welfare", "edit")).toBe(true);
+    expect(canSchoolRoleDo("REGISTRAR", "schools.welfare", "create")).toBe(true);
+    expect(canSchoolRoleDo("SCHOOL_ADMIN", "schools.welfare", "edit")).toBe(true);
+  });
+
+  it("is read-only for the bursar, the HOD and the class teacher", () => {
+    for (const role of ["BURSAR", "HOD", "TEACHER"]) {
+      expect(canSchoolRoleDo(role, "schools.welfare", "create")).toBe(false);
+      expect(canSchoolRoleDo(role, "schools.welfare", "edit")).toBe(false);
+    }
+  });
+
+  it("is closed to families", () => {
+    expect(canSchoolRoleDo("PARENT", "schools.welfare", "view")).toBe(false);
+    expect(canSchoolRoleDo("STUDENT", "schools.welfare", "view")).toBe(false);
   });
 });
 
@@ -107,6 +187,8 @@ describe("a school admin holds everything", () => {
     expect(canSchoolRoleDo("SCHOOL_ADMIN", "schools.results", "publish")).toBe(true);
     expect(canSchoolRoleDo("SCHOOL_ADMIN", "schools.boarding", "allocate-bed")).toBe(true);
     expect(canSchoolRoleDo("SCHOOL_ADMIN", "schools.academics", "create")).toBe(true);
+    expect(canSchoolRoleDo("SCHOOL_ADMIN", "schools.welfare", "archive")).toBe(true);
+    expect(canSchoolRoleDo("SCHOOL_ADMIN", "schools.reports", "reply")).toBe(true);
   });
 });
 

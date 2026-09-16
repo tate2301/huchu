@@ -24,6 +24,7 @@ export type SchoolResource =
   | "schools.attendance"
   | "schools.fees"
   | "schools.boarding"
+  | "schools.welfare"
   | "schools.results"
   | "schools.reports";
 
@@ -51,7 +52,11 @@ export type SchoolAction =
   | "approve-leave"
   | "check-in"
   | "check-out"
-  | "configure";
+  | "configure"
+  | "notify-families"
+  | "reply"
+  | "book-meeting"
+  | "lock";
 
 /**
  * The tenant's own administrators, who are not constrained by a vertical
@@ -127,6 +132,10 @@ const ALL_ACTIONS: SchoolAction[] = [
   "check-in",
   "check-out",
   "configure",
+  "notify-families",
+  "reply",
+  "book-meeting",
+  "lock",
 ];
 
 /**
@@ -138,13 +147,14 @@ const ALL_ACTIONS: SchoolAction[] = [
 const WHO_CAN: Record<SchoolResource, Partial<Record<SchoolAction, string>>> = {
   "schools.academics": { create: "a school administrator", edit: "a school administrator", configure: "a school administrator" },
   "schools.admissions": { approve: "the registrar or a school administrator" },
-  "schools.students": { create: "the registrar", edit: "the registrar", archive: "a school administrator", configure: "a school administrator" },
+  "schools.students": { create: "the registrar", edit: "the registrar", archive: "a school administrator", configure: "a school administrator", "book-meeting": "the teacher, from their portal" },
   "schools.teachers": { create: "the registrar", edit: "the registrar" },
-  "schools.attendance": { capture: "the class teacher, from their portal" },
+  "schools.attendance": { capture: "the class teacher, from their portal", lock: "the office" },
   "schools.fees": { create: "the bursar", edit: "the bursar", issue: "the bursar", "receive-payment": "the bursar", waive: "the bursar", "write-off": "the bursar", void: "the bursar", refund: "the bursar" },
   "schools.boarding": { "allocate-bed": "the warden", "approve-leave": "the warden", "check-in": "the warden", "check-out": "the warden" },
+  "schools.welfare": { create: "the warden or the school nurse", edit: "the warden or the school nurse", archive: "the warden or the school nurse" },
   "schools.results": { moderate: "the head of department", approve: "the head of department", publish: "a school administrator", capture: "the subject teacher, from their portal" },
-  "schools.reports": {},
+  "schools.reports": { "notify-families": "the office, the bursar or a class teacher", reply: "the office, the bursar or the head of department" },
 };
 
 export function whoCan(resource: SchoolResource, action: SchoolAction): string | null {

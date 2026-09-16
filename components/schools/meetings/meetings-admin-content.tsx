@@ -3,22 +3,18 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  StatCard,
-} from "@corelithzw/react";
+import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   CardsSkeleton,
   LoadError,
@@ -26,7 +22,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -523,11 +519,6 @@ export function MeetingsAdminContent() {
         ]}
       />
 
-      <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-        The term&rsquo;s parents&rsquo; evenings across the whole staff room — who is
-        open, who is booked, and which ten minutes are still free.
-      </p>
-
       {termsQuery.error ? (
         <LoadError
           what="the terms"
@@ -658,36 +649,6 @@ export function MeetingsAdminContent() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard
-          label="Slots open"
-          value={<span className="tabular-nums">{slots.length}</span>}
-          footer={term ? `${term.name} · ${term.academicYear.name}` : "No term"}
-        />
-        <StatCard
-          label="Booked"
-          tone={booked > 0 ? "success" : "neutral"}
-          value={<span className="tabular-nums">{booked}</span>}
-          footer={
-            slots.length > 0
-              ? `${Math.round((booked / slots.length) * 100)}% of the slots taken`
-              : "Nothing open to book yet"
-          }
-        />
-        <StatCard
-          label="Free"
-          tone={free > 0 ? "brand" : "neutral"}
-          value={<span className="tabular-nums">{free}</span>}
-          footer={
-            slots.length === 0
-              ? "Nothing open to book yet"
-              : free > 0
-                ? "still available to families"
-                : "Every slot is taken"
-          }
-        />
-      </div>
-
       {/*
         The teacher list and the calendar are the same evening asked two
         different ways — "who is booked with Ms Banda" and "which nights are
@@ -778,7 +739,11 @@ export function MeetingsAdminContent() {
                   title={
                     <span className="flex items-center gap-2">
                       <PersonAvatar name={group.name} src={group.image} size="sm" />
-                      {group.name}
+                      <EntityLink
+                        href={`/schools/teachers/${group.slots[0]!.teacherProfile.id}`}
+                      >
+                        {group.name}
+                      </EntityLink>
                     </span>
                   }
                   subtitle={`${group.slots.length} slot${group.slots.length === 1 ? "" : "s"} · ${teacherBooked} booked · ${group.slots.length - teacherBooked} free`}
@@ -796,7 +761,7 @@ export function MeetingsAdminContent() {
                             when: `${formatTime(slot.startsAt)} – ${formatTime(slot.endsAt)}`,
                             day: formatDay(dayKey(new Date(slot.startsAt))),
                             who: slot.student
-                              ? `${slot.student.lastName}, ${slot.student.firstName}`
+                              ? `${slot.student.firstName} ${slot.student.lastName}`
                               : "Free — nobody has taken this slot",
                             detail: [
                               slot.student?.studentNo,
@@ -838,34 +803,42 @@ export function MeetingsAdminContent() {
                               {formatTime(slot.startsAt)} – {formatTime(slot.endsAt)}
                             </span>
 
-                            {slot.student ? (
-                              <PersonAvatar
-                                firstName={slot.student.firstName}
-                                lastName={slot.student.lastName}
-                                size="xs"
-                              />
-                            ) : null}
-
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                                {slot.student
-                                  ? `${slot.student.lastName}, ${slot.student.firstName}`
-                                  : slot.bookedAt
-                                    ? "Booked, but the pupil record has gone"
-                                    : "Free — nobody has taken this slot"}
-                              </p>
-                              <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                                {[
-                                  slot.student?.studentNo,
-                                  slot.student?.currentClass?.name,
-                                  slot.location ?? "No room set",
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </p>
+                              {slot.student ? (
+                                <PersonCell
+                                  kind="student"
+                                  href={`/schools/students/${slot.student.id}`}
+                                  firstName={slot.student.firstName}
+                                  lastName={slot.student.lastName}
+                                  reference={slot.student.studentNo}
+                                  context={[
+                                    slot.student.currentClass?.name,
+                                    slot.location ?? "No room set",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                />
+                              ) : (
+                                <>
+                                  <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
+                                    {slot.bookedAt
+                                      ? "Booked, but the pupil record has gone"
+                                      : "Free — nobody has taken this slot"}
+                                  </p>
+                                  <p className="acct-caption truncate font-mono">
+                                    {slot.location ?? "No room set"}
+                                  </p>
+                                </>
+                              )}
                               {slot.guardian ? (
                                 <p className="truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
-                                  {slot.guardian.firstName} {slot.guardian.lastName} ·{" "}
+                                  <EntityLink
+                                    href={`/schools/guardians/${slot.guardian.id}`}
+                                    muted
+                                  >
+                                    {slot.guardian.firstName} {slot.guardian.lastName}
+                                  </EntityLink>{" "}
+                                  ·{" "}
                                   <span className="font-[family-name:var(--font-mono)] tabular-nums">
                                     {slot.guardian.phone}
                                   </span>
@@ -888,7 +861,9 @@ export function MeetingsAdminContent() {
                                   Booked
                                 </Badge>
                                 <RecordActions
+                                  layout="menu"
                                   resource="schools.students"
+                                  label={`Actions for the ${formatTime(slot.startsAt)} slot`}
                                   verbs={[
                                     {
                                       label: "Change the booking",
@@ -961,24 +936,6 @@ export function MeetingsAdminContent() {
               setReleased(null);
             }}
           />
-
-          {/*
-            Said once, on the screen, rather than only inside the dialog that
-            is already asking a yes-or-no question. An office that knows what
-            releasing does before it presses the row verb rings the family
-            first, which is the whole point.
-          */}
-          <Card title="Releasing a slot" className="h-fit">
-            <Alert tone="warn" title="Nobody is told automatically — ring them.">
-              The meeting is cancelled and the slot goes back on the list as free, so
-              another family can take it.
-            </Alert>
-            <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              Or let the school do it: after a release, <strong>Tell the family</strong>{" "}
-              writes to that pupil&rsquo;s guardians through their portal, addressed to
-              exactly the people who thought they were coming.
-            </p>
-          </Card>
         </div>
       </div>
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { EntityLink } from "@/components/records/entity-link";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -13,7 +13,8 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
+import { TableControls } from "@/components/records/table-controls";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchTeacherAssignments,
@@ -148,48 +149,65 @@ export function ClassSubjectsPanel({
         <SaveError what="The class-subject" error={remove.error} />
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          {assignmentsQuery.isPending
-            ? "Reading the timetable…"
-            : assignments.length === 0
-              ? "Nothing is timetabled to this class."
-              : `${assignments.length} timetabled${
-                  unstaffed > 0 ? ` · ${unstaffed} with no teacher assigned` : ""
-                }.`}
-        </p>
-        <CreateButton
-          resource="schools.academics"
-          label="Timetable a subject"
-          onSelect={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        />
-      </div>
+      {/* The count, the narrowing and the verb in one row, in the words the
+          module uses everywhere else. "6 timetabled · 2 with no teacher
+          assigned." was a third phrasing of a figure written "6 of 9" on every
+          other campus register, and it doubled as the loading line and the
+          empty line over a skeleton and an empty state that already say both.
 
-      {/* Only once there is enough to hunt through. Four subjects do not need
-          narrowing, and a filter row above four rows is furniture. */}
-      {assignments.length > 4 ? (
-        <FilterBar>
-          <FilterSelect
-            label="Term"
-            allLabel="Every term"
-            value={termId}
-            options={termOptions}
-            onChange={setTermId}
+          The filters appear only once there is enough to hunt through: four
+          subjects do not need narrowing, and a filter row above four rows is
+          furniture. */}
+      <TableControls
+        filters={
+          assignments.length > 4 ? (
+            <>
+              <FilterSelect
+                label="Term"
+                allLabel="Every term"
+                value={termId}
+                options={termOptions}
+                onChange={setTermId}
+              />
+              <FilterSelect
+                label="Teacher"
+                allLabel="Staffed or not"
+                value={staffing}
+                options={[
+                  { value: "unstaffed", label: "Without a teacher" },
+                  { value: "staffed", label: "With a teacher" },
+                ]}
+                onChange={setStaffing}
+              />
+            </>
+          ) : undefined
+        }
+        filterCount={activeFilterCount(termId, staffing)}
+        count={
+          assignmentsQuery.isPending
+            ? null
+            : `${visible.length} of ${assignments.length}`
+        }
+        actions={
+          <CreateButton
+            resource="schools.academics"
+            label="Timetable a subject"
+            onSelect={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
           />
-          <FilterSelect
-            label="Teacher"
-            allLabel="Staffed or not"
-            value={staffing}
-            options={[
-              { value: "unstaffed", label: "Without a teacher" },
-              { value: "staffed", label: "With a teacher" },
-            ]}
-            onChange={setStaffing}
-          />
-        </FilterBar>
+        }
+      />
+
+      {/* The gap the office acts on, said once and only when there is one. A
+          subject with nobody against it has no mark sheet and no report line,
+          and the rows below say so one at a time; this is the same fact as a
+          total, so it is worth crossing the panel for. */}
+      {unstaffed > 0 ? (
+        <p className="text-sm text-[color:var(--text-danger)]">
+          {unstaffed} of these have no teacher against them.
+        </p>
       ) : null}
 
       {assignmentsQuery.isPending ? (
@@ -219,22 +237,28 @@ export function ClassSubjectsPanel({
           }}
         />
       ) : (
-        <ul className="divide-y divide-[color:var(--border-subtle)]">
+        /* Space between rows rather than rules: a divider is a line the reader
+           has to cross for every subject a class takes. */
+        <ul className="space-y-1">
           {visible.map((row, index) => (
             <li
               key={row.id}
-              className="campus-row-in flex flex-wrap items-center justify-between gap-3 py-3"
+              className="campus-row-in flex min-h-11 flex-wrap items-center justify-between gap-3 py-2"
               style={{ animationDelay: `${index * 40}ms` }}
             >
               <div className="min-w-0">
-                <Link
-                  href={recordType("SUBJECT").href(row.subject.id)}
-                  className="font-medium text-[color:var(--text-strong)] hover:underline"
-                >
-                  {row.subject.name}
-                </Link>
+                <div className="min-w-0 text-sm font-medium text-[color:var(--text-strong)]">
+                  {/* A standing underline rather than a hover-only one, and a
+                      plain click peeks: "which subject is that?" is a glance,
+                      and a journey is the wrong price for one. */}
+                  <EntityLink href={recordType("SUBJECT").href(row.subject.id)}>
+                    {row.subject.name}
+                  </EntityLink>
+                </div>
                 {/* Who teaches it is what an office is asked about a class's
-                    subject, so it leads rather than sitting in a count. */}
+                    subject, so it leads rather than sitting in a count. A class
+                    with nobody against it is named in words and in the danger
+                    tone, because it is the row somebody has to act on. */}
                 <p
                   className={
                     row.teacherProfile
@@ -242,7 +266,16 @@ export function ClassSubjectsPanel({
                       : "text-sm text-[color:var(--text-danger)]"
                   }
                 >
-                  {row.teacherProfile?.user.name ?? "No teacher assigned"}
+                  {row.teacherProfile ? (
+                    <EntityLink
+                      href={recordType("TEACHER").href(row.teacherProfile.id)}
+                      muted
+                    >
+                      {row.teacherProfile.user.name}
+                    </EntityLink>
+                  ) : (
+                    "No teacher assigned"
+                  )}
                   {row.stream ? ` · ${row.stream.name}` : ""}
                   {` · ${row.term.name}`}
                 </p>
@@ -250,6 +283,8 @@ export function ClassSubjectsPanel({
               <div className="flex items-center gap-2">
                 {row.subject.isCore ? <Badge tone="brand">Core</Badge> : null}
                 <RecordActions
+                  layout="menu"
+                  label={`Row actions for ${row.subject.name}`}
                   resource="schools.academics"
                   verbs={[
                     {

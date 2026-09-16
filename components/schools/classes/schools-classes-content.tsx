@@ -1,25 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty } from "@corelithzw/react";
 
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordList, type RecordListRow } from "@/components/records/record-list";
+import { RecordMark } from "@/components/records/record-mark";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { PageBand } from "@/components/schools/common/page-band";
-import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   fetchSchoolsClasses,
   type SchoolsClassRecord,
@@ -35,6 +34,18 @@ import { StreamFormDialog, type StreamFormValues } from "@/components/schools/cl
  * before this, a class could be created and never edited or removed, and a
  * stream could not be created at all — while every roll, mark sheet and
  * publish window in the module filters by one.
+ *
+ * ## Why they are lists and not tables
+ *
+ * Both are opened to find a class and go into it — the class record is where
+ * its subjects, its form teacher and its roll live — rather than to compare
+ * one class's capacity against another's. Two seven-column tables were
+ * spending two header rows and fourteen columns on twelve rows of ladder, and
+ * the level number, which the school never says out loud, had a column of its
+ * own.
+ *
+ * A stream's row goes to its class, because a stream has no page of its own
+ * and its class is the page that explains it.
  */
 
 type ClassesView = "classes" | "streams";
@@ -56,6 +67,7 @@ export function SchoolsClassesContent() {
   const [levelFilter, setLevelFilter] = useState("");
   const [streamedFilter, setStreamedFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
+  const [search, setSearch] = useState("");
 
   const [classDialogOpen, setClassDialogOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<SchoolsClassRecord | null>(null);
@@ -108,26 +120,28 @@ export function SchoolsClassesContent() {
       }));
   }, [classes]);
 
-  const visibleClasses = useMemo(
-    () =>
-      classes.filter((row) => {
-        if (levelFilter && String(row.level ?? "") !== levelFilter) return false;
-        if (streamedFilter === "streamed" && row._count.streams === 0) return false;
-        if (streamedFilter === "unstreamed" && row._count.streams > 0) return false;
-        return true;
-      }),
-    [classes, levelFilter, streamedFilter],
-  );
+  const visibleClasses = useMemo(() => {
+    const typed = search.trim().toLowerCase();
+    return classes.filter((row) => {
+      if (levelFilter && String(row.level ?? "") !== levelFilter) return false;
+      if (streamedFilter === "streamed" && row._count.streams === 0) return false;
+      if (streamedFilter === "unstreamed" && row._count.streams > 0) return false;
+      if (typed && !`${row.name} ${row.code}`.toLowerCase().includes(typed)) return false;
+      return true;
+    });
+  }, [classes, levelFilter, streamedFilter, search]);
 
-  const visibleStreams = useMemo(
-    () =>
-      streams.filter((row) => {
-        if (classFilter && row.classId !== classFilter) return false;
-        if (levelFilter && String(row.classLevel ?? "") !== levelFilter) return false;
-        return true;
-      }),
-    [streams, classFilter, levelFilter],
-  );
+  const visibleStreams = useMemo(() => {
+    const typed = search.trim().toLowerCase();
+    return streams.filter((row) => {
+      if (classFilter && row.classId !== classFilter) return false;
+      if (levelFilter && String(row.classLevel ?? "") !== levelFilter) return false;
+      if (typed && !`${row.name} ${row.code} ${row.className}`.toLowerCase().includes(typed)) {
+        return false;
+      }
+      return true;
+    });
+  }, [streams, classFilter, levelFilter, search]);
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["schools", "classes"] });
@@ -197,65 +211,34 @@ export function SchoolsClassesContent() {
     onSuccess: invalidate,
   });
 
-  const classColumns = useMemo<ColumnDef<SchoolsClassRecord>[]>(
-    () => [
-      {
-        accessorKey: "code",
-        header: "Code",
-        cell: ({ row }) => (
-          <Link
-            href={`/management/master-data/schools/classes/${row.original.id}`}
-            className="font-medium text-primary hover:underline"
-          >
-            {row.original.code}
-          </Link>
-        ),
-      },
-      {
-        accessorKey: "name",
-        header: "Name",
-        cell: ({ row }) => (
-          <Link
-            href={`/management/master-data/schools/classes/${row.original.id}`}
-            className="hover:underline"
-          >
-            {row.original.name}
-          </Link>
-        ),
-      },
-      {
-        accessorKey: "level",
-        header: "Level",
-        cell: ({ row }) => <NumericCell>{row.original.level ?? "-"}</NumericCell>,
-      },
-      {
-        accessorKey: "capacity",
-        header: "Capacity",
-        cell: ({ row }) => <NumericCell>{row.original.capacity ?? "-"}</NumericCell>,
-      },
-      {
-        id: "streams",
-        header: "Streams",
-        cell: ({ row }) => <NumericCell>{row.original._count.streams}</NumericCell>,
-      },
-      {
-        id: "students",
-        header: "Students",
-        cell: ({ row }) => <NumericCell>{row.original._count.students}</NumericCell>,
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
+  const classRows = useMemo<RecordListRow[]>(
+    () =>
+      visibleClasses.map((schoolClass) => ({
+        id: schoolClass.id,
+        href: recordType("CLASS").href(schoolClass.id),
+        leading: <RecordMark kind="class" name={schoolClass.name} size="sm" />,
+        title: schoolClass.name,
+        // The code alone. A class has no second fact that tells two of them
+        // apart — the level is the ordering number the school never says out
+        // loud, and the roll and the capacity are figures, which belong on the
+        // right of the row rather than under the name.
+        subtitle: <span className="font-mono">{schoolClass.code}</span>,
+        facts: [
+          { label: "On the roll", value: schoolClass._count.students, kind: "number" },
+          { label: "Streams", value: schoolClass._count.streams, kind: "number" },
+          { label: "Places", value: schoolClass.capacity ?? "—", mono: true },
+        ],
+        actions: (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${schoolClass.name}`}
             resource="schools.academics"
             verbs={[
               {
                 label: "Edit",
                 action: "edit",
                 onSelect: () => {
-                  setEditingClass(row.original);
+                  setEditingClass(schoolClass);
                   setClassDialogOpen(true);
                 },
               },
@@ -264,7 +247,7 @@ export function SchoolsClassesContent() {
                 action: "create",
                 onSelect: () => {
                   setEditingStream(null);
-                  setNewStreamClassId(row.original.id);
+                  setNewStreamClassId(schoolClass.id);
                   setStreamDialogOpen(true);
                 },
               },
@@ -274,59 +257,48 @@ export function SchoolsClassesContent() {
                 tone: "danger",
                 loading: deleteClass.isPending,
                 confirm: {
-                  title: `Delete ${row.original.name}?`,
+                  title: `Delete ${schoolClass.name}?`,
                   description:
                     "The class disappears from every picker in the module. It is refused while any pupil, stream, mark sheet or fee structure still points at it.",
                   confirmLabel: "Delete the class",
                 },
-                onSelect: () => deleteClass.mutate(row.original.id),
+                onSelect: () => deleteClass.mutate(schoolClass.id),
               },
             ]}
           />
         ),
-      },
-    ],
-    [deleteClass],
+      })),
+    [visibleClasses, deleteClass],
   );
 
-  const streamColumns = useMemo<ColumnDef<StreamRow>[]>(
-    () => [
-      {
-        accessorKey: "code",
-        header: "Code",
-        cell: ({ row }) => <span className="font-medium">{row.original.code}</span>,
-      },
-      { accessorKey: "name", header: "Name" },
-      {
-        id: "class",
-        header: "Class",
-        cell: ({ row }) => (
-          <Link
-            href={`/management/master-data/schools/classes/${row.original.classId}`}
-            className="hover:underline"
-          >
-            {row.original.className}
-          </Link>
+  const streamRows = useMemo<RecordListRow[]>(
+    () =>
+      visibleStreams.map((stream) => ({
+        id: stream.id,
+        // A stream has no page of its own, so its row opens the class that
+        // explains it — which is also where its pupils and its subjects are.
+        href: recordType("CLASS").href(stream.classId),
+        leading: <RecordMark kind="class" name={stream.name} size="sm" />,
+        title: stream.name,
+        subtitle: (
+          <>
+            <span className="font-mono">{stream.code}</span>
+            {" · "}
+            {stream.className}
+          </>
         ),
-      },
-      {
-        accessorKey: "capacity",
-        header: "Capacity",
-        cell: ({ row }) => <NumericCell>{row.original.capacity ?? "-"}</NumericCell>,
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
+        facts: [{ label: "Places", value: stream.capacity ?? "—", mono: true }],
+        actions: (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${stream.name}`}
             resource="schools.academics"
             verbs={[
               {
                 label: "Edit",
                 action: "edit",
                 onSelect: () => {
-                  setEditingStream(row.original);
+                  setEditingStream(stream);
                   setStreamDialogOpen(true);
                 },
               },
@@ -336,25 +308,32 @@ export function SchoolsClassesContent() {
                 tone: "danger",
                 loading: deleteStream.isPending,
                 confirm: {
-                  title: `Delete ${row.original.name}?`,
+                  title: `Delete ${stream.name}?`,
                   description:
                     "The stream disappears from every register and mark sheet filter. It is refused while any pupil is still in it.",
                   confirmLabel: "Delete the stream",
                 },
-                onSelect: () => deleteStream.mutate(row.original.id),
+                onSelect: () => deleteStream.mutate(stream.id),
               },
             ]}
           />
         ),
-      },
-    ],
-    [deleteStream],
+      })),
+    [visibleStreams, deleteStream],
   );
+
 
   const narrowed = [
     levels.find((level) => level.value === levelFilter)?.label,
     classes.find((row) => row.id === classFilter)?.name,
   ].filter((value): value is string => Boolean(value));
+
+  const clearFilters = () => {
+    setLevelFilter("");
+    setStreamedFilter("");
+    setClassFilter("");
+    setSearch("");
+  };
 
   const classOptions = classes.map((row) => ({
     id: row.id,
@@ -364,13 +343,25 @@ export function SchoolsClassesContent() {
 
   return (
     <div className="space-y-4">
+      {/* All three are counted off one list that is empty while the query is
+          in flight, so the band opens saying the school has no classes, no
+          streams and nobody on the roll. An em dash is the only true thing
+          until the ladder has arrived. */}
       <PageBand
         chips={[
-          { label: "Classes", value: classes.length },
-          { label: "Streams", value: streams.length },
+          {
+            label: "Classes",
+            value: classesQuery.isPending ? "—" : classes.length,
+          },
+          {
+            label: "Streams",
+            value: classesQuery.isPending ? "—" : streams.length,
+          },
           {
             label: "On the roll",
-            value: classes.reduce((total, row) => total + row._count.students, 0),
+            value: classesQuery.isPending
+              ? "—"
+              : classes.reduce((total, row) => total + row._count.students, 0),
             tone: "brand",
           },
         ]}
@@ -395,154 +386,162 @@ export function SchoolsClassesContent() {
 
       <VerticalDataViews
         items={[
-          { id: "classes", label: "Classes", count: classes.length },
-          { id: "streams", label: "Streams", count: streams.length },
+          /* No count until there is one to give. A rail that opens on
+             "Classes 0 / Streams 0" and lands on "Classes 12" reads as data
+             arriving late and wrong; nothing at all reads as loading. */
+          {
+            id: "classes",
+            label: "Classes",
+            count: classesQuery.isPending ? undefined : classes.length,
+          },
+          {
+            id: "streams",
+            label: "Streams",
+            count: classesQuery.isPending ? undefined : streams.length,
+          },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as ClassesView)}
         railLabel="Class views"
       >
-        <div className={activeView === "classes" ? "space-y-3" : "hidden"}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <FilterBar>
-              <FilterSelect
-                label="Year group"
-                allLabel="Every year group"
-                value={levelFilter}
-                options={levels}
-                onChange={setLevelFilter}
+        <div className={activeView === "classes" ? "space-y-2" : "hidden"}>
+          <TableControls
+            sticky
+            search={
+              <TableSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search name or code"
               />
-              <FilterSelect
-                label="Streaming"
-                allLabel="Streamed or not"
-                value={streamedFilter}
-                options={[
-                  { value: "streamed", label: "Has streams" },
-                  { value: "unstreamed", label: "No streams" },
-                ]}
-                onChange={setStreamedFilter}
+            }
+            filterCount={activeFilterCount(levelFilter, streamedFilter)}
+            filters={
+              <>
+                <FilterSelect
+                  label="Year group"
+                  allLabel="Every year group"
+                  value={levelFilter}
+                  options={levels}
+                  onChange={setLevelFilter}
+                />
+                <FilterSelect
+                  label="Streaming"
+                  allLabel="Streamed or not"
+                  value={streamedFilter}
+                  options={[
+                    { value: "streamed", label: "Has streams" },
+                    { value: "unstreamed", label: "No streams" },
+                  ]}
+                  onChange={setStreamedFilter}
+                />
+              </>
+            }
+            count={
+              classesQuery.isLoading
+                ? null
+                : `${visibleClasses.length} of ${classes.length}`
+            }
+            actions={
+              <CreateButton
+                resource="schools.academics"
+                label="New class"
+                onSelect={() => {
+                  setEditingClass(null);
+                  setClassDialogOpen(true);
+                }}
               />
-            </FilterBar>
-            <CreateButton
-              resource="schools.academics"
-              label="New class"
-              onSelect={() => {
-                setEditingClass(null);
-                setClassDialogOpen(true);
-              }}
-            />
-          </div>
+            }
+          />
 
           {classesQuery.isLoading ? (
-            <TableRowsSkeleton
-              headers={["Code", "Name", "Level", "Capacity", "Streams", "Students"]}
-              columns={[
-                { width: 110 },
-                {},
-                { width: 90, align: "right" },
-                { width: 100, align: "right" },
-                { width: 90, align: "right" },
-                { width: 90, align: "right" },
-              ]}
-              rows={8}
-            />
+            <ListRowsSkeleton rows={8} label="Reading the class ladder" />
           ) : classes.length === 0 ? (
             <NothingYet
               title="No classes yet"
               body="A class is the year group everything else hangs off — pupils, registers, mark sheets and fee structures."
+              action={
+                <CreateButton
+                  resource="schools.academics"
+                  label="Add the first class"
+                  onSelect={() => {
+                    setEditingClass(null);
+                    setClassDialogOpen(true);
+                  }}
+                />
+              }
             />
           ) : visibleClasses.length === 0 ? (
             <NothingMatched
               what="classes"
               filters={narrowed}
-              onClear={() => {
-                setLevelFilter("");
-                setStreamedFilter("");
-              }}
+              search={search}
+              onClear={clearFilters}
             />
           ) : (
-            <DataTable
-              data={visibleClasses}
-              columns={classColumns}
-              searchPlaceholder="Search classes"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              mobileListRenderer={({ rows }) => (
-                <MobileList>
-                  {rows.length === 0 ? (
-                    <MobileListEmpty>No classes matched.</MobileListEmpty>
-                  ) : (
-                    rows.map(({ row }) => (
-                      <MobileList.Row
-                        key={row.id}
-                        title={`${row.code} - ${row.name}`}
-                        subtitle={[
-                          `${row._count.students} on the roll`,
-                          `${row._count.streams} streams`,
-                          row.capacity ? `${row.capacity} places` : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                        onClick={() => {
-                          window.location.href = `/management/master-data/schools/classes/${row.id}`;
-                        }}
-                      />
-                    ))
-                  )}
-                </MobileList>
-              )}
-              emptyState={<NothingMatched what="classes" />}
-            />
+            <RecordList rows={classRows} />
           )}
         </div>
 
-        <div className={activeView === "streams" ? "space-y-3" : "hidden"}>
-          {/* Not a second list to keep in step with the first — the canvas
-              calls it "the other view" and means it literally: the same ladder
-              read one rung down. */}
-          <p className="text-sm text-muted-foreground">
+        <div className={activeView === "streams" ? "space-y-2" : "hidden"}>
+          {/* Not a second list to keep in step with the first — it is "the
+              other view" literally: the same ladder read one rung down. */}
+          <p className="text-sm text-[color:var(--text-muted)]">
             Every stream here belongs to a class on the Classes tab — the same
             ladder, split. This is the other view of it.
           </p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <FilterBar>
-              <FilterSelect
-                label="Class"
-                allLabel="Every class"
-                value={classFilter}
-                options={classes.map((row) => ({ value: row.id, label: row.name }))}
-                onChange={setClassFilter}
+          <TableControls
+            sticky
+            search={
+              <TableSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search name, code or class"
               />
-              <FilterSelect
-                label="Year group"
-                allLabel="Every year group"
-                value={levelFilter}
-                options={levels}
-                onChange={setLevelFilter}
+            }
+            filterCount={activeFilterCount(classFilter, levelFilter)}
+            filters={
+              <>
+                <FilterSelect
+                  label="Class"
+                  allLabel="Every class"
+                  value={classFilter}
+                  options={classes.map((row) => ({ value: row.id, label: row.name }))}
+                  onChange={setClassFilter}
+                />
+                <FilterSelect
+                  label="Year group"
+                  allLabel="Every year group"
+                  value={levelFilter}
+                  options={levels}
+                  onChange={setLevelFilter}
+                />
+              </>
+            }
+            count={
+              classesQuery.isLoading
+                ? null
+                : `${visibleStreams.length} of ${streams.length}`
+            }
+            actions={
+              <CreateButton
+                resource="schools.academics"
+                label="New stream"
+                unavailable={
+                  classes.length === 0
+                    ? "A stream belongs to a class. Create the class first."
+                    : undefined
+                }
+                onSelect={() => {
+                  setEditingStream(null);
+                  setNewStreamClassId(classFilter);
+                  setStreamDialogOpen(true);
+                }}
               />
-            </FilterBar>
-            <CreateButton
-              resource="schools.academics"
-              label="New stream"
-              unavailable={
-                classes.length === 0
-                  ? "A stream belongs to a class. Create the class first."
-                  : undefined
-              }
-              onSelect={() => {
-                setEditingStream(null);
-                setNewStreamClassId(classFilter);
-                setStreamDialogOpen(true);
-              }}
-            />
-          </div>
+            }
+          />
 
           {classesQuery.isLoading ? (
-            <TableRowsSkeleton
-              headers={["Code", "Name", "Class", "Capacity"]}
-              columns={[{ width: 110 }, {}, { width: 160 }, { width: 100, align: "right" }]}
-              rows={8}
-            />
+            <ListRowsSkeleton rows={8} label="Reading the streams" />
           ) : streams.length === 0 ? (
             <NothingYet
               title="No streams yet"
@@ -552,41 +551,11 @@ export function SchoolsClassesContent() {
             <NothingMatched
               what="streams"
               filters={narrowed}
-              onClear={() => {
-                setClassFilter("");
-                setLevelFilter("");
-              }}
+              search={search}
+              onClear={clearFilters}
             />
           ) : (
-            <DataTable
-              data={visibleStreams}
-              columns={streamColumns}
-              searchPlaceholder="Search streams"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              mobileListRenderer={({ rows }) => (
-                <MobileList>
-                  {rows.length === 0 ? (
-                    <MobileListEmpty>No streams matched.</MobileListEmpty>
-                  ) : (
-                    rows.map(({ row }) => (
-                      <MobileList.Row
-                        key={row.id}
-                        static
-                        title={`${row.code} - ${row.name}`}
-                        subtitle={[
-                          row.className,
-                          row.capacity ? `${row.capacity} places` : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      />
-                    ))
-                  )}
-                </MobileList>
-              )}
-              emptyState={<NothingMatched what="streams" />}
-            />
+            <RecordList rows={streamRows} />
           )}
         </div>
       </VerticalDataViews>

@@ -14,9 +14,14 @@
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
-  flex-direction: column;
   background: var(--canvas);
   position: relative;
+}
+.pa-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 /* The bottom tabs are fixed at 64px + safe area, so the scrolling body ends
    above them rather than under them. */
@@ -24,6 +29,80 @@
   flex: 1;
   padding: 0 0 calc(80px + env(safe-area-inset-bottom, 0px));
 }
+
+/* ── Side rail ─────────────────────────────────────────────
+   `.ps-side` is the portal-shell block from the design system's own
+   stylesheet, which the npm package does not ship (only its .b-*
+   blocks are in components.css). Ported here, tokens unchanged, so
+   the parent rail matches the prototype's.
+
+   It replaces the bottom tabs at the width where components.css
+   hides them, rather than adding a second navigation beside them.
+   --------------------------------------------------------- */
+.pa-side { display: none; }
+@media (min-width: 901px) {
+  .pa-side {
+    display: flex;
+    flex-direction: column;
+    width: 220px;
+    flex: none;
+    padding: 16px 12px;
+    background: var(--canvas);
+    border-right: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+  }
+  .pa-body { padding-bottom: 32px; }
+}
+.pa-side nav { display: grid; gap: 2px; }
+.pa-side .ps-section-h {
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  padding: 14px 10px 8px;
+}
+.pa-side nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font: 500 13.5px/1 var(--font-sans);
+  color: var(--text-body);
+  text-decoration: none;
+}
+.pa-side nav a:hover { background: var(--surface-muted); color: var(--text-strong); }
+.pa-side nav a.active { background: var(--brand-soft); color: var(--brand-strong); }
+.pa-side nav a svg { color: var(--text-muted); flex: none; }
+.pa-side nav a.active svg { color: var(--brand); }
+.pa-side nav a .ct {
+  margin-left: auto;
+  font: 600 11px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-inverse);
+  background: var(--tone-danger);
+  border-radius: 9999px;
+  padding: 3px 7px;
+}
+
+/* ── Offline banner (under the app bar) ────────────────────── */
+.pa-offline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--tone-warn-bg);
+  color: var(--tone-warn);
+  font: 500 12px/1.3 var(--font-sans);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 52px;
+  z-index: 880;
+}
+.pa-offline svg { flex: none; }
 
 /* ── App bar ───────────────────────────────────────────────── */
 .pa-bar {
@@ -39,6 +118,19 @@
   top: 0;
   z-index: 900;
 }
+.pa-bar .back {
+  width: 36px;
+  height: 36px;
+  margin-left: -8px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+.pa-bar .back:hover { background: var(--surface-muted); }
 .pa-bar h1 {
   margin: 0;
   font: 600 16px/1.1 var(--font-sans);
@@ -55,6 +147,18 @@
   align-items: center;
   gap: 4px;
 }
+.pa-bar .actions .bar-primary {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  background: var(--brand);
+  color: var(--text-inverse);
+  font: 600 12.5px/1 var(--font-sans);
+  text-decoration: none;
+}
+.pa-bar .actions .bar-primary:hover { background: var(--brand-strong); }
 .pa-bar .actions .bell {
   width: 36px;
   height: 36px;
@@ -186,11 +290,21 @@
   cursor: pointer;
   padding: 0;
 }
-.section-h .mono-note {
-  font: 500 10.5px/1 var(--font-mono);
+.section-h .count-note {
+  font: 500 10.5px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
   letter-spacing: 0;
   text-transform: uppercase;
+}
+
+/* A reference or an id — a receipt number, an invoice number, the string a
+   parent types into a banking app. Mono earns its place here and nowhere
+   else: it is read character by character rather than at a glance. */
+.pp-ref {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  color: var(--text-strong);
 }
 
 .card-block { margin: 0 16px; }
@@ -212,7 +326,7 @@
 }
 .tt-row:last-child { border-bottom: 0; }
 .tt-row .time {
-  font: 600 14px/1 var(--font-mono);
+  font: 600 14px/1 var(--font-sans);
   color: var(--text-strong);
   font-variant-numeric: tabular-nums;
 }
@@ -225,7 +339,7 @@
 .tt-row .nm { font: 500 13.5px/1.3 var(--font-sans); color: var(--text-strong); }
 .tt-row .sb { font: 11.5px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 2px; }
 .tt-row .now {
-  font: 600 9.5px/1 var(--font-mono);
+  font: 600 9.5px/1 var(--font-sans);
   letter-spacing: 0.08em;
   background: var(--tone-success-bg);
   color: var(--tone-success);
@@ -307,7 +421,15 @@
 .notice-row .nm { font: 500 14px/1.3 var(--font-sans); color: var(--text-body); }
 .notice-row.unread .nm { color: var(--text-strong); font-weight: 600; }
 .notice-row .sb { font: 12px/1.4 var(--font-sans); color: var(--text-muted); margin-top: 3px; }
-.notice-row .meta { font: 11px/1.3 var(--font-mono); color: var(--text-subtle); margin-top: 6px; }
+/* A long notice is cut here and finished on its own screen; a short one is
+   shown whole and has nowhere else to go. */
+.notice-row .sb.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.notice-row .meta { font: 11px/1.3 var(--font-sans); color: var(--text-subtle); margin-top: 6px; }
 .notice-row .pip {
   width: 8px;
   height: 8px;
@@ -354,7 +476,7 @@
 .breakdown-row .nm { font: 500 13.5px/1.3 var(--font-sans); color: var(--text-strong); }
 .breakdown-row .sb { font: 11.5px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 2px; }
 .breakdown-row .v {
-  font: 600 14px/1 var(--font-mono);
+  font: 600 14px/1 var(--font-sans);
   color: var(--text-strong);
   font-variant-numeric: tabular-nums;
   align-self: center;
@@ -380,7 +502,7 @@
 .pay-bar .meta { flex: 1; min-width: 0; }
 .pay-bar .meta .l { font: 11px/1 var(--font-sans); color: var(--text-muted); }
 .pay-bar .meta .v {
-  font: 700 17px/1 var(--font-mono);
+  font: 700 17px/1 var(--font-sans);
   color: var(--text-strong);
   margin-top: 4px;
   font-variant-numeric: tabular-nums;
@@ -402,6 +524,11 @@
   background: var(--surface-muted);
   color: var(--text-muted);
   cursor: not-allowed;
+}
+/* Above the tabs on a phone; beside the rail, with no tabs under it, on a
+   laptop. */
+@media (min-width: 901px) {
+  .pay-bar { left: 220px; bottom: 0; }
 }
 
 /* ── Profile hero ──────────────────────────────────────────── */
@@ -431,7 +558,7 @@
 
 /* Small caps "viewing" badge on the selected child row. */
 .pp-viewing {
-  font: 500 10.5px/1 var(--font-mono);
+  font: 500 10.5px/1 var(--font-sans);
   color: var(--brand-strong);
   background: var(--brand-soft);
   padding: 4px 8px;
@@ -458,7 +585,11 @@
 .pl-row:last-child { border-bottom: 0; }
 .pl-row .nm { font: 500 14px/1.3 var(--font-sans); color: var(--text-strong); }
 .pl-row .sb { font: 12px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 2px; }
-.pl-row .val { font: 500 14px/1.3 var(--font-mono); color: var(--text-strong); }
+.pl-row .val {
+  font: 500 14px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
 .pl-row .ic-tile,
 .subj-card .ic-tile {
   width: 36px;
@@ -488,6 +619,9 @@
 }
 .pl-row.cl:hover { background: var(--surface-muted); }
 .pl-row .chev { color: var(--text-subtle); flex: none; }
+/* Rows that lead with words rather than an icon tile want the wide column
+   first, so the date is not squeezed by a status label beside it. */
+.pl-row.day-row { grid-template-columns: 1fr auto auto; }
 
 /* ── Attendance summary card ───────────────────────────────── */
 .att-card {
@@ -519,6 +653,9 @@
 
 /* ── Subject mark cards ────────────────────────────────────── */
 .subj-card {
+  display: block;
+  width: 100%;
+  text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -534,7 +671,7 @@
 .subj-card .hd .nm { font: 600 14px/1.2 var(--font-sans); color: var(--text-strong); }
 .subj-card .hd .sb { font: 11.5px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 2px; }
 .subj-card .hd .v {
-  font: 700 18px/1 var(--font-mono);
+  font: 700 18px/1 var(--font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--brand-strong);
 }
@@ -542,6 +679,7 @@
 .subj-card .hd .v.good { color: var(--tone-success); }
 .subj-card .hd .v.bad { color: var(--tone-danger); }
 .subj-card .bar {
+  display: block;
   height: 6px;
   background: var(--surface-muted);
   border-radius: 9999px;
@@ -625,5 +763,205 @@
   padding: 18px 16px;
   text-align: center;
   font: 13px/1.5 var(--font-sans);
+  color: var(--text-muted);
+}
+
+/* ── Home: shortcuts pill row ──────────────────────────────── */
+.pill-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px;
+  flex-wrap: wrap;
+}
+.pill-row .pill-btn {
+  padding: 8px 12px;
+  border-radius: 9999px;
+  background: var(--surface-muted);
+  color: var(--text-strong);
+  font: 500 12px/1 var(--font-sans);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+  border: 0;
+}
+.pill-row .pill-btn:hover { background: var(--brand-soft); color: var(--brand-strong); }
+.pill-row .pill-btn .ct {
+  font-variant-numeric: tabular-nums;
+  background: var(--tone-danger);
+  color: var(--text-inverse);
+  border-radius: 9999px;
+  padding: 2px 6px;
+  font-weight: 600;
+}
+
+/* ── Attendance: six-week grid ─────────────────────────────── */
+.att-grid {
+  display: grid;
+  grid-template-columns: 40px repeat(5, 1fr);
+  gap: 6px 4px;
+  align-items: center;
+  margin-top: 14px;
+}
+.att-grid .wk { font: 500 11px/1 var(--font-sans); color: var(--text-muted); }
+.att-grid .day {
+  font: 500 11px/1 var(--font-sans);
+  color: var(--text-subtle);
+  text-align: center;
+  padding: 6px 0;
+}
+.att-grid .dot {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 28px;
+  max-height: 28px;
+  margin: 0 auto;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  display: grid;
+  place-items: center;
+  font: 600 11px/1 var(--font-sans);
+  color: var(--text-subtle);
+  border: 0;
+  padding: 0;
+}
+.att-grid button.dot { cursor: pointer; }
+.att-grid button.dot:hover { box-shadow: 0 0 0 2px var(--brand-100); }
+.att-grid .dot.p { background: var(--tone-success-bg); color: var(--tone-success); }
+.att-grid .dot.a { background: var(--tone-danger-bg); color: var(--tone-danger); }
+.att-grid .dot.l { background: var(--tone-warn-bg); color: var(--tone-warn); }
+.att-grid .dot.e { background: var(--surface-muted); color: var(--text-muted); }
+.att-grid .dot.h { background: transparent; }
+/* A day off a register a teacher has not sent in yet. Dashed rather than
+   worded, because the note under the grid says why once for all of them. */
+.att-grid .dot.draft { border: 1px dashed var(--border); }
+.att-legend {
+  display: flex;
+  gap: 14px;
+  padding: 12px 0 0;
+  font: 11.5px/1 var(--font-sans);
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.att-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.att-legend span::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.att-legend .l-p::before { background: var(--tone-success); }
+.att-legend .l-l::before { background: var(--tone-warn); }
+.att-legend .l-a::before { background: var(--tone-danger); }
+.att-legend .l-e::before { background: var(--text-muted); }
+.att-note {
+  font: 12px/1.45 var(--font-sans);
+  color: var(--text-muted);
+  padding: 10px 0 0;
+  margin: 0;
+}
+
+/* ── Bottom sheets that are not the child switcher ─────────── */
+.x-bs-body .sheet-figure {
+  font: 700 26px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  margin: 2px 0 6px;
+}
+.x-bs-body .sheet-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.x-bs-body .sheet-actions > * { flex: 1; }
+
+/* Label / value pairs inside a sheet — how to pay, one day's register. */
+.sheet-defs {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  font: 13px/1.5 var(--font-sans);
+  color: var(--text-strong);
+  margin: 0;
+}
+.sheet-defs dt { color: var(--text-muted); }
+.sheet-defs dd { margin: 0; text-align: right; }
+
+/* ── Notice detail ─────────────────────────────────────────── */
+.notice-head {
+  padding: 16px 16px 0;
+}
+.notice-head .from {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 9999px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font: 600 11px/1 var(--font-sans);
+}
+.notice-head .from.warn { background: var(--tone-warn-bg); color: var(--tone-warn); }
+.notice-head .from.danger { background: var(--tone-danger-bg); color: var(--tone-danger); }
+.notice-head h2 {
+  font: 700 19px/1.25 var(--font-sans);
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
+  margin: 12px 0 4px;
+}
+.notice-head .when { font: 12px/1.4 var(--font-sans); color: var(--text-muted); }
+.notice-body {
+  padding: 14px 16px 0;
+  font: 14.5px/1.6 var(--font-sans);
+  color: var(--text-body);
+  white-space: pre-wrap;
+}
+
+/* ── Fees: payment rows ────────────────────────────────────── */
+.pay-row .method {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font: 500 11px/1 var(--font-sans);
+}
+.pay-row .amt {
+  font: 600 14px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+
+/* ── Help: cards get the page gutter every other screen has ── */
+.faq-card {
+  margin: 0 16px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: clip;
+}
+.faq-card > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font: 500 14px/1.35 var(--font-sans);
+  color: var(--text-strong);
+}
+.faq-card > button:hover { background: var(--surface-muted); }
+.faq-card > button .chev { color: var(--text-subtle); flex: none; transition: transform 160ms ease; }
+.faq-card > button[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.faq-card p {
+  margin: 0;
+  padding: 0 16px 14px;
+  font: 13px/1.55 var(--font-sans);
   color: var(--text-muted);
 }

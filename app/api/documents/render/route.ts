@@ -19,6 +19,10 @@ import {
 } from "@/lib/documents/hr-sources";
 import { isApproverRole } from "@/lib/workflow/approvals";
 import { canSchoolRoleDo } from "@/lib/schools/permissions";
+import {
+  canRenderPortalSchoolDocument,
+  isPortalDocumentRole,
+} from "./_portal-scope";
 import type { DocumentRenderRequest } from "@/lib/documents/service";
 
 export const runtime = "nodejs";
@@ -101,10 +105,29 @@ export async function POST(request: NextRequest) {
     if (isSchoolDocumentSourceKey(typedInput.sourceKey)) {
       const { resource } = SCHOOL_DOCUMENT_ACCESS[typedInput.sourceKey];
       if (!canSchoolRoleDo(session.user.role, resource, "view")) {
-        return errorResponse(
-          `Your role cannot view ${resource.replace("schools.", "")}`,
-          403,
-        );
+        // A portal account holds no back-office grant, so the office rule above
+        // refuses every parent and pupil printing their own paper. Theirs is
+        // decided by the record instead: the guardian link to the child the
+        // document is about, read through the same helper the portal screens use.
+        if (!isPortalDocumentRole(session.user.role)) {
+          return errorResponse(
+            `Your role cannot view ${resource.replace("schools.", "")}`,
+            403,
+          );
+        }
+        const decision = await canRenderPortalSchoolDocument({
+          companyId: session.user.companyId,
+          userId: session.user.id,
+          role: session.user.role,
+          sourceKey: typedInput.sourceKey,
+          recordId: typedInput.recordId,
+        });
+        if (!decision.allowed) {
+          // 404 rather than 403, as for the payslip below: a 403 would confirm
+          // the document exists, and which bills exist is which children are
+          // enrolled.
+          return errorResponse(decision.reason, 404);
+        }
       }
     }
 

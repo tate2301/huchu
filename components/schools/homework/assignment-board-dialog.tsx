@@ -5,9 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
-import { LoadError, NothingLeftToDo, TableRowsSkeleton } from "@/components/schools/common/states";
+import { LoadError, NothingLeftToDo, TableRowsSkeleton } from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson } from "@/lib/api-client";
 
@@ -182,25 +182,28 @@ export function AssignmentBoardDialog({
                   body="There is nobody left to chase for this one."
                 />
               ) : (
-                <ul className="divide-y divide-[color:var(--border-subtle)] rounded-[var(--radius-lg)] border border-[color:var(--border)]">
+                /* Separated by space rather than by rules: a divider is a line
+                   the reader has to cross for every child on a chase list.
+
+                   The names are the roll's own cell without its link. A pupil
+                   peeks on a plain click everywhere else, but the peek opens
+                   as a sheet and a sheet over a dialog is two overlays deep —
+                   and this list is read to chase the work, not the children. */
+                <ul className="space-y-1">
                   {missing.map((row) => (
                     <li
                       key={row.student.id}
-                      className="flex items-center gap-3 px-3 py-2"
+                      className="flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] border border-[color:var(--border-subtle)] px-3 py-2"
                     >
-                      <PersonAvatar
-                        firstName={row.student.firstName}
-                        lastName={row.student.lastName}
-                        size="xs"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                          {row.student.lastName}, {row.student.firstName}
-                        </p>
-                        <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                          {row.student.studentNo}
-                        </p>
-                      </div>
+                      <span className="min-w-0 flex-1">
+                        <PersonCell
+                          kind="student"
+                          firstName={row.student.firstName}
+                          lastName={row.student.lastName}
+                          displayName={`${row.student.lastName}, ${row.student.firstName}`}
+                          reference={row.student.studentNo}
+                        />
+                      </span>
                       {statusBadge(null)}
                     </li>
                   ))}
@@ -217,29 +220,27 @@ export function AssignmentBoardDialog({
                   Nothing has come back yet.
                 </p>
               ) : (
-                <ul className="divide-y divide-[color:var(--border-subtle)] rounded-[var(--radius-lg)] border border-[color:var(--border)]">
+                <ul className="space-y-1">
                   {handedIn.map((row) => (
                     <li
                       key={row.student.id}
-                      className="flex items-center gap-3 px-3 py-2"
+                      className="flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] border border-[color:var(--border-subtle)] px-3 py-2"
                     >
-                      <PersonAvatar
-                        firstName={row.student.firstName}
-                        lastName={row.student.lastName}
-                        size="xs"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                          {row.student.lastName}, {row.student.firstName}
-                        </p>
-                        <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                          {row.student.studentNo}
-                          {row.submission?.score !== null &&
-                          row.submission?.score !== undefined
-                            ? ` · ${row.submission.score}${board.assignment.maxScore ? ` of ${board.assignment.maxScore}` : ""}`
-                            : ""}
-                        </p>
-                      </div>
+                      <span className="min-w-0 flex-1">
+                        <PersonCell
+                          kind="student"
+                          firstName={row.student.firstName}
+                          lastName={row.student.lastName}
+                          displayName={`${row.student.lastName}, ${row.student.firstName}`}
+                          reference={row.student.studentNo}
+                          context={
+                            row.submission?.score !== null &&
+                            row.submission?.score !== undefined
+                              ? `${row.submission.score}${board.assignment.maxScore ? ` of ${board.assignment.maxScore}` : ""}`
+                              : undefined
+                          }
+                        />
+                      </span>
                       {statusBadge(row.submission)}
                     </li>
                   ))}

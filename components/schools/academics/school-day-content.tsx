@@ -14,7 +14,9 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
+import { RecordMark } from "@/components/records/record-mark";
+import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -187,16 +189,19 @@ export function SchoolDayContent() {
       {
         id: "period",
         header: "Period",
+        // The same cell the rooms below are drawn with, rather than a name
+        // over a time in a shape of its own: the code leads the supporting
+        // line and the hours follow it, so the two tables on this screen read
+        // alike when the reader crosses between them.
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">
-              {row.original.code} - {row.original.name}
-            </div>
-            <div className="text-muted-foreground font-mono">
-              {formatMinute(row.original.startMinute)} →{" "}
-              {formatMinute(row.original.endMinute)}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="document"
+            name={row.original.name}
+            reference={row.original.code}
+            context={`${formatMinute(row.original.startMinute)} → ${formatMinute(
+              row.original.endMinute,
+            )}`}
+          />
         ),
       },
       {
@@ -225,10 +230,13 @@ export function SchoolDayContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               {
@@ -263,15 +271,20 @@ export function SchoolDayContent() {
   const roomColumns = useMemo<ColumnDef<SchoolsRoomRecord>[]>(
     () => [
       {
-        accessorKey: "code",
-        header: "Code",
-        cell: ({ row }) => <span className="font-medium">{row.original.code}</span>,
-      },
-      { accessorKey: "name", header: "Name" },
-      {
-        id: "kind",
-        header: "Kind",
-        cell: ({ row }) => row.original.kind ?? "-",
+        id: "room",
+        header: "Room",
+        // One cell, not a Code column beside a Name column beside a Kind
+        // column. The name is what a timetabler is looking for; the code is
+        // what tells two science labs apart, and the kind is the word of
+        // context after it.
+        cell: ({ row }) => (
+          <RecordNameCell
+            kind="site"
+            name={row.original.name}
+            reference={row.original.code}
+            context={row.original.kind}
+          />
+        ),
       },
       {
         id: "capacity",
@@ -294,10 +307,11 @@ export function SchoolDayContent() {
       },
       {
         id: "actions",
-        header: "",
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               {
@@ -360,17 +374,28 @@ export function SchoolDayContent() {
 
   return (
     <div className="space-y-4">
+      {/* Nothing is counted until it has arrived. A day drawn off two empty
+          lists reads "Periods 0 · Teaching time a day 0h 0m · Rooms in use 0",
+          which is a school that does not open — and it says it every time the
+          screen is loaded. */}
       <PageBand
         chips={[
-          { label: "Periods", value: periods.length },
+          {
+            label: "Periods",
+            value: periodsQuery.isPending ? "—" : periods.length,
+          },
           {
             label: "Teaching time a day",
-            value: `${Math.floor(teachingMinutes / 60)}h ${teachingMinutes % 60}m`,
+            value: periodsQuery.isPending
+              ? "—"
+              : `${Math.floor(teachingMinutes / 60)}h ${teachingMinutes % 60}m`,
             tone: "brand",
           },
           {
             label: "Rooms in use",
-            value: rooms.filter((row) => row.isActive).length,
+            value: roomsQuery.isPending
+              ? "—"
+              : rooms.filter((row) => row.isActive).length,
           },
         ]}
       />
@@ -398,8 +423,16 @@ export function SchoolDayContent() {
 
       <VerticalDataViews
         items={[
-          { id: "periods", label: "Periods", count: periods.length },
-          { id: "rooms", label: "Rooms", count: rooms.length },
+          {
+            id: "periods",
+            label: "Periods",
+            count: periodsQuery.isPending ? undefined : periods.length,
+          },
+          {
+            id: "rooms",
+            label: "Rooms",
+            count: roomsQuery.isPending ? undefined : rooms.length,
+          },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as SchoolDayView)}
@@ -533,11 +566,9 @@ export function SchoolDayContent() {
 
           {roomsQuery.isLoading ? (
             <TableRowsSkeleton
-              headers={["Code", "Name", "Kind", "Seats", "Lessons", "Status"]}
+              headers={["Room", "Seats", "Lessons", "Status"]}
               columns={[
-                { width: 110 },
-                {},
-                { width: 120 },
+                { avatar: true, twoLine: true },
                 { width: 90, align: "right" },
                 { width: 90, align: "right" },
                 { width: 100, badge: true },
@@ -574,8 +605,10 @@ export function SchoolDayContent() {
                       <MobileList.Row
                         key={row.id}
                         static
-                        title={`${row.code} - ${row.name}`}
+                        leading={<RecordMark kind="site" name={row.name} size="sm" />}
+                        title={row.name}
                         subtitle={[
+                          row.code,
                           row.kind,
                           row.capacity ? `${row.capacity} seats` : null,
                           row.isActive ? null : "Out of use",

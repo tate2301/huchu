@@ -591,6 +591,11 @@ type LockedInvoice = {
  * Read the invoices an allocation names, under lock, and refuse the ones that
  * cannot legally take money.
  *
+ * What may take money is what has been issued and not closed: ISSUED,
+ * PART_PAID and PAID. PAID is here because a fully settled bill is still the
+ * thing a parent pays twice against, and that second payment is carried as
+ * credit rather than refused — see `spreadOverInvoices`.
+ *
  * Returns them keyed by id so the caller does not read them twice.
  */
 export async function loadInvoicesForAllocation(
@@ -626,6 +631,15 @@ export async function loadInvoicesForAllocation(
   for (const invoice of invoices) {
     if (invoice.studentId !== input.studentId) {
       throw new FeeCreditError("One or more allocated invoices are invalid", 400);
+    }
+    // A draft bill has not been asked for yet and has no issue journal
+    // behind it, so money landing on it would post a receivable that was never
+    // raised and flip it to PART_PAID or PAID without it ever being ISSUED.
+    if (invoice.status === "DRAFT") {
+      throw new FeeCreditError(
+        `Invoice ${invoice.invoiceNo} is still a draft; issue it before allocating money to it`,
+        400,
+      );
     }
     if (invoice.status === "VOIDED" || invoice.status === "WRITEOFF") {
       throw new FeeCreditError(

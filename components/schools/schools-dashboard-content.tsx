@@ -3,11 +3,12 @@
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
+import { AgeingStrip } from "@/components/schools/common/ageing-strip";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -17,7 +18,8 @@ import {
   SaveError,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
+
 import { fetchJson } from "@/lib/api-client";
 import {
   fetchSchoolsClasses,
@@ -540,7 +542,6 @@ export function SchoolsDashboardContent() {
   }, [windowsQuery.data]);
 
   const collectionRate = collections ? Math.round(collections.overallCollectionRate) : 0;
-  const occupancyRate = occupancy ? Math.round(occupancy.overallOccupancyRate) : 0;
   const presentRate = board ? percentage(board.summary.present, board.summary.marked) : 0;
 
   const dayOptions = useMemo(() => {
@@ -612,6 +613,53 @@ export function SchoolsDashboardContent() {
   // A panel is loading until every endpoint it draws from has landed. Drawing
   // a row per query as each arrives makes the panel grow under the reader's
   // eye, which on a screen full of counts is worse than waiting.
+  /*
+    The queue, with the empty rows taken out.
+
+    A row reading "Admissions to decide — 0" is a line of the morning spent on
+    work that does not exist, and four of them make a panel somebody stops
+    reading. A count is only a count when it is not nought; when every one of
+    them is, the panel says so in a sentence instead.
+
+    The publish-window row is not one of these and stays outside the list: it
+    is a deadline rather than a queue, so it is worth showing while its count
+    is nought — which is exactly when there is still time to do something
+    about it.
+  */
+  const waiting = useMemo(() => {
+    const rows = [
+      {
+        href: "/schools/results/moderation",
+        lead: "warn" as const,
+        title: "Mark sheets in moderation",
+        detail: "Submitted, nobody has approved them yet",
+        count: sheetsQuery.data?.pagination.total ?? 0,
+      },
+      {
+        href: "/schools/admissions",
+        lead: "warn" as const,
+        title: "Admissions to decide",
+        detail: "Applied, no decision recorded",
+        count: admissionsQuery.data?.applications.length ?? 0,
+      },
+      {
+        href: "/schools/homework",
+        lead: "danger" as const,
+        title: "Homework past its deadline",
+        detail: "Work still missing from the class list",
+        count: homework?.summary.overdue ?? 0,
+      },
+      {
+        href: "/schools/goals",
+        lead: "neutral" as const,
+        title: "Pupils with no subject target",
+        detail: "Nobody has set these children anything",
+        count: goalsQuery.data?.summary.withoutGoal ?? 0,
+      },
+    ];
+    return rows.filter((row) => row.count > 0);
+  }, [admissionsQuery.data, goalsQuery.data, homework, sheetsQuery.data]);
+
   const waitingPending =
     sheetsQuery.isPending ||
     windowsQuery.isPending ||
@@ -624,14 +672,35 @@ export function SchoolsDashboardContent() {
 
   return (
     <div className="space-y-3">
+      {/*
+        The morning's five numbers, stated once.
+
+        They were stated twice: four chips here and four tiles underneath, two
+        of which — the roll and the collection rate — said the same thing in a
+        different typeface eighty pixels apart. The band is the half that
+        survives, because it is the half that never scrolls away, and every
+        chip is a link to the screen the number came from. What the tiles
+        carried and these do not is said by the panels below: the fee card
+        breaks the collection down, and the boarding panel counts the beds.
+      */}
       <PageBand
         chips={[
-          { label: "On the roll", value: roll ? roll.onRoll.toLocaleString() : "—", href: "/schools/students" },
+          {
+            label: "On the roll",
+            value: roll ? roll.onRoll.toLocaleString() : "—",
+            href: "/schools/students",
+          },
+          {
+            label: "Present",
+            value: board ? board.summary.present.toLocaleString() : "—",
+            tone: presentRate >= 90 ? "success" : "warn",
+            href: `/schools/attendance?date=${onDate}`,
+          },
           {
             label: "Registers in",
             value: board ? `${board.summary.withRegister} of ${board.summary.yearGroups}` : "—",
             tone: board && board.summary.missing > 0 ? "warn" : "success",
-            href: "/schools/attendance",
+            href: `/schools/attendance?date=${onDate}`,
           },
           {
             label: "Collected",
@@ -719,52 +788,6 @@ export function SchoolsDashboardContent() {
         </Alert>
       ) : null}
 
-      {rollQuery.isPending || registersQuery.isPending ? (
-        <StatsSkeleton count={4} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            label="On the roll"
-            value={roll ? roll.onRoll.toLocaleString() : "—"}
-            footer={
-              roll
-                ? `${roll.boarders.toLocaleString()} boarders · ${(roll.onRoll - roll.boarders).toLocaleString()} day`
-                : undefined
-            }
-          />
-          <StatCard
-            label="Present today"
-            value={board ? board.summary.present.toLocaleString() : "—"}
-            tone={presentRate >= 90 ? "success" : "warn"}
-            footer={
-              board
-                ? `${presentRate}% of the ${board.summary.withRegister} registers in`
-                : undefined
-            }
-          />
-          <StatCard
-            label="Collected this term"
-            value={collections ? `${collectionRate}%` : "—"}
-            tone={collectionRate >= 90 ? "success" : "warn"}
-            footer={
-              collections
-                ? `${formatSchoolMoney(collections.totalCollected)} of ${formatSchoolMoney(collections.totalInvoiced)}`
-                : undefined
-            }
-          />
-          <StatCard
-            label="Beds occupied"
-            value={occupancy ? `${occupancyRate}%` : "—"}
-            tone={occupancyRate >= 95 ? "warn" : "success"}
-            footer={
-              occupancy
-                ? `${occupancy.totalOccupied.toLocaleString()} of ${occupancy.totalBeds.toLocaleString()}`
-                : undefined
-            }
-          />
-        </div>
-      )}
-
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex flex-col gap-3">
           <Panel
@@ -842,7 +865,9 @@ export function SchoolsDashboardContent() {
                   }
                   trailing={
                     <RecordActions
+                      layout="menu"
                       resource="schools.attendance"
+                      label={`Chase the ${row.className} register`}
                       verbs={[
                         {
                           label: "Remind",
@@ -882,45 +907,31 @@ export function SchoolsDashboardContent() {
                 rows={5}
                 columns={[{ twoLine: true }, { width: 60, align: "right" }]}
               />
+            ) : waiting.length === 0 ? (
+              <NothingLeftToDo
+                title="Nothing is waiting on anybody"
+                body="No sheets in moderation, no admission undecided, no homework past its deadline."
+              />
             ) : (
               <>
-                <PanelRow
-                  href="/schools/results/moderation"
-                  lead="warn"
-                  title="Mark sheets in moderation"
-                  detail="Submitted, nobody has approved them yet"
-                  tail={sheetsQuery.data?.pagination.total ?? "—"}
-                />
+                {waiting.map((row) => (
+                  <PanelRow
+                    key={row.href}
+                    href={row.href}
+                    lead={row.lead}
+                    title={row.title}
+                    detail={row.detail}
+                    tail={row.count.toLocaleString()}
+                  />
+                ))}
                 {closingWindow ? (
                   <PanelRow
                     href="/schools/results/publish"
                     lead="warn"
                     title={`Publish window closes on ${SHORT_DAY.format(new Date(String(closingWindow.closeAt)))}`}
                     detail={`${closingWindow.term?.name ?? "This term"} · sheets not yet approved`}
-                    tail={sheetsQuery.data?.pagination.total ?? "—"}
                   />
                 ) : null}
-                <PanelRow
-                  href="/schools/admissions"
-                  lead="warn"
-                  title="Admissions to decide"
-                  detail="Applied, no decision recorded"
-                  tail={admissionsQuery.data?.applications.length ?? "—"}
-                />
-                <PanelRow
-                  href="/schools/homework"
-                  lead="danger"
-                  title="Homework past its deadline"
-                  detail="Work still missing from the class list"
-                  tail={homework?.summary.overdue ?? "—"}
-                />
-                <PanelRow
-                  href="/schools/goals"
-                  lead="neutral"
-                  title="Pupils with no subject target"
-                  detail="Nobody has set these children anything"
-                  tail={goalsQuery.data?.summary.withoutGoal ?? "—"}
-                />
               </>
             )}
           </Panel>
@@ -1059,9 +1070,13 @@ export function SchoolsDashboardContent() {
                     tone="var(--tone-danger)"
                   />
                 </div>
-                <AgingBars aging={arrears?.aging ?? null} />
+                {/* The bands are only worth the room when there is debt to age;
+                    the line below already says when there is none. */}
+                {(arrears?.totalOutstanding ?? 0) > 0 ? (
+                  <AgeingStrip amounts={arrears?.aging} caption="How old the debt is" />
+                ) : null}
                 <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                  {arrears
+                  {arrears && arrears.studentsWithArrears > 0
                     ? `${arrears.studentsWithArrears.toLocaleString()} families owe something.`
                     : "Nothing is owed."}
                 </p>
@@ -1157,6 +1172,14 @@ export function SchoolsDashboardContent() {
                   }
                 />
                 <PanelRow
+                  href="/schools/students?boarding=true"
+                  title="Boarders on the roll"
+                  detail={
+                    roll ? `${(roll.onRoll - roll.boarders).toLocaleString()} day pupils` : undefined
+                  }
+                  tail={roll ? roll.boarders.toLocaleString() : "—"}
+                />
+                <PanelRow
                   href="/schools/boarding"
                   title="Out on leave tonight"
                   tail={leaveQuery.data?.data.length ?? "—"}
@@ -1196,52 +1219,3 @@ function severityBadge(severity: string) {
   return <Badge tone="outline">Notice</Badge>;
 }
 
-/**
- * How old the debt is, as five bars.
- *
- * Heights are relative to the tallest bucket rather than to the total, because
- * the question is which bucket is the problem, and a bucket holding a tenth of
- * the debt is invisible when every bar is drawn against the whole.
- */
-function AgingBars({
-  aging,
-}: {
-  aging: ArrearsSummary["summary"]["aging"] | null;
-}) {
-  const buckets = [
-    { label: "Now", value: aging?.current ?? 0 },
-    { label: "1–30", value: aging?.days30 ?? 0 },
-    { label: "31–60", value: aging?.days60 ?? 0 },
-    { label: "61–90", value: aging?.days90 ?? 0 },
-    { label: "90+", value: aging?.days120Plus ?? 0, worst: true },
-  ];
-  const tallest = Math.max(...buckets.map((bucket) => bucket.value), 1);
-
-  return (
-    <div>
-      <div className="mb-1.5 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-        How old the debt is
-      </div>
-      <div className="flex items-end gap-2">
-        {buckets.map((bucket) => (
-          <div key={bucket.label} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-            <div className="flex h-[62px] items-end" title={formatSchoolMoney(bucket.value)}>
-              <span
-                className="w-[15px] rounded-t-[3px]"
-                style={{
-                  height: `${Math.max(Math.round((bucket.value / tallest) * 58), bucket.value > 0 ? 4 : 2)}px`,
-                  background: bucket.worst
-                    ? "var(--tone-danger)"
-                    : "var(--tone-warn)",
-                }}
-              />
-            </div>
-            <span className="whitespace-nowrap text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              {bucket.label}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

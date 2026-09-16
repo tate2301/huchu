@@ -3,24 +3,33 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Button } from "@corelithzw/react";
 
+import { MobileList, MobileListEmpty } from "@corelithzw/react";
+
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordCell, recordCellTone } from "@/components/records/record-table";
+import { RecordMark } from "@/components/records/record-mark";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  activeFilterCount,
+  FilterSelect,
+} from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   fetchSchoolsClasses,
   fetchSchoolsSubjects,
@@ -113,7 +122,7 @@ type BulkWrite = { studentId: string; label: string };
  * row, and once over the filtered set — narrow to Form 2A with no target, set
  * them all a Mathematics target in one pass, move on to Form 2B.
  *
- * ── The filter row ─────────────────────────────────────────────────────────
+ * ── The narrowing row ──────────────────────────────────────────────────────
  *
  * Four filters, and the canvas names each with its unnarrowed choice:
  *
@@ -124,7 +133,15 @@ type BulkWrite = { studentId: string; label: string };
  *
  * Term, year group and subject are asked of the endpoint, because the roll the
  * rows are built from is the server's; standing is worked out per row from what
- * came back, so it is filtered here.
+ * came back, so it is filtered here. The search box matches here too, for the
+ * same reason: what it looks through is the roll already in hand.
+ *
+ * All five sit in one row above the table with the count, where every other
+ * campus list puts them. The filters used to sit in a bar of their own and the
+ * search box inside the table's own toolbar, so "narrow it down" was answered
+ * in two places — and on a phone neither of them folded away or said how many
+ * filters were in force, which is how a list ends up looking empty for no
+ * visible reason.
  */
 export function GoalsOversightContent() {
   const queryClient = useQueryClient();
@@ -134,6 +151,7 @@ export function GoalsOversightContent() {
   const [classId, setClassId] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [standing, setStanding] = useState("");
+  const [search, setSearch] = useState("");
 
   /** The row being written, or `"bulk"` for the whole filtered set. */
   const [editing, setEditing] = useState<GoalRow | "bulk" | null>(null);
@@ -190,9 +208,22 @@ export function GoalsOversightContent() {
   const summary = query.data?.summary;
   const rows = useMemo(() => {
     const all = query.data?.rows ?? [];
-    if (!standing) return all;
-    return all.filter((row) => standingOf(row) === standing);
-  }, [query.data, standing]);
+    const typed = search.trim().toLowerCase();
+    return all.filter((row) => {
+      if (standing && standingOf(row) !== standing) return false;
+      if (!typed) return true;
+      // The pupil, the class and the subject — the three the box names, plus
+      // the admission number, which is what the office has in front of it when
+      // it is not sure how a name is spelled.
+      return [
+        `${row.firstName} ${row.lastName}`,
+        row.studentNo,
+        row.className,
+        row.streamName,
+        row.subject?.name,
+      ].some((field) => field?.toLowerCase().includes(typed));
+    });
+  }, [query.data, search, standing]);
 
   /**
    * The set a bulk run writes to: the rows on screen that still have nothing.
@@ -213,6 +244,7 @@ export function GoalsOversightContent() {
     setClassId("");
     setSubjectId("");
     setStanding("");
+    setSearch("");
   };
 
   const setTargets = useMutation({
@@ -254,41 +286,56 @@ export function GoalsOversightContent() {
       {
         id: "pupil",
         header: "Pupil",
+        // The same cell the roll draws: the mark, the surname-first name, and
+        // the admission number that tells two Tendai Moyos apart. Surname
+        // first, because the rows are read against a class list.
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar
-              firstName={row.original.firstName}
-              lastName={row.original.lastName}
-            />
-            <div className="min-w-0">
-              <div className="font-medium">
-                {row.original.lastName}, {row.original.firstName}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {row.original.studentNo}
-              </div>
-            </div>
-          </div>
+          <PersonCell
+            kind="student"
+            firstName={row.original.firstName}
+            lastName={row.original.lastName}
+            displayName={`${row.original.lastName}, ${row.original.firstName}`}
+            href={recordType("STUDENT").href(row.original.studentId)}
+            reference={row.original.studentNo}
+          />
         ),
       },
       {
         id: "class",
         header: "Class",
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.className ?? "Not placed"}
-            {row.original.streamName ? ` · ${row.original.streamName}` : ""}
-          </span>
-        ),
+        // A reference to a class is a link to the class, not a word about it:
+        // "which other Form 2 pupils have no target" is one click from here
+        // rather than a second search.
+        cell: ({ row }) =>
+          row.original.classId ? (
+            <EntityLink
+              href={recordType("CLASS").href(row.original.classId)}
+              className={recordCellTone("relation")}
+            >
+              {[row.original.className, row.original.streamName]
+                .filter(Boolean)
+                .join(" · ")}
+            </EntityLink>
+          ) : (
+            // Named in words: a child in no class is the row somebody has to
+            // act on, and a dash under "Class" reads as a column that failed.
+            <span className="text-sm text-[color:var(--text-muted)]">Not placed</span>
+          ),
       },
       {
         id: "subject",
         header: "Subject",
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.subject?.name ?? "Every subject"}
-          </span>
-        ),
+        cell: ({ row }) =>
+          row.original.subject ? (
+            <EntityLink
+              href={recordType("SUBJECT").href(row.original.subject.id)}
+              className={recordCellTone("relation")}
+            >
+              {row.original.subject.name}
+            </EntityLink>
+          ) : (
+            <span className="text-sm text-[color:var(--text-muted)]">Every subject</span>
+          ),
       },
       {
         id: "target",
@@ -323,8 +370,11 @@ export function GoalsOversightContent() {
         id: "plan",
         header: "How they will get there",
         cell: ({ row }) => (
-          <span className="line-clamp-1 text-xs text-muted-foreground">
-            {row.original.plan ?? row.original.teacherNote ?? "—"}
+          // One line, clamped. The plan is prose in a table of figures, and a
+          // row that wraps to three lines doubles the height of every row
+          // beside it.
+          <span className="line-clamp-1">
+            <RecordCell value={row.original.plan ?? row.original.teacherNote} />
           </span>
         ),
       },
@@ -335,10 +385,13 @@ export function GoalsOversightContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.firstName} ${row.original.lastName}`}
             resource="schools.students"
             verbs={[
               {
@@ -419,60 +472,51 @@ export function GoalsOversightContent() {
         <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} />
       ) : null}
 
-      {query.isPending ? (
-        <StatsSkeleton count={3} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard
-            label="Pupils with a target"
-            value={summary?.withGoal ?? 0}
-            footer={`of ${summary?.onRoll ?? 0} on the roll`}
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search pupil, class or subject"
           />
-          <StatCard
-            label="Pupils with none"
-            value={summary?.withoutGoal ?? 0}
-            tone="danger"
-            footer="Nobody has set these children anything"
-          />
-          <StatCard
-            label="At or above target"
-            value={summary?.onTrack ?? 0}
-            tone="success"
-            footer="Counted only where there is a mark to compare"
-          />
-        </div>
-      )}
-
-      <FilterBar>
-        <FilterSelect
-          label="Term"
-          allLabel="This term"
-          value={termId}
-          options={termOptions}
-          onChange={setTermId}
-        />
-        <FilterSelect
-          label="Year group"
-          allLabel="Every year"
-          value={classId}
-          options={classOptions}
-          onChange={setClassId}
-        />
-        <FilterSelect
-          label="Subject"
-          allLabel="Every subject"
-          value={subjectId}
-          options={subjectOptions}
-          onChange={setSubjectId}
-        />
-        <FilterSelect
-          label="Standing"
-          allLabel="Everyone"
-          value={standing}
-          options={STANDING_OPTIONS}
-          onChange={setStanding}
-        />
-      </FilterBar>
+        }
+        filterCount={activeFilterCount(termId, classId, subjectId, standing)}
+        filters={
+          <>
+            <FilterSelect
+              label="Term"
+              allLabel="This term"
+              value={termId}
+              options={termOptions}
+              onChange={setTermId}
+            />
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year"
+              value={classId}
+              options={classOptions}
+              onChange={setClassId}
+            />
+            <FilterSelect
+              label="Subject"
+              allLabel="Every subject"
+              value={subjectId}
+              options={subjectOptions}
+              onChange={setSubjectId}
+            />
+            <FilterSelect
+              label="Standing"
+              allLabel="Everyone"
+              value={standing}
+              options={STANDING_OPTIONS}
+              onChange={setStanding}
+            />
+          </>
+        }
+        // The answer to whatever the row above just asked, beside the question.
+        // The band's three numbers are the term's and must not move with it.
+        count={query.isPending ? null : `${rows.length} of ${query.data?.rows.length ?? 0}`}
+      />
 
       {query.isPending ? (
         <TableRowsSkeleton
@@ -482,8 +526,9 @@ export function GoalsOversightContent() {
         <DataTable
           data={rows}
           columns={columns}
-          searchPlaceholder="Search pupil, class or subject"
-          searchSubmitLabel="Search"
+          // The narrowing is answered once, in the row above. Left on, the
+          // table draws a second search box under the first.
+          features={{ globalFilter: false, pagination: true }}
           pagination={{ enabled: true }}
           exportConfig={{ enabled: true, title: "Subject targets", fileName: "subject-targets" }}
           rowGroup={(row) =>
@@ -491,11 +536,54 @@ export function GoalsOversightContent() {
               ? { key: row.className, label: row.className }
               : { key: "unplaced", label: "Not placed in a class" }
           }
+          // Seven columns at 390px is a sideways scroll showing one and a half
+          // of them. On a phone the row is the pupil, and the two figures the
+          // screen is about — what they are aiming at and where they are —
+          // read as the one line under the name.
+          mobileListRenderer={({ rows: shown }) => (
+            <MobileList>
+              {shown.length === 0 ? (
+                <MobileListEmpty>No pupils matched.</MobileListEmpty>
+              ) : (
+                shown.map(({ row }) => (
+                  <MobileList.Row
+                    key={`${row.studentId}-${row.subject?.id ?? "all"}`}
+                    leading={
+                      <RecordMark
+                        kind="student"
+                        name={`${row.firstName} ${row.lastName}`}
+                        size="sm"
+                      />
+                    }
+                    title={`${row.lastName}, ${row.firstName}`}
+                    subtitle={[
+                      row.studentNo,
+                      row.className ?? "Not placed",
+                      row.goalId === null
+                        ? "No target"
+                        : `Target ${percent(row.targetMark)} · now ${percent(row.currentMark)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    onClick={() => {
+                      setSaved(null);
+                      setEditing(row);
+                    }}
+                  />
+                ))
+              )}
+            </MobileList>
+          )}
           emptyState={
             query.error ? (
               "Nothing to show while the targets cannot be loaded."
-            ) : narrowing.length > 0 ? (
-              <NothingMatched what="pupils" filters={narrowing} onClear={clearFilters} />
+            ) : narrowing.length > 0 || search.trim() ? (
+              <NothingMatched
+                what="pupils"
+                filters={narrowing}
+                search={search}
+                onClear={clearFilters}
+              />
             ) : subjectId ? (
               <NothingYet
                 title="No class takes that subject this term"
@@ -510,34 +598,6 @@ export function GoalsOversightContent() {
           }
         />
       )}
-
-      <div className="grid items-start gap-3 lg:grid-cols-3">
-        <Card title="The rows start from the roll">
-          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-            A targets list built from the targets table can only show the children
-            somebody has already thought about. The head&rsquo;s question is the other
-            one — <strong>which pupils have no target at all</strong>{" "}
-            {"— so a pupil with nothing set is a row saying so."}
-          </p>
-        </Card>
-
-        <Card title="No mark is not behind">
-          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-            A missing mark says nothing about how the target is going, so it is neutral
-            rather than a warning. Reading it as &ldquo;behind&rdquo; would put a child on
-            a chase list over a test nobody has marked.
-          </p>
-        </Card>
-
-        <Card title="The missing half">
-          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-            The screen&rsquo;s whole purpose is naming the{" "}
-            {(summary?.withoutGoal ?? 0).toLocaleString()} pupils nobody has set a target
-            for. <strong>Set a target</strong> on the row, and one over the filtered set,
-            is what turns the list into work.
-          </p>
-        </Card>
-      </div>
 
       {editing ? (
         <GoalTargetDialog
