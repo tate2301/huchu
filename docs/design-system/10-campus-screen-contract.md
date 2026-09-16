@@ -96,6 +96,41 @@ scannable; it does not make an unfamiliar one readable, and a menu of bare
 glyphs is a menu you have to hover to use. The only icon-only control in the
 module is the `⋯` menu trigger, which carries an `aria-label`.
 
+## A status badge carries a mark, a label badge does not
+
+Import `Badge` from `@/components/schools/common/status-badge`, never from
+`@corelithzw/react` directly. The wrapper maps tone → mark, so `success` is a
+tick everywhere and no screen can disagree:
+
+| Tone | Mark |
+|---|---|
+| `success` | check circle |
+| `warn` | warning triangle |
+| `danger` | x circle |
+| `info` | info |
+| `neutral` `outline` `brand` `accent` | **none** |
+
+That last row is the rule, not an omission. `05-rules.md` bans signalling
+**state** by colour alone; "Default", "On lists" and "Form 4" are *labels*, and
+marking them tells the reader nothing while diluting the four marks that mean
+something. If every badge has a mark, no mark has weight.
+
+Do not pass `dot` to a status badge — the wrapper drops it. The dot is the
+same colour saying the same thing twice, and two ornaments on a 22px chip
+leave no room for the word.
+
+## The page's top padding is a wrapper, not a gutter
+
+`--content-gutter-y` is **0px and must stay 0px**. `main` is the scroll
+container, so padding there moves the scrollport edge that every sticky band
+pins to: the bands lift off the app bar and rows scroll through the gap
+underneath them.
+
+The air under the bar comes from `--content-lede`, applied by a plain wrapper
+*inside* `main` (`components/layout/app-shell.tsx`). Sticky descendants still
+pin to `main`, so the page gets its air at rest and the band still sits flush
+against the bar once it pins. Do not "fix" the zero.
+
 ## The exemplar
 
 `components/schools/boarding/boarding-allocations-content.tsx`. One subject, a

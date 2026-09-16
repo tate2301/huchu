@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Badge } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { SavingOverlay } from "@/components/records/states";

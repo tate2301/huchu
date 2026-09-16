@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Card } from "@corelithzw/react";
+import { Card } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 import type { CrmFieldType } from "@prisma/client";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";

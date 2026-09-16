@@ -18,7 +18,6 @@ import {
 } from "@/components/records/states";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import { CreateButton } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -113,9 +112,10 @@ export function ExamSeriesContent() {
       }),
   });
 
-  const chips = indexQuery.data?.chips;
   const rows = useMemo(() => indexQuery.data?.rows ?? [], [indexQuery.data]);
-  const nearest = chips?.nearestDeadline ?? null;
+  // Not a chip any more, but still the spine of the page: the alert and the
+  // deadline table below both hang off whichever series closes soonest.
+  const nearest = indexQuery.data?.chips?.nearestDeadline ?? null;
 
   // The series the alert and the deadline table are about: the one whose entries
   // close soonest.
@@ -277,41 +277,19 @@ export function ExamSeriesContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            {
-              // First, because it is the only number that can cost a child a
-              // year.
-              label: nearest
-                ? `Days to the ${nearest.boardName} deadline`
-                : "Days to the next deadline",
-              value: nearest ? nearest.days : "—",
-              tone: nearest ? (nearest.days <= 7 ? "danger" : nearest.days <= 21 ? "warn" : "neutral") : "neutral",
-            },
-            { label: "Candidates", value: chips?.candidates ?? "—" },
-            {
-              label: "Entry fees unpaid",
-              value: chips ? formatSchoolMoney(chips.entryFeesUnpaid) : "—",
-              tone: Number(chips?.entryFeesUnpaid ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              <Printer className="size-4" />
-              Print the deadline sheet
-            </Button>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Exam series">
         <CreateButton
           resource="schools.exams"
           label="New series"
           onSelect={() => setNewOpen(true)}
         />
+        {/* Rehoused off the band. It prints the deadline table below, which is
+            the thing on this page somebody carries out of the room. */}
+        <Button variant="secondary" size="sm" onClick={() => window.print()}>
+          <Printer className="size-4" />
+          Print the deadline sheet
+        </Button>
       </PageChrome>
 
       {saveError ? <SaveError what="That series" error={saveError} /> : null}

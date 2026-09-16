@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, MobileList } from "@corelithzw/react";
+import { Alert, Button, MobileList } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordCell } from "@/components/records/record-table";
@@ -19,7 +20,6 @@ import {
 import { TableControls } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -306,46 +306,8 @@ export function ConductDetentionContent() {
   const activeSession = register?.session ?? sessions.find((entry) => entry.id === activeSessionId);
   const chips = register?.chips;
 
-  const movedLabel = useMemo(() => {
-    const moved = (register?.rows ?? []).filter((row) => row.state === "MOVED" && row.movedTo);
-    const days = new Set(
-      moved.map((row) =>
-        new Date(row.movedTo!.startsAt).toLocaleDateString(undefined, { weekday: "long" }),
-      ),
-    );
-    return days.size === 1 ? `Moved to ${[...days][0]}` : "Moved elsewhere";
-  }, [register]);
-
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Due here", value: chips?.dueHere ?? "—" },
-            { label: "Here", value: chips?.here ?? "—", tone: "success" },
-            {
-              label: "Not marked",
-              value: chips?.notMarked ?? "—",
-              tone: (chips?.notMarked ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              // Named for where they went rather than for the fact that they
-              // went: `Moved to Saturday` tells a supervisor which register to
-              // look at, and `Moved elsewhere` tells them to go and find out.
-              label: movedLabel,
-              value: chips?.movedAway ?? "—",
-              tone: (chips?.movedAway ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              <Printer className="size-4" />
-              Print the list
-            </Button>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Detention">
         <RecordActions
           layout="inline"
@@ -442,26 +404,35 @@ export function ConductDetentionContent() {
                 : `${rows.length} of ${register?.rows.length ?? 0} named`
             }
             actions={
-              <RecordActions
-                layout="inline"
-                size="sm"
-                resource="schools.conduct"
-                verbs={[
-                  {
-                    label: "Mark everyone here",
-                    action: "mark",
-                    loading: mark.isPending,
-                    unavailable: markDenial ?? undefined,
-                    confirm: {
-                      title: "Mark everybody who is still unmarked as here",
-                      description:
-                        "It skips anybody serving another session. Nobody who has already been marked changes.",
-                      confirmLabel: "Mark them here",
+              <>
+                <RecordActions
+                  layout="inline"
+                  size="sm"
+                  resource="schools.conduct"
+                  verbs={[
+                    {
+                      label: "Mark everyone here",
+                      action: "mark",
+                      loading: mark.isPending,
+                      unavailable: markDenial ?? undefined,
+                      confirm: {
+                        title: "Mark everybody who is still unmarked as here",
+                        description:
+                          "It skips anybody serving another session. Nobody who has already been marked changes.",
+                        confirmLabel: "Mark them here",
+                      },
+                      onSelect: () => mark.mutate({ everyoneHere: true }),
                     },
-                    onSelect: () => mark.mutate({ everyoneHere: true }),
-                  },
-                ]}
-              />
+                  ]}
+                />
+                {/* Came off the band with it. Printing is a verb on the
+                    register as it stands, so it sits on the row that narrows
+                    the register. */}
+                <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                  <Printer className="size-4" />
+                  Print the list
+                </Button>
+              </>
             }
             filters={
               <>

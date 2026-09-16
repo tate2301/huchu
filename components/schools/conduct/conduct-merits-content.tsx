@@ -3,7 +3,8 @@
 import { Fragment, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, MobileList } from "@corelithzw/react";
+import { Button, MobileList } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordCell } from "@/components/records/record-table";
@@ -18,7 +19,6 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -152,7 +152,6 @@ export function ConductMeritsContent() {
 
   const rows = useMemo(() => ledgerQuery.data?.rows ?? [], [ledgerQuery.data]);
 
-  const tallies = ledgerQuery.data?.tallies;
   const summary = summaryQuery.data;
 
   const namedFilters = [
@@ -284,33 +283,7 @@ export function ConductMeritsContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Merits", value: tallies?.merits ?? "—", tone: "success" },
-            { label: "Demerits", value: tallies?.demerits ?? "—", tone: "warn" },
-            {
-              label: "Net",
-              // Untoned on purpose.
-              value:
-                tallies == null
-                  ? "—"
-                  : tallies.net > 0
-                    ? `+${tallies.net}`
-                    : String(tallies.net),
-            },
-            { label: "Pupils with neither", value: tallies?.pupilsWithNeither ?? "—" },
-          ]}
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              <Download className="size-4" />
-              Export the term
-            </Button>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Merits and demerits">
         <CreateButton
           resource="schools.conduct"
@@ -340,6 +313,14 @@ export function ConductMeritsContent() {
               sort === "net-desc" ? "" : sort,
             )}
             count={ledgerQuery.isPending ? null : `${rows.length} pupils`}
+            actions={
+              // Came off the band with it. It exports the term's ledger as the
+              // filters leave it, so it sits on the row that sets them.
+              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                <Download className="size-4" />
+                Export the term
+              </Button>
+            }
             filters={
               <>
                 <ClassFilter

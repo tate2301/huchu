@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card } from "@corelithzw/react";
+import { Alert, Button, Card } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { Input } from "@/components/ui/input";

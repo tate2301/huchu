@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button } from "@corelithzw/react";
+import { Alert, Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import {
@@ -15,7 +16,6 @@ import {
 } from "@/components/records/states";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
-import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
@@ -66,29 +66,9 @@ export function ExamSeatingContent({ seriesId }: { seriesId: string }) {
 
   const page = seatingQuery.data;
   const plan = page?.plan ?? null;
-  const chips = plan?.chips;
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Candidates", value: chips?.candidates ?? "—" },
-            { label: "Seated", value: chips?.seated ?? "—", tone: "success" },
-            {
-              label: "Still to seat",
-              value: chips?.stillToSeat ?? "—",
-              tone: (chips?.stillToSeat ?? 0) > 0 ? "warn" : "success",
-            },
-            {
-              label: "Sitting two papers at once",
-              value: chips?.sittingTwoAtOnce ?? "—",
-              tone: (chips?.sittingTwoAtOnce ?? 0) > 0 ? "danger" : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome
         title="Seating and invigilation"
         backHref="/schools/exams"

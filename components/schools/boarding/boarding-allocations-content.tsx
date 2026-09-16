@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, toast } from "@corelithzw/react";
+import { Alert, Button, toast } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";

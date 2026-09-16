@@ -89,7 +89,19 @@ export function AppShell({
                 render over the page it was opened from. */}
             <RecordTrailProvider>
               <RecordPeekProvider>
-                <OnboardingProvider>{children}</OnboardingProvider>
+                <OnboardingProvider>
+                  {/* The air under the app bar.
+                      It is a wrapper rather than padding on `main` because
+                      `main` is the scroll container: padding there moves the
+                      scrollport edge every sticky band pins to, so the bands
+                      lift off the bar and rows scroll through the gap beneath
+                      them. That is why `--content-gutter-y` is 0 and has to
+                      stay 0.
+                      Inside a plain child the sticky bands still pin to
+                      `main`, so the page gets its air at rest and the band
+                      still sits flush against the bar once it pins. */}
+                  <div className="pt-[var(--content-lede)]">{children}</div>
+                </OnboardingProvider>
               </RecordPeekProvider>
             </RecordTrailProvider>
           </main>

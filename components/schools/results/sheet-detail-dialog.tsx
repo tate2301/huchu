@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge, Button } from "@corelithzw/react";
+import { Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordCell } from "@/components/records/record-table";

@@ -516,6 +516,20 @@
      own edge, and 24px of padding above them meant each one floated with a
      gap the content then slid through. Bands own their vertical padding now. */
   --content-gutter-y: 0px;
+
+  /* The air between the app bar and the first thing on the page.
+     `--content-gutter-y` cannot supply it: padding on `main` moves the
+     scrollport's edge, and every sticky band pins to that edge — so a gutter
+     there lifts the bands off the bar and lets rows scroll through the gap
+     underneath them. That is the bug the zero above is holding down.
+
+     This is the other half of the same problem. The page was flush against
+     the bar: 48px of chrome, then a column header, with nothing between them,
+     so the bar read as part of the table. Bands own their vertical padding,
+     per the note above, so the padding goes INSIDE the first band — it scrolls
+     away with the content it belongs to, and the band still pins at the bar's
+     own edge because the padding is inside the sticky box, not above it. */
+  --content-lede:     16px;
   --content-viewport: calc(
     100dvh - var(--app-bar-h) - env(safe-area-inset-top, 0px)
       - (var(--content-gutter-y) * 2)

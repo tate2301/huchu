@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button } from "@corelithzw/react";
+import { Alert, Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import {
@@ -13,7 +14,6 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/records/states";
-import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
@@ -108,58 +108,7 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
   const outside = [...(rule?.below ?? []), ...(rule?.over ?? [])];
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Entries", value: page?.totals.entries ?? "—" },
-            {
-              label: "Still to invoice",
-              value: page ? formatSchoolMoney(page.totals.toInvoice) : "—",
-              tone: Number(page?.totals.toInvoice ?? 0) > 0 ? "warn" : "success",
-            },
-            {
-              label: "Below the minimum",
-              value: rule?.below.length ?? "—",
-              tone: (rule?.below.length ?? 0) > 0 ? "danger" : "neutral",
-            },
-            {
-              label: "Over the maximum",
-              value: rule?.over.length ?? "—",
-              tone: (rule?.over.length ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              label: "Entry file built",
-              value: seriesQuery.data?.lastEntryFile
-                ? formatSchoolDayTime(seriesQuery.data.lastEntryFile.builtAt)
-                : "Not yet",
-              tone: seriesQuery.data?.lastEntryFile ? "success" : "neutral",
-            },
-          ]}
-          actions={
-            <RecordActions
-              layout="inline"
-              size="sm"
-              resource="schools.exams"
-              verbs={[
-                {
-                  label: "Build the entry file",
-                  action: "enter",
-                  loading: build.isPending,
-                  confirm: {
-                    title: "Build the entry file",
-                    description:
-                      "It writes a file of every entry on this series and downloads it to you. Nothing is sent to the board — submission is manual, and this is the record of what you built.",
-                    confirmLabel: "Build it",
-                  },
-                  onSelect: () => build.mutate(),
-                },
-              ]}
-            />
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Subject entries" backHref="/schools/exams" backLabel="Exam series">
         <RecordActions
           layout="inline"
@@ -188,6 +137,21 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
                 confirmLabel: "Invoice them",
               },
               onSelect: () => invoice.mutate(),
+            },
+            {
+              // Rehoused off the band it used to hang from. Still not a
+              // submission — it writes a file and hands it to you — so it
+              // stays last, behind the two verbs that change the record.
+              label: "Build the entry file",
+              action: "enter",
+              loading: build.isPending,
+              confirm: {
+                title: "Build the entry file",
+                description:
+                  "It writes a file of every entry on this series and downloads it to you. Nothing is sent to the board — submission is manual, and this is the record of what you built.",
+                confirmLabel: "Build it",
+              },
+              onSelect: () => build.mutate(),
             },
           ]}
         />

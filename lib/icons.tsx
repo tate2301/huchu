@@ -523,3 +523,10 @@ export const WarningCircle = createPhosphorIcon("WarningCircle", "WarningCircle"
 export const ListChecks = createPhosphorIcon("ListChecks", "ListChecks");
 export const NotePencil = createPhosphorIcon("NotePencil", "NotePencil");
 export const NoteBlank = createPhosphorIcon("NoteBlank", "NoteBlank");
+
+/**
+ * The warning triangle, for `components/schools/common/status-badge.tsx`.
+ * Distinct from `WarningCircle`, which the error states use: the triangle says
+ * "look at this", the circle says "this broke".
+ */
+export const Warning = createPhosphorIcon("Warning", "Warning");

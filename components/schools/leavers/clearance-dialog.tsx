@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { Button } from "@/components/ui/button";
