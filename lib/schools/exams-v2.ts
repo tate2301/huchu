@@ -467,3 +467,30 @@ export function removeTimetablePaper(seriesId: string, paperId: string) {
     { method: "DELETE" },
   );
 }
+
+/**
+ * Add a board, a centre number or a syllabus subject.
+ *
+ * `POST /api/v2/schools/exams/reference` shipped and had no caller anywhere, so
+ * a school could not create the exam board its series hangs off — which made
+ * the entire exams module unreachable from an empty tenant: no board, so no
+ * series; no series, so no candidates, no entries, no timetable and no results.
+ */
+export function createExamReference(
+  input:
+    | { kind: "board"; code: string; name: string }
+    | { kind: "centre"; boardId: string; number: string; name?: string | null }
+    | {
+        kind: "subject";
+        boardId: string;
+        subjectId?: string | null;
+        code: string;
+        name: string;
+        level: ExamLevel;
+      },
+) {
+  return fetchJson<{ id: string }>("/api/v2/schools/exams/reference", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}

@@ -539,6 +539,15 @@ export const navSections: NavSection[] = [
       // S-13.1. Public exams fold into Results rather than taking a group of
       // their own: "a head looking for November's grades does not first decide
       // whether they are internal or public."
+      // Nothing in the module works without a board: a series is sat with one,
+      // and the POST that creates one had no caller, so the whole of public
+      // exams was unreachable from an empty tenant.
+      {
+        href: "/schools/exams/reference",
+        icon: Scale,
+        label: "Exam boards",
+        group: "results",
+      },
       {
         href: "/schools/exams",
         icon: Certificate,
