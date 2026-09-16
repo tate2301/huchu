@@ -9826,37 +9826,33 @@ model CrmApiKey {
 /// A Facebook Page whose Lead Ads forms feed this CRM.
 ///
 /// Meta's Lead Ads webhook cannot carry a CRM API key: it sends its own
-/// envelope to one callback URL per app, signs it with the app secret, and
+/// envelope to one callback URL per app, signs it with that app's secret, and
 /// puts nothing in it but a `leadgen_id`. The answers the customer typed are
-/// fetched back out of the Graph API with a Page access token. So a Facebook
-/// connection is not an API key with a different label — it is three secrets,
-/// a Page, and a URL Meta has to be able to verify, which is what this row is.
+/// fetched back out of the Graph API with a Page access token.
 ///
-/// Scoped to a Page rather than to an app, because that is the unit a
-/// customer actually owns and the only id present in a delivery: `entry[].id`
-/// is the Page, and it is what routes a delivery to a tenant.
+/// One Meta app serves every tenant, so the app id, the app secret and the
+/// webhook verify token are deployment config rather than columns here — see
+/// `lib/crm/facebook/app.ts`. What is per-tenant is this row: which Page, and
+/// the token that reads its leads.
+///
+/// `pageId` is globally unique, not unique per company. There is one callback
+/// URL for the whole app, and a delivery names only its Page — so two tenants
+/// claiming one Page would make a lead's owner a coin toss. Connecting a Page
+/// somebody else already connected is refused, and has to be.
 model CrmFacebookConnection {
   id                 String         @id @default(uuid())
   companyId          String
-  /// The unguessable segment in the callback URL Meta is pointed at. Not a
-  /// credential — authenticity comes from the signature — but it keeps the
-  /// callback from being a tenant directory somebody can walk.
-  callbackToken      String         @unique
-  /// Facebook Page id. Unique per company: one connection per Page, so a
-  /// delivery routes to exactly one place.
-  pageId             String
+  /// Facebook Page id, and the routing key for every delivery.
+  pageId             String         @unique
   pageName           String?
-  /// The Meta app whose webhook subscription delivers this Page's leads. Each
-  /// tenant may run its own app, so the secret is per-connection, not an env.
-  appId              String
-  /// AES-256-GCM, keyed by CRM_INTEGRATION_ENCRYPTION_KEY. Signs and verifies
-  /// every delivery; never leaves the server.
-  appSecretEnc       String
-  /// Echoed back to Meta during the GET handshake. Stored in clear because it
-  /// is displayed for the operator to paste into the Meta dashboard.
-  verifyToken        String
-  /// Long-lived Page access token, encrypted. Used to read each leadgen.
+  /// Long-lived Page access token, encrypted (AES-256-GCM, keyed by
+  /// CRM_INTEGRATION_ENCRYPTION_KEY). Used to read each leadgen; never leaves
+  /// the server and is never returned to a browser.
   pageAccessTokenEnc String
+  /// The Facebook user who authorised this connection, for the audit trail —
+  /// a token stops working when that person leaves or changes their password,
+  /// and this is the only record of who to ask.
+  authorizedByName   String?
   /// When set, only these lead form ids are ingested; everything else is
   /// recorded as IGNORED. Empty means every form on the Page.
   formIds            String[]       @default([])
@@ -9865,9 +9861,10 @@ model CrmFacebookConnection {
   defaultSourceLabel String?
   defaultAssigneeId  String?
   isActive           Boolean        @default(true)
-  /// Set once Meta's GET handshake has actually succeeded against this row.
-  /// Until then the connection is configured but unproven, and the panel says
-  /// so rather than implying leads are on their way.
+  /// Set once the Page has actually been subscribed to the app's `leadgen`
+  /// field and the token has been proven against the Graph API. Until then the
+  /// connection exists but no lead will ever arrive, and the panel says so
+  /// rather than implying otherwise.
   verifiedAt         DateTime?
   lastEventAt        DateTime?
   lastError          String?
@@ -9881,7 +9878,6 @@ model CrmFacebookConnection {
   defaultAssignee User?                  @relation("CrmFacebookConnectionDefaultAssignee", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
   events          CrmFacebookLeadEvent[]
 
-  @@unique([companyId, pageId])
   @@index([companyId, isActive])
 }
 

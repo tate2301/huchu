@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CrmLeadChannel } from "@prisma/client";
 
 import { ReportTable, node, txt, type ReportRow } from "@/components/accounting/report-table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -15,29 +15,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { CopyLink, Plug, TriangleAlert } from "@/lib/icons";
-import { CRM_CHANNEL_LABELS, CRM_LEAD_CHANNELS } from "@/lib/crm/sources";
+import { Plug, TriangleAlert } from "@/lib/icons";
+import { CRM_CHANNEL_LABELS } from "@/lib/crm/sources";
 import { cn } from "@/lib/utils";
 
 import { SetupNote, SetupPanel } from "./setup-chrome";
 
 type Connection = {
   id: string;
-  callbackToken: string;
-  callbackUrl: string;
   pageId: string;
   pageName: string | null;
-  appId: string;
-  verifyToken: string;
+  authorizedByName: string | null;
   formIds: string[];
   defaultChannel: CrmLeadChannel;
   defaultSourceLabel: string | null;
@@ -47,6 +37,13 @@ type Connection = {
   lastError: string | null;
   lastErrorAt: string | null;
   createdAt: string;
+};
+
+type PickablePage = {
+  id: string;
+  name: string;
+  alreadyConnected: boolean;
+  unavailable: boolean;
 };
 
 type DeliveryEvent = {
@@ -78,15 +75,12 @@ const STATUS_TONE: Record<DeliveryEvent["status"], "ok" | "bad" | "warn" | undef
 };
 
 /**
- * Facebook Lead Ads, which is not another API key however much it looks like
- * one in the Meta dashboard.
+ * Facebook Lead Ads, set up by pressing one button.
  *
- * The two things this screen exists to hand over are the callback URL and the
- * verify token, because both are needed in a *different* system's form and
- * neither can be worked out from anywhere else — so they are drawn as
- * copyable facts at the top rather than described. Everything below is the
- * answer to the only question anyone asks afterwards: a lead came in on
- * Facebook, did it reach the CRM, and if not, why not.
+ * Everything Meta needs — the app, its secret, the webhook, the access token —
+ * belongs to the deployment and is handled by the connect flow. What is left
+ * for a person to decide is which Page, so that is the only thing this screen
+ * asks. No credential appears anywhere on it, in either direction.
  */
 export function FacebookPanel({
   createOpen,
@@ -97,22 +91,14 @@ export function FacebookPanel({
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-
-  const [pageId, setPageId] = useState("");
-  const [pageName, setPageName] = useState("");
-  const [appId, setAppId] = useState("");
-  const [appSecret, setAppSecret] = useState("");
-  const [pageAccessToken, setPageAccessToken] = useState("");
-  const [defaultChannel, setDefaultChannel] = useState<string>("ADS");
-  const [defaultSourceLabel, setDefaultSourceLabel] = useState("Facebook Lead Ads");
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [openEvents, setOpenEvents] = useState<string | null>(null);
 
   const connections = useQuery({
     queryKey: ["crm-facebook-connections"],
     queryFn: () =>
-      fetchJson<{ data: Connection[]; encryptionConfigured: boolean }>(
-        "/api/v2/crm/integrations/facebook",
-      ),
+      fetchJson<{ data: Connection[]; available: boolean }>("/api/v2/crm/integrations/facebook"),
   });
 
   const events = useQuery({
@@ -124,38 +110,68 @@ export function FacebookPanel({
       ).then((r) => r.data),
   });
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["crm-facebook-connections"] });
+  /*
+    Coming back from Facebook.
 
-  const copy = (value: string, label: string) => {
-    void navigator.clipboard
-      .writeText(value)
-      .then(() => toast({ title: `${label} copied` }))
-      .catch(() => toast({ title: `Could not copy the ${label.toLowerCase()}`, variant: "destructive" }));
-  };
+    The callback redirects here with ?facebook=pick once it holds the
+    customer's Pages, so the picker is *derived* from the URL rather than
+    copied into state: opening it is the continuation of the click they made a
+    few seconds ago, and closing it is a navigation that drops the parameter.
+    Keeping it in the URL also means a refresh mid-choice reopens the picker
+    instead of stranding them.
+  */
+  const outcome = searchParams.get("facebook");
+  const outcomeError = searchParams.get("facebookError");
+  const pickerOpen = outcome === "pick";
 
-  const create = useMutation({
-    mutationFn: () =>
-      fetchJson<Connection>("/api/v2/crm/integrations/facebook", {
-        method: "POST",
-        body: JSON.stringify({
-          pageId: pageId.trim(),
-          pageName: pageName.trim() || undefined,
-          appId: appId.trim(),
-          appSecret: appSecret.trim(),
-          pageAccessToken: pageAccessToken.trim(),
-          defaultChannel,
-          defaultSourceLabel: defaultSourceLabel.trim() || undefined,
-        }),
-      }),
-    onSuccess: () => {
-      setPageId("");
-      setPageName("");
-      setAppId("");
-      setAppSecret("");
-      setPageAccessToken("");
-      onCreateOpenChange(false);
-      toast({ title: "Page connected — now paste the callback URL into Meta" });
+  const clearOutcome = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("facebook");
+    params.delete("facebookError");
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  // The two outcomes that are only a message. Said once, then cleared, so a
+  // refresh does not repeat a failure the customer has already read.
+  useEffect(() => {
+    if (outcome !== "cancelled" && outcome !== "error") return;
+
+    toast(
+      outcome === "cancelled"
+        ? { title: "Facebook connection cancelled" }
+        : { title: outcomeError ?? "Could not connect to Facebook", variant: "destructive" },
+    );
+    clearOutcome();
+  }, [clearOutcome, outcome, outcomeError, toast]);
+
+  const pages = useQuery({
+    queryKey: ["crm-facebook-pages"],
+    enabled: pickerOpen,
+    retry: false,
+    queryFn: () =>
+      fetchJson<{ data: PickablePage[]; authorizedByName: string | null }>(
+        "/api/v2/crm/integrations/facebook/pages",
+      ),
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["crm-facebook-connections"] });
+
+  const choose = useMutation({
+    mutationFn: (pageId: string) =>
+      fetchJson<{ data: Connection; check: { ok: boolean; error: string | null } }>(
+        "/api/v2/crm/integrations/facebook/pages",
+        { method: "POST", body: JSON.stringify({ pageId }) },
+      ),
+    onSuccess: (result) => {
+      clearOutcome();
+      toast(
+        result.check.ok
+          ? { title: `${result.data.pageName ?? "Page"} connected — leads will arrive here from now on` }
+          : {
+              title: result.check.error ?? "Connected, but Facebook has not confirmed it yet",
+              variant: "destructive",
+            },
+      );
       invalidate();
     },
     onError: (error) => toast({ title: getApiErrorMessage(error), variant: "destructive" }),
@@ -163,15 +179,15 @@ export function FacebookPanel({
 
   const verify = useMutation({
     mutationFn: (id: string) =>
-      fetchJson<{ ok: boolean; pageName: string | null; subscribed: boolean; error: string | null }>(
+      fetchJson<{ ok: boolean; pageName: string | null; error: string | null }>(
         `/api/v2/crm/integrations/facebook/${id}/verify`,
         { method: "POST" },
       ),
     onSuccess: (result) => {
       toast(
         result.ok
-          ? { title: `Connected to ${result.pageName ?? "the Page"} and subscribed to leadgen` }
-          : { title: result.error ?? "The connection could not be checked", variant: "destructive" },
+          ? { title: `${result.pageName ?? "This Page"} is connected and receiving leads` }
+          : { title: result.error ?? "Facebook could not confirm this Page", variant: "destructive" },
       );
       invalidate();
     },
@@ -218,13 +234,25 @@ export function FacebookPanel({
   });
 
   const list = connections.data?.data ?? [];
-  const encryptionConfigured = connections.data?.encryptionConfigured ?? true;
+  const available = connections.data?.available ?? false;
+
+  /** Starting the flow is a full-page navigation to a route that redirects to
+   *  Facebook — an action, not a link to a page in this app. */
+  const startConnect = useCallback(() => {
+    window.location.href = "/api/v2/crm/integrations/facebook/connect";
+  }, []);
+
+  // The page band's "Connect Page" action opens the same flow as the button.
+  useEffect(() => {
+    if (!createOpen) return;
+    onCreateOpenChange(false);
+    if (available) startConnect();
+  }, [available, createOpen, onCreateOpenChange, startConnect]);
 
   const rows: ReportRow[] = list.map((connection) => {
-    // Three states, not two. "Configured but never verified" is the one that
-    // matters: the Meta dashboard shows a green tick the moment its own
-    // handshake passes, so an operator who stops there believes they are done
-    // while nothing is subscribed and no lead will ever arrive.
+    // Three states, not two. "Connected but not confirmed" is the one that
+    // matters: it is what a Page looks like when Facebook has not actually
+    // agreed to send us its leads, and it must never read as working.
     const live = connection.isActive && Boolean(connection.verifiedAt) && !connection.lastError;
     const broken = Boolean(connection.lastError);
 
@@ -258,12 +286,14 @@ export function FacebookPanel({
             )}
             {connection.isActive && !connection.verifiedAt ? (
               <span className="acct-badge shrink-0" data-tone="warn">
-                Awaiting Meta
+                Not confirmed
               </span>
             ) : null}
           </span>,
         ),
-        txt(connection.pageId, { mono: true, tone: "subtle" }),
+        connection.authorizedByName
+          ? txt(connection.authorizedByName, { tone: "subtle" })
+          : txt("—", { tone: "dim" }),
         txt(CRM_CHANNEL_LABELS[connection.defaultChannel]),
         connection.lastEventAt
           ? txt(moment(connection.lastEventAt) ?? "—", { tone: "subtle" })
@@ -276,7 +306,7 @@ export function FacebookPanel({
               className="h-6 px-2.5 text-sm"
               onClick={() => setOpenEvents(openEvents === connection.id ? null : connection.id)}
             >
-              {openEvents === connection.id ? "Hide" : "Deliveries"}
+              {openEvents === connection.id ? "Hide" : "Leads"}
             </Button>
             <Button
               size="sm"
@@ -285,7 +315,7 @@ export function FacebookPanel({
               disabled={verify.isPending}
               onClick={() => verify.mutate(connection.id)}
             >
-              Check
+              Test
             </Button>
             <Button
               size="sm"
@@ -313,77 +343,82 @@ export function FacebookPanel({
   });
 
   const selected = list.find((connection) => connection.id === openEvents) ?? null;
+  const broken = list.filter((connection) => connection.lastError);
+  const pickable = pages.data?.data ?? [];
 
   return (
     <div className="min-w-0">
-      {/* The two values Meta asks for, drawn as themselves. Neither can be
-          derived anywhere else, and both are typed into a form on another
-          screen — so they are copyable, not described. */}
-      {list.length ? (
-        <div className="mb-2.5 space-y-2.5">
-          {list.map((connection) => (
-            <div
-              key={connection.id}
-              className="rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--surface-base)] px-[13px] py-3"
-            >
-              <p className="mb-2 text-sm font-bold text-[var(--text-strong)]">
-                Meta webhook settings — {connection.pageName ?? `Page ${connection.pageId}`}
-              </p>
-              <div className="space-y-1.5">
-                <CopyRow
-                  label="Callback URL"
-                  value={connection.callbackUrl}
-                  onCopy={() => copy(connection.callbackUrl, "Callback URL")}
-                />
-                <CopyRow
-                  label="Verify token"
-                  value={connection.verifyToken}
-                  onCopy={() => copy(connection.verifyToken, "Verify token")}
-                />
-              </div>
-              {connection.lastError ? (
-                <p className="mt-2 text-pretty text-sm leading-relaxed text-[var(--status-error-text)]">
-                  {connection.lastError}
-                  {connection.lastErrorAt ? ` (${moment(connection.lastErrorAt)})` : null}
-                </p>
-              ) : null}
-            </div>
-          ))}
+      {available ? (
+        <div className="mb-2.5 flex flex-wrap items-center gap-3 rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--surface-base)] px-[13px] py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-[var(--text-strong)]">
+              {list.length ? "Connect another Page" : "Connect your Facebook Page"}
+            </p>
+            <p className="mt-1 text-pretty text-sm leading-relaxed text-[var(--text-muted)]">
+              You&rsquo;ll sign in to Facebook and choose which Page to use. Leads from that
+              Page&rsquo;s ads start arriving here straight away.
+            </p>
+          </div>
+          <Button className="shrink-0" onClick={startConnect}>
+            Connect Facebook
+          </Button>
         </div>
-      ) : null}
-
-      {encryptionConfigured ? null : (
+      ) : (
         <div className="mb-2.5 rounded-[var(--card-radius)] border border-[var(--tone-warn-bd)] bg-[var(--tone-warn-bg)] px-[13px] py-3">
           <div className="flex items-center gap-2">
             <TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-[var(--badge-warn-fg)]" />
             <span className="text-sm font-bold text-[var(--badge-warn-fg)]">
-              This deployment cannot store a Page access token yet
+              Facebook is not set up on this deployment yet
             </span>
           </div>
           <p className="mt-2 text-pretty text-sm leading-relaxed text-[var(--text-muted)]">
-            Set <code className="font-mono">CRM_INTEGRATION_ENCRYPTION_KEY</code> to 32 random bytes
-            (<code className="font-mono">openssl rand -base64 32</code>) and restart, then connect a
-            Page.
+            Ask your administrator to set <code className="font-mono">FACEBOOK_APP_ID</code>,{" "}
+            <code className="font-mono">FACEBOOK_APP_SECRET</code>,{" "}
+            <code className="font-mono">FACEBOOK_WEBHOOK_VERIFY_TOKEN</code> and{" "}
+            <code className="font-mono">CRM_INTEGRATION_ENCRYPTION_KEY</code>. See
+            docs/crm/facebook-lead-ads.md.
           </p>
         </div>
       )}
 
+      {broken.map((connection) => (
+        <div
+          key={connection.id}
+          className="mb-2.5 rounded-[var(--card-radius)] border border-[var(--tone-danger-bd)] bg-[var(--tone-danger-bg)] px-[13px] py-3"
+        >
+          <p className="text-sm font-bold text-[var(--status-error-text)]">
+            {connection.pageName ?? `Page ${connection.pageId}`} needs attention
+          </p>
+          <p className="mt-1 text-pretty text-sm leading-relaxed text-[var(--text-muted)]">
+            {connection.lastError}
+            {connection.lastErrorAt ? ` (${moment(connection.lastErrorAt)})` : null}
+          </p>
+          <Button size="sm" variant="outline" className="mt-2" onClick={startConnect}>
+            Reconnect this Page
+          </Button>
+        </div>
+      ))}
+
       {connections.isLoading ? (
         <Skeleton className="h-48 w-full" />
       ) : (
-        <SetupPanel title="Connected Pages" hint="a paused Page keeps its leads on Meta, it does not queue them" flush>
+        <SetupPanel
+          title="Connected Pages"
+          hint="a paused Page keeps its leads on Facebook, it does not queue them"
+          flush
+        >
           <ReportTable
             label="Facebook Lead Ads connections"
-            tracks="minmax(0,1fr) 170px 140px 160px 340px"
+            tracks="minmax(0,1fr) 160px 140px 160px 320px"
             columns={[
               { label: "Page" },
-              { label: "Page id" },
+              { label: "Connected by" },
               { label: "Channel" },
               { label: "Last lead" },
               { label: "", align: "right" },
             ]}
             rows={rows}
-            emptyLabel="No Pages connected. Connect one to receive Lead Ads leads straight into the pipeline."
+            emptyLabel="No Pages connected yet. Press Connect Facebook to bring your lead ads into the pipeline."
           />
         </SetupPanel>
       )}
@@ -391,8 +426,8 @@ export function FacebookPanel({
       {selected ? (
         <div className="mt-2.5">
           <SetupPanel
-            title={`Deliveries — ${selected.pageName ?? selected.pageId}`}
-            hint="Meta serves a lead's answers for 90 days; a retry after that returns nothing"
+            title={`Leads from ${selected.pageName ?? selected.pageId}`}
+            hint="Facebook keeps a lead's answers for 90 days; a retry after that returns nothing"
             flush
           >
             {events.isLoading ? (
@@ -403,7 +438,7 @@ export function FacebookPanel({
                 tracks="180px 130px minmax(0,1fr) 160px 110px"
                 columns={[
                   { label: "Received" },
-                  { label: "Status" },
+                  { label: "Result" },
                   { label: "Detail" },
                   { label: "Lead form" },
                   { label: "", align: "right" },
@@ -430,9 +465,7 @@ export function FacebookPanel({
                           variant="outline"
                           className="h-6 px-2.5 text-sm"
                           disabled={retry.isPending}
-                          onClick={() =>
-                            retry.mutate({ connectionId: selected.id, eventId: event.id })
-                          }
+                          onClick={() => retry.mutate({ connectionId: selected.id, eventId: event.id })}
                         >
                           Retry
                         </Button>
@@ -441,7 +474,7 @@ export function FacebookPanel({
                     ),
                   ],
                 }))}
-                emptyLabel="Nothing delivered yet. Use Meta's Lead Ads Testing Tool to send a test lead."
+                emptyLabel="Nothing yet. Send yourself a test lead with Facebook's Lead Ads Testing Tool."
               />
             )}
           </SetupPanel>
@@ -449,123 +482,76 @@ export function FacebookPanel({
       ) : null}
 
       <SetupNote icon={Plug}>
-        Pasting the callback URL into Meta is only half of it — a Page sends nothing until it is
-        subscribed to the app&rsquo;s <code className="font-mono">leadgen</code> field.{" "}
-        <b className="font-semibold text-[var(--text-body)]">Check</b> does that subscription for
-        you and reports what Meta says.
+        <b className="font-semibold text-[var(--text-body)]">Test</b> asks Facebook to confirm it is
+        still sending this Page&rsquo;s leads here. Press it if leads stop arriving — it usually says
+        exactly what is wrong.
       </SetupNote>
 
-      <Dialog open={createOpen} onOpenChange={onCreateOpenChange}>
+      <Dialog open={pickerOpen} onOpenChange={(open) => { if (!open) clearOutcome(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Connect a Facebook Page</DialogTitle>
+            <DialogTitle>Choose your Page</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              autoFocus
-              value={pageId}
-              onChange={(event) => setPageId(event.target.value)}
-              placeholder="Page ID — 1234567890"
-              inputMode="numeric"
-              maxLength={32}
-              aria-label="Facebook Page ID"
-            />
-            <Input
-              value={pageName}
-              onChange={(event) => setPageName(event.target.value)}
-              placeholder="Page name (optional — filled in by Check)"
-              maxLength={200}
-              aria-label="Facebook Page name"
-            />
-            <Input
-              value={appId}
-              onChange={(event) => setAppId(event.target.value)}
-              placeholder="Meta app ID"
-              inputMode="numeric"
-              maxLength={32}
-              aria-label="Meta app ID"
-            />
-            <Input
-              type="password"
-              value={appSecret}
-              onChange={(event) => setAppSecret(event.target.value)}
-              placeholder="Meta app secret"
-              maxLength={200}
-              aria-label="Meta app secret"
-            />
-            <Input
-              type="password"
-              value={pageAccessToken}
-              onChange={(event) => setPageAccessToken(event.target.value)}
-              placeholder="Long-lived Page access token"
-              maxLength={600}
-              aria-label="Page access token"
-            />
-            <Select value={defaultChannel} onValueChange={setDefaultChannel}>
-              <SelectTrigger aria-label="Default channel">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CRM_LEAD_CHANNELS.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {CRM_CHANNEL_LABELS[value]}
-                  </SelectItem>
+
+          {pages.isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : pages.isError ? (
+            <p className="text-pretty text-sm leading-relaxed text-[var(--status-error-text)]">
+              {getApiErrorMessage(pages.error)}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-pretty text-sm leading-relaxed text-[var(--text-muted)]">
+                Signed in as{" "}
+                <b className="font-semibold text-[var(--text-body)]">
+                  {pages.data?.authorizedByName ?? "your Facebook account"}
+                </b>
+                . Pick the Page your ads run from.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {pickable.map((page) => (
+                  <button
+                    key={page.id}
+                    type="button"
+                    disabled={page.unavailable || choose.isPending}
+                    onClick={() => choose.mutate(page.id)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 py-2.5 text-left transition-colors",
+                      page.unavailable
+                        ? "cursor-not-allowed opacity-60"
+                        : "hover:border-[var(--border-strong)] hover:bg-[var(--surface-muted)]",
+                    )}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-[var(--text-strong)]">
+                        {page.name}
+                      </span>
+                      <span className="block text-sm text-[var(--text-subtle)]">
+                        {page.unavailable
+                          ? "Already connected to another workspace"
+                          : page.alreadyConnected
+                            ? "Already connected — choose it again to refresh the connection"
+                            : "Ready to connect"}
+                      </span>
+                    </span>
+                    {page.alreadyConnected ? (
+                      <span className="acct-badge shrink-0" data-tone="ok">
+                        Connected
+                      </span>
+                    ) : null}
+                  </button>
                 ))}
-              </SelectContent>
-            </Select>
-            <Input
-              value={defaultSourceLabel}
-              onChange={(event) => setDefaultSourceLabel(event.target.value)}
-              placeholder="Facebook Lead Ads"
-              maxLength={80}
-              aria-label="Source label"
-            />
-          </div>
+              </div>
+            </div>
+          )}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => onCreateOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => create.mutate()}
-              disabled={
-                !pageId.trim() ||
-                !appId.trim() ||
-                !appSecret.trim() ||
-                !pageAccessToken.trim() ||
-                create.isPending
-              }
-            >
-              {create.isPending ? "Connecting…" : "Connect Page"}
+            <Button variant="outline" onClick={clearOutcome}>
+              {choose.isPending ? "Connecting…" : "Cancel"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-/** A label, the value as a monospace field, and a copy button — the shape the
- *  API-keys panel uses for its endpoint, repeated because both of these are
- *  going into somebody else's form. */
-function CopyRow({
-  label,
-  value,
-  onCopy,
-}: {
-  label: string;
-  value: string;
-  onCopy: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-24 shrink-0 text-sm text-[var(--text-subtle)]">{label}</span>
-      <code className="min-w-0 flex-1 truncate rounded-[var(--radius-sm)] bg-[var(--surface-muted)] px-2 py-1 font-mono text-sm text-[var(--text-strong)]">
-        {value}
-      </code>
-      <Button size="sm" variant="outline" className="shrink-0 gap-1.5 h-6 px-2.5 text-sm" onClick={onCopy}>
-        <CopyLink aria-hidden="true" className="size-3.5" />
-        Copy
-      </Button>
     </div>
   );
 }
