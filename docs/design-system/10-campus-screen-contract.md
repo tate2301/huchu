@@ -124,6 +124,12 @@ Take it from the checklist verbatim. The canvas's voice is plain and specific:
 "Manage allocations" or "Submit". If you are inventing a screen the canvas does
 not draw, match that register.
 
+**Say pupil, not student.** The admin dashboard speaks the language of a
+Zimbabwean school office. The full vocabulary — and the rule that identifiers
+(`studentNo`, `/api/v2/schools/students`, the `schools.students` grant) are
+deliberately left alone — is `docs/ux/schools-vocabulary.md`. Check with
+`node scripts/campus-copy-audit.mjs`.
+
 ## Checks before you call it done
 
 ```bash

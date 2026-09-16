@@ -732,7 +732,7 @@ export function SchoolsDashboardContent() {
             label="Search"
             value={search}
             onChange={setSearch}
-            placeholder="Search students, classes"
+            placeholder="Search pupils, classes"
           />
         }
         filters={

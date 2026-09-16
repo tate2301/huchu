@@ -182,7 +182,7 @@ export function YearRollUpContent() {
           fromTermId: resolvedFrom,
           toTermId: resolvedTo,
           // Every child in the plan, not just the tab in view: the verb says
-          // "Roll 772 students up" and rolling only the half on screen would
+          // "Roll 772 pupils up" and rolling only the half on screen would
           // be the worst kind of surprise on the one screen that touches
           // every record in the school.
           decisions: allRows
@@ -267,11 +267,11 @@ export function YearRollUpContent() {
     <SchoolsPage>
       {/* The page is named in the app bar, and the one verb that acts on every
           record in the school goes with the name. It is disabled until there is
-          a plan, because "roll 0 students up" is not an offer. */}
+          a plan, because "roll 0 pupils up" is not an offer. */}
       <PageChrome
         title="Roll up the year"
         backHref="/schools/students"
-        backLabel="All students"
+        backLabel="All pupils"
       >
         <Button
           variant="primary"
@@ -374,7 +374,7 @@ export function YearRollUpContent() {
       {grouped.length === 0 && planQuery.isLoading ? (
         <TableRowsSkeleton
           rows={6}
-          headers={["Student", "What happens"]}
+          headers={["Pupil", "What happens"]}
           columns={[{ avatar: true, twoLine: true }, { width: 170, badge: true }]}
         />
       ) : null}

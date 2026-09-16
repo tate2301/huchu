@@ -136,7 +136,7 @@ export function AbsenceFollowUpContent() {
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => (
           <PersonCell
             name={row.original.name}
@@ -317,7 +317,7 @@ export function AbsenceFollowUpContent() {
       {followUpQuery.isPending ? (
         <TableRowsSkeleton
           headers={[
-            "Student",
+            "Pupil",
             "Away, unexplained",
             "With permission",
             "Last away",

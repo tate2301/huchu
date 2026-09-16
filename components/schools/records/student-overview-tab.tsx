@@ -564,7 +564,7 @@ export function StudentOverviewTab({
             the same face, the same name, the same number — is in the app bar
             and at the top of the standing column, and a third copy of it
             arrived 200px below the second. */}
-        <Card title="Student" subtitle={student.studentNo}>
+        <Card title="Pupil" subtitle={student.studentNo}>
           <dl>
             <Fact label="Admitted" value={formatSchoolDate(student.admissionDate) || "—"} />
             <Fact

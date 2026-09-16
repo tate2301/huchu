@@ -114,7 +114,7 @@ export function SchoolsAdmissionsContent() {
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         // An enrolment row is nearly always read on the way to the child it is
         // about, so the name is the way through to their record — with the
         // mark and the number that tell two of them apart, the same cell the
@@ -258,7 +258,7 @@ export function SchoolsAdmissionsContent() {
           reflow twice as the rows landed.
         */
         <TableRowsSkeleton
-          headers={["Student", "Class", "Status", "Enrolled", "Ended"]}
+          headers={["Pupil", "Class", "Status", "Enrolled", "Ended"]}
           columns={[
             { avatar: true, twoLine: true },
             {},

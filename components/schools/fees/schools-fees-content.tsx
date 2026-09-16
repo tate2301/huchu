@@ -791,7 +791,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => <StudentCell student={row.original.student} />,
       },
       { id: "term", header: "Term", cell: ({ row }) => row.original.term.name },
@@ -935,7 +935,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => <StudentCell student={row.original.student} />,
       },
       {
@@ -1041,7 +1041,7 @@ export function SchoolsFeesContent() {
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => <StudentCell student={row.original.student} />,
       },
       {
@@ -1147,7 +1147,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => <StudentCell student={row.original.student} />,
       },
       {
@@ -1244,7 +1244,7 @@ export function SchoolsFeesContent() {
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => <StudentCell student={row.original.student} />,
       },
       {
@@ -1823,7 +1823,7 @@ export function SchoolsFeesContent() {
             emptyState={
               invoicesQuery.isPending ? (
                 <TableRowsSkeleton
-                  headers={["Invoice no", "Student", "Term", "Status", "Outstanding"]}
+                  headers={["Invoice no", "Pupil", "Term", "Status", "Outstanding"]}
                   columns={[
                     { width: 120 },
                     { avatar: true, twoLine: true },
@@ -1911,7 +1911,7 @@ export function SchoolsFeesContent() {
             emptyState={
               receiptsQuery.isPending ? (
                 <TableRowsSkeleton
-                  headers={["Receipt no", "Student", "Method", "Status", "Received"]}
+                  headers={["Receipt no", "Pupil", "Method", "Status", "Received"]}
                   columns={[
                     { width: 120 },
                     { avatar: true, twoLine: true },
@@ -1997,7 +1997,7 @@ export function SchoolsFeesContent() {
             emptyState={
               creditsQuery.isPending ? (
                 <TableRowsSkeleton
-                  headers={["Student", "From", "Credit", "Held for refund", "Available"]}
+                  headers={["Pupil", "From", "Credit", "Held for refund", "Available"]}
                   columns={[
                     { avatar: true, twoLine: true },
                     { twoLine: true },
@@ -2065,7 +2065,7 @@ export function SchoolsFeesContent() {
             emptyState={
               refundsQuery.isPending ? (
                 <TableRowsSkeleton
-                  headers={["Refund no", "Student", "From", "Status", "Amount"]}
+                  headers={["Refund no", "Pupil", "From", "Status", "Amount"]}
                   columns={[
                     { width: 120 },
                     { avatar: true, twoLine: true },
@@ -2156,7 +2156,7 @@ export function SchoolsFeesContent() {
             emptyState={
               waiversQuery.isPending ? (
                 <TableRowsSkeleton
-                  headers={["Student", "Waiver type", "Status", "Amount", "Invoice"]}
+                  headers={["Pupil", "Waiver type", "Status", "Amount", "Invoice"]}
                   columns={[
                     { avatar: true, twoLine: true },
                     {},

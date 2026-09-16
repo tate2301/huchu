@@ -268,7 +268,7 @@ export function ClassStudentsContent({
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         // A face, then the name. A list of eight hundred children is scanned
         // rather than read, and the same child is the same colour wherever
         // they appear.
@@ -423,11 +423,11 @@ export function ClassStudentsContent({
   return (
     <SchoolsPage>
       {/* The app bar carries the year group's name — the sidebar already says
-          "Students" one column left, so the page does not say it twice. */}
-      <PageChrome title={className} backHref="/schools/students" backLabel="All students">
+          "Pupils" one column left, so the page does not say it twice. */}
+      <PageChrome title={className} backHref="/schools/students" backLabel="All pupils">
         <CreateButton
           resource="schools.students"
-          label="New student"
+          label="New pupil"
           onSelect={() => {
             setEditing(null);
             setFormOpen(true);
@@ -568,7 +568,7 @@ export function ClassStudentsContent({
           studentsQuery.isPending ? (
             <TableRowsSkeleton
               rows={8}
-              headers={["Student", "Class", "Status", "Boarding", "Guardians", ""]}
+              headers={["Pupil", "Class", "Status", "Boarding", "Guardians", ""]}
               columns={[
                 { avatar: true, twoLine: true },
                 { width: 90 },

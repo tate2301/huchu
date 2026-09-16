@@ -166,7 +166,7 @@ export function IdentitySettingsContent() {
       {saved ? <Alert tone="success" title="Identity settings saved" /> : null}
 
       <Card
-        title="Student numbers"
+        title="Pupil numbers"
         subtitle={
           preview
             ? `${preview.studentsOnBooks} pupils on the books · current scheme ${preview.inferredScheme}`
@@ -186,7 +186,7 @@ export function IdentitySettingsContent() {
               checked={form.declared}
               onChange={(event) => patch({ declared: event.target.checked })}
               disabled={!isAdmin}
-              aria-label="Declare a student number format"
+              aria-label="Declare a pupil number format"
             />
           </div>
 
@@ -338,7 +338,7 @@ export function IdentitySettingsContent() {
 
       <Card
         title="Record pictures"
-        subtitle="Photographs, emojis and colours on students, teachers, guardians, classes, subjects and hostels."
+        subtitle="Photographs, emojis and colours on pupils, teachers, guardians, classes, subjects and hostels."
       >
         <p className="text-sm text-[color:var(--text-muted)]">
           Set from each record&apos;s own page. Only school administrators can change them — a

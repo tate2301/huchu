@@ -8,10 +8,10 @@ import { authOptions } from "@/lib/auth";
  *
  * Deliberately its own page rather than a button on the students list: it is
  * the only action in the module that touches every child's record, and it does
- * not belong next to "add a student".
+ * not belong next to "add a pupil".
  *
  * The heading is inside the content component, because the primary action —
- * "Roll 772 students up" — carries a live count of the plan, which only that
+ * "Roll 772 pupils up" — carries a live count of the plan, which only that
  * component knows.
  */
 export default async function YearRollUpPage() {

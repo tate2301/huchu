@@ -20,7 +20,7 @@ export default async function ClassStudentsPage({
   const { streamId } = await searchParams;
 
   // Resolved here so the heading names the year group on first paint rather
-  // than saying "Students" until a client fetch lands, and so a class from
+  // than saying "Pupils" until a client fetch lands, and so a class from
   // another tenant is a 404 rather than an empty list.
   const schoolClass = await prisma.schoolClass.findFirst({
     where: { id: classId, companyId: session.user.companyId },

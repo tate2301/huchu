@@ -22,7 +22,7 @@ export default async function SchoolsImportPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Import records"
-        description="Bring students, parents, classes, fee structures and outstanding balances over from your old system."
+        description="Bring pupils, parents, classes, fee structures and outstanding balances over from your old system."
       />
       <SchoolsImportContent />
     </div>

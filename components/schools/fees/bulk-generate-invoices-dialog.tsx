@@ -142,7 +142,7 @@ export function BulkGenerateInvoicesDialog({
       open={open}
       onOpenChange={close}
       title="Bulk Generate Invoices"
-      description="Generate fee invoices for multiple students at once using a fee structure template."
+      description="Generate fee invoices for multiple pupils at once using a fee structure template."
       size="md"
       onSubmit={(event) => {
         event.preventDefault();

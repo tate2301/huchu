@@ -226,7 +226,7 @@ export function FeesGradePicker() {
           },
           { label: "Year groups", value: feesPending ? "—" : yearGroups },
           { label: "Classes", value: classesQuery.isPending ? "—" : classes },
-          { label: "Students", value: feesPending ? "—" : students },
+          { label: "Pupils", value: feesPending ? "—" : students },
           {
             label: "Overdue",
             value: feesPending ? "—" : (ageing?.accounts ?? 0),

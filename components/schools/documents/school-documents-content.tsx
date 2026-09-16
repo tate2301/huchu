@@ -263,10 +263,10 @@ function ReportCardPreview({
     <DocumentFrame title="Report card preview">
       {() => (
         <PdfTemplate
-          title="Student report card"
+          title="Pupil report card"
           subtitle={termName}
           meta={[
-            { label: "Student no", value: student.studentNo },
+            { label: "Pupil no", value: student.studentNo },
             { label: "Admission no", value: student.admissionNo || "-" },
             { label: "Class", value: student.currentClass?.name ?? "-" },
             { label: "Stream", value: student.currentStream?.name ?? "-" },
@@ -406,7 +406,7 @@ function FeeInvoicePreview({
           subtitle={termName}
           meta={[
             { label: "Invoice no", value: invoice.invoiceNo },
-            { label: "Student no", value: student.studentNo },
+            { label: "Pupil no", value: student.studentNo },
             { label: "Class", value: student.currentClass?.name ?? "-" },
             { label: "Invoice date", value: formatSchoolDate(invoice.issueDate) },
             { label: "Due date", value: formatSchoolDate(invoice.dueDate) },
@@ -768,7 +768,7 @@ export function SchoolDocumentsContent() {
         {perPupil ? (
           <div className="space-y-4">
             <Card
-              title="Select a student"
+              title="Select a pupil"
               subtitle={
                 studentsQuery.isPending
                   ? undefined

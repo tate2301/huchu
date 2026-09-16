@@ -573,7 +573,7 @@ export function SchoolsReportsEnhancedContent() {
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => (
           <PersonCell
             kind="student"
@@ -908,7 +908,7 @@ export function SchoolsReportsEnhancedContent() {
             footer={termInView ? `${termInView.termName} to date` : "No term in view"}
           />
           <StatCard
-            label="Students with arrears"
+            label="Pupils with arrears"
             tone={arrears.length > 0 ? "danger" : "success"}
             value={arrears.length}
             footer={rollNow === null ? "of the roll" : `of ${rollNow} on the roll`}
@@ -1243,7 +1243,7 @@ export function SchoolsReportsEnhancedContent() {
               {arrearsQuery.isPending ? (
                 <TableRowsSkeleton
                   headers={[
-                    "Student",
+                    "Pupil",
                     "Total outstanding",
                     ...AGEING_BUCKETS.map((bucket) => bucket.label),
                   ]}
@@ -1266,7 +1266,7 @@ export function SchoolsReportsEnhancedContent() {
                   <DataTable
                     data={arrears}
                     columns={arrearsColumns}
-                    searchPlaceholder="Search students"
+                    searchPlaceholder="Search pupils"
                     searchSubmitLabel="Search"
                     pagination={{ enabled: true }}
                     emptyState={

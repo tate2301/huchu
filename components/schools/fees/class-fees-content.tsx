@@ -228,7 +228,7 @@ export function ClassFeesContent({
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => (
           <PersonCell
             kind="student"
@@ -401,7 +401,7 @@ export function ClassFeesContent({
         emptyState={
           invoicesQuery.isPending ? (
             <TableRowsSkeleton
-              headers={["Student", "Invoice no", "Term", "Status", "Outstanding"]}
+              headers={["Pupil", "Invoice no", "Term", "Status", "Outstanding"]}
               columns={[
                 { avatar: true, twoLine: true },
                 { width: 120 },

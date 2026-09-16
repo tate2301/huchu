@@ -175,11 +175,11 @@ export function StudentFormSheet({
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={editing ? `Edit ${student?.firstName} ${student?.lastName}` : "New student"}
+      title={editing ? `Edit ${student?.firstName} ${student?.lastName}` : "New pupil"}
       description={
         editing
           ? "Correcting what the office holds. Guardians and documents are managed on the pupil's own page."
-          : "A child joining the school. Leave the student number blank and one is allocated."
+          : "A child joining the school. Leave the pupil number blank and one is allocated."
       }
       size="lg"
       errors={error ? [error] : undefined}

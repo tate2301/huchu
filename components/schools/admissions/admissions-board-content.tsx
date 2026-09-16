@@ -517,7 +517,7 @@ export function AdmissionsBoardContent() {
                   confirm: {
                     title: `Enrol ${application.firstName} ${application.lastName}`,
                     description:
-                      "A student record is created and a student number allocated. The application closes as enrolled and cannot be walked back through admissions.",
+                      "A pupil record is created and a pupil number allocated. The application closes as enrolled and cannot be walked back through admissions.",
                     confirmLabel: "Enrol",
                   },
                   onSelect: () => enrolMutation.mutate(application.id),

@@ -335,7 +335,7 @@ export function ReportsArrearsContent() {
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => (
           <PersonCell
             kind="student"
@@ -512,7 +512,7 @@ export function ReportsArrearsContent() {
             <TableSearch
               value={search}
               onChange={setSearch}
-              placeholder="Search students"
+              placeholder="Search pupils"
             />
           }
           filters={
@@ -582,7 +582,7 @@ export function ReportsArrearsContent() {
             {arrearsQuery.isPending ? (
               <TableRowsSkeleton
                 headers={[
-                  "Student",
+                  "Pupil",
                   "Total outstanding",
                   ...AGEING_BUCKETS.map((bucket) => bucket.label),
                 ]}

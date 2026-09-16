@@ -195,7 +195,7 @@ export function CreateButton({
   unavailable,
 }: {
   resource: SchoolResource;
-  /** "New student", "Add a hostel" — the noun, not "Create". */
+  /** "New pupil", "Add a hostel" — the noun, not "Create". */
   label: string;
   onSelect: () => void;
   action?: SchoolAction;

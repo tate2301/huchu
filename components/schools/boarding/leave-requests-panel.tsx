@@ -119,7 +119,7 @@ export function LeaveRequestsPanel({
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => (
           <PersonCell
             kind="student"
@@ -289,7 +289,7 @@ export function LeaveRequestsPanel({
 
       {loading ? (
         <TableRowsSkeleton
-          headers={["Student", "Type", "Window", "Status", ""]}
+          headers={["Pupil", "Type", "Window", "Status", ""]}
           columns={[
             { avatar: true, twoLine: true },
             { width: 90, badge: true },

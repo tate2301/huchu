@@ -109,7 +109,7 @@ export function BoardingAllocationsContent() {
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         cell: ({ row }) => (
           <PersonCell
             kind="student"
@@ -325,7 +325,7 @@ export function BoardingAllocationsContent() {
           column header runs straight off the underside of it. */}
       {boardQuery.isLoading ? (
         <TableRowsSkeleton
-          headers={["Student", "Hostel / room / bed", "Term", "Status", "Start", "End", ""]}
+          headers={["Pupil", "Hostel / room / bed", "Term", "Status", "Start", "End", ""]}
           columns={[
             { avatar: true, twoLine: true },
             {},

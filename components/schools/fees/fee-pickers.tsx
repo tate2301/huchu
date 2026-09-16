@@ -27,7 +27,7 @@ import {
 } from "@/lib/schools/fees-v2";
 
 /**
- * The pickers that replaced the four boxes labelled "Student ID", "Term ID" and
+ * The pickers that replaced the four boxes labelled "Pupil ID", "Term ID" and
  * "Invoice ID".
  *
  * Four fee dialogs asked a bursar to type a UUID. Not choose one — type it,
@@ -245,7 +245,7 @@ export function StudentPicker({
       required={required}
       hint={hint}
       placeholder="Choose a pupil"
-      searchPlaceholder="Name or student number"
+      searchPlaceholder="Name or pupil number"
       value={value}
       options={options}
       loading={studentsQuery.isFetching}

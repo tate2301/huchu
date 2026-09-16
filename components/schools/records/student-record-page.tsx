@@ -285,7 +285,7 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
     return [
       {
         id: "studentNo",
-        label: "Student number",
+        label: "Pupil number",
         icon: Badge,
         mono: true,
         ...edit.required("studentNo", student.studentNo),

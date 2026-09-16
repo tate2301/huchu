@@ -288,7 +288,7 @@ export function StudentsListContent() {
   /**
    * The narrowing in force, in the reader's own words — and without the search
    * term, which the empty state names separately. A search folded in with the
-   * filters turns "no students match that search" into a sentence that lists
+   * filters turns "no pupils match that search" into a sentence that lists
    * what was typed twice and offers to clear filters nobody set.
    */
   const namedFilters = [
@@ -319,7 +319,7 @@ export function StudentsListContent() {
     () => [
       {
         id: "student",
-        header: "Student",
+        header: "Pupil",
         // The mark, the name and the one line that tells two Tendai Moyos
         // apart, as one cell. The admission number leads it because it is the
         // half that is unique, and the year group follows because that is what
@@ -493,10 +493,10 @@ export function StudentsListContent() {
       {/* The page is named once, in the app bar, and the one create verb goes
           with the name. The dialog it opens runs on state this component owns,
           which is why the registration is here and not in the route file. */}
-      <PageChrome title="All students">
+      <PageChrome title="All pupils">
         <CreateButton
           resource="schools.students"
-          label="New student"
+          label="New pupil"
           onSelect={() => {
             setEditing(null);
             setFormOpen(true);
@@ -671,7 +671,7 @@ export function StudentsListContent() {
           rollQuery.isPending ? (
             <TableRowsSkeleton
               rows={8}
-              headers={["Student", "Class", "Primary guardian", "Fees", "Attendance", "Status", ""]}
+              headers={["Pupil", "Class", "Primary guardian", "Fees", "Attendance", "Status", ""]}
               columns={[
                 { avatar: true, twoLine: true },
                 { width: 100 },

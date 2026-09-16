@@ -136,7 +136,7 @@ export function BookSlotDialog({
         <Input
           id="booking-search"
           value={search}
-          placeholder="Name or student number"
+          placeholder="Name or pupil number"
           onChange={(event) => {
             setSearch(event.target.value);
             // The chosen pupil is cleared with the search that found them:
