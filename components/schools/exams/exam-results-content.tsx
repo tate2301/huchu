@@ -14,7 +14,6 @@ import {
   TableRowsSkeleton,
 } from "@/components/records/states";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -105,45 +104,7 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            {
-              label: "Statement received",
-              value: page ? (page.statementReceived ? "Yes" : "Not yet") : "—",
-              tone: page?.statementReceived ? "success" : "warn",
-            },
-            {
-              label: compareId ? "Against that series" : "Against last series",
-              value:
-                page && page.subjects.length > 0
-                  ? `${page.subjects.filter((row) => (row.against ?? 0) >= 0).length} held or rose`
-                  : "—",
-            },
-            {
-              label: "Subjects that fell",
-              value: page?.subjectsThatFell ?? "—",
-              tone: (page?.subjectsThatFell ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              label: "Grades amended",
-              value: page?.amended ?? "—",
-              tone: (page?.amended ?? 0) > 0 ? "brand" : "neutral",
-            },
-          ]}
-          actions={
-            page ? (
-              <PrintDocumentButton
-                sourceKey="schools.report-card"
-                filters={{ seriesId }}
-                label="Print the statement"
-              />
-            ) : null
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Public results" backHref="/schools/exams" backLabel="Exam series">
         <RecordActions
           layout="inline"
@@ -158,10 +119,11 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
         />
       </PageChrome>
 
+      {/* The caption names the series and stops there. How many sat it is the
+          first stat below, and it was the same number printed twice. */}
       {page ? (
         <PageCaption>
-          {page.series.board.name} {page.series.name} · {EXAM_LEVEL_LABELS[page.series.level]} ·{" "}
-          {page.candidates} candidates
+          {page.series.board.name} {page.series.name} · {EXAM_LEVEL_LABELS[page.series.level]}
         </PageCaption>
       ) : null}
 
@@ -176,7 +138,7 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
           onRetry={() => void resultsQuery.refetch()}
         />
       ) : resultsQuery.isPending ? (
-        <StatsSkeleton count={4} label="Reading the results" />
+        <StatsSkeleton count={5} label="Reading the results" />
       ) : page && page.subjects.length === 0 ? (
         <NothingYet
           title="No grades have been captured for this series"
@@ -185,20 +147,39 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
         />
       ) : page ? (
         <>
-          {/* Four stats, and `Five or more at C` is the one a head reads out. */}
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Five stats, and `Five or more at C` is the one a head reads out.
+              `Subjects that fell` joined them: it is a judgement about the
+              pass rates sitting either side of it, so it reads here rather
+              than in a strip of its own above. The other numbers that strip
+              carried are all still on the page and are read off where they
+              belong — how many held or rose is every other subject in the
+              `By subject` tab, and whether the statement arrived and how many
+              grades were amended are both in `Where these grades came from`
+              at the foot. */}
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {[
-              { label: "Candidates", value: page.stats.candidates },
-              { label: "Five or more at C", value: page.stats.fiveOrMoreAtC },
-              { label: "A* and A grades", value: page.stats.aStarAndA },
-              { label: "Ungraded", value: page.stats.ungraded },
+              { label: "Candidates", value: page.stats.candidates, warn: false },
+              { label: "Five or more at C", value: page.stats.fiveOrMoreAtC, warn: false },
+              { label: "A* and A grades", value: page.stats.aStarAndA, warn: false },
+              { label: "Ungraded", value: page.stats.ungraded, warn: false },
+              {
+                label: "Subjects that fell",
+                value: page.subjectsThatFell,
+                warn: page.subjectsThatFell > 0,
+              },
             ].map((stat) => (
               <div
                 key={stat.label}
                 className="rounded-[var(--radius-md)] border border-[color:var(--border)] bg-[color:var(--surface-base)] p-3"
               >
                 <dt className="text-xs text-[color:var(--text-muted)]">{stat.label}</dt>
-                <dd className="font-mono text-xl font-bold tabular-nums">{stat.value}</dd>
+                <dd
+                  className={`font-mono text-xl font-bold tabular-nums ${
+                    stat.warn ? "text-[color:var(--tone-warn)]" : ""
+                  }`}
+                >
+                  {stat.value}
+                </dd>
               </div>
             ))}
           </dl>
@@ -213,13 +194,23 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
                   { id: "candidate", label: "By candidate", count: page.byCandidate.length },
                 ]}
               />
-              <FilterSelect
-                label="Compare with"
-                allLabel="Nothing"
-                value={compareId}
-                options={compareOptions}
-                onChange={setCompareId}
-              />
+              {/* Printing the board's statement is a second verb, not the one
+                  the screen exists for, so it rides the control row and leaves
+                  the app bar to `Capture results`. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <FilterSelect
+                  label="Compare with"
+                  allLabel="Nothing"
+                  value={compareId}
+                  options={compareOptions}
+                  onChange={setCompareId}
+                />
+                <PrintDocumentButton
+                  sourceKey="schools.report-card"
+                  filters={{ seriesId }}
+                  label="Print the statement"
+                />
+              </div>
             </div>
 
             {compareId && page.subjects.every((row) => row.against == null) ? (

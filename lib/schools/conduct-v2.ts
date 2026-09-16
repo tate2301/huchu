@@ -31,6 +31,8 @@ export type ConductCategory = {
   name: string;
   tone: ConductTone;
   demeritPoints: number | null;
+  /** False once a school has retired it. Only the setup screen ever sees one. */
+  isActive: boolean;
 };
 
 export type IncidentStudent = {
@@ -113,8 +115,47 @@ export function fetchConductRepeats(params: { termId?: string; minimum?: number 
   );
 }
 
-export function fetchConductCategories() {
-  return fetchJson<{ rows: ConductCategory[] }>("/api/v2/schools/conduct/categories");
+/**
+ * Add a behaviour category the school will log against.
+ *
+ * Without at least one of these the module does not start: `logIncident`
+ * requires a `categoryId`, the incident dialog's category picker is fed from
+ * `fetchConductCategories`, and a school on its first morning has none. The
+ * endpoint has always existed — `POST /api/v2/schools/conduct/categories`, on
+ * the `configure` grant — and nothing in the product called it.
+ */
+export function createConductCategory(input: {
+  code: string;
+  name: string;
+  tone?: ConductTone;
+  demeritPoints?: number | null;
+  sortOrder?: number;
+}) {
+  return fetchJson<{ id: string; code: string; name: string }>(
+    "/api/v2/schools/conduct/categories",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+/** Rename a category, reprice its demerits, or retire it. */
+export function updateConductCategory(input: {
+  id: string;
+  code?: string;
+  name?: string;
+  tone?: ConductTone;
+  demeritPoints?: number | null;
+  isActive?: boolean;
+}) {
+  return fetchJson<{ id: string; code: string; name: string; isActive: boolean }>(
+    "/api/v2/schools/conduct/categories",
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function fetchConductCategories(options: { includeRetired?: boolean } = {}) {
+  return fetchJson<{ rows: ConductCategory[] }>(
+    `/api/v2/schools/conduct/categories${query({ includeRetired: options.includeRetired ? 1 : undefined })}`,
+  );
 }
 
 export type LogIncidentInput = {
@@ -267,6 +308,8 @@ export type MeritReason = {
   name: string;
   kind: MeritKind;
   defaultPoints: number;
+  /** False once a school has retired it. Only the setup screen ever sees one. */
+  isActive: boolean;
 };
 
 export type MeritPupilRow = {
@@ -291,10 +334,19 @@ export type MeritTallies = {
   pupilsWithNeither: number;
 };
 
+type ReasonTotals = {
+  rows: Array<{ reason: string; times: number; points: number }>;
+  shownTimes: number;
+  totalTimes: number;
+  shownPoints: number;
+  totalPoints: number;
+};
+
 export type MeritSummary = {
-  merit: { rows: Array<{ reason: string; times: number; points: number }>; shown: number; total: number };
-  demerit: { rows: Array<{ reason: string; times: number; points: number }>; shown: number; total: number };
+  merit: ReasonTotals;
+  demerit: ReasonTotals;
   byYearGroup: Array<{ level: number | null; label: string; net: number }>;
+  /** Occasions, not points. */
   recordedThisTerm: number;
   termId: string | null;
 };
@@ -319,9 +371,46 @@ export function fetchMeritSummary(params: { termId?: string } = {}) {
   return fetchJson<MeritSummary>(`/api/v2/schools/conduct/merits/summary${query(params)}`);
 }
 
-export function fetchMeritReasons(kind?: MeritKind) {
+export function fetchMeritReasons(
+  kind?: MeritKind,
+  options: { includeRetired?: boolean } = {},
+) {
   return fetchJson<{ rows: MeritReason[] }>(
-    `/api/v2/schools/conduct/merits/reasons${query({ kind })}`,
+    `/api/v2/schools/conduct/merits/reasons${query({ kind, includeRetired: options.includeRetired ? 1 : undefined })}`,
+  );
+}
+
+/**
+ * Add a reason a merit or a demerit can be given for.
+ *
+ * Same shape of gap as the categories: `awardMerit` requires a `reasonId`, the
+ * award dialog is fed from `fetchMeritReasons`, and the POST that fills that
+ * list had no caller anywhere.
+ */
+export function createMeritReason(input: {
+  code: string;
+  name: string;
+  kind: MeritKind;
+  defaultPoints?: number;
+  sortOrder?: number;
+}) {
+  return fetchJson<{ id: string; name: string; kind: MeritKind }>(
+    "/api/v2/schools/conduct/merits/reasons",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+/** Rename a reason, reprice it, or retire it. */
+export function updateMeritReason(input: {
+  id: string;
+  code?: string;
+  name?: string;
+  defaultPoints?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<{ id: string; name: string; kind: MeritKind; isActive: boolean }>(
+    "/api/v2/schools/conduct/merits/reasons",
+    { method: "PATCH", body: JSON.stringify(input) },
   );
 }
 
@@ -502,8 +591,25 @@ export type WithheldNote = {
 
 export type ProjectedNote = ReadableNote | WithheldNote;
 
+/**
+ * A readable note as the LIST returns it: everything but what it says.
+ *
+ * `openNote` writes `schools.pastoral.note.read` every time a safeguarding body
+ * is disclosed, on the principle the server module states outright — "a model
+ * nobody can audit is a claim rather than a control". The listing used to carry
+ * `body` and the table printed it, so every note a reader was cleared for was
+ * disclosed on page load with no audit row, and the read that IS audited was
+ * the one that had already happened.
+ *
+ * Typed without `body` rather than with an optional one, so a component that
+ * wants it has to fetch the note through the path that records the fetch.
+ */
+export type ListedNote = Omit<ReadableNote, "body">;
+
+export type ListedProjection = ListedNote | WithheldNote;
+
 export type PastoralListing = {
-  notes: ProjectedNote[];
+  notes: ListedProjection[];
   counts: {
     youMayRead: number;
     withheldFromYou: number;

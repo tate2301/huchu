@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button } from "@corelithzw/react";
 
@@ -13,9 +14,9 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/records/states";
+import { TableControls } from "@/components/records/table-controls";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
-import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
@@ -33,10 +34,15 @@ import { RenumberHallDialog } from "@/components/schools/exams/renumber-hall-dia
  * room for a sitting: two papers at nine o'clock on Tuesday are one hall, one
  * set of desks and one invigilator.
  *
- * `Sitting two papers at once` is the one number on this screen that cannot be
- * fixed by moving a chair. It is a clash between two overlapping sessions that
- * share a candidate, and it is reported as such rather than folded into
- * `Still to seat` — where it would look like work somebody could finish.
+ * The clash — a candidate down for two overlapping sessions — is the one number
+ * here that cannot be fixed by moving a chair, so it is an alert naming the
+ * papers rather than a figure folded into `Still to seat`, where it would look
+ * like work somebody could finish.
+ *
+ * Everything else the sitting knows is read off the thing it describes: how
+ * many candidates are in it sits on the control row, beside the filter that
+ * chose the sitting; seated and still-to-seat sit on "Where everyone sits",
+ * which is the list they count.
  */
 export function ExamSeatingContent({ seriesId }: { seriesId: string }) {
   const queryClient = useQueryClient();
@@ -66,29 +72,9 @@ export function ExamSeatingContent({ seriesId }: { seriesId: string }) {
 
   const page = seatingQuery.data;
   const plan = page?.plan ?? null;
-  const chips = plan?.chips;
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Candidates", value: chips?.candidates ?? "—" },
-            { label: "Seated", value: chips?.seated ?? "—", tone: "success" },
-            {
-              label: "Still to seat",
-              value: chips?.stillToSeat ?? "—",
-              tone: (chips?.stillToSeat ?? 0) > 0 ? "warn" : "success",
-            },
-            {
-              label: "Sitting two papers at once",
-              value: chips?.sittingTwoAtOnce ?? "—",
-              tone: (chips?.sittingTwoAtOnce ?? 0) > 0 ? "danger" : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome
         title="Seating and invigilation"
         backHref="/schools/exams"
@@ -147,58 +133,75 @@ export function ExamSeatingContent({ seriesId }: { seriesId: string }) {
       ) : (page?.sessions.length ?? 0) === 0 && !seatingQuery.isPending ? (
         <NothingYet
           title="This series has no sittings yet"
-          body="A session is a paper on a date at a time. Seating hangs off it, and so does the invigilation list."
+          body="A sitting is a paper on a date at a time. Seating hangs off it, and so does the invigilation list — so the timetable is written first."
+          action={
+            <Button asChild variant="primary">
+              <Link href={`/schools/exams/${seriesId}/timetable`}>Open the timetable</Link>
+            </Button>
+          }
         />
       ) : (
         <>
-          <div className="flex flex-wrap items-end gap-2">
-            {/* This session, or the whole timetable. A seating plan is read one
-                sitting at a time and checked across all of them — "is anybody
-                down for two papers at once" is a question about the timetable
-                rather than about a hall. */}
-            <PopulationTabs<"session" | "timetable">
-              value={scope}
-              onChange={setScope}
-              tabs={[
-                { id: "session", label: "This session" },
-                { id: "timetable", label: "The whole timetable", count: page?.sessions.length },
-              ]}
-            />
-            <FilterSelect
-              label="Session"
-              allLabel="The first sitting"
-              value={sessionId}
-              options={(page?.sessions ?? []).map((session) => ({
-                value: session.id,
-                label: [
-                  formatSchoolDate(session.startsAt),
-                  formatSchoolDayTime(session.startsAt).split(" ").pop(),
-                  session.paper?.code,
-                ]
-                  .filter(Boolean)
-                  .join(" · "),
-              }))}
-              onChange={setSessionId}
-            />
-            {/* The paper, where a sitting carries more than one. It narrows
-                what the list is about without changing which hall it is in. */}
-            <FilterSelect
-              label="Paper"
-              allLabel="Every paper in it"
-              value={paperFilter}
-              options={[
-                ...new Set(
-                  (page?.sessions ?? [])
-                    .map((entry) => entry.paper?.code)
-                    .filter((code): code is string => Boolean(code)),
-                ),
-              ].map((code) => ({ value: code, label: code }))}
-              onChange={setPaperFilter}
-            />
-            <Button variant="secondary" size="sm" onClick={() => setAllocateOpen(true)}>
-              Give a room to this session
-            </Button>
-          </div>
+          <TableControls
+            /* This session, or the whole timetable. A seating plan is read one
+               sitting at a time and checked across all of them — "is anybody
+               down for two papers at once" is a question about the timetable
+               rather than about a hall. */
+            tabs={
+              <PopulationTabs<"session" | "timetable">
+                value={scope}
+                onChange={setScope}
+                tabs={[
+                  { id: "session", label: "This session" },
+                  { id: "timetable", label: "The whole timetable", count: page?.sessions.length },
+                ]}
+              />
+            }
+            filters={
+              <>
+                <FilterSelect
+                  label="Session"
+                  allLabel="The first sitting"
+                  value={sessionId}
+                  options={(page?.sessions ?? []).map((session) => ({
+                    value: session.id,
+                    label: [
+                      formatSchoolDate(session.startsAt),
+                      formatSchoolDayTime(session.startsAt).split(" ").pop(),
+                      session.paper?.code,
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                  }))}
+                  onChange={setSessionId}
+                />
+                {/* The paper, where a sitting carries more than one. It narrows
+                    what the list is about without changing which hall it is in. */}
+                <FilterSelect
+                  label="Paper"
+                  allLabel="Every paper in it"
+                  value={paperFilter}
+                  options={[
+                    ...new Set(
+                      (page?.sessions ?? [])
+                        .map((entry) => entry.paper?.code)
+                        .filter((code): code is string => Boolean(code)),
+                    ),
+                  ].map((code) => ({ value: code, label: code }))}
+                  onChange={setPaperFilter}
+                />
+              </>
+            }
+            /* How many people the session has to seat. It belongs beside the
+               session filter because it is that filter's answer — pick another
+               sitting and it is a different hall of candidates. */
+            count={plan ? `${plan.chips.candidates} candidates` : null}
+            actions={
+              <Button variant="secondary" size="sm" onClick={() => setAllocateOpen(true)}>
+                Give a room to this session
+              </Button>
+            }
+          />
 
           {/* The clash. Two papers at once cannot be seated away. */}
           {plan && plan.clashes.length > 0 && plan.chips.sittingTwoAtOnce > 0 ? (

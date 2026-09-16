@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
     const termId = parsed.termId ?? (await getCurrentTerm(companyId))?.id;
     if (!termId) {
       return successResponse({
-        merit: { rows: [], shown: 0, total: 0 },
-        demerit: { rows: [], shown: 0, total: 0 },
+        merit: { rows: [], shownTimes: 0, totalTimes: 0, shownPoints: 0, totalPoints: 0 },
+        demerit: { rows: [], shownTimes: 0, totalTimes: 0, shownPoints: 0, totalPoints: 0 },
         byYearGroup: [],
         recordedThisTerm: 0,
         termId: null,

@@ -19,11 +19,11 @@ import {
 import { TableControls } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
+import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import { DataTable } from "@/components/ui/data-table";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Home, LocalShipping, Printer } from "@/lib/icons";
@@ -79,6 +79,11 @@ function GetsHomeCell({ row }: { row: RegisterRow }) {
 export function ConductDetentionContent() {
   const queryClient = useQueryClient();
   const [sessionId, setSessionId] = useState("");
+  // Everybody by default, including the pupils serving somewhere else: a
+  // supervisor reading the register needs to see that a name was moved rather
+  // than find it missing. `Not marked` is the cut he presses when he is halfway
+  // down the room and wants only what is still owed to him.
+  const [view, setView] = useState<"all" | "unmarked">("all");
   const [servingFilter, setServingFilter] = useState("");
   const [classValue, setClassValue] = useState<{ classId: string; streamId: string }>({
     classId: "",
@@ -132,6 +137,7 @@ export function ConductDetentionContent() {
 
   const rows = useMemo(() => {
     let list = register?.rows ?? [];
+    if (view === "unmarked") list = list.filter((row) => row.state === "NOT_MARKED");
     if (onlyTwo) list = list.filter((row) => onlyTwo.includes(row.student.id));
     // Compared against the chosen class and stream by id. Matching on "has any
     // class at all" reported an active filter and narrowed nothing, which is
@@ -151,7 +157,7 @@ export function ConductDetentionContent() {
       );
     }
     return list;
-  }, [register, onlyTwo, servingFilter, classValue.classId, classValue.streamId]);
+  }, [register, view, onlyTwo, servingFilter, classValue.classId, classValue.streamId]);
 
   const servingOptions = useMemo(() => {
     const names = new Set<string>();
@@ -306,6 +312,10 @@ export function ConductDetentionContent() {
   const activeSession = register?.session ?? sessions.find((entry) => entry.id === activeSessionId);
   const chips = register?.chips;
 
+  // Named for where they went rather than for the fact that they went: `Moved
+  // to Saturday` tells a supervisor which register to look at, and `Moved
+  // elsewhere` tells him to go and find out. Read at the foot of the register,
+  // beside the count of who was actually here.
   const movedLabel = useMemo(() => {
     const moved = (register?.rows ?? []).filter((row) => row.state === "MOVED" && row.movedTo);
     const days = new Set(
@@ -317,35 +327,7 @@ export function ConductDetentionContent() {
   }, [register]);
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Due here", value: chips?.dueHere ?? "—" },
-            { label: "Here", value: chips?.here ?? "—", tone: "success" },
-            {
-              label: "Not marked",
-              value: chips?.notMarked ?? "—",
-              tone: (chips?.notMarked ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              // Named for where they went rather than for the fact that they
-              // went: `Moved to Saturday` tells a supervisor which register to
-              // look at, and `Moved elsewhere` tells them to go and find out.
-              label: movedLabel,
-              value: chips?.movedAway ?? "—",
-              tone: (chips?.movedAway ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              <Printer className="size-4" />
-              Print the list
-            </Button>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Detention">
         <RecordActions
           layout="inline"
@@ -425,16 +407,32 @@ export function ConductDetentionContent() {
       ) : (
         <>
           <section className="space-y-2">
-          <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
-            <span className="text-sm font-semibold text-[color:var(--text-strong)]">
-              Who is due
-            </span>
-            <span className="text-xs text-[color:var(--text-muted)]">
-              {register ? `${register.rows.length} named` : ""}
-            </span>
+          {/* No count beside the name of the section: how many are named is the
+              tab's number and the control row's, and it moves when the filters
+              move, which a heading does not. */}
+          <h2 className="border-b border-[color:var(--border-subtle)] pb-1.5 text-sm font-semibold text-[color:var(--text-strong)]">
+            Who is due
           </h2>
           <TableControls
             sticky
+            tabs={
+              <PopulationTabs<"all" | "unmarked">
+                value={view}
+                onChange={setView}
+                tabs={[
+                  {
+                    id: "all",
+                    label: "Everybody",
+                    count: registerQuery.isPending ? undefined : register?.rows.length,
+                  },
+                  {
+                    id: "unmarked",
+                    label: "Not marked",
+                    count: registerQuery.isPending ? undefined : chips?.notMarked,
+                  },
+                ]}
+              />
+            }
             filterCount={activeFilterCount(servingFilter, classValue.classId)}
             count={
               registerQuery.isPending
@@ -442,26 +440,35 @@ export function ConductDetentionContent() {
                 : `${rows.length} of ${register?.rows.length ?? 0} named`
             }
             actions={
-              <RecordActions
-                layout="inline"
-                size="sm"
-                resource="schools.conduct"
-                verbs={[
-                  {
-                    label: "Mark everyone here",
-                    action: "mark",
-                    loading: mark.isPending,
-                    unavailable: markDenial ?? undefined,
-                    confirm: {
-                      title: "Mark everybody who is still unmarked as here",
-                      description:
-                        "It skips anybody serving another session. Nobody who has already been marked changes.",
-                      confirmLabel: "Mark them here",
+              <>
+                <RecordActions
+                  layout="inline"
+                  size="sm"
+                  resource="schools.conduct"
+                  verbs={[
+                    {
+                      label: "Mark everyone here",
+                      action: "mark",
+                      loading: mark.isPending,
+                      unavailable: markDenial ?? undefined,
+                      confirm: {
+                        title: "Mark everybody who is still unmarked as here",
+                        description:
+                          "It skips anybody serving another session. Nobody who has already been marked changes.",
+                        confirmLabel: "Mark them here",
+                      },
+                      onSelect: () => mark.mutate({ everyoneHere: true }),
                     },
-                    onSelect: () => mark.mutate({ everyoneHere: true }),
-                  },
-                ]}
-              />
+                  ]}
+                />
+                {/* Printing acts on the table underneath, not on the page: the
+                    supervisor who wants paper wants these rows, narrowed the way
+                    he just narrowed them. */}
+                <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                  <Printer className="size-4" />
+                  Print the list
+                </Button>
+              </>
             }
             filters={
               <>
@@ -608,33 +615,60 @@ export function ConductDetentionContent() {
             }
           />
 
-          {/* What is owed after today: a total at the foot of the register,
-              not a second list of the same eleven names. */}
-          {register && register.stillToServeAfterToday.sessions > 0 ? (
-            <div className="flex items-baseline justify-between border-t-2 border-[color:var(--border)] px-1 py-2">
-              <span className="text-xs font-semibold text-[color:var(--text-strong)]">
-                Still to serve after today
-              </span>
-              <span className="font-mono text-xs text-[color:var(--tone-warn)]">
-                {register.stillToServeAfterToday.sessions}{" "}
-                {register.stillToServeAfterToday.sessions === 1 ? "session" : "sessions"} ·{" "}
-                {register.stillToServeAfterToday.pupils}{" "}
-                {register.stillToServeAfterToday.pupils === 1 ? "pupil" : "pupils"}
-              </span>
+          {/* The foot of the register: how today went, and what is owed after
+              it. Both are totals of the rows above rather than a second list of
+              the same eleven names, and both are read here rather than in a
+              strip over the table — the numbers mean nothing without the rows
+              they are counting. */}
+          {register ? (
+            <div className="space-y-1 border-t-2 border-[color:var(--border)] px-1 py-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs font-semibold text-[color:var(--text-strong)]">
+                  Marked here
+                </span>
+                <span className="font-mono text-xs">
+                  <span className="text-[color:var(--tone-success)]">
+                    {chips?.here ?? 0} of {chips?.dueHere ?? 0} due
+                  </span>
+                  {(chips?.movedAway ?? 0) > 0 ? (
+                    <span className="text-[color:var(--tone-warn)]">
+                      {" · "}
+                      {chips?.movedAway} {movedLabel.toLowerCase()}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+              {register.stillToServeAfterToday.sessions > 0 ? (
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-semibold text-[color:var(--text-strong)]">
+                    Still to serve after today
+                  </span>
+                  <span className="font-mono text-xs text-[color:var(--tone-warn)]">
+                    {register.stillToServeAfterToday.sessions}{" "}
+                    {register.stillToServeAfterToday.sessions === 1 ? "session" : "sessions"}{" "}
+                    · {register.stillToServeAfterToday.pupils}{" "}
+                    {register.stillToServeAfterToday.pupils === 1 ? "pupil" : "pupils"}
+                  </span>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
           </section>
 
           <section className="mt-6 space-y-2">
-            <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
-              <span className="text-sm font-semibold text-[color:var(--text-strong)]">
+            {/* The button is beside the heading, not inside it. Scheduling is
+                something you do, and a verb read out as part of a section's
+                name — "The coming sessions Schedule a session" — is a verb
+                nobody hears. */}
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[color:var(--border-subtle)] pb-1.5">
+              <h2 className="text-sm font-semibold text-[color:var(--text-strong)]">
                 The coming sessions
-              </span>
+              </h2>
               <Button variant="secondary" size="sm" onClick={() => setScheduleOpen(true)}>
                 Schedule a session
               </Button>
-            </h2>
+            </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-[color:var(--text-muted)]">

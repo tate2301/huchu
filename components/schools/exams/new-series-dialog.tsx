@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -166,9 +167,19 @@ export function NewSeriesDialog({
             </SelectContent>
           </Select>
           {(reference.data?.boards ?? []).length === 0 && !reference.isPending ? (
+            // It explained the ordering and then left the reader with nowhere
+            // to go — there was no screen that created a board at all. Now
+            // there is, so say where.
             <p className="text-xs text-[color:var(--text-muted)]">
               No board has been set up yet. A board and its centre number come first — the board
-              issues the number and it is stable across years.
+              issues the number and it is stable across years.{" "}
+              <Link
+                href="/schools/exams/reference"
+                className="underline underline-offset-2 hover:text-[color:var(--text-body)]"
+              >
+                Set one up
+              </Link>
+              .
             </p>
           ) : null}
         </div>

@@ -342,6 +342,14 @@ export function ClassRecordPage({ classId }: { classId: string }) {
               items={[
                 { href: `/schools/finance/class/${classId}`, label: "Fees" },
                 { href: `/schools/results/class/${classId}`, label: "Marks" },
+                // The office's own mark entry. It had no door anywhere: the
+                // screen existed, nothing imported it, and the only place in
+                // the product a mark could be entered was the teacher's
+                // portal — which is no use on the morning that teacher is away.
+                {
+                  href: `/schools/results/class/${classId}/assessments`,
+                  label: "Work set",
+                },
               ]}
             />
           </RailSection>

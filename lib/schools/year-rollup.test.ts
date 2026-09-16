@@ -10,6 +10,8 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { deleteTestCompany } from "@/lib/schools/test-support";
+import { CLEARANCE_ORDER, closeLeaver, reopenLeaver } from "./leavers";
 import {
   applyYearRollUp,
   nextClassInLadder,
@@ -120,7 +122,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => undefined);
+  await deleteTestCompany(companyId);
   await prisma.$disconnect();
 });
 
@@ -375,7 +377,7 @@ describe("applyYearRollUp", () => {
 
     const leaver = await prisma.schoolLeaver.findFirstOrThrow({
       where: { studentId },
-      select: { status: true, reason: true, lastDay: true },
+      select: { id: true, status: true, reason: true, lastDay: true, clearances: true },
     });
     // Opened, not closed: the five clearance marks are still to settle.
     expect(leaver.status).toBe("OPEN");
@@ -383,6 +385,60 @@ describe("applyYearRollUp", () => {
     expect(leaver.reason).toBe("COMPLETED_UPPER_6");
     // The last day is the term's, which is the nearest thing the roll-up knows.
     expect(leaver.lastDay).not.toBeNull();
+
+    /*
+      And the marks are actually there.
+
+      This assertion is the point of the test and it was the one missing. The
+      sentence above — "the five clearance marks are still to settle" — was
+      true of the manual verb and false here: the roll-up wrote the leaver row
+      alone. `closeLeaver` refuses only while a mark is TODO, so a leaver with
+      no marks has nothing outstanding and signs off unconditionally. Every
+      November the whole graduating cohort could be closed without anybody
+      checking a book was back or a bill was paid, and no gate could see it.
+    */
+    expect(leaver.clearances).toHaveLength(CLEARANCE_ORDER.length);
+    expect([...leaver.clearances.map((mark) => mark.kind)].sort()).toEqual(
+      [...CLEARANCE_ORDER].sort(),
+    );
+  });
+
+  it("refuses to close a rolled-up leaver while a mark is still outstanding", async () => {
+    // The check the missing rows were silently passing. A pupil who owes fees
+    // leaves the roll-up with FEES on TODO, and the record will not close.
+    const studentId = await makeStudent(formSixId, termOneId);
+    await prisma.schoolFeeInvoice.create({
+      data: {
+        companyId,
+        studentId,
+        termId: termOneId,
+        invoiceNo: `INV-${Date.now()}`,
+        status: "ISSUED",
+        issueDate: date("2026-01-10"),
+        dueDate: date("2026-02-10"),
+        currency: "USD",
+        totalAmount: "120.00",
+        balanceAmount: "120.00",
+      },
+    });
+
+    await applyYearRollUp({
+      companyId,
+      fromTermId: termOneId,
+      toTermId: termTwoId,
+      decisions: [{ studentId, action: "GRADUATE" }],
+    });
+
+    const leaver = await prisma.schoolLeaver.findFirstOrThrow({
+      where: { studentId },
+      select: { id: true, clearances: { select: { kind: true, state: true } } },
+    });
+    const fees = leaver.clearances.find((mark) => mark.kind === "FEES");
+    expect(fees?.state).toBe("TODO");
+
+    await expect(
+      closeLeaver({ companyId, actorId: studentId, leaverId: leaver.id }),
+    ).rejects.toThrow(/outstanding/i);
   });
 
   it("does not open a second leaver for a pupil who already has one", async () => {
@@ -456,5 +512,144 @@ describe("applyYearRollUp", () => {
     expect(
       await prisma.schoolEnrollment.count({ where: { companyId, termId: termTwoId } }),
     ).toBe(5);
+  });
+});
+
+describe("a pupil who leaves, comes back, and leaves again", () => {
+  it("can be recorded the second time, because the record reopens", async () => {
+    /*
+      `SchoolLeaver.studentId` is `@unique`, so a pupil gets one leaving record
+      for the whole of their time at a school. `recordLeaver` refused a second
+      departure with the words "A second departure needs the first record
+      reopened" — and nothing anywhere could reopen one, so the message named a
+      way out that did not exist.
+
+      It is not a rare case: a pupil withdrawn over fees in Term 2 who comes
+      back in Term 3 and then completes Form 4 has to be recorded twice, and it
+      is the second record that carries their clearance, their transfer letter
+      and their place on the alumni register.
+    */
+    const studentId = await makeStudent(formSixId, termOneId);
+
+    await applyYearRollUp({
+      companyId,
+      fromTermId: termOneId,
+      toTermId: termTwoId,
+      decisions: [{ studentId, action: "WITHDRAW" }],
+    });
+
+    const opened = await prisma.schoolLeaver.findFirstOrThrow({
+      where: { companyId, studentId },
+      select: { id: true },
+    });
+    // Settle the marks so it can be closed at all.
+    await prisma.schoolLeaverClearance.updateMany({
+      where: { leaverId: opened.id },
+      data: { state: "DONE" },
+    });
+    await closeLeaver({ companyId, actorId: studentId, leaverId: opened.id });
+
+    const closed = await prisma.schoolLeaver.findUniqueOrThrow({
+      where: { id: opened.id },
+      select: { status: true },
+    });
+    expect(closed.status).toBe("CLOSED");
+    const alumniAfterClose = await prisma.schoolAlumnus.count({
+      where: { companyId, studentId },
+    });
+    expect(alumniAfterClose).toBe(1);
+
+    // They come back, and later leave properly.
+    await reopenLeaver({
+      companyId,
+      actorId: studentId,
+      leaverId: opened.id,
+      lastDay: date("2027-12-03"),
+      reason: "COMPLETED_UPPER_6",
+    });
+
+    const reopened = await prisma.schoolLeaver.findUniqueOrThrow({
+      where: { id: opened.id },
+      select: { status: true, closedAt: true, reason: true, clearances: true },
+    });
+    expect(reopened.status).toBe("OPEN");
+    expect(reopened.closedAt).toBeNull();
+    expect(reopened.reason).toBe("COMPLETED_UPPER_6");
+    // The marks are derived again: the pupil has been back at school since, so
+    // the fees, the books and the bed are different facts now.
+    expect(reopened.clearances).toHaveLength(CLEARANCE_ORDER.length);
+
+    // Back on the roll.
+    const pupil = await prisma.schoolStudent.findUniqueOrThrow({
+      where: { id: studentId },
+      select: { status: true },
+    });
+    expect(pupil.status).toBe("ACTIVE");
+
+    /*
+      And the alumni record SURVIVES.
+
+      Reopening used to delete it so that re-closing would write a fresh one
+      with the corrected year. `SchoolAlumniUpdate` cascades from the alumnus,
+      so that threw away the development office's whole timeline — the degree,
+      the destination, when it was last confirmed — to correct a date.
+      `closeLeaver` refreshes the year on the existing row instead.
+    */
+    expect(await prisma.schoolAlumnus.count({ where: { companyId, studentId } })).toBe(1);
+  });
+
+  it("corrects the leaving year on the existing alumni record when it closes again", async () => {
+    const studentId = await makeStudent(formSixId, termOneId);
+    await applyYearRollUp({
+      companyId,
+      fromTermId: termOneId,
+      toTermId: termTwoId,
+      decisions: [{ studentId, action: "WITHDRAW" }],
+    });
+    const leaver = await prisma.schoolLeaver.findFirstOrThrow({
+      where: { companyId, studentId },
+      select: { id: true },
+    });
+    await prisma.schoolLeaverClearance.updateMany({
+      where: { leaverId: leaver.id },
+      data: { state: "DONE" },
+    });
+    await closeLeaver({ companyId, actorId: studentId, leaverId: leaver.id });
+
+    const first = await prisma.schoolAlumnus.findFirstOrThrow({
+      where: { companyId, studentId },
+      select: { id: true, classOf: true },
+    });
+    // A note the development office made, which must survive all of this.
+    await prisma.schoolAlumniUpdate.create({
+      data: {
+        companyId,
+        alumnusId: first.id,
+        happenedOn: date("2027-02-01"),
+        summary: "Reading Accounting at UZ",
+      },
+    });
+
+    await reopenLeaver({
+      companyId,
+      actorId: studentId,
+      leaverId: leaver.id,
+      lastDay: date("2029-12-07"),
+      reason: "COMPLETED_UPPER_6",
+    });
+    await prisma.schoolLeaverClearance.updateMany({
+      where: { leaverId: leaver.id },
+      data: { state: "DONE" },
+    });
+    await closeLeaver({ companyId, actorId: studentId, leaverId: leaver.id });
+
+    const after = await prisma.schoolAlumnus.findFirstOrThrow({
+      where: { companyId, studentId },
+      select: { id: true, classOf: true, updates: { select: { summary: true } } },
+    });
+    // Same row, corrected year, timeline intact.
+    expect(after.id).toBe(first.id);
+    expect(after.classOf).toBe(2029);
+    expect(after.updates.map((u) => u.summary)).toContain("Reading Accounting at UZ");
   });
 });

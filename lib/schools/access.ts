@@ -93,12 +93,28 @@ export function isUnconstrainedRole(role: string | null | undefined): boolean {
   return UNCONSTRAINED_ROLES.has(role.trim().toUpperCase());
 }
 
+/**
+ * Resources an unconstrained role does NOT get for free.
+ *
+ * Must stay in step with `NO_TENANT_ADMIN_SHORTCUT` in
+ * `lib/schools/permissions.ts`, which is the server-side half of the same rule.
+ * The two had drifted: the API refused a tenant administrator a pastoral note
+ * — correctly, because seniority is not clearance and the Pastoral screen draws
+ * the Group Head himself as "Not cleared" — while this function, which decides
+ * what the rail draws and what the screens offer, said yes. So an administrator
+ * was given a navigation row and a set of verbs that led to a silent 403.
+ *
+ * A tenant administrator reaches a pastoral note the way everybody else does:
+ * a clearance granted to them by name, or being named on the note.
+ */
+const NO_UNCONSTRAINED_SHORTCUT = new Set<SchoolResource>(["schools.pastoral"]);
+
 export function canSchool(
   role: string | null | undefined,
   resource: SchoolResource,
   action: SchoolAction,
 ): boolean {
-  if (isUnconstrainedRole(role)) return true;
+  if (isUnconstrainedRole(role) && !NO_UNCONSTRAINED_SHORTCUT.has(resource)) return true;
   const persona = personaForRole(role);
   if (!persona) return false;
   return hasPersonaPermission([persona], resource, action);
@@ -123,7 +139,12 @@ export function schoolAccess(role: string | null | undefined): SchoolAccess {
     unconstrained,
     can: (resource, action) => canSchool(role, resource, action),
     actionsOn: (resource) => {
-      if (unconstrained) return new Set(ALL_ACTIONS);
+      // Same carve-out as `canSchool`, for the same reason: this builds a row's
+      // menu in one pass, and handing a tenant administrator every pastoral
+      // verb draws a menu of actions the API will refuse one by one.
+      if (unconstrained && !NO_UNCONSTRAINED_SHORTCUT.has(resource)) {
+        return new Set(ALL_ACTIONS);
+      }
       if (!persona) return new Set<SchoolAction>();
       const grant = getPersonaPermissions(persona).find((p) => p.resource === resource);
       return new Set((grant?.actions ?? []) as SchoolAction[]);

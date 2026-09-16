@@ -20,7 +20,6 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -35,6 +34,7 @@ import {
   closeLeaver,
   fetchLeaverQueue,
   markClearance,
+  reopenLeaver,
   type ClearanceKind,
   type LeaverRow,
   type LeavingReason,
@@ -57,6 +57,11 @@ import { ClearanceDialog } from "@/components/schools/leavers/clearance-dialog";
  * `Next step` is named for the job rather than the state: `Take the book back`
  * is something a librarian does this afternoon, and `LIBRARY: TODO` is a status
  * somebody has to translate first.
+ *
+ * `Gone, still owing` is a tab beside the queue rather than a table beneath it.
+ * It is a second subject — a former pupil and a debt, against a record still
+ * being cleared — and the search, the three filters and the `X of Y` count on
+ * the control row only ever meant the queue.
  */
 
 /**
@@ -80,7 +85,7 @@ const CLEARANCE_OPTIONS = [
   { value: "cleared", label: "Cleared" },
 ];
 
-type Segment = "open" | "closed";
+type Tab = "open" | "closed" | "owing";
 
 /** The five marks as one cell: `Fees · Library · Bed · Portal · Docs`. */
 function ClearanceStrip({ row }: { row: LeaverRow }) {
@@ -106,7 +111,7 @@ function ClearanceStrip({ row }: { row: LeaverRow }) {
 
 export function LeaversContent() {
   const queryClient = useQueryClient();
-  const [segment, setSegment] = useState<Segment>("open");
+  const [tab, setTab] = useState<Tab>("open");
   const [reasonFilter, setReasonFilter] = useState("");
   const [clearanceFilter, setClearanceFilter] = useState("");
   const [classValue, setClassValue] = useState<{ classId: string; streamId: string }>({
@@ -120,11 +125,19 @@ export function LeaversContent() {
   );
   const [actionError, setActionError] = useState<string | null>(null);
 
+  /**
+   * The queue is asked for one status at a time; `Gone, still owing` comes back
+   * on every response whichever status was asked for, so that tab reads the
+   * open queue's answer rather than firing a request of its own.
+   */
+  const status: "open" | "closed" = tab === "closed" ? "closed" : "open";
+  const onQueue = tab !== "owing";
+
   const queueQuery = useQuery({
     queryKey: [
       "schools",
       "leavers",
-      segment,
+      status,
       reasonFilter,
       clearanceFilter,
       classValue.classId,
@@ -133,7 +146,7 @@ export function LeaversContent() {
     ],
     queryFn: () =>
       fetchLeaverQueue({
-        status: segment,
+        status,
         reason: (reasonFilter as LeavingReason) || undefined,
         clearance: (clearanceFilter as "cleared" | "not-cleared") || undefined,
         // Sent to the query rather than filtered in the browser: a class is a
@@ -173,9 +186,23 @@ export function LeaversContent() {
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
+  const reopen = useMutation({
+    mutationFn: (leaverId: string) => reopenLeaver(leaverId),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
   const page = queueQuery.data;
   const tallies = page?.tallies;
   const rows = useMemo(() => page?.rows ?? [], [page]);
+
+  // A handful of rows on a list the query client already holds, so summed on a
+  // render that was going to happen anyway rather than memoised.
+  const owing = page?.goneStillOwing ?? [];
+  const owingTotal = owing.reduce((total, row) => total + Number(row.owed), 0);
 
   const columns = useMemo<ColumnDef<LeaverRow>[]>(
     () => [
@@ -281,45 +308,52 @@ export function LeaversContent() {
       {
         id: "verbs",
         header: () => <span className="sr-only">Row actions</span>,
-        cell: ({ row }) => (
-          <div className="flex justify-end">
-            <Button asChild variant="secondary" size="sm">
-              <Link href={`/schools/leavers/documents?leaver=${row.original.id}`}>
-                Raise the documents
-              </Link>
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) =>
+          row.original.status === "CLOSED" ? (
+            /*
+              A pupil gets one leaving record — `SchoolLeaver.studentId` is
+              unique — so a pupil who was withdrawn, came back and is now
+              leaving properly is recorded on this one. `recordLeaver` refused
+              the second departure with "reopen the first record", and until now
+              nothing anywhere could.
+            */
+            <div className="flex justify-end">
+              <RecordActions
+                layout="inline"
+                size="sm"
+                resource="schools.leavers"
+                verbs={[
+                  {
+                    label: "Reopen",
+                    action: "record",
+                    loading: reopen.isPending,
+                    confirm: {
+                      title: `Reopen ${row.original.student.firstName} ${row.original.student.lastName}'s record`,
+                      description:
+                        "They go back on the roll and the five marks are worked out again from where the fees, the books and the bed stand today. Their alumni record and everything on its timeline stay exactly as they are.",
+                      confirmLabel: "Reopen it",
+                    },
+                    onSelect: () => reopen.mutate(row.original.id),
+                  },
+                ]}
+              />
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`/schools/leavers/documents?leaver=${row.original.id}`}>
+                  Raise the documents
+                </Link>
+              </Button>
+            </div>
+          ),
       },
     ],
-    [close],
+    [close, reopen],
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "In the queue", value: tallies?.inTheQueue ?? "—" },
-            {
-              label: "Not cleared",
-              value: tallies?.notCleared ?? "—",
-              tone: (tallies?.notCleared ?? 0) > 0 ? "warn" : "success",
-            },
-            {
-              label: "Owing on exit",
-              value: tallies ? formatSchoolMoney(tallies.owingOnExit) : "—",
-              tone: Number(tallies?.owingOnExit ?? 0) > 0 ? "danger" : "neutral",
-            },
-            {
-              label: "Documents outstanding",
-              value: tallies?.documentsOutstanding ?? "—",
-              tone: (tallies?.documentsOutstanding ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Leavers">
         <CreateButton
           resource="schools.leavers"
@@ -330,186 +364,241 @@ export function LeaversContent() {
 
       {actionError ? <SaveError what="That change" error={actionError} /> : null}
 
-      <section className="space-y-2">
-        <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
-          <span className="text-sm font-semibold text-[color:var(--text-strong)]">
-            The leaving queue
-          </span>
-          <span className="text-xs text-[color:var(--text-muted)]">
-            {page ? `${rows.length} of ${tallies?.inTheQueue ?? rows.length}` : ""}
-          </span>
-        </h2>
-
-        {queueQuery.error ? (
-          <LoadError
-            what="the leaving queue"
-            error={queueQuery.error}
-            onRetry={() => void queueQuery.refetch()}
+      <TableControls
+        sticky
+        tabs={
+          <PopulationTabs<Tab>
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              // How many are in the queue is the denominator of `X of Y` on the
+              // row below, so the tab does not say it a second time. How many
+              // former pupils left owing is read nowhere else on the screen, so
+              // it is said here.
+              { id: "open", label: "Still open" },
+              { id: "closed", label: "Closed this year" },
+              {
+                id: "owing",
+                label: "Gone, still owing",
+                count: page ? owing.length : undefined,
+              },
+            ]}
           />
-        ) : (
-          <>
-            <TableControls
-              sticky
-              tabs={
-                <PopulationTabs<Segment>
-                  value={segment}
-                  onChange={setSegment}
-                  tabs={[
-                    { id: "open", label: "Still open", count: tallies?.inTheQueue },
-                    { id: "closed", label: "Closed this year" },
+        }
+        search={
+          onQueue ? (
+            <TableSearch value={search} onChange={setSearch} placeholder="Search leavers" />
+          ) : undefined
+        }
+        filterCount={
+          onQueue
+            ? activeFilterCount(classValue.classId, reasonFilter, clearanceFilter)
+            : undefined
+        }
+        // How many of the queue are in front of you. The owing tab counts
+        // itself on the tab, so the row says nothing there rather than
+        // counting the wrong table; the closed list has no total to sit
+        // against, so it says how many came back and stops.
+        count={
+          onQueue && !queueQuery.isPending
+            ? tab === "open"
+              ? `${rows.length} of ${tallies?.inTheQueue ?? rows.length}`
+              : `${rows.length}`
+            : null
+        }
+        filters={
+          onQueue ? (
+            <>
+              <ClassFilter
+                label="Year group"
+                allLabel="The whole school"
+                value={classValue}
+                onChange={setClassValue}
+              />
+              <FilterSelect
+                label="Reason"
+                allLabel="Any reason"
+                value={reasonFilter}
+                options={(Object.keys(LEAVING_REASON_LABELS) as LeavingReason[]).map(
+                  (reason) => ({ value: reason, label: LEAVING_REASON_LABELS[reason] }),
+                )}
+                onChange={setReasonFilter}
+              />
+              {/* How many are not cleared is what this filter asks for: choose
+                  `Not cleared` and the count beside it answers, against the
+                  rows it is counting. */}
+              <FilterSelect
+                label="Clearance"
+                allLabel="Any state"
+                value={clearanceFilter}
+                options={CLEARANCE_OPTIONS}
+                onChange={setClearanceFilter}
+              />
+            </>
+          ) : undefined
+        }
+      />
+
+      {queueQuery.error ? (
+        <LoadError
+          what={onQueue ? "the leaving queue" : "the leavers who left owing"}
+          error={queueQuery.error}
+          onRetry={() => void queueQuery.refetch()}
+        />
+      ) : onQueue ? (
+        <>
+          <DataTable
+            data={rows}
+            columns={columns}
+            features={{ sorting: false, globalFilter: false, pagination: false }}
+            mobileListRenderer={({ rows: mobileRows }) => (
+              <MobileList>
+                {mobileRows.map(({ row }) => (
+                  <MobileList.Row
+                    key={row.id}
+                    leading={
+                      <RecordMark
+                        kind="student"
+                        name={`${row.student.firstName} ${row.student.lastName}`}
+                        size="sm"
+                      />
+                    }
+                    title={`${row.student.lastName}, ${row.student.firstName}`}
+                    subtitle={`${LEAVING_REASON_LABELS[row.reason]} · ${row.nextStep}`}
+                  />
+                ))}
+              </MobileList>
+            )}
+            emptyState={
+              queueQuery.isPending ? (
+                <TableRowsSkeleton
+                  rows={6}
+                  headers={[
+                    "Pupil",
+                    "Year group",
+                    "Leaving because",
+                    "Last day",
+                    "Fees · Library · Bed · Portal · Docs",
+                    "Next step",
+                    "",
+                  ]}
+                  columns={[
+                    { avatar: true, twoLine: true },
+                    { width: 110 },
+                    { width: 180 },
+                    { width: 110 },
+                    { width: 260, badge: true },
+                    { width: 170 },
+                    { width: 170 },
                   ]}
                 />
-              }
-              search={
-                <TableSearch value={search} onChange={setSearch} placeholder="Search leavers" />
-              }
-              filterCount={activeFilterCount(classValue.classId, reasonFilter, clearanceFilter)}
-              filters={
-                <>
-                  <ClassFilter
-                    label="Year group"
-                    allLabel="The whole school"
-                    value={classValue}
-                    onChange={setClassValue}
-                  />
-                  <FilterSelect
-                    label="Reason"
-                    allLabel="Any reason"
-                    value={reasonFilter}
-                    options={(Object.keys(LEAVING_REASON_LABELS) as LeavingReason[]).map(
-                      (reason) => ({ value: reason, label: LEAVING_REASON_LABELS[reason] }),
-                    )}
-                    onChange={setReasonFilter}
-                  />
-                  <FilterSelect
-                    label="Clearance"
-                    allLabel="Any state"
-                    value={clearanceFilter}
-                    options={CLEARANCE_OPTIONS}
-                    onChange={setClearanceFilter}
-                  />
-                </>
-              }
-            />
+              ) : reasonFilter || clearanceFilter || search.trim() || classValue.classId ? (
+                <NothingMatched
+                  what="leavers"
+                  filters={[
+                    reasonFilter ? LEAVING_REASON_LABELS[reasonFilter as LeavingReason] : null,
+                    CLEARANCE_OPTIONS.find((option) => option.value === clearanceFilter)?.label,
+                  ].filter((entry): entry is string => Boolean(entry))}
+                  search={search}
+                  onClear={() => {
+                    setReasonFilter("");
+                    setClearanceFilter("");
+                    setSearch("");
+                    setClassValue({ classId: "", streamId: "" });
+                  }}
+                />
+              ) : tab === "open" ? (
+                <NothingLeftToDo
+                  title="Nobody is waiting to leave"
+                  body="Every record that was opened has been closed. This is the state the queue is for."
+                />
+              ) : (
+                <NothingYet
+                  title="No record has been closed this year"
+                  body="A closed record is a pupil on the alumni register with their five marks settled."
+                />
+              )
+            }
+          />
 
-            <DataTable
-              data={rows}
-              columns={columns}
-              features={{ sorting: false, globalFilter: false, pagination: false }}
-              mobileListRenderer={({ rows: mobileRows }) => (
-                <MobileList>
-                  {mobileRows.map(({ row }) => (
-                    <MobileList.Row
-                      key={row.id}
-                      leading={
-                        <RecordMark
-                          kind="student"
-                          name={`${row.student.firstName} ${row.student.lastName}`}
-                          size="sm"
-                        />
-                      }
-                      title={`${row.student.lastName}, ${row.student.firstName}`}
-                      subtitle={`${LEAVING_REASON_LABELS[row.reason]} · ${row.nextStep}`}
-                    />
-                  ))}
-                </MobileList>
-              )}
-              emptyState={
-                queueQuery.isPending ? (
-                  <TableRowsSkeleton
-                    rows={6}
-                    headers={[
-                      "Pupil",
-                      "Year group",
-                      "Leaving because",
-                      "Last day",
-                      "Fees · Library · Bed · Portal · Docs",
-                      "Next step",
-                      "",
-                    ]}
-                    columns={[
-                      { avatar: true, twoLine: true },
-                      { width: 110 },
-                      { width: 180 },
-                      { width: 110 },
-                      { width: 260, badge: true },
-                      { width: 170 },
-                      { width: 170 },
-                    ]}
-                  />
-                ) : reasonFilter || clearanceFilter || search.trim() || classValue.classId ? (
-                  <NothingMatched
-                    what="leavers"
-                    filters={[
-                      reasonFilter ? LEAVING_REASON_LABELS[reasonFilter as LeavingReason] : null,
-                      CLEARANCE_OPTIONS.find((option) => option.value === clearanceFilter)?.label,
-                    ].filter((entry): entry is string => Boolean(entry))}
-                    search={search}
-                    onClear={() => {
-                      setReasonFilter("");
-                      setClearanceFilter("");
-                      setSearch("");
-                      setClassValue({ classId: "", streamId: "" });
-                    }}
-                  />
-                ) : segment === "open" ? (
-                  <NothingLeftToDo
-                    title="Nobody is waiting to leave"
-                    body="Every record that was opened has been closed. This is the state the queue is for."
-                  />
-                ) : (
-                  <NothingYet
-                    title="No record has been closed this year"
-                    body="A closed record is a pupil on the alumni register with their five marks settled."
-                  />
-                )
-              }
-            />
-          </>
-        )}
-      </section>
-
-      {/* Not a filter on the queue: the pupil has gone, and what is left is a
-          debt somebody has to decide whether to chase. Hidden inside the queue
-          it would be found again a year later. */}
-      {page && page.goneStillOwing.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
-            <span className="text-sm font-semibold text-[color:var(--text-strong)]">
-              Gone, still owing
-            </span>
-            <span className="text-xs text-[color:var(--text-muted)]">
-              {page.goneStillOwing.length}{" "}
-              {page.goneStillOwing.length === 1 ? "former pupil" : "former pupils"}
-            </span>
-          </h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-[color:var(--text-muted)]">
-                <th className="py-1 font-normal">Former pupil</th>
-                <th className="w-[200px] py-1 font-normal">Left because</th>
-                <th className="w-[130px] py-1 text-right font-normal">Still owed</th>
+          {/* The foot of the queue: what the rows above it come to. The money
+              is the fees evidence on every FEES mark added up, and the
+              documents line counts the rows whose Docs mark is still TODO —
+              both are read here, against the list they are totalling, rather
+              than in a strip over the controls. Only the open queue has them;
+              a closed record is settled by definition. */}
+          {tab === "open" && tallies && !queueQuery.isPending ? (
+            <div className="flex flex-wrap items-baseline justify-between gap-3 border-t-2 border-[color:var(--border)] px-1 py-2">
+              <span className="text-xs font-semibold text-[color:var(--text-strong)]">
+                Leaving with it unfinished
+              </span>
+              <span className="font-mono text-xs text-[color:var(--text-muted)]">
+                <span
+                  className={
+                    Number(tallies.owingOnExit) > 0
+                      ? "text-[color:var(--tone-warn)]"
+                      : "text-[color:var(--tone-success)]"
+                  }
+                >
+                  {formatSchoolMoney(tallies.owingOnExit)}
+                </span>{" "}
+                owing on exit · {tallies.documentsOutstanding} waiting on documents
+              </span>
+            </div>
+          ) : null}
+        </>
+      ) : queueQuery.isPending ? (
+        <TableRowsSkeleton
+          rows={4}
+          headers={["Former pupil", "Left because", "Still owed"]}
+          columns={[{ twoLine: true }, { width: 200 }, { width: 130 }]}
+        />
+      ) : owing.length === 0 ? (
+        <NothingLeftToDo
+          title="Nobody has left owing"
+          body="Every record closed this year closed with the fees settled behind it."
+        />
+      ) : (
+        /* Its own tab rather than a filter on the queue: the pupil has gone,
+           and what is left is a debt somebody has to decide whether to chase.
+           Hidden inside the queue it would be found again a year later. */
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-[color:var(--text-muted)]">
+              <th className="py-1 font-normal">Former pupil</th>
+              <th className="w-[200px] py-1 font-normal">Left because</th>
+              <th className="w-[130px] py-1 text-right font-normal">Still owed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {owing.map((row) => (
+              <tr key={row.id} className="border-t border-[color:var(--border-subtle)]">
+                <td className="py-1.5">
+                  {row.student.lastName}, {row.student.firstName}
+                  <span className="block font-mono text-[11px] text-[color:var(--text-muted)]">
+                    {row.student.studentNo} · left {formatSchoolDate(row.lastDay)}
+                  </span>
+                </td>
+                <td className="py-1.5 text-xs">{LEAVING_REASON_LABELS[row.reason]}</td>
+                <td className="py-1.5 text-right font-mono text-xs text-[color:var(--status-error-text)]">
+                  {formatSchoolMoney(row.owed)}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {page.goneStillOwing.map((row) => (
-                <tr key={row.id} className="border-t border-[color:var(--border-subtle)]">
-                  <td className="py-1.5">
-                    {row.student.lastName}, {row.student.firstName}
-                    <span className="block font-mono text-[11px] text-[color:var(--text-muted)]">
-                      {row.student.studentNo} · left {formatSchoolDate(row.lastDay)}
-                    </span>
-                  </td>
-                  <td className="py-1.5 text-xs">{LEAVING_REASON_LABELS[row.reason]}</td>
-                  <td className="py-1.5 text-right font-mono text-xs text-[color:var(--status-error-text)]">
-                    {formatSchoolMoney(row.owed)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      ) : null}
+            ))}
+            {/* What the school is still out of pocket, summed from the column
+                above rather than asserted beside it. */}
+            <tr className="border-t-2 border-[color:var(--border)]">
+              <td className="py-1.5 text-xs font-semibold">
+                {owing.length} {owing.length === 1 ? "former pupil" : "former pupils"}
+              </td>
+              <td />
+              <td className="py-1.5 text-right font-mono text-xs font-bold text-[color:var(--status-error-text)]">
+                {formatSchoolMoney(owingTotal)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
 
       <RecordLeaverDialog
         open={recordOpen}

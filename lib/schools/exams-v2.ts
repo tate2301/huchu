@@ -418,3 +418,105 @@ export type ExamReference = {
 export function fetchExamReference() {
   return fetchJson<ExamReference>("/api/v2/schools/exams/reference");
 }
+
+export type TimetablePaper = {
+  id: string;
+  paperNumber: number;
+  code: string;
+  sitsAt: string | null;
+  durationMinutes: number | null;
+  subject: { id: string; code: string; name: string };
+  session: { id: string; startsAt: string; endsAt: string | null; seated: number } | null;
+};
+
+export function fetchTimetable(seriesId: string) {
+  return fetchJson<{ papers: TimetablePaper[] }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+  );
+}
+
+export function addTimetablePaper(
+  seriesId: string,
+  input: {
+    examSubjectId: string;
+    paperNumber: number;
+    code?: string | null;
+    sitsAt: string;
+    durationMinutes?: number | null;
+  },
+) {
+  return fetchJson<{ paper: TimetablePaper }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function reschedulePaper(
+  seriesId: string,
+  input: { paperId: string; sitsAt: string; durationMinutes?: number | null },
+) {
+  return fetchJson<{ paperId: string }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function removeTimetablePaper(seriesId: string, paperId: string) {
+  return fetchJson<{ paperId: string }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable${query({ paperId })}`,
+    { method: "DELETE" },
+  );
+}
+
+/**
+ * Add a board, a centre number or a syllabus subject.
+ *
+ * `POST /api/v2/schools/exams/reference` shipped and had no caller anywhere, so
+ * a school could not create the exam board its series hangs off — which made
+ * the entire exams module unreachable from an empty tenant: no board, so no
+ * series; no series, so no candidates, no entries, no timetable and no results.
+ */
+export function createExamReference(
+  input:
+    | { kind: "board"; code: string; name: string }
+    | { kind: "centre"; boardId: string; number: string; name?: string | null }
+    | {
+        kind: "subject";
+        boardId: string;
+        subjectId?: string | null;
+        code: string;
+        name: string;
+        level: ExamLevel;
+      },
+) {
+  return fetchJson<{ id: string }>("/api/v2/schools/exams/reference", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Correct a board, a centre number or a syllabus subject, or retire it.
+ *
+ * All three carry `isActive` and nothing could set it, so the reference was
+ * create-only — and a centre number typed wrong is what the board knows the
+ * school by.
+ */
+export function updateExamReference(
+  input:
+    | { kind: "board"; id: string; code?: string; name?: string; isActive?: boolean }
+    | { kind: "centre"; id: string; number?: string; name?: string | null; isActive?: boolean }
+    | {
+        kind: "subject";
+        id: string;
+        code?: string;
+        name?: string;
+        level?: ExamLevel;
+        isActive?: boolean;
+      },
+) {
+  return fetchJson<{ id: string }>("/api/v2/schools/exams/reference", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}

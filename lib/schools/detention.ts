@@ -295,7 +295,13 @@ export async function sessionRegister(args: {
       session: { index: Math.min(indexByAward.get(row.award.id) ?? 1, owed), owed },
       getsHome: getsHome.get(row.student.id) ?? { kind: "day", label: "Day" },
       stillToServe: {
-        sessions: Math.max(0, owed - served - (row.state === "HERE" ? 0 : 0)),
+        // `served` is every HERE mark against this award, today's included once
+        // it is marked, so the subtraction already accounts for this session and
+        // needs no correction term. There was one here — `- (state === "HERE" ?
+        // 0 : 0)` — which subtracted nothing down either branch and read as if a
+        // correction were being applied. Making it `? 1 : 0` would have counted
+        // today twice.
+        sessions: Math.max(0, owed - served),
         nextAt: nextByStudent.get(row.student.id) ?? null,
       },
       movedTo: row.movedTo,
@@ -352,11 +358,21 @@ export async function sessionRegister(args: {
 export async function markAttendance(args: {
   companyId: string;
   actorId: string;
+  /**
+   * The session being marked, from the URL.
+   *
+   * Required, and it is the whole point. The route proves the caller supervises
+   * THIS session and then used to pass an `attendanceId` scoped only to the
+   * company — so a teacher supervising Friday's detention could mark a row on
+   * Saturday's register, or on any other session in the school, by sending its
+   * id. The gate and the write have to be about the same sitting.
+   */
+  sessionId: string;
   attendanceId: string;
   state: "HERE" | "DID_NOT_TURN_UP" | "NOT_MARKED";
 }) {
   const row = await prisma.schoolDetentionAttendance.findFirst({
-    where: { id: args.attendanceId, companyId: args.companyId },
+    where: { id: args.attendanceId, companyId: args.companyId, sessionId: args.sessionId },
     select: { id: true, state: true },
   });
   if (!row) throw new DetentionError("That name is not on this register.");
@@ -417,12 +433,14 @@ export async function markEveryoneHere(args: {
 export async function moveToSession(args: {
   companyId: string;
   actorId: string;
+  /** The session being marked, from the URL. See `markAttendance`. */
+  sessionId: string;
   attendanceId: string;
   toSessionId: string;
 }) {
   const [row, target] = await Promise.all([
     prisma.schoolDetentionAttendance.findFirst({
-      where: { id: args.attendanceId, companyId: args.companyId },
+      where: { id: args.attendanceId, companyId: args.companyId, sessionId: args.sessionId },
       select: { id: true, state: true, awardId: true, studentId: true, sessionId: true },
     }),
     prisma.schoolDetentionSession.findFirst({
@@ -511,12 +529,38 @@ export async function awardDetention(args: {
   if (args.sessionIds.length === 0) {
     throw new DetentionError("Name the session they are serving, or the register has nobody on it.");
   }
-  const sessions = await prisma.schoolDetentionSession.findMany({
-    where: { companyId: args.companyId, id: { in: args.sessionIds } },
-    select: { id: true },
-  });
+  /*
+    The sittings were checked and the pupil was not.
+
+    `studentId` and `incidentId` both arrive in a request body. Unchecked, a
+    caller could put another school's pupil on this school's detention
+    register — and because the register is read back with the incident summary
+    attached, that also hands over a line of another school's behaviour log.
+  */
+  const [sessions, student, incident] = await Promise.all([
+    prisma.schoolDetentionSession.findMany({
+      where: { companyId: args.companyId, id: { in: args.sessionIds } },
+      select: { id: true },
+    }),
+    prisma.schoolStudent.findFirst({
+      where: { id: args.studentId, companyId: args.companyId },
+      select: { id: true },
+    }),
+    args.incidentId
+      ? prisma.schoolConductIncident.findFirst({
+          where: { id: args.incidentId, companyId: args.companyId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
   if (sessions.length !== args.sessionIds.length) {
     throw new DetentionError("One of those sessions is not this school's.");
+  }
+  if (!student) {
+    throw new DetentionError("That pupil is not on this school's roll.");
+  }
+  if (args.incidentId && !incident) {
+    throw new DetentionError("That incident is not on this school's log.");
   }
 
   return prisma.$transaction(async (tx) => {

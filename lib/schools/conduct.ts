@@ -408,9 +408,33 @@ export async function logIncident(input: LogIncidentInput) {
 
   const category = await prisma.schoolConductCategory.findFirst({
     where: { id: input.categoryId, companyId: input.companyId },
-    select: { id: true, name: true, tone: true, demeritPoints: true },
+    select: { id: true, code: true, name: true, tone: true, demeritPoints: true },
   });
   if (!category) throw new ConductError("That is not one of this school's categories.");
+
+  /*
+    The pupil the incident is about was checked; the others in it were not.
+
+    `participants[].studentId` arrived in a request body and was written
+    straight into `SchoolConductParticipant`. Unchecked, another school's pupil
+    could be named in this school's behaviour log — and the incident page draws
+    participants by name, so the row is both a write into their record and a
+    disclosure of their name to a school they do not attend.
+
+    One query for the lot: naming six pupils in a fight should not cost six
+    round trips.
+  */
+  const participantIds = [
+    ...new Set((input.participants ?? []).map((participant) => participant.studentId)),
+  ];
+  if (participantIds.length > 0) {
+    const onRoll = await prisma.schoolStudent.count({
+      where: { id: { in: participantIds }, companyId: input.companyId },
+    });
+    if (onRoll !== participantIds.length) {
+      throw new ConductError("One of those pupils is not on this school's roll.");
+    }
+  }
 
   return prisma.$transaction(async (tx) => {
     const reference = await nextIncidentReference(
@@ -451,30 +475,92 @@ export async function logIncident(input: LogIncidentInput) {
     }
 
     if (category.demeritPoints && category.demeritPoints > 0) {
-      const reason = await tx.schoolMeritReason.findFirst({
-        where: {
-          companyId: input.companyId,
-          kind: SchoolMeritKind.DEMERIT,
-          name: category.name,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      if (reason) {
-        await tx.schoolMeritEntry.create({
-          data: {
+      /*
+        The reason is made if it is missing, rather than the demerit being
+        dropped.
+
+        This used to look a `SchoolMeritReason` up by exact `name` match against
+        the category's name and, finding none, do nothing at all. Categories and
+        reasons are created independently — nothing in the product ever made one
+        to match the other — so the normal case was no match, and a category
+        configured to draw three demerits drew none, silently, forever.
+
+        It is not silent to the user: the incident dialog reads
+        `category.demeritPoints` and says "Logging this also records 3 demerits"
+        before they press the button. So the screen promised something the write
+        path then declined to do, with nothing anywhere reporting it.
+
+        The code is derived from the category's own code and the pair is unique
+        per company, so a school that renames the category keeps one reason
+        rather than accumulating one per spelling.
+      */
+      const derivedCode = `CAT-${category.code}`;
+      const findReason = () =>
+        tx.schoolMeritReason.findFirst({
+          where: {
             companyId: input.companyId,
-            studentId: input.studentId,
-            termId: input.termId,
             kind: SchoolMeritKind.DEMERIT,
-            reasonId: reason.id,
-            points: category.demeritPoints,
-            incidentId: incident.id,
-            awardedByUserId: input.actorId,
-            note: input.summary.trim(),
+            OR: [{ code: derivedCode }, { name: category.name }],
+            isActive: true,
           },
+          select: { id: true },
         });
+
+      /*
+        Find, create, and find again if the create lost a race.
+
+        `@@unique([companyId, code])` means two teachers logging a Late incident
+        in the same second both find nothing, both try to write `CAT-LATE`, and
+        one gets a unique violation. This whole block runs inside the incident's
+        transaction, so an unhandled violation does not merely skip the demerit
+        — it rolls the incident back. A teacher would lose the form they had
+        just filled in because a colleague pressed save at the same moment.
+      */
+      let reason = await findReason();
+      if (!reason) {
+        try {
+          reason = await tx.schoolMeritReason.create({
+            data: {
+              companyId: input.companyId,
+              code: derivedCode,
+              name: category.name,
+              kind: SchoolMeritKind.DEMERIT,
+              defaultPoints: category.demeritPoints,
+            },
+            select: { id: true },
+          });
+        } catch (error) {
+          if (
+            !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+            error.code !== "P2002"
+          ) {
+            throw error;
+          }
+          reason = await findReason();
+        }
       }
+      if (!reason) {
+        // The row exists under a code or name this lookup does not match — an
+        // inactive one, most likely. Better to log the incident without the
+        // automatic demerit than to lose the incident.
+        throw new ConductError(
+          `A demerit reason for ${category.name} could not be resolved. Log it again, or add the reason under Conduct setup.`,
+        );
+      }
+
+      await tx.schoolMeritEntry.create({
+        data: {
+          companyId: input.companyId,
+          studentId: input.studentId,
+          termId: input.termId,
+          kind: SchoolMeritKind.DEMERIT,
+          reasonId: reason.id,
+          points: category.demeritPoints,
+          incidentId: incident.id,
+          awardedByUserId: input.actorId,
+          note: input.summary.trim(),
+        },
+      });
     }
 
     await writeSchoolAuditEvent(tx, {
@@ -601,7 +687,24 @@ export async function updateIncident(args: {
       data: {
         ...args.data,
         summary: args.data.summary?.trim(),
-        location: args.data.location?.trim() || null,
+        /*
+          Only written when it was actually sent.
+
+          This was `location: args.data.location?.trim() || null`, which turns
+          an ABSENT field into an explicit null: `undefined?.trim()` is
+          `undefined`, and `undefined || null` is `null`. The PATCH route passes
+          `body.location ?? undefined`, so any patch that did not resend the
+          location — deciding a sanction, correcting the summary, changing the
+          period — silently erased where the incident happened.
+
+          An empty string still clears it, which is the reader deliberately
+          rubbing it out. There is a real difference between "not mentioned"
+          and "there is no location", and the old expression could not tell
+          them apart.
+        */
+        ...(args.data.location !== undefined
+          ? { location: args.data.location?.trim() || null }
+          : {}),
         ...(decidingSanction
           ? { sanctionDecidedByUserId: args.actorId, sanctionDecidedAt: new Date() }
           : {}),
@@ -658,6 +761,17 @@ export async function addAccount(args: {
   if (!incident) throw new ConductError("That incident is not on this school's log.");
   if (args.authorKind === "STUDENT" && !args.authorStudentId) {
     throw new ConductError("A pupil's account needs the pupil it came from.");
+  }
+  // And that pupil is on this school's roll. `authorStudentId` arrives in a
+  // request body and the incident page renders the author's name beside their
+  // account, so an unchecked id both attributes a statement to a stranger and
+  // prints their name on a school they do not attend.
+  if (args.authorKind === "STUDENT" && args.authorStudentId) {
+    const author = await prisma.schoolStudent.findFirst({
+      where: { id: args.authorStudentId, companyId: args.companyId },
+      select: { id: true },
+    });
+    if (!author) throw new ConductError("That pupil is not on this school's roll.");
   }
   return prisma.schoolConductAccount.create({
     data: {
@@ -760,10 +874,29 @@ export async function conductParagraph(args: {
 }
 
 /** The categories a school logs under, for the pickers and the filters. */
-export async function conductCategories(companyId: string) {
+/**
+ * The categories an incident can be logged against.
+ *
+ * Active only by default, because every picker in the module reads this and a
+ * retired category must not be offered for a new incident. `includeRetired` is
+ * for the setup screen alone — without it, retiring one would be a door that
+ * locks behind you: the row would vanish from the only screen that could bring
+ * it back.
+ */
+export async function conductCategories(
+  companyId: string,
+  options: { includeRetired?: boolean } = {},
+) {
   return prisma.schoolConductCategory.findMany({
-    where: { companyId, isActive: true },
-    select: { id: true, code: true, name: true, tone: true, demeritPoints: true },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    where: { companyId, ...(options.includeRetired ? {} : { isActive: true }) },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      tone: true,
+      demeritPoints: true,
+      isActive: true,
+    },
+    orderBy: [{ isActive: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
   });
 }

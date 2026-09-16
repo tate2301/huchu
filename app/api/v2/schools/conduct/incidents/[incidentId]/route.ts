@@ -211,7 +211,21 @@ export async function PATCH(
       data: {
         ...body,
         occurredAt: body.occurredAt ? new Date(body.occurredAt) : undefined,
-        location: body.location ?? undefined,
+        /*
+          `location` is passed through as it arrived, `null` included.
+
+          It used to be `body.location ?? undefined`, and `??` catches null —
+          so a reader who cleared the field, which the dialog sends as `null`,
+          had it flattened to "not mentioned". That was harmless while
+          `updateIncident` cleared the column on every patch regardless; now
+          that it only writes the field when it was actually sent, the
+          flattening is the whole difference between clearing a location and
+          silently keeping it while the dialog reports success.
+
+          Three states, and the domain needs all three: absent (zod omits the
+          key), `null` (rub it out), a string (set it).
+        */
+        location: body.location,
         period: body.period ?? undefined,
         sanction: body.sanction ?? undefined,
       },

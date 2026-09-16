@@ -20,6 +20,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { deleteTestCompany } from "@/lib/schools/test-support";
 import {
   isDuplicateLiveInvoice,
   refreshFeeInvoiceBalance,
@@ -138,7 +139,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
+  await deleteTestCompany(companyId);
   await prisma.$disconnect();
 });
 

@@ -18,7 +18,6 @@ import {
 } from "@/components/records/states";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import { CreateButton } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -43,10 +42,15 @@ import { NewSeriesDialog } from "@/components/schools/exams/new-series-dialog";
  * anything will stop the November entry going in, and she wants that answered
  * above the fold, before she has chosen a series.
  *
- * So the deadline leads: the first band chip, then the page's one alert, then a
- * table of the dates that follow it — dates, days and consequences rather than
- * a paragraph each. A missed ZIMSEC deadline costs a pupil a year; there is no
- * appeal and no late door after the late door.
+ * So the deadline leads: the page's one alert, then a table of the dates that
+ * follow it — dates, days and consequences rather than a paragraph each. A
+ * missed ZIMSEC deadline costs a pupil a year; there is no appeal and no late
+ * door after the late door.
+ *
+ * The days left are not counted a second time above that alert. The alert says
+ * them in words, the deadline table draws them on a track, and the `Entries
+ * close` column goes red at a week or less — three places is already two more
+ * than the number needs.
  *
  * Cambridge sits in the same table as ZIMSEC — not a tab, not a second screen —
  * because the school runs both and the deadline that matters is whichever is
@@ -277,35 +281,7 @@ export function ExamSeriesContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            {
-              // First, because it is the only number that can cost a child a
-              // year.
-              label: nearest
-                ? `Days to the ${nearest.boardName} deadline`
-                : "Days to the next deadline",
-              value: nearest ? nearest.days : "—",
-              tone: nearest ? (nearest.days <= 7 ? "danger" : nearest.days <= 21 ? "warn" : "neutral") : "neutral",
-            },
-            { label: "Candidates", value: chips?.candidates ?? "—" },
-            {
-              label: "Entry fees unpaid",
-              value: chips ? formatSchoolMoney(chips.entryFeesUnpaid) : "—",
-              tone: Number(chips?.entryFeesUnpaid ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              <Printer className="size-4" />
-              Print the deadline sheet
-            </Button>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Exam series">
         <CreateButton
           resource="schools.exams"
@@ -334,16 +310,24 @@ export function ExamSeriesContent() {
 
       {lead ? (
         <section className="space-y-2">
-          <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
+          <h2 className="flex items-baseline justify-between gap-3 border-b border-[color:var(--border-subtle)] pb-1.5">
             <span className="text-sm font-semibold text-[color:var(--text-strong)]">
               {lead.series.board.name} {lead.series.name}, {EXAM_LEVEL_LABELS[lead.series.level]}
             </span>
-            <span className="text-xs text-[color:var(--text-muted)]">
-              {lead.series.entriesCloseAt
-                ? `entries close ${formatSchoolDate(lead.series.entriesCloseAt)}${
-                    lead.tallies.daysLeft != null ? ` · ${lead.tallies.daysLeft} days` : ""
-                  }`
-                : "no deadline set"}
+            <span className="flex items-baseline gap-3">
+              <span className="text-xs text-[color:var(--text-muted)]">
+                {lead.series.entriesCloseAt
+                  ? `entries close ${formatSchoolDate(lead.series.entriesCloseAt)}${
+                      lead.tallies.daysLeft != null ? ` · ${lead.tallies.daysLeft} days` : ""
+                    }`
+                  : "no deadline set"}
+              </span>
+              {/* The deadline sheet is this table, so the verb that prints it
+                  sits on it rather than over the page. */}
+              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                <Printer className="size-4" />
+                Print the deadline sheet
+              </Button>
             </span>
           </h2>
           <table className="w-full text-sm">
@@ -505,6 +489,32 @@ export function ExamSeriesContent() {
                 )
               }
             />
+
+            {/* The foot of the columns above it: `Candidates` summed, and what
+                `Invoiced` less `Collected` comes to. Both count only the series
+                still taking entries — a closed series has its candidates
+                registered already and owes the board nothing further — which is
+                why the line names that set rather than saying "total". */}
+            {chips && indexQuery.data && indexQuery.data.counts.open > 0 ? (
+              <div className="flex items-baseline justify-between gap-3 border-t-2 border-[color:var(--border)] px-1 py-2">
+                <span className="text-xs font-semibold text-[color:var(--text-strong)]">
+                  Across the {indexQuery.data.counts.open} series still taking entries
+                </span>
+                <span className="font-mono text-xs text-[color:var(--text-muted)]">
+                  {chips.candidates} candidates ·{" "}
+                  <span
+                    className={
+                      Number(chips.entryFeesUnpaid) > 0
+                        ? "text-[color:var(--tone-warn)]"
+                        : "text-[color:var(--tone-success)]"
+                    }
+                  >
+                    {formatSchoolMoney(chips.entryFeesUnpaid)}
+                  </span>{" "}
+                  in entry fees unpaid
+                </span>
+              </div>
+            ) : null}
           </>
         )}
       </section>

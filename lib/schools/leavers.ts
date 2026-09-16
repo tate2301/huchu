@@ -76,6 +76,45 @@ export const CLEARANCE_ORDER: SchoolLeaverClearanceKind[] = [
 ];
 
 /**
+ * The five clearance rows a new leaver is opened with.
+ *
+ * ## Why this is shared rather than written at each call site
+ *
+ * `closeLeaver` refuses while any mark is `TODO`. A leaver with **no clearance
+ * rows at all** therefore has nothing outstanding and closes unconditionally —
+ * so failing to write these is not a missing feature, it is the check silently
+ * passing.
+ *
+ * That is exactly what happened. `recordLeaver` wrote them; the year roll-up
+ * created its `SchoolLeaver` rows directly and did not, on a stated belief that
+ * "the five clearance marks are proposed from the records that own them the
+ * first time the queue is read". Nothing reads them that way — `deriveClearances`
+ * has one caller, and it is `recordLeaver`. So every November the entire Form 4
+ * and Upper Six cohort, which is where most leavers come from, was opened with
+ * no marks and could be closed without anybody checking whether a book was back
+ * or a bill was paid.
+ *
+ * One definition, both callers.
+ */
+export function clearanceRows(args: {
+  companyId: string;
+  actorId: string | null;
+  derived: Record<SchoolLeaverClearanceKind, { proposed: "DONE" | "TODO" | "NOT_APPLICABLE"; detail: string }>;
+}) {
+  return CLEARANCE_ORDER.map((kind) => ({
+    companyId: args.companyId,
+    kind,
+    state: args.derived[kind].proposed,
+    detail: args.derived[kind].detail,
+    // A mark that is already settled is stamped as settled now. Only `TODO`
+    // is left for somebody to come back to.
+    ...(args.derived[kind].proposed !== "TODO"
+      ? { markedAt: new Date(), markedByUserId: args.actorId }
+      : {}),
+  }));
+}
+
+/**
  * What the five marks look like right now, read from the records that own them.
  *
  * This is the proposal, not the answer: `SchoolLeaverClearance.state` is what
@@ -91,7 +130,9 @@ export async function deriveClearances(args: {
   const [invoices, loans, allocation, student, publishWindows] = await Promise.all([
     prisma.schoolFeeInvoice.findMany({
       where: { companyId, studentId, status: { notIn: ["VOIDED", "DRAFT"] } },
-      select: { invoiceNo: true, balanceAmount: true },
+      // The currency too. A Zimbabwean school bills in USD and in ZWL, and a
+      // total that adds the two is not a number about anything.
+      select: { invoiceNo: true, balanceAmount: true, currency: true },
     }),
     prisma.schoolBookLoan.findMany({
       where: { companyId, studentId, returnedAt: null },
@@ -113,20 +154,34 @@ export async function deriveClearances(args: {
     }),
   ]);
 
-  const owed = invoices.reduce(
-    (total, invoice) => total.plus(invoice.balanceAmount),
-    new Prisma.Decimal(0),
-  );
+  /*
+    Owed per currency, never summed across them.
+
+    This used to add every `balanceAmount` into one Decimal and print it with a
+    hardcoded `$`. A school that bills tuition in USD and a levy in ZWL got a
+    total that was neither, labelled as dollars — and it is the number a bursar
+    reads before deciding whether a child may leave with their results.
+  */
   const owing = invoices.filter((invoice) => invoice.balanceAmount.greaterThan(0));
+  const owedByCurrency = new Map<string, Prisma.Decimal>();
+  for (const invoice of owing) {
+    const current = owedByCurrency.get(invoice.currency) ?? new Prisma.Decimal(0);
+    owedByCurrency.set(invoice.currency, current.plus(invoice.balanceAmount));
+  }
+  const owedLabel = [...owedByCurrency.entries()]
+    .map(([currency, amount]) =>
+      currency === "USD" ? `$${amount.toFixed(2)}` : `${currency} ${amount.toFixed(2)}`,
+    )
+    .join(" and ");
   const window = publishWindows[0];
   const now = new Date();
   const published = window ? window.openAt <= now : false;
 
   return {
-    FEES: owed.greaterThan(0)
+    FEES: owing.length > 0
       ? {
           proposed: "TODO",
-          detail: `$${owed.toFixed(2)} on ${owing.map((invoice) => invoice.invoiceNo).join(", ")}`,
+          detail: `${owedLabel} on ${owing.map((invoice) => invoice.invoiceNo).join(", ")}`,
         }
       : { proposed: "DONE", detail: "Nothing owed" },
     LIBRARY:
@@ -384,7 +439,7 @@ export async function recordLeaver(args: {
     throw new LeaverError(
       existing.status === "OPEN"
         ? `${student.firstName} ${student.lastName} is already in the leaving queue.`
-        : `${student.firstName} ${student.lastName} has already left. A second departure needs the first record reopened.`,
+        : `${student.firstName} ${student.lastName} has already left. Reopen the closed record to put them back in the queue — a pupil gets one leaving record, so a second departure is recorded on the first.`,
     );
   }
 
@@ -402,17 +457,7 @@ export async function recordLeaver(args: {
         reason: args.reason,
         reasonNote: args.reasonNote?.trim() || null,
         openedByUserId: args.actorId,
-        clearances: {
-          create: CLEARANCE_ORDER.map((kind) => ({
-            companyId: args.companyId,
-            kind,
-            state: derived[kind].proposed,
-            detail: derived[kind].detail,
-            ...(derived[kind].proposed !== "TODO"
-              ? { markedAt: new Date(), markedByUserId: args.actorId }
-              : {}),
-          })),
-        },
+        clearances: { create: clearanceRows({ companyId: args.companyId, actorId: args.actorId, derived }) },
       },
       select: { id: true },
     });
@@ -527,6 +572,118 @@ export async function markClearance(args: {
  * the way past it, which is a decision with a name on it rather than a
  * shortcut.
  */
+/**
+ * Put a closed leaver back in the queue.
+ *
+ * ## Why this exists
+ *
+ * `recordLeaver` refuses a second departure with the words "A second departure
+ * needs the first record reopened" — and until now nothing anywhere could
+ * reopen one. `SchoolLeaver.studentId` is `@unique`, so a pupil gets one leaver
+ * row for the whole of their time at a school, and the message named a way out
+ * that did not exist.
+ *
+ * That is not a rare case here. A pupil withdrawn over fees in Term 2 who comes
+ * back in Term 3 and then completes Form 4 properly has to be recorded as a
+ * leaver twice, and the second one is the one that carries their clearance,
+ * their transfer letter and their place on the alumni register. Without a
+ * reopen they simply cannot leave again.
+ *
+ * ## What it undoes
+ *
+ * Everything `closeLeaver` did, because the departure is being redone rather
+ * than merely edited:
+ *
+ * - The pupil goes back on the roll. `closeLeaver` set them GRADUATED or
+ *   WITHDRAWN; if they are leaving again they are here now, and if the record
+ *   was closed by mistake they never left.
+ * - The alumnus row this leaver created is removed. It carries a `classOf` and
+ *   a final class taken from the first departure, and re-closing skips creating
+ *   one where a row already exists — so leaving it would pin a pupil to the
+ *   year they nearly left.
+ * - The five marks are derived again. The pupil has been back at school since,
+ *   so the fees, the books and the bed are different facts now, and re-opening
+ *   onto the old marks would clear them against a term that has ended.
+ *
+ * An alumnus row somebody added by hand is left alone — it has no `leaverId`,
+ * so it was not this record's doing.
+ */
+export async function reopenLeaver(args: {
+  companyId: string;
+  actorId: string;
+  leaverId: string;
+  /** The new last day, where this is a second departure rather than an undo. */
+  lastDay?: Date;
+  reason?: SchoolLeavingReason;
+  note?: string | null;
+}) {
+  const leaver = await prisma.schoolLeaver.findFirst({
+    where: { id: args.leaverId, companyId: args.companyId },
+    select: { id: true, status: true, studentId: true },
+  });
+  if (!leaver) throw new LeaverError("That leaver is not this school's.");
+  if (leaver.status === "OPEN") throw new LeaverError("That record is already open.");
+
+  const derived = await deriveClearances({
+    companyId: args.companyId,
+    studentId: leaver.studentId,
+  });
+
+  return prisma.$transaction(async (tx) => {
+    await tx.schoolLeaverClearance.deleteMany({ where: { leaverId: leaver.id } });
+
+    const reopened = await tx.schoolLeaver.update({
+      where: { id: leaver.id },
+      data: {
+        status: "OPEN",
+        closedAt: null,
+        closedByUserId: null,
+        ...(args.lastDay ? { lastDay: args.lastDay } : {}),
+        ...(args.reason ? { reason: args.reason } : {}),
+        ...(args.note !== undefined ? { reasonNote: args.note } : {}),
+        clearances: {
+          create: clearanceRows({
+            companyId: args.companyId,
+            actorId: args.actorId,
+            derived,
+          }),
+        },
+      },
+      select: { id: true },
+    });
+
+    await tx.schoolStudent.update({
+      where: { id: leaver.studentId },
+      data: { status: "ACTIVE" },
+    });
+
+    /*
+      The alumnus row STAYS.
+
+      This used to delete it, so that re-closing would write a fresh one with
+      the corrected leaving year. That is a bad trade:
+      `SchoolAlumniUpdate.alumnus` cascades, so the row carries the development
+      office's whole timeline — "Graduated BSc Accounting, University of
+      Zimbabwe", the destination, when it was last confirmed — and throwing
+      years of that away to correct a date is not a correction.
+
+      `closeLeaver` refreshes the year and the final class on the existing row
+      instead, which gets the same outcome and keeps the history.
+    */
+
+    await writeSchoolAuditEvent(tx, {
+      companyId: args.companyId,
+      actorId: args.actorId,
+      eventType: "schools.leaver.reopened",
+      entityType: "SchoolLeaver",
+      entityId: leaver.id,
+      payload: { studentId: leaver.studentId, secondDeparture: Boolean(args.lastDay) },
+    });
+
+    return reopened;
+  });
+}
+
 export async function closeLeaver(args: {
   companyId: string;
   actorId: string;
@@ -577,10 +734,32 @@ export async function closeLeaver(args: {
       data: { status: statusAfterLeaving(leaver.reason) },
     });
     const already = await tx.schoolAlumnus.findFirst({
-      where: { studentId: leaver.student.id },
+      where: { companyId: args.companyId, studentId: leaver.student.id },
       select: { id: true },
     });
-    if (!already) {
+    if (already) {
+      /*
+        Refresh rather than skip.
+
+        A pupil who left, was re-admitted and has now left properly already has
+        a row here, carrying the year of the departure that was undone. Skipping
+        left them pinned to the year they nearly left. Only the three facts the
+        departure decides are rewritten; the destination, the notes and the
+        timeline are the development office's and are not touched.
+      */
+      await tx.schoolAlumnus.update({
+        where: { id: already.id },
+        data: {
+          leaverId: leaver.id,
+          classOf: leaver.lastDay.getFullYear(),
+          finalClassName:
+            [leaver.student.currentClass?.name, leaver.student.currentStream?.name]
+              .filter(Boolean)
+              .join(" ") || null,
+          house: leaver.student.house,
+        },
+      });
+    } else {
       await tx.schoolAlumnus.create({
         data: {
           companyId: args.companyId,
