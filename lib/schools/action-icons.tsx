@@ -38,6 +38,13 @@
  * 3. **Direction means direction.** `check-in` points down into the building,
  *    `check-out` points up out of it, and `refund` and `request-changes` both
  *    turn back on themselves. Nobody should have to learn these.
+ *
+ * ## When the union grows
+ *
+ * It did: the conduct, exams and leavers expansion took `SchoolAction` from 27
+ * to 33 while this file sat on a branch, and the merge would not compile until
+ * the six new verbs were given marks. That is the map working — six blank
+ * buttons would have shipped silently, and a build error would not.
  */
 
 import type { SchoolAction } from "@/lib/schools/access";
@@ -49,6 +56,7 @@ import {
   ArrowUDownLeft,
   CalendarCheck,
   CalendarPlus,
+  ChatCircle,
   Check,
   ClipboardList,
   Eye,
@@ -56,15 +64,20 @@ import {
   FileText,
   GearSix,
   Home,
+  ListChecks,
   Lock,
+  Medal,
   Megaphone,
   Money,
+  NoteBlank,
+  NotePencil,
   Pencil,
   Percent,
   Plus,
   Prohibit,
   Scale,
   Send,
+  UserCheck,
   UserPlus,
   XCircle,
   type LucideIcon,
@@ -116,6 +129,30 @@ export const ACTION_ICON: Record<SchoolAction, LucideIcon> = {
   "notify-families": Megaphone,
   reply: ArrowBendUpLeft,
   "book-meeting": CalendarPlus,
+
+  // Conduct. A merit and a demerit are one verb with two signs, so `award`
+  // takes the medal for both — the tone and the word carry which it is, and a
+  // second glyph would make the good news and the bad news look like two
+  // different features.
+  award: Medal,
+  // "Tell home" is a message to a family about their child, not a broadcast.
+  // Deliberately NOT the megaphone `notify-families` uses: that one goes out
+  // to everybody, and a parent receiving a conduct note should not look like
+  // a newsletter.
+  "tell-home": ChatCircle,
+  // Taking the detention register. The same physical act as attendance, so it
+  // takes attendance's mark rather than inventing a second one for it.
+  mark: UserCheck,
+
+  // Public exams. Entering a candidate for a subject is filling in the entry
+  // file, not creating a record.
+  enter: NotePencil,
+
+  // Leavers and alumni. `clear` walks a leaver down a checklist — library
+  // books returned, fees settled — so it is the ticked list; `record` notes
+  // where somebody went afterwards.
+  clear: ListChecks,
+  record: NoteBlank,
 };
 
 /** The mark for an action. */

@@ -515,3 +515,11 @@ export const CalendarPlus = createPhosphorIcon("CalendarPlus", "CalendarPlus");
  */
 export const Tray = createPhosphorIcon("Tray", "Tray");
 export const WarningCircle = createPhosphorIcon("WarningCircle", "WarningCircle");
+
+/**
+ * Marks for the conduct, exams and leavers verbs, which arrived with the
+ * schools expansion after the first pass of `action-icons.tsx`.
+ */
+export const ListChecks = createPhosphorIcon("ListChecks", "ListChecks");
+export const NotePencil = createPhosphorIcon("NotePencil", "NotePencil");
+export const NoteBlank = createPhosphorIcon("NoteBlank", "NoteBlank");
