@@ -367,6 +367,26 @@ These routes are not in the rail today and do not join it. Listed so nobody
 `/schools/finance/class/[classId]`, and the subject and class record pages. Each
 opens from a row on its list.
 
+The class roll is the one worth naming twice. It had no door anywhere in the
+product from the original admin build until the Class column on
+`/schools/students` and the Roll tab on the class record were pointed at it, so
+those two links are load-bearing: take either away and a live, fully-built
+screen goes quiet again.
+
+Two more of these hung on a single link each, and now do not. A class's fees
+open from the Finance year-group grid, from the class record's rail, and from
+the year-group rows under "Where the 90+ sits" on `/schools/finance/arrears` —
+which used to point at the class record in Master Data, the right record for
+the wrong question. The year roll-up opens from the students list and from the
+band on `/management/master-data/schools/years`, the page that owns the year
+boundary the operation belongs to.
+
+A class's marks looked like the same problem and is not: `sheetHref` in
+`components/schools/results/sheet-columns.tsx` is built once and rendered by
+five tables — the results overview, the sheets list, the moderation queue,
+publishing, and the class page itself — so counting the file that holds the
+href undercounts the doors by four. Grep for the *cell*, not the string.
+
 These are redirects and stay redirects: `/schools/fees`,
 `/schools/finance/invoices`, `/schools/finance/receipts`,
 `/schools/finance/refunds`, `/schools/finance/waivers`, `/schools/academics`,

@@ -774,19 +774,22 @@ export function ReportsArrearsContent() {
                         key={row.classId || row.name}
                         className="flex items-baseline justify-between gap-2"
                       >
-                        {/* The year group is a record, and "which form is
-                            carrying the 90+" is a question whose next step is
-                            opening that form. The remainder line and a pupil
-                            with no class have no record behind them, so they
-                            stay plain rather than advertising a destination
-                            they do not have. The truncation is on the cell
-                            because the link is an inline child and will not
-                            clamp itself. */}
+                        {/* "Which form is carrying the 90+" is a question
+                            whose next step is that form's *fees* — the
+                            invoices, who has paid and who has not. It pointed
+                            at the class record in Master Data, which answers
+                            how many places it has and who teaches it: the
+                            right record, the wrong question, and a bursar
+                            three clicks from the list they came to ring.
+
+                            The remainder line and a pupil with no class have
+                            no class behind them, so they stay plain rather
+                            than advertising a destination they do not have.
+                            The truncation is on the cell because the link is
+                            an inline child and will not clamp itself. */}
                         <dt className="block truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
                           {row.classId ? (
-                            <EntityLink
-                              href={`/management/master-data/schools/classes/${row.classId}`}
-                            >
+                            <EntityLink href={`/schools/finance/class/${row.classId}`}>
                               {row.name}
                             </EntityLink>
                           ) : (

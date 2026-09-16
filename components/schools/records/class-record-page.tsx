@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@corelithzw/react";
 
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
 import { RecordMark } from "@/components/records/record-mark";
 import {
   RailSection,
   RecordPageShell,
+  RecordRelated,
   RelatedList,
   type RecordTab,
 } from "@/components/records/record-page-shell";
@@ -190,6 +193,16 @@ export function ClassRecordPage({ classId }: { classId: string }) {
             subtitle: student.studentNo,
             meta: student.currentStream?.name,
           })}
+          // The way in to the register. This tab answers "who is in Form 1
+          // Blue" and stops there — it is a class as *master data*, names and
+          // nothing else. Ringing a parent, narrowing to the boarders, putting
+          // a new pupil in the class or taking one off the roll all happen on
+          // the register, which had no door at all until this one.
+          action={
+            <Button asChild variant="secondary">
+              <Link href={`/schools/students/class/${classId}`}>Open the full roll</Link>
+            </Button>
+          }
         />
       ),
     },
@@ -285,29 +298,54 @@ export function ClassRecordPage({ classId }: { classId: string }) {
       activeTab={activeTab}
       onTabChange={setActiveTab}
       rail={
-        <RailSection title="At a glance">
-          {/* Neither the roll nor the subject count: the band above says
-              "28 of 30" and the section rail carries both counts already. What
-              is left is what a registrar is deciding on — whether there is room,
-              and whether anything on the timetable has nobody against it. */}
-          <GlanceList>
-            <Glance
-              label="Places left"
-              value={
-                record.capacity == null
-                  ? "No limit set"
-                  : String(Math.max(0, record.capacity - onRoll))
-              }
+        <div className="space-y-6">
+          <RailSection title="At a glance">
+            {/* Neither the roll nor the subject count: the band above says
+                "28 of 30" and the section rail carries both counts already.
+                What is left is what a registrar is deciding on — whether there
+                is room, and whether anything on the timetable has nobody
+                against it. */}
+            <GlanceList>
+              <Glance
+                label="Places left"
+                value={
+                  record.capacity == null
+                    ? "No limit set"
+                    : String(Math.max(0, record.capacity - onRoll))
+                }
+              />
+              <Glance
+                label="Subjects with no teacher"
+                value={subjects.filter((entry) => !entry.teacherProfile).length || "None"}
+              />
+            </GlanceList>
+          </RailSection>
+
+          {/*
+            The same class, in the two modules that hold the rest of it. This
+            page is the only one in the product that is *about* a year group,
+            so it is where "what does Form 1 Blue owe" and "has Form 1 Blue
+            been marked" should be one click from, rather than a trip back out
+            to Finance or Results to pick the class off a grid again.
+
+            The roll is deliberately not in this list: it has its own way in at
+            the foot of the Roll tab, under the names it is the fuller version
+            of, and a rail row repeating it would be the same door twice on one
+            screen.
+
+            In the rail rather than the shell's `related` slot because that
+            slot is a desktop-only aside, and a door that disappears on a phone
+            is the failure this exists to fix.
+          */}
+          <RailSection title="This class elsewhere">
+            <RecordRelated
+              items={[
+                { href: `/schools/finance/class/${classId}`, label: "Fees" },
+                { href: `/schools/results/class/${classId}`, label: "Marks" },
+              ]}
             />
-            <Glance
-              label="Subjects with no teacher"
-              value={
-                subjects.filter((entry) => !entry.teacherProfile).length ||
-                "None"
-              }
-            />
-          </GlanceList>
-        </RailSection>
+          </RailSection>
+        </div>
       }
     />
   );
