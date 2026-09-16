@@ -335,10 +335,23 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
                 label: "Award a detention",
                 action: "create",
                 onSelect: () => setDetentionOpen(true),
-                unavailable:
-                  detail.detention.owed > 0
-                    ? `${detail.detention.served} of ${detail.detention.owed} already served for this incident.`
-                    : undefined,
+                /*
+                  No availability guard, deliberately.
+
+                  There was one, keyed on `detail.detention.owed > 0` and
+                  captioned "already served for this incident". Both halves were
+                  wrong: the route calls `detentionStandingFor` WITHOUT an
+                  `incidentId`, so those two numbers are the pupil's standing
+                  across every incident they have ever had — and the guard
+                  therefore refused a detention to any pupil who already owed
+                  one for something else. That is the repeat offender, which is
+                  the pupil a head of year is most often standing there to
+                  award a second detention to.
+
+                  Whether a second detention is right is a judgement, and the
+                  page already shows what is owed on the review spine. Offering
+                  the verb and letting the reader decide is the honest shape.
+                */
               },
             ]}
           />

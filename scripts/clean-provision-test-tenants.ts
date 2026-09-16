@@ -46,8 +46,18 @@ import { prisma } from "@/lib/prisma"
 
 const APPLY = process.argv.includes("--apply")
 
-/** The shape `freshCompany()` generates, and nothing else. */
-const TEST_SLUG = /^provision-[a-z]+-\d+-\d+$/
+/**
+ * The shapes the two provisioning tests generate, and nothing else.
+ *
+ * `lib/retail/provision.test.ts` writes `provision-<label>-<stamp>`;
+ * `lib/schools/provision.test.ts` writes `provision-<stamp>`, with no label.
+ * This matched only the first, so it reported "nothing to do" while the
+ * schools test's tenants piled up — 208 of them on one local database, which is
+ * the fan-out that makes `shelf-price-integrity.test.ts` time out on connect.
+ * The label segment is optional now; the `<digits>-<digits>` tail still has to
+ * be there, so this stays as narrow as it was against a real tenant's slug.
+ */
+const TEST_SLUG = /^provision-(?:[a-z]+-)?\d+-\d+$/
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL ?? ""

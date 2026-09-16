@@ -23,6 +23,13 @@ import { schoolPermissionDenial } from "@/lib/schools/permissions";
  *
  * On the grant: `schools.students` at `edit`. An honour is a fact about a pupil
  * kept on their record, and the office that keeps the roll keeps it.
+ *
+ * There is deliberately no DELETE. One was written and removed before it
+ * shipped: the alumnus record draws honours as a joined sentence in a property
+ * row, so there is no row to hang a remove verb on and nothing anywhere could
+ * have called it. An endpoint with no caller is the exact fault this branch
+ * exists to clear out, and adding one back while writing the fix would have
+ * been a poor joke. Removal arrives with the surface that needs it.
  */
 
 const createSchema = z.object({
@@ -31,8 +38,6 @@ const createSchema = z.object({
   title: z.string().trim().min(1).max(160),
   detail: z.string().trim().max(400).nullish(),
 });
-
-const deleteQuery = z.object({ honourId: z.string().uuid() });
 
 async function pupilOfThisSchool(companyId: string, studentId: string) {
   return prisma.schoolStudent.findFirst({
@@ -110,40 +115,5 @@ export async function POST(
     }
     console.error("[API] POST /api/v2/schools/students/[id]/honours error:", error);
     return errorResponse("Failed to record the honour");
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> },
-) {
-  try {
-    const sessionResult = await validateSession(request);
-    if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-
-    const denied = schoolPermissionDenial(session, "schools.students", "edit");
-    if (denied) return errorResponse(denied, 403);
-
-    const { id } = await context.params;
-    const companyId = session.user.companyId;
-    const { searchParams } = new URL(request.url);
-    const query = deleteQuery.parse(Object.fromEntries(searchParams.entries()));
-
-    // Scoped to the pupil in the URL as well as the company, so an honour id
-    // from another pupil's record cannot be deleted through this door.
-    const removed = await prisma.schoolStudentHonour.deleteMany({
-      where: { id: query.honourId, companyId, studentId: id },
-    });
-    if (removed.count === 0) {
-      return errorResponse("That honour is not on this pupil's record.", 404);
-    }
-    return successResponse({ honourId: query.honourId });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return errorResponse("Validation failed", 400, error.issues);
-    }
-    console.error("[API] DELETE /api/v2/schools/students/[id]/honours error:", error);
-    return errorResponse("Failed to remove the honour");
   }
 }

@@ -17,7 +17,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { logIncident } from "./conduct";
+import { logIncident, updateIncident } from "./conduct";
 
 let companyId: string;
 let termId: string;
@@ -142,5 +142,80 @@ describe("a category that draws demerits", () => {
       summary: "Left a bag in the corridor",
     });
     expect(await prisma.schoolMeritEntry.count({ where: { companyId } })).toBe(before);
+  });
+});
+
+describe("editing an incident's location", () => {
+  /*
+    Two failures, one line apart, and fixing the first created the second.
+
+    `updateIncident` used to write `location: args.data.location?.trim() || null`
+    unconditionally, so `undefined?.trim() || null` turned an ABSENT field into
+    an explicit null — every patch that did not resend the location erased it.
+
+    Guarding on `!== undefined` fixed that and broke clearing, because the route
+    was doing `body.location ?? undefined` and `??` catches null: a reader who
+    rubbed the field out sent `null`, the route flattened it to "not mentioned",
+    and the guard skipped it while the dialog reported success.
+
+    Three states, and all three have to survive the trip.
+  */
+  let incidentId: string;
+
+  beforeAll(async () => {
+    const incident = await logIncident({
+      companyId,
+      actorId: "head-of-year",
+      termId,
+      studentId,
+      categoryId: plainCategoryId,
+      occurredAt: new Date("2026-03-01T09:00:00.000Z"),
+      summary: "Somewhere in particular",
+      location: "Science block",
+    });
+    incidentId = incident.id;
+  });
+
+  it("keeps the location when a patch does not mention it", async () => {
+    await updateIncident({
+      companyId,
+      actorId: "head-of-year",
+      incidentId,
+      data: { summary: "Corrected wording" },
+    });
+    const after = await prisma.schoolConductIncident.findUniqueOrThrow({
+      where: { id: incidentId },
+      select: { location: true, summary: true },
+    });
+    expect(after.summary).toBe("Corrected wording");
+    expect(after.location).toBe("Science block");
+  });
+
+  it("clears the location when it is explicitly sent as null", async () => {
+    await updateIncident({
+      companyId,
+      actorId: "head-of-year",
+      incidentId,
+      data: { location: null },
+    });
+    const after = await prisma.schoolConductIncident.findUniqueOrThrow({
+      where: { id: incidentId },
+      select: { location: true },
+    });
+    expect(after.location).toBeNull();
+  });
+
+  it("sets a new location when one is sent", async () => {
+    await updateIncident({
+      companyId,
+      actorId: "head-of-year",
+      incidentId,
+      data: { location: "The quad" },
+    });
+    const after = await prisma.schoolConductIncident.findUniqueOrThrow({
+      where: { id: incidentId },
+      select: { location: true },
+    });
+    expect(after.location).toBe("The quad");
   });
 });

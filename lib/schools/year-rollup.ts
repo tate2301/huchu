@@ -325,20 +325,50 @@ export async function applyYearRollUp(input: {
     Derived here and written with the leaver row, which is what `recordLeaver`
     has always done and what the roll-up did not.
   */
+  /*
+    Every pupil named in the request is on this school's roll.
+
+    `decisions` arrives from a request body and the loop below writes each
+    `studentId` with `tx.schoolStudent.update({ where: { id } })` — a write
+    Prisma cannot company-scope, because the id is the unique key. Unchecked,
+    one school's roll-up could graduate or withdraw another school's pupils.
+
+    One query for the lot, before anything is written.
+  */
+  const namedIds = [...new Set(input.decisions.map((decision) => decision.studentId))];
+  if (namedIds.length > 0) {
+    const onRoll = await prisma.schoolStudent.count({
+      where: { id: { in: namedIds }, companyId: input.companyId },
+    });
+    if (onRoll !== namedIds.length) {
+      throw new Error("One of those pupils is not on this school's roll.");
+    }
+  }
+
   const leavingDecisions = input.decisions.filter(
     (decision) => decision.action === "GRADUATE" || decision.action === "WITHDRAW",
   );
-  const clearancesByStudent = new Map(
-    await Promise.all(
-      leavingDecisions.map(async (decision) => {
-        const derived = await deriveClearances({
-          companyId: input.companyId,
-          studentId: decision.studentId,
-        });
-        return [decision.studentId, derived] as const;
-      }),
-    ),
-  );
+
+  /*
+    Derived one at a time, not all at once.
+
+    `deriveClearances` runs five queries per pupil. A `Promise.all` over a
+    November Form 4 and Upper Six cohort — two hundred pupils is ordinary — asks
+    for a thousand of them concurrently against a pool `vitest.setup.ts` caps at
+    five and the app sizes in tens, which does not go faster, it times out on
+    acquire. A roll-up is a once-a-year operation a human is watching; serial is
+    the right trade.
+  */
+  const clearancesByStudent = new Map<
+    string,
+    Awaited<ReturnType<typeof deriveClearances>>
+  >();
+  for (const decision of leavingDecisions) {
+    clearancesByStudent.set(
+      decision.studentId,
+      await deriveClearances({ companyId: input.companyId, studentId: decision.studentId }),
+    );
+  }
 
   return prisma.$transaction(async (tx) => {
     // The term being rolled up out of. Its last day is the nearest thing this
@@ -397,7 +427,10 @@ export async function applyYearRollUp(input: {
           // Read before the class is cleared below, because the level is what
           // tells Form 4 from Upper Six and the next statement removes it.
           tx.schoolStudent.findFirst({
-            where: { id: decision.studentId },
+            // Scoped, like every other read in this loop. The guard above
+            // already refused a foreign id, so this is the second lock rather
+            // than the only one.
+            where: { id: decision.studentId, companyId: input.companyId },
             select: { currentClass: { select: { level: true } } },
           }),
         ]);

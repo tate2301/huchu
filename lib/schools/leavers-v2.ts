@@ -351,9 +351,3 @@ export function addHonour(
   });
 }
 
-export function removeHonour(studentId: string, honourId: string) {
-  return fetchJson<{ honourId: string }>(
-    `/api/v2/schools/students/${studentId}/honours?honourId=${encodeURIComponent(honourId)}`,
-    { method: "DELETE" },
-  );
-}

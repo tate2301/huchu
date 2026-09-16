@@ -15,6 +15,7 @@ import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { ExamSeriesTabs } from "@/components/schools/exams/exam-series-tabs";
 import { AddPaperDialog } from "@/components/schools/exams/add-paper-dialog";
+import { MovePaperDialog } from "@/components/schools/exams/move-paper-dialog";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchTimetable,
@@ -50,6 +51,7 @@ import { formatSchoolDayTime } from "@/lib/schools/format";
 export function ExamTimetableContent({ seriesId }: { seriesId: string }) {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [moving, setMoving] = useState<TimetablePaper | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const timetableQuery = useQuery({
@@ -137,6 +139,7 @@ export function ExamTimetableContent({ seriesId }: { seriesId: string }) {
                 <PaperRow
                   key={paper.id}
                   paper={paper}
+                  onMove={() => setMoving(paper)}
                   onRemove={() => remove.mutate(paper.id)}
                   removing={remove.isPending}
                 />
@@ -145,6 +148,23 @@ export function ExamTimetableContent({ seriesId }: { seriesId: string }) {
           </table>
         </>
       )}
+
+      <MovePaperDialog
+        // Keyed on the paper, so opening a second one starts from ITS date
+        // rather than the one before it.
+        key={moving?.id ?? "closed"}
+        seriesId={seriesId}
+        paper={moving}
+        onOpenChange={(open) => setMoving(open ? moving : null)}
+        onMoved={() => {
+          void queryClient.invalidateQueries({
+            queryKey: ["schools", "exams", "timetable", seriesId],
+          });
+          void queryClient.invalidateQueries({
+            queryKey: ["schools", "exams", "seating", seriesId],
+          });
+        }}
+      />
 
       <AddPaperDialog
         // A fresh dialog every time it opens. The reader is copying twenty
@@ -171,10 +191,12 @@ export function ExamTimetableContent({ seriesId }: { seriesId: string }) {
 
 function PaperRow({
   paper,
+  onMove,
   onRemove,
   removing,
 }: {
   paper: TimetablePaper;
+  onMove: () => void;
   onRemove: () => void;
   removing: boolean;
 }) {
@@ -201,6 +223,14 @@ function PaperRow({
           label={`Row actions for ${paper.subject.name} ${paper.code}`}
           resource="schools.exams"
           verbs={[
+            {
+              // Boards reschedule, and a seated paper cannot be taken off — so
+              // without this a paper that moved was uncorrectable and the hall
+              // would have been laid out for an abandoned morning.
+              label: "Move it",
+              action: "enter",
+              onSelect: onMove,
+            },
             {
               label: "Take off the timetable",
               action: "enter",

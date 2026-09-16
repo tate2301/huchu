@@ -744,14 +744,34 @@ export async function enterSubject(args: {
         409,
       );
     }
+
+    /*
+      The fee is repriced only where nothing has been billed for it yet.
+
+      `withdrawEntry` deliberately keeps `feeInvoiceId` — its own comment says a
+      withdrawal after the amendment deadline is not refunded — and
+      `invoiceEntries` only picks up entries with `feeInvoiceId: null`. So a
+      revived entry that was already invoiced is correctly not billed a second
+      time.
+
+      But its `fee` must not move either. `listSeries` computes what a series
+      has invoiced by summing `entry.fee` across entries that have an invoice,
+      so repricing an already-invoiced entry silently walks the series'
+      "invoiced" total away from what the family was actually charged — and that
+      total is what a bursar reconciles the board's bill against.
+
+      An uninvoiced revival IS repriced, which is the point: a subject picked
+      back up after the deadline attracts the late fee it now attracts, not the
+      one it attracted in June.
+    */
+    const alreadyBilled = existing.feeInvoiceId !== null;
+
     return prisma.schoolExamEntry.update({
       where: { id: existing.id },
       data: {
         status: "DRAFT",
         withdrawnAt: null,
-        isLate,
-        fee: fee ?? null,
-        currency: series.currency,
+        ...(alreadyBilled ? {} : { isLate, fee: fee ?? null, currency: series.currency }),
       },
       select: { id: true, isLate: true, fee: true },
     });

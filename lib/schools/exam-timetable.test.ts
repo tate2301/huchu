@@ -411,6 +411,100 @@ describe("entering a candidate for a subject", () => {
     expect(row.withdrawnAt).toBeNull();
   });
 
+  it("does not reprice a revived entry that was already invoiced", async () => {
+    /*
+      `withdrawEntry` keeps `feeInvoiceId` on purpose — a withdrawal after the
+      amendment deadline is not refunded — and `invoiceEntries` only picks up
+      entries with no invoice, so a revived entry is correctly not billed twice.
+
+      Its `fee` must not move either. `listSeries` computes what a series has
+      invoiced by summing `entry.fee` across entries that have an invoice, so
+      repricing an already-invoiced entry walks that total away from what the
+      family was actually charged — and it is the figure a bursar reconciles the
+      board's bill against.
+    */
+    const student = await prisma.schoolStudent.create({
+      data: {
+        companyId,
+        studentNo: `RP-${Date.now()}`,
+        firstName: "Farai",
+        lastName: "Sibanda",
+        status: "ACTIVE",
+      },
+    });
+    const billed = await prisma.schoolCandidate.create({
+      data: { companyId, seriesId, studentId: student.id, candidateNumber: "0400" },
+    });
+
+    const entry = await enterSubject({
+      companyId,
+      actorId: "test",
+      seriesId,
+      candidateId: billed.id,
+      examSubjectId: shonaId,
+    });
+
+    // Bill it at 12.00, then withdraw it.
+    await prisma.schoolExamEntry.update({
+      where: { id: entry.id },
+      data: { fee: "12.00", isLate: false, status: "WITHDRAWN", withdrawnAt: new Date() },
+    });
+    const year = await prisma.schoolAcademicYear.create({
+      data: {
+        companyId,
+        code: `Y${Date.now()}`,
+        name: "2026",
+        startDate: new Date("2026-01-01"),
+        endDate: new Date("2026-12-31"),
+      },
+    });
+    const term = await prisma.schoolTerm.create({
+      data: {
+        companyId,
+        academicYearId: year.id,
+        code: `T${Date.now()}`,
+        name: "Term 3",
+        startDate: new Date("2026-09-01"),
+        endDate: new Date("2026-12-04"),
+      },
+    });
+    const invoice = await prisma.schoolFeeInvoice.create({
+      data: {
+        companyId,
+        studentId: student.id,
+        termId: term.id,
+        invoiceNo: `EXM-${Date.now()}`,
+        status: "ISSUED",
+        issueDate: new Date(),
+        dueDate: new Date(),
+        currency: "USD",
+        totalAmount: "12.00",
+        balanceAmount: "12.00",
+      },
+    });
+    await prisma.schoolExamEntry.update({
+      where: { id: entry.id },
+      data: { feeInvoiceId: invoice.id },
+    });
+
+    await enterSubject({
+      companyId,
+      actorId: "test",
+      seriesId,
+      candidateId: billed.id,
+      examSubjectId: shonaId,
+    });
+
+    const after = await prisma.schoolExamEntry.findUniqueOrThrow({
+      where: { id: entry.id },
+      select: { status: true, fee: true, feeInvoiceId: true },
+    });
+    expect(after.status).toBe("DRAFT");
+    // Repriced would be the series' own feePerSubject, or null. It is neither.
+    expect(after.fee?.toFixed(2)).toBe("12.00");
+    expect(after.feeInvoiceId).toBe(invoice.id);
+  });
+
   it("refuses a subject the candidate is already entered for, by name", async () => {
     await expect(
       enterSubject({

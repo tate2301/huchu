@@ -37,6 +37,27 @@ import { formatSchoolDayTime } from "@/lib/schools/format";
  * owed and one picked is a real state — the second is set later, when next
  * week's sitting exists — and the register carries "1 of 2" for exactly that.
  */
+/**
+ * What `POST /conduct/detention/awards` will accept in `reason`.
+ *
+ * The caller builds this from the incident's category and summary, and an
+ * incident summary is allowed 500 characters while a category name is allowed
+ * 80 — so the obvious `${category} — ${summary}` overruns this by a factor of
+ * three on a wordy incident. The route answers 400, and this dialog has no
+ * reason field to correct, so the award became impossible for exactly the
+ * incidents most likely to need one.
+ */
+const REASON_MAX = 200;
+
+/** Clip on a word where there is one, so the register reads as a sentence. */
+function clipReason(reason: string): string {
+  const trimmed = reason.trim();
+  if (trimmed.length <= REASON_MAX) return trimmed;
+  const cut = trimmed.slice(0, REASON_MAX - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > REASON_MAX - 40 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
 export function AwardDetentionDialog({
   open,
   onOpenChange,
@@ -58,17 +79,7 @@ export function AwardDetentionDialog({
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const sessionsQuery = useQuery({
-    queryKey: ["schools", "conduct", "detention", "sessions", "upcoming"],
-    queryFn: () => fetchDetentionSessions({ limit: 30 }),
-    enabled: open,
-  });
-
   /*
-    Only sittings that have not happened. A detention awarded into last
-    Friday's register is a pupil marked absent from a sitting they were never
-    told about, and the register is the document a school is asked for later.
-
     The cutoff is taken once, when the dialog mounts, rather than read during
     render. Reading the clock in a `useMemo` is impure — and the behaviour is
     better this way too: a list that re-sorted itself under the reader's cursor
@@ -77,6 +88,25 @@ export function AwardDetentionDialog({
     reading.
   */
   const [openedAt] = useState(() => Date.now());
+  const from = new Date(openedAt).toISOString();
+
+  /*
+    `from` is sent to the SERVER, not applied afterwards.
+
+    `detentionSessions` orders `startsAt: "asc"` and takes the first `limit`, so
+    asking for 30 and filtering to future ones in the browser fetches the
+    term's EARLIEST thirty — which by half term are all in the past. The list
+    then came back empty and the dialog said "no sitting is set up ahead of
+    today" to a school with a sitting every Friday.
+
+    The client-side filter below stays as belt and braces for the boundary
+    case where a sitting starts between the request and the render.
+  */
+  const sessionsQuery = useQuery({
+    queryKey: ["schools", "conduct", "detention", "sessions", "upcoming", from],
+    queryFn: () => fetchDetentionSessions({ from, limit: 30 }),
+    enabled: open,
+  });
 
   const upcoming = useMemo(
     () =>
@@ -91,7 +121,7 @@ export function AwardDetentionDialog({
       awardDetention({
         studentId,
         incidentId,
-        reason: defaultReason || null,
+        reason: defaultReason ? clipReason(defaultReason) : null,
         sessionsOwed: Number(owed || 1),
         sessionIds: picked,
       }),
@@ -152,6 +182,23 @@ export function AwardDetentionDialog({
           <Label>Sittings</Label>
           {sessionsQuery.isPending ? (
             <p className="text-xs text-[color:var(--text-muted)]">Reading the sittings…</p>
+          ) : sessionsQuery.error ? (
+            /*
+              A failed fetch is not an empty term. Rendering the "nothing is set
+              up" copy on an error is the false-empty defect this whole branch
+              exists to fix, and it would have told a head of year to create a
+              sitting that already exists.
+            */
+            <p className="text-xs text-[color:var(--tone-danger)]">
+              The sittings could not be read, so there is nothing to choose from yet.{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2"
+                onClick={() => void sessionsQuery.refetch()}
+              >
+                Try again
+              </button>
+            </p>
           ) : upcoming.length === 0 ? (
             <p className="text-xs text-[color:var(--text-muted)]">
               No detention sitting is set up ahead of today, and a detention is served at
