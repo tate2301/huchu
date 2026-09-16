@@ -319,3 +319,41 @@ export function addAlumniUpdate(
     body: JSON.stringify(input),
   });
 }
+
+export type HonourKind = "PRIZE" | "COLOURS" | "POST" | "OTHER";
+
+export const HONOUR_KIND_LABELS: Record<HonourKind, string> = {
+  POST: "Post of responsibility",
+  COLOURS: "Colours",
+  PRIZE: "Prize",
+  OTHER: "Other",
+};
+
+/**
+ * Record something a pupil won while they were here.
+ *
+ * `SchoolStudentHonour` shipped, is read by the alumnus record, and was written
+ * by nothing — so the Honours section was empty on every alumnus and no school
+ * could put anything in it. Head girl, head of house, full colours, the
+ * accounting prize: it is what a school reads out at prize giving and writes
+ * into a leaving reference years later.
+ *
+ * Hung off the pupil, not the alumnus: an honour is won in Form 3 and the
+ * alumnus row does not exist until they leave.
+ */
+export function addHonour(
+  studentId: string,
+  input: { kind: HonourKind; year: number; title: string; detail?: string | null },
+) {
+  return fetchJson<{ id: string }>(`/api/v2/schools/students/${studentId}/honours`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function removeHonour(studentId: string, honourId: string) {
+  return fetchJson<{ honourId: string }>(
+    `/api/v2/schools/students/${studentId}/honours?honourId=${encodeURIComponent(honourId)}`,
+    { method: "DELETE" },
+  );
+}

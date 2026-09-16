@@ -21,6 +21,7 @@ import {
   fetchAlumnus,
 } from "@/lib/schools/leavers-v2";
 import { formatSchoolDate } from "@/lib/schools/format";
+import { AddHonourDialog } from "@/components/schools/leavers/add-honour-dialog";
 import { AddTimelineDialog } from "@/components/schools/leavers/add-timeline-dialog";
 
 /**
@@ -39,6 +40,7 @@ import { AddTimelineDialog } from "@/components/schools/leavers/add-timeline-dia
 export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [honourOpen, setHonourOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({
@@ -95,6 +97,25 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
               label: "Add to the timeline",
               action: "record",
               onSelect: () => setAddOpen(true),
+            },
+            /*
+              `SchoolStudentHonour` is read three rows below this, under "Prizes
+              and colours", and nothing in the product could write one — so it
+              said "None recorded" on every alumnus in every school. Head girl,
+              full colours, the accounting prize: it is what somebody writes
+              into a reference years later.
+
+              Unavailable where the alumnus has no pupil record behind them: an
+              honour hangs off the pupil, because it is won in Form 3 and the
+              alumnus row does not exist until they leave.
+            */
+            {
+              label: "Record an honour",
+              action: "record",
+              onSelect: () => setHonourOpen(true),
+              unavailable: alumnus.studentId
+                ? undefined
+                : "This alumnus was added by hand and has no pupil record to hang an honour on.",
             },
           ]}
         />
@@ -284,6 +305,23 @@ export function AlumnusRecordPage({ alumnusId }: { alumnusId: string }) {
         isSaving={add.isPending}
         onSubmit={(values) => add.mutate(values)}
       />
+
+      {alumnus.studentId ? (
+        <AddHonourDialog
+          // Fresh fields each open: an office recording a leaver's prizes is
+          // entering several in a row.
+          key={honourOpen ? "open" : "closed"}
+          studentId={alumnus.studentId}
+          open={honourOpen}
+          onOpenChange={setHonourOpen}
+          // The year they left is the one most of these were won in or near,
+          // and it is the one the office is holding.
+          defaultYear={alumnus.classOf}
+          onSaved={() =>
+            void queryClient.invalidateQueries({ queryKey: ["schools", "alumni", alumnusId] })
+          }
+        />
+      ) : null}
     </SchoolsPage>
   );
 }
