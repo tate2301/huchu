@@ -330,7 +330,7 @@ export function LeaversContent() {
                     confirm: {
                       title: `Reopen ${row.original.student.firstName} ${row.original.student.lastName}'s record`,
                       description:
-                        "They go back on the roll and come off the alumni register, and the five marks are worked out again from where the fees, the books and the bed stand today.",
+                        "They go back on the roll and the five marks are worked out again from where the fees, the books and the bed stand today. Their alumni record and everything on its timeline stay exactly as they are.",
                       confirmLabel: "Reopen it",
                     },
                     onSelect: () => reopen.mutate(row.original.id),

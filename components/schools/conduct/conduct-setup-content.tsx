@@ -70,8 +70,18 @@ export function ConductSetupContent() {
   const demerits = demeritsQuery.data?.rows ?? [];
 
   const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ["schools", "conduct", "categories"] });
-    void queryClient.invalidateQueries({ queryKey: ["schools", "conduct", "reasons"] });
+    /*
+      The whole `conduct` prefix, not the two keys this screen happens to use.
+
+      The reason a school adds here is read by the award dialog on the merits
+      screen, which keys its copy `["schools","conduct","merits","reasons"]` —
+      so invalidating `["schools","conduct","reasons"]` prefix-matches this
+      screen's own queries and not that one. Somebody adding a reason and going
+      straight to award it would not see it until the cache went stale on its
+      own. Conduct lists are small and cheap to refetch; the wide prefix is the
+      right trade.
+    */
+    void queryClient.invalidateQueries({ queryKey: ["schools", "conduct"] });
   };
 
   const active =

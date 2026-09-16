@@ -495,8 +495,8 @@ export async function logIncident(input: LogIncidentInput) {
         rather than accumulating one per spelling.
       */
       const derivedCode = `CAT-${category.code}`;
-      const reason =
-        (await tx.schoolMeritReason.findFirst({
+      const findReason = () =>
+        tx.schoolMeritReason.findFirst({
           where: {
             companyId: input.companyId,
             kind: SchoolMeritKind.DEMERIT,
@@ -504,17 +504,49 @@ export async function logIncident(input: LogIncidentInput) {
             isActive: true,
           },
           select: { id: true },
-        })) ??
-        (await tx.schoolMeritReason.create({
-          data: {
-            companyId: input.companyId,
-            code: derivedCode,
-            name: category.name,
-            kind: SchoolMeritKind.DEMERIT,
-            defaultPoints: category.demeritPoints,
-          },
-          select: { id: true },
-        }));
+        });
+
+      /*
+        Find, create, and find again if the create lost a race.
+
+        `@@unique([companyId, code])` means two teachers logging a Late incident
+        in the same second both find nothing, both try to write `CAT-LATE`, and
+        one gets a unique violation. This whole block runs inside the incident's
+        transaction, so an unhandled violation does not merely skip the demerit
+        — it rolls the incident back. A teacher would lose the form they had
+        just filled in because a colleague pressed save at the same moment.
+      */
+      let reason = await findReason();
+      if (!reason) {
+        try {
+          reason = await tx.schoolMeritReason.create({
+            data: {
+              companyId: input.companyId,
+              code: derivedCode,
+              name: category.name,
+              kind: SchoolMeritKind.DEMERIT,
+              defaultPoints: category.demeritPoints,
+            },
+            select: { id: true },
+          });
+        } catch (error) {
+          if (
+            !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+            error.code !== "P2002"
+          ) {
+            throw error;
+          }
+          reason = await findReason();
+        }
+      }
+      if (!reason) {
+        // The row exists under a code or name this lookup does not match — an
+        // inactive one, most likely. Better to log the incident without the
+        // automatic demerit than to lose the incident.
+        throw new ConductError(
+          `A demerit reason for ${category.name} could not be resolved. Log it again, or add the reason under Conduct setup.`,
+        );
+      }
 
       await tx.schoolMeritEntry.create({
         data: {

@@ -657,10 +657,19 @@ export async function reopenLeaver(args: {
       data: { status: "ACTIVE" },
     });
 
-    // Only the row this leaver created. One added by hand has no `leaverId`.
-    await tx.schoolAlumnus.deleteMany({
-      where: { companyId: args.companyId, leaverId: leaver.id },
-    });
+    /*
+      The alumnus row STAYS.
+
+      This used to delete it, so that re-closing would write a fresh one with
+      the corrected leaving year. That is a bad trade:
+      `SchoolAlumniUpdate.alumnus` cascades, so the row carries the development
+      office's whole timeline — "Graduated BSc Accounting, University of
+      Zimbabwe", the destination, when it was last confirmed — and throwing
+      years of that away to correct a date is not a correction.
+
+      `closeLeaver` refreshes the year and the final class on the existing row
+      instead, which gets the same outcome and keeps the history.
+    */
 
     await writeSchoolAuditEvent(tx, {
       companyId: args.companyId,
@@ -725,10 +734,32 @@ export async function closeLeaver(args: {
       data: { status: statusAfterLeaving(leaver.reason) },
     });
     const already = await tx.schoolAlumnus.findFirst({
-      where: { studentId: leaver.student.id },
+      where: { companyId: args.companyId, studentId: leaver.student.id },
       select: { id: true },
     });
-    if (!already) {
+    if (already) {
+      /*
+        Refresh rather than skip.
+
+        A pupil who left, was re-admitted and has now left properly already has
+        a row here, carrying the year of the departure that was undone. Skipping
+        left them pinned to the year they nearly left. Only the three facts the
+        departure decides are rewritten; the destination, the notes and the
+        timeline are the development office's and are not touched.
+      */
+      await tx.schoolAlumnus.update({
+        where: { id: already.id },
+        data: {
+          leaverId: leaver.id,
+          classOf: leaver.lastDay.getFullYear(),
+          finalClassName:
+            [leaver.student.currentClass?.name, leaver.student.currentStream?.name]
+              .filter(Boolean)
+              .join(" ") || null,
+          house: leaver.student.house,
+        },
+      });
+    } else {
       await tx.schoolAlumnus.create({
         data: {
           companyId: args.companyId,

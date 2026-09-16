@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -67,6 +68,30 @@ export async function POST(request: NextRequest) {
     const body = createSchema.parse(await request.json());
     const companyId = session.user.companyId;
 
+    /*
+      A `boardId` or `subjectId` in a request body is a claim.
+
+      Both are written straight into a row stamped with THIS company's
+      `companyId`, so an unchecked one hangs this school's centre number or
+      syllabus off another school's board — a row the victim school can see on
+      its own reference screen and cannot explain, and one that makes its board
+      list disagree with its own series.
+    */
+    if (body.kind !== "board") {
+      const board = await prisma.schoolExamBoard.findFirst({
+        where: { id: body.boardId, companyId },
+        select: { id: true },
+      });
+      if (!board) return errorResponse("That exam board is not this school's.", 404);
+    }
+    if (body.kind === "subject" && body.subjectId) {
+      const subject = await prisma.schoolSubject.findFirst({
+        where: { id: body.subjectId, companyId },
+        select: { id: true },
+      });
+      if (!subject) return errorResponse("That subject is not this school's.", 404);
+    }
+
     if (body.kind === "board") {
       const board = await prisma.schoolExamBoard.create({
         data: { companyId, code: body.code, name: body.name },
@@ -101,6 +126,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
+    }
+    // A school typing its syllabus list in will reach for a code it already
+    // used. `@@unique([companyId, boardId, code, level])` and its siblings are
+    // right to refuse it; a raw 500 is not the way to say so.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("Something with that code already exists for this school.", 409);
     }
     console.error("[API] POST /api/v2/schools/exams/reference error:", error);
     return errorResponse("Failed to add it");

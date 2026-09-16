@@ -578,13 +578,77 @@ describe("a pupil who leaves, comes back, and leaves again", () => {
     // the fees, the books and the bed are different facts now.
     expect(reopened.clearances).toHaveLength(CLEARANCE_ORDER.length);
 
-    // Back on the roll, and off the alumni register the first close put them on
-    // — that row carried the year they nearly left.
+    // Back on the roll.
     const pupil = await prisma.schoolStudent.findUniqueOrThrow({
       where: { id: studentId },
       select: { status: true },
     });
     expect(pupil.status).toBe("ACTIVE");
-    expect(await prisma.schoolAlumnus.count({ where: { companyId, studentId } })).toBe(0);
+
+    /*
+      And the alumni record SURVIVES.
+
+      Reopening used to delete it so that re-closing would write a fresh one
+      with the corrected year. `SchoolAlumniUpdate` cascades from the alumnus,
+      so that threw away the development office's whole timeline — the degree,
+      the destination, when it was last confirmed — to correct a date.
+      `closeLeaver` refreshes the year on the existing row instead.
+    */
+    expect(await prisma.schoolAlumnus.count({ where: { companyId, studentId } })).toBe(1);
+  });
+
+  it("corrects the leaving year on the existing alumni record when it closes again", async () => {
+    const studentId = await makeStudent(formSixId, termOneId);
+    await applyYearRollUp({
+      companyId,
+      fromTermId: termOneId,
+      toTermId: termTwoId,
+      decisions: [{ studentId, action: "WITHDRAW" }],
+    });
+    const leaver = await prisma.schoolLeaver.findFirstOrThrow({
+      where: { companyId, studentId },
+      select: { id: true },
+    });
+    await prisma.schoolLeaverClearance.updateMany({
+      where: { leaverId: leaver.id },
+      data: { state: "DONE" },
+    });
+    await closeLeaver({ companyId, actorId: studentId, leaverId: leaver.id });
+
+    const first = await prisma.schoolAlumnus.findFirstOrThrow({
+      where: { companyId, studentId },
+      select: { id: true, classOf: true },
+    });
+    // A note the development office made, which must survive all of this.
+    await prisma.schoolAlumniUpdate.create({
+      data: {
+        companyId,
+        alumnusId: first.id,
+        happenedOn: date("2027-02-01"),
+        summary: "Reading Accounting at UZ",
+      },
+    });
+
+    await reopenLeaver({
+      companyId,
+      actorId: studentId,
+      leaverId: leaver.id,
+      lastDay: date("2029-12-07"),
+      reason: "COMPLETED_UPPER_6",
+    });
+    await prisma.schoolLeaverClearance.updateMany({
+      where: { leaverId: leaver.id },
+      data: { state: "DONE" },
+    });
+    await closeLeaver({ companyId, actorId: studentId, leaverId: leaver.id });
+
+    const after = await prisma.schoolAlumnus.findFirstOrThrow({
+      where: { companyId, studentId },
+      select: { id: true, classOf: true, updates: { select: { summary: true } } },
+    });
+    // Same row, corrected year, timeline intact.
+    expect(after.id).toBe(first.id);
+    expect(after.classOf).toBe(2029);
+    expect(after.updates.map((u) => u.summary)).toContain("Reading Accounting at UZ");
   });
 });
