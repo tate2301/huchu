@@ -358,7 +358,7 @@ export function StudentGoalsScreen() {
         <NothingYet
           icon={<TrendingUp className="size-5" aria-hidden />}
           title="No subjects yet"
-          body="Goals are set per subject, and your year group has none on the timetable for this term. Ask the office once your subjects are set up."
+          body="Goals are set per subject, and your class has none on the timetable for this term. Ask the office once your subjects are set up."
         />
       ) : (
         /* The whole list dims while a goal is saving. Two taps on a slow

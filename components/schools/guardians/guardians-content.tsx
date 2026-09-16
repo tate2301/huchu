@@ -44,6 +44,7 @@ import {
   type GuardianFormValues,
 } from "./guardian-form-dialog";
 import { RELATIONSHIP_OPTIONS } from "./relationships";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The guardians list.
@@ -55,7 +56,7 @@ import { RELATIONSHIP_OPTIONS } from "./relationships";
  * way to take a guardian off the books at all. The row verbs and the create
  * button below are that gap closed.
  *
- * The filters answer the questions the office actually arrives with. Year group
+ * The filters answer the questions the office actually arrives with. Class
  * is the first of them: fee letters, results evenings and disciplinary calls are
  * all organised a form at a time, and "the parents of Form 2" was not a list
  * this screen could produce. It filters through the child, so a guardian with
@@ -375,6 +376,7 @@ export function GuardiansContent() {
     [rowVerbs],
   );
 
+  const words = useClassVocabulary();
   const listRows = useMemo<RecordListRow[]>(
     () =>
       guardians.map((guardian) => ({
@@ -496,8 +498,8 @@ export function GuardiansContent() {
         filters={
           <>
             <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
+              label={words.One}
+              allLabel={`Every ${words.one}`}
               value={classId}
               options={yearGroupOptions}
               onChange={setClassId}

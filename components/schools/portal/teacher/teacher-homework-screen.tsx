@@ -673,7 +673,7 @@ export function TeacherHomeworkScreen() {
         ) : boardData && boardData.rows.length === 0 ? (
           <NothingYet
             title="Nobody is on this class list"
-            body="No active pupil has this class as their year group, so there is nobody to hand it in."
+            body="No pupil on the roll is in this class, so there is nobody to hand it in."
           />
         ) : (
           /* One mark at a time, and the row being written is the one that must

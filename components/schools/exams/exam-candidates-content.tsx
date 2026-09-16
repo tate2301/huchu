@@ -225,11 +225,11 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
           resource="schools.exams"
           verbs={[
             {
-              label: "Register the year group",
+              label: "Register the class",
               action: "enter",
               loading: register.isPending,
               confirm: {
-                title: "Register the year group as candidates",
+                title: "Register the class as candidates",
                 description:
                   "Every pupil on the roll for this cohort becomes a candidate with a number, in surname order. Nobody is entered for a subject yet, and a pupil with a missing birth certificate is still created — that is work the office has to see, not work to hide.",
                 confirmLabel: "Register them",
@@ -491,7 +491,7 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
                 ) : (
                   <NothingYet
                     title="Nobody has been registered for this series"
-                    body="Register the year group and every pupil on the roll becomes a candidate with a number."
+                    body="Register the class and every pupil on the roll becomes a candidate with a number."
                   />
                 )
               }

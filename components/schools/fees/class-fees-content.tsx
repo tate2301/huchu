@@ -47,7 +47,7 @@ const STATUS_OPTIONS = [
 ];
 
 /**
- * One year group's fees.
+ * One class's fees.
  *
  * A bursar chasing arrears works a form at a time — "who in Form 2 still owes"
  * — not down a list of every invoice in the school. The class filter goes
@@ -58,7 +58,7 @@ const STATUS_OPTIONS = [
  * The outstanding total leads, because that is the number the conversation is
  * about. Every row now carries the verb that ends the conversation: before
  * this, the only way to take the money you had just rung a parent about was to
- * leave the year group, open the whole-school ledger, and find the invoice
+ * leave the class, open the whole-school ledger, and find the invoice
  * again by its number.
  */
 export function ClassFeesContent({
@@ -136,7 +136,7 @@ export function ClassFeesContent({
   }, [invoicesQuery.data, search]);
 
   // How many bills in view still owe something. Not a summary chip — the
-  // screen no longer carries a band — but the test behind "this year group is
+  // screen no longer carries a band — but the test behind "this class is
   // settled", which is a sentence rather than a total.
   const owing = invoices.filter((invoice) => invoice.balanceAmount > 0).length;
 
@@ -219,7 +219,7 @@ export function ClassFeesContent({
     A table, not a row list.
 
     The question this screen is opened with is a column question — who in this
-    year group still owes, and how much — and a stack of two-line rows cannot
+    class still owes, and how much — and a stack of two-line rows cannot
     answer it because the figures never line up. Below `md` it becomes the row
     list it used to be everywhere, because seven columns at 390px is a table
     you have to operate rather than one you can read.
@@ -296,7 +296,7 @@ export function ClassFeesContent({
   if (invoicesQuery.error) {
     return (
       <LoadError
-        what="this year group's invoices"
+        what="this class's invoices"
         error={invoicesQuery.error}
         onRetry={() => invoicesQuery.refetch()}
       />
@@ -315,11 +315,11 @@ export function ClassFeesContent({
       {discard.error ? <SaveError what="The draft" error={discard.error} /> : null}
 
       {/* Good news, said out loud — but the rows stay, because "show me the
-          Form 2 bills" is still a reasonable thing to want on a year group
+          Form 2 bills" is still a reasonable thing to want on a class
           that has settled. */}
       {!invoicesQuery.isPending && invoices.length > 0 && owing === 0 ? (
         <NothingLeftToDo
-          title="This year group is settled"
+          title="This class is settled"
           body={`All ${invoices.length} invoices are paid or written off.`}
         />
       ) : null}
@@ -422,7 +422,7 @@ export function ClassFeesContent({
             />
           ) : (
             <NothingYet
-              title="Nothing billed to this year group yet"
+              title="Nothing billed to this class yet"
               body="Generate a term's invoices from its fee sheet on the whole-school ledger."
             />
           )

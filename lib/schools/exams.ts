@@ -524,7 +524,7 @@ export async function candidatesOutsideTheRule(args: {
 }
 
 /**
- * Register the year group as candidates.
+ * Register the class as candidates.
  *
  * One act, and the one the roll exists for: every `ACTIVE` pupil in the cohort
  * becomes a candidate in `DRAFT`. It allocates candidate numbers in surname
@@ -562,7 +562,7 @@ export async function registerCohort(args: {
   });
   if (pupils.length === 0) {
     throw new ExamError(
-      "There is nobody on the roll for that year group, so there is no cohort to register.",
+      "There is nobody on the roll for that class, so there is no cohort to register.",
     );
   }
 

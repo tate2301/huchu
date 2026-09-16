@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { CohortLevelSelect } from "@/components/schools/exams/cohort-level-select";
 import {
   EXAM_LEVEL_LABELS,
   SERIES_STATUS_LABELS,
@@ -302,15 +303,11 @@ export function EditSeriesDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-series-cohort">Year group that sits it</Label>
-            <Input
+            <Label htmlFor="edit-series-cohort">Who sits it</Label>
+            <CohortLevelSelect
               id="edit-series-cohort"
-              type="number"
-              min={1}
-              max={13}
               value={cohortLevel}
-              onChange={(event) => setCohortLevel(event.target.value)}
-              placeholder="4"
+              onChange={setCohortLevel}
             />
           </div>
 

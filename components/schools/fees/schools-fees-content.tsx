@@ -103,6 +103,7 @@ import {
   WaiverStatusBadge,
 } from "@/components/schools/fees/fee-status";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The whole-school fee ledger.
@@ -122,7 +123,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
  *
  * **Nothing asks for a UUID.** See `./fee-pickers`.
  *
- * **Every segment filters by year group.** A bursar works one form at a time —
+ * **Every segment filters by class.** A bursar works one form at a time —
  * that is what `/schools/finance` exists for — and the whole-school view is
  * only useful if it can be narrowed the same way.
  */
@@ -1380,7 +1381,7 @@ export function SchoolsFeesContent() {
         id: "name",
         header: "Fee sheet",
         // A sheet has no record page of its own, so the name does not link —
-        // but the year group it prices does, and that is the reference a
+        // but the class it prices does, and that is the reference a
         // bursar follows when a sheet looks wrong for its form.
         cell: ({ row }) => (
           <RecordNameCell
@@ -1533,6 +1534,7 @@ export function SchoolsFeesContent() {
     waiversQuery.error ||
     structuresQuery.error;
 
+  const words = useClassVocabulary();
   const access = useSchoolAccess();
   const canNotifyFamilies = access.can("schools.reports", "notify-families");
   const canTakePayment = access.can("schools.fees", "receive-payment");
@@ -1620,13 +1622,13 @@ export function SchoolsFeesContent() {
 
         Invoices, receipts, credits, refunds and waivers are each a movement of
         one family's money through the ledger: every row is about a pupil,
-        carries an amount and a currency, and is narrowed by year group and
+        carries an amount and a currency, and is narrowed by class and
         term. They are five cuts of "what this family owes and what has been
         done about it", which is what §1 says a tab strip is for, and they stay
         as tabs of one screen.
 
         **Fee structures is a second subject.** A fee sheet is not money that
-        has moved — it is the price list, keyed on a year group and a term,
+        has moved — it is the price list, keyed on a class and a term,
         that invoices are generated *from*. No row is about a pupil; the verbs
         are Activate, Archive and Copy to next term rather than Issue, Take
         payment and Write off; it is set up once at the top of a year by
@@ -1695,8 +1697,8 @@ export function SchoolsFeesContent() {
                 <FilterSheet count={invoiceFilterCount}>
                   <FilterSelect
                     className="min-w-0"
-                    label="Year group"
-                    allLabel="Every year group"
+                    label={words.One}
+                    allLabel={`Every ${words.one}`}
                     value={invoiceClass}
                     options={classOptions}
                     onChange={setInvoiceClass}
@@ -1874,8 +1876,8 @@ export function SchoolsFeesContent() {
                 <FilterSheet count={receiptFilterCount}>
                   <FilterSelect
                     className="min-w-0"
-                    label="Year group"
-                    allLabel="Every year group"
+                    label={words.One}
+                    allLabel={`Every ${words.one}`}
                     value={receiptClass}
                     options={classOptions}
                     onChange={setReceiptClass}
@@ -1972,8 +1974,8 @@ export function SchoolsFeesContent() {
                 <FilterSheet count={creditFilterCount}>
                   <FilterSelect
                     className="min-w-0"
-                    label="Year group"
-                    allLabel="Every year group"
+                    label={words.One}
+                    allLabel={`Every ${words.one}`}
                     value={creditClass}
                     options={classOptions}
                     onChange={setCreditClass}
@@ -2040,8 +2042,8 @@ export function SchoolsFeesContent() {
                 <FilterSheet count={refundFilterCount}>
                   <FilterSelect
                     className="min-w-0"
-                    label="Year group"
-                    allLabel="Every year group"
+                    label={words.One}
+                    allLabel={`Every ${words.one}`}
                     value={refundClass}
                     options={classOptions}
                     onChange={setRefundClass}
@@ -2115,8 +2117,8 @@ export function SchoolsFeesContent() {
                 <FilterSheet count={waiverFilterCount}>
                   <FilterSelect
                     className="min-w-0"
-                    label="Year group"
-                    allLabel="Every year group"
+                    label={words.One}
+                    allLabel={`Every ${words.one}`}
                     value={waiverClass}
                     options={classOptions}
                     onChange={setWaiverClass}
@@ -2198,7 +2200,7 @@ export function SchoolsFeesContent() {
         {/* ── fee structures ───────────────────────────────────────────── */}
         <div className={activeView === "structures" ? "space-y-3" : "hidden"}>
           <p className="text-sm text-[var(--text-muted)]">
-            A school opens with one fee sheet on the first year group. Copy it up the ladder
+            A school opens with one fee sheet on the first class. Copy it up the ladder
             rather than re-typing it — the copies arrive as drafts.
           </p>
 
@@ -2220,8 +2222,8 @@ export function SchoolsFeesContent() {
                 <FilterSheet count={structureFilterCount}>
                   <FilterSelect
                     className="min-w-0"
-                    label="Year group"
-                    allLabel="Every year group"
+                    label={words.One}
+                    allLabel={`Every ${words.one}`}
                     value={structureClass}
                     options={classOptions}
                     onChange={setStructureClass}
@@ -2276,7 +2278,7 @@ export function SchoolsFeesContent() {
               ) : (
                 <NothingYet
                   title="No fee sheets yet"
-                  body="Price one year group's term, then copy it up the ladder."
+                  body="Price one class's term, then copy it up the ladder."
                   action={
                     <CreateButton
                       resource="schools.fees"

@@ -88,7 +88,7 @@ export type IncidentFilters = {
   companyId: string;
   termId?: string;
   classId?: string;
-  /** A year group rather than a class — `SchoolClass.level`. */
+  /** A class rather than a class — `SchoolClass.level`. */
   level?: number;
   categoryId?: string;
   /** `decided` narrows to incidents with a sanction; `undecided` to those without. */
@@ -106,7 +106,7 @@ function incidentWhere(filters: IncidentFilters): Prisma.SchoolConductIncidentWh
   if (filters.studentId) where.studentId = filters.studentId;
   if (filters.categoryId) where.categoryId = filters.categoryId;
   // Both narrow the same relation, so they compose into one filter rather than
-  // overwriting each other — a class inside a year group is a legitimate thing
+  // overwriting each other — a class inside a class is a legitimate thing
   // to ask for, and writing the second assignment over the first silently
   // dropped whichever the caller set first.
   if (filters.classId || filters.level != null) {

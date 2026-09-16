@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 import {
   fetchSchoolsClasses,
   fetchSchoolsTerms,
@@ -110,6 +111,7 @@ export function AssignmentFormDialog({
     [classes, form.classId],
   );
 
+  const words = useClassVocabulary();
   const save = useMutation({
     mutationFn: () => {
       const body = {
@@ -192,7 +194,7 @@ export function AssignmentFormDialog({
 
         <Picker
           id="assignment-class"
-          label="Year group"
+          label={words.One}
           value={form.classId}
           placeholder={classesQuery.isPending ? "Loading classes…" : "Choose a class"}
           options={classes.map((entry) => ({ value: entry.id, label: entry.name }))}
@@ -219,7 +221,7 @@ export function AssignmentFormDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={WHOLE_CLASS}>The whole year group</SelectItem>
+                <SelectItem value={WHOLE_CLASS}>The whole class</SelectItem>
                 {streams.map((stream) => (
                   <SelectItem key={stream.id} value={stream.id}>
                     {stream.name}

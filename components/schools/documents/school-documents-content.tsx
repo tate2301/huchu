@@ -29,6 +29,7 @@ import {
   type SchoolsStudentRecord,
 } from "@/lib/schools/admin-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The paperwork a school office prints.
@@ -36,7 +37,7 @@ import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
  * Four documents, one filter row. The filter row is the change: the class list
  * and the attendance register kept the student-search state and never rendered
  * the box, so both printed all 842 pupils with no way to narrow to a class —
- * which is the only way anybody has ever wanted them. Year group, stream, term
+ * which is the only way anybody has ever wanted them. Class, stream, term
  * and status now narrow every tab, including those two.
  *
  * The two per-pupil documents fetch what they are for. The report card printed
@@ -49,12 +50,12 @@ import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
  *
  * Four filters, each named here with the unnarrowed choice the canvas gives it:
  *
- *   Year group = Form 2
+ *   Class = Form 2
  *   Stream = Every stream
  *   Term = Term 2 · 2026
  *   Status = Active pupils
  *
- * Year group, stream and status go to the roll endpoint; term picks which
+ * Class, stream and status go to the roll endpoint; term picks which
  * marks and which invoice the two per-pupil documents read. All four narrow
  * every tab, including the class list and the register.
  */
@@ -224,9 +225,9 @@ function ReportCardPreview({
 
   if (!student.currentClass) {
     return (
-      <Alert tone="info" title="This pupil is not in a year group">
+      <Alert tone="info" title="This pupil is not in a class">
         A report card is built from a class&rsquo;s marks, so {student.firstName} needs a
-        year group before one can be printed.
+        class before one can be printed.
       </Alert>
     );
   }
@@ -604,7 +605,7 @@ export function SchoolDocumentsContent() {
   });
 
   // The filters go to the API, not to a client-side slice: a class list has to
-  // be able to print a whole year group, and the roll is longer than one page.
+  // be able to print a whole class, and the roll is longer than one page.
   const studentsQuery = useQuery({
     queryKey: ["schools", "students", "documents", classId, streamId, status],
     queryFn: () =>
@@ -637,6 +638,7 @@ export function SchoolDocumentsContent() {
   const students = useMemo(() => studentsQuery.data?.data ?? [], [studentsQuery.data]);
   const total = studentsQuery.data?.pagination.total ?? 0;
 
+  const words = useClassVocabulary();
   const searched = useMemo(() => {
     if (!search.trim()) return students;
     const needle = search.trim().toLowerCase();
@@ -690,8 +692,8 @@ export function SchoolDocumentsContent() {
 
       <FilterBar>
         <FilterSelect
-          label="Year group"
-          allLabel="Every year group"
+          label={words.One}
+          allLabel={`Every ${words.one}`}
           value={classId}
           options={classes.map((row) => ({ value: row.id, label: row.name }))}
           onChange={(value) => {
@@ -734,7 +736,7 @@ export function SchoolDocumentsContent() {
 
       {classesQuery.isError ? (
         <LoadError
-          what="the year groups"
+          what="the classes"
           error={classesQuery.error}
           onRetry={() => void classesQuery.refetch()}
         />

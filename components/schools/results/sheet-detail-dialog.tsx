@@ -126,7 +126,7 @@ export function SheetDetailDialog({
             {sheet.lines.length === 0 ? (
               <NothingYet
                 title="Nothing marked on this sheet yet"
-                body="Marks arrive here when the mark book is written to the result sheet, under the year group's assessments."
+                body="Marks arrive here when the mark book is written to the result sheet, under the class's assessments."
               />
             ) : (
               <div className="overflow-x-auto">

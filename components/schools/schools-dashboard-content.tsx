@@ -27,6 +27,7 @@ import {
   fetchSchoolsTerms,
 } from "@/lib/schools/admin-v2";
 import { formatSchoolMoney } from "@/lib/schools/format";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The school overview: what has not happened yet today.
@@ -52,7 +53,7 @@ import { formatSchoolMoney } from "@/lib/schools/format";
  *
  * Three filters, each named here with the unnarrowed choice the canvas gives it:
  *
- *   Year group = Every year group
+ *   Class = Every class
  *   Term = Term 2 · 2026
  *   Day = Today, 25 August
  *
@@ -626,6 +627,7 @@ export function SchoolsDashboardContent() {
     is nought — which is exactly when there is still time to do something
     about it.
   */
+  const words = useClassVocabulary();
   const waiting = useMemo(() => {
     const rows = [
       {
@@ -738,8 +740,8 @@ export function SchoolsDashboardContent() {
         filters={
           <>
             <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
+              label={words.One}
+              allLabel={`Every ${words.one}`}
               value={classId}
               options={classes.map((row) => ({ value: row.id, label: row.name }))}
               onChange={setClassId}
@@ -822,25 +824,25 @@ export function SchoolsDashboardContent() {
               */
               missing.length > 0 ? (
                 <NothingMatched
-                  what="year groups"
+                  what="classes"
                   filters={[search.trim()]}
                   onClear={() => setSearch("")}
                 />
               ) : board && board.rows.length === 0 && narrowing.length > 0 ? (
                 <NothingMatched
-                  what="year groups"
+                  what="classes"
                   filters={narrowing}
                   onClear={clearFilters}
                 />
               ) : board && board.rows.length === 0 ? (
                 <NothingYet
-                  title="No year group is expecting a register"
-                  body="A register belongs to a year group with a class list. Set the year groups up under Classes and the morning fills itself in."
+                  title="No class is expecting a register"
+                  body="A register belongs to a class with pupils on its roll. Set the classes up under Classes and the morning fills itself in."
                 />
               ) : (
                 <NothingLeftToDo
                   title="Every register is in"
-                  body={`All ${board?.summary.yearGroups ?? 0} year groups have sent one for ${onDate}.`}
+                  body={`All ${board?.summary.yearGroups ?? 0} classes have sent one for ${onDate}.`}
                 />
               )
             ) : (
@@ -880,7 +882,7 @@ export function SchoolsDashboardContent() {
                             remind.isPending && remind.variables?.classId === row.classId,
                           unavailable: row.formTeacher
                             ? undefined
-                            : "Nobody teaches this year group yet, so there is nobody to remind.",
+                            : "Nobody teaches this class yet, so there is nobody to remind.",
                           onSelect: () => {
                             setReminded(null);
                             remind.mutate(row);

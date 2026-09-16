@@ -195,7 +195,7 @@ export function BoardingAllocationsContent() {
    * endpoint returning the same rows in a different shape.
    *
    * Rooms come separately because occupancy does not carry the two facts the
-   * rules turn on — whether a dormitory is for prefects, and which year groups
+   * rules turn on — whether a dormitory is for prefects, and which classes
    * it is meant for.
    */
   const occupancyQueries = useQueries({
@@ -228,7 +228,7 @@ export function BoardingAllocationsContent() {
     return ids;
   }, [registerQuery.data]);
 
-  /** Which year groups are already in a room, for the year-mates half of the score. */
+  /** Which classes are already in a room, for the year-mates half of the score. */
   const roomClassIds = useMemo(() => {
     const byRoom = new Map<string, string[]>();
     for (const allocation of registerQuery.data?.data ?? []) {
@@ -726,7 +726,7 @@ export function BoardingAllocationsContent() {
               options={hostels.map((hostel) => ({ value: hostel.id, label: hostel.name }))}
               onChange={setHostelFilter}
             />
-            <ClassFilter label="Year group" value={classValue} onChange={setClassValue} />
+            <ClassFilter value={classValue} onChange={setClassValue} />
             <FilterSelect
               label="Status"
               allLabel="Every status"

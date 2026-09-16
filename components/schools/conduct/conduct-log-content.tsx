@@ -146,7 +146,7 @@ export function ConductLogContent() {
     const all = logQuery.data?.rows ?? [];
     // The class filter narrows in the browser rather than in the query: the log
     // is a term's log and the endpoint already returns it, so a second round
-    // trip to drop rows by year group buys nothing a reader would notice.
+    // trip to drop rows by class buys nothing a reader would notice.
     if (!classValue.classId) return all;
     return all.filter((row) => row.student.currentClass?.id === classValue.classId);
   }, [logQuery.data, classValue.classId]);
@@ -478,8 +478,6 @@ export function ConductLogContent() {
           onLog ? (
             <>
               <ClassFilter
-                label="Year group"
-                allLabel="Every year group"
                 value={classValue}
                 onChange={(next) => setClassValue(next)}
               />

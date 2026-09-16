@@ -25,7 +25,7 @@ import { ClassPicker, FeeStructurePicker, TermPicker } from "@/components/school
  * from whichever fee structures happened to load, so a term with no sheet on it
  * yet simply was not offered.
  *
- * Both are now real pickers over their own endpoints, and "every year group" is
+ * Both are now real pickers over their own endpoints, and "every class" is
  * the absence of a choice rather than an option with no value.
  */
 export function BulkGenerateInvoicesDialog({
@@ -180,7 +180,7 @@ export function BulkGenerateInvoicesDialog({
           setClassId(next);
           setFeeStructureId("");
         }}
-        hint="Leave it empty to bill every year group that has a sheet for this term."
+        hint="Leave it empty to bill every class that has a sheet for this term."
       />
 
       <FeeStructurePicker

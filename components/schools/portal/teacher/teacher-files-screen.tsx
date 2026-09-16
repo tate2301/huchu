@@ -26,6 +26,7 @@ import {
 import { ExternalLink } from "@/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 type Resource = {
   id: string;
@@ -84,7 +85,7 @@ function sizeOf(bytes: number | null) {
  *
  * Resources hang off a subject rather than off a class: a Form 2 worksheet is
  * the same worksheet next September, and pinning it to 2A means re-uploading
- * it every year. The year group is a hint, which is why both filters are
+ * it every year. The class is a hint, which is why both filters are
  * dropdowns that default to everything rather than a navigation the teacher
  * has to walk down.
  *
@@ -169,6 +170,7 @@ export function TeacherFilesScreen() {
     ).values(),
   ];
 
+  const words = useClassVocabulary();
   const add = useMutation({
     mutationFn: () =>
       fetchJson("/api/v2/schools/portal/teacher/me/resources", {
@@ -256,9 +258,9 @@ export function TeacherFilesScreen() {
           options={subjects.map((row) => ({ value: row.id, label: row.name }))}
         />
         <FilterSelect
-          label="Year group"
+          label={words.One}
           value={classFilter}
-          allLabel="All year groups"
+          allLabel="All classes"
           onChange={setClassFilter}
           options={yearGroups.map((row) => ({ value: row.id, label: row.name }))}
         />
@@ -353,7 +355,7 @@ export function TeacherFilesScreen() {
                   ) : null}
 
                   <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                    {row.class ? row.class.name : "Any year group"}
+                    {row.class ? row.class.name : "Any class"}
                     {size ? ` · ${size}` : ""}
                   </p>
 
@@ -452,7 +454,7 @@ export function TeacherFilesScreen() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="resource-class">Year group</Label>
+            <Label htmlFor="resource-class">Class</Label>
             <Select
               value={draft.classId || "__any__"}
               onValueChange={(value) =>
@@ -463,10 +465,10 @@ export function TeacherFilesScreen() {
               }
             >
               <SelectTrigger id="resource-class" className="w-full">
-                <SelectValue placeholder="Any year group" />
+                <SelectValue placeholder="Any class" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__any__">Any year group</SelectItem>
+                <SelectItem value="__any__">Any class</SelectItem>
                 {myClasses.map((row) => (
                   <SelectItem key={row.id} value={row.id}>
                     {row.name}

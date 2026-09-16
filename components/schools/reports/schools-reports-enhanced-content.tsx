@@ -32,6 +32,7 @@ import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsAcademicYears, fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { fetchSchoolFeeStructures } from "@/lib/schools/fees-v2";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * One frozen empty array for every "the query has not answered yet" case on
@@ -325,7 +326,7 @@ export function SchoolsReportsEnhancedContent() {
   }, [termsQuery.data, academicYearId]);
 
   /**
-   * Streams belong to a year group, so the picker offers only the chosen
+   * Streams belong to a class, so the picker offers only the chosen
    * group's — and every stream in the school when none is chosen, labelled with
    * its class, because "A" on its own names four different rooms.
    */
@@ -421,12 +422,12 @@ export function SchoolsReportsEnhancedContent() {
       .totalEnrolled;
   }, [enrollment]);
 
-  /** Where the 90+ sits: the oldest column, grouped by year group. */
+  /** Where the 90+ sits: the oldest column, grouped by class. */
   const oldestByYearGroup = useMemo(() => {
     const byClass = new Map<string, number>();
     for (const row of arrears) {
       if (row.days120Plus <= 0) continue;
-      const name = row.className || "No year group";
+      const name = row.className || "No class";
       byClass.set(name, (byClass.get(name) ?? 0) + row.days120Plus);
     }
     const ordered = [...byClass.entries()].sort(([, a], [, b]) => b - a);
@@ -759,6 +760,7 @@ export function SchoolsReportsEnhancedContent() {
    * Remind, and a second press while the first send is landing writes to the
    * same family twice.
    */
+  const words = useClassVocabulary();
   const sending = useIsMutating() > 0 && reminding !== null;
 
   /*
@@ -974,8 +976,8 @@ export function SchoolsReportsEnhancedContent() {
               onChange={setCollectionsTermId}
             />
             <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
+              label={words.One}
+              allLabel={`Every ${words.one}`}
               value={collectionsClassId}
               options={classes.map((row) => ({ value: row.id, label: row.name }))}
               onChange={setCollectionsClassId}
@@ -1012,7 +1014,7 @@ export function SchoolsReportsEnhancedContent() {
           ) : null}
           {classesQuery.isError ? (
             <LoadError
-              what="the year groups"
+              what="the classes"
               error={classesQuery.error}
               onRetry={() => void classesQuery.refetch()}
             />
@@ -1149,10 +1151,10 @@ export function SchoolsReportsEnhancedContent() {
                 )}
               </Card>
 
-              <Card title="By year group" className="h-fit">
+              <Card title="By class" className="h-fit">
                 {byYearGroup.length === 0 ? (
                   <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                    Nothing has been billed to a year group in this view.
+                    Nothing has been billed to a class in this view.
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -1183,13 +1185,13 @@ export function SchoolsReportsEnhancedContent() {
         <div className={activeView === "arrears" ? "space-y-4" : "hidden"}>
           <FilterBar>
             <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
+              label={words.One}
+              allLabel={`Every ${words.one}`}
               value={arrearsClassId}
               options={classes.map((row) => ({ value: row.id, label: row.name }))}
               onChange={(value) => {
                 setArrearsClassId(value);
-                // A stream belongs to one year group; keeping it across a change
+                // A stream belongs to one class; keeping it across a change
                 // of group narrows to a set that cannot exist.
                 setStreamId("");
               }}
@@ -1297,7 +1299,7 @@ export function SchoolsReportsEnhancedContent() {
 
             <Card
               title="Where the 90+ sits"
-              subtitle="The oldest column, by year group"
+              subtitle="The oldest column, by class"
               className="h-fit"
             >
               {oldestByYearGroup.rows.length === 0 ? (

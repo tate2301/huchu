@@ -69,7 +69,7 @@ export async function POST(
     const classId = validated.classId ?? application.appliedForClassId;
     if (!classId) {
       return errorResponse(
-        "This applicant has no year group. Choose one before enrolling.",
+        "This applicant has no class. Choose one before enrolling.",
         400,
       );
     }

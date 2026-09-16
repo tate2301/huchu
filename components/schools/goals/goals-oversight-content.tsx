@@ -37,6 +37,7 @@ import {
 } from "@/lib/schools/admin-v2";
 import { updateStudentGoal } from "@/lib/schools/goals-v2";
 import { GoalTargetDialog, type GoalTargetValues } from "./goal-target-dialog";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 type GoalRow = {
   studentId: string;
@@ -133,11 +134,11 @@ type BulkWrite = { studentId: string; label: string };
  * Four filters, and the canvas names each with its unnarrowed choice:
  *
  *   Term = This term
- *   Year group = Every year
+ *   Class = Every year
  *   Subject = Every subject
  *   Standing = Everyone
  *
- * Term, year group and subject are asked of the endpoint, because the roll the
+ * Term, class and subject are asked of the endpoint, because the roll the
  * rows are built from is the server's; standing is worked out per row from what
  * came back, so it is filtered here. The search box matches here too, for the
  * same reason: what it looks through is the roll already in hand.
@@ -320,6 +321,7 @@ export function GoalsOversightContent() {
   const writeError = setTargets.error ?? reviseTarget.error;
   const isWriting = setTargets.isPending || reviseTarget.isPending;
 
+  const words = useClassVocabulary();
   const columns = useMemo<ColumnDef<GoalRow>[]>(
     () => [
       {
@@ -519,7 +521,7 @@ export function GoalsOversightContent() {
               onChange={setTermId}
             />
             <FilterSelect
-              label="Year group"
+              label={words.One}
               allLabel="Every year"
               value={classId}
               options={classOptions}

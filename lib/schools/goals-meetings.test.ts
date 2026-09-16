@@ -531,7 +531,7 @@ describe("meetingSchedule", () => {
       phone: "0772000111",
     });
     // The pupil still carries their class, which is what lets the office
-    // filter an evening down to one year group.
+    // filter an evening down to one class.
     expect(booked?.student?.currentClass?.id).toBe(classId);
 
     // And the free slot alongside it names nobody at all — that is the row a

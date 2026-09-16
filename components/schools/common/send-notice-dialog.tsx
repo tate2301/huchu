@@ -18,7 +18,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
  * tells you to ring the parent yourself, and the homework board shows four of
  * thirty-one handed in with nothing to do about it. The school already reaches
  * every parent's portal in one send; what was missing was a way to address that
- * send to a shortlist rather than a year group.
+ * send to a shortlist rather than a class.
  *
  * So the audience is fixed by the caller and stated in the dialog rather than
  * chosen in it. A screen that has worked out exactly who to write to should not
@@ -29,7 +29,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 export type NoticeAudienceSpec = {
   /** The pupils whose guardians receive it. Empty means the whole class or school. */
   studentIds?: string[];
-  /** Narrow to one year group, when there is no pupil shortlist. */
+  /** Narrow to one class, when there is no pupil shortlist. */
   classId?: string | null;
   /** Said in the dialog, verbatim: "the families of the 188 in arrears". */
   describe: string;

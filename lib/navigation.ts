@@ -459,7 +459,7 @@ export const navSections: NavSection[] = [
       { href: "/schools/attendance", icon: UserCheck, label: "Registers", group: "school-day" },
       // Oversight, not a register. An administrator arrives at the whole school
       // and narrows to a class; the class-by-class rail belongs to the page,
-      // which is the only thing that knows tonight's year groups.
+      // which is the only thing that knows tonight's classes.
       {
         href: "/schools/attendance/follow-up",
         icon: ReportProblem,
@@ -585,7 +585,7 @@ export const navSections: NavSection[] = [
       // Money owed to the school. Three entries where there were eight: five of
       // the eight were `?view=` links onto the ledger's own segmented control,
       // so the rail was four rows deep into a screen it had already named.
-      { href: "/schools/finance", icon: ReceiptLong, label: "Fees by year group", group: "fees" },
+      { href: "/schools/finance", icon: ReceiptLong, label: "Fees by class", group: "fees" },
       { href: "/schools/finance/ledger", icon: Payments, label: "Fee ledger", group: "fees" },
       // Not a ledger segment. "Who owes, and for how long" is a different
       // question from "show me the invoices", with its own ageing strip and its

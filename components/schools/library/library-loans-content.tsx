@@ -89,7 +89,7 @@ type Book = {
  * "Things Fall Apart (TFA-007) · due 2026-08-21 · Form 2B" — the title, the
  * physical copy in that child's bag, the date it is wanted back, and the class
  * to send somebody to. Four facts in the order the person chasing it needs
- * them, and the class comes off cleanly when a borrower is between year groups.
+ * them, and the class comes off cleanly when a borrower is between classes.
  */
 function loanLine(loan: Loan) {
   const parts = [
@@ -268,8 +268,6 @@ export function LibraryLoansContent() {
           <ClassFilter
             value={classes}
             onChange={setClasses}
-            label="Year group"
-            allLabel="Every year group"
             includeStreams={false}
           />
         }
@@ -294,7 +292,7 @@ export function LibraryLoansContent() {
         anyFilter ? (
           <NothingMatched
             what="loans"
-            filters={[search.trim(), classes.classId ? "that year group" : ""].filter(
+            filters={[search.trim(), classes.classId ? "that class" : ""].filter(
               Boolean,
             )}
             onClear={() => {

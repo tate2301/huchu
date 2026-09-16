@@ -251,7 +251,7 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
       ),
     },
     { label: "What happened", value: `${incident.category.name} — ${incident.summary}` },
-    { label: "Year group", value: yearGroup || "—" },
+    { label: "Class", value: yearGroup || "—" },
     {
       label: "When",
       value: [

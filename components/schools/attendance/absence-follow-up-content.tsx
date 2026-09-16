@@ -253,7 +253,7 @@ export function AbsenceFollowUpContent() {
 
   return (
     // No band. The four chips sat above a filter row that governed the table
-    // and not them, so picking a year group or a longer window left them
+    // and not them, so picking a class or a longer window left them
     // saying the same thing about a list that had just changed underneath.
     // The "Rung home" column carries the same fact per child, the row count
     // answers what the filters asked, and the one number worth naming out of
@@ -346,7 +346,7 @@ export function AbsenceFollowUpContent() {
           <NothingMatched
             what="children"
             filters={[
-              classValue.classId ? "the chosen year group" : "",
+              classValue.classId ? "the chosen class" : "",
               WINDOWS.find((option) => option.value === days)?.label ?? "",
               THRESHOLDS.find((option) => option.value === threshold)?.label ?? "",
               search.trim(),

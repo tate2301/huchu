@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         where: { id: validated.classId, companyId },
         select: { id: true },
       });
-      if (!schoolClass) return errorResponse("Year group not found", 404);
+      if (!schoolClass) return errorResponse("Class not found", 404);
     }
 
     const created = await prisma.schoolTeachingResource.create({

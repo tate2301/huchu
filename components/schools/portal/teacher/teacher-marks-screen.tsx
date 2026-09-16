@@ -516,7 +516,7 @@ export function TeacherMarksScreen() {
             ) : rows.length === 0 ? (
               <NothingYet
                 title="Nobody is on this class list"
-                body="No active pupil has this class as their year group, so there is nothing to mark. The office puts pupils into a year group under Classes."
+                body="No pupil on the roll is in this class, so there is nothing to mark. The office puts pupils into a class under Classes."
               />
             ) : visible.length === 0 ? (
               <NothingMatched

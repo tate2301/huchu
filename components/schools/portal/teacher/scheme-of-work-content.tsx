@@ -89,7 +89,7 @@ export function SchemeOfWorkContent() {
   // The forms the school actually runs, from its classes — labelled by the
   // class names at each level, because the level number is internal ordering
   // ("Form 1" may sit at level 8, above ECD and the Grades) and a picker that
-  // says "Form 8" for it would file the scheme against the wrong year group.
+  // says "Form 8" for it would file the scheme against the wrong class.
   const levels = useMemo(() => {
     const byLevel = new Map<number, Set<string>>();
     for (const row of classesQuery.data?.data ?? []) {

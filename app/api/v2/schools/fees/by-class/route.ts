@@ -227,6 +227,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("[API] GET /api/v2/schools/fees/by-class error:", error);
-    return errorResponse("Failed to fetch fees by year group");
+    return errorResponse("Failed to fetch fees by class");
   }
 }

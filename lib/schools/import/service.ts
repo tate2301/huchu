@@ -25,7 +25,7 @@ type Db = PrismaClient;
 /**
  * Imports are capped so one paste cannot hold a transaction open across a whole
  * school's afternoon. A file above this is a sign the school wants splitting by
- * year group anyway, which is how they check it.
+ * class anyway, which is how they check it.
  */
 export const MAX_IMPORT_ROWS = 5000;
 /** Roughly 5 MB of CSV. Larger is a spreadsheet with images pasted into it. */
@@ -44,7 +44,7 @@ export type StageInput = {
 /** Read the file, guess the mapping, and put every row in the staging table. */
 export async function stageImportJob(db: Db, input: StageInput) {
   if (Buffer.byteLength(input.csvText, "utf8") > MAX_IMPORT_BYTES) {
-    throw new ImportTooLargeError("That file is over 5 MB. Split it by year group and try again.");
+    throw new ImportTooLargeError("That file is over 5 MB. Split it by class and try again.");
   }
 
   const table = parseCsv(input.csvText);

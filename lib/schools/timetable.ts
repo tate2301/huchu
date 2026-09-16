@@ -470,7 +470,7 @@ export async function autoFillTimetable(input: {
   days?: number[];
   /** Lessons a week per class-subject assignment. Defaults to 1. */
   periodsPerSubject?: number;
-  /** Limit to one class, for filling a single year group. */
+  /** Limit to one class, for filling a single class. */
   classId?: string;
 }): Promise<{
   placed: number;

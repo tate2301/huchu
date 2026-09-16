@@ -136,7 +136,7 @@ export function AlumniContent() {
       },
       {
         id: "finalClass",
-        header: "Last year group",
+        header: "Last class",
         cell: ({ row }) => (
           <RecordCell
             value={row.original.finalClassName}
@@ -374,7 +374,7 @@ export function AlumniContent() {
                     headers={[
                       "Name",
                       "Class of",
-                      "Last year group",
+                      "Last class",
                       "Results on leaving",
                       "Where they went",
                       "Contact consent",

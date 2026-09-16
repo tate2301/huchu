@@ -7,7 +7,7 @@ import { fetchJson } from "@/lib/api-client";
  * results, and every boarding change meant touching a file three other areas
  * also read. They are only ever used by this folder, so they live here — and
  * the two shapes that were missing from the old ones, a child's class and a
- * hostel's capacity, are the reason the board can now be filtered by year group
+ * hostel's capacity, are the reason the board can now be filtered by class
  * and say how full a house is.
  */
 

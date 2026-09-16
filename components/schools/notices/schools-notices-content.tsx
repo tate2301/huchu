@@ -36,6 +36,7 @@ import {
 import { formatSchoolDate } from "@/lib/schools/format";
 
 import { SendNoticeDialog, type Correcting, type NoticeDraft } from "./send-notice-dialog";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * What the school has told people, and the way to tell them something.
@@ -79,7 +80,7 @@ import { SendNoticeDialog, type Correcting, type NoticeDraft } from "./send-noti
  * Four filters, each named here with the unnarrowed choice the canvas gives it:
  *
  *   Who it was for = Every audience
- *   Year group = The whole school
+ *   Class = The whole school
  *   Importance = Any importance
  *   When = This term
  *
@@ -319,6 +320,7 @@ export function SchoolsNoticesContent() {
             ? `Reach, ${activeTerm.name.toLowerCase()}`
             : "Reach, this term";
 
+  const words = useClassVocabulary();
   const columns = useMemo<ColumnDef<SentNotice>[]>(
     () => [
       {
@@ -368,7 +370,7 @@ export function SchoolsNoticesContent() {
               <>
                 {" · "}
                 {/* "What else has Form 2 been told" is the question this cell
-                    gets asked, so the year group is the way there. */}
+                    gets asked, so the class is the way there. */}
                 <EntityLink
                   href={recordType("CLASS").href(row.original.classId)}
                   className={recordCellTone("relation")}
@@ -562,7 +564,7 @@ export function SchoolsNoticesContent() {
                   onChange={setAudience}
                 />
                 <FilterSelect
-                  label="Year group"
+                  label={words.One}
                   allLabel="The whole school"
                   value={classId}
                   options={classes.map((row) => ({ value: row.id, label: row.name }))}

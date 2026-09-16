@@ -42,12 +42,12 @@ import { PupilLedgerDialog } from "@/components/schools/conduct/pupil-ledger-dia
  * Merits and demerits.
  *
  * Rudo Makoni in the week before prize giving, deciding whether Form 3's net of
- * +96 against Form 2's +268 is a year group with a problem or a year group
+ * +96 against Form 2's +268 is a class with a problem or a class
  * whose teachers do not write things down. The second question is the one this
- * screen is built to make askable, which is why `By year group` sits beside
+ * screen is built to make askable, which is why `By class` sits beside
  * `What gets written down` rather than under it.
  *
- * The year group total is deliberately untoned. A net across a whole year is
+ * The class total is deliberately untoned. A net across a whole year is
  * not good news or bad news, and a screen that coloured it would answer the
  * reader's question for them. A pupil's own net is toned, because there the
  * sign is the fact being read.
@@ -157,7 +157,7 @@ export function ConductMeritsContent() {
   const summary = summaryQuery.data;
 
   const namedFilters = [
-    classValue.classId ? "a year group" : null,
+    classValue.classId ? "a class" : null,
     SORT_OPTIONS.find((option) => option.value === sort && sort !== "net-desc")?.label,
   ].filter((entry): entry is string => Boolean(entry));
 
@@ -288,8 +288,8 @@ export function ConductMeritsContent() {
     // No band. Three of its four chips were arithmetic the summaries below
     // already do: merit and demerit points are read from the group headers in
     // `What gets written down`, beside the occasions they weigh, and the
-    // term's net is the total row of `By year group`. None of the three moved
-    // when the year group filter narrowed the table under them, which is the
+    // term's net is the total row of `By class`. None of the three moved
+    // when the class filter narrowed the table under them, which is the
     // whole objection. The fourth — pupils with nothing recorded either way —
     // has no row anywhere by definition, so it is the caption below.
     <SchoolsPage>
@@ -338,8 +338,6 @@ export function ConductMeritsContent() {
             filters={
               <>
                 <ClassFilter
-                  label="Year group"
-                  allLabel="Every year group"
                   value={classValue}
                   onChange={setClassValue}
                 />
@@ -542,21 +540,21 @@ export function ConductMeritsContent() {
             <section className="space-y-2">
               <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
                 <span className="text-sm font-semibold text-[color:var(--text-strong)]">
-                  By year group
+                  By class
                 </span>
                 <span className="text-xs text-[color:var(--text-muted)]">This term</span>
               </h2>
               {summaryQuery.isPending ? (
                 <TableRowsSkeleton
                   rows={6}
-                  headers={["Year group", "Net", "Share"]}
+                  headers={["Class", "Net", "Share"]}
                   columns={[{}, { width: 70, align: "right" }, { width: 150 }]}
                 />
               ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-[color:var(--text-muted)]">
-                      <th className="py-1 font-normal">Year group</th>
+                      <th className="py-1 font-normal">Class</th>
                       <th className="w-[70px] py-1 text-right font-normal">Net</th>
                       <th className="w-[150px] py-1 font-normal">Share</th>
                     </tr>
@@ -586,7 +584,7 @@ export function ConductMeritsContent() {
                     {summary && summary.byYearGroup.length > 0 ? (
                       <tr className="border-t-2 border-[color:var(--border)]">
                         <td className="py-1.5 text-xs font-semibold">
-                          All {summary.byYearGroup.length} year groups
+                          All {summary.byYearGroup.length} classes
                         </td>
                         <td className="py-1.5 text-right font-mono text-xs font-bold">
                           {(() => {

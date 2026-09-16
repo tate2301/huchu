@@ -395,10 +395,10 @@ export function InvoicePicker({
   );
 }
 
-/** A year group, for the one form that has to say which ladder rung it prices. */
+/** A class, for the one form that has to say which ladder rung it prices. */
 export function ClassPicker({
   id = "picker-class",
-  label = "Year group",
+  label = "Class",
   value,
   onChange,
   required,
@@ -443,12 +443,12 @@ export function ClassPicker({
       label={label}
       required={required}
       hint={hint}
-      placeholder="Choose a year group"
-      searchPlaceholder="Year group"
+      placeholder="Choose a class"
+      searchPlaceholder="Class"
       value={value}
       options={options}
       loading={classesQuery.isFetching}
-      emptyText="No year group matched that."
+      emptyText="No class matched that."
       query={query}
       onQueryChange={setQuery}
       onChange={onChange}
@@ -457,7 +457,7 @@ export function ClassPicker({
   );
 }
 
-/** A fee sheet, with its year group, its line count and what it charges. */
+/** A fee sheet, with its class, its line count and what it charges. */
 export function FeeStructurePicker({
   id = "picker-structure",
   label = "Fee structure",
@@ -512,7 +512,7 @@ export function FeeStructurePicker({
       required={required}
       hint={hint}
       placeholder="Choose a fee sheet"
-      searchPlaceholder="Sheet, year group or term"
+      searchPlaceholder="Sheet, class or term"
       value={value}
       options={options}
       loading={structuresQuery.isFetching}

@@ -70,7 +70,7 @@ export function EnrollmentCorrectionDialog({
   const [status, setStatus] = useState(enrollment?.status ?? "ACTIVE");
 
   // The streams a class has come down with the class itself, so moving a pupil
-  // between year groups re-offers the form rooms without another request.
+  // between classes re-offers the form rooms without another request.
   const streams = classes.find((row) => row.id === classId)?.streams ?? [];
 
   const save = useMutation({
@@ -152,12 +152,12 @@ export function EnrollmentCorrectionDialog({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="enrolment-class">Year group</Label>
+          <Label htmlFor="enrolment-class">Class</Label>
           <Select
             value={classId}
             onValueChange={(value) => {
               setClassId(value);
-              // The form rooms belong to the year group. Keeping the old one
+              // The form rooms belong to the class. Keeping the old one
               // selected under a new class is the one thing the endpoint
               // refuses, so the field starts again.
               setStreamId(NO_STREAM);
@@ -193,7 +193,7 @@ export function EnrollmentCorrectionDialog({
           </Select>
           {streams.length === 0 ? (
             <p className="text-xs text-[color:var(--text-muted)]">
-              This year group has no form rooms, so the pupil sits in the year group
+              This class has no form rooms, so the pupil sits in the class
               itself.
             </p>
           ) : null}

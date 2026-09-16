@@ -709,8 +709,6 @@ export function ConductDetentionContent() {
                   }}
                 />
                 <ClassFilter
-                  label="Year group"
-                  allLabel="Every year group"
                   value={classValue}
                   onChange={setClassValue}
                 />

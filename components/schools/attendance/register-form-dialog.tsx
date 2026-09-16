@@ -131,7 +131,7 @@ export function RegisterFormDialog({
       ) : null}
 
       <div className="space-y-1.5">
-        <Label htmlFor="register-class">Year group</Label>
+        <Label htmlFor="register-class">Class</Label>
         {draft.classId ? (
           <p className="text-[length:var(--type-body-sm)] font-semibold">
             {draft.className}
@@ -140,7 +140,7 @@ export function RegisterFormDialog({
           <Select value={values.classId} onValueChange={(value) => set({ classId: value, streamId: "" })}>
             <SelectTrigger id="register-class" className="w-full">
               <SelectValue
-                placeholder={classesQuery.isPending ? "Reading the ladder…" : "Choose a year group"}
+                placeholder={classesQuery.isPending ? "Reading the ladder…" : "Choose a class"}
               />
             </SelectTrigger>
             <SelectContent>
@@ -162,10 +162,10 @@ export function RegisterFormDialog({
             onValueChange={(value) => set({ streamId: value === "whole" ? "" : value })}
           >
             <SelectTrigger id="register-stream" className="w-full">
-              <SelectValue placeholder="The whole year group" />
+              <SelectValue placeholder="The whole class" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="whole">The whole year group</SelectItem>
+              <SelectItem value="whole">The whole class</SelectItem>
               {streams.map((stream) => (
                 <SelectItem key={stream.id} value={stream.id}>
                   {stream.name}
@@ -174,7 +174,7 @@ export function RegisterFormDialog({
             </SelectContent>
           </Select>
           <p className="text-sm text-muted-foreground">
-            Most schools keep one register for the year group. Choose a stream only where
+            Most schools keep one register for the class. Choose a stream only where
             they are marked apart.
           </p>
         </div>
@@ -185,7 +185,7 @@ export function RegisterFormDialog({
             date field draws its value in whatever order the reader's browser
             was set up with, so 06/03 is the third of June at one desk and the
             sixth of March at the next — and a date of birth read the wrong way
-            round puts a child in the wrong year group. */}
+            round puts a child in the wrong class. */}
         <Label htmlFor="register-date">
           Date
           {values.attendanceDate ? (

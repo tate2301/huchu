@@ -492,7 +492,7 @@ export async function applyYearRollUp(input: {
 
       if (!decision.toClassId) {
         result.problems.push(
-          `${decision.studentId} has no year group to move into and was left alone`,
+          `${decision.studentId} has no class to move into and was left alone`,
         );
         continue;
       }

@@ -6,9 +6,9 @@ import { authOptions } from "@/lib/auth";
 /**
  * The roll.
  *
- * This was a `GradePicker` and nothing else — the year group was the only way
+ * This was a `GradePicker` and nothing else — the class was the only way
  * in, and a school looking for one child by name had no screen to look on.
- * The year group is still a route of its own (`/class/[classId]`, reached from
+ * The class is still a route of its own (`/class/[classId]`, reached from
  * every other campus screen that starts "which class?"); this page is the
  * register, filtered.
  *

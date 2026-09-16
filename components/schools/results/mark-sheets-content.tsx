@@ -40,6 +40,7 @@ import {
   SHEET_STATE_OPTIONS,
 } from "@/components/schools/results/sheet-state";
 import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The sheets the signed-in person may actually work on.
@@ -52,7 +53,7 @@ import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-w
  * segments of one screen rather than two rail entries, and why the row is
  * composed in `sheet-columns.tsx` rather than here.
  *
- * The rows are grouped by year group, which is how a school talks about its
+ * The rows are grouped by class, which is how a school talks about its
  * mark sheets, and sorted by it — an alphabet applied to a list that is not in
  * alphabetical order is worse than no headings at all.
  */
@@ -150,6 +151,7 @@ export function MarkSheetsContent() {
     setFormOpen(true);
   };
 
+  const words = useClassVocabulary();
   const columns = useMemo(
     () => [
       sheetColumn(),
@@ -171,7 +173,7 @@ export function MarkSheetsContent() {
   const emptyState = nothingAtAll ? (
     <NothingYet
       title="No mark sheets yet"
-      body="Sheets appear here when a mark book is written to one under a year group's assessments, or when you raise one by hand."
+      body="Sheets appear here when a mark book is written to one under a class's assessments, or when you raise one by hand."
     />
   ) : (
     <NothingMatched
@@ -224,8 +226,8 @@ export function MarkSheetsContent() {
         filters={
           <>
             <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
+              label={words.One}
+              allLabel={`Every ${words.one}`}
               value={classFilter}
               options={classes.map((row) => ({ value: row.id, label: row.name }))}
               onChange={(next) => {

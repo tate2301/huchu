@@ -292,18 +292,18 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       },
       {
         id: "yearGroup",
-        label: "Year group",
-        // Moving a child between year groups is the commonest correction the
+        label: "Class",
+        // Moving a child between classes is the commonest correction the
         // office makes, and it used to be read-only here — the only way to do
         // it was a bulk roll-up over the whole school.
         ...edit.choice(
           "currentClassId",
           student.currentClass?.id ?? null,
           classes.map((row) => ({ value: row.id, label: row.name })),
-          "Not in a year group",
+          "Not in a class",
         ),
         display: student.currentClass?.name ?? null,
-        placeholder: "Not in a year group",
+        placeholder: "Not in a class",
       },
       {
         id: "class",
@@ -316,7 +316,7 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
           "Not in a class",
         ),
         display: student.currentStream?.name ?? null,
-        placeholder: student.currentClass ? "Not in a class" : "Choose a year group first",
+        placeholder: student.currentClass ? "Not in a class" : "Choose a class first",
       },
       {
         id: "status",
@@ -556,7 +556,7 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         (student.enrollments ?? []).length === 0 ? (
           <NothingYet
             title="No enrolment has been recorded"
-            body="The year roll-up reads these, so a pupil without one has no history to carry forward. Put them in a year group and the first enrolment is written for you."
+            body="The year roll-up reads these, so a pupil without one has no history to carry forward. Put them in a class and the first enrolment is written for you."
           />
         ) : (
           <div className="space-y-3">
@@ -614,7 +614,7 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         (student.feeInvoices ?? []).length === 0 ? (
           <NothingYet
             title="Nothing has been billed to this pupil"
-            body="Fees are raised against a year group a term at a time, so a pupil with no invoice is usually one who joined after the term's billing run."
+            body="Fees are raised against a class a term at a time, so a pupil with no invoice is usually one who joined after the term's billing run."
             action={
               <Button asChild variant="secondary">
                 <Link href="/schools/fees">Open fees</Link>

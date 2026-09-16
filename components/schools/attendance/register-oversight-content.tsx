@@ -163,14 +163,14 @@ export function RegisterOversightContent({
     streamId: "",
   });
   /**
-   * The stream, held apart from the year group rather than inside it.
+   * The stream, held apart from the class rather than inside it.
    *
    * `ClassFilter` offers streams as indented options under their class and
    * encodes the pair into one selected value, which is the right shape where a
    * stream is only ever reached through its class. The canvas draws two
    * dropdowns here, so the stream is its own state: folding it back into the
    * `ClassFilterValue` would hand that control a `stream:…` value it has no
-   * option for, and the Year group trigger would go blank the moment somebody
+   * option for, and the Class trigger would go blank the moment somebody
    * picked a stream.
    */
   const [streamId, setStreamId] = useState("");
@@ -266,8 +266,8 @@ export function RegisterOversightContent({
     onSuccess: (sent, rows) => {
       setReminded(
         sent === rows.length
-          ? `Reminder sent for all ${inWords(sent)} year groups.`
-          : `Reminder sent for ${sent} of ${rows.length} year groups. The rest have nobody teaching them yet.`,
+          ? `Reminder sent for all ${inWords(sent)} classes.`
+          : `Reminder sent for ${sent} of ${rows.length} classes. The rest have nobody teaching them yet.`,
       );
       void queryClient.invalidateQueries({ queryKey: ["schools", "notices"] });
     },
@@ -364,17 +364,17 @@ export function RegisterOversightContent({
   /**
    * The streams a Stream filter can offer, read off the ladder itself.
    *
-   * The canvas draws Year group and Stream as two dropdowns, not as one with
+   * The canvas draws Class and Stream as two dropdowns, not as one with
    * the streams indented under their class. That is the right shape here and
    * the wrong one on a roll: an office asking "has Green sent its register?" is
-   * asking across every year group at once, and a control that makes them pick
+   * asking across every class at once, and a control that makes them pick
    * Form 1 first cannot answer it.
    *
-   * The list narrows to the chosen year group when there is one, because a
+   * The list narrows to the chosen class when there is one, because a
    * stream only exists inside its class and offering Form 4's streams while
    * Form 1 is selected offers a filter that can only return nothing. Streams
    * are deduplicated by name rather than by id — "Green" is one choice to an
-   * administrator even though every year group has its own row for it.
+   * administrator even though every class has its own row for it.
    */
   const streams = useMemo(() => {
     const seen = new Map<string, string>();
@@ -414,7 +414,7 @@ export function RegisterOversightContent({
     () => [
       {
         id: "className",
-        header: "Year group",
+        header: "Class",
         // The same composed cell the roll draws for a child: the class's tile,
         // its name, and its code under it. A standing underline rather than one
         // that arrives with the pointer — a cue nobody can see is not a cue.
@@ -464,7 +464,7 @@ export function RegisterOversightContent({
           row.original.formTeacher ? (
             <PersonCell kind="teacher" name={row.original.formTeacher.name} />
           ) : (
-            // Named in words: a year group with nobody against it is the row
+            // Named in words: a class with nobody against it is the row
             // the reminder cannot be sent to, and a dash here would read as a
             // column that failed rather than a gap to fill.
             <span className="text-[color:var(--text-muted)]">
@@ -525,7 +525,7 @@ export function RegisterOversightContent({
                             remind.isPending && remind.variables?.classId === record.classId,
                           unavailable: record.formTeacher
                             ? undefined
-                            : "Nobody teaches this year group yet, so there is nobody to remind.",
+                            : "Nobody teaches this class yet, so there is nobody to remind.",
                           onSelect: () => {
                             setReminded(null);
                             remind.mutate(record);
@@ -738,7 +738,7 @@ export function RegisterOversightContent({
       ) : null}
 
       {/*
-        The date, the year group, the stream, the state and the search box all
+        The date, the class, the stream, the state and the search box all
         narrow the ladder underneath them and nothing else, so they are one row
         directly above it. The count beside them is the answer to whatever they
         just asked.
@@ -750,7 +750,7 @@ export function RegisterOversightContent({
             label="Search"
             value={search}
             onChange={setSearch}
-            placeholder="Search a year group"
+            placeholder="Search a class"
           />
         }
         filterCount={activeFilterCount(classId, streamId, state)}
@@ -789,14 +789,12 @@ export function RegisterOversightContent({
               </div>
             </div>
             <ClassFilter
-              label="Year group"
-              allLabel="Every year group"
               includeStreams={false}
               value={yearGroup}
               onChange={(next) => {
                 setYearGroup(next);
                 // A stream belongs to one class, so a stream chosen under the
-                // old year group can only return nothing under the new one.
+                // old class can only return nothing under the new one.
                 setStreamId("");
               }}
             />
@@ -821,7 +819,7 @@ export function RegisterOversightContent({
       {/* No card around the ladder. The ladder is the page — the control
           row's hairline is the seam and the column header runs straight off
           the underside of it. The card that used to be here also carried a
-          "Year groups" title, which said in a panel header what the column
+          "Classes" title, which said in a panel header what the column
           header says one line below it. The two tiles beside it stay in cards:
           they are bounded summaries of a few lines each, which is what a card
           is still right for. */}
@@ -830,7 +828,7 @@ export function RegisterOversightContent({
           {boardQuery.isPending ? (
             <TableRowsSkeleton
               rows={8}
-              headers={["Year group", "Register", "Form teacher", "State", ""]}
+              headers={["Class", "Register", "Form teacher", "State", ""]}
               columns={[{ width: 120 }, {}, { width: 160 }, { width: 90 }, { width: 80 }]}
             />
           ) : (
@@ -845,7 +843,7 @@ export function RegisterOversightContent({
               emptyState={
                 rows.length === 0 ? (
                   <NothingYet
-                    title="No year groups yet"
+                    title="No classes yet"
                     body="Registers are taken against a class, so the ladder fills once classes exist."
                     action={
                       <Button asChild variant="secondary">
@@ -855,7 +853,7 @@ export function RegisterOversightContent({
                   />
                 ) : (
                   <NothingMatched
-                    what="year groups"
+                    what="classes"
                     filters={[
                       classId ? rows.find((row) => row.classId === classId)?.className : null,
                       streamId

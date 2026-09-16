@@ -52,7 +52,7 @@ function subjectHeading(assessment: SchoolsAssessmentRecord) {
 }
 
 /**
- * One year group's assessments, and what they add up to.
+ * One class's assessments, and what they add up to.
  *
  * This screen serves both shapes of school without being two screens. A
  * primary class teacher opens her one class and sees every subject grouped
@@ -315,7 +315,7 @@ export function ClassAssessmentsContent({
 
             {subjects.length === 0 && !subjectsQuery.isLoading ? (
               <Alert>
-                <AlertTitle>No subjects assigned to this year group</AlertTitle>
+                <AlertTitle>No subjects assigned to this class</AlertTitle>
                 <AlertDescription>
                   Marks hang off a teacher&rsquo;s subject assignment. Allocate the
                   subjects under Teachers before setting work.
@@ -351,7 +351,7 @@ export function ClassAssessmentsContent({
                         />
                       ) : (
                         <NothingYet
-                          title="No work set for this year group yet"
+                          title="No work set for this class yet"
                           body="A test, a paper or a practical set here becomes a mark sheet, and the term mark is what they add up to."
                           action={
                             <Button
@@ -442,7 +442,7 @@ export function ClassAssessmentsContent({
                                   confirm: {
                                     title: `Remove ${assessment.title}?`,
                                     description:
-                                      "The piece of work leaves this year group's mark book. Nothing has been marked against it, so nothing is lost.",
+                                      "The piece of work leaves this class's mark book. Nothing has been marked against it, so nothing is lost.",
                                     confirmLabel: "Remove it",
                                   },
                                   onSelect: () => deleteMutation.mutate(assessment.id),

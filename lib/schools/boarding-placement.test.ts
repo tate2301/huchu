@@ -100,13 +100,13 @@ describe("bedRefusal", () => {
 describe("bedScore", () => {
   const context = { dormOccupantClassIds: [], houseFreeRatio: 0 };
 
-  it("puts the right year group far above everything else", () => {
+  it("puts the right class far above everything else", () => {
     const right = bedScore(
       bed({ room: { id: "r", isPrefectDorm: false, yearGroupIds: ["form-1"] } }),
       pupil(),
       context,
     );
-    // An empty house and a lower bunk together must not outvote the year group.
+    // An empty house and a lower bunk together must not outvote the class.
     const wrong = bedScore(bed({ tier: "L" }), pupil(), {
       dormOccupantClassIds: [],
       houseFreeRatio: 1,

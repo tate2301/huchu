@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { CohortLevelSelect } from "@/components/schools/exams/cohort-level-select";
 import {
   EXAM_LEVEL_LABELS,
   createSeries,
@@ -239,18 +240,11 @@ export function NewSeriesDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="series-cohort">Year group that sits it</Label>
-          <Input
-            id="series-cohort"
-            type="number"
-            min={1}
-            max={13}
-            value={cohortLevel}
-            onChange={(event) => setCohortLevel(event.target.value)}
-            placeholder="4"
-          />
+          <Label htmlFor="series-cohort">Who sits it</Label>
+          <CohortLevelSelect id="series-cohort" value={cohortLevel} onChange={setCohortLevel} />
           <p className="text-xs text-[color:var(--text-muted)]">
-            Form 4 is 4; Upper Six is 6. It is what &ldquo;Register the year group&rdquo; reads.
+            The class whose pupils become candidates. It is what &ldquo;Register the
+            cohort&rdquo; reads.
           </p>
         </div>
 

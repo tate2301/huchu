@@ -41,6 +41,7 @@ import {
   waitingMs,
 } from "@/components/schools/results/sheet-state";
 import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The moderation queue: what a head of department has to look at, oldest first.
@@ -194,6 +195,7 @@ export function ModerationQueueContent() {
     setSearch("");
   };
 
+  const words = useClassVocabulary();
   const columns = useMemo(
     () => [
       waitingColumn(waitingSince, now),
@@ -241,7 +243,7 @@ export function ModerationQueueContent() {
     */
     <NothingYet
       title="No result sheets yet"
-      body="Sheets appear here once a class's marks have been written to one, from that year group's assessments."
+      body="Sheets appear here once a class's marks have been written to one, from its assessments."
     />
   );
 
@@ -311,8 +313,8 @@ export function ModerationQueueContent() {
             filters={
               <>
                 <FilterSelect
-                  label="Year group"
-                  allLabel="Every year group"
+                  label={words.One}
+                  allLabel={`Every ${words.one}`}
                   value={classFilter}
                   options={classes.map((row) => ({ value: row.id, label: row.name }))}
                   onChange={(next) => {

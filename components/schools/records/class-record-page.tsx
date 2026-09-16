@@ -137,7 +137,7 @@ export function ClassRecordPage({ classId }: { classId: string }) {
       { id: "code", label: "Code", icon: Tag, mono: true, ...edit.required("code", record.code) },
       {
         id: "level",
-        label: "Year group",
+        label: "Class",
         icon: Layers,
         ...edit.numeric("level", record.level),
       },
@@ -323,7 +323,7 @@ export function ClassRecordPage({ classId }: { classId: string }) {
 
           {/*
             The same class, in the two modules that hold the rest of it. This
-            page is the only one in the product that is *about* a year group,
+            page is the only one in the product that is *about* a class,
             so it is where "what does Form 1 Blue owe" and "has Form 1 Blue
             been marked" should be one click from, rather than a trip back out
             to Finance or Results to pick the class off a grid again.

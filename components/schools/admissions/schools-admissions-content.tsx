@@ -26,6 +26,7 @@ import { useDebounced } from "@/hooks/use-debounced";
 import { DataTable } from "@/components/ui/data-table";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 import {
   deleteSchoolsEnrollment,
   fetchSchoolsClasses,
@@ -185,6 +186,7 @@ export function SchoolsAdmissionsContent() {
     [removeEnrollment],
   );
 
+  const words = useClassVocabulary();
   const columns = useMemo<ColumnDef<SchoolsEnrollmentRecord>[]>(
     () => [
       {
@@ -268,7 +270,7 @@ export function SchoolsAdmissionsContent() {
   return (
     <div className="space-y-4">
       {/*
-        The filter reads span three endpoints. If the year groups or the terms
+        The filter reads span three endpoints. If the classes or the terms
         will not load the pickers below are empty dropdowns with no explanation,
         which reads as "this school has no terms" — so the failure says which
         list is missing rather than letting the control lie about it.
@@ -310,8 +312,8 @@ export function SchoolsAdmissionsContent() {
         filters={
           <>
             <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
+              label={words.One}
+              allLabel={`Every ${words.one}`}
               value={classFilter}
               options={classes.map((row) => ({ value: row.id, label: row.name }))}
               onChange={setClassFilter}

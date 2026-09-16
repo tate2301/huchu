@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 /**
- * The work a year group has been set, and the marks on it.
+ * The work a class has been set, and the marks on it.
  *
  * `ClassAssessmentsContent` is the office's mark-entry screen — a thousand
  * lines with a mark sheet, a term-marks view and the button that writes those
@@ -16,7 +16,7 @@ import { prisma } from "@/lib/prisma";
  * has to enter the marks, and until now there was nowhere for them to do it.
  *
  * It sits under the class's marks rather than in the rail because it is about
- * one year group and is reached from that year group.
+ * one class and is reached from that class.
  */
 export default async function ClassAssessmentsPage({
   params,

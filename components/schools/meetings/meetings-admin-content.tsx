@@ -70,7 +70,7 @@ import { printEvening } from "@/components/schools/meetings/print-evening";
  *
  * ── Where the controls live ────────────────────────────────────────────────
  *
- * The term, the teacher, the year group, the evening and the search box are one
+ * The term, the teacher, the class, the evening and the search box are one
  * row above the schedule they narrow, because they narrow the schedule and
  * nothing else. The one create verb sits in the app bar where every other
  * campus page keeps its primary action.
@@ -79,7 +79,7 @@ import { printEvening } from "@/components/schools/meetings/print-evening";
  *
  *   Term = The current term
  *   Teacher = Every teacher
- *   Year group = Every year group
+ *   Class = Every class
  *   Evening = Every evening
  *
  * Each pair below is that contract: the `label` and the `allLabel` handed to
@@ -348,7 +348,7 @@ export function MeetingsAdminContent() {
   /**
    * The year-group filter narrows the bookings, not the evening.
    *
-   * A free slot belongs to no year group — any family can take it — so hiding
+   * A free slot belongs to no class — any family can take it — so hiding
    * the free rows when the office asks "who from Form 1 is booked with Ms
    * Banda" would answer a different question and hide the room that is left.
    *
@@ -755,8 +755,6 @@ export function MeetingsAdminContent() {
               }}
             />
             <ClassFilter
-              label="Year group"
-              allLabel="Every year group"
               includeStreams={false}
               value={yearGroup}
               onChange={(value) => {

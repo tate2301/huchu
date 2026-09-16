@@ -51,7 +51,7 @@ import {
  * This page used to be a year-group picker and nothing else, on the argument
  * that no school wants a list of 800 children. That is true of a list you
  * cannot narrow — and the answer is filters, not a page that refuses to show
- * anybody. The year group is still one press away and still its own route;
+ * anybody. The class is still one press away and still its own route;
  * this is the register the office reads when the question is "where is
  * Tanaka", which a picker cannot answer at all.
  *
@@ -306,13 +306,13 @@ export function StudentsListContent() {
     setPortalFilter("");
   }
 
-  /** Only worth a heading when more than one year group is on screen. */
+  /** Only worth a heading when more than one class is on screen. */
   const yearGroupFor = useMemo(() => {
     if (classValue.classId) return undefined;
     return (student: StudentRollRecord) =>
       student.currentClass
         ? { key: student.currentClass.id, label: student.currentClass.name }
-        : { key: "unplaced", label: "Not in a year group yet" };
+        : { key: "unplaced", label: "Not in a class yet" };
   }, [classValue.classId]);
 
   const columns = useMemo<ColumnDef<StudentRollRecord>[]>(
@@ -322,7 +322,7 @@ export function StudentsListContent() {
         header: "Pupil",
         // The mark, the name and the one line that tells two Tendai Moyos
         // apart, as one cell. The admission number leads it because it is the
-        // half that is unique, and the year group follows because that is what
+        // half that is unique, and the class follows because that is what
         // somebody at the counter is holding in their head.
         //
         // It is why there is no Admission column and no Year column any more:
@@ -344,7 +344,7 @@ export function StudentsListContent() {
         // The way in to a class's register, and the one the roll itself owes
         // it: standing in front of the whole school the next question is
         // nearly always "show me that class", and this is the shortest answer
-        // to it. Where a school runs no streams the cell names the year group
+        // to it. Where a school runs no streams the cell names the class
         // rather than dashing — a column of dashes was no use to anybody, and
         // it is the only door a school like that would have had.
         cell: ({ row }) => {

@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 type Action = "PROMOTE" | "REPEAT" | "GRADUATE" | "TRANSFER" | "WITHDRAW";
 
@@ -167,6 +168,7 @@ export function YearRollUpContent() {
     return [...map.entries()];
   }, [rows]);
 
+  const words = useClassVocabulary();
   const applyMutation = useMutation({
     mutationFn: () =>
       fetchJson<{
@@ -260,7 +262,7 @@ export function YearRollUpContent() {
     if (confirmed) applyMutation.mutate();
   };
 
-  /** The year group narrows the plan, so an empty plan under one is a filter result. */
+  /** The class narrows the plan, so an empty plan under one is a filter result. */
   const narrowed = Boolean(classFilter);
 
   return (
@@ -304,7 +306,7 @@ export function YearRollUpContent() {
       ) : null}
       {classesQuery.isError ? (
         <LoadError
-          what="the year groups"
+          what="the classes"
           error={classesQuery.error}
           onRetry={() => void classesQuery.refetch()}
         />
@@ -353,7 +355,7 @@ export function YearRollUpContent() {
               onChange={setToTermId}
             />
             <FilterSelect
-              label="Year group"
+              label={words.One}
               allLabel="The whole school"
               value={classFilter}
               options={classes.map((row) => ({ value: row.id, label: row.name }))}
@@ -366,7 +368,7 @@ export function YearRollUpContent() {
       {plan && plan.source === "current-class" ? (
         <Alert tone="warn" title="Built from where each child sits now">
           {plan.fromTerm.name} has no enrolment records, so this list came from each
-          student&rsquo;s current year group instead. That is a weaker fact than an
+          student&rsquo;s current class instead. That is a weaker fact than an
           enrolment — worth a look before rolling {rows.length} records over.
         </Alert>
       ) : null}
@@ -388,7 +390,7 @@ export function YearRollUpContent() {
           <NothingMatched
             what="children"
             filters={[
-              classes.find((row) => row.id === classFilter)?.name ?? "that year group",
+              classes.find((row) => row.id === classFilter)?.name ?? "that class",
               tab === "leaving" ? "the leavers" : "those moving up",
             ]}
             onClear={() => setClassFilter("")}
@@ -437,8 +439,8 @@ export function YearRollUpContent() {
                                 ladder is the fact the office is checking — "Form
                                 2 → Form 3", or that there is nothing above. */}
                             {row.student.studentNo} ·{" "}
-                            {row.fromClass?.name ?? "No year group"} →{" "}
-                            {row.toClass?.name ?? "no year group above"}
+                            {row.fromClass?.name ?? "No class"} →{" "}
+                            {row.toClass?.name ?? "no class above"}
                             {row.termAverage !== null
                               ? ` · average ${row.termAverage}%`
                               : ""}
@@ -446,7 +448,7 @@ export function YearRollUpContent() {
                           {row.flagged ? (
                             <Badge tone="danger">Below {plan?.passMark ?? 50}%</Badge>
                           ) : null}
-                          {/* Nothing above this year group, so "move up" has
+                          {/* Nothing above this class, so "move up" has
                               nowhere to move to. Said once, as a chip, rather
                               than buried in the reason line. */}
                           {!row.toClass && row.proposed === "GRADUATE" ? (

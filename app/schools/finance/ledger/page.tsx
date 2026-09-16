@@ -12,7 +12,7 @@ import { authOptions } from "@/lib/auth";
  * S-4.6 made `/schools/finance` a year-group picker, because chasing arrears is
  * work a bursar does one form at a time. This is the other half of their job —
  * "every receipt this week", "which structures are still draft" — which is not
- * about a year group at all, and forcing it through one would be worse than the
+ * about a class at all, and forcing it through one would be worse than the
  * single list it replaced.
  *
  * The heading moved inside the client component: the primary action belongs to

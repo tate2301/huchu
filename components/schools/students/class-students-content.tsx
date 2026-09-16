@@ -63,11 +63,11 @@ function statusBadge(status: string) {
   return <Badge tone="neutral">Withdrawn</Badge>;
 }
 
-/** The two cuts of a year group the canvas draws. */
+/** The two cuts of a class the canvas draws. */
 type ClassTab = "roll" | "boarders";
 
 /**
- * The register for one year group.
+ * The register for one class.
  *
  * Scoped by route rather than by a dropdown over everything, so the query asks
  * for one class's students and the page never holds the whole school. Within
@@ -76,7 +76,7 @@ type ClassTab = "roll" | "boarders";
  * class is already chosen, in which case the heading would repeat itself.
  *
  * The Class filter still offers every class in the school, and choosing one
- * navigates rather than filters in place. That is deliberate: the year group
+ * navigates rather than filters in place. That is deliberate: the class
  * is the route, so "which class am I looking at" and "the address of this
  * page" have to stay the same fact. A dropdown that quietly showed Form 3 on
  * the Form 2 URL would break the back button and every link anyone sent.
@@ -92,7 +92,7 @@ export function ClassStudentsContent({
   termName,
 }: {
   classId: string;
-  /** The year group's name, resolved on the server so the heading is right on first paint. */
+  /** The class's name, resolved on the server so the heading is right on first paint. */
   className: string;
   initialStreamId?: string;
   /** The term in view, for the caption. Omitted where no term is running. */
@@ -148,7 +148,7 @@ export function ClassStudentsContent({
   });
 
   /**
-   * The tab counts, over the whole year group rather than the filtered view:
+   * The tab counts, over the whole class rather than the filtered view:
    * a tab says how many records exist behind it, so narrowing to the boarders
    * must not read as though the class shrank to 44.
    */
@@ -422,7 +422,7 @@ export function ClassStudentsContent({
 
   return (
     <SchoolsPage>
-      {/* The app bar carries the year group's name — the sidebar already says
+      {/* The app bar carries the class's name — the sidebar already says
           "Pupils" one column left, so the page does not say it twice. */}
       <PageChrome title={className} backHref="/schools/students" backLabel="All pupils">
         <CreateButton
@@ -460,7 +460,7 @@ export function ClassStudentsContent({
           <TableSearch
             value={search}
             onChange={setSearch}
-            placeholder="Search this year group"
+            placeholder="Search this class"
           />
         }
         filterCount={activeFilterCount(streamFilter, statusFilter, boardingFilter)}
@@ -469,7 +469,7 @@ export function ClassStudentsContent({
           <>
             {/* Every class in the school, not just this one's streams: the
                 office lands here from a link and the next question is nearly
-                always another year group. Choosing one changes the route. */}
+                always another class. Choosing one changes the route. */}
             <ClassFilter
               label="Class"
               allLabel="Every class"
@@ -588,7 +588,7 @@ export function ClassStudentsContent({
           ) : (
             <NothingYet
               title={`Nobody is in ${className} yet`}
-              body="Add a pupil to this year group, or move one here from their own record."
+              body="Add a pupil to this class, or move one here from their own record."
             />
           )
         }

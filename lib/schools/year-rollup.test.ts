@@ -229,7 +229,7 @@ describe("planYearRollUp", () => {
     expect(plan.rows[0].alreadyRolled).toBe(true);
   });
 
-  it("falls back to the current year group when a term has no enrolments", async () => {
+  it("falls back to the current class when a term has no enrolments", async () => {
     // A school running without enrolment rows would otherwise be told there is
     // nobody to roll up, with no way to find out why.
     await prisma.schoolStudent.create({
@@ -481,7 +481,7 @@ describe("applyYearRollUp", () => {
     expect(student.currentClassId).toBe(formOneId);
   });
 
-  it("reports rather than silently skipping a decision with no year group", async () => {
+  it("reports rather than silently skipping a decision with no class", async () => {
     const studentId = await makeStudent(formOneId, termOneId);
     const result = await applyYearRollUp({
       companyId,

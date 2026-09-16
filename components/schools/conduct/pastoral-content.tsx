@@ -202,7 +202,7 @@ export function PastoralContent() {
   const readableShown = notes.filter((note) => note.readable).length;
 
   const namedFilters = [
-    classValue.classId ? "a year group" : null,
+    classValue.classId ? "a class" : null,
     VISIBILITY_OPTIONS.find((option) => option.value === bandFilter)?.label,
     REVIEW_OPTIONS.find((option) => option.value === reviewFilter)?.label,
   ].filter((entry): entry is string => Boolean(entry));
@@ -264,8 +264,6 @@ export function PastoralContent() {
           view === "notes" ? (
             <>
               <ClassFilter
-                label="Year group"
-                allLabel="Every year group"
                 value={classValue}
                 onChange={setClassValue}
               />

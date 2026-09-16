@@ -76,7 +76,7 @@ export function StudentProfileScreen() {
   const name = `${student.firstName} ${student.lastName}`;
   const yearGroup = student.currentClass
     ? `${student.currentClass.name}${student.currentStream ? ` ${student.currentStream.name}` : ""}`
-    : "Not in a year group yet";
+    : "Not in a class yet";
 
   return (
     <div className="flex flex-col">

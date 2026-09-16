@@ -33,6 +33,7 @@ import {
   fetchTeacherProfiles,
 } from "@/lib/schools/admin-v2";
 import { AssignmentBoardDialog } from "@/components/schools/homework/assignment-board-dialog";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /** Kept in step with `AssignmentState` in `lib/schools/assignments.ts`. */
 type AssignmentState = "DRAFT" | "SET" | "DUE_WEEK" | "OVERDUE";
@@ -114,7 +115,7 @@ function stateBadge(state: AssignmentState) {
  * Five filters, each named here with the unnarrowed choice the canvas gives it:
  *
  *   Term = This term
- *   Year group = Every year
+ *   Class = Every year
  *   Subject = Every subject
  *   Teacher = Every teacher
  *   State = Anything set
@@ -283,6 +284,7 @@ export function HomeworkOversightContent() {
     },
   });
 
+  const words = useClassVocabulary();
   const columns = useMemo<ColumnDef<OversightRow>[]>(
     () => [
       {
@@ -451,7 +453,7 @@ export function HomeworkOversightContent() {
           onChange={setTermId}
         />
         <FilterSelect
-          label="Year group"
+          label={words.One}
           allLabel="Every year"
           value={classId}
           options={classOptions}

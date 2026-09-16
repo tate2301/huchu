@@ -75,7 +75,7 @@ export type CollectionsReportOptions = {
   termId?: string;
   /** Every term in one academic year, when no single term is named. */
   academicYearId?: string;
-  /** Only the bills of pupils currently in this year group. */
+  /** Only the bills of pupils currently in this class. */
   classId?: string;
   /** Only the bills raised off one fee structure. */
   feeStructureId?: string;
@@ -223,13 +223,13 @@ export type CollectionsByYearGroupRow = {
 };
 
 /**
- * The same collections, cut by year group instead of by term.
+ * The same collections, cut by class instead of by term.
  *
  * A separate call rather than a second shape on `generateCollectionsReport`,
  * whose rows the CSV and PDF export renders column by column — widening its
  * return would put a nested breakdown through a table renderer. The office
  * reads the two together: the term row says the school is 27 points down, and
- * this says which four year groups are carrying it.
+ * this says which four classes are carrying it.
  */
 export async function collectionsByYearGroup(
   companyId: string,
@@ -274,7 +274,7 @@ export async function collectionsByYearGroup(
       byClass.get(key) ??
       ({
         classId: key,
-        className: schoolClass?.name ?? "No year group",
+        className: schoolClass?.name ?? "No class",
         level: schoolClass?.level ?? null,
         invoiced: 0,
         collected: 0,

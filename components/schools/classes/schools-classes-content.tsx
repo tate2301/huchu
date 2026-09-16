@@ -24,6 +24,7 @@ import {
 } from "@/lib/schools/admin-v2";
 import { ClassFormDialog, type ClassFormValues } from "@/components/schools/classes/class-form-dialog";
 import { StreamFormDialog, type StreamFormValues } from "@/components/schools/classes/stream-form-dialog";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The year-group ladder and the streams inside it.
@@ -100,9 +101,9 @@ export function SchoolsClassesContent() {
     [classes],
   );
 
-  // The year groups the school actually runs, labelled by the classes at each
+  // The classes the school actually runs, labelled by the classes at each
   // level — the level number is internal ordering and reads as nonsense on its
-  // own ("Year group 8" for Form 1).
+  // own ("Class 8" for Form 1).
   const levels = useMemo(() => {
     const byLevel = new Map<number, Set<string>>();
     for (const row of classes) {
@@ -270,6 +271,7 @@ export function SchoolsClassesContent() {
     [visibleClasses, deleteClass],
   );
 
+  const words = useClassVocabulary();
   const streamRows = useMemo<RecordListRow[]>(
     () =>
       visibleStreams.map((stream) => ({
@@ -393,8 +395,8 @@ export function SchoolsClassesContent() {
             filters={
               <>
                 <FilterSelect
-                  label="Year group"
-                  allLabel="Every year group"
+                  label={words.One}
+                  allLabel={`Every ${words.one}`}
                   value={levelFilter}
                   options={levels}
                   onChange={setLevelFilter}
@@ -433,7 +435,7 @@ export function SchoolsClassesContent() {
           ) : classes.length === 0 ? (
             <NothingYet
               title="No classes yet"
-              body="A class is the year group everything else hangs off — pupils, registers, mark sheets and fee structures."
+              body="Everything else hangs off one — pupils, registers, mark sheets and fee structures."
               action={
                 <CreateButton
                   resource="schools.academics"
@@ -484,8 +486,8 @@ export function SchoolsClassesContent() {
                   onChange={setClassFilter}
                 />
                 <FilterSelect
-                  label="Year group"
-                  allLabel="Every year group"
+                  label={words.One}
+                  allLabel={`Every ${words.one}`}
                   value={levelFilter}
                   options={levels}
                   onChange={setLevelFilter}

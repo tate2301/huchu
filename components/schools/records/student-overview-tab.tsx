@@ -31,6 +31,7 @@ import { fetchJson } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
 import { fetchTeacherAssignments } from "@/lib/schools/admin-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * A pupil, on one screen.
@@ -432,6 +433,7 @@ export function StudentOverviewTab({
    * to whoever is on this child's record, so the parent knows to expect the
    * call rather than finding a booking in their portal with no explanation.
    */
+  const words = useClassVocabulary();
   const askThemIn = useMutation({
     mutationFn: (decision: { title: string; body: string }) =>
       fetchJson<{ recipients: number }>("/api/v2/schools/notices", {
@@ -613,7 +615,7 @@ export function StudentOverviewTab({
                   : "Not known"
               }
             />
-            <Fact label="Year group" value={student.currentClass?.name ?? "Not in a year group"} />
+            <Fact label={words.One} value={student.currentClass?.name ?? "Not in a class"} />
             <Fact
               label="Register class"
               value={student.currentStream?.name ?? "Not in a class"}

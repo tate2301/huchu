@@ -30,6 +30,7 @@ import {
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
 import type { PublishWindowStatus } from "@/lib/schools/results-v2";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 import {
   fetchSchoolsClasses,
   fetchSchoolsTerms,
@@ -365,13 +366,14 @@ export function GradingContent() {
     [deleteScheme, makeDefault],
   );
 
+  const words = useClassVocabulary();
   const windowColumns = useMemo<ColumnDef<PublishWindowRecord>[]>(
     () => [
       {
         id: "scope",
         header: "Covers",
         // The same cell the publishing screen draws for the same window, and
-        // the year group in it is the way to the year group — an office asking
+        // the class in it is the way to the class — an office asking
         // "who is this window holding marks back from" is one click away from
         // the answer instead of one search.
         cell: ({ row }) => (
@@ -627,8 +629,8 @@ export function GradingContent() {
                 onChange={setTermFilter}
               />
               <FilterSelect
-                label="Year group"
-                allLabel="Every year group"
+                label={words.One}
+                allLabel={`Every ${words.one}`}
                 value={classFilter}
                 options={[
                   { value: "__all__", label: "The whole school" },

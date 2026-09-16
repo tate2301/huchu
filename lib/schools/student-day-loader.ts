@@ -309,7 +309,7 @@ async function loadHomework(input: {
       isPublished: true,
       classSubject: {
         classId: input.student.currentClassId,
-        // A class subject with no stream is taught to the whole year group; one
+        // A class subject with no stream is taught to the whole class; one
         // with a stream is taught to that stream only. Both are this child's
         // work, and nobody else's stream is.
         ...(input.student.currentStreamId

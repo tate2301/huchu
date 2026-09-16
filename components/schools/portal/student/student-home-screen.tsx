@@ -79,7 +79,7 @@ export function StudentHomeScreen() {
       <div className="sp-greet">
         {[student.currentClass?.name, student.currentStream?.name, term?.name]
           .filter(Boolean)
-          .join(" · ") || "No year group yet"}
+          .join(" · ") || "No class yet"}
       </div>
 
       <div className="sp-psh">

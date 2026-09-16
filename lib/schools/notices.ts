@@ -62,14 +62,14 @@ const TYPE_FOR: Record<NoticeAudience, (typeof SCHOOL_NOTICE_TYPES)[number]> = {
 export async function resolveNoticeAudience(input: {
   companyId: string;
   audience: NoticeAudience;
-  /** Narrow to one year group. Parents means "parents of pupils in it". */
+  /** Narrow to one class. Parents means "parents of pupils in it". */
   classId?: string | null;
   /**
    * Narrow to a named set of pupils — the families a screen has already
    * shortlisted.
    *
    * The arrears board names the 188 who owe and the meetings board names the
-   * one family whose slot was just released; neither is a year group, and
+   * one family whose slot was just released; neither is a class, and
    * writing to the whole of Form 4 because six of them are behind is how a
    * school teaches its parents to stop reading the notice board. Teachers are
    * unaffected by it: a shortlist of pupils does not describe a staff room.
@@ -227,7 +227,7 @@ export type SentNotice = {
    * people — neither can work off a display label that says "Pupils".
    */
   audienceCode: NoticeAudience;
-  /** The year group it was narrowed to, from the payload. Null means school-wide. */
+  /** The class it was narrowed to, from the payload. Null means school-wide. */
   classId: string | null;
   className: string | null;
   createdAt: Date;
@@ -262,12 +262,12 @@ function parsePayload(payload: string | null): Record<string, unknown> {
     }
   } catch {
     // A payload that will not parse is a notice sent by something else. It is
-    // still a notice; it simply has no year group, which is what null says.
+    // still a notice; it simply has no class, which is what null says.
   }
   return {};
 }
 
-/** The year group a notice was addressed to, if the sender narrowed it. */
+/** The class a notice was addressed to, if the sender narrowed it. */
 function classIdFromPayload(payload: string | null): string | null {
   const value = parsePayload(payload).classId;
   return typeof value === "string" ? value : null;
@@ -278,7 +278,7 @@ function classIdFromPayload(payload: string | null): string | null {
  * wrote down.
  *
  * A read-modify-write rather than a fresh payload: the shortlist of pupils, the
- * year group and the count of families with no account are the only record of
+ * class and the count of families with no account are the only record of
  * who a notice was actually aimed at, and replacing the payload to note an edit
  * would throw that away to say "this was edited".
  *
@@ -325,7 +325,7 @@ export async function listSentNotices(input: {
     },
   });
 
-  // The year groups in one query rather than a join per notice: a term's worth
+  // The classes in one query rather than a join per notice: a term's worth
   // of notices names a handful of classes between them.
   const classIds = [
     ...new Set(

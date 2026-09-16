@@ -1,13 +1,14 @@
 import { Prisma, SchoolMeritKind } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { rungName } from "@/lib/schools/class-stage";
 import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 
 /**
  * Merits and demerits — one ledger, read three ways.
  *
  * Every number on the merits screen is an aggregate over `SchoolMeritEntry`: by
- * pupil, by reason, by year group. Nothing is stored twice, which is what keeps
+ * pupil, by reason, by class. Nothing is stored twice, which is what keeps
  * the arithmetic reconciling in three directions the way the artboard's does.
  *
  * A net is not good news or bad news. The screen leaves it untoned and so does
@@ -281,7 +282,13 @@ export async function meritSummary(args: {
   const levels = new Map<string, { level: number | null; label: string; net: number }>();
   for (const entry of byStudent) {
     const level = entry.student.currentClass?.level ?? null;
-    const label = level == null ? "No year group" : `Form ${level}`;
+    /*
+     * This said `Form ${level}`, which was wrong twice over: it called a
+     * primary school's Grade 4 a Form, and it printed the rung rather than the
+     * year, so an actual Form 1 — level 8 — appeared on the leaderboard as
+     * "Form 8". `rungName` reads the stage off the rung and names it.
+     */
+    const label = rungName(level) ?? "No class";
     const key = String(level ?? "none");
     const seen = levels.get(key) ?? { level, label, net: 0 };
     seen.net += entry.kind === "MERIT" ? entry.points : -entry.points;

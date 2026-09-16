@@ -162,7 +162,7 @@ describe("who a notice reaches", () => {
     expect(withoutAccount).toBe(1);
   });
 
-  it("narrows parents to the year group asked for", async () => {
+  it("narrows parents to the class asked for", async () => {
     const { userIds } = await resolveNoticeAudience({
       companyId,
       audience: "PARENTS",
@@ -294,7 +294,7 @@ describe("sending", () => {
   });
 
   it("refuses rather than sending a notice nobody will get", async () => {
-    // A year group whose only family has never been invited.
+    // A class whose only family has never been invited.
     const emptyClass = await prisma.schoolClass.create({
       data: { companyId, code: `F9-${stamp % 1000}`, name: "Form 9", level: 9 },
       select: { id: true },

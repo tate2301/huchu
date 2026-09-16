@@ -187,7 +187,7 @@ export function ApplicationFormSheet({
               date field draws its value in whatever order the reader's browser
               was set up with, so 06/03 is the third of June at one desk and the
               sixth of March at the next — and a date of birth read the wrong way
-              round puts a child in the wrong year group. */}
+              round puts a child in the wrong class. */}
           <Label htmlFor="application-dob">
             Date of birth
             {values.dateOfBirth ? (

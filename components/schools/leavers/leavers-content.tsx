@@ -220,7 +220,7 @@ export function LeaversContent() {
       },
       {
         id: "yearGroup",
-        header: "Year group",
+        header: "Class",
         cell: ({ row }) => (
           <RecordCell
             value={
@@ -410,7 +410,6 @@ export function LeaversContent() {
           onQueue ? (
             <>
               <ClassFilter
-                label="Year group"
                 allLabel="The whole school"
                 value={classValue}
                 onChange={setClassValue}
@@ -475,7 +474,7 @@ export function LeaversContent() {
                   rows={6}
                   headers={[
                     "Pupil",
-                    "Year group",
+                    "Class",
                     "Leaving because",
                     "Last day",
                     "Fees · Library · Bed · Portal · Docs",

@@ -69,7 +69,7 @@ const STATUS_LABELS: Record<NonNullable<BoardRow["submission"]>["status"], strin
 type SubjectOption = { id: string; subject: { name: string }; stream: { name: string } | null };
 
 /**
- * Homework set for a year group, and what has come back.
+ * Homework set for a class, and what has come back.
  *
  * The board opens on who has *not* handed in, because that is the list a
  * teacher works from on a Tuesday evening. Everything else — the marks, the

@@ -39,6 +39,7 @@ import {
 } from "@/lib/schools/admin-v2";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 import {
   LessonFormSheet,
   type LessonBeingMoved,
@@ -366,6 +367,7 @@ export function SchoolsTimetableContent() {
     },
   });
 
+  const words = useClassVocabulary();
   const autoFill = useMutation({
     mutationFn: async (values: AutoFillValues) =>
       fetchJson<AutoFillResult>("/api/v2/schools/timetable/auto-fill", {
@@ -555,7 +557,7 @@ export function SchoolsTimetableContent() {
         {viewpoint === "class" ? (
           <FilterSelect
             label="Class"
-            allLabel="Every year group"
+            allLabel={`Every ${words.one}`}
             value={classFilter}
             options={classes.map((schoolClass) => ({
               value: schoolClass.id,

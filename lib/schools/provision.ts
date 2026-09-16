@@ -4,6 +4,7 @@ import { activateTerm } from "@/lib/schools/calendar";
 import { money } from "@/lib/schools/money";
 import { grantBundleToCompany } from "@/lib/platform/entitlements";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
+import { CLASS_LADDER } from "@/lib/schools/class-stage";
 
 /**
  * Opening a school.
@@ -72,21 +73,16 @@ const TERM_TEMPLATE = [
   { code: "T3", name: "Term 3", startMonth: 9, startDay: 9, endMonth: 12, endDay: 5 },
 ] as const;
 
-const PRIMARY_CLASSES = [
-  { code: "ECD-A", name: "ECD A", level: 0 },
-  { code: "ECD-B", name: "ECD B", level: 0 },
-  ...Array.from({ length: 7 }, (_, index) => ({
-    code: `G${index + 1}`,
-    name: `Grade ${index + 1}`,
-    level: index + 1,
-  })),
-];
-
-const SECONDARY_CLASSES = Array.from({ length: 6 }, (_, index) => ({
-  code: `F${index + 1}`,
-  name: `Form ${index + 1}`,
-  level: index + 8,
-}));
+/*
+ * The ladder lives in `lib/schools/class-stage.ts` now, because it was a fact
+ * two places needed and only this one had. The New class dialog — the other
+ * thing that writes `SchoolClass.level` — shipped its own set of quick presets
+ * putting Form 1 at level 1, against the level 8 written here, so a school
+ * provisioned as COMBINED that then added a class by hand got Form 1 sorting
+ * above Grade 1 in every list ordered by level.
+ */
+const PRIMARY_CLASSES = CLASS_LADDER.filter((rung) => rung.stage !== "FORM");
+const SECONDARY_CLASSES = CLASS_LADDER.filter((rung) => rung.stage === "FORM");
 
 const PRIMARY_SUBJECTS = [
   { code: "ENG", name: "English", isCore: true },

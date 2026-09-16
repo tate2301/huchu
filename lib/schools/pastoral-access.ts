@@ -221,7 +221,7 @@ const LIST_SELECT = {
 } satisfies Prisma.SchoolPastoralNoteSelect;
 
 export type PastoralFilters = {
-  /** A year group — `SchoolClass.level`. */
+  /** A class — `SchoolClass.level`. */
   level?: number;
   /** A class, which is what the screen's `ClassFilter` actually returns. */
   classId?: string;
@@ -237,7 +237,7 @@ export type PastoralFilters = {
 function filterWhere(filters: PastoralFilters): Prisma.SchoolPastoralNoteWhereInput {
   const where: Prisma.SchoolPastoralNoteWhereInput = {};
   // One filter over the pupil relation rather than three assignments, so a
-  // class and a year group compose instead of overwriting each other.
+  // class and a class compose instead of overwriting each other.
   if (filters.level != null || filters.classId || filters.streamId) {
     where.student = {
       ...(filters.classId ? { currentClassId: filters.classId } : {}),

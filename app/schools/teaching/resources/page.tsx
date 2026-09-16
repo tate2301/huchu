@@ -11,7 +11,7 @@ import { authOptions } from "@/lib/auth";
  * The shelf was built and nothing rendered it, so the only way a school could
  * see what its teachers had uploaded was a REST client. It hangs off subjects
  * rather than classes — a Form 2 worksheet is the same worksheet next
- * September — which is why it lives under Teaching and not under a year group.
+ * September — which is why it lives under Teaching and not under a class.
  */
 export default async function SchoolsTeachingResourcesPage() {
   const session = await getServerSession(authOptions);
