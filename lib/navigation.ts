@@ -37,7 +37,14 @@ import {
   ReportProblem,
   Scale,
   Send,
+  Certificate,
+  Flag,
+  GraduationCap,
+  Lock,
   ShieldCheck,
+  SignOut,
+  Star,
+  Timer,
   TableRows,
   TrendingUp,
   Upload,
@@ -138,6 +145,15 @@ const SCHOOL_BANDS: SchoolNavBand[] = [
   // put lesson plans and subject targets in the bursar's rail. `schools.results`
   // is the grant that means "trusted with how children are doing".
   { id: "teaching", label: "Teaching", resource: "schools.results" },
+  // S-12.1. After Teaching because the canvas puts Conduct straight after
+  // Classroom, and for the same reason: what happened in a lesson is read by
+  // whoever was standing in it, then by the office.
+  //
+  // `schools.conduct`, not `schools.students`: a behaviour record is not a
+  // class list, and everybody who can see the roll should not be handed the
+  // log. Pastoral notes are deliberately NOT in this group — see the row
+  // beside Health and welfare.
+  { id: "conduct", label: "Conduct", resource: "schools.conduct" },
   { id: "results", label: "Results", resource: "schools.results" },
   { id: "boarding", label: "Boarding", resource: "schools.boarding", action: "allocate-bed" },
   { id: "fees", label: "Fees", resource: "schools.fees", action: "issue" },
@@ -399,7 +415,45 @@ export const navSections: NavSection[] = [
         group: "students",
         grant: { resource: "schools.welfare" },
       },
+      // Filed beside the medical file rather than under Conduct, which is the
+      // decision `13-campus-expansion-canvas.md` argues at length: "a pastoral
+      // note is not a discipline record. Filing it under Conduct would have
+      // told every person who opened the menu that it was." The canvas puts it
+      // in a Welfare group with the bed board; this rail has no Welfare group —
+      // Health and welfare sits here, with the pupil — so this is where the
+      // argument lands. Its route is still `/schools/conduct/pastoral`; see
+      // conduct.md open question 1.
+      //
+      // `schools.pastoral` is its own resource and the only row in the rail
+      // that carries it, so a member of staff with no clearance never sees the
+      // door. That is deliberate the other way too: the page itself answers
+      // `NotYourJob` rather than 404 for somebody who holds the grant and no
+      // clearance, because a nurse who cannot find the screen concludes the
+      // feature does not exist.
+      {
+        href: "/schools/conduct/pastoral",
+        icon: Lock,
+        label: "Pastoral notes",
+        group: "students",
+        grant: { resource: "schools.pastoral" },
+      },
       { href: "/schools/library", icon: MedusaBookOpenIcon, label: "Library", group: "students" },
+      // S-13.4 and S-13.5, at the end of the group in the order of the year: a
+      // pupil is admitted, taught, rolled up, and then leaves.
+      {
+        href: "/schools/leavers",
+        icon: SignOut,
+        label: "Leavers",
+        group: "students",
+        grant: { resource: "schools.leavers" },
+      },
+      {
+        href: "/schools/alumni",
+        icon: GraduationCap,
+        label: "Alumni",
+        group: "students",
+        grant: { resource: "schools.alumni" },
+      },
 
       // What is happening today and whether the school is open.
       { href: "/schools/attendance", icon: UserCheck, label: "Registers", group: "school-day" },
@@ -454,15 +508,48 @@ export const navSections: NavSection[] = [
       // approved, then published, and each of those is somebody different's
       // move. Separate from Teaching because the head of department signs in to
       // do exactly one thing and "Teaching" does not name it.
+      // S-12.1. The log leads because it is the one a deputy head opens before
+      // the bell; merits and detention are the two halves of what follows from
+      // it.
+      { href: "/schools/conduct", icon: Flag, label: "Behaviour log", group: "conduct" },
+      {
+        href: "/schools/conduct/detention",
+        icon: Timer,
+        label: "Detention",
+        group: "conduct",
+      },
+      {
+        href: "/schools/conduct/merits",
+        icon: Star,
+        label: "Merits and demerits",
+        group: "conduct",
+      },
+
       { href: "/schools/results", icon: FileCheck, label: "Results", group: "results" },
+      // S-13.1. Public exams fold into Results rather than taking a group of
+      // their own: "a head looking for November's grades does not first decide
+      // whether they are internal or public."
+      {
+        href: "/schools/exams",
+        icon: Certificate,
+        label: "Exam series",
+        group: "results",
+        grant: { resource: "schools.exams" },
+      },
       { href: "/schools/results/moderation", icon: Scale, label: "Moderation", group: "results" },
       { href: "/schools/results/publish", icon: Send, label: "Publishing", group: "results" },
 
-      // The house: where there is a free bed, who is in which bed, what the
-      // houses are, and who is out of the gate.
+      // The house: where there is a free bed, who is in which bed, who is in
+      // the building tonight, who is ill, and who is out of the gate.
+      //
+      // Roll call earns a rail entry rather than living inside a house,
+      // because it is the one thing here that happens at a fixed time every
+      // night and is the reason somebody opens this module at nine o'clock.
       { href: "/schools/boarding", icon: Home, label: "Bed board", group: "boarding" },
       { href: "/schools/boarding/allocations", icon: Checklist, label: "Allocations", group: "boarding" },
+      { href: "/schools/boarding/roll-call", icon: UserCheck, label: "Roll call", group: "boarding" },
       { href: "/schools/boarding/hostels", icon: Building2, label: "Hostels", group: "boarding" },
+      { href: "/schools/boarding/sick-bay", icon: MedusaIdBadgeIcon, label: "Sick bay", group: "boarding" },
       { href: "/schools/boarding/leave", icon: CalendarCheck, label: "Leave and outings", group: "boarding" },
 
       // Money owed to the school. Three entries where there were eight: five of

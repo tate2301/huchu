@@ -124,6 +124,9 @@ model Company {
   schoolBoardingAllocations     SchoolBoardingAllocation[]
   schoolLeaveRequests           SchoolLeaveRequest[]
   schoolBoardingMovementLogs    SchoolBoardingMovementLog[]
+  schoolRollCalls               SchoolRollCall[]
+  schoolRollCallEntries         SchoolRollCallEntry[]
+  schoolSickBayAdmissions       SchoolSickBayAdmission[]
   schoolResultSheets            SchoolResultSheet[]
   schoolResultLines             SchoolResultLine[]
   schoolResultModerationActions SchoolResultModerationAction[]
@@ -175,6 +178,37 @@ model Company {
   schoolImportJobs              SchoolImportJob[]
   schoolImportRows              SchoolImportRow[]
   schoolImportArtifacts         SchoolImportArtifact[]
+  schoolConductCategories       SchoolConductCategory[]
+  schoolConductIncidents        SchoolConductIncident[]
+  schoolConductParticipants     SchoolConductParticipant[]
+  schoolConductAccounts         SchoolConductAccount[]
+  schoolMeritReasons            SchoolMeritReason[]
+  schoolMeritEntries            SchoolMeritEntry[]
+  schoolDetentionSessions       SchoolDetentionSession[]
+  schoolDetentionAwards         SchoolDetentionAward[]
+  schoolDetentionAttendance     SchoolDetentionAttendance[]
+  schoolPastoralNotes           SchoolPastoralNote[]
+  schoolPastoralNoteReaders     SchoolPastoralNoteReader[]
+  schoolPastoralClearances      SchoolPastoralClearance[]
+  schoolPastoralAccessRequests  SchoolPastoralAccessRequest[]
+  schoolExamBoards              SchoolExamBoard[]
+  schoolExamCentres             SchoolExamCentre[]
+  schoolExamSeries              SchoolExamSeries[]
+  schoolExamSubjects            SchoolExamSubject[]
+  schoolExamPapers              SchoolExamPaper[]
+  schoolExamSessions            SchoolExamSession[]
+  schoolCandidates              SchoolCandidate[]
+  schoolExamEntries             SchoolExamEntry[]
+  schoolExamRoomAllocations     SchoolExamRoomAllocation[]
+  schoolExamSeats               SchoolExamSeat[]
+  schoolExamAccessArrangements  SchoolExamAccessArrangement[]
+  schoolExamResults             SchoolExamResult[]
+  schoolExamEntryFileRuns       SchoolExamEntryFileRun[]
+  schoolLeavers                 SchoolLeaver[]
+  schoolLeaverClearances        SchoolLeaverClearance[]
+  schoolAlumni                  SchoolAlumnus[]
+  schoolAlumniUpdates           SchoolAlumniUpdate[]
+  schoolStudentHonours          SchoolStudentHonour[]
   goldPurchases                 GoldPurchase[]
   goldPrices                    GoldPrice[]
   goldExpenseTypes              GoldExpenseType[]
@@ -1115,6 +1149,8 @@ model User {
   schoolLeaveRequestsCheckedIn      SchoolLeaveRequest[]           @relation("SchoolLeaveRequestCheckedInBy")
   schoolLeaveRequestsCreated        SchoolLeaveRequest[]           @relation("SchoolLeaveRequestCreatedBy")
   schoolBoardingMovementsRecorded   SchoolBoardingMovementLog[]    @relation("SchoolBoardingMovementRecordedBy")
+  schoolRollCallsTaken              SchoolRollCall[]               @relation("SchoolRollCallTakenBy")
+  schoolSickBayAdmissionsMade       SchoolSickBayAdmission[]       @relation("SchoolSickBayAdmittedBy")
   createdLeaveRequests              LeaveRequest[]                 @relation("LeaveRequestCreatedBy")
   decidedLeaveRequests              LeaveRequest[]                 @relation("LeaveRequestDecidedBy")
   createdSettlementIntakes          SettlementIntake[]             @relation("SettlementIntakeCreatedBy")
@@ -6651,6 +6687,33 @@ enum SchoolLeaveRequestType {
   OUTING
 }
 
+enum SchoolRollCallSession {
+  /// Before school. Catches the child who left in the night.
+  MORNING
+  /// The one that matters — lights out, everybody accounted for.
+  EVENING
+}
+
+enum SchoolRollCallStatus {
+  OPEN
+  SUBMITTED
+}
+
+enum SchoolRollCallEntryStatus {
+  /// The default every entry starts at. Not an accusation — nobody has looked
+  /// yet, and the screen's job is to drive this count to zero.
+  NOT_SEEN
+  PRESENT
+  /// Away with permission, from the gate book.
+  SIGNED_OUT
+  /// In the sick bay, with their own bed held.
+  SICK_BAY
+  /// Looked for, not found, and not signed out. The one that starts a phone
+  /// call — kept distinct from NOT_SEEN so "we have not counted yet" can never
+  /// be mistaken for "this child is missing".
+  ABSENT
+}
+
 enum SchoolLeaveRequestStatus {
   DRAFT
   SUBMITTED
@@ -6977,6 +7040,8 @@ model SchoolTerm {
   streams             SchoolStream[]
   enrollments         SchoolEnrollment[]
   boardingAllocations SchoolBoardingAllocation[]
+  rollCalls           SchoolRollCall[]
+  sickBayAdmissions   SchoolSickBayAdmission[]
   resultSheets        SchoolResultSheet[]
   classSubjects          SchoolClassSubject[]
   periods                SchoolPeriod[]
@@ -6994,6 +7059,10 @@ model SchoolTerm {
   feeInvoices         SchoolFeeInvoice[]
   feeWaivers          SchoolFeeWaiver[]
   leaveRequests       SchoolLeaveRequest[]
+  conductIncidents    SchoolConductIncident[]
+  meritEntries        SchoolMeritEntry[]
+  detentionSessions   SchoolDetentionSession[]
+  detentionAwards     SchoolDetentionAward[]
 
   @@unique([companyId, academicYearId, code])
   @@index([companyId, isActive])
@@ -7032,6 +7101,7 @@ model SchoolClass {
   timetableSlots SchoolTimetableSlot[]
   publishWindows SchoolPublishWindow[]
   feeStructures  SchoolFeeStructure[]
+  pastoralClearances SchoolPastoralClearance[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -7102,6 +7172,8 @@ model SchoolTeacherProfile {
   parentMeetings   SchoolParentMeeting[]   @relation("SchoolParentMeetingTeacher")
   teachingResources SchoolTeachingResource[] @relation("SchoolResourceUploader")
   messageThreads    SchoolMessageThread[]
+  detentionSessions SchoolDetentionSession[]
+  examInvigilations SchoolExamRoomAllocation[]
 
   @@unique([companyId, userId])
   @@unique([companyId, employeeCode])
@@ -7132,6 +7204,7 @@ model SchoolSubject {
   studentGoals      SchoolStudentGoal[]
   classSubjects SchoolClassSubject[]
   schemesOfWork SchoolSchemeOfWork[]
+  examSubjects  SchoolExamSubject[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
@@ -7183,7 +7256,30 @@ model SchoolStudent {
   currentClassId  String?
   currentStreamId String?
   isBoarding      Boolean             @default(false)
+  /// A house prefect. Used by the bed placer: a prefects' dormitory is offered
+  /// only to a prefect, which is a rule the school enforces socially and the
+  /// placer should not quietly break.
+  isPrefect       Boolean             @default(false)
   admissionDate   DateTime?
+  /// S-13.1 — what a public exam board requires and a school roll never had.
+  ///
+  /// `certifiedName` is the name as the birth certificate prints it, and the
+  /// reason it is a column rather than a comparison against `firstName` and
+  /// `lastName` is that the commonest blocker on a candidate roll is that the
+  /// two differ. Without somewhere to hold the certified spelling, "the name
+  /// differs from the birth certificate" has no second name to differ from.
+  ///
+  /// `nationalId` and `birthCertificateNo` are entry-file requirements. They
+  /// were the one place `customFields` could have taken them, and a JSON blob
+  /// cannot be a NOT NULL requirement on a file that decides whether a child
+  /// sits an exam.
+  certifiedName      String?
+  nationalId         String?
+  birthCertificateNo String?
+  /// S-13.5 — the house, which the leaving documents and the alumnus record
+  /// both print. Prizes and colours are a collection and live in
+  /// `SchoolStudentHonour`.
+  house              String?
   /// S-4.3 — the record page's identity strip.
   ///
   /// A photograph when there is one; otherwise the initials `PersonAvatar`
@@ -7215,6 +7311,8 @@ model SchoolStudent {
   boardingAllocations    SchoolBoardingAllocation[]
   leaveRequests          SchoolLeaveRequest[]
   boardingMovementLogs   SchoolBoardingMovementLog[]
+  rollCallEntries        SchoolRollCallEntry[]
+  sickBayAdmissions      SchoolSickBayAdmission[]
   resultLines            SchoolResultLine[]
   assessmentScores       SchoolAssessmentScore[]
   application            SchoolApplication?
@@ -7233,6 +7331,17 @@ model SchoolStudent {
   feeRefunds             SchoolFeeRefund[]
   portalInvites          SchoolPortalInvite[]
   messageThreads         SchoolMessageThread[]
+  conductIncidents       SchoolConductIncident[]
+  conductParticipations  SchoolConductParticipant[]
+  conductAccounts        SchoolConductAccount[]
+  meritEntries           SchoolMeritEntry[]
+  detentionAwards        SchoolDetentionAward[]
+  detentionAttendance    SchoolDetentionAttendance[]
+  pastoralNotes          SchoolPastoralNote[]
+  examCandidacies        SchoolCandidate[]
+  leaver                 SchoolLeaver?
+  alumnus                SchoolAlumnus?
+  honours                SchoolStudentHonour[]
 
   @@unique([companyId, studentNo])
   @@unique([companyId, admissionNo])
@@ -7357,6 +7466,7 @@ model SchoolHostel {
   rooms       SchoolHostelRoom[]
   beds        SchoolHostelBed[]
   allocations SchoolBoardingAllocation[]
+  rollCalls   SchoolRollCall[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
@@ -7369,6 +7479,15 @@ model SchoolHostelRoom {
   code      String
   floor     String?
   capacity  Int?
+  /// A dormitory reserved for prefects. The placer will not offer a bed in
+  /// here to a pupil who is not one.
+  isPrefectDorm Boolean @default(false)
+  /// Which year groups this dormitory is meant for, as class ids. Empty means
+  /// any. The placer treats it as a strong preference rather than a rule —
+  /// a school that mixes years in one dormitory is not doing anything wrong,
+  /// but Form 1s should not be scattered when there is a Form 1 dormitory
+  /// with space in it.
+  yearGroupIds String[]
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7389,6 +7508,22 @@ model SchoolHostelBed {
   roomId    String
   code      String
   status    String   @default("AVAILABLE")
+  /// Why a bed is out of service — "Bunk ladder broken · joiner Thursday".
+  ///
+  /// `status` alone says a bed cannot be slept in and never says why, so the
+  /// warden who has to chase it has nowhere to write what they are chasing.
+  /// Null whenever the bed is AVAILABLE.
+  statusReason String?
+  /// Where the bed physically is in the room.
+  ///
+  /// A dormitory is two wall runs with an aisle between them: bay 1 is the
+  /// pair nearest the door, and `tier` is U or L of that bunk (null for a
+  /// single bed). The plan view draws the room from these rather than parsing
+  /// them out of `code` — "04U" is a naming convention a school is free to
+  /// break, and a drawing that guesses at geometry from a string is a drawing
+  /// that silently misplaces a child the first time somebody types "4-upper".
+  bay       Int?
+  tier      String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7397,9 +7532,11 @@ model SchoolHostelBed {
   hostel      SchoolHostel               @relation(fields: [hostelId], references: [id], onDelete: Cascade)
   room        SchoolHostelRoom           @relation(fields: [roomId], references: [id], onDelete: Cascade)
   allocations SchoolBoardingAllocation[]
+  sickBayAdmissions SchoolSickBayAdmission[]
 
   @@unique([companyId, roomId, code])
   @@index([companyId, isActive])
+  @@index([companyId, roomId, bay])
 }
 
 model SchoolBoardingAllocation {
@@ -7486,6 +7623,112 @@ model SchoolBoardingMovementLog {
 
   @@index([companyId, leaveRequestId, recordedAt])
   @@index([companyId, studentId, recordedAt])
+}
+
+/// One taking of a roll call, in one house, at one time of day.
+///
+/// The thing that was missing. Before this, a roll call was a checklist a
+/// warden ticked and threw away — which is not a roll call, because the whole
+/// point is being able to answer "who said this child was in the building on
+/// Tuesday night" three weeks later. A house that has an OPEN session is
+/// mid-count; SUBMITTED is the warden signing it off, and after that the
+/// entries are the record.
+///
+/// Scoped to a house rather than the school, because that is who takes it: a
+/// warden counts their own boarders and nobody counts across houses.
+model SchoolRollCall {
+  id         String               @id @default(uuid())
+  companyId  String
+  hostelId   String
+  termId     String
+  /// The night it is about, at midnight. Distinct from `createdAt`: a roll
+  /// call taken at 21:05 and one amended at 06:00 the next morning are the
+  /// same night's count, and pairing this with `session` is what makes that
+  /// one record rather than two.
+  takenOn    DateTime
+  session    SchoolRollCallSession @default(EVENING)
+  status     SchoolRollCallStatus  @default(OPEN)
+  takenById  String
+  submittedAt DateTime?
+  notes      String?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  company Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  hostel  SchoolHostel         @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  term    SchoolTerm           @relation(fields: [termId], references: [id], onDelete: Cascade)
+  takenBy User                 @relation("SchoolRollCallTakenBy", fields: [takenById], references: [id], onDelete: Cascade)
+  entries SchoolRollCallEntry[]
+
+  /// One count per house per night per session. The upsert target, and the
+  /// reason two wardens opening the same screen cannot produce two registers.
+  @@unique([companyId, hostelId, takenOn, session])
+  @@index([companyId, takenOn])
+}
+
+/// One child, on one roll call.
+///
+/// `PRESENT` is the warden's own eyes. `SIGNED_OUT` and `SICK_BAY` are
+/// derived when the session opens — a child the gate book says is away is not
+/// a child the warden failed to find — but they are written down rather than
+/// computed at read time, because the leave record can be edited afterwards
+/// and the register must keep saying what was true that night.
+model SchoolRollCallEntry {
+  id         String              @id @default(uuid())
+  companyId  String
+  rollCallId String
+  studentId  String
+  /// Where they slept, as it was at the time of the count. Nullable because a
+  /// bed can be deleted later and the entry must survive it.
+  bedId      String?
+  status     SchoolRollCallEntryStatus @default(NOT_SEEN)
+  notes      String?
+  recordedAt DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rollCall SchoolRollCall @relation(fields: [rollCallId], references: [id], onDelete: Cascade)
+  student  SchoolStudent  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([rollCallId, studentId])
+  @@index([companyId, studentId])
+}
+
+/// A boarder in the sick bay, whose own bed is being held for them.
+///
+/// Deliberately not an allocation. Modelling the sick bay as another house
+/// and moving the child into it would free their real bed, and the placer
+/// would hand it to somebody else while its owner is two doors away with a
+/// temperature. An admission is a second, lighter record that says "not in
+/// their bed tonight, and the bed is not available" — which is exactly the
+/// pair of facts the plan view and the roll call each need.
+model SchoolSickBayAdmission {
+  id          String    @id @default(uuid())
+  companyId   String
+  studentId   String
+  termId      String
+  /// The sick-bay bed they are in, where the school has them numbered. Null
+  /// for a school that simply has a room.
+  bedId       String?
+  admittedAt  DateTime  @default(now())
+  dischargedAt DateTime?
+  /// Where they went when discharged — back to the house, or home.
+  dischargedTo String?
+  reason      String
+  notes       String?
+  admittedById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student    SchoolStudent    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term       SchoolTerm       @relation(fields: [termId], references: [id], onDelete: Cascade)
+  bed        SchoolHostelBed? @relation(fields: [bedId], references: [id], onDelete: SetNull)
+  admittedBy User             @relation("SchoolSickBayAdmittedBy", fields: [admittedById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, studentId, admittedAt])
+  @@index([companyId, dischargedAt])
 }
 
 model SchoolResultSheet {
@@ -7698,6 +7941,7 @@ model SchoolFeeInvoice {
   receiptAllocations SchoolFeeReceiptAllocation[]
   waivers            SchoolFeeWaiver[]
   refunds            SchoolFeeRefund[]
+  examEntries        SchoolExamEntry[]
 
   /// S-2.4 lives in the database, not here. "One live invoice per student, per
   /// term, per fee structure" is a **partial** unique index — voided invoices
@@ -8087,8 +8331,10 @@ model SchoolRoom {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  slots   SchoolTimetableSlot[]
+  company           Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  slots             SchoolTimetableSlot[]
+  detentionSessions SchoolDetentionSession[]
+  examAllocations   SchoolExamRoomAllocation[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
@@ -9097,6 +9343,1179 @@ enum SchoolImportRowStatus {
   ANOMALY
   /// Refused. `errorMessage` says why.
   FAILED
+}
+
+
+// ============================================
+// CONDUCT AND PASTORAL
+//
+// `S-12.1` (behaviour, merits, detention), `S-12.2` (conduct on the report
+// card) and `S-12.3` (pastoral notes). Specified in
+// `docs/design-system/campus-expansion/conduct.md`, which enumerates every one
+// of these tables and says what each artboard reads from it.
+//
+// Two things about this block are worth reading before changing it.
+//
+// `DisciplinaryAction` already exists in this schema and is **not** related to
+// any of this. It is the HR model — staff misconduct, with an approver and a
+// link to `Employee`. A pupil's behaviour record and an employee's
+// disciplinary file answer to different law, different readers and different
+// retention. The name collision is all the two share.
+//
+// Every table here carries a nullable `campusId`. Nothing reads it yet: there
+// is no `SchoolCampus` model and multi-campus is `S-11.x`, unbuilt. It is here
+// because adding a column now costs a column and adding it later costs a
+// migration over a discipline record.
+
+/// How a category, a sanction or a count is drawn. The canvas's own tones, and
+/// only the three conduct uses: a badge is plain, amber or red.
+enum SchoolConductTone {
+  PLAIN
+  WARN
+  BAD
+}
+
+/// What a school logs behaviour under. School-set rather than an enum, for the
+/// reason `SchoolRoom.kind` already gives: "an enum here would be a guess at
+/// every school's estate". Lateness, Phone, Uniform, Plagiarism, Damage,
+/// Disruption, Absconding and Fighting are the eight the canvas draws; a school
+/// will have its own ninth by the end of the first term.
+model SchoolConductCategory {
+  id            String            @id @default(uuid())
+  companyId     String
+  campusId      String?
+  code          String
+  name          String
+  tone          SchoolConductTone @default(WARN)
+  /// Demerit points an incident in this category awards automatically. Null
+  /// means logging one awards nothing — which is most of them, and is why
+  /// incidents and demerits are two tables rather than one. See conduct.md
+  /// open question 2 and the answer taken in BUILD-LOG.md.
+  demeritPoints Int?
+  sortOrder     Int               @default(0)
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  incidents SchoolConductIncident[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+/// One thing that happened, once.
+///
+/// The four review timestamps — `reportedAt`, `seenAt`, `sanctionDecidedAt`,
+/// `homeToldAt` — are the review spine on the incident page. They are columns
+/// rather than rows in a workflow table on purpose: a `SchoolConductReviewStep`
+/// would duplicate these four and let the copies drift.
+///
+/// `homeToldAt` being nullable is the whole point of the behaviour log. "The
+/// parent was never informed" is the sentence that page exists to prevent, and
+/// the band chip `Home not told` counts exactly this column. `homeToldNeeded`
+/// is the third state: the bus was late, so there was nothing to tell.
+model SchoolConductIncident {
+  id         String   @id @default(uuid())
+  companyId  String
+  campusId   String?
+  termId     String
+  studentId  String
+  categoryId String
+  /// Human, quotable, and on the printed page: `CI-2026-0417`.
+  reference  String
+  occurredAt DateTime
+  /// One line of fact. The log draws it under the category badge, and it is
+  /// what a reader decides on — "Late again, missed registration".
+  summary    String
+  location   String?
+  /// The lesson period, where there was one. Break has no period.
+  period     Int?
+
+  reportedByUserId String
+  reportedAt       DateTime @default(now())
+
+  seenByUserId String?
+  seenAt       DateTime?
+
+  /// The sanction as the school words it — `Friday detention ×2`, `Pay for the
+  /// repair`, `None — the bus was late`. Free text because a sanction is a
+  /// decision rather than a category, and every school's ladder differs.
+  sanction                String?
+  sanctionTone            SchoolConductTone @default(PLAIN)
+  sanctionDecidedByUserId String?
+  sanctionDecidedAt       DateTime?
+
+  /// Whether home has to be told at all. False is a decision somebody made and
+  /// is drawn as `Not needed`; it is not the same as "nobody has got round to
+  /// it", which is `homeToldAt` being null.
+  homeToldNeeded   Boolean   @default(true)
+  homeToldAt       DateTime?
+  /// How home was told, in the school's words: `Phone call`, `Portal notice`,
+  /// `telephone, then portal notice`.
+  homeToldChannel  String?
+  homeToldByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company         Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  term            SchoolTerm                 @relation(fields: [termId], references: [id], onDelete: Cascade)
+  student         SchoolStudent              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  category        SchoolConductCategory      @relation(fields: [categoryId], references: [id])
+  participants    SchoolConductParticipant[]
+  accounts        SchoolConductAccount[]
+  meritEntries    SchoolMeritEntry[]
+  detentionAwards SchoolDetentionAward[]
+
+  @@unique([companyId, reference])
+  @@index([companyId, termId, occurredAt])
+  @@index([companyId, studentId, occurredAt])
+  @@index([companyId, homeToldAt])
+}
+
+/// A second pupil on one incident, with her own sanction or none.
+///
+/// The incident's own `studentId` is the pupil it is filed under; this is
+/// everybody else who was there. `Tariro Ncube · CHS-1292 · no sanction` is one
+/// row of this table, and "no sanction" is a null rather than an empty string:
+/// she was involved and nothing was done to her.
+model SchoolConductParticipant {
+  id           String            @id @default(uuid())
+  companyId    String
+  incidentId   String
+  studentId    String
+  sanction     String?
+  sanctionTone SchoolConductTone @default(PLAIN)
+  createdAt    DateTime          @default(now())
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  incident SchoolConductIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  student  SchoolStudent         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([incidentId, studentId])
+  @@index([companyId, studentId])
+}
+
+/// Who wrote an account: a member of staff, or the pupil herself.
+enum SchoolConductAccountAuthor {
+  STAFF
+  STUDENT
+}
+
+/// What was said about the incident, by whom, and when.
+///
+/// The author is polymorphic because the artboard draws two rows — the
+/// teacher's account and the pupil's own, `Form 3B · the pupil`. An explicit
+/// `authorKind` rather than two nullable columns and a convention, so a reader
+/// of a row never has to work out which column to trust.
+model SchoolConductAccount {
+  id              String                     @id @default(uuid())
+  companyId       String
+  incidentId      String
+  authorKind      SchoolConductAccountAuthor
+  authorUserId    String?
+  authorStudentId String?
+  takenAt         DateTime                   @default(now())
+  /// In their words. Drawn with curly quotation marks around it, so the stored
+  /// string carries none.
+  body            String
+  createdAt       DateTime                   @default(now())
+
+  company       Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  incident      SchoolConductIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  authorStudent SchoolStudent?        @relation(fields: [authorStudentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, incidentId, takenAt])
+}
+
+enum SchoolMeritKind {
+  MERIT
+  DEMERIT
+}
+
+/// What a school gives a merit or a demerit for. School-set, with a kind, for
+/// the same reason the conduct categories are.
+model SchoolMeritReason {
+  id            String          @id @default(uuid())
+  companyId     String
+  campusId      String?
+  code          String
+  name          String
+  kind          SchoolMeritKind
+  /// What one of these is worth by default. The award dialog can override it.
+  defaultPoints Int             @default(1)
+  sortOrder     Int             @default(0)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entries SchoolMeritEntry[]
+
+  @@unique([companyId, code])
+  @@index([companyId, kind, isActive])
+}
+
+/// One merit or one demerit. Every number on the merits screen is an aggregate
+/// over this table — by pupil, by reason, by year group.
+///
+/// `incidentId` is how a demerit and an incident stay one act without being one
+/// row: logging an incident whose category carries `demeritPoints` writes both
+/// in a transaction, and a demerit for something that was never an incident
+/// (`Litter`, `No homework`) carries null.
+///
+/// Reversal is a stamp, not a delete. Merit points are the thing in a school
+/// most often recorded against the wrong child, and the correction has to leave
+/// a trace — a deleted row tells a parent asking about prize giving nothing.
+model SchoolMeritEntry {
+  id         String          @id @default(uuid())
+  companyId  String
+  campusId   String?
+  studentId  String
+  termId     String
+  kind       SchoolMeritKind
+  reasonId   String
+  points     Int             @default(1)
+  note       String?
+  incidentId String?
+
+  awardedByUserId String
+  awardedAt       DateTime @default(now())
+
+  reversedAt       DateTime?
+  reversedByUserId String?
+  reversalReason   String?
+
+  createdAt DateTime @default(now())
+
+  company  Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student  SchoolStudent          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term     SchoolTerm             @relation(fields: [termId], references: [id], onDelete: Cascade)
+  reason   SchoolMeritReason      @relation(fields: [reasonId], references: [id])
+  incident SchoolConductIncident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, termId, kind])
+  @@index([companyId, studentId, termId])
+  @@index([companyId, reasonId])
+}
+
+/// A detention slot: when, where, and who is standing at the front.
+///
+/// `supervisorTeacherProfileId` is nullable because the artboard draws
+/// `Not yet supervised` in red against a session a fortnight out. A session
+/// nobody is supervising is a real state a school needs to see, not a row it
+/// should be prevented from creating.
+model SchoolDetentionSession {
+  id                         String   @id @default(uuid())
+  companyId                  String
+  campusId                   String?
+  termId                     String
+  startsAt                   DateTime
+  endsAt                     DateTime
+  roomId                     String?
+  supervisorTeacherProfileId String?
+  /// `Friday detention`, `Saturday morning` — what the school calls this slot.
+  label                      String?
+  notes                      String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  company    Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  term       SchoolTerm                  @relation(fields: [termId], references: [id], onDelete: Cascade)
+  room       SchoolRoom?                 @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  supervisor SchoolTeacherProfile?       @relation(fields: [supervisorTeacherProfileId], references: [id], onDelete: SetNull)
+  attendance SchoolDetentionAttendance[]
+  movedIn    SchoolDetentionAttendance[] @relation("SchoolDetentionMovedTo")
+
+  @@index([companyId, termId, startsAt])
+  @@index([companyId, startsAt])
+}
+
+/// What a pupil owes: two Friday detentions, say.
+///
+/// The award carries the denominator and the register carries the numerator,
+/// which is how the `Session` column draws `1 of 2`. `sessionsOwed` is what was
+/// awarded and never changes; what is left is derived from the attendance rows
+/// marked `HERE`, so a pupil who was marked absent still owes it.
+model SchoolDetentionAward {
+  id              String   @id @default(uuid())
+  companyId       String
+  campusId        String?
+  termId          String
+  studentId       String
+  incidentId      String?
+  /// Why they are here, where no incident is behind it.
+  reason          String?
+  sessionsOwed    Int      @default(1)
+  awardedByUserId String?
+  awardedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  company    Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  term       SchoolTerm                  @relation(fields: [termId], references: [id], onDelete: Cascade)
+  student    SchoolStudent               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  incident   SchoolConductIncident?      @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  attendance SchoolDetentionAttendance[]
+
+  @@index([companyId, termId, studentId])
+  @@index([companyId, incidentId])
+}
+
+enum SchoolDetentionState {
+  NOT_MARKED
+  HERE
+  DID_NOT_TURN_UP
+  /// Serving a different session instead — the bus pupil at 14:10.
+  MOVED
+}
+
+/// One pupil, named on one session.
+///
+/// `MOVED` rows are why this table exists rather than a boolean on the award: a
+/// pupil can be named on Friday, moved to Saturday, and both facts have to
+/// survive. A moved row draws no `Here` button, because you cannot mark
+/// somebody present at a session they are not serving.
+model SchoolDetentionAttendance {
+  id               String               @id @default(uuid())
+  companyId        String
+  sessionId        String
+  awardId          String
+  studentId        String
+  state            SchoolDetentionState @default(NOT_MARKED)
+  /// When they walked in. The register draws it beside the `Here` badge.
+  markedAt         DateTime?
+  markedByUserId   String?
+  movedToSessionId String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  company Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  session SchoolDetentionSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  award   SchoolDetentionAward    @relation(fields: [awardId], references: [id], onDelete: Cascade)
+  student SchoolStudent           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  movedTo SchoolDetentionSession? @relation("SchoolDetentionMovedTo", fields: [movedToSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, awardId])
+  @@index([companyId, sessionId, state])
+  @@index([companyId, studentId])
+}
+
+/// The three bands a pastoral note can be written under, and only three.
+///
+/// `SAFEGUARDING_NAMED_INDIVIDUALS` is not a wider version of the other two. No
+/// role, no persona and no band grant reaches it — only being named on the note
+/// does, through `SchoolPastoralNoteReader`.
+enum SchoolPastoralBand {
+  PASTORAL_TEAM_ONLY
+  HEAD_AND_PASTORAL_TEAM
+  SAFEGUARDING_NAMED_INDIVIDUALS
+}
+
+/// A pastoral note: the one thing in the campus product a parent must not see.
+///
+/// `body` must never be selected by a query that has not proved the caller is
+/// cleared for this note. Not into the API layer, not into a server component,
+/// not into a React prop, not into a cache key. `lib/schools/pastoral-access.ts`
+/// is the only thing that decides, and it selects the body conditionally rather
+/// than deleting it afterwards — a deleted field is one `JSON.stringify` away
+/// from coming back.
+///
+/// Four destinations this row never reaches, each of them a test rather than a
+/// comment: the parent portal, the report card, a leaving certificate or
+/// testimonial, and any export, spreadsheet or print.
+model SchoolPastoralNote {
+  id           String             @id @default(uuid())
+  companyId    String
+  campusId     String?
+  studentId    String
+  authorUserId String
+  writtenAt    DateTime           @default(now())
+  body         String
+  band         SchoolPastoralBand
+  /// When somebody should look at this again. Null is `None needed`, which is a
+  /// real answer and not a forgotten field.
+  reviewDueAt  DateTime?
+  /// Who it was handed to — `Bursar — waiver form`. Free text: a referral
+  /// crosses out of the school's own org chart more often than not.
+  referredTo   String?
+  referredAt   DateTime?
+  closedAt     DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  company  Company                       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student  SchoolStudent                 @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  readers  SchoolPastoralNoteReader[]
+  requests SchoolPastoralAccessRequest[]
+
+  @@index([companyId, studentId, writtenAt])
+  @@index([companyId, writtenAt])
+  @@index([companyId, reviewDueAt])
+}
+
+/// The row-level ACL: this person, on this note.
+///
+/// A band on the note is necessary and nowhere near sufficient. This is what
+/// `Safeguarding — named individuals` means, and what makes
+/// `Nothing · unless named on the note` true of a Group Head.
+model SchoolPastoralNoteReader {
+  id              String    @id @default(uuid())
+  companyId       String
+  noteId          String
+  userId          String
+  grantedByUserId String
+  grantedAt       DateTime  @default(now())
+  revokedAt       DateTime?
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  note    SchoolPastoralNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, userId])
+  @@index([companyId, userId, revokedAt])
+}
+
+/// How wide a clearance reaches over pupils.
+enum SchoolPastoralScope {
+  SCHOOL
+  /// One year group — a head of year reads Year 3 and nothing else.
+  YEAR_GROUP
+  CLASS
+}
+
+/// What one member of staff may read: which bands, and which pupils.
+///
+/// Two axes, not one. `Pastoral team only · Year 3 pupils` is a band list and a
+/// pupil scope, and a system that models only the first shows a head of year a
+/// Form 1 note. A clearance is a grant to a named person, made by a named
+/// person, at a recorded time, and revocable — which is why it is a table and
+/// not a persona.
+model SchoolPastoralClearance {
+  id              String               @id @default(uuid())
+  companyId       String
+  campusId        String?
+  userId          String
+  bands           SchoolPastoralBand[]
+  scope           SchoolPastoralScope  @default(SCHOOL)
+  /// Which year group, when the scope is one. The level on `SchoolClass`.
+  scopeLevel      Int?
+  scopeClassId    String?
+  grantedByUserId String
+  grantedAt       DateTime             @default(now())
+  revokedAt       DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scopeClass SchoolClass? @relation(fields: [scopeClassId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, userId])
+  @@index([companyId, revokedAt])
+}
+
+enum SchoolPastoralRequestOutcome {
+  PENDING
+  GRANTED
+  REFUSED
+}
+
+/// `Ask to see it` — a request raised against a note whose content the
+/// requester has not seen.
+///
+/// It notifies the individuals named on the note. It grants nothing: only a
+/// `SchoolPastoralNoteReader` row does that, and only somebody already on the
+/// note can write one.
+model SchoolPastoralAccessRequest {
+  id                String                       @id @default(uuid())
+  companyId         String
+  noteId            String
+  requestedByUserId String
+  requestedAt       DateTime                     @default(now())
+  /// Why they are asking. Shown to the named individuals, never to anybody else.
+  reason            String?
+  outcome           SchoolPastoralRequestOutcome @default(PENDING)
+  decidedByUserId   String?
+  decidedAt         DateTime?
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  note    SchoolPastoralNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, outcome, requestedAt])
+  @@index([noteId])
+}
+
+
+// ============================================
+// PUBLIC EXAMS
+//
+// `S-13.1` and `S-13.2`, specified in
+// `docs/design-system/campus-expansion/exams.md`. Public exams are not the
+// internal assessment this schema already models: `SchoolAssessment`,
+// `SchoolResultSheet` and `SchoolResultLine` are a term's marks against a
+// class, and a series is neither a term nor a class. `SchoolResultLine.score`
+// is required and its `grade` optional; a public exam result is the reverse —
+// a grade, and no score at all.
+//
+// `S-13.3`, direct submission to the exam authority, is deferred by
+// `SCH-DEP-02` pending external dependency and policy review. These tables
+// produce an entry file and a human uploads it. `SchoolExamEntryFileRun`
+// records that act. Nothing here may grow a board API.
+//
+// The two numbers an implementer must not conflate:
+//   - a CENTRE number identifies the school to the board. Issued by the board,
+//     stable across years, and a school entering with two boards holds two.
+//   - a CANDIDATE number identifies a pupil within one centre within one
+//     series. Allocated by the school, unique only inside centre + series, and
+//     different again for the June resit. It is not the pupil number.
+
+/// Which board. Not an enum: a school may enter with a third.
+model SchoolExamBoard {
+  id        String   @id @default(uuid())
+  companyId String
+  /// `ZIMSEC`, `CAMBRIDGE`.
+  code      String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  centres      SchoolExamCentre[]
+  series       SchoolExamSeries[]
+  examSubjects SchoolExamSubject[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+/// The school, as the board knows it: `025419` with ZIMSEC, `ZW254` with
+/// Cambridge. One row per board the school enters with, and the number is the
+/// board's, not ours.
+model SchoolExamCentre {
+  id        String   @id @default(uuid())
+  companyId String
+  campusId  String?
+  boardId   String
+  number    String
+  name      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  board   SchoolExamBoard    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  series  SchoolExamSeries[]
+
+  @@unique([companyId, boardId, number])
+  @@index([companyId, isActive])
+}
+
+/// Ordinary Level, Advanced Level, IGCSE. It decides the grade set: O Level and
+/// IGCSE are A*–G plus U; A Level is A–E plus U, with no A*, no F and no G.
+enum SchoolExamLevel {
+  O_LEVEL
+  A_LEVEL
+  IGCSE
+}
+
+enum SchoolExamSeriesStatus {
+  /// Being set up. Nothing has been entered.
+  PLANNED
+  /// Entries are open and being taken.
+  ENTRIES_OPEN
+  /// The board's deadline has passed. Late entries cost a penalty.
+  ENTRIES_CLOSED
+  /// Sat. Waiting on the board.
+  SAT
+  /// Results are in.
+  RESULTS_IN
+  ARCHIVED
+}
+
+/// A sitting: `ZIMSEC November 2026`, Ordinary Level, centre 025419.
+///
+/// `entriesCloseAt` is the most consequential column in this block. A missed
+/// ZIMSEC deadline costs a pupil a year — there is no appeal and no late door
+/// after the late door — which is why the series screen draws it as its first
+/// band chip and its one alert rather than as a date in a paragraph.
+model SchoolExamSeries {
+  id            String                 @id @default(uuid())
+  companyId     String
+  campusId      String?
+  boardId       String
+  centreId      String?
+  /// `November 2026`, `June 2026`.
+  name          String
+  /// The calendar year the board files it under.
+  year          Int
+  level         SchoolExamLevel
+  status        SchoolExamSeriesStatus @default(PLANNED)
+  /// Which year group sits it — Form 4 is level 4, Upper Six is 6.
+  cohortLevel   Int?
+  entriesOpenAt DateTime?
+  entriesCloseAt DateTime?
+  /// After this, an entry costs `lateFeePerSubject` on top.
+  lateEntriesCloseAt DateTime?
+  startsOn      DateTime?
+  endsOn        DateTime?
+  resultsDueOn  DateTime?
+  /// Charged per subject entered, flat. Ten subjects is ten fees.
+  feePerSubject     Decimal? @db.Decimal(10, 2)
+  lateFeePerSubject Decimal? @db.Decimal(10, 2)
+  currency      String   @default("USD")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company        Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  board          SchoolExamBoard            @relation(fields: [boardId], references: [id])
+  centre         SchoolExamCentre?          @relation(fields: [centreId], references: [id], onDelete: SetNull)
+  candidates     SchoolCandidate[]
+  papers         SchoolExamPaper[]
+  sessions       SchoolExamSession[]
+  entries        SchoolExamEntry[]
+  results        SchoolExamResult[]
+  entryFileRuns  SchoolExamEntryFileRun[]
+
+  @@index([companyId, year, status])
+  @@index([companyId, entriesCloseAt])
+}
+
+/// One subject as one board codes it. `4008` is ZIMSEC Mathematics; the same
+/// school subject carries a different code with Cambridge, which is why this is
+/// a table and not a column on `SchoolSubject` (whose `code` is the school's own
+/// and is unique per company).
+model SchoolExamSubject {
+  id        String   @id @default(uuid())
+  companyId String
+  boardId   String
+  subjectId String?
+  /// The board's syllabus code: `4008`, `1122`, `5008`.
+  code      String
+  /// As the board names it, which is not always as the school does.
+  name      String
+  level     SchoolExamLevel
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  board   SchoolExamBoard   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  subject SchoolSubject?    @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  papers  SchoolExamPaper[]
+  entries SchoolExamEntry[]
+  results SchoolExamResult[]
+
+  @@unique([companyId, boardId, code, level])
+  @@index([companyId, boardId, isActive])
+}
+
+/// `4008/1` — Mathematics Paper 1, on its date, at its time, for its duration.
+model SchoolExamPaper {
+  id            String   @id @default(uuid())
+  companyId     String
+  seriesId      String
+  examSubjectId String
+  /// The paper number appended to the syllabus code: 1, 2, 3.
+  paperNumber   Int
+  /// `4008/1`, stored because it is what everybody reads and quotes.
+  code          String
+  sitsAt        DateTime?
+  durationMinutes Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  series      SchoolExamSeries  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  examSubject SchoolExamSubject @relation(fields: [examSubjectId], references: [id], onDelete: Cascade)
+  sessions    SchoolExamSession[]
+
+  @@unique([seriesId, examSubjectId, paperNumber])
+  @@index([companyId, seriesId, sitsAt])
+}
+
+/// "Tuesday 3 November, 09:00" — the unit seating is planned against. A session
+/// can carry more than one paper where a school sits two at once.
+model SchoolExamSession {
+  id        String   @id @default(uuid())
+  companyId String
+  seriesId  String
+  paperId   String?
+  startsAt  DateTime
+  endsAt    DateTime?
+  label     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  series  SchoolExamSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  paper   SchoolExamPaper? @relation(fields: [paperId], references: [id], onDelete: SetNull)
+  seats   SchoolExamSeat[]
+  rooms   SchoolExamRoomAllocation[]
+
+  @@index([companyId, seriesId, startsAt])
+}
+
+/// Whether the entry file will take this candidate yet.
+enum SchoolCandidateStatus {
+  /// Registered by the school; the board has not been told.
+  DRAFT
+  /// On the entry file that went to the board.
+  ENTERED
+  /// Pulled before the file went.
+  WITHDRAWN
+}
+
+/// One pupil, in one series, at one centre.
+///
+/// `certifiedName` is the name as the birth certificate prints it, and it is
+/// separate from the pupil's `firstName`/`lastName` because the commonest
+/// blocker on the candidate roll is that the two differ. The board prints what
+/// it is given.
+model SchoolCandidate {
+  id        String   @id @default(uuid())
+  companyId String
+  campusId  String?
+  seriesId  String
+  studentId String
+  /// Four digits, allocated by the school. Unique inside centre and series
+  /// only, and not the pupil number.
+  candidateNumber String?
+  certifiedName   String?
+  status    SchoolCandidateStatus @default(DRAFT)
+  /// Set when this candidate went onto an entry file.
+  enteredAt DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company           Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  series            SchoolExamSeries               @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  student           SchoolStudent                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  entries           SchoolExamEntry[]
+  seats             SchoolExamSeat[]
+  results           SchoolExamResult[]
+  accessArrangements SchoolExamAccessArrangement[]
+
+  @@unique([seriesId, studentId])
+  @@unique([seriesId, candidateNumber])
+  @@index([companyId, seriesId, status])
+}
+
+enum SchoolExamEntryStatus {
+  DRAFT
+  ENTERED
+  WITHDRAWN
+}
+
+/// One candidate entered for one subject, and what it costs.
+///
+/// The fee is per subject: ten subjects entered is ten fees. `feeInvoiceId` is
+/// the link the fee ledger never had — without it, per-subject `Invoiced`,
+/// `Paid` and `To invoice` cannot be computed from a `SchoolFeeInvoiceLine`
+/// whose `feeCode` is free text.
+model SchoolExamEntry {
+  id            String                @id @default(uuid())
+  companyId     String
+  campusId      String?
+  seriesId      String
+  candidateId   String
+  examSubjectId String
+  status        SchoolExamEntryStatus @default(DRAFT)
+  /// True where this went in after the board's own deadline and carries the
+  /// penalty rather than the ordinary fee.
+  isLate        Boolean               @default(false)
+  fee           Decimal?              @db.Decimal(10, 2)
+  currency      String                @default("USD")
+  feeInvoiceId  String?
+  /// The invoice line, where one was written. A bare id: the fee ledger owns
+  /// its lines and should not grow a relation to exams to tell us the total.
+  feeInvoiceLineId String?
+  enteredAt     DateTime?
+  withdrawnAt   DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  series      SchoolExamSeries  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  candidate   SchoolCandidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  examSubject SchoolExamSubject @relation(fields: [examSubjectId], references: [id])
+  feeInvoice  SchoolFeeInvoice? @relation(fields: [feeInvoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([candidateId, examSubjectId])
+  @@index([companyId, seriesId, status])
+  @@index([companyId, feeInvoiceId])
+}
+
+/// A room turned over to one session, with who is standing in it.
+///
+/// The invigilator is either a member of the teaching staff or a named person
+/// who is not one — the artboard puts the school nurse in the sick bay — so
+/// both are allowed and exactly one is expected.
+model SchoolExamRoomAllocation {
+  id        String   @id @default(uuid())
+  companyId String
+  sessionId String
+  roomId    String
+  /// What this room is for, where it is not the main hall: `Separate room`,
+  /// `Sick bay`.
+  purpose   String?
+  capacity  Int?
+  invigilatorTeacherProfileId String?
+  /// An invigilator who is not on the teaching staff.
+  invigilatorName             String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company    Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  session    SchoolExamSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  room       SchoolRoom            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  invigilator SchoolTeacherProfile? @relation(fields: [invigilatorTeacherProfileId], references: [id], onDelete: SetNull)
+  seats      SchoolExamSeat[]
+
+  @@unique([sessionId, roomId])
+  @@index([companyId, sessionId])
+}
+
+/// One candidate, one seat, one session.
+model SchoolExamSeat {
+  id           String   @id @default(uuid())
+  companyId    String
+  sessionId    String
+  allocationId String
+  candidateId  String
+  /// As written on the desk card.
+  seatNumber   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  session    SchoolExamSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  allocation SchoolExamRoomAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  candidate  SchoolCandidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, candidateId])
+  @@unique([allocationId, seatNumber])
+  @@index([companyId, sessionId])
+}
+
+/// 25% extra time, a separate room, a reader. A property of the candidate in
+/// this series, because an arrangement is granted for a sitting and has to be
+/// re-granted for the next one.
+model SchoolExamAccessArrangement {
+  id          String   @id @default(uuid())
+  companyId   String
+  candidateId String
+  /// `Extra time`, `Separate room`, `Reader`, `Scribe`.
+  kind        String
+  /// Where the arrangement is a proportion — 25 for a quarter again.
+  extraTimePercent Int?
+  detail      String?
+  /// The board approves these. Null is "asked for, not yet granted".
+  approvedAt  DateTime?
+  approvedByUserId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidate SchoolCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, candidateId])
+}
+
+/// A public exam grade: a letter, and no score.
+///
+/// `points` carries the A Level points a school totals for university entry.
+/// `isPass` is not stored — a pass is `C or better` at O Level and IGCSE and is
+/// derived by `lib/schools/exam-grades.ts`, so the rule lives in one place
+/// rather than in every query that counts one.
+model SchoolExamResult {
+  id            String   @id @default(uuid())
+  companyId     String
+  campusId      String?
+  seriesId      String
+  candidateId   String
+  examSubjectId String
+  /// `A*`, `A`, `B`, `C`, `D`, `E`, `F`, `G`, `U`. A string rather than an enum
+  /// because the grade sets differ by level and a board may add one.
+  grade         String
+  points        Int?
+  /// True where this grade came back after a remark or an appeal.
+  isRemark      Boolean  @default(false)
+  releasedAt    DateTime?
+  capturedByUserId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  series      SchoolExamSeries  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  candidate   SchoolCandidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  examSubject SchoolExamSubject @relation(fields: [examSubjectId], references: [id])
+
+  @@unique([candidateId, examSubjectId, isRemark])
+  @@index([companyId, seriesId])
+}
+
+/// What `Build the entry file` produced, and when.
+///
+/// The record exists because submission is manual and will stay manual until
+/// `SCH-DEP-02` is lifted: a school that uploaded a file to the board needs to
+/// know which file, built from which entries, by whom. It is not a submission
+/// receipt and must never be drawn as one.
+model SchoolExamEntryFileRun {
+  id          String   @id @default(uuid())
+  companyId   String
+  seriesId    String
+  builtByUserId String
+  builtAt     DateTime @default(now())
+  /// How many entries went into it, at the moment it was built.
+  entryCount  Int
+  candidateCount Int
+  /// Where the artefact went, if it was kept.
+  artifactId  String?
+  notes       String?
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  series  SchoolExamSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, seriesId, builtAt])
+}
+
+// ============================================
+// LEAVERS AND ALUMNI
+//
+// `S-13.4` and `S-13.5`, specified in
+// `docs/design-system/campus-expansion/leavers.md`. `applyYearRollUp` already
+// graduates a pupil; until now graduating led nowhere.
+//
+// A leaver is a ROW, not a five-way join recomputed on every read. The spec
+// asks for that decision explicitly: each of the five clearance marks can be
+// derived from fees, library, boarding, the portal and results, but a mark
+// somebody deliberately overrode — a book written off, a fee waived by the head
+// — has nowhere to live in a derivation.
+
+/// Why they left. A second axis from `SchoolStudentStatus`, which carries five
+/// values and has no `EXPELLED` and no `TRANSFERRED` — and `SchoolEnrollment`'s
+/// `TRANSFERRED` means moved class, not left the school.
+enum SchoolLeavingReason {
+  COMPLETED_FORM_4
+  COMPLETED_UPPER_6
+  FEES
+  TRANSFERRED_TO_ANOTHER_SCHOOL
+  MOVED_ABROAD
+  EXPELLED
+  WITHDRAWN_BY_GUARDIAN
+  OTHER
+}
+
+enum SchoolLeaverStatus {
+  /// In the queue. Marks outstanding.
+  OPEN
+  /// Every mark settled, the record closed, the documents issuable.
+  CLOSED
+}
+
+/// The five things a school checks before a record closes.
+enum SchoolLeaverClearanceKind {
+  FEES
+  LIBRARY
+  BOARDING
+  PORTAL
+  RESULTS
+}
+
+enum SchoolLeaverClearanceState {
+  TODO
+  DONE
+  /// Does not apply — a day pupil has no bed to give back.
+  NOT_APPLICABLE
+}
+
+/// One pupil on the way out.
+///
+/// `lastDay` is the child's last day, which is not
+/// `SchoolEnrollment.endedAt` — that is the day the office pressed the button.
+/// The queue draws the former.
+model SchoolLeaver {
+  id           String              @id @default(uuid())
+  companyId    String
+  campusId     String?
+  /// One leaver per pupil. A pupil leaves once; a second departure is a
+  /// re-admission followed by a second leaver, which needs the first closed.
+  studentId    String              @unique
+  lastDay      DateTime
+  reason       SchoolLeavingReason
+  /// Where the reason is `OTHER`, or where the school wants the detail.
+  reasonNote   String?
+  status       SchoolLeaverStatus  @default(OPEN)
+  openedByUserId String
+  openedAt     DateTime            @default(now())
+  closedByUserId String?
+  closedAt     DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  company    Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student    SchoolStudent            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  clearances SchoolLeaverClearance[]
+  alumnus    SchoolAlumnus?
+
+  @@index([companyId, status, lastDay])
+}
+
+/// One of the five marks, with who made it and what they overrode.
+///
+/// The state is stored rather than derived so an override survives: `DONE` on a
+/// `FEES` row against an outstanding balance is the head waiving it, and
+/// `overrideNote` is where the reason goes. The derivation still runs — it is
+/// what proposes the state — but it does not get the last word.
+model SchoolLeaverClearance {
+  id        String                     @id @default(uuid())
+  companyId String
+  leaverId  String
+  kind      SchoolLeaverClearanceKind
+  state     SchoolLeaverClearanceState @default(TODO)
+  /// What the derivation found when it last looked: `$210.00 on INV-2026-0509`,
+  /// `2 books out`. Shown beside the mark so a reader sees the evidence.
+  detail    String?
+  overrideNote String?
+  markedByUserId String?
+  markedAt  DateTime?
+  createdAt DateTime                   @default(now())
+  updatedAt DateTime                   @updatedAt
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  leaver  SchoolLeaver @relation(fields: [leaverId], references: [id], onDelete: Cascade)
+
+  @@unique([leaverId, kind])
+  @@index([companyId, kind, state])
+}
+
+/// May the school write to them?
+///
+/// Three states, and the third is the one that matters: a nullable boolean
+/// would collapse "they said no" and "nobody has asked" into one answer, which
+/// is the mistake the alumni register is drawn to prevent.
+enum SchoolAlumniContactConsent {
+  NOT_ASKED
+  MAY_CONTACT
+  NO_CONTACT
+}
+
+/// Where they went, in the vocabulary the register draws.
+enum SchoolAlumniDestinationKind {
+  UNKNOWN
+  UNIVERSITY
+  COLLEGE
+  EMPLOYED
+  SELF_EMPLOYED
+  /// Left for another school rather than finishing here.
+  TRANSFERRED
+  GAP_YEAR
+  ABROAD
+  OTHER
+}
+
+/// A former pupil.
+///
+/// A row of its own rather than `SchoolStudent where status in (GRADUATED,
+/// WITHDRAWN)`, because everything the register is for — consent, a
+/// destination, a timeline, an address that is no longer the guardian's — is a
+/// fact about somebody who has left and has no column on a pupil. The link to
+/// the pupil is kept and is nullable, so a school can enter the class of 1994
+/// without inventing a student record for each of them.
+model SchoolAlumnus {
+  id        String   @id @default(uuid())
+  companyId String
+  campusId  String?
+  studentId String?  @unique
+  leaverId  String?  @unique
+  /// Their name as they use it now, which is not always the name on the roll.
+  firstName String
+  lastName  String
+  /// The year they left. What the register groups by.
+  classOf   Int
+  /// The last form they were in: `Upper 6 Sciences`.
+  finalClassName String?
+  house     String?
+  email     String?
+  phone     String?
+  addressLine String?
+  contactConsent SchoolAlumniContactConsent @default(NOT_ASKED)
+  consentGivenByUserId String?
+  consentGivenAt DateTime?
+  destinationKind SchoolAlumniDestinationKind @default(UNKNOWN)
+  /// `Old Mutual, Harare`, `University of Zimbabwe · BSc Accounting`.
+  destination     String?
+  /// When somebody last checked the destination was still true. A destination
+  /// with no date is a rumour.
+  destinationConfirmedAt DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student SchoolStudent?       @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  leaver  SchoolLeaver?        @relation(fields: [leaverId], references: [id], onDelete: SetNull)
+  updates SchoolAlumniUpdate[]
+
+  @@index([companyId, classOf])
+  @@index([companyId, destinationKind])
+  @@index([companyId, contactConsent])
+}
+
+/// The `Since school` timeline: what happened, when, and who wrote it down.
+model SchoolAlumniUpdate {
+  id         String   @id @default(uuid())
+  companyId  String
+  alumnusId  String
+  happenedOn DateTime
+  /// One sentence. `Graduated BSc Accounting, University of Zimbabwe`.
+  summary    String
+  /// A document behind it, where there is one — a reference rather than a file,
+  /// because the artefact lives in the document pipeline.
+  documentReference String?
+  recordedByUserId String?
+  createdAt  DateTime @default(now())
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  alumnus SchoolAlumnus @relation(fields: [alumnusId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, alumnusId, happenedOn])
+}
+
+/// What kind of thing a pupil won or held.
+enum SchoolHonourKind {
+  PRIZE
+  COLOURS
+  /// Head of house, head girl, prefect.
+  POST
+  OTHER
+}
+
+/// `2017 Accounting prize`, `2018 full colours, hockey`, `2019 Head of Nyanga
+/// House`.
+///
+/// A collection, so a table rather than three strings in
+/// `SchoolStudent.customFields`. It hangs off the pupil rather than the alumnus
+/// because it is earned at school, and it is read by the leaving documents and
+/// the alumnus record alike.
+model SchoolStudentHonour {
+  id        String           @id @default(uuid())
+  companyId String
+  studentId String
+  kind      SchoolHonourKind
+  /// The academic year it was won.
+  year      Int
+  /// `Accounting prize`, `Full colours, hockey`, `Head of Nyanga House`.
+  title     String
+  detail    String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student SchoolStudent @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, studentId, year])
 }
 
 // ============================================

@@ -360,6 +360,57 @@ describe("applyYearRollUp", () => {
     ).toBe(0);
   });
 
+  it("puts the graduate into the leaving queue", async () => {
+    // S-13.4. The roll-up is where most pupils leave, so it is where most
+    // leavers have to be opened: a queue only the manual verb could fill would
+    // miss the whole Form 4 cohort every November and nobody would check
+    // whether their books were back.
+    const studentId = await makeStudent(formSixId, termOneId);
+    await applyYearRollUp({
+      companyId,
+      fromTermId: termOneId,
+      toTermId: termTwoId,
+      decisions: [{ studentId, action: "GRADUATE" }],
+    });
+
+    const leaver = await prisma.schoolLeaver.findFirstOrThrow({
+      where: { studentId },
+      select: { status: true, reason: true, lastDay: true },
+    });
+    // Opened, not closed: the five clearance marks are still to settle.
+    expect(leaver.status).toBe("OPEN");
+    // Upper Six graduates completed Upper 6, not Form 4.
+    expect(leaver.reason).toBe("COMPLETED_UPPER_6");
+    // The last day is the term's, which is the nearest thing the roll-up knows.
+    expect(leaver.lastDay).not.toBeNull();
+  });
+
+  it("does not open a second leaver for a pupil who already has one", async () => {
+    const studentId = await makeStudent(formSixId, termOneId);
+    await prisma.schoolLeaver.create({
+      data: {
+        companyId,
+        studentId,
+        lastDay: new Date("2026-11-27T00:00:00.000Z"),
+        reason: "TRANSFERRED_TO_ANOTHER_SCHOOL",
+        openedByUserId: studentId,
+      },
+    });
+
+    await applyYearRollUp({
+      companyId,
+      fromTermId: termOneId,
+      toTermId: termTwoId,
+      decisions: [{ studentId, action: "GRADUATE" }],
+    });
+
+    // The office's own record wins. It was opened with a reason somebody chose,
+    // and the roll-up's guess must not overwrite it.
+    const leavers = await prisma.schoolLeaver.findMany({ where: { studentId } });
+    expect(leavers).toHaveLength(1);
+    expect(leavers[0].reason).toBe("TRANSFERRED_TO_ANOTHER_SCHOOL");
+  });
+
   it("keeps a repeater where they are rather than moving them", async () => {
     const studentId = await makeStudent(formOneId, termOneId);
     await applyYearRollUp({

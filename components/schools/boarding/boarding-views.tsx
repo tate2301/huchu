@@ -6,30 +6,38 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Allocations, Hostels and Leave and outings, as three segments of one
- * boarding office.
+ * The boarding office, as six faces of one destination.
  *
  * The canvas draws them as a segmented strip in the control row of the
- * allocations board — `Allocations 344 · Hostels 4 · Leave and outings
- * 11` — and it is right to: a warden holding the bed list is one question away
- * from "and which house has space" and one more from "and who is out of the
- * gate". Before this the three lived only in the rail, so moving between them
- * meant leaving the row you were reading.
+ * allocations board — `Allocations 344 · Hostels 4 · Leave and outings 11` —
+ * and it is right to: a warden holding the bed list is one question away from
+ * "and which house has space", one more from "who is in the building tonight",
+ * and one more from "and who is out of the gate". Before this the faces lived
+ * only in the rail, so moving between them meant leaving the row you were
+ * reading.
+ *
+ * **Roll call and the sick bay are tabs, not tables on somebody else's page.**
+ * That is §1 of the page law doing its work. Who is in the building tonight is
+ * a different subject from who has which bed, and a screen that carried both
+ * would have filters governing half of it and a row count counting half of it.
+ * One click apart, each true to its name.
  *
  * They are links rather than view state, for the same reason `LibraryViews` is:
  * a warden who wants to send somebody the gate book needs the gate book to have
- * an address. The rail still lights up "Boarding" for all three, so this reads
- * as one destination with three faces rather than three destinations.
+ * an address. The rail still lights up "Boarding" for all of them, so this
+ * reads as one destination with several faces rather than several destinations.
  *
  * Every count is optional. A screen only knows the numbers it has already
- * fetched, and fetching the other two halves' data to fill in a badge nobody
- * navigates by would make each of these screens pay for the other two.
+ * fetched, and fetching the other five halves' data to fill in a badge nobody
+ * navigates by would make each of these screens pay for the others.
  */
 
 const SEGMENTS = [
   { href: "/schools/boarding", label: "Bed board" },
   { href: "/schools/boarding/allocations", label: "Allocations" },
+  { href: "/schools/boarding/roll-call", label: "Roll call" },
   { href: "/schools/boarding/hostels", label: "Hostels" },
+  { href: "/schools/boarding/sick-bay", label: "Sick bay" },
   { href: "/schools/boarding/leave", label: "Leave and outings" },
 ] as const;
 
@@ -37,6 +45,8 @@ export function BoardingViews({
   beds,
   allocations,
   hostels,
+  rollCall,
+  sickBay,
   leave,
 }: {
   /** How many beds the school has, free and taken together. */
@@ -45,6 +55,14 @@ export function BoardingViews({
   allocations?: number;
   /** How many boarding houses the school has. */
   hostels?: number;
+  /**
+   * How many names are still to account for tonight, across the houses this
+   * screen has read. Zero is worth showing — it is the number the roll call
+   * exists to drive down, and a blank badge cannot say "done".
+   */
+  rollCall?: number;
+  /** How many boarders are in the sick bay right now. */
+  sickBay?: number;
   /** How many leave and outing requests are in the gate book. */
   leave?: number;
 }) {
@@ -52,7 +70,9 @@ export function BoardingViews({
   const counts: Record<string, number | undefined> = {
     "/schools/boarding": beds,
     "/schools/boarding/allocations": allocations,
+    "/schools/boarding/roll-call": rollCall,
     "/schools/boarding/hostels": hostels,
+    "/schools/boarding/sick-bay": sickBay,
     "/schools/boarding/leave": leave,
   };
 
@@ -60,7 +80,7 @@ export function BoardingViews({
     <div
       role="tablist"
       aria-label="Boarding views"
-      className="flex min-w-0 shrink-0 items-center gap-0.5 self-end rounded-[7px] bg-[var(--surface-sunken)] p-0.5"
+      className="flex min-w-0 shrink-0 items-center gap-0.5 self-end overflow-x-auto rounded-[7px] bg-[var(--surface-sunken)] p-0.5"
     >
       {SEGMENTS.map((segment) => {
         const active = pathname === segment.href;

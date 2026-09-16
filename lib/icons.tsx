@@ -470,6 +470,20 @@ export const Upload = createPhosphorIcon("UploadSimple", "Upload");
 export const Keyboard = createPhosphorIcon("Keyboard", "Keyboard");
 export const Percent = createPhosphorIcon("Percent", "Percent");
 
+/**
+ * The campus expansion's own marks — conduct, exams and leavers.
+ *
+ * Each is the glyph `NAV` in `design/campus/lib/expansion-kit.mjs` names for
+ * its sidebar row, so the rail and the artboard carry the same shape.
+ */
+export const Flag = createPhosphorIcon("Flag", "Flag");
+export const Star = createPhosphorIcon("Star", "Star");
+export const Timer = createPhosphorIcon("Timer", "Timer");
+export const Certificate = createPhosphorIcon("Certificate", "Certificate");
+export const SignOut = createPhosphorIcon("SignOut", "SignOut");
+export const GraduationCap = createPhosphorIcon("GraduationCap", "GraduationCap");
+export const Medal = createPhosphorIcon("Medal", "Medal");
+
 /** Marks for a record's sections — the tab strip and the phone's section list. */
 export const Paperclip = createPhosphorIcon("Paperclip", "Paperclip");
 export const At = createPhosphorIcon("At", "At");

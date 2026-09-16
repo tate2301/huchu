@@ -60,3 +60,101 @@ export function capacityRefusal(
     place.kind === "hostel" ? "places" : "beds"
   } taken`;
 }
+
+/* ── which bed, of the ones that are free ──────────────────────────────── */
+
+/** The shape the placer needs of a bed. */
+export type PlaceableBed = {
+  id: string;
+  /** AVAILABLE, or anything else meaning it cannot be slept in. */
+  status: string;
+  bay: number | null;
+  tier: string | null;
+  room: {
+    id: string;
+    isPrefectDorm: boolean;
+    yearGroupIds: string[];
+  };
+  hostel: { id: string; name: string; genderPolicy: string };
+  /** Who is already in it, if anybody. */
+  occupantId: string | null;
+};
+
+/** The shape the placer needs of a child. */
+export type PlaceablePupil = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  gender: string | null;
+  isPrefect: boolean;
+  currentClassId: string | null;
+};
+
+/**
+ * Why this bed cannot be offered to this child, or null when it can.
+ *
+ * Every refusal is a sentence a warden can act on, because this is what the
+ * screen shows when somebody presses a bed that is greyed out. "Not eligible"
+ * tells them nothing; "Nyanga takes boys only" tells them they picked the
+ * wrong house, and "bed 12U is out of service" tells them to chase the joiner.
+ *
+ * **Out of service is not free.** A broken bed is refused here rather than
+ * filtered out somewhere upstream, so there is exactly one place that decides
+ * whether a bed can take a child.
+ */
+export function bedRefusal(bed: PlaceableBed, pupil: PlaceablePupil): string | null {
+  if (bed.occupantId && bed.occupantId !== pupil.id) {
+    return "Somebody is already in this bed";
+  }
+  if (bed.status !== "AVAILABLE") {
+    return "This bed is out of service";
+  }
+  const gender = genderRefusal(bed.hostel, pupil);
+  if (gender) return gender;
+
+  if (bed.room.isPrefectDorm && !pupil.isPrefect) {
+    return "This dormitory is for prefects";
+  }
+  return null;
+}
+
+/**
+ * How good a bed is for this child, higher being better. Only ever called on
+ * beds that `bedRefusal` has already cleared.
+ *
+ * The ordering is a warden's, not an optimiser's:
+ *
+ * 1. **The right year group** dominates everything else. A Form 1 in the Form 1
+ *    dormitory is the single thing that makes a house work socially, and the
+ *    weight is large enough that no combination of the others outvotes it.
+ * 2. **Their year-mates**, so a child arriving late is put with people they
+ *    know rather than into the one empty corner of an Upper 6 dormitory.
+ * 3. **The emptier house**, which spreads intake across houses instead of
+ *    filling Nyanga to the roof while Vumba stands empty.
+ * 4. **A lower bunk**, all else equal — nobody's first choice is a top bunk,
+ *    and this is the tiebreak rather than a real preference.
+ */
+export function bedScore(
+  bed: PlaceableBed,
+  pupil: PlaceablePupil,
+  context: {
+    /** Who else is in that dormitory, by class id. */
+    dormOccupantClassIds: string[];
+    /** Free beds over total beds in the bed's house, 0..1. */
+    houseFreeRatio: number;
+  },
+): number {
+  let score = 0;
+
+  if (pupil.currentClassId && bed.room.yearGroupIds.includes(pupil.currentClassId)) {
+    score += 40;
+  }
+  if (pupil.currentClassId) {
+    score += context.dormOccupantClassIds.filter((id) => id === pupil.currentClassId).length;
+  }
+  score += context.houseFreeRatio * 12;
+  if (bed.tier === "L") score += 1;
+
+  return score;
+}
+

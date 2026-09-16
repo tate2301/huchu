@@ -170,7 +170,23 @@ export type HostelOccupancy = {
   beds: {
     id: string;
     code: string;
-    room: { id: string; code: string; floor: string | null; capacity: number | null };
+    /**
+     * Where the bed is in the room, and whether it can be slept in. The plan
+     * draws from these; without them every dormitory reads as "no plan
+     * recorded" and a broken bed looks free.
+     */
+    bay: number | null;
+    tier: string | null;
+    status: string;
+    statusReason: string | null;
+    room: {
+      id: string;
+      code: string;
+      floor: string | null;
+      capacity: number | null;
+      isPrefectDorm: boolean;
+      yearGroupIds: string[];
+    };
     allocationId: string | null;
     student: {
       id: string;

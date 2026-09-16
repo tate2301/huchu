@@ -105,7 +105,53 @@ export type SchoolAuditEventType =
    */
   | "schools.student.archived"
   | "schools.teacher.archived"
-  | "schools.guardian.deleted";
+  | "schools.guardian.deleted"
+  /**
+   * S-12.1 — the behaviour record. Four events, and each is a thing a school is
+   * asked about afterwards: who logged this, who decided the sanction, who
+   * rewrote the account, and who rang home. The last is the one the whole
+   * behaviour log exists for.
+   */
+  | "schools.conduct.incident.logged"
+  | "schools.conduct.incident.edited"
+  | "schools.conduct.sanction.decided"
+  | "schools.conduct.home-told"
+  /**
+   * A merit point taken back. The award itself is ordinary and unaudited; the
+   * reversal is not, because a point that counted towards a prize and then
+   * stopped counting is a decision somebody has to be able to account for.
+   */
+  | "schools.conduct.merit.reversed"
+  /**
+   * S-12.3 — somebody opened a pastoral note's body.
+   *
+   * Not drawn on any artboard. It is required by the subject matter rather than
+   * by the design: a row-level access model nobody can audit is a claim rather
+   * than a control, and "who read this note about this child, and when" is the
+   * first question asked when a pastoral record is disputed.
+   */
+  | "schools.pastoral.note.read"
+  | "schools.pastoral.note.written"
+  | "schools.pastoral.access.requested"
+  | "schools.pastoral.clearance.granted"
+  | "schools.pastoral.clearance.revoked"
+  /**
+   * S-13.1 — the entry file. Submission to the board is manual and stays manual
+   * until `SCH-DEP-02` is lifted, so this row is the only record of which file
+   * a school uploaded, built from which entries, by whom.
+   */
+  | "schools.exam.entry-file.built"
+  | "schools.exam.candidate.registered"
+  | "schools.exam.entry.withdrawn"
+  | "schools.exam.results.captured"
+  /**
+   * S-13.4 — closing a pupil's record. The five clearance marks are settled by
+   * five different people and one of them can be overridden by the head, so the
+   * override is the event worth keeping.
+   */
+  | "schools.leaver.opened"
+  | "schools.leaver.clearance.marked"
+  | "schools.leaver.closed";
 
 export type SchoolAuditArgs = {
   companyId: string;
