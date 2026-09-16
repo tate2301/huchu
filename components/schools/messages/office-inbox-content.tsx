@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Card } from "@corelithzw/react";
+import { Badge, Button } from "@corelithzw/react";
 
 import { EntityLink } from "@/components/records/entity-link";
 import {
@@ -13,7 +13,6 @@ import {
   TableControls,
   TableSearch,
 } from "@/components/records/table-controls";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import {
   LoadError,
@@ -264,25 +263,6 @@ export function OfficeInboxContent() {
 
   return (
     <div className="space-y-4">
-      <PageBand
-        // A dash until the queues have been counted. A nought in the band reads
-        // as "nothing is waiting", which is the one answer an office must not
-        // be given wrongly.
-        chips={[
-          {
-            label: "Unassigned",
-            value: threadsQuery.isPending ? "—" : counts.unassigned,
-            tone: counts.unassigned > 0 ? "danger" : "neutral",
-          },
-          {
-            label: "Need a reply",
-            value: threadsQuery.isPending ? "—" : counts.yours,
-            tone: counts.yours > 0 ? "warn" : "neutral",
-          },
-          { label: "Open", value: threadsQuery.isPending ? "—" : counts.open },
-        ]}
-      />
-
       {threadsQuery.error ? (
         <LoadError
           what="the conversations"
@@ -363,145 +343,143 @@ export function OfficeInboxContent() {
         count={threadsQuery.isPending ? null : `${rows.length} of ${threads.length}`}
       />
 
-      <Card flush>
-        {threadsQuery.isPending ? (
-          <TableRowsSkeleton
-            columns={[
-              { width: 120, badge: true },
-              { avatar: true, twoLine: true },
-              { width: 160 },
-              { width: 88, align: "right" },
-              { width: 40 },
-            ]}
+      {threadsQuery.isPending ? (
+        <TableRowsSkeleton
+          columns={[
+            { width: 120, badge: true },
+            { avatar: true, twoLine: true },
+            { width: 160 },
+            { width: 88, align: "right" },
+            { width: 40 },
+          ]}
+        />
+      ) : rows.length === 0 ? (
+        segment === "unassigned" && counts.open > 0 ? (
+          <NothingLeftToDo
+            title="Nothing is waiting on the office"
+            body="Every open conversation has a member of staff on it."
+            action={
+              <Button variant="secondary" onClick={() => setSegment("open")}>
+                Show everything open
+              </Button>
+            }
           />
-        ) : rows.length === 0 ? (
-          segment === "unassigned" && counts.open > 0 ? (
-            <NothingLeftToDo
-              title="Nothing is waiting on the office"
-              body="Every open conversation has a member of staff on it."
-              action={
-                <Button variant="secondary" onClick={() => setSegment("open")}>
-                  Show everything open
-                </Button>
-              }
-            />
-          ) : filtersInForce.length > 0 ? (
-            <NothingMatched
-              what="conversations"
-              filters={filtersInForce}
-              onClear={() => {
-                setStaffFilter("");
-                setSearch("");
-              }}
-            />
-          ) : threads.length === 0 ? (
-            <NothingYet
-              title="No family has written yet"
-              body="Conversations started from a parent's portal arrive here, and any addressed to the office rather than to a teacher wait on this queue."
-            />
-          ) : (
-            <NothingLeftToDo
-              title="Nothing in this queue"
-              body="Try another tab — there are conversations elsewhere."
-            />
-          )
+        ) : filtersInForce.length > 0 ? (
+          <NothingMatched
+            what="conversations"
+            filters={filtersInForce}
+            onClear={() => {
+              setStaffFilter("");
+              setSearch("");
+            }}
+          />
+        ) : threads.length === 0 ? (
+          <NothingYet
+            title="No family has written yet"
+            body="Conversations started from a parent's portal arrive here, and any addressed to the office rather than to a teacher wait on this queue."
+          />
         ) : (
-          <ul className="flex flex-col">
-            {rows.map((thread) => {
-              const move = moveOf(thread);
-              return (
-                <li
-                  key={thread.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3 last:border-b-0"
-                >
-                  <Badge tone={MOVE_TONE[move]} dot className="w-[7.5rem] shrink-0">
-                    {MOVE_LABEL[move]}
-                  </Badge>
+          <NothingLeftToDo
+            title="Nothing in this queue"
+            body="Try another tab — there are conversations elsewhere."
+          />
+        )
+      ) : (
+        <ul className="flex flex-col">
+          {rows.map((thread) => {
+            const move = moveOf(thread);
+            return (
+              <li
+                key={thread.id}
+                className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3 last:border-b-0"
+              >
+                <Badge tone={MOVE_TONE[move]} dot className="w-[7.5rem] shrink-0">
+                  {MOVE_LABEL[move]}
+                </Badge>
 
-                  {/* The same cell the library register and the bus register
-                      open their rows with, read for a conversation: the mark is
-                      the family's, so one family keeps one colour down the
-                      queue, and what is written beside it is what the thread is
-                      about. `displayName` is what keeps those two apart — a
-                      mark hashed from the subject would give the same family a
-                      new face on every new conversation.
+                {/* The same cell the library register and the bus register
+                    open their rows with, read for a conversation: the mark is
+                    the family's, so one family keeps one colour down the
+                    queue, and what is written beside it is what the thread is
+                    about. `displayName` is what keeps those two apart — a
+                    mark hashed from the subject would give the same family a
+                    new face on every new conversation.
 
-                      No `href`: a conversation is not a record with a page, so
-                      the cell carries no underline. The family and the pupil
-                      underneath it are records, and they are the links. */}
-                  <span className="min-w-0 flex-1">
-                    <PersonCell
-                      kind="guardian"
-                      firstName={thread.guardian.firstName}
-                      lastName={thread.guardian.lastName}
-                      displayName={thread.subject}
-                      supportingProse
-                      reference={
-                        <EntityLink href={`/schools/guardians/${thread.guardian.id}`} muted>
-                          {fullName(thread.guardian)}
-                        </EntityLink>
-                      }
-                      context={
-                        thread.student ? (
-                          <>
-                            {"about "}
-                            <EntityLink href={`/schools/students/${thread.student.id}`} muted>
-                              {fullName(thread.student)}
-                            </EntityLink>
-                          </>
-                        ) : (
-                          "a general enquiry"
-                        )
-                      }
-                    />
-                  </span>
-
-                  <span className="w-[10rem] shrink-0 truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
-                    {/* Whoever has it is a member of staff with a record page,
-                        so their name goes there. Nobody having it is an absence
-                        named in words, and an absence is not a link. */}
-                    {thread.staff ? (
-                      <EntityLink href={`/schools/teachers/${thread.staff.id}`}>
-                        {thread.staff.name}
+                    No `href`: a conversation is not a record with a page, so
+                    the cell carries no underline. The family and the pupil
+                    underneath it are records, and they are the links. */}
+                <span className="min-w-0 flex-1">
+                  <PersonCell
+                    kind="guardian"
+                    firstName={thread.guardian.firstName}
+                    lastName={thread.guardian.lastName}
+                    displayName={thread.subject}
+                    supportingProse
+                    reference={
+                      <EntityLink href={`/schools/guardians/${thread.guardian.id}`} muted>
+                        {fullName(thread.guardian)}
                       </EntityLink>
-                    ) : (
-                      "The office — nobody yet"
-                    )}
-                  </span>
-
-                  <span className="w-[5.5rem] shrink-0 text-right font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                    {waitedFor(thread.lastMessageAt, now)}
-                  </span>
-
-                  <RecordActions
-                    layout="menu"
-                    resource="schools.reports"
-                    label={`Actions for “${thread.subject}”`}
-                    verbs={[
-                      {
-                        label: "Read",
-                        action: "view",
-                        onSelect: () => setReading(thread),
-                      },
-                      {
-                        label: thread.staff ? "Pass on" : "Assign",
-                        action: "create",
-                        unavailable: thread.closed
-                          ? "This conversation is finished."
-                          : undefined,
-                        onSelect: () => {
-                          setAssignTo(thread.staff?.id ?? "");
-                          setAssigning(thread);
-                        },
-                      },
-                    ]}
+                    }
+                    context={
+                      thread.student ? (
+                        <>
+                          {"about "}
+                          <EntityLink href={`/schools/students/${thread.student.id}`} muted>
+                            {fullName(thread.student)}
+                          </EntityLink>
+                        </>
+                      ) : (
+                        "a general enquiry"
+                      )
+                    }
                   />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Card>
+                </span>
+
+                <span className="w-[10rem] shrink-0 truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
+                  {/* Whoever has it is a member of staff with a record page,
+                      so their name goes there. Nobody having it is an absence
+                      named in words, and an absence is not a link. */}
+                  {thread.staff ? (
+                    <EntityLink href={`/schools/teachers/${thread.staff.id}`}>
+                      {thread.staff.name}
+                    </EntityLink>
+                  ) : (
+                    "The office — nobody yet"
+                  )}
+                </span>
+
+                <span className="w-[5.5rem] shrink-0 text-right font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
+                  {waitedFor(thread.lastMessageAt, now)}
+                </span>
+
+                <RecordActions
+                  layout="menu"
+                  resource="schools.reports"
+                  label={`Actions for “${thread.subject}”`}
+                  verbs={[
+                    {
+                      label: "Read",
+                      action: "view",
+                      onSelect: () => setReading(thread),
+                    },
+                    {
+                      label: thread.staff ? "Pass on" : "Assign",
+                      action: "create",
+                      unavailable: thread.closed
+                        ? "This conversation is finished."
+                        : undefined,
+                      onSelect: () => {
+                        setAssignTo(thread.staff?.id ?? "");
+                        setAssigning(thread);
+                      },
+                    },
+                  ]}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {/* Reading a thread. The office reads without claiming a side — opening it
           here must not clear the badge telling a teacher to reply. */}

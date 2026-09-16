@@ -6,7 +6,6 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import {
@@ -252,8 +251,6 @@ export function WelfareContent() {
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
-  const missing = allRows.filter((row) => row.gaps.length > 0).length;
-  const complete = allRows.length - missing;
   const urgent = allRows.filter((row) => row.gaps.includes(URGENT_GAP)).length;
 
   return (
@@ -268,30 +265,6 @@ export function WelfareContent() {
           }}
         />
       </PageChrome>
-
-      {/* Dashes, not noughts, until the list is in. "0 allergy, no consent" is
-          the chip a nurse reads to decide she has nothing to chase, and for the
-          frame before the roll lands it is wrong. */}
-      <PageBand
-        chips={[
-          { label: "Children", value: listQuery.isPending ? "—" : allRows.length },
-          {
-            label: "Complete",
-            value: listQuery.isPending ? "—" : complete,
-            tone: "success",
-          },
-          {
-            label: "Still to record",
-            value: listQuery.isPending ? "—" : missing,
-            tone: missing > 0 ? "warn" : "success",
-          },
-          {
-            label: "Allergy, no consent",
-            value: listQuery.isPending ? "—" : urgent,
-            tone: urgent > 0 ? "danger" : "neutral",
-          },
-        ]}
-      />
 
       {listQuery.error ? (
         <LoadError

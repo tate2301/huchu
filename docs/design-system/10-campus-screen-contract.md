@@ -29,27 +29,37 @@ Everything else is the content component's job.
 ```
 ┌─ app bar ────────────────────────────────────────────────┐
 │  Title            ⌘K search        [ PRIMARY ACTION ]    │   PageChrome
-├─ page band (sticky) ─────────────────────────────────────┤
-│  [chip] [chip] [chip]              Export   Print        │   PageBand
 ├──────────────────────────────────────────────────────────┤
-│  [tabs]  [search]  [filters]                  [actions]  │   TableControls
-│  ┌────────────────────────────────────────────────────┐  │
-│  │ table                                              │  │   DataTable
+│  [tabs]                                                  │ ┐
+│  ────────────────────────────────────────────────────    │ ├ TableControls
+│  [layout] [search] [filters]           50 of 214  [···]  │ ┘
+│  table — flush, no card                                  │   DataTable
 ```
 
 - **Primary action → app bar**, via `PageChrome`. One per screen.
-- **Band → state chips**, via `PageBand`. Numbers that change. Never the page's
-  own name.
-- **Tabs, search, filters → one row above the table**, via `TableControls`.
+- **Tabs → their own row**; **search and filters → the row below**. Both are
+  `TableControls`; pass `tabs` and it stacks them.
+- **No summary band.** Totals live on the module overview, not over a table.
+  See `09-campus-canvas-law.md` §2.
+- **No card around the table.** The table is the page. §5.
 - **Row actions → in the row**, via `RecordActions`.
+
+## One page, one thing
+
+A screen is about one subject. If the page is called Allocations, every table
+on it is allocations. A second table with a different subject — the gate book
+under the bed list, leave under allocations — is a second page wearing the
+first one's name, and it leaves the filters governing half the screen.
+
+When two subjects are genuinely one click apart, that is what the **tab row**
+is for. Boarding: Allocations · Hostels · Leave and outings.
 
 ## The primitives
 
 | Need | Use | Where |
 |---|---|---|
 | App-bar title + primary action | `PageChrome` | `@/components/layout/page-chrome` |
-| State chips | `PageBand`, `BandChip` | `@/components/schools/common/page-band` |
-| Table's control row | `TableControls`, `TableSearch` | `@/components/records/table-controls` |
+| Tabs + search + filters | `TableControls`, `TableSearch` | `@/components/records/table-controls` |
 | Filter by class/stream | `ClassFilter`, `classFilterParams` | `@/components/schools/common/class-filter` |
 | Any other filter | `FilterSelect`, `FilterBar` | `@/components/schools/common/filter-select` |
 | Which class, as a route | `GradePicker` | `@/components/schools/common/grade-picker` |
@@ -57,6 +67,7 @@ Everything else is the content component's job.
 | Row verbs | `RecordActions` | `@/components/schools/common/record-actions` |
 | Loading / empty / error | `TableRowsSkeleton`, `CardsSkeleton`, `StatsSkeleton`, `SavingOverlay`, `NothingYet`, `NothingMatched`, `NothingLeftToDo`, `LoadError`, `SaveError` | `@/components/records/states` |
 | Person initials | `PersonAvatar` | `@/components/schools/common/person-avatar` |
+| State chips — **overview dashboards only** | `PageBand`, `BandChip` | `@/components/schools/common/page-band` |
 
 Every table and every list gets a designed skeleton — one that mirrors the row
 it is about to become, header and all. Never a spinner, never a bare "Loading…".
@@ -68,9 +79,12 @@ are in `11-campus-states-and-motion.md`. `node scripts/campus-states-audit.mjs
 
 ## The exemplar
 
-`components/schools/attendance/register-oversight-content.tsx`. It composes
-PageBand + FilterBar + DataTable + states correctly and its comments explain
-why the screen is built from the class ladder outward. Read it before starting.
+`components/schools/boarding/boarding-allocations-content.tsx`. One subject, a
+tab row over a filter row, a flush table and no band — and its comments explain
+why the gate book that used to sit under it is now its own page.
+
+For the table cells themselves, `/crm/people` remains the standard; see
+`12-tables.md`.
 
 ## CRUD is not optional
 

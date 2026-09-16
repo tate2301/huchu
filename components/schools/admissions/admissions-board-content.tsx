@@ -12,7 +12,7 @@ import {
 
 import { RecordMark } from "@/components/records/record-mark";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
+
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
@@ -311,40 +311,16 @@ export function AdmissionsBoardContent() {
         />
       </PageChrome>
 
-      {/* Pipeline and roll side by side: "61 in, 842 here" is the whole of
-          what an admissions office is watching in September. */}
-      <PageBand
-        chips={[
-          // An em dash until the board is in. All three are noughts before it
-          // lands, and "Lapsed 0" is a reassurance the screen has not earned
-          // yet — it is the number an admissions office comes here to check.
-          {
-            label: "Pipeline",
-            value: applicationsQuery.data ? applications.length : "—",
-            tone: "brand",
-          },
-          {
-            label: "Offers out",
-            value: applicationsQuery.data ? (counts.OFFERED ?? 0) : "—",
-            tone: lapsed.length > 0 ? "warn" : "neutral",
-          },
-          {
-            label: "Lapsed",
-            value: applicationsQuery.data ? lapsed.length : "—",
-            tone: lapsed.length > 0 ? "danger" : "neutral",
-          },
-        ]}
-        actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setIncludeClosed((on) => !on)}
-          >
-            {includeClosed ? "Hide closed" : "Show closed"}
-          </Button>
-        }
-      />
+      {/* No band. "Pipeline / Offers out / Lapsed" sat above filters that did
+          govern two of the three, so narrowing to Form 1 moved some chips and
+          not others — a strip that is half state and half answer. The pipeline
+          count is the rail item's own; the lapsed offers are the red alert
+          below, which names them rather than counting them; and what is left
+          is the row count on the filter row. §2 of the canvas law.
 
+          "Show closed" was in the band's action slot and is a filter — it
+          widens which applications exist on the board — so it belongs on the
+          filter row with the rest of the narrowing. */}
       {applicationsQuery.error ? (
         <LoadError
           what="the applications"
@@ -405,6 +381,15 @@ export function AdmissionsBoardContent() {
         }
         count={
           applicationsQuery.isPending ? null : `${applications.length} of ${onFile}`
+        }
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setIncludeClosed((on) => !on)}
+          >
+            {includeClosed ? "Hide closed" : "Show closed"}
+          </Button>
         }
       />
 

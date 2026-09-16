@@ -11,7 +11,6 @@ import { EntityLink } from "@/components/records/entity-link";
 import { recordCellTone } from "@/components/records/record-table";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { PageBand } from "@/components/schools/common/page-band";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
@@ -421,32 +420,6 @@ export function SchoolsNoticesContent() {
         />
       </PageChrome>
 
-      {/* Nothing here is a zero until it has been counted. A band that reads
-          "Sent this term 0 · Unread 0" for the half-second the query is in
-          flight tells an office the term has been silent, and the green on the
-          second chip says so approvingly. An em dash and the neutral tone say
-          the only true thing, which is that we do not know yet. */}
-      <PageBand
-        chips={[
-          { label: "Sent this term", value: query.isPending ? "—" : reach.sent },
-          {
-            label: "Unread",
-            value: query.isPending ? "—" : reach.unread.toLocaleString(),
-            tone: query.isPending ? "neutral" : reach.unread > 0 ? "warn" : "success",
-          },
-          {
-            label: "No portal account",
-            value: unreachable ? unreachable.guardians + unreachable.students : "—",
-            tone: !unreachable
-              ? "neutral"
-              : unreachable.guardians + unreachable.students > 0
-                ? "danger"
-                : "success",
-            href: "/schools/guardians",
-          },
-        ]}
-      />
-
       {query.error ? (
         <LoadError
           what="what has been sent"
@@ -478,93 +451,91 @@ export function SchoolsNoticesContent() {
       ) : null}
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card flush title="Notices the school has sent">
-          {query.isPending ? (
-            <TableRowsSkeleton
-              rows={6}
-              headers={["Sent", "Notice", "Audience", "Importance", "Read", "Expires"]}
-              columns={[
-                { width: 70 },
-                { twoLine: true },
-                { width: 140 },
-                { width: 100, badge: true },
-                { width: 120 },
-                { width: 80 },
-              ]}
-            />
-          ) : (
-            <DataTable
-              data={filtered}
-              columns={columns}
-              searchPlaceholder="Search sent notices"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              /* One row answers narrowing. The filters sat on a row of their
-                 own above the search box, so the same question was asked in
-                 two places a band apart. */
-              toolbar={
-                <>
-                  <FilterSelect
-                    label="Who it was for"
-                    allLabel="Every audience"
-                    value={audience}
-                    options={AUDIENCES}
-                    onChange={setAudience}
-                  />
-                  <FilterSelect
-                    label="Year group"
-                    allLabel="The whole school"
-                    value={classId}
-                    options={classes.map((row) => ({ value: row.id, label: row.name }))}
-                    onChange={setClassId}
-                  />
-                  <FilterSelect
-                    label="Importance"
-                    allLabel="Any importance"
-                    value={importance}
-                    options={IMPORTANCE}
-                    onChange={setImportance}
-                  />
-                  <FilterSelect
-                    label="When"
-                    allLabel={activeTerm ? `${activeTerm.name}` : "This term"}
-                    value={when}
-                    options={WHEN}
-                    onChange={setWhen}
-                  />
-                </>
-              }
-              emptyState={
-                rows.length === 0 ? (
-                  <NothingYet
-                    title="The school has not sent a notice yet"
-                    body="Anything you send appears in parents' and pupils' portals straight away."
-                  />
-                ) : (
-                  <NothingMatched
-                    what="notices"
-                    filters={[
-                      audience ? AUDIENCES.find((row) => row.value === audience)?.label : null,
-                      classId ? classes.find((row) => row.id === classId)?.name : null,
-                      importance
-                        ? IMPORTANCE.find((row) => row.value === importance)?.label
-                        : null,
-                    ].filter((value): value is string => Boolean(value))}
-                    onClear={
-                      anyFilter
-                        ? () => {
-                            setAudience("");
-                            setClassId("");
-                            setImportance("");
-                          }
-                        : undefined
-                    }
-                  />
-                )
-              }
-            />
-          )}
-        </Card>
+        {query.isPending ? (
+          <TableRowsSkeleton
+            rows={6}
+            headers={["Sent", "Notice", "Audience", "Importance", "Read", "Expires"]}
+            columns={[
+              { width: 70 },
+              { twoLine: true },
+              { width: 140 },
+              { width: 100, badge: true },
+              { width: 120 },
+              { width: 80 },
+            ]}
+          />
+        ) : (
+          <DataTable
+            data={filtered}
+            columns={columns}
+            searchPlaceholder="Search sent notices"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            /* One row answers narrowing. The filters sat on a row of their
+               own above the search box, so the same question was asked in
+               two places a band apart. */
+            toolbar={
+              <>
+                <FilterSelect
+                  label="Who it was for"
+                  allLabel="Every audience"
+                  value={audience}
+                  options={AUDIENCES}
+                  onChange={setAudience}
+                />
+                <FilterSelect
+                  label="Year group"
+                  allLabel="The whole school"
+                  value={classId}
+                  options={classes.map((row) => ({ value: row.id, label: row.name }))}
+                  onChange={setClassId}
+                />
+                <FilterSelect
+                  label="Importance"
+                  allLabel="Any importance"
+                  value={importance}
+                  options={IMPORTANCE}
+                  onChange={setImportance}
+                />
+                <FilterSelect
+                  label="When"
+                  allLabel={activeTerm ? `${activeTerm.name}` : "This term"}
+                  value={when}
+                  options={WHEN}
+                  onChange={setWhen}
+                />
+              </>
+            }
+            emptyState={
+              rows.length === 0 ? (
+                <NothingYet
+                  title="The school has not sent a notice yet"
+                  body="Anything you send appears in parents' and pupils' portals straight away."
+                />
+              ) : (
+                <NothingMatched
+                  what="notices"
+                  filters={[
+                    audience ? AUDIENCES.find((row) => row.value === audience)?.label : null,
+                    classId ? classes.find((row) => row.id === classId)?.name : null,
+                    importance
+                      ? IMPORTANCE.find((row) => row.value === importance)?.label
+                      : null,
+                  ].filter((value): value is string => Boolean(value))}
+                  onClear={
+                    anyFilter
+                      ? () => {
+                          setAudience("");
+                          setClassId("");
+                          setImportance("");
+                        }
+                      : undefined
+                  }
+                />
+              )
+            }
+          />
+        )}
 
         <div className="flex flex-col gap-3">
           <Card

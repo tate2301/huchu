@@ -4,13 +4,12 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useIsMutating } from "@tanstack/react-query";
-import { Alert, Button, Card, StatCard } from "@corelithzw/react";
+import { Alert, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { AgeingStrip } from "@/components/schools/common/ageing-strip";
-import { PageBand } from "@/components/schools/common/page-band";
 import { EntityLink } from "@/components/records/entity-link";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
@@ -30,7 +29,6 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-  StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
@@ -85,18 +83,9 @@ type ArrearsResponse = {
   };
 };
 
-type CollectionsResponse = {
-  data: Array<{ period: string; termId: string; termName: string; collectionRate: number }>;
-  summary: { totalInvoiced: number; overallCollectionRate: number };
-};
-
 type EnrollmentResponse = {
   data: Array<{ period: string; totalEnrolled: number }>;
   summary: { averageEnrollment: number };
-};
-
-type OccupancyResponse = {
-  summary: { totalBeds: number; totalOccupied: number; overallOccupancyRate: number };
 };
 
 /** The other three cuts of the same reporting pack, kept a click away. */
@@ -131,26 +120,6 @@ const BOARDING_OPTIONS = [
   { value: "DAY", label: "Day pupils only" },
 ];
 
-/**
- * A rate with nothing behind it is unknown rather than zero: "0%" against
- * nothing billed reads as a school that collected nothing.
- */
-function percent(value: number, outOf: number): string {
-  if (!(outOf > 0) || !Number.isFinite(value)) return "—";
-  return `${value.toFixed(1)}%`;
-}
-
-/**
- * A collection rate reads as a state, not a number: 96 is fine, 69 is not.
- * A rate with nothing billed behind it is no state at all, so the tile stays
- * neutral rather than painting a school that has not billed yet in danger red.
- */
-function rateTone(rate: number, outOf: number) {
-  if (!(outOf > 0)) return undefined;
-  if (rate >= 90) return "success" as const;
-  if (rate >= 70) return "warn" as const;
-  return "danger" as const;
-}
 
 /**
  * Money in an ageing column, warming as it ages.
@@ -219,40 +188,30 @@ export function ReportsArrearsContent() {
       ),
   });
 
-  // The three sibling reports, for the header tiles only. They are cheap and
-  // unfiltered on purpose: the tiles say what the school looks like, not what
-  // the filters left behind, and a collection rate that moved when somebody
-  // picked a year group would be answering a different question from the one
-  // its label asks.
-  const collectionsQuery = useQuery({
-    queryKey: ["schools", "reports", "collections", "headline"],
-    queryFn: () => fetchJson<CollectionsResponse>("/api/v2/schools/reports/collections"),
-  });
+  /**
+   * The roll, and only the roll.
+   *
+   * The collections and occupancy reads that used to sit beside this one fed
+   * the three summary tiles §2 took off the screen, and they went with them —
+   * a screen should not fetch the hostel occupancy to draw a list of families
+   * in arrears.
+   *
+   * This one stays because it is not a summary: it is how the empty table
+   * tells "nobody has been billed because there is no school yet" from
+   * "everybody has paid", and those are different sentences with different
+   * verbs behind them.
+   */
   const enrollmentQuery = useQuery({
     queryKey: ["schools", "reports", "enrollment"],
     queryFn: () => fetchJson<EnrollmentResponse>("/api/v2/schools/reports/enrollment"),
   });
-  const occupancyQuery = useQuery({
-    queryKey: ["schools", "reports", "occupancy"],
-    queryFn: () => fetchJson<OccupancyResponse>("/api/v2/schools/reports/occupancy"),
-  });
 
   const arrears = useMemo(() => arrearsQuery.data?.data ?? [], [arrearsQuery.data]);
   const summary = arrearsQuery.data?.summary;
-  const collections = useMemo(
-    () => collectionsQuery.data?.data ?? [],
-    [collectionsQuery.data],
-  );
   const enrollment = useMemo(
     () => enrollmentQuery.data?.data ?? [],
     [enrollmentQuery.data],
   );
-
-  /** The most recent term, which is what "to date" is about. */
-  const termInView = useMemo(() => {
-    if (collections.length === 0) return null;
-    return [...collections].sort((a, b) => b.period.localeCompare(a.period))[0] ?? null;
-  }, [collections]);
 
   /** The roll as it stands — "188 of 842" has to be against today's school. */
   const rollNow = useMemo(() => {
@@ -479,49 +438,17 @@ export function ReportsArrearsContent() {
       </PageChrome>
 
       <div className="space-y-4">
-        <PageBand
-          chips={[
-            {
-              label: "Outstanding",
-              value: arrearsQuery.isPending
-                ? "—"
-                : formatSchoolMoney(summary?.totalOutstanding ?? 0),
-              tone: "danger",
-            },
-            {
-              label: "90+ days",
-              value: arrearsQuery.isPending
-                ? "—"
-                : formatSchoolMoney(summary?.aging.days120Plus ?? 0),
-              tone: "warn",
-            },
-            {
-              label: "Families",
-              value: arrearsQuery.isPending ? "—" : arrears.length,
-            },
-          ]}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={exporting === "csv"}
-                onClick={() => void runExport("csv")}
-              >
-                Export CSV
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={exporting === "pdf"}
-                onClick={() => void runExport("pdf")}
-              >
-                Export PDF
-              </Button>
-            </>
-          }
-        />
+        {/* No band. "Outstanding / 90+ days / Families" were three totals over
+            four filters that did not govern them — narrow to Form 4 and all
+            three still answered for the school, while the table under them was
+            one year group. The outstanding money and the age of it are still
+            on the page, in the two bounded summary panels beside the table,
+            which are read against the same rows the filters left; the families
+            figure is the row count on the filter row. §2 of the canvas law.
 
+            The two exports came off the band's action slot and onto the filter
+            row, which is where a verb that acts on the table as a whole goes —
+            and it is the row that says what the table currently is. */}
         {exportError ? (
           // An export is a write as far as the person pressing it is concerned
           // — they asked for a file and did not get one — so it takes the same
@@ -531,91 +458,20 @@ export function ReportsArrearsContent() {
         {sent ? <Alert tone="success" title={sent} onDismiss={() => setSent(null)} /> : null}
 
         {/*
-          One tile per sibling report, each carrying that report's headline
-          number and the footer that gives it a denominator. They are the
-          reason the segments above the table are worth pressing.
+          The three summary tiles that used to sit here — collection rate,
+          average enrolment, hostel occupancy — are gone, and they are the
+          clearest case §2 names. None of them was about arrears: they were the
+          headline figures of the three sibling reports one tab along, read off
+          three separate endpoints, deliberately unfiltered, sitting over a
+          table that four controls were narrowing. A bursar who picked Form 4
+          got a hostel occupancy figure for the whole school above a list of
+          four families. They belong on `/schools/reports`, which is the
+          overview whose whole job is summarising, and which already draws all
+          three.
 
-          There were four. The fourth was "Students with arrears", which is the
-          Families chip in the band eighty pixels higher, in a different
-          typeface — and a figure stated twice on one screen is a figure the
-          reader has to check against itself. The band keeps it, because the
-          band is the half that stays in view.
-
-          Each is read off a live endpoint and none of them is filtered: the
-          tiles say what the school looks like, not what the filters left
-          behind, and a collection rate that moved when somebody picked a year
-          group would be answering a different question from the one its label
-          asks.
+          What is left on this screen is about arrears and is read against the
+          rows in view: the ageing strip, and where the 90+ sits.
         */}
-        {arrearsQuery.isPending || collectionsQuery.isPending ? (
-          <StatsSkeleton count={3} />
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StatCard
-              label="Collection rate"
-              tone={rateTone(
-                collectionsQuery.data?.summary.overallCollectionRate ?? 0,
-                collectionsQuery.data?.summary.totalInvoiced ?? 0,
-              )}
-              value={percent(
-                collectionsQuery.data?.summary.overallCollectionRate ?? 0,
-                collectionsQuery.data?.summary.totalInvoiced ?? 0,
-              )}
-              footer={termInView ? `${termInView.termName} to date` : "No term in view"}
-            />
-            <StatCard
-              label="Average enrolment"
-              value={enrollmentQuery.data?.summary.averageEnrollment ?? 0}
-              footer={
-                rollNow === null
-                  ? `across ${enrollment.length} term${enrollment.length === 1 ? "" : "s"}`
-                  : `${rollNow} on the roll now`
-              }
-            />
-            <StatCard
-              label="Hostel occupancy"
-              tone="brand"
-              value={percent(
-                occupancyQuery.data?.summary.overallOccupancyRate ?? 0,
-                occupancyQuery.data?.summary.totalBeds ?? 0,
-              )}
-              footer={
-                occupancyQuery.data?.summary
-                  ? `${occupancyQuery.data.summary.totalOccupied} of ${occupancyQuery.data.summary.totalBeds} beds`
-                  : "No hostels"
-              }
-            />
-          </div>
-        )}
-
-        {/*
-          The four tiles read four different endpoints. When one of them fails
-          the other three still have answers, so the fault is named where it
-          sits rather than taking the page — a bursar who came here for the
-          arrears should not lose the arrears because the hostel count is down.
-        */}
-        {collectionsQuery.isError ? (
-          <LoadError
-            what="the collection rate"
-            error={collectionsQuery.error}
-            onRetry={() => void collectionsQuery.refetch()}
-          />
-        ) : null}
-        {enrollmentQuery.isError ? (
-          <LoadError
-            what="the enrolment figures"
-            error={enrollmentQuery.error}
-            onRetry={() => void enrollmentQuery.refetch()}
-          />
-        ) : null}
-        {occupancyQuery.isError ? (
-          <LoadError
-            what="the hostel occupancy"
-            error={occupancyQuery.error}
-            onRetry={() => void occupancyQuery.refetch()}
-          />
-        ) : null}
-
         {arrearsQuery.error ? (
           <LoadError
             what="the arrears report"
@@ -692,6 +548,26 @@ export function ReportsArrearsContent() {
           }
           count={
             arrearsQuery.isPending ? null : `${visible.length} of ${arrears.length}`
+          }
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={exporting === "csv"}
+                onClick={() => void runExport("csv")}
+              >
+                Export CSV
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={exporting === "pdf"}
+                onClick={() => void runExport("pdf")}
+              >
+                Export PDF
+              </Button>
+            </>
           }
         />
 

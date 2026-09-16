@@ -4,10 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Card } from "@corelithzw/react";
+import { Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { ClassFilter, ALL_CLASSES, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
@@ -29,23 +28,24 @@ import {
   allocationStatusLabel,
   allocationTone,
   fetchBoardingDashboard,
-  fetchLeaveRequests,
   shortDate,
   type AllocationStatus,
   type BoardingAllocation,
 } from "@/components/schools/boarding/boarding-data";
 import { AllocateBedDialog, AllocationDialog } from "@/components/schools/boarding/boarding-dialogs";
 import { BoardingViews } from "@/components/schools/boarding/boarding-views";
-import { LeaveRequestsPanel } from "@/components/schools/boarding/leave-requests-panel";
 
 /**
  * Who is in which bed, this term.
  *
- * Two cards, in the order the canvas draws them. The allocations table is the
- * screen; the leave and outing table under it is there because a warden reading
- * the bed list is one question away from "and who is out of the gate", and
- * making that a second navigation is making them hold the first answer in their
- * head while they go and find the second.
+ * One table, because the page is called Allocations and an allocation is what
+ * it is about. The gate book used to sit under this one as a second card, on
+ * the reasoning that a warden reading the bed list is one question away from
+ * "and who is out of the gate". That reasoning is how a page ends up doing two
+ * jobs and neither of them cleanly: the filters above governed one table and
+ * not the other, the row count counted one of them, and the screen's name was
+ * true of the top half only. Leave and outings has its own page, and the tab
+ * strip above is one click to it.
  *
  * `Hostel / Room / Bed` is one column rather than three. It is an address — the
  * thing somebody reads out over the phone — and splitting it makes the reader
@@ -73,14 +73,6 @@ export function BoardingAllocationsContent() {
         ...(hostelFilter ? { hostelId: hostelFilter } : {}),
         ...(status ? { status: status as AllocationStatus } : {}),
       }),
-  });
-
-  // The leave card counts what it holds, so it reads the same list the panel
-  // does rather than guessing at it from the allocations.
-  const leaveQuery = useQuery({
-    queryKey: ["schools", "boarding", "leave-requests", hostelFilter, "", ""],
-    queryFn: () =>
-      fetchLeaveRequests(hostelFilter ? { hostelId: hostelFilter } : {}),
   });
 
   const hostels = useMemo(() => boardQuery.data?.hostels ?? [], [boardQuery.data]);
@@ -243,13 +235,6 @@ export function BoardingAllocationsContent() {
     [allocationAction, pendingId],
   );
 
-  const activeTerm = boardQuery.data?.data?.find((row) => row.term.isActive)?.term ?? null;
-  const beds = summary?.beds ?? 0;
-  const taken = summary?.activeAllocations ?? 0;
-  const leaveRequests = leaveQuery.data ?? [];
-  const waiting = leaveRequests.filter((row) => row.status === "SUBMITTED").length;
-  const out = leaveRequests.filter((row) => row.status === "CHECKED_OUT").length;
-
   const filterNames = [
     hostels.find((hostel) => hostel.id === hostelFilter)?.name,
     status ? allocationStatusLabel(status as AllocationStatus) : null,
@@ -276,30 +261,6 @@ export function BoardingAllocationsContent() {
         />
       </PageChrome>
 
-      {/* Dashes, not noughts, until each query answers. "0 waiting on you" for
-          the frame before the leave requests land is the chip a warden opens
-          this screen to read, and it is wrong. */}
-      <PageBand
-        chips={[
-          { label: "Term", value: activeTerm?.code ?? "—" },
-          {
-            label: "Beds",
-            value: boardQuery.isPending ? "—" : `${taken} of ${beds}`,
-            tone: "brand",
-          },
-          {
-            label: "Waiting on you",
-            value: leaveQuery.isPending ? "—" : waiting,
-            tone: waiting > 0 ? "warn" : "neutral",
-          },
-          {
-            label: "Out of the gate",
-            value: leaveQuery.isPending ? "—" : out,
-            tone: out > 0 ? "warn" : "neutral",
-          },
-        ]}
-      />
-
       {boardQuery.error ? (
         <LoadError
           what="the boarding board"
@@ -316,7 +277,6 @@ export function BoardingAllocationsContent() {
           <BoardingViews
             allocations={summary?.totalAllocations}
             hostels={summary?.hostels}
-            leave={leaveQuery.isPending ? undefined : leaveRequests.length}
           />
         }
         search={
@@ -359,70 +319,55 @@ export function BoardingAllocationsContent() {
         }
       />
 
-      <Card flush>
-        {boardQuery.isLoading ? (
-          <TableRowsSkeleton
-            headers={["Student", "Hostel / room / bed", "Term", "Status", "Start", "End", ""]}
-            columns={[
-              { avatar: true, twoLine: true },
-              {},
-              { width: 70 },
-              { width: 100, badge: true },
-              { width: 80 },
-              { width: 80 },
-              { width: 40 },
-            ]}
-          />
-        ) : (
-          <DataTable
-            data={allocations}
-            columns={columns}
-            pagination={{ enabled: true }}
-            emptyState={
-              hostels.length === 0 ? (
-                <NothingYet
-                  title="No beds have been given out"
-                  body="A boarding house, its rooms and its beds come first; after that this is where the term's allocations live."
-                  action={
-                    <Button asChild variant="secondary">
-                      <Link href="/schools/boarding/hostels">Open hostels</Link>
-                    </Button>
-                  }
-                />
-              ) : filterNames.length > 0 || classValue.classId || search.trim() ? (
-                <NothingMatched
-                  what="allocations"
-                  filters={filterNames}
-                  search={search}
-                  onClear={clearFilters}
-                />
-              ) : (
-                <NothingYet
-                  title="Nobody is in a bed yet"
-                  body="Allocate a bed to start the term's boarding list."
-                />
-              )
-            }
-          />
-        )}
-      </Card>
-
-      <Card
-        flush
-        title="Leave and outings"
-        actions={
-          <Button asChild variant="secondary" size="sm">
-            <Link href="/schools/boarding/leave">Open leave and outings</Link>
-          </Button>
-        }
-      >
-        <LeaveRequestsPanel
-          requests={leaveQuery.data}
-          filters={{ hostelId: hostelFilter, classId: classValue.classId }}
-          filterNames={filterNames}
-          onClearFilters={clearFilters}
+      {/* No card. The table is the page, and a panel drawn around something
+          that fills the screen is a border tracing the viewport. The CRM
+          record lists set this — the toolbar's hairline is the seam, and the
+          column header runs straight off the underside of it. */}
+      {boardQuery.isLoading ? (
+        <TableRowsSkeleton
+          headers={["Student", "Hostel / room / bed", "Term", "Status", "Start", "End", ""]}
+          columns={[
+            { avatar: true, twoLine: true },
+            {},
+            { width: 70 },
+            { width: 100, badge: true },
+            { width: 80 },
+            { width: 80 },
+            { width: 40 },
+          ]}
         />
-      </Card>
+      ) : (
+        <DataTable
+          data={allocations}
+          columns={columns}
+          pagination={{ enabled: true }}
+          emptyState={
+            hostels.length === 0 ? (
+              <NothingYet
+                title="No beds have been given out"
+                body="A boarding house, its rooms and its beds come first; after that this is where the term's allocations live."
+                action={
+                  <Button asChild variant="secondary">
+                    <Link href="/schools/boarding/hostels">Open hostels</Link>
+                  </Button>
+                }
+              />
+            ) : filterNames.length > 0 || classValue.classId || search.trim() ? (
+              <NothingMatched
+                what="allocations"
+                filters={filterNames}
+                search={search}
+                onClear={clearFilters}
+              />
+            ) : (
+              <NothingYet
+                title="Nobody is in a bed yet"
+                body="Allocate a bed to start the term's boarding list."
+              />
+            )
+          }
+        />
+      )}
 
       <AllocateBedDialog
         open={allocating}

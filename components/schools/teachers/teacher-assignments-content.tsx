@@ -1,18 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { EntityLink } from "@/components/records/entity-link";
 import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { ClassFilter, ALL_CLASSES, classFilterParams, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
+import { TeachersViews } from "@/components/schools/teachers/schools-teachers-content";
 import {
   LoadError,
   NothingMatched,
@@ -75,6 +76,8 @@ type AssignmentsResponse = {
 export function TeacherAssignmentsContent() {
   const queryClient = useQueryClient();
 
+  const pathname = usePathname();
+
   const [classValue, setClassValue] = useState<ClassFilterValue>(ALL_CLASSES);
   const [subjectId, setSubjectId] = useState("");
   const [search, setSearch] = useState("");
@@ -124,19 +127,7 @@ export function TeacherAssignmentsContent() {
   );
   const subjects = useMemo(() => subjectsQuery.data?.data ?? [], [subjectsQuery.data]);
 
-  /**
-   * Null until the grid is in hand. Counted off the rows, so before they land
-   * all three read nought — and "Nobody teaching 0" is the one reassurance
-   * this screen must never give while it does not yet know.
-   */
-  const counts = useMemo(() => {
-    if (!assignmentsQuery.data) return null;
-    const unassigned = assignments.filter((row) => !row.teacherProfile).length;
-    const teachers = new Set(
-      assignments.map((row) => row.teacherProfile?.id).filter(Boolean),
-    ).size;
-    return { total: assignments.length, unassigned, teachers };
-  }, [assignments, assignmentsQuery.data]);
+  const total = assignmentsQuery.data?.pagination.total ?? assignments.length;
 
   const columns = useMemo<ColumnDef<Assignment>[]>(
     () => [
@@ -256,19 +247,8 @@ export function TeacherAssignmentsContent() {
     <>
       <PageChrome title="Staff assignments" />
 
-      <PageBand
-        chips={[
-          { label: "Allocations", value: counts ? counts.total : "—" },
-          {
-            label: "Nobody teaching",
-            value: counts ? counts.unassigned : "—",
-            tone: counts && counts.unassigned > 0 ? "warn" : "neutral",
-          },
-          { label: "Teachers", value: counts ? counts.teachers : "—" },
-        ]}
-      />
-
       <TableControls
+        tabs={<TeachersViews pathname={pathname} />}
         search={
           <TableSearch
             value={search}
@@ -291,6 +271,7 @@ export function TeacherAssignmentsContent() {
             />
           </>
         }
+        count={assignmentsQuery.isPending ? null : `${assignments.length} of ${total}`}
       />
 
       {assignmentsQuery.isPending ? (

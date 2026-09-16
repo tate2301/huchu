@@ -31,11 +31,15 @@ import { LeaveRequestDialog } from "@/components/schools/boarding/boarding-dialo
 /**
  * Leave and outing requests, as a table with its verbs in the rows.
  *
- * The canvas draws this twice — once as its own screen and once as the second
- * card on the allocations board — so it is one component with a `filters` prop
- * rather than two tables that drift apart. The columns are the canvas's:
- * Student, Type, Window, Status, and nothing else, because a warden scanning
- * for who is still out does not read a destination column at a glance.
+ * One screen, one table. It used to be drawn twice — here and as a second card
+ * on the allocations board — which is why it once took a `requests` prop so the
+ * board could hand it rows from a query they shared. The board no longer
+ * carries it: a page is about one thing, and the gate book is not what
+ * "Allocations" means. So the panel owns its own read again.
+ *
+ * The columns are the canvas's: Student, Type, Window, Status, and nothing
+ * else, because a warden scanning for who is still out does not read a
+ * destination column at a glance.
  *
  * The statuses are shown as the workflow's own words — APPROVED, CHECKED_IN,
  * REJECTED, CANCELED — because that is what the gate book says and what the
@@ -55,13 +59,10 @@ export function LeaveRequestsPanel({
   filters = {},
   onClearFilters,
   filterNames = [],
-  /** Rows the caller has already read, when it shares one query with a board. */
-  requests: given,
 }: {
   filters?: LeaveFilters;
   onClearFilters?: () => void;
   filterNames?: string[];
-  requests?: LeaveRequest[];
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<LeaveRequest | null>(null);
@@ -82,13 +83,12 @@ export function LeaveRequestsPanel({
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.requestType ? { requestType: filters.requestType } : {}),
       }),
-    enabled: given === undefined,
   });
 
   // Year group and a name search are not queries the leave endpoint takes — a
   // request knows a child, not a class — so both are applied here.
   const rows = useMemo(() => {
-    const source = given ?? leaveQuery.data ?? [];
+    const source = leaveQuery.data ?? [];
     const needle = (filters.search ?? "").trim().toLowerCase();
     return source.filter((row) => {
       if (filters.classId && row.student.currentClass?.id !== filters.classId) return false;
@@ -97,7 +97,7 @@ export function LeaveRequestsPanel({
         .toLowerCase()
         .includes(needle);
     });
-  }, [given, leaveQuery.data, filters.classId, filters.search]);
+  }, [leaveQuery.data, filters.classId, filters.search]);
 
   const step = useMutation({
     mutationFn: (input: { id: string; step: string; body?: Record<string, unknown> }) =>
@@ -271,7 +271,7 @@ export function LeaveRequestsPanel({
     [pendingId, step],
   );
 
-  const loading = given === undefined && leaveQuery.isLoading;
+  const loading = leaveQuery.isLoading;
   const anyFilter = Boolean(
     filters.hostelId || filters.status || filters.requestType || filters.classId || filters.search,
   );

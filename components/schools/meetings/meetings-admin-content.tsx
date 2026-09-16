@@ -8,7 +8,7 @@ import { Alert, Badge, Button, Card } from "@corelithzw/react";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
+
 import { EntityLink } from "@/components/records/entity-link";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
@@ -61,9 +61,8 @@ import { printEvening } from "@/components/schools/meetings/print-evening";
  *
  * The term, the teacher, the year group, the evening and the search box are one
  * row above the schedule they narrow, because they narrow the schedule and
- * nothing else. The band above keeps the three counts that do not move when you
- * type — slots open, booked, free — and the one create verb sits in the app bar
- * where every other campus page keeps its primary action.
+ * nothing else. The one create verb sits in the app bar where every other
+ * campus page keeps its primary action.
  *
  * The canvas names that row as four filters and their unnarrowed choice:
  *
@@ -345,8 +344,6 @@ export function MeetingsAdminContent() {
     ? byYearGroup.filter((slot) => dayKey(new Date(slot.startsAt)) === eveningKey)
     : byYearGroup;
 
-  const booked = slots.filter((slot) => slot.bookedAt).length;
-  const free = slots.length - booked;
 
   // Teacher, then time. The API already orders by time, so pushing in order
   // keeps each teacher's evening in sequence without a second sort.
@@ -510,14 +507,6 @@ export function MeetingsAdminContent() {
           }}
         />
       </PageChrome>
-
-      <PageBand
-        chips={[
-          { label: "Slots open", value: slots.length, tone: "brand" },
-          { label: "Booked", value: booked, tone: booked > 0 ? "success" : "neutral" },
-          { label: "Free", value: free, tone: free > 0 ? "warn" : "neutral" },
-        ]}
-      />
 
       {termsQuery.error ? (
         <LoadError

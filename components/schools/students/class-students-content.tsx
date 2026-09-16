@@ -10,7 +10,6 @@ import { EntityLink } from "@/components/records/entity-link";
 import { RecordCell, recordCellTone } from "@/components/records/record-table";
 import { RecordMark } from "@/components/records/record-mark";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
@@ -149,8 +148,9 @@ export function ClassStudentsContent({
   });
 
   /**
-   * The band counts the whole year group, not the filtered view: narrowing to
-   * the boarders must not read as though the class shrank to 44.
+   * The tab counts, over the whole year group rather than the filtered view:
+   * a tab says how many records exist behind it, so narrowing to the boarders
+   * must not read as though the class shrank to 44.
    */
   const tallyQuery = useQuery({
     queryKey: ["schools", "students", "by-class", classId, "tally"],
@@ -421,36 +421,7 @@ export function ClassStudentsContent({
   const tally = tallyQuery.data;
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "On the roll", value: tally?.roll ?? "—", tone: "success" },
-            { label: "Boarders", value: tally?.boarders ?? "—" },
-            {
-              label: "Suspended",
-              value: tally?.suspended ?? "—",
-              tone: (tally?.suspended ?? 0) > 0 ? "danger" : "neutral",
-            },
-          ]}
-          actions={
-            <>
-              <PrintDocumentButton
-                sourceKey="schools.class-list"
-                filters={{ classId }}
-                label="Class list"
-              />
-              <PrintDocumentButton
-                sourceKey="schools.class-list"
-                filters={{ classId }}
-                format="csv"
-                label="Export"
-              />
-            </>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       {/* The app bar carries the year group's name — the sidebar already says
           "Students" one column left, so the page does not say it twice. */}
       <PageChrome title={className} backHref="/schools/students" backLabel="All students">
@@ -464,15 +435,15 @@ export function ClassStudentsContent({
         />
       </PageChrome>
 
-      {/* The term, and nothing else. "118 on the roll" was here too, directly
-          over a band chip that says the same number — a caption repeating the
-          state strip under it spends the one line the reader gets for free. */}
+      {/* The term, and nothing else. "118 on the roll" was here too, and the
+          row count on the control row below already answers it against the
+          view actually on screen. */}
       {termName ? <PageCaption>{termName}</PageCaption> : null}
 
       {actionError ? <SaveError what="That change" error={actionError} /> : null}
 
-      {/* Tabs, search and filters in one row, because all three change what
-          the table under them shows and nothing else on the page. */}
+      {/* Tabs on their own row, then search and filters on the row beneath —
+          two questions, asked in the order they are thought. */}
       <TableControls
         sticky
         tabs={
@@ -532,6 +503,21 @@ export function ClassStudentsContent({
               value={boardingFilter}
               options={BOARDING_OPTIONS}
               onChange={setBoardingFilter}
+            />
+          </>
+        }
+        actions={
+          <>
+            <PrintDocumentButton
+              sourceKey="schools.class-list"
+              filters={{ classId }}
+              label="Class list"
+            />
+            <PrintDocumentButton
+              sourceKey="schools.class-list"
+              filters={{ classId }}
+              format="csv"
+              label="Export"
             />
           </>
         }

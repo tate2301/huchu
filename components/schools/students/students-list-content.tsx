@@ -10,7 +10,6 @@ import { EntityLink } from "@/components/records/entity-link";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordCell, recordCellTone } from "@/components/records/record-table";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
@@ -56,12 +55,13 @@ import {
  * this is the register the office reads when the question is "where is
  * Tanaka", which a picker cannot answer at all.
  *
- * Where the controls sit is the canvas's rule and not a preference. The band
- * carries state — how many are active, how many are boarding — and those
- * numbers are the school's, not the page's: filtering to Form 2 must not make
- * it look as though the school lost 700 children. The tabs, the search box and
- * the filters all change what the table below shows and nothing else, so they
- * travel with the table in one row above it.
+ * Where the controls sit is the canvas's rule and not a preference. There is
+ * no band of totals over the table: a strip saying "842 active" above filters
+ * that do not govern it is state disagreeing with the rows underneath it, and
+ * summaries belong on the module overview. The tabs, the search box and the
+ * filters all change what the table below shows and nothing else, so they
+ * travel with the table, and the one number that stays — "50 of 214" — sits on
+ * the filter row beside the question it answers.
  */
 
 /** The cuts of the roll the canvas draws, in its order. */
@@ -180,11 +180,12 @@ export function StudentsListContent() {
   });
 
   /**
-   * The band's numbers and the tab counts, in one read.
+   * The tab counts, in one read.
    *
    * Five count-only queries rather than one aggregate endpoint, because they
-   * must not move when the filters do — and because every one of them is
-   * answered by the grant this page already holds.
+   * must not move when the filters do — a tab says how many records exist
+   * behind it, not how many survived the filter row beneath it — and because
+   * every one of them is answered by the grant this page already holds.
    */
   const tallyQuery = useQuery({
     queryKey: ["schools", "students", "tally"],
@@ -488,35 +489,7 @@ export function StudentsListContent() {
     !search.trim();
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Active", value: tally?.active ?? "—", tone: "success" },
-            { label: "Applicants", value: tally?.applicants ?? "—", tone: "brand" },
-            { label: "Boarders", value: tally?.boarders ?? "—" },
-            {
-              label: "Suspended",
-              value: tally?.suspended ?? "—",
-              tone: (tally?.suspended ?? 0) > 0 ? "danger" : "neutral",
-            },
-          ]}
-          actions={
-            <>
-              <Button asChild variant="secondary" size="sm">
-                <Link href="/schools/students/roll-up">Roll up the year</Link>
-              </Button>
-              {/* Named for what it does. It prints the roll as it stands,
-                  filters and all — "Export" promised a file the button has
-                  never produced. */}
-              <Button variant="secondary" size="sm" onClick={() => window.print()}>
-                Print the roll
-              </Button>
-            </>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       {/* The page is named once, in the app bar, and the one create verb goes
           with the name. The dialog it opens runs on state this component owns,
           which is why the registration is here and not in the route file. */}
@@ -615,15 +588,26 @@ export function StudentsListContent() {
           </>
         }
         // The answer to whatever the filters just asked, beside the question
-        // rather than under the table — and not in the band, which carries the
-        // school's own numbers and must not move when a filter does.
+        // rather than under the table. It is the one number on a working
+        // screen, because it is not state — it is the filter row's own reply.
         count={rollQuery.isPending ? null : `${students.length} of ${total}`}
         actions={
-          namedFilters.length > 0 || search.trim() ? (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              Clear the filters
+          <>
+            {namedFilters.length > 0 || search.trim() ? (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear the filters
+              </Button>
+            ) : null}
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/schools/students/roll-up">Roll up the year</Link>
             </Button>
-          ) : null
+            {/* Named for what it does. It prints the roll as it stands,
+                filters and all — "Export" promised a file the button has
+                never produced. */}
+            <Button variant="secondary" size="sm" onClick={() => window.print()}>
+              Print the roll
+            </Button>
+          </>
         }
       />
 

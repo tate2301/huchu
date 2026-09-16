@@ -2,10 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
-import { Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { ClassFilter, ALL_CLASSES, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton } from "@/components/schools/common/record-actions";
@@ -97,11 +95,6 @@ export function BoardingLeaveContent() {
     });
   }, [all, hostelFilter, status, requestType, classValue.classId, search]);
 
-  const waiting = all.filter((row) => row.status === "SUBMITTED").length;
-  const out = all.filter((row) => row.status === "CHECKED_OUT").length;
-  const approved = all.filter((row) => row.status === "APPROVED").length;
-  const back = all.filter((row) => row.status === "CHECKED_IN").length;
-
   const filterNames = [
     hostels.find((hostel) => hostel.id === hostelFilter)?.name,
     status ? leaveStatusLabel(status as LeaveStatus) : null,
@@ -134,26 +127,6 @@ export function BoardingLeaveContent() {
           onSelect={() => setRecording(true)}
         />
       </PageChrome>
-
-      {/* Dashes, not noughts, until the requests are in. "0 waiting on you" is
-          the answer a warden would act on by closing the screen, and for the
-          frame before the list lands it is wrong. */}
-      <PageBand
-        chips={[
-          {
-            label: "Waiting on you",
-            value: allQuery.isPending ? "—" : waiting,
-            tone: waiting > 0 ? "warn" : "success",
-          },
-          {
-            label: "Out of the gate",
-            value: allQuery.isPending ? "—" : out,
-            tone: out > 0 ? "danger" : "neutral",
-          },
-          { label: "Approved", value: allQuery.isPending ? "—" : approved },
-          { label: "Back", value: allQuery.isPending ? "—" : back },
-        ]}
-      />
 
       {hostelsQuery.error ? (
         <LoadError
@@ -216,58 +189,56 @@ export function BoardingLeaveContent() {
         count={allQuery.isPending ? null : `${inView.length} of ${all.length}`}
       />
 
-      <Card flush>
-        {/* The four gate moves live in the panel, and each one rewrites a
-            request's status. While one is in flight the whole book dims: the
-            same row still shows Approve and Sign out, and a second tap while
-            the first is landing signs a child out of a request that has not
-            been approved yet. */}
-        <SavingOverlay saving={working} label="Writing it in the gate book…">
-          {allQuery.isLoading ? (
-            <LeaveRequestsPanel
-              filters={{
-                hostelId: hostelFilter,
-                status: status as LeaveStatus | "",
-                requestType: requestType as "LEAVE" | "OUTING" | "",
-                classId: classValue.classId,
-                search,
-              }}
-              filterNames={filterNames}
-              onClearFilters={clearFilters}
+      {/* No card — the gate book is the page. The four gate moves live in the
+          panel, and each one rewrites a request's status. While one is in
+          flight the whole book dims: the same row still shows Approve and Sign
+          out, and a second tap while the first is landing signs a child out of
+          a request that has not been approved yet. */}
+      <SavingOverlay saving={working} label="Writing it in the gate book…">
+        {allQuery.isLoading ? (
+          <LeaveRequestsPanel
+            filters={{
+              hostelId: hostelFilter,
+              status: status as LeaveStatus | "",
+              requestType: requestType as "LEAVE" | "OUTING" | "",
+              classId: classValue.classId,
+              search,
+            }}
+            filterNames={filterNames}
+            onClearFilters={clearFilters}
+          />
+        ) : all.length === 0 ? (
+          // Nothing in the book at all, unfiltered — the school has not
+          // started using it. The verb that fills it is in the app bar.
+          <div className="px-3 py-6">
+            <NothingYet
+              title="Nobody has asked to go out"
+              body="Leave and outings are recorded here, approved by the warden, and signed out and back in at the gate."
             />
-          ) : all.length === 0 ? (
-            // Nothing in the book at all, unfiltered — the school has not
-            // started using it. The verb that fills it is in the app bar.
-            <div className="px-3 py-6">
-              <NothingYet
-                title="Nobody has asked to go out"
-                body="Leave and outings are recorded here, approved by the warden, and signed out and back in at the gate."
-              />
-            </div>
-          ) : inView.length === 0 ? (
-            <div className="px-3 py-6">
-              <NothingMatched
-                what="requests"
-                filters={filterNames}
-                search={search}
-                onClear={clearFilters}
-              />
-            </div>
-          ) : (
-            <LeaveRequestsPanel
-              filters={{
-                hostelId: hostelFilter,
-                status: status as LeaveStatus | "",
-                requestType: requestType as "LEAVE" | "OUTING" | "",
-                classId: classValue.classId,
-                search,
-              }}
-              filterNames={filterNames}
-              onClearFilters={clearFilters}
+          </div>
+        ) : inView.length === 0 ? (
+          <div className="px-3 py-6">
+            <NothingMatched
+              what="requests"
+              filters={filterNames}
+              search={search}
+              onClear={clearFilters}
             />
-          )}
-        </SavingOverlay>
-      </Card>
+          </div>
+        ) : (
+          <LeaveRequestsPanel
+            filters={{
+              hostelId: hostelFilter,
+              status: status as LeaveStatus | "",
+              requestType: requestType as "LEAVE" | "OUTING" | "",
+              classId: classValue.classId,
+              search,
+            }}
+            filterNames={filterNames}
+            onClearFilters={clearFilters}
+          />
+        )}
+      </SavingOverlay>
 
       <LeaveRequestDialog
         open={recording}

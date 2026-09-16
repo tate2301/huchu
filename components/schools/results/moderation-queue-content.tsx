@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
@@ -114,7 +113,6 @@ export function ModerationQueueContent() {
     () => classes.find((row) => row.id === classFilter)?.streams ?? [],
     [classes, classFilter],
   );
-  const summary = resultsQuery.data?.summary;
   const sheets = useMemo<ResultSheetLike[]>(
     () => resultsQuery.data?.data ?? [],
     [resultsQuery.data],
@@ -248,48 +246,12 @@ export function ModerationQueueContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        /*
-          The band on this screen carries the whole term's state, not just the
-          queue's own: a head of department deciding whether to sign one more
-          sheet off tonight needs to know a window is already open (so
-          approving releases marks this evening) or that every window is shut
-          (so it can wait until morning). The five sheet states and the three
-          window states, in the order a sheet travels.
-        */
-        <PageBand
-          chips={[
-            { label: "Draft", value: summary?.draftSheets ?? "—" },
-            { label: "Submitted", value: summary?.submittedSheets ?? "—", tone: "warn" },
-            { label: "Sent back", value: summary?.hodRejectedSheets ?? "—", tone: "danger" },
-            { label: "Approved", value: summary?.hodApprovedSheets ?? "—", tone: "success" },
-            {
-              label: "Published",
-              value: summary?.publishedSheets ?? "—",
-              tone: "brand",
-              href: "/schools/results/publish",
-            },
-            {
-              label: "Windows open",
-              value: summary?.openPublishWindows ?? "—",
-              tone: "success",
-              href: "/schools/results/publish",
-            },
-            {
-              label: "Windows scheduled",
-              value: summary?.scheduledPublishWindows ?? "—",
-              href: "/schools/results/publish",
-            },
-            {
-              label: "Windows closed",
-              value: summary?.closedPublishWindows ?? "—",
-              href: "/schools/results/publish",
-            },
-          ]}
-        />
-      }
-    >
+    // No band. Eight chips of term-wide state — five sheet states and three
+    // window states — sat above filters that governed none of them, and six
+    // of the eight were about publishing, which is a different screen. The
+    // rail counts the queue, the row count answers the filters, and the
+    // windows are one click away under Publishing.
+    <SchoolsPage>
       <PageChrome title="Moderation" />
 
       {/*

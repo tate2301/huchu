@@ -7,7 +7,6 @@ import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
@@ -133,11 +132,6 @@ export function AbsenceFollowUpContent() {
     [rows],
   );
 
-  const contactedCount = useMemo(
-    () => rows.filter((row) => row.lastContactedAt).length,
-    [rows],
-  );
-
   const columns = useMemo<ColumnDef<FollowUpRow>[]>(
     () => [
       {
@@ -258,25 +252,13 @@ export function AbsenceFollowUpContent() {
   const sending = useIsMutating() > 0 && ringing !== null;
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            // The number still to do, not the number on the list. Once the
-            // office has rung home the child stays visible — the absences are
-            // still a fact — but they are no longer work outstanding.
-            { label: "To follow up", value: summary?.toContact ?? 0, tone: "warn" },
-            { label: "Already rung", value: contactedCount, tone: "success" },
-            { label: "Unexplained", value: summary?.unexplained ?? 0 },
-            {
-              label: "Nobody to ring",
-              value: unreachable.length,
-              tone: unreachable.length > 0 ? "danger" : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    // No band. The four chips sat above a filter row that governed the table
+    // and not them, so picking a year group or a longer window left them
+    // saying the same thing about a list that had just changed underneath.
+    // The "Rung home" column carries the same fact per child, the row count
+    // answers what the filters asked, and the one number worth naming out of
+    // line — the children nobody can be rung about — is the alert below.
+    <SchoolsPage>
       <PageChrome title="Absence follow-up" />
 
       {unreachable.length > 0 ? (

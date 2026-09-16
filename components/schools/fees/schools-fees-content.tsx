@@ -31,7 +31,6 @@ import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand, type BandChip } from "@/components/schools/common/page-band";
 import { RowCount } from "@/components/schools/fees/row-count";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { EntityLink } from "@/components/records/entity-link";
@@ -69,7 +68,6 @@ import {
   fetchSchoolFeeRefunds,
   fetchSchoolFeeStructures,
   fetchSchoolFeeWaivers,
-  fetchSchoolsFeesSummary,
   fiscaliseSchoolFeeReceipt,
   issueSchoolFeeInvoice,
   paySchoolFeeRefund,
@@ -482,11 +480,12 @@ export function SchoolsFeesContent() {
 
   /* ── the money ────────────────────────────────────────────────────────── */
 
-  const summaryQuery = useQuery({
-    queryKey: ["schools", "fees", "summary"],
-    queryFn: () => fetchSchoolsFeesSummary(),
-  });
-
+  // The whole-school summary read that used to sit here is gone with the band
+  // it fed. It answered "what does the school owe" over six segments and six
+  // sets of filters that did not govern it, so it was the same two figures
+  // whatever the table underneath had been narrowed to. `/schools/finance`
+  // and the reports pack are where that question is asked. §2 of the canvas
+  // law.
   const invoicesQuery = useQuery({
     queryKey: [
       "schools",
@@ -1526,11 +1525,7 @@ export function SchoolsFeesContent() {
 
   /* ── the page ─────────────────────────────────────────────────────────── */
 
-  const summary = summaryQuery.data?.summary;
-  const currency = summary?.currency ?? "USD";
-
   const loadError =
-    summaryQuery.error ||
     invoicesQuery.error ||
     receiptsQuery.error ||
     creditsQuery.error ||
@@ -1541,127 +1536,6 @@ export function SchoolsFeesContent() {
   const access = useSchoolAccess();
   const canNotifyFamilies = access.can("schools.reports", "notify-families");
   const canTakePayment = access.can("schools.fees", "receive-payment");
-
-  /*
-    Two figures, and the two that belong to the segment on screen. Five chips
-    over three rows is what the ledger used to open with on a phone, and none
-    of them was about the view underneath.
-
-    Nothing but a dash until the figures are in. A chip that reads `$ 0.00` or
-    `0` for the frame before its query answers is a number a bursar can act on,
-    and it is wrong; a figure that is not known yet is an em dash. `isPending`
-    rather than `isLoading`, because a refetch of a total already on screen is
-    not a reason to blank it.
-  */
-  const bandChips = useMemo<BandChip[]>(() => {
-    const summaryPending = summaryQuery.isPending;
-    if (activeView === "receipts") {
-      return [
-        {
-          label: "Posted receipts",
-          value: summaryPending ? "—" : (summary?.receiptsPosted ?? 0),
-          tone: "success",
-        },
-        {
-          label: "Credit on account",
-          value: summaryPending ? "—" : formatSchoolMoney(summary?.creditOnAccount ?? 0, currency),
-          tone: "warn",
-        },
-      ];
-    }
-    if (activeView === "credits") {
-      return [
-        {
-          label: "Credit on account",
-          value: summaryPending ? "—" : formatSchoolMoney(summary?.creditOnAccount ?? 0, currency),
-          tone: "warn",
-        },
-        {
-          label: "Held for refund",
-          value: creditsQuery.isPending
-            ? "—"
-            : formatSchoolMoney(
-                credits.reduce((sum, credit) => sum + credit.heldForRefund, 0),
-                currency,
-              ),
-        },
-      ];
-    }
-    if (activeView === "refunds") {
-      const awaiting = refunds.filter((refund) => refund.status === "REQUESTED");
-      return [
-        {
-          label: "Awaiting payment",
-          value: refundsQuery.isPending ? "—" : awaiting.length,
-          tone: "warn",
-        },
-        {
-          label: "Owed back",
-          value: refundsQuery.isPending
-            ? "—"
-            : formatSchoolMoney(
-                awaiting.reduce((sum, refund) => sum + refund.amount, 0),
-                currency,
-              ),
-        },
-      ];
-    }
-    if (activeView === "waivers") {
-      return [
-        {
-          label: "Applied waivers",
-          value: summaryPending ? "—" : formatSchoolMoney(summary?.waivedAmount ?? 0, currency),
-          tone: "success",
-        },
-        {
-          label: "Awaiting a decision",
-          value: waiversQuery.isPending
-            ? "—"
-            : waivers.filter((waiver) => waiver.status === "DRAFT").length,
-          tone: "warn",
-        },
-      ];
-    }
-    if (activeView === "structures") {
-      return [
-        {
-          label: "Active",
-          value: summaryPending ? "—" : (summary?.activeStructures ?? 0),
-          tone: "success",
-        },
-        {
-          label: "Drafts",
-          value: structuresQuery.isPending
-            ? "—"
-            : structures.filter((structure) => structure.status === "DRAFT").length,
-        },
-      ];
-    }
-    return [
-      {
-        label: "Outstanding",
-        value: summaryPending ? "—" : formatSchoolMoney(summary?.outstandingBalance ?? 0, currency),
-        tone: "danger",
-      },
-      // The figure behind this counts ISSUED and PART_PAID — invoices still
-      // owing something. It was labelled "Issued Invoices", which read as
-      // nought beside three invoices that had been issued and paid.
-      { label: "Unpaid invoices", value: summaryPending ? "—" : (summary?.issuedInvoices ?? 0) },
-    ];
-  }, [
-    activeView,
-    credits,
-    creditsQuery.isPending,
-    currency,
-    refunds,
-    refundsQuery.isPending,
-    structures,
-    structuresQuery.isPending,
-    summary,
-    summaryQuery.isPending,
-    waivers,
-    waiversQuery.isPending,
-  ]);
 
   /** The primary action belongs to the segment on screen, not to the page. */
   const primaryAction = (() => {
@@ -1718,15 +1592,20 @@ export function SchoolsFeesContent() {
 
   return (
     <div className="space-y-4">
-      {/* The bar names the page; the band carries state. The heading and the
-          caption under it were a third and fourth copy of both, and on a phone
-          they cost the screen the first invoice was meant to be on. */}
+      {/* The bar names the page. The heading and the caption that used to sit
+          under it were a second and third copy of the same name.
+
+          No band. It carried two figures per segment — outstanding money,
+          credit on account, drafts awaiting a decision — above six sets of
+          filters that governed the table and not the chips, so a bursar who
+          narrowed to Form 2 and Term 1 read a whole-school total over a
+          two-row table. Those totals are the finance overview's job. What is
+          left is the page's name, the tab strip that says which population,
+          the row that narrows it, and the table. §2 of the canvas law. */}
       <PageChrome title="Fee ledger">
         {secondaryActions}
         {primaryAction}
       </PageChrome>
-
-      <PageBand chips={bandChips} />
 
       {loadError ? (
         <LoadError
@@ -1736,6 +1615,32 @@ export function SchoolsFeesContent() {
         />
       ) : null}
 
+      {/*
+        Six tables, and five of them are one subject.
+
+        Invoices, receipts, credits, refunds and waivers are each a movement of
+        one family's money through the ledger: every row is about a pupil,
+        carries an amount and a currency, and is narrowed by year group and
+        term. They are five cuts of "what this family owes and what has been
+        done about it", which is what §1 says a tab strip is for, and they stay
+        as tabs of one screen.
+
+        **Fee structures is a second subject.** A fee sheet is not money that
+        has moved — it is the price list, keyed on a year group and a term,
+        that invoices are generated *from*. No row is about a pupil; the verbs
+        are Activate, Archive and Copy to next term rather than Issue, Take
+        payment and Write off; it is set up once at the top of a year by
+        somebody configuring the school, not worked daily by somebody chasing
+        money. It belongs with the rest of the school's master data, beside
+        classes, terms and grading.
+
+        It has not been moved, because there is nowhere to move it to:
+        `/management/master-data/schools/` has classes, grading, identity,
+        periods, subjects and years and no fees entry, and `lib/navigation.ts`
+        carries three finance routes, none of which is a fee-sheet page.
+        Inventing a route here would be a second screen nothing links to. The
+        lead has the finding; the segment stays until there is a destination.
+      */}
       <VerticalDataViews
         items={[
           {

@@ -15,37 +15,54 @@ import { Search, SlidersHorizontal } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
+ * What a pinned control row looks like. One string because the tabs-and-filters
+ * shape and the filters-only shape must pin identically — two copies drift and
+ * the module ends up with two different hairlines.
+ */
+const STICKY_ROW =
+  "sticky z-20 -mx-1 border-b border-[color:var(--border)] bg-[color:var(--surface)] px-1 py-1.5";
+
+/**
  * The controls that belong to the table underneath them.
  *
- * The rule, from the canvas: a table's own tabs, its search box and its filters
- * sit in ONE row directly above it. They are not screen furniture — they change
- * what that table shows and nothing else — so they travel with it rather than
- * being scattered between the page band and the card header.
+ * ## Two rows, not one
  *
- * That matters because the band above is doing a different job. The band
- * carries state: how many are owing, how many registers are in. Those numbers
- * do not move when you type in the search box. Putting a filter up there says
- * it governs the page, and then a second table on the same screen makes a liar
- * of it.
+ * ```
+ *   [ tabs ]                                                        ← which population
+ *   ────────────────────────────────────────────────────────────
+ *   [ layout ] [ search ] [ filters … ]      50 of 214  [ actions ] ← how it is narrowed
+ *   ┌──────────────────────────────────────────────────────────┐
+ *   │ table                                                    │
+ * ```
  *
- * Composition, left to right:
+ * These were one row until it was pointed out that they are two different
+ * questions and people do not ask them at once. A tab picks **which records
+ * exist** on this screen — allocations, or hostels, or the gate book. A filter
+ * narrows **the set the tab chose**. The second only means anything once the
+ * first is answered, so it sits underneath it: the reading order is the
+ * thinking order.
  *
- *   [ layout ] [ tabs ]  [ search ] [ filters … ]  ··· 50 of 214  [ actions ]
+ * Run together they read as one undifferentiated strip of controls, and the
+ * strip's leftmost item — a segmented tab, which navigates — looks like a
+ * sibling of the chips beside it, which do not. Two rows say which of these
+ * changes the page and which changes the rows.
  *
- * The order is doctrine rather than taste. *What am I looking at* — which
- * arrangement, then which population — comes before *how is it narrowed*,
- * which comes before *how do I find one*; everything after the slack is about
- * the table rather than about which records are in it. The layout switch leads
- * because it is the one control whose answer changes what all the others mean.
+ * Within the second row the order still holds: *how is it arranged*, then *how
+ * is it narrowed*, then *how do I find one*. The layout switch leads because it
+ * is the one control whose answer changes what the others mean.
  *
- * The count belongs here and not in the page band, and that is the same rule
- * read the other way: it moves when the filters move, so it is not state — it
- * is the answer to the question they just asked, and it belongs next to the
- * question rather than at the foot of the table.
+ * The count sits on the filter row, not above with the tabs, and that is the
+ * same rule again: it moves when the filters move, so it is the answer to the
+ * question that row just asked and it belongs beside the question.
  *
- * Everything is optional. With one child this is a plain row; the layout only
- * earns its keep when a screen has three of the four and would otherwise
- * arrange them differently from the screen next door.
+ * ## Nothing above this row but the page's name
+ *
+ * There is no band of summary chips over these controls. A working screen — one
+ * whose job is a table you narrow — shows the table and what narrows it, and
+ * nothing else. Totals belong on the module's overview dashboard, where
+ * summarising *is* the job. See `docs/design-system/09-campus-canvas-law.md` §2.
+ *
+ * Everything is optional. With one child this is a plain row.
  *
  * ## On a phone the row is not a row
  *
@@ -101,21 +118,21 @@ export function TableControls({
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  return (
+  const filterRow = (
     <div
       className={cn(
         // `items-end` so a labelled search box and an unlabelled filter chip
         // sit on the same baseline — 14 screens give their search box a label
         // and `items-center` would float the chips half a label high.
         "flex flex-wrap items-end gap-2",
-        sticky &&
-          "sticky z-20 -mx-1 border-b border-[color:var(--border)] bg-[color:var(--surface)] px-1 py-1.5",
-        className,
+        // Only the filter row pins when there are no tabs. With tabs the
+        // wrapper below owns the sticky, or the two rows pin to the same
+        // offset and the tabs slide under the filters.
+        sticky && !tabs && STICKY_ROW,
       )}
-      style={sticky ? { top: "var(--stack-top, 0px)" } : undefined}
+      style={sticky && !tabs ? { top: "var(--stack-top, 0px)" } : undefined}
     >
       {layout}
-      {tabs}
       {search}
 
       {/* From `sm`, the filters are in the row. Below it they are behind the
@@ -166,6 +183,33 @@ export function TableControls({
           {actions}
         </div>
       ) : null}
+    </div>
+  );
+
+  // No tabs, no wrapper. A screen with one population is one row of controls,
+  // and a stacking container around a single child is a container that only
+  // shows up in the box model.
+  if (!tabs) {
+    return className ? <div className={className}>{filterRow}</div> : filterRow;
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2",
+        sticky && STICKY_ROW,
+        className,
+      )}
+      style={sticky ? { top: "var(--stack-top, 0px)" } : undefined}
+    >
+      {/* The tabs get their own line and their own hairline. The rule beneath
+          them is what says the controls below belong to the table rather than
+          to the tab strip — without it the two rows read as one block that
+          happens to have wrapped. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-[color:var(--border)] pb-2">
+        {tabs}
+      </div>
+      {filterRow}
     </div>
   );
 }

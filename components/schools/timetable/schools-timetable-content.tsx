@@ -9,7 +9,7 @@ import { EntityLink } from "@/components/records/entity-link";
 import { RecordMark } from "@/components/records/record-mark";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
+
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
@@ -260,31 +260,6 @@ export function SchoolsTimetableContent() {
   }, [slots]);
 
   /**
-   * What the band says: how full the week is, and whether it is legal.
-   *
-   * The cell count is only a denominator worth printing when one class or one
-   * teacher is in view — "15 of 20" for Form 2A means something, the same sum
-   * across the whole school does not — so it is stated as a bare count when
-   * nothing is chosen.
-   */
-  const placement = useMemo(() => {
-    const teaching = periods.filter((period) => period.isTeaching);
-    const cells = teaching.length * days.length;
-    const narrowed =
-      (viewpoint === "class" && classFilter) ||
-      (viewpoint === "teacher" && teacherFilter);
-
-    return {
-      placed: allSlots.length,
-      cells: narrowed ? cells : null,
-      free: narrowed ? Math.max(cells - allSlots.length, 0) : null,
-    };
-    // The band reports the week, not the view. Typing in the search box
-    // narrows what is drawn; it does not free up a period or resolve a clash,
-    // and a chip that moved when you typed would say it had.
-  }, [allSlots, periods, days, viewpoint, classFilter, teacherFilter]);
-
-  /**
    * Which lessons are double-booked, and how many collisions that is.
    *
    * A clash is two lessons on the same teacher or in the same room at the same
@@ -292,9 +267,7 @@ export function SchoolsTimetableContent() {
    * — an imported timetable, or a room merged since — and that is exactly when
    * a timetabler needs to be told.
    *
-   * The band used to count them and the grid said nothing, so "Clashes 3" was
-   * a number with no way to find the three. The ids come back with the count,
-   * and the cells holding them are drawn in the danger tone with the reason on
+   * The cells holding them are drawn in the danger tone with the reason on
    * them: a figure you cannot act on is a figure you learn to ignore.
    */
   const clashes = useMemo(() => {
@@ -492,71 +465,43 @@ export function SchoolsTimetableContent() {
   const buildReason = canBuild ? undefined : "This is a school administrator to do.";
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            {
-              label: "Lessons placed",
-              value:
-                placement.cells === null
-                  ? placement.placed
-                  : `${placement.placed} of ${placement.cells}`,
-              tone: "brand",
-            },
-            {
-              label: "Free periods",
-              value: placement.free === null ? "—" : placement.free,
-            },
-            {
-              label: "Clashes",
-              value: clashes.count,
-              tone: clashes.count > 0 ? "danger" : "success",
-            },
-          ]}
-          actions={
-            <>
-              {/* The two bulk writes live in the band rather than the app bar:
-                  they act on the whole week the band is counting, and the bar
-                  carries the one verb a timetabler presses all afternoon. */}
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!canBuild || periods.length === 0 || assignments.length === 0}
-                title={buildReason}
-                onClick={() => {
-                  setAutoFillError(null);
-                  setAutoFillResult(null);
-                  setAutoFillOpen(true);
-                }}
-              >
-                Build the week
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!canBuild || terms.length < 2}
-                title={
-                  buildReason ??
-                  (terms.length < 2 ? "There is only one term to copy from." : undefined)
-                }
-                onClick={() => {
-                  setCopyError(null);
-                  setCopyResult(null);
-                  setCopyOpen(true);
-                }}
-              >
-                Copy forward
-              </Button>
-            </>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       {/* The page is named once, in the app bar. "The week" as a heading under
           a bar that already says Timetable spent a band of vertical space on
           nothing, and the rule that band drew was the seam. */}
       <PageChrome title="Timetable">
+        {/* The two bulk writes sit beside the one verb a timetabler presses
+            all afternoon. They act on the whole week, so they belong in the
+            app bar with it rather than over the grid they rewrite. */}
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!canBuild || periods.length === 0 || assignments.length === 0}
+          title={buildReason}
+          onClick={() => {
+            setAutoFillError(null);
+            setAutoFillResult(null);
+            setAutoFillOpen(true);
+          }}
+        >
+          Build the week
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!canBuild || terms.length < 2}
+          title={
+            buildReason ??
+            (terms.length < 2 ? "There is only one term to copy from." : undefined)
+          }
+          onClick={() => {
+            setCopyError(null);
+            setCopyResult(null);
+            setCopyOpen(true);
+          }}
+        >
+          Copy forward
+        </Button>
         <CreateButton
           resource="schools.academics"
           label="Add lesson"
@@ -589,8 +534,7 @@ export function SchoolsTimetableContent() {
       ) : null}
 
       {/* The canvas's law: the controls that govern the grid sit in one row
-          directly above it — the viewpoint, the search box and every filter.
-          The band above carries state, and nothing in this row moves it. */}
+          directly above it — the viewpoint, the search box and every filter. */}
       <TableControls
         search={
           <TableSearch

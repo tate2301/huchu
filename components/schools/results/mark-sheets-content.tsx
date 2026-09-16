@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -84,9 +83,9 @@ export function MarkSheetsContent() {
     queryFn: () => fetchSchoolsSubjects({ page: 1, limit: 100, isActive: true }),
   });
 
-  // The state cut stays client-side: the band chips above have to count every
-  // state at once, and asking the server for one state at a time would make
-  // them count only the state in view.
+  // The state cut stays client-side so the row count on the filter row keeps
+  // a stable denominator — asking the server for one state at a time would
+  // make "12 of 12" out of every choice.
   const sheetsQuery = useQuery({
     queryKey: ["schools", "results", "sheets", classFilter, streamFilter, termFilter, search],
     queryFn: () =>
@@ -109,27 +108,6 @@ export function MarkSheetsContent() {
   );
 
   const sheets = useMemo(() => sheetsQuery.data?.data ?? [], [sheetsQuery.data]);
-
-  /**
-   * Null until the sheets are in, rather than five zeros.
-   *
-   * The tally is built from a list that is empty while the query is in flight,
-   * so a band drawn from it opens reading "Draft 0 · Submitted 0 · … " — which
-   * is the school having no sheets at all, and is the one thing this strip
-   * exists to say. It says nothing until it knows.
-   */
-  const counts = useMemo(() => {
-    if (sheetsQuery.isPending) return null;
-    const tally: Record<ResultSheetStatus, number> = {
-      DRAFT: 0,
-      SUBMITTED: 0,
-      HOD_APPROVED: 0,
-      HOD_REJECTED: 0,
-      PUBLISHED: 0,
-    };
-    for (const sheet of sheets) tally[sheet.status] += 1;
-    return tally;
-  }, [sheets, sheetsQuery.isPending]);
 
   const subjectName = useMemo(
     () => subjects.find((subject) => subject.id === subjectFilter)?.name ?? "",
@@ -205,19 +183,10 @@ export function MarkSheetsContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Draft", value: counts?.DRAFT ?? "—" },
-            { label: "Submitted", value: counts?.SUBMITTED ?? "—", tone: "warn" },
-            { label: "Sent back", value: counts?.HOD_REJECTED ?? "—", tone: "danger" },
-            { label: "Approved", value: counts?.HOD_APPROVED ?? "—", tone: "success" },
-            { label: "Published", value: counts?.PUBLISHED ?? "—", tone: "brand" },
-          ]}
-        />
-      }
-    >
+    // No band. The five state tallies were counted off the very rows the
+    // table is drawing, above filters that did not govern them; the State
+    // filter asks that question and the row count answers it.
+    <SchoolsPage>
       <PageChrome title="Mark sheets">
         <CreateButton
           resource="schools.results"

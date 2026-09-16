@@ -12,7 +12,6 @@ import {
 
 import { RecordMark } from "@/components/records/record-mark";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { TableControls } from "@/components/records/table-controls";
@@ -218,7 +217,6 @@ export function YearRollUpContent() {
   });
 
   const toDo = allRows.filter((row) => !row.alreadyRolled).length;
-  const flagged = allRows.filter((row) => row.flagged).length;
   const movingCount = allRows.filter((row) => {
     const action = overrides[row.studentId] ?? row.proposed;
     return action === "PROMOTE" || action === "REPEAT";
@@ -266,28 +264,7 @@ export function YearRollUpContent() {
   const narrowed = Boolean(classFilter);
 
   return (
-    <SchoolsPage
-      band={
-        /* The four numbers this screen exists to weigh. The verb that acts on
-           them is in the app bar, where every page's primary action goes. */
-        <PageBand
-          chips={[
-            { label: "Moving up", value: plan?.summary.PROMOTE ?? "—", tone: "success" },
-            { label: "Leaving", value: plan?.summary.GRADUATE ?? "—" },
-            { label: "No ladder", value: plan?.summary.REPEAT ?? "—", tone: "warn" },
-            {
-              // The other three read an em dash until the plan is in, and this
-              // one is counted off the same rows — a nought here while they
-              // are loading says nobody is below the pass mark, which is the
-              // one thing this screen must not say before it knows.
-              label: `Below ${plan?.passMark ?? 50}%`,
-              value: plan ? flagged : "—",
-              tone: plan && flagged > 0 ? "danger" : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
       {/* The page is named in the app bar, and the one verb that acts on every
           record in the school goes with the name. It is disabled until there is
           a plan, because "roll 0 students up" is not an offer. */}

@@ -15,7 +15,6 @@ import {
   FilterSelect,
 } from "@/components/schools/common/filter-select";
 import { TableSearch } from "@/components/records/table-controls";
-import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -136,13 +135,10 @@ export function ClassFeesContent({
     );
   }, [invoicesQuery.data, search]);
 
-  // Money crosses JSON as a number — `successResponse` serialises every Decimal
-  // on the way out — so this is arithmetic on numbers, not on Decimal strings.
-  const outstanding = invoices.reduce((sum, invoice) => sum + invoice.balanceAmount, 0);
+  // How many bills in view still owe something. Not a summary chip — the
+  // screen no longer carries a band — but the test behind "this year group is
+  // settled", which is a sentence rather than a total.
   const owing = invoices.filter((invoice) => invoice.balanceAmount > 0).length;
-  const settled = invoices.filter(
-    (invoice) => invoice.status === "PAID" || invoice.status === "WRITEOFF",
-  ).length;
 
   const filterCount = activeFilterCount(streamFilter, statusFilter, search);
   const clearFilters = () => {
@@ -309,27 +305,12 @@ export function ClassFeesContent({
 
   return (
     <div className="space-y-4">
-      {/* Nothing but dashes until the figures are in. "$ 0.00 outstanding"
-          a second before the real total lands is worse than an empty chip: it
-          is a number a bursar can act on, and it is wrong. `isPending` rather
-          than `isLoading`, because a refetch of a list already on screen is
-          not a reason to blank the total. */}
-      <PageBand
-        chips={[
-          {
-            label: "Outstanding",
-            value: invoicesQuery.isPending ? "—" : formatSchoolMoney(outstanding),
-            tone: "danger",
-          },
-          { label: "Families owing", value: invoicesQuery.isPending ? "—" : owing },
-          {
-            label: "Settled",
-            value: invoicesQuery.isPending ? "—" : settled,
-            tone: "success",
-          },
-        ]}
-      />
-
+      {/* No band. The outstanding total, the families owing and the settled
+          count sat above filters that did not govern them, so they stared back
+          unchanged while the table underneath was narrowed to one stream.
+          Totals belong on the finance overview; what a working screen shows is
+          what narrows the table, the row count beside it, and the table.
+          See `docs/design-system/09-campus-canvas-law.md` §2. */}
       {issue.error ? <SaveError what="The invoice" error={issue.error} /> : null}
       {discard.error ? <SaveError what="The draft" error={discard.error} /> : null}
 

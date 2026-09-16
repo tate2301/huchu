@@ -8,6 +8,7 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 import { MobileList, MobileListEmpty } from "@corelithzw/react";
 
 import { EntityLink } from "@/components/records/entity-link";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordCell, recordCellTone } from "@/components/records/record-table";
 import { RecordMark } from "@/components/records/record-mark";
 import { DataTable } from "@/components/ui/data-table";
@@ -18,7 +19,6 @@ import {
 } from "@/components/schools/common/filter-select";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { PersonCell } from "@/components/schools/common/identity-cell";
-import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -205,7 +205,6 @@ export function GoalsOversightContent() {
     [subjects],
   );
 
-  const summary = query.data?.summary;
   const rows = useMemo(() => {
     const all = query.data?.rows ?? [];
     const typed = search.trim().toLowerCase();
@@ -418,45 +417,36 @@ export function GoalsOversightContent() {
 
   return (
     <div className="space-y-4">
-      <PageBand
-        chips={[
-          {
-            label: "With a target",
-            value: query.isPending ? "—" : (summary?.withGoal ?? 0),
-            tone: "success",
-          },
-          {
-            label: "With none",
-            value: query.isPending ? "—" : (summary?.withoutGoal ?? 0),
-            tone: (summary?.withoutGoal ?? 0) > 0 ? "danger" : "neutral",
-          },
-          {
-            label: "At or above",
-            value: query.isPending ? "—" : (summary?.onTrack ?? 0),
-            tone: "brand",
-          },
-        ]}
-        actions={
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!canWrite || missing.length === 0}
-            title={
-              !canWrite
-                ? "This is the registrar to do."
-                : missing.length === 0
-                  ? "Every pupil in view already has a target."
-                  : undefined
-            }
-            onClick={() => {
-              setSaved(null);
-              setEditing("bulk");
-            }}
-          >
-            {bulkLabel}
-          </Button>
-        }
-      />
+      {/* No band. "With a target / With none / At or above" were three totals
+          over four filters that did not govern them — narrow to Form 3 and the
+          chips still answered for the school. Totals belong on an overview;
+          the one number that stays is the row count, on the filter row beside
+          the question it answers. §2 of the canvas law.
+
+          The bulk verb was in the band's action slot, which is the page's one
+          primary action wearing a summary strip. It is in the app bar now,
+          where every campus screen puts it, and its count is still the
+          filtered set — press it after narrowing to Form 3 and it writes to
+          Form 3. */}
+      <PageChrome title="Subject targets">
+        <Button
+          variant="primary"
+          disabled={!canWrite || missing.length === 0}
+          title={
+            !canWrite
+              ? "This is the registrar to do."
+              : missing.length === 0
+                ? "Every pupil in view already has a target."
+                : undefined
+          }
+          onClick={() => {
+            setSaved(null);
+            setEditing("bulk");
+          }}
+        >
+          {bulkLabel}
+        </Button>
+      </PageChrome>
 
       {query.error ? (
         <LoadError

@@ -6,7 +6,6 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonCell } from "@/components/schools/common/identity-cell";
@@ -339,8 +338,6 @@ export function TransportContent() {
   });
 
   const routesLoading = routesQuery.isPending;
-  const totalDue = billing.reduce((sum, row) => sum + row.due, 0);
-  const totalRiders = billing.reduce((sum, row) => sum + row.riders, 0);
   const failure =
     routeAction.error ?? stopAction.error ?? riderAction.error ?? markMutation.error;
   const anyRouteFilter = Boolean(routeFilter || runningFilter || search.trim());
@@ -348,8 +345,8 @@ export function TransportContent() {
 
   /**
    * The strip that switches the two views, and the counts the canvas puts on
-   * it. It lives in the control row rather than the band, because it changes
-   * what the rows below say and nothing above them.
+   * it. It lives in the control row, because it changes what the rows below
+   * say and nothing above them.
    */
   const views = (
     <SegmentedControl<View>
@@ -391,44 +388,6 @@ export function TransportContent() {
           </Button>
         )}
       </PageChrome>
-
-      {view === "routes" ? (
-        <PageBand
-          // A dash until the routes answer, the same way the register's band
-          // waits for its own numbers. "0 riding" and "nothing to bill" are
-          // both things a transport office would act on, and neither is true
-          // while the read is still in flight.
-          chips={[
-            { label: "Routes", value: routesLoading ? "—" : allRoutes.length },
-            { label: "Riding", value: routesLoading ? "—" : totalRiders, tone: "brand" },
-            {
-              label: "Still to bill",
-              value: routesLoading ? "—" : formatSchoolMoney(totalDue),
-              tone: totalDue > 0 ? "warn" : "success",
-            },
-          ]}
-        />
-      ) : (
-        <PageBand
-          chips={[
-            {
-              label: "On",
-              value: register ? register.summary.on : "—",
-              tone: "success",
-            },
-            {
-              label: "Not on",
-              value: register ? register.summary.notOn : "—",
-              tone: register && register.summary.notOn > 0 ? "danger" : "neutral",
-            },
-            {
-              label: "Unmarked",
-              value: register ? register.summary.unmarked : "—",
-              tone: register && register.summary.unmarked > 0 ? "warn" : "neutral",
-            },
-          ]}
-        />
-      )}
 
       {routesQuery.error ? (
         <LoadError
@@ -487,8 +446,7 @@ export function TransportContent() {
                 />
               </>
             }
-            // How many routes the narrowing left. The band above says how many
-            // there are and what they are worth; this says what is on screen.
+            // How many routes the narrowing left, out of every route there is.
             count={routesLoading ? null : `${routes.length} of ${allRoutes.length}`}
           />
 

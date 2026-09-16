@@ -7,7 +7,6 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonCell } from "@/components/schools/common/identity-cell";
@@ -225,24 +224,6 @@ export function LibraryLoansContent() {
         />
       </PageChrome>
 
-      {/* The three numbers the canvas puts in the band: how much is out, how
-          much of it is late, and what the lateness is worth today. */}
-      <PageBand
-        chips={[
-          { label: "Out", value: summary ? summary.out : "—", tone: "brand" },
-          {
-            label: "Late",
-            value: summary ? summary.late : "—",
-            tone: summary && summary.late > 0 ? "danger" : "success",
-          },
-          {
-            label: "Fines if back today",
-            value: summary ? formatSchoolMoney(summary.finesIfBackToday) : "—",
-            tone: summary && summary.finesIfBackToday > 0 ? "warn" : "success",
-          },
-        ]}
-      />
-
       {loansQuery.error ? (
         <LoadError
           what="what is out"
@@ -277,8 +258,7 @@ export function LibraryLoansContent() {
           />
         }
         // How many loans the narrowing left, out of everything that is out. It
-        // moves when the filters move, so it sits with them; the band above
-        // keeps the numbers that are about the library itself.
+        // moves when the filters move, so it sits with them.
         count={
           loansQuery.isPending ? null : `${loans.length} of ${summary?.out ?? loans.length}`
         }

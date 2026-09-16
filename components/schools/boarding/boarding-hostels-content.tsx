@@ -6,7 +6,6 @@ import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { EntityLink } from "@/components/records/entity-link";
-import { PageBand } from "@/components/schools/common/page-band";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
@@ -128,8 +127,6 @@ export function BoardingHostelsContent({
   }, [rooms, search]);
 
   const beds = occupancy?.beds ?? [];
-  const boarders = beds.filter((bed) => bed.student).length;
-  const bedsFree = Math.max(0, beds.length - boarders);
   const unbedded = occupancy?.unbedded ?? [];
 
   const hostelVerbs: RecordVerb[] = hostel
@@ -187,31 +184,6 @@ export function BoardingHostelsContent({
           onSelect={() => setAdding(true)}
         />
       </PageChrome>
-
-      {/* Dashes, not noughts, until each read answers. "0 beds free" is what a
-          warden with a new boarder in front of them would turn away on, and for
-          the frame before the board lands it is wrong. */}
-      <PageBand
-        chips={[
-          { label: "Hostels", value: hostelsQuery.isPending ? "—" : hostels.length },
-          {
-            label: "Boarders",
-            value: occupancyQuery.isPending ? "—" : boarders,
-            tone: "brand",
-          },
-          { label: "Rooms", value: roomsQuery.isPending ? "—" : rooms.length },
-          {
-            label: "Beds free",
-            value: occupancyQuery.isPending ? "—" : bedsFree,
-            tone: bedsFree > 0 ? "success" : "warn",
-          },
-          {
-            label: "No bed",
-            value: occupancyQuery.isPending ? "—" : unbedded.length,
-            tone: unbedded.length > 0 ? "danger" : "neutral",
-          },
-        ]}
-      />
 
       {hostelsQuery.error ? (
         <LoadError
@@ -358,12 +330,10 @@ export function BoardingHostelsContent({
 
             <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
               <div className="space-y-3">
-                <Card
-                  flush
-                  title="Rooms"
-                  subtitle={`${rooms.length} room${rooms.length === 1 ? "" : "s"} · ${beds.length} bed${beds.length === 1 ? "" : "s"}`}
-                  className={view === "rooms" ? undefined : "hidden"}
-                >
+                {/* No card. The tab above already names this view, and a panel
+                    drawn around the rooms is a border tracing the column they
+                    already fill. */}
+                <div className={view === "rooms" ? "space-y-3" : "hidden"}>
                   {roomsQuery.isLoading ? (
                     <TableRowsSkeleton
                       rows={5}
@@ -376,7 +346,7 @@ export function BoardingHostelsContent({
                       ]}
                     />
                   ) : (
-                    <div className="px-3 py-3">
+                    <>
                       {/* The strip of room chips is this card's own cut of the
                           rooms, narrowed by the search box above. When the search
                           empties it the chips used to just vanish, which reads as
@@ -394,20 +364,13 @@ export function BoardingHostelsContent({
                         <RoomSummary rooms={visibleRooms} />
                       )}
                       <HostelRoomsPanel hostelId={hostelId} />
-                    </div>
+                    </>
                   )}
-                </Card>
+                </div>
 
-                <Card
-                  flush
-                  title="The bed board"
-                  subtitle="every bed, free ones included"
-                  className={view === "beds" ? undefined : "hidden"}
-                >
-                  <div className="px-3 py-3">
-                    <BedBoardContent hostelId={hostelId} />
-                  </div>
-                </Card>
+                <div className={view === "beds" ? undefined : "hidden"}>
+                  <BedBoardContent hostelId={hostelId} />
+                </div>
               </div>
 
               <Card title="Properties">

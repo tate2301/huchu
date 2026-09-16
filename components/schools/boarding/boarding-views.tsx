@@ -27,16 +27,20 @@ import { cn } from "@/lib/utils";
  */
 
 const SEGMENTS = [
+  { href: "/schools/boarding", label: "Bed board" },
   { href: "/schools/boarding/allocations", label: "Allocations" },
   { href: "/schools/boarding/hostels", label: "Hostels" },
   { href: "/schools/boarding/leave", label: "Leave and outings" },
 ] as const;
 
 export function BoardingViews({
+  beds,
   allocations,
   hostels,
   leave,
 }: {
+  /** How many beds the school has, free and taken together. */
+  beds?: number;
   /** Every allocation on the board, this term and the ones behind it. */
   allocations?: number;
   /** How many boarding houses the school has. */
@@ -46,6 +50,7 @@ export function BoardingViews({
 }) {
   const pathname = usePathname();
   const counts: Record<string, number | undefined> = {
+    "/schools/boarding": beds,
     "/schools/boarding/allocations": allocations,
     "/schools/boarding/hostels": hostels,
     "/schools/boarding/leave": leave,

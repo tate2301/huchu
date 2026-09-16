@@ -15,7 +15,6 @@ import {
   NothingYet,
   SaveError,
 } from "@/components/records/states";
-import { PageBand } from "@/components/schools/common/page-band";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
@@ -343,30 +342,6 @@ export function SchoolsClassesContent() {
 
   return (
     <div className="space-y-4">
-      {/* All three are counted off one list that is empty while the query is
-          in flight, so the band opens saying the school has no classes, no
-          streams and nobody on the roll. An em dash is the only true thing
-          until the ladder has arrived. */}
-      <PageBand
-        chips={[
-          {
-            label: "Classes",
-            value: classesQuery.isPending ? "—" : classes.length,
-          },
-          {
-            label: "Streams",
-            value: classesQuery.isPending ? "—" : streams.length,
-          },
-          {
-            label: "On the roll",
-            value: classesQuery.isPending
-              ? "—"
-              : classes.reduce((total, row) => total + row._count.students, 0),
-            tone: "brand",
-          },
-        ]}
-      />
-
       {classesQuery.error ? (
         <LoadError
           what="the class list"

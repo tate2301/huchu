@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -212,28 +211,12 @@ export function ResultsOverviewContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Sheets", value: summary?.totalSheets ?? "—" },
-            { label: "Approved", value: summary?.hodApprovedSheets ?? "—", tone: "success" },
-            {
-              label: "Sent back",
-              value: summary?.hodRejectedSheets ?? "—",
-              tone: "danger",
-              href: "/schools/results/moderation",
-            },
-            {
-              label: "Published",
-              value: summary?.publishedSheets ?? "—",
-              tone: "brand",
-              href: "/schools/results/publish",
-            },
-          ]}
-        />
-      }
-    >
+    // No band. The four chips that used to sit up here — Sheets, Approved,
+    // Sent back, Published — were state above filters that did not govern
+    // them, so they stared back unchanged while the table below was narrowed
+    // to one year group. The rail already counts every state, and the row
+    // count on the filter row answers whatever the filters just asked.
+    <SchoolsPage>
       <PageChrome title="Results">
         <CreateButton
           resource="schools.results"

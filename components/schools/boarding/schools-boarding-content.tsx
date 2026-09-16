@@ -1,16 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton } from "@/components/schools/common/record-actions";
+import { TableControls } from "@/components/records/table-controls";
 
 import { BedBoardContent } from "@/components/schools/boarding/bed-board-content";
 import { AllocateBedDialog } from "@/components/schools/boarding/boarding-dialogs";
+import { BoardingViews } from "@/components/schools/boarding/boarding-views";
 import { fetchBoardingDashboard } from "@/components/schools/boarding/boarding-data";
 
 /**
@@ -26,12 +25,13 @@ import { fetchBoardingDashboard } from "@/components/schools/boarding/boarding-d
  * list of allocations, because the beds nobody is in are exactly the rows such
  * a list does not have.
  *
- * The numbers somebody quotes on the phone are in the band, and only there.
- * They were also five tiles under it — Active allocations, Total allocations,
- * Hostels, Rooms, Beds — of which two said what the band already said in a
- * different typeface, and all five pushed the board they describe below the
- * fold on a laptop. The band is the half that survives, because it is the half
- * that stays in view while a warden scrolls the houses.
+ * It carried a band of five figures — Term, Houses, Rooms, Beds, Free — and an
+ * "Open allocations" button pinned beside them. Both are gone. The figures were
+ * a summary sitting on top of the board that shows the same thing in the shape
+ * somebody can act on, and a screen whose job is a board does not also
+ * summarise itself; that belongs on the module overview. The button was a tab
+ * wearing a button's clothes, so it is a tab now — the bed board is boarding's
+ * fourth face, alongside allocations, hostels and the gate book.
  */
 export function SchoolsBoardingContent() {
   const [allocating, setAllocating] = useState(false);
@@ -43,12 +43,6 @@ export function SchoolsBoardingContent() {
 
   const hostels = useMemo(() => boardQuery.data?.hostels ?? [], [boardQuery.data]);
   const summary = boardQuery.data?.summary;
-
-  const pending = boardQuery.isPending;
-  const beds = summary?.beds ?? 0;
-  const taken = summary?.activeAllocations ?? 0;
-  const free = Math.max(0, beds - taken);
-  const activeTerm = boardQuery.data?.data?.find((row) => row.term.isActive)?.term ?? null;
 
   return (
     <>
@@ -64,25 +58,13 @@ export function SchoolsBoardingContent() {
         />
       </PageChrome>
 
-      {/* Dashes, not noughts, until the board answers. "0 free" for the frame
-          before the beds land is the one thing a warden with a new boarder in
-          front of them would act on, and it is wrong. */}
-      <PageBand
-        chips={[
-          { label: "Term", value: activeTerm?.code ?? "—" },
-          { label: "Houses", value: pending ? "—" : (summary?.hostels ?? "—") },
-          { label: "Rooms", value: pending ? "—" : (summary?.rooms ?? "—") },
-          { label: "Beds", value: pending ? "—" : `${taken} of ${beds}`, tone: "brand" },
-          {
-            label: "Free",
-            value: pending ? "—" : free,
-            tone: free > 0 ? "success" : "warn",
-          },
-        ]}
-        actions={
-          <Button asChild variant="secondary" size="sm">
-            <Link href="/schools/boarding/allocations">Open allocations</Link>
-          </Button>
+      <TableControls
+        tabs={
+          <BoardingViews
+            beds={boardQuery.isPending ? undefined : summary?.beds}
+            allocations={summary?.totalAllocations}
+            hostels={summary?.hostels}
+          />
         }
       />
 

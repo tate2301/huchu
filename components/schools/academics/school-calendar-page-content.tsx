@@ -1,12 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { SchoolDaysContent } from "@/components/schools/academics/school-days-content";
-import { fetchSchoolsCalendar } from "@/lib/schools/admin-v2";
 
 /**
  * The school calendar, as a destination of its own.
@@ -14,8 +9,7 @@ import { fetchSchoolsCalendar } from "@/lib/schools/admin-v2";
  * The events themselves are `SchoolDaysContent`, which already knows how to
  * add, amend and remove a holiday and is also rendered as a tab inside the
  * academic ladder under Master Data. This wrapper adds only what a page owes
- * the layout law and a tab does not: the app bar's name, and a band carrying
- * what is coming rather than a second copy of the title.
+ * the layout law and a tab does not: the app bar's name.
  *
  * Two entry points to one component is deliberate, not duplication. Somebody
  * setting up next year's terms wants the calendar beside them; somebody asking
@@ -23,46 +17,9 @@ import { fetchSchoolsCalendar } from "@/lib/schools/admin-v2";
  * to find out.
  */
 export function SchoolCalendarPageContent() {
-  const calendarQuery = useQuery({
-    queryKey: ["schools", "calendar", "events"],
-    queryFn: () => fetchSchoolsCalendar(),
-  });
-
-  const chips = useMemo(() => {
-    // Both figures are counted off a list that is empty until the calendar
-    // arrives, and "Closures ahead 0" is exactly the answer somebody opens
-    // this page hoping for. It has to be counted before it is said.
-    if (calendarQuery.isPending) {
-      return [
-        { label: "Still to come", value: "—" },
-        { label: "Closures ahead", value: "—" },
-      ];
-    }
-
-    const events = calendarQuery.data?.events ?? [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const upcoming = events.filter((event) => new Date(event.startDate) >= today);
-    // A day with no teaching is the one a school gets caught by: everything
-    // else on this list is an event people opt into, and a day the gates are
-    // shut is a day registers, meals and buses all have to know about.
-    const closures = upcoming.filter((event) => !event.isTeachingDay);
-
-    return [
-      { label: "Still to come", value: upcoming.length },
-      {
-        label: "Closures ahead",
-        value: closures.length,
-        tone: closures.length > 0 ? ("warn" as const) : ("neutral" as const),
-      },
-    ];
-  }, [calendarQuery.data, calendarQuery.isPending]);
-
   return (
     <>
       <PageChrome title="Calendar" />
-      <PageBand chips={chips} />
       <SchoolDaysContent />
     </>
   );

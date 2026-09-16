@@ -12,7 +12,7 @@ import { recordCellTone } from "@/components/records/record-table";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
+
 import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
@@ -427,26 +427,6 @@ export function HomeworkOversightContent() {
 
   return (
     <div className="space-y-4">
-      <PageBand
-        chips={[
-          {
-            label: "Set and running",
-            value: query.isPending ? "—" : (summary?.open ?? 0),
-            tone: "success",
-          },
-          {
-            label: "Due this week",
-            value: query.isPending ? "—" : (summary?.dueThisWeek ?? 0),
-            tone: "warn",
-          },
-          {
-            label: "Overdue",
-            value: query.isPending ? "—" : (summary?.overdue ?? 0),
-            tone: (summary?.overdue ?? 0) > 0 ? "danger" : "neutral",
-          },
-        ]}
-      />
-
       {query.error ? (
         <LoadError
           what="the homework"

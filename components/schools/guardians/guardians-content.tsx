@@ -15,7 +15,6 @@ import {
   activeFilterCount,
   FilterSelect,
 } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import {
@@ -184,26 +183,9 @@ export function GuardiansContent() {
       ),
   });
 
-  /**
-   * The band's two numbers, counted over the whole school rather than the page
-   * in view. `limit=1` because only the total is wanted — a school with 1,100
-   * parents should not fetch 1,100 rows to draw two chips.
-   */
-  const tallyQuery = useQuery({
-    queryKey: ["schools", "guardians", "tally"],
-    queryFn: async () => {
-      const [everyone, onPortal] = await Promise.all([
-        fetchJson<GuardianPage>(guardiansUrl({ limit: 1 })),
-        fetchJson<GuardianPage>(guardiansUrl({ limit: 1, hasPortalAccount: "true" })),
-      ]);
-      return {
-        total: everyone.pagination.total,
-        withAccount: onPortal.pagination.total,
-        withoutAccount: everyone.pagination.total - onPortal.pagination.total,
-      };
-    },
-  });
-
+  // The two extra `limit=1` reads that counted the school's guardians and how
+  // many of them were on the portal went with the band they drew. The list's
+  // own pagination already carries the denominator the row count needs.
   const remove = useMutation({
     mutationFn: (guardian: GuardianRow) =>
       fetchJson(`/api/v2/schools/guardians/${guardian.id}`, { method: "DELETE" }),
@@ -441,51 +423,37 @@ export function GuardiansContent() {
     [guardians, rowVerbs],
   );
 
-  const tally = tallyQuery.data;
   const narrowed = filtersInForce.length > 0 || search.trim().length > 0;
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
+    // No band. "On the portal / Not invited" were two whole-school totals over
+    // three filters that did not govern them — narrow to Form 2 and both chips
+    // still answered for the school. Totals belong on the module overview; the
+    // one number a working screen keeps is the row count, which sits on the
+    // filter row beside the question it answers. §2 of the canvas law.
+    <SchoolsPage>
+      {/* The invite verb came off the band's action slot. It is the second
+          thing this page does to a set of guardians, so it rides in the app
+          bar beside the create button rather than needing a strip of its own,
+          and its count is still the set in view. */}
+      <PageChrome title="Guardians">
+        <RecordActions
+          resource="schools.students"
+          verbs={[
             {
-              label: "On the portal",
-              // An em dash until the count is in. A nought that turns into 843
-              // reads as a school with nobody on the portal, and it reads that
-              // way for exactly as long as somebody might glance at it.
-              value: tally ? tally.withAccount.toLocaleString() : "—",
-              tone: "success",
-            },
-            {
-              label: "Not invited",
-              value: tally ? tally.withoutAccount.toLocaleString() : "—",
-              tone: "warn",
+              label:
+                invitable === 0
+                  ? "Invite to the portal"
+                  : `Invite ${invitable} to the portal`,
+              action: "invite",
+              unavailable:
+                invitable === 0
+                  ? "Everyone in view either has an account or has no email address."
+                  : undefined,
+              onSelect: () => setInviteOpen(true),
             },
           ]}
-          actions={
-            <RecordActions
-              resource="schools.students"
-              verbs={[
-                {
-                  label:
-                    invitable === 0
-                      ? "Invite to the portal"
-                      : `Invite ${invitable} to the portal`,
-                  action: "invite",
-                  unavailable:
-                    invitable === 0
-                      ? "Everyone in view either has an account or has no email address."
-                      : undefined,
-                  onSelect: () => setInviteOpen(true),
-                },
-              ]}
-            />
-          }
         />
-      }
-    >
-      <PageChrome title="Guardians">
         <CreateButton
           resource="schools.students"
           label="Add a guardian"
@@ -644,7 +612,6 @@ export function GuardiansContent() {
         open={formOpen}
         onOpenChange={setFormOpen}
         initial={formInitial}
-        onSaved={() => void tallyQuery.refetch()}
       />
 
       <PortalInviteDialog

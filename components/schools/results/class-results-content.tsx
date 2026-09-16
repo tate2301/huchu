@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -58,7 +57,8 @@ import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-w
  * Any state. Class is the stream within this year group — the route has already
  * answered "which form?" — and it is offered only when the year group has been
  * split into any. State is applied here rather than at the endpoint, so the
- * band chips above go on counting every state while one of them is in view.
+ * row count beside the filters counts against the year group's whole list
+ * rather than against a response that has already been cut to one state.
  */
 export function ClassResultsContent({
   classId,
@@ -94,8 +94,8 @@ export function ClassResultsContent({
     queryFn: () => fetchSchoolsSubjects({ page: 1, limit: 100, isActive: true }),
   });
 
-  // The state cut is applied here rather than sent to the server, so the band
-  // chips above can go on counting every state while one of them is in view.
+  // The state cut is applied here rather than sent to the server, so the
+  // denominator on the filter row stays the year group's whole list.
   const resultsQuery = useQuery({
     queryKey: ["schools", "results", "by-class", classId, streamFilter, termFilter],
     queryFn: () =>
@@ -119,27 +119,6 @@ export function ClassResultsContent({
   const streams = schoolClass?.streams ?? [];
   const terms = useMemo(() => termsQuery.data?.data ?? [], [termsQuery.data]);
   const subjects = useMemo(() => subjectsQuery.data?.data ?? [], [subjectsQuery.data]);
-
-  /**
-   * Null until the sheets are in, rather than five zeros.
-   *
-   * The tally is built from a list that is empty while the query is in flight,
-   * so a band drawn from it opens reading "Draft 0 · Submitted 0 · … " — which
-   * is the school having no sheets at all, and is the one thing this strip
-   * exists to say. It says nothing until it knows.
-   */
-  const counts = useMemo(() => {
-    if (resultsQuery.isPending) return null;
-    const tally: Record<ResultSheetStatus, number> = {
-      DRAFT: 0,
-      SUBMITTED: 0,
-      HOD_APPROVED: 0,
-      HOD_REJECTED: 0,
-      PUBLISHED: 0,
-    };
-    for (const sheet of sheets) tally[sheet.status] += 1;
-    return tally;
-  }, [sheets, resultsQuery.isPending]);
 
   const subjectName = useMemo(
     () => subjects.find((subject) => subject.id === subjectFilter)?.name ?? "",
@@ -218,19 +197,11 @@ export function ClassResultsContent({
     );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Draft", value: counts?.DRAFT ?? "—" },
-            { label: "Submitted", value: counts?.SUBMITTED ?? "—", tone: "warn" },
-            { label: "Sent back", value: counts?.HOD_REJECTED ?? "—", tone: "danger" },
-            { label: "Approved", value: counts?.HOD_APPROVED ?? "—", tone: "success" },
-            { label: "Published", value: counts?.PUBLISHED ?? "—", tone: "brand" },
-          ]}
-        />
-      }
-    >
+    // No band. The five state tallies that sat above the filter row were
+    // counted off the same response the table draws, so they said nothing the
+    // State filter and the row count do not already say — and they said it
+    // above controls that did not govern them.
+    <SchoolsPage>
       {/* The bar carries the year group and the way back up to Results — a
           back link stranded in the body is a second header in a different
           place. */}

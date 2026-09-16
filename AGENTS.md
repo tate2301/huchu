@@ -41,8 +41,16 @@
 - `docs/design-system/08-cookbook-patterns.md` carries the distilled cookbook recipes — dashboards, kanban, filterable tables, command palette, grouped lists, save bar, and the table→cards rule for mobile. Read it before building any of those shapes; it saves fetching the site.
 - Treat design-system and playbook rules as default system behavior unless a task explicitly overrides them.
 - Key non-negotiables:
+  - **One page, one thing.** A screen is about one subject; if the page is
+    called Allocations, every table on it is allocations. Two subjects one
+    click apart means a tab, not a second table.
+  - **Tabs on their own row, filters on the row below.** They are two
+    questions and people do not ask them at once.
+  - **No summary band on a working page.** Totals belong on module overview
+    dashboards only — never above a table they do not govern.
+  - **Tables are not wrapped in cards.** Follow `/crm/people` and
+    `/crm/companies`.
   - One table per active view; use vertical tabs for multi-table contexts.
-  - Keep DataTable controls in one row (search + submit, filters, pagination).
   - Use full-bleed primary tables and progressive disclosure patterns.
   - Use expandable parent rows for parent-child workflows when applicable.
   - Apply typographic hierarchy and `font-mono` for numeric/time values.

@@ -7,7 +7,6 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PersonCell } from "@/components/schools/common/identity-cell";
-import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import {
@@ -207,13 +206,6 @@ export function LibraryContent() {
     },
   });
 
-  const overdue = allLoans.filter((loan) => loan.isOverdue);
-  const onShelf = allBooks.reduce(
-    (sum, book) => sum + book.copies.filter((copy) => copy.loans.length === 0).length,
-    0,
-  );
-  const copies = allBooks.reduce((sum, book) => sum + book.copies.length, 0);
-
   const desk = deskMutation.isPending;
   const shelvesLoading = libraryQuery.isPending;
   const anyFilter = Boolean(shelfFilter || genreFilter || copyFilter || search.trim());
@@ -227,24 +219,6 @@ export function LibraryContent() {
           onSelect={() => setAddingBook(true)}
         />
       </PageChrome>
-
-      {/* State, never the page's own name: how much the school owns, how much
-          of it is somewhere else, and how much of that is late. */}
-      <PageBand
-        chips={[
-          // A dash until the shelves answer. Every one of these is a count
-          // taken over the catalogue, and a nought before it arrives reads as a
-          // library that owns nothing rather than as a number on its way.
-          { label: "Copies", value: shelvesLoading ? "—" : copies.toLocaleString() },
-          { label: "On the shelf", value: shelvesLoading ? "—" : onShelf.toLocaleString() },
-          { label: "Out", value: shelvesLoading ? "—" : allLoans.length, tone: "brand" },
-          {
-            label: "Late",
-            value: shelvesLoading ? "—" : overdue.length,
-            tone: overdue.length > 0 ? "danger" : "success",
-          },
-        ]}
-      />
 
       {libraryQuery.error ? (
         <LoadError
@@ -304,8 +278,7 @@ export function LibraryContent() {
           </>
         }
         // How many titles the narrowing left, out of the catalogue. It moves
-        // when the filters move, so it belongs beside them rather than in the
-        // band above — the band's numbers are about the library.
+        // when the filters move, so it belongs beside them.
         count={
           shelvesLoading
             ? null

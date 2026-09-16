@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, MobileList } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { PageBand } from "@/components/schools/common/page-band";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordCell } from "@/components/records/record-table";
 import { PersonCell } from "@/components/schools/common/identity-cell";
@@ -144,18 +143,6 @@ export function SchoolStaffContent() {
 
   const total = staffQuery.data?.pagination.total ?? staff.length;
 
-  /**
-   * Null until the list is in hand. Both are counted off the rows, so before
-   * they land the band would read "0 on the staff" — a school that appears to
-   * employ nobody, for as long as it takes the query to answer.
-   */
-  const counts = useMemo(() => {
-    if (!staffQuery.data) return null;
-    const active = staff.filter((employee) => employee.isActive).length;
-    const withoutAccount = staff.filter((employee) => !employee.user).length;
-    return { active, withoutAccount };
-  }, [staff, staffQuery.data]);
-
   const columns = useMemo<ColumnDef<EmployeeSummary>[]>(
     () => [
       {
@@ -280,13 +267,6 @@ export function SchoolStaffContent() {
           Add a staff member
         </Button>
       </PageChrome>
-
-      <PageBand
-        chips={[
-          { label: "On the staff", value: counts ? counts.active : "—" },
-          { label: "No sign-in", value: counts ? counts.withoutAccount : "—", tone: "warn" },
-        ]}
-      />
 
       <TableControls
         tabs={

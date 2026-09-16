@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { PageBand } from "@/components/schools/common/page-band";
+
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
@@ -687,24 +687,6 @@ export function SchoolDocumentsContent() {
   return (
     <div className="space-y-3">
       <PageChrome title="Documents" />
-
-      <PageBand
-        chips={[
-          {
-            label: "Year group",
-            value: classId
-              ? (classes.find((row) => row.id === classId)?.name ?? "—")
-              : "Every year group",
-          },
-          {
-            label: "Pupils",
-            // A dash until the roll answers. A nought here reads as a school
-            // with no children in it rather than as a number still arriving.
-            value: studentsQuery.isPending ? "—" : total.toLocaleString(),
-          },
-          { label: "Term", value: term ? term.name : "—" },
-        ]}
-      />
 
       <FilterBar>
         <FilterSelect

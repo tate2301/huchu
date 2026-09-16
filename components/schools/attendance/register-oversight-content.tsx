@@ -10,7 +10,6 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataTable } from "@/components/ui/data-table";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
@@ -643,43 +642,16 @@ export function RegisterOversightContent({
   }
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            {
-              label: "Registers in",
-              value: board
-                ? `${board.summary.withRegister} of ${board.summary.yearGroups}`
-                : "—",
-              tone: board && board.summary.missing > 0 ? "warn" : "success",
-            },
-            {
-              label: "Still to come",
-              value: board ? board.summary.missing : "—",
-              tone: board && board.summary.missing > 0 ? "danger" : "success",
-            },
-            { label: "Present", value: board ? board.summary.present.toLocaleString() : "—" },
-          ]}
-          actions={
-            <>
-              <Button variant="secondary" size="sm" onClick={() => setDate(stepDay(date, -1))}>
-                Yesterday
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={missing.length === 0}
-                title={missing.length === 0 ? "Every register is in." : undefined}
-                onClick={() => void copyMissing()}
-              >
-                Copy the missing list
-              </Button>
-            </>
-          }
-        />
-      }
-    >
+    // No band. "Registers in 6 of 9", "Still to come 3" and "Present 412" sat
+    // above a filter row that narrowed the ladder beneath them and left the
+    // three numbers untouched — so an office that had picked Form 1 read a
+    // one-row table under a strip still counting the school. Every one of the
+    // three is already said below: the missing count in the alert that names
+    // the classes and offers the reminder, the ladder's own row count on the
+    // filter row, and the present figure in the Register column per class.
+    // The two verbs that hung off the band went with it — the day step to the
+    // date control it moves, the copy to the alert about the list it copies.
+    <SchoolsPage>
       <PageChrome title="Attendance">
         <CreateButton
           resource="schools.attendance"
@@ -731,25 +703,34 @@ export function RegisterOversightContent({
           tone="danger"
           title={`${missing.length} still to come in`}
           actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={remindAll.isPending}
-              onClick={() => {
-                setReminded(null);
-                remindAll.mutate(missing.filter((row) => row.formTeacher));
-              }}
-              disabled={unchaseable.length === missing.length}
-              title={
-                unchaseable.length === missing.length
-                  ? "None of them has a form teacher, so there is nobody to remind."
-                  : undefined
-              }
-            >
-              {missing.length === 1
-                ? "Send a reminder"
-                : `Send all ${inWords(missing.length)} a reminder`}
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={remindAll.isPending}
+                onClick={() => {
+                  setReminded(null);
+                  remindAll.mutate(missing.filter((row) => row.formTeacher));
+                }}
+                disabled={unchaseable.length === missing.length}
+                title={
+                  unchaseable.length === missing.length
+                    ? "None of them has a form teacher, so there is nobody to remind."
+                    : undefined
+                }
+              >
+                {missing.length === 1
+                  ? "Send a reminder"
+                  : `Send all ${inWords(missing.length)} a reminder`}
+              </Button>
+              {/* The copy came off the band with the rest of it. It belongs
+                  beside the list it copies rather than above a filter row it
+                  has nothing to do with — and here it is never offered when
+                  there is nothing missing, so it needs no disabled state. */}
+              <Button variant="secondary" size="sm" onClick={() => void copyMissing()}>
+                Copy the missing list
+              </Button>
+            </>
           }
         >
           {missing.map((row) => row.className).join(", ")}
@@ -759,8 +740,8 @@ export function RegisterOversightContent({
       {/*
         The date, the year group, the stream, the state and the search box all
         narrow the ladder underneath them and nothing else, so they are one row
-        directly above it. The band keeps the counts, which do not move when a
-        filter does.
+        directly above it. The count beside them is the answer to whatever they
+        just asked.
       */}
       <TableControls
         sticky
@@ -789,12 +770,23 @@ export function RegisterOversightContent({
                   {formatSchoolDate(date)}
                 </span>
               </Label>
-              <Input
-                id="oversight-date"
-                type="date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-              />
+              <div className="flex items-center gap-1.5">
+                <Input
+                  id="oversight-date"
+                  type="date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                />
+                {/* The step back a day came off the band. It is a way of
+                    setting the date, so it sits on the date. */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setDate(stepDay(date, -1))}
+                >
+                  Yesterday
+                </Button>
+              </div>
             </div>
             <ClassFilter
               label="Year group"
@@ -826,11 +818,19 @@ export function RegisterOversightContent({
         }
       />
 
+      {/* No card around the ladder. The ladder is the page — the control
+          row's hairline is the seam and the column header runs straight off
+          the underside of it. The card that used to be here also carried a
+          "Year groups" title, which said in a panel header what the column
+          header says one line below it. The two tiles beside it stay in cards:
+          they are bounded summaries of a few lines each, which is what a card
+          is still right for. */}
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card flush title="Year groups">
+        <div className="min-w-0">
           {boardQuery.isPending ? (
             <TableRowsSkeleton
               rows={8}
+              headers={["Year group", "Register", "Form teacher", "State", ""]}
               columns={[{ width: 120 }, {}, { width: 160 }, { width: 90 }, { width: 80 }]}
             />
           ) : (
@@ -879,10 +879,10 @@ export function RegisterOversightContent({
               }
             />
           )}
-        </Card>
+        </div>
 
         <div className="flex flex-col gap-3">
-          <Card title="The week" flush>
+          <Card title="The week">
             <div className="divide-y divide-[color:var(--border-subtle)]">
               {(board?.week ?? []).map((entry) => {
                 const future = entry.date > today();
@@ -891,7 +891,10 @@ export function RegisterOversightContent({
                     key={entry.date}
                     type="button"
                     onClick={() => setDate(entry.date)}
-                    className="flex w-full items-center justify-between px-3.5 py-2.5 text-left hover:bg-[color:var(--surface-muted)]"
+                    // The card is no longer flush, so it owns the gutter and
+                    // the row only owns its own height. The rows kept their
+                    // own horizontal padding when the card had none.
+                    className="flex w-full items-center justify-between py-2.5 text-left hover:text-[color:var(--text-strong)]"
                   >
                     <span className="text-[length:var(--type-body-sm)]">
                       {WEEK_DAY.format(new Date(`${entry.date}T00:00:00.000Z`))}
