@@ -601,7 +601,24 @@ export async function updateIncident(args: {
       data: {
         ...args.data,
         summary: args.data.summary?.trim(),
-        location: args.data.location?.trim() || null,
+        /*
+          Only written when it was actually sent.
+
+          This was `location: args.data.location?.trim() || null`, which turns
+          an ABSENT field into an explicit null: `undefined?.trim()` is
+          `undefined`, and `undefined || null` is `null`. The PATCH route passes
+          `body.location ?? undefined`, so any patch that did not resend the
+          location — deciding a sanction, correcting the summary, changing the
+          period — silently erased where the incident happened.
+
+          An empty string still clears it, which is the reader deliberately
+          rubbing it out. There is a real difference between "not mentioned"
+          and "there is no location", and the old expression could not tell
+          them apart.
+        */
+        ...(args.data.location !== undefined
+          ? { location: args.data.location?.trim() || null }
+          : {}),
         ...(decidingSanction
           ? { sanctionDecidedByUserId: args.actorId, sanctionDecidedAt: new Date() }
           : {}),
