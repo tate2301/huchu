@@ -108,10 +108,28 @@ export function TeacherMarksScreen() {
 
   const classSubjectId = selectedClass?.classSubjectId ?? null;
 
+  /*
+    `{ termId, assessments }`, which is what the endpoint actually answers.
+
+    This asked for `{ data: Assessment[] }` and read `list.data?.data`.
+    `successResponse` does not wrap — it is `NextResponse.json(data)` — and
+    `GET /api/v2/schools/assessments` returns `{ termId, assessments }`, so
+    `.data` was always undefined and the list was permanently empty.
+
+    Nothing anywhere said so. The screen renders "No assessments for this class
+    yet" on an empty list, which is a sentence a teacher believes, and it kept
+    saying it immediately after that same teacher created an assessment on that
+    same screen. This is the only mark-entry surface in the shipped product, so
+    while it read the wrong key no mark could be entered anywhere: no scores, no
+    term marks, no result lines, a Submit button permanently disabled on
+    "Nothing has been marked on this sheet yet", no moderation, no publication
+    and no report card. The whole assessment half of the product hung off this
+    one property name.
+  */
   const list = useQuery({
     queryKey: ["schools", "portal", "teacher", "assessments", classSubjectId],
     queryFn: () =>
-      fetchJson<{ data: Assessment[] }>(
+      fetchJson<{ termId: string | null; assessments: Assessment[] }>(
         `/api/v2/schools/assessments?classSubjectId=${classSubjectId}&limit=100`,
       ),
     enabled: Boolean(classSubjectId),
@@ -136,7 +154,7 @@ export function TeacherMarksScreen() {
     [scheme],
   );
 
-  const assessments = list.data?.data ?? [];
+  const assessments = list.data?.assessments ?? [];
   const active = assessmentId || assessments[0]?.id || "";
 
   const sheet = useQuery({

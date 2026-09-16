@@ -113,6 +113,28 @@ export function fetchConductRepeats(params: { termId?: string; minimum?: number 
   );
 }
 
+/**
+ * Add a behaviour category the school will log against.
+ *
+ * Without at least one of these the module does not start: `logIncident`
+ * requires a `categoryId`, the incident dialog's category picker is fed from
+ * `fetchConductCategories`, and a school on its first morning has none. The
+ * endpoint has always existed — `POST /api/v2/schools/conduct/categories`, on
+ * the `configure` grant — and nothing in the product called it.
+ */
+export function createConductCategory(input: {
+  code: string;
+  name: string;
+  tone?: ConductTone;
+  demeritPoints?: number | null;
+  sortOrder?: number;
+}) {
+  return fetchJson<{ id: string; code: string; name: string }>(
+    "/api/v2/schools/conduct/categories",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
 export function fetchConductCategories() {
   return fetchJson<{ rows: ConductCategory[] }>("/api/v2/schools/conduct/categories");
 }
@@ -331,6 +353,26 @@ export function fetchMeritSummary(params: { termId?: string } = {}) {
 export function fetchMeritReasons(kind?: MeritKind) {
   return fetchJson<{ rows: MeritReason[] }>(
     `/api/v2/schools/conduct/merits/reasons${query({ kind })}`,
+  );
+}
+
+/**
+ * Add a reason a merit or a demerit can be given for.
+ *
+ * Same shape of gap as the categories: `awardMerit` requires a `reasonId`, the
+ * award dialog is fed from `fetchMeritReasons`, and the POST that fills that
+ * list had no caller anywhere.
+ */
+export function createMeritReason(input: {
+  code: string;
+  name: string;
+  kind: MeritKind;
+  defaultPoints?: number;
+  sortOrder?: number;
+}) {
+  return fetchJson<{ id: string; name: string; kind: MeritKind }>(
+    "/api/v2/schools/conduct/merits/reasons",
+    { method: "POST", body: JSON.stringify(input) },
   );
 }
 

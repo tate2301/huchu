@@ -524,6 +524,16 @@ export const navSections: NavSection[] = [
         label: "Merits and demerits",
         group: "conduct",
       },
+      // The module does not start without this. An incident is logged against
+      // a category and a merit is given for a reason; both lists begin empty
+      // and the endpoints that fill them had no caller, so every conduct
+      // screen opened onto a list nothing could add to.
+      {
+        href: "/schools/conduct/setup",
+        icon: Scale,
+        label: "Conduct setup",
+        group: "conduct",
+      },
 
       { href: "/schools/results", icon: FileCheck, label: "Results", group: "results" },
       // S-13.1. Public exams fold into Results rather than taking a group of

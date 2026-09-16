@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -227,7 +228,11 @@ export function IncidentFormDialog({
             onValueChange={(next) => setValues((current) => ({ ...current, categoryId: next }))}
           >
             <SelectTrigger id="incident-category">
-              <SelectValue placeholder="Pick a category" />
+              <SelectValue
+                placeholder={
+                  categories.length === 0 ? "No categories yet" : "Pick a category"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {categories.map((entry) => (
@@ -237,6 +242,23 @@ export function IncidentFormDialog({
               ))}
             </SelectContent>
           </Select>
+          {categories.length === 0 ? (
+            // The wall a new school actually hits. An incident cannot be logged
+            // without a category, and a school's first morning has none — so
+            // say where they are made rather than leaving an empty picker to be
+            // read as a fault.
+            <p className="text-xs text-[color:var(--text-muted)]">
+              This school has no behaviour categories yet, and an incident is logged
+              against one.{" "}
+              <Link
+                href="/schools/conduct/setup"
+                className="underline underline-offset-2 hover:text-[color:var(--text-body)]"
+              >
+                Set them up
+              </Link>{" "}
+              first — Late, Uniform, Fighting.
+            </p>
+          ) : null}
           {category?.demeritPoints ? (
             // Said before the click rather than discovered afterwards: one act,
             // two rows.
