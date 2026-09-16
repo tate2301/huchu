@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { CLEARANCE_ORDER, closeLeaver } from "./leavers";
+import { CLEARANCE_ORDER, closeLeaver, reopenLeaver } from "./leavers";
 import {
   applyYearRollUp,
   nextClassInLadder,
@@ -511,5 +511,80 @@ describe("applyYearRollUp", () => {
     expect(
       await prisma.schoolEnrollment.count({ where: { companyId, termId: termTwoId } }),
     ).toBe(5);
+  });
+});
+
+describe("a pupil who leaves, comes back, and leaves again", () => {
+  it("can be recorded the second time, because the record reopens", async () => {
+    /*
+      `SchoolLeaver.studentId` is `@unique`, so a pupil gets one leaving record
+      for the whole of their time at a school. `recordLeaver` refused a second
+      departure with the words "A second departure needs the first record
+      reopened" — and nothing anywhere could reopen one, so the message named a
+      way out that did not exist.
+
+      It is not a rare case: a pupil withdrawn over fees in Term 2 who comes
+      back in Term 3 and then completes Form 4 has to be recorded twice, and it
+      is the second record that carries their clearance, their transfer letter
+      and their place on the alumni register.
+    */
+    const studentId = await makeStudent(formSixId, termOneId);
+
+    await applyYearRollUp({
+      companyId,
+      fromTermId: termOneId,
+      toTermId: termTwoId,
+      decisions: [{ studentId, action: "WITHDRAW" }],
+    });
+
+    const opened = await prisma.schoolLeaver.findFirstOrThrow({
+      where: { companyId, studentId },
+      select: { id: true },
+    });
+    // Settle the marks so it can be closed at all.
+    await prisma.schoolLeaverClearance.updateMany({
+      where: { leaverId: opened.id },
+      data: { state: "DONE" },
+    });
+    await closeLeaver({ companyId, actorId: studentId, leaverId: opened.id });
+
+    const closed = await prisma.schoolLeaver.findUniqueOrThrow({
+      where: { id: opened.id },
+      select: { status: true },
+    });
+    expect(closed.status).toBe("CLOSED");
+    const alumniAfterClose = await prisma.schoolAlumnus.count({
+      where: { companyId, studentId },
+    });
+    expect(alumniAfterClose).toBe(1);
+
+    // They come back, and later leave properly.
+    await reopenLeaver({
+      companyId,
+      actorId: studentId,
+      leaverId: opened.id,
+      lastDay: date("2027-12-03"),
+      reason: "COMPLETED_UPPER_6",
+    });
+
+    const reopened = await prisma.schoolLeaver.findUniqueOrThrow({
+      where: { id: opened.id },
+      select: { status: true, closedAt: true, reason: true, clearances: true },
+    });
+    expect(reopened.status).toBe("OPEN");
+    expect(reopened.closedAt).toBeNull();
+    expect(reopened.reason).toBe("COMPLETED_UPPER_6");
+    // The marks are derived again: the pupil has been back at school since, so
+    // the fees, the books and the bed are different facts now.
+    expect(reopened.clearances).toHaveLength(CLEARANCE_ORDER.length);
+
+    // Back on the roll, and off the alumni register the first close put them on
+    // — that row carried the year they nearly left.
+    const pupil = await prisma.schoolStudent.findUniqueOrThrow({
+      where: { id: studentId },
+      select: { status: true },
+    });
+    expect(pupil.status).toBe("ACTIVE");
+    expect(await prisma.schoolAlumnus.count({ where: { companyId, studentId } })).toBe(0);
   });
 });

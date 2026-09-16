@@ -439,7 +439,7 @@ export async function recordLeaver(args: {
     throw new LeaverError(
       existing.status === "OPEN"
         ? `${student.firstName} ${student.lastName} is already in the leaving queue.`
-        : `${student.firstName} ${student.lastName} has already left. A second departure needs the first record reopened.`,
+        : `${student.firstName} ${student.lastName} has already left. Reopen the closed record to put them back in the queue — a pupil gets one leaving record, so a second departure is recorded on the first.`,
     );
   }
 
@@ -572,6 +572,109 @@ export async function markClearance(args: {
  * the way past it, which is a decision with a name on it rather than a
  * shortcut.
  */
+/**
+ * Put a closed leaver back in the queue.
+ *
+ * ## Why this exists
+ *
+ * `recordLeaver` refuses a second departure with the words "A second departure
+ * needs the first record reopened" — and until now nothing anywhere could
+ * reopen one. `SchoolLeaver.studentId` is `@unique`, so a pupil gets one leaver
+ * row for the whole of their time at a school, and the message named a way out
+ * that did not exist.
+ *
+ * That is not a rare case here. A pupil withdrawn over fees in Term 2 who comes
+ * back in Term 3 and then completes Form 4 properly has to be recorded as a
+ * leaver twice, and the second one is the one that carries their clearance,
+ * their transfer letter and their place on the alumni register. Without a
+ * reopen they simply cannot leave again.
+ *
+ * ## What it undoes
+ *
+ * Everything `closeLeaver` did, because the departure is being redone rather
+ * than merely edited:
+ *
+ * - The pupil goes back on the roll. `closeLeaver` set them GRADUATED or
+ *   WITHDRAWN; if they are leaving again they are here now, and if the record
+ *   was closed by mistake they never left.
+ * - The alumnus row this leaver created is removed. It carries a `classOf` and
+ *   a final class taken from the first departure, and re-closing skips creating
+ *   one where a row already exists — so leaving it would pin a pupil to the
+ *   year they nearly left.
+ * - The five marks are derived again. The pupil has been back at school since,
+ *   so the fees, the books and the bed are different facts now, and re-opening
+ *   onto the old marks would clear them against a term that has ended.
+ *
+ * An alumnus row somebody added by hand is left alone — it has no `leaverId`,
+ * so it was not this record's doing.
+ */
+export async function reopenLeaver(args: {
+  companyId: string;
+  actorId: string;
+  leaverId: string;
+  /** The new last day, where this is a second departure rather than an undo. */
+  lastDay?: Date;
+  reason?: SchoolLeavingReason;
+  note?: string | null;
+}) {
+  const leaver = await prisma.schoolLeaver.findFirst({
+    where: { id: args.leaverId, companyId: args.companyId },
+    select: { id: true, status: true, studentId: true },
+  });
+  if (!leaver) throw new LeaverError("That leaver is not this school's.");
+  if (leaver.status === "OPEN") throw new LeaverError("That record is already open.");
+
+  const derived = await deriveClearances({
+    companyId: args.companyId,
+    studentId: leaver.studentId,
+  });
+
+  return prisma.$transaction(async (tx) => {
+    await tx.schoolLeaverClearance.deleteMany({ where: { leaverId: leaver.id } });
+
+    const reopened = await tx.schoolLeaver.update({
+      where: { id: leaver.id },
+      data: {
+        status: "OPEN",
+        closedAt: null,
+        closedByUserId: null,
+        ...(args.lastDay ? { lastDay: args.lastDay } : {}),
+        ...(args.reason ? { reason: args.reason } : {}),
+        ...(args.note !== undefined ? { reasonNote: args.note } : {}),
+        clearances: {
+          create: clearanceRows({
+            companyId: args.companyId,
+            actorId: args.actorId,
+            derived,
+          }),
+        },
+      },
+      select: { id: true },
+    });
+
+    await tx.schoolStudent.update({
+      where: { id: leaver.studentId },
+      data: { status: "ACTIVE" },
+    });
+
+    // Only the row this leaver created. One added by hand has no `leaverId`.
+    await tx.schoolAlumnus.deleteMany({
+      where: { companyId: args.companyId, leaverId: leaver.id },
+    });
+
+    await writeSchoolAuditEvent(tx, {
+      companyId: args.companyId,
+      actorId: args.actorId,
+      eventType: "schools.leaver.reopened",
+      entityType: "SchoolLeaver",
+      entityId: leaver.id,
+      payload: { studentId: leaver.studentId, secondDeparture: Boolean(args.lastDay) },
+    });
+
+    return reopened;
+  });
+}
+
 export async function closeLeaver(args: {
   companyId: string;
   actorId: string;

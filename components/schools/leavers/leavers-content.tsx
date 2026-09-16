@@ -34,6 +34,7 @@ import {
   closeLeaver,
   fetchLeaverQueue,
   markClearance,
+  reopenLeaver,
   type ClearanceKind,
   type LeaverRow,
   type LeavingReason,
@@ -185,6 +186,15 @@ export function LeaversContent() {
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
+  const reopen = useMutation({
+    mutationFn: (leaverId: string) => reopenLeaver(leaverId),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
   const page = queueQuery.data;
   const tallies = page?.tallies;
   const rows = useMemo(() => page?.rows ?? [], [page]);
@@ -298,18 +308,48 @@ export function LeaversContent() {
       {
         id: "verbs",
         header: () => <span className="sr-only">Row actions</span>,
-        cell: ({ row }) => (
-          <div className="flex justify-end">
-            <Button asChild variant="secondary" size="sm">
-              <Link href={`/schools/leavers/documents?leaver=${row.original.id}`}>
-                Raise the documents
-              </Link>
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) =>
+          row.original.status === "CLOSED" ? (
+            /*
+              A pupil gets one leaving record — `SchoolLeaver.studentId` is
+              unique — so a pupil who was withdrawn, came back and is now
+              leaving properly is recorded on this one. `recordLeaver` refused
+              the second departure with "reopen the first record", and until now
+              nothing anywhere could.
+            */
+            <div className="flex justify-end">
+              <RecordActions
+                layout="inline"
+                size="sm"
+                resource="schools.leavers"
+                verbs={[
+                  {
+                    label: "Reopen",
+                    action: "record",
+                    loading: reopen.isPending,
+                    confirm: {
+                      title: `Reopen ${row.original.student.firstName} ${row.original.student.lastName}'s record`,
+                      description:
+                        "They go back on the roll and come off the alumni register, and the five marks are worked out again from where the fees, the books and the bed stand today.",
+                      confirmLabel: "Reopen it",
+                    },
+                    onSelect: () => reopen.mutate(row.original.id),
+                  },
+                ]}
+              />
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`/schools/leavers/documents?leaver=${row.original.id}`}>
+                  Raise the documents
+                </Link>
+              </Button>
+            </div>
+          ),
       },
     ],
-    [close],
+    [close, reopen],
   );
 
   return (

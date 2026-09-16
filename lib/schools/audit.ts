@@ -151,7 +151,10 @@ export type SchoolAuditEventType =
    */
   | "schools.leaver.opened"
   | "schools.leaver.clearance.marked"
-  | "schools.leaver.closed";
+  | "schools.leaver.closed"
+  // Reopening puts a pupil back on the roll and takes them off the alumni
+  // register, so it is as consequential as closing and is recorded the same way.
+  | "schools.leaver.reopened";
 
 export type SchoolAuditArgs = {
   companyId: string;

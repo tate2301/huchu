@@ -126,6 +126,24 @@ export function markClearance(
   });
 }
 
+/**
+ * Put a closed record back in the queue.
+ *
+ * A pupil gets one leaving record — `SchoolLeaver.studentId` is unique — so a
+ * pupil who was withdrawn, came back and is now leaving properly is recorded on
+ * the first record rather than on a second one. Reopening derives the five
+ * marks again, because the fees, the books and the bed have all moved on.
+ */
+export function reopenLeaver(
+  leaverId: string,
+  input: { lastDay?: string; reason?: LeavingReason; note?: string | null } = {},
+) {
+  return fetchJson<{ id: string }>(`/api/v2/schools/leavers/${leaverId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ reopen: true, ...input }),
+  });
+}
+
 export function closeLeaver(leaverId: string) {
   return fetchJson<{ id: string }>(`/api/v2/schools/leavers/${leaverId}`, {
     method: "PATCH",
