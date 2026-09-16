@@ -28,6 +28,11 @@ export const SCHOOL_RESOURCES = [
   "schools.welfare",
   "schools.results",
   "schools.reports",
+  "schools.conduct",
+  "schools.pastoral",
+  "schools.exams",
+  "schools.leavers",
+  "schools.alumni",
 ] as const;
 
 export type SchoolResource = (typeof SCHOOL_RESOURCES)[number];
@@ -38,6 +43,22 @@ export type SchoolResource = (typeof SCHOOL_RESOURCES)[number];
  */
 const TENANT_ADMIN_ROLES = new Set(["SUPERADMIN", "MANAGER"]);
 
+/**
+ * Resources the tenant-admin short-circuit does **not** reach.
+ *
+ * `SUPERADMIN` and `MANAGER` answer true for every school resource before any
+ * persona check runs, which is right for the fee ledger and wrong for a
+ * pastoral note. The `Pastoral` artboard draws the Group Head — the most senior
+ * person in the group — as `Not cleared`, with `Nothing · unless named on the
+ * note` beside him. Seniority does not grant access here, and if it leaked in
+ * through this short-circuit the screen would be a lie the first time a group
+ * administrator signed in.
+ *
+ * A tenant administrator still reaches pastoral notes the way everybody else
+ * does: a clearance granted to them by name, or being named on the note.
+ */
+const NO_TENANT_ADMIN_SHORTCUT = new Set<SchoolResource>(["schools.pastoral"]);
+
 export function canSchoolRoleDo(
   role: string | null | undefined,
   resource: SchoolResource,
@@ -45,7 +66,9 @@ export function canSchoolRoleDo(
 ): boolean {
   if (!role) return false;
   const normalized = role.trim().toUpperCase();
-  if (TENANT_ADMIN_ROLES.has(normalized)) return true;
+  if (TENANT_ADMIN_ROLES.has(normalized) && !NO_TENANT_ADMIN_SHORTCUT.has(resource)) {
+    return true;
+  }
 
   const persona = personaForRole(normalized);
   if (!persona) return false;

@@ -108,6 +108,26 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/schools/results/moderation", featureKey: "schools.results" },
   { scope: "page", prefix: "/schools/results/publish", featureKey: "schools.results" },
   { scope: "page", prefix: "/schools/results", featureKey: "schools.results" },
+  // S-13.1. Its own key because public exams are a paid add-on: without this
+  // row `/schools/exams` falls through to the `/schools` catch-all below,
+  // resolves to `schools.core`, and a $99-a-term add-on is switched on for
+  // every tenant by a missing line. Matching is longest-prefix-wins, so the
+  // position is convention rather than necessity — the file lists the longer
+  // prefix above the shorter one.
+  { scope: "page", prefix: "/schools/exams", featureKey: "schools.exams" },
+  // S-13.4 and S-13.5 ride the student directory. A leaver and an alumnus are
+  // the last two states of a pupil record, and the transfer letter the queue
+  // issues is already gated this way.
+  { scope: "page", prefix: "/schools/leavers", featureKey: "schools.students" },
+  { scope: "page", prefix: "/schools/alumni", featureKey: "schools.students" },
+  // S-12.1 and S-12.3 deliberately carry NO row. Conduct ships inside the
+  // STANDARD band under `schools.core`, which the `/schools` catch-all already
+  // answers — the recommendation on record in
+  // `docs/design-system/campus-expansion/conduct.md`: "a conduct record is
+  // table stakes rather than an upsell". Give conduct its own key and this file
+  // needs two rows, `feature-catalog.ts` needs an entry and the suite bundle
+  // needs a member; that asymmetry is itself a small argument for the
+  // recommendation.
   { scope: "page", prefix: "/schools/portal/parent", featureKey: "schools.portal.parent" },
   { scope: "page", prefix: "/schools/portal/student", featureKey: "schools.portal.student" },
   { scope: "page", prefix: "/schools/portal/teacher", featureKey: "schools.portal.teacher" },
@@ -377,6 +397,9 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/schools/notices", featureKey: "schools.core" },
   { scope: "api", prefix: "/api/v2/schools/boarding", featureKey: "schools.boarding" },
   { scope: "api", prefix: "/api/v2/schools/teachers", featureKey: "schools.teachers" },
+  { scope: "api", prefix: "/api/v2/schools/exams", featureKey: "schools.exams" },
+  { scope: "api", prefix: "/api/v2/schools/leavers", featureKey: "schools.students" },
+  { scope: "api", prefix: "/api/v2/schools/alumni", featureKey: "schools.students" },
   { scope: "api", prefix: "/api/v2/schools/results", featureKey: "schools.results" },
   { scope: "api", prefix: "/api/v2/schools/assessments", featureKey: "schools.results" },
   { scope: "api", prefix: "/api/v2/schools/assignments", featureKey: "schools.core" },
