@@ -196,6 +196,17 @@ export async function renderPdfFromHtml(input: {
       );
     }
 
+    // `networkidle0` can settle before the webfont's own request is made, and
+    // a page printed mid-swap sets the whole document in the fallback face —
+    // the tenant's chosen font silently absent from their paper. Bounded like
+    // everything else here: a font that never arrives costs the wait, not the
+    // document.
+    await page
+      .evaluate(() => document.fonts.ready.then(() => undefined))
+      .catch(() => {
+        console.warn("[documents] webfonts did not finish loading; printing with fallbacks");
+      });
+
     const pdf = await page.pdf({
       format: input.template.page.size,
       landscape: input.template.page.orientation === "landscape",
