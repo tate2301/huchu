@@ -23,8 +23,38 @@ type RGB = {
 export type BrandingFontOption = {
   key: BrandingFontKey;
   label: string;
+  /** For the app, where the design system's CSS variables are in scope. */
   fontFamily: string;
+  /**
+   * For a generated document, where they are not.
+   *
+   * A PDF is rendered from a standalone HTML string in a headless browser: no
+   * stylesheet of ours is loaded, so `var(--font-sans)` resolves to nothing —
+   * and an unresolved `var()` makes the whole `font-family` declaration
+   * invalid, taking its fallback stack down with it. Every tenant's document
+   * therefore printed in Chromium's default face whatever they had chosen.
+   * These two fields are what a document needs instead: a stack that names
+   * real families, and the webfont to fetch so the container actually has one.
+   */
+  documentFontFamily: string;
+  /** The Google Fonts stylesheet for `documentFontFamily`, or null for a system stack. */
+  documentFontImportUrl: string | null;
 };
+
+/**
+ * The monospace face documents set figures in — the same one the app uses, so
+ * a total on screen and the same total on paper are the same shape.
+ */
+export const DOCUMENT_MONO_FONT_FAMILY =
+  '"Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
+const GOOGLE_FONTS = "https://fonts.googleapis.com/css2";
+/** Loaded alongside every option, because `.mono` is used on every document. */
+const MONO_SPEC = "family=Atkinson+Hyperlegible+Mono:wght@400..700";
+
+function googleFontUrl(familySpec: string): string {
+  return `${GOOGLE_FONTS}?family=${familySpec}&${MONO_SPEC}&display=swap`;
+}
 
 export type EffectiveBranding = {
   companyId: string | null;
@@ -49,30 +79,44 @@ export const BRANDING_FONT_OPTIONS: BrandingFontOption[] = [
     key: "huchu",
     label: `${PLATFORM_BRAND_NAME} Sans`,
     fontFamily: "var(--font-sans)",
+    // The face `app/globals.css` loads for the app itself, named in full
+    // so a document matches the website rather than approximating it.
+    documentFontFamily:
+      '"Atkinson Hyperlegible Next", "Atkinson Hyperlegible", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Atkinson+Hyperlegible+Next:wght@200..800"),
   },
   {
     key: "inter",
     label: "Inter",
     fontFamily:
       'var(--font-brand-inter), "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontFamily: '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Inter:wght@400;500;600;700"),
   },
   {
     key: "poppins",
     label: "Poppins",
     fontFamily:
       'var(--font-brand-poppins), "Poppins", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontFamily: '"Poppins", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Poppins:wght@400;500;600;700"),
   },
   {
     key: "source-sans-3",
     label: "Source Sans 3",
     fontFamily:
       'var(--font-brand-source-sans-3), "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontFamily: '"Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Source+Sans+3:wght@400;500;600;700"),
   },
   {
     key: "lato",
     label: "Lato",
     fontFamily:
       'var(--font-brand-lato), "Lato", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    // Lato ships 400/700/900 — asking for 500 or 600 returns nothing for them.
+    documentFontFamily: '"Lato", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Lato:wght@400;700"),
   },
 ];
 
@@ -190,6 +234,16 @@ function toFontFamilyKey(value: string | null | undefined): BrandingFontKey {
   return BRANDING_FONT_OPTIONS.some((font) => font.key === normalized)
     ? normalized
     : DEFAULT_BRANDING.fontFamilyKey;
+}
+
+/** The document-safe stack and webfont for a font key. */
+export function getDocumentFontByKey(key: BrandingFontKey): {
+  fontFamily: string;
+  importUrl: string | null;
+} {
+  const option =
+    BRANDING_FONT_OPTIONS.find((font) => font.key === key) ?? BRANDING_FONT_OPTIONS[0];
+  return { fontFamily: option.documentFontFamily, importUrl: option.documentFontImportUrl };
 }
 
 export function getFontFamilyByKey(fontKey: BrandingFontKey): string {

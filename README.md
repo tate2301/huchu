@@ -98,7 +98,17 @@ pnpm db:generate
 pnpm db:push
 ```
 
-`db:push` mutates the target database and does not create a migration. Use it for local development databases. For shared environments and production-intended schema work, create/review migrations and follow the database workflow below.
+`db:push` mutates the target database and does not create a migration.
+
+**When `prisma migrate status` says "No pending migrations" but a query fails with `P2022`:**
+the ledger and the schema disagree. `_prisma_migrations` records which migrations were
+*recorded*, not which ones actually ran, so a database that was baselined, resolved by hand,
+or simply is not the database you migrated will report itself clean while missing columns.
+`pnpm db:check-drift` asks the database directly — for every column the migrations add, does
+it exist? It is read-only, prints the host and database it checked, and exits non-zero on
+drift, so it can gate a deploy.
+
+ Use it for local development databases. For shared environments and production-intended schema work, create/review migrations and follow the database workflow below.
 
 7. Create minimum tenant data:
 

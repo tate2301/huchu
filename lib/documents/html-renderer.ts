@@ -178,6 +178,18 @@ const DATE_META = /\b(date|issued|generated|raised)\b/i;
 const PAYMENT_META = /\b(due|valid|terms|payable)\b/i;
 
 /**
+ * A meta row worth printing.
+ *
+ * `isoDate(null)` renders "-", so a quotation with no expiry printed
+ * "Valid Until: -" in the payment column — a field announcing its own
+ * emptiness. A row with nothing to say is left out instead.
+ */
+function hasValue(item: DocumentMeta): boolean {
+  const value = item.value.trim();
+  return value.length > 0 && value !== "-" && value !== "—";
+}
+
+/**
  * The document's identifying pair — its number and its date — which the header
  * states opposite the logo, exactly as the reference does.
  */
@@ -216,8 +228,9 @@ function buildSummaryColumns(
       lead: true,
     }));
 
-  const paymentMeta = rest.filter((item) => PAYMENT_META.test(item.label));
-  const detailMeta = rest.filter((item) => !PAYMENT_META.test(item.label));
+  const present = rest.filter(hasValue);
+  const paymentMeta = present.filter((item) => PAYMENT_META.test(item.label));
+  const detailMeta = present.filter((item) => !PAYMENT_META.test(item.label));
 
   if (detailMeta.length > 0) {
     columns.push({
@@ -424,8 +437,20 @@ export function renderDocumentHtml(input: {
   const { payload, branding, template } = input;
   const accent = branding.primaryColor || DEFAULT_ACCENT;
   const margin = template.page.marginMm;
+  // A stack of real families. `branding.fontFamily` is resolved for documents
+  // in the snapshot precisely so no `var()` reaches this string: one that does
+  // not resolve here invalidates the declaration and the whole document prints
+  // in the browser's default face, whatever the tenant chose.
   const fontFamily =
-    branding.fontFamily || "'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
+    branding.fontFamily || '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
+  const monoFontFamily =
+    branding.monoFontFamily ||
+    '"Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  // Fetched by the renderer before it prints. Without it the container has
+  // almost no fonts installed and the stack falls through to a default.
+  const fontImport = branding.fontImportUrl
+    ? `@import url("${esc(branding.fontImportUrl)}");`
+    : "";
 
   const badge = payload.badge
     ? (() => {
@@ -436,6 +461,7 @@ export function renderDocumentHtml(input: {
 
   const { header: headerMeta, rest: bodyMeta } = pickHeaderMeta(payload.meta ?? []);
   const headerMetaHtml = headerMeta
+    .filter(hasValue)
     .map(
       (item) =>
         `<div class="stamp-item"><div class="stamp-label">${esc(item.label)}</div><div class="stamp-value mono">${esc(item.value)}</div></div>`,
@@ -468,6 +494,7 @@ export function renderDocumentHtml(input: {
 <head>
   <meta charset="utf-8" />
   <style>
+    ${fontImport}
     /*
      * A document, not a web page — laid out after the reference invoice: a
      * quiet masthead row, one heavy brand rule under it, the title set large,
@@ -487,7 +514,7 @@ export function renderDocumentHtml(input: {
       --rule: #e4e4e7;
     }
     body { margin: 0; color: var(--ink); font-family: ${fontFamily}; font-size: 11px; line-height: 1.55; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-feature-settings: "kern", "liga"; }
-    .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.95em; font-variant-numeric: tabular-nums; }
+    .mono { font-family: ${monoFontFamily}; font-size: 0.95em; font-variant-numeric: tabular-nums; }
     .muted { color: var(--ink-muted); }
 
     /* ── Masthead: mark and issuer left, number and date right ── */

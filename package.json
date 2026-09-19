@@ -36,6 +36,7 @@
     "db:generate": "prisma generate",
     "db:prepare:platform": "node scripts/backfill-platform-company-slugs.js",
     "db:push": "prisma db push",
+    "db:check-drift": "node scripts/check-schema-drift.mjs",
     "db:migrate:data": "tsx scripts/normalise-attendance-status.ts && tsx scripts/attendance-site-optional.ts",
     "dev:e2e": "node scripts/dev-e2e.mjs",
     "e2e:bootstrap": "node scripts/e2e-bootstrap.mjs",

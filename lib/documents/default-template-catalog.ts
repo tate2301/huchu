@@ -91,6 +91,12 @@ function recordTemplate(documentTitle: string): DocumentTemplateSchema {
       showFooterText: true,
       showDisclaimer: true,
       showPaymentDetails: true,
+      // A tenant who uploads a signature and a stamp has said what they want
+      // on their paper; leaving these off meant the assets were accepted,
+      // stored, and never printed. The renderer draws each only where the
+      // asset exists, so this turns nothing on for a tenant with none.
+      showSignature: true,
+      showStamp: true,
     },
   });
 }
