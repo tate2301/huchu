@@ -23,9 +23,11 @@
  * features leaves the workspace labelled General and homed on `/dashboard`. Both
  * are set here.
  *
- * `WorkspaceProfile.RETAIL` is `@map("THRIFT")` in the database — the profile
- * predates the rename and the column still holds the old label. That is a
- * mapping, not a mistake; writing `RETAIL` through Prisma is correct.
+ * `RETAIL` is `@map("THRIFT")` in the database — the profile predates the
+ * rename and the column still holds the old label. That is a mapping, not a
+ * mistake. Write the schema name `"RETAIL"`, never the generated
+ * `WorkspaceProfile.RETAIL` constant, which carries the mapped value and is
+ * refused by the Prisma 7 query API.
  *
  * ## What counts as "retail related"
  *
@@ -219,7 +221,7 @@ async function main() {
 
   await prisma.company.update({
     where: { id: company.id },
-    data: { workspaceProfile: WorkspaceProfile.RETAIL },
+    data: { workspaceProfile: "RETAIL" as WorkspaceProfile },
   })
 
   const byDomain = new Map<string, number>()

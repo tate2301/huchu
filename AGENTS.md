@@ -16,15 +16,17 @@
 - `prisma/` contains the Prisma schema and database configuration.
 - `scripts/` includes operational CLI scripts for admin tasks (users, inventory, equipment).
 - `public/` is for static assets; `types/` holds shared TypeScript types.
-- `docker/` includes container-related assets.
+- `docker-compose.yml` defines the local development database.
 
 ## Build, Test, and Development Commands
-- `pnpm dev` - run the local dev server.
+- `pnpm dev:up` - start the database (Docker) and the dev server; `pnpm dev:down` kills both.
+- `pnpm dev` - run the dev server on its own, against an already-running database.
 - `pnpm build` - build the production bundle.
 - `pnpm start` - serve the production build.
 - `pnpm lint` - run ESLint (Next.js core-web-vitals + TypeScript rules).
 - `pnpm db:generate` - generate the Prisma client.
 - `pnpm db:push` - push the schema to the database (dev workflow).
+- `pnpm db:up` / `pnpm db:down` - start or stop the Postgres container on its own.
 - Admin scripts (examples):
   - `pnpm create-user --email user@example.com --name "User" --password "..." --role manager --company-id <uuid>`
   - `pnpm manage-inventory list --company-id <uuid> --category consumables`
@@ -70,20 +72,6 @@
 - For database and production setup, follow `DATABASE_SETUP.md` and `PRODUCTION_DEPLOYMENT.md`.
 
 ---
-
-## Gold Agent Team
-
-### Agent roster
-
-| Agent | Charter (owns) | Forbidden from |
-|---|---|---|
-| `gold-tech-lead` | Plans, delegates, synthesises — no code | All source files |
-| `gold-data-foundation` | `prisma/schema.prisma`, `migrations/`, `scripts/backfill-*.ts`, migration witness tests | `app/`, `components/`, `lib/gold/*.ts` source |
-| `gold-domain-backend` | `lib/gold/**`, `lib/accounting/**`, `app/api/gold/**` | `prisma/schema.prisma`, UI files |
-| `gold-import-workflow` | `app/api/gold/imports/**`, `lib/gold/import-*`, worker | UI, other Gold APIs |
-| `gold-frontend` | `app/gold/**`, `components/gold/**` | `app/api/**`, `lib/**`, `prisma/` |
-| `gold-integration` | HR/disbursement seams, notifications, audit, shared commodity helpers | Domain core files |
-| `gold-reviewer` | Reads diffs, runs gates, approves/blocks — no code | All source files |
 
 ### Workflow per ticket
 
