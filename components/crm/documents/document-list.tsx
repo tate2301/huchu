@@ -203,40 +203,29 @@ export function DocumentList({
   });
 
   /**
-   * Hand the document to whatever the reader sends mail with.
+   * Send the document to the client, from the platform.
    *
-   * Not a server-side send: this platform has no outbound mail — no provider,
-   * no API key, nowhere to queue a retry — and the honest version of "email
-   * this" under those conditions is a composed draft in the reader's own
-   * client, not a button that appears to send and does not. It mints the
-   * approval link first, so what lands in the customer's inbox is a link they
-   * can act on rather than a bare PDF.
+   * This used to open a `mailto:` draft, because there was no outbound mail to
+   * send with. There is now: the server renders the PDF, attaches it, puts the
+   * approval link in the body, and sends it as the company — the tenant's name
+   * on the From line and their own address on Reply-To.
    *
-   * When outbound mail does arrive, this is the call site to change.
+   * The two refusals a rep can act on come back as their own messages: no
+   * address on the record, and no mail provider configured.
    */
   const emailToClient = useMutation({
-    mutationFn: async (doc: LeadDocument) => {
-      const approval = await fetchJson<ApprovalLink>(
-        `${basePath}/documents/${doc.id}/approval`,
+    mutationFn: (doc: LeadDocument) =>
+      fetchJson<{ to: string; subject: string }>(
+        `${basePath}/documents/${doc.id}/email`,
         { method: "POST", body: JSON.stringify({}) },
-      );
-      return { doc, url: approvalUrl(approval) };
-    },
-    onSuccess: ({ doc, url }) => {
-      const kind = DOCUMENT_KIND_LABELS[doc.type].toLowerCase();
-      const subject = `${DOCUMENT_KIND_LABELS[doc.type]} ${documentNumber(doc)}`;
-      const body = [
-        `Please find our ${kind} ${documentNumber(doc)} for ${formatMoney(doc.amount, doc.currency)}.`,
-        "",
-        `You can review and respond to it here: ${url}`,
-        "",
-      ].join("\n");
-      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      ),
+    onSuccess: (sent) => {
+      toast({ title: "Sent", description: `Emailed to ${sent.to}` });
       refreshAfterDocumentChange(queryClient);
     },
     onError: (error) =>
       toast({
-        title: "Could not prepare the email",
+        title: "Could not send the email",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -411,18 +400,13 @@ export function DocumentList({
                             Replace the link
                           </DropdownMenuItem>
                         ) : null}
-                        {/* Straight into whatever the reader sends mail with,
-                            subject and link already written. The platform has
-                            no outbound mail of its own — no provider, no
-                            secret, nowhere to queue — and a menu item that
-                            silently does nothing is worse than one that hands
-                            off honestly. */}
                         <DropdownMenuItem
                           variant="primary"
+                          disabled={emailToClient.isPending}
                           onClick={() => emailToClient.mutate(doc)}
                         >
                           <Mail />
-                          Email to the client
+                          {emailToClient.isPending ? "Sending…" : "Email to the client"}
                         </DropdownMenuItem>
                       </>
                     ) : null}

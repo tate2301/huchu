@@ -341,6 +341,7 @@ See `.env.example` for a copyable template. Important variables include:
 | `ADMIN_PORTAL_HOST` | Optional exact admin portal host override. |
 | `ADMIN_PORTAL_EMAIL` / `ADMIN_PORTAL_ALLOWED_EMAILS` | Admin magic-link allowlist. |
 | `ADMIN_MAGIC_LINK_RESEND_API_KEY` / `ADMIN_MAGIC_LINK_WEBHOOK_URL` | Admin magic-link delivery. |
+| `RESEND_API_KEY` / `EMAIL_FROM_ADDRESS` | Outbound mail. Both are required before a quotation or invoice can be emailed to a client; `EMAIL_FROM_ADDRESS` must be on a domain verified with Resend. The tenant's name is the display name and their own address is Reply-To. |
 | `BLOB_READ_WRITE_TOKEN` | Required for Vercel Blob uploads/artifacts. |
 | `PDF_INLINE_BATCH_LIMIT` | Inline PDF render route batch limit. |
 | `PDF_WORKER_INTERVAL_MS` / `PDF_WORKER_IDLE_MS` | PDF worker polling controls. |
