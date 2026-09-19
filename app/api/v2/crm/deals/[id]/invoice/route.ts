@@ -4,7 +4,7 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { prisma } from "@/lib/prisma";
 import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
 import { createInvoiceForLead } from "@/lib/crm/accounting-bridge";
-import { createOrRotateApproval } from "@/lib/crm/approvals";
+import { getOrCreateApproval } from "@/lib/crm/approvals";
 import { crmDocumentLineSchema } from "../../../_helpers";
 
 const bodySchema = z
@@ -59,13 +59,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let approvalToken: string | undefined;
     if (data.sendApproval) {
-      approvalToken = await prisma.$transaction((tx) =>
-        createOrRotateApproval(tx, {
+      const link = await prisma.$transaction((tx) =>
+        getOrCreateApproval(tx, {
           companyId: session.user.companyId,
           leadDocumentId: result.leadDocumentId,
           expiresInDays: data.approvalExpiresInDays,
         }),
       );
+      approvalToken = link.token;
     }
 
     return successResponse({ ...result, approvalToken }, 201);

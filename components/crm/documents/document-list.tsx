@@ -35,6 +35,7 @@ import {
   Payments,
   Plus,
   ReceiptLong,
+  RefreshCw,
   Send,
   X,
 } from "@/lib/icons";
@@ -54,6 +55,17 @@ import {
 import { refreshAfterDocumentChange } from "@/lib/crm/refresh";
 
 import { Stack } from "@corelithzw/react";
+
+type ApprovalLink = { token: string; path: string; issued: boolean };
+
+/**
+ * The link the customer clicks. Built on the host the rep is already on, so a
+ * tenant reading their workspace at `acme.example.com` sends a link to the
+ * same place rather than to a domain their customer cannot resolve.
+ */
+function approvalUrl(link: ApprovalLink): string {
+  return `${window.location.origin}${link.path}`;
+}
 
 function KindIcon({ type }: { type: LeadDocument["type"] }) {
   const Icon = type === "RECEIPT" ? ReceiptLong : FileText;
@@ -155,20 +167,26 @@ export function DocumentList({
     useState<Parameters<typeof DocumentBuilderSheet>[0]["prefillLines"]>(undefined);
 
   const shareApproval = useMutation({
-    mutationFn: (docId: string) =>
-      // `{ token, path }`, bare. `successResponse` adds no envelope of its
-      // own, and declaring one here is why sharing a quote produced a link
-      // ending in `/undefined` — a lie the compiler accepted, surfacing only
-      // when a customer clicked it.
-      fetchJson<{ token: string; path: string }>(
-        `${basePath}/documents/${docId}/approval`,
-        { method: "POST", body: JSON.stringify({}) },
-      ),
+    // `{ token, path, issued }`, bare. `successResponse` adds no envelope of
+    // its own, and declaring one here is why sharing a quote produced a link
+    // ending in `/undefined` — a lie the compiler accepted, surfacing only
+    // when a customer clicked it.
+    //
+    // `rotate` is what the menu's two actions differ by. Without it the
+    // endpoint hands back the link the customer already has; with it, that
+    // link stops working. Copying used to rotate, so re-reading a link to
+    // forward it silently killed the copy already in the customer's inbox.
+    mutationFn: ({ docId, rotate }: { docId: string; rotate?: boolean }) =>
+      fetchJson<ApprovalLink>(`${basePath}/documents/${docId}/approval`, {
+        method: "POST",
+        body: JSON.stringify(rotate ? { rotate: true } : {}),
+      }),
     onSuccess: async (result) => {
-      const url = `${window.location.origin}${result.path}`;
+      const url = approvalUrl(result);
+      const title = result.issued ? "New approval link copied" : "Approval link copied";
       try {
         await navigator.clipboard?.writeText(url);
-        toast({ title: "Approval link copied", description: url });
+        toast({ title, description: url });
       } catch {
         // Clipboard is blocked in some browsers without a user gesture chain;
         // showing the link is still useful.
@@ -185,40 +203,29 @@ export function DocumentList({
   });
 
   /**
-   * Hand the document to whatever the reader sends mail with.
+   * Send the document to the client, from the platform.
    *
-   * Not a server-side send: this platform has no outbound mail — no provider,
-   * no API key, nowhere to queue a retry — and the honest version of "email
-   * this" under those conditions is a composed draft in the reader's own
-   * client, not a button that appears to send and does not. It mints the
-   * approval link first, so what lands in the customer's inbox is a link they
-   * can act on rather than a bare PDF.
+   * This used to open a `mailto:` draft, because there was no outbound mail to
+   * send with. There is now: the server renders the PDF, attaches it, puts the
+   * approval link in the body, and sends it as the company — the tenant's name
+   * on the From line and their own address on Reply-To.
    *
-   * When outbound mail does arrive, this is the call site to change.
+   * The two refusals a rep can act on come back as their own messages: no
+   * address on the record, and no mail provider configured.
    */
   const emailToClient = useMutation({
-    mutationFn: async (doc: LeadDocument) => {
-      const approval = await fetchJson<{ token: string; path: string }>(
-        `${basePath}/documents/${doc.id}/approval`,
+    mutationFn: (doc: LeadDocument) =>
+      fetchJson<{ to: string; subject: string }>(
+        `${basePath}/documents/${doc.id}/email`,
         { method: "POST", body: JSON.stringify({}) },
-      );
-      return { doc, url: `${window.location.origin}${approval.path}` };
-    },
-    onSuccess: ({ doc, url }) => {
-      const kind = DOCUMENT_KIND_LABELS[doc.type].toLowerCase();
-      const subject = `${DOCUMENT_KIND_LABELS[doc.type]} ${documentNumber(doc)}`;
-      const body = [
-        `Please find our ${kind} ${documentNumber(doc)} for ${formatMoney(doc.amount, doc.currency)}.`,
-        "",
-        `You can review and respond to it here: ${url}`,
-        "",
-      ].join("\n");
-      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      ),
+    onSuccess: (sent) => {
+      toast({ title: "Sent", description: `Emailed to ${sent.to}` });
       refreshAfterDocumentChange(queryClient);
     },
     onError: (error) =>
       toast({
-        title: "Could not prepare the email",
+        title: "Could not send the email",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -374,23 +381,32 @@ export function DocumentList({
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           variant="primary"
-                          onClick={() => shareApproval.mutate(doc.id)}
+                          onClick={() => shareApproval.mutate({ docId: doc.id })}
                         >
                           <Send />
                           {doc.approval ? "Copy approval link" : "Send for approval"}
                         </DropdownMenuItem>
-                        {/* Straight into whatever the reader sends mail with,
-                            subject and link already written. The platform has
-                            no outbound mail of its own — no provider, no
-                            secret, nowhere to queue — and a menu item that
-                            silently does nothing is worse than one that hands
-                            off honestly. */}
+                        {/* Withdrawing a link is its own decision, and a
+                            destructive one: whatever the customer was sent
+                            stops working. It is not what copying does. */}
+                        {doc.approval ? (
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() =>
+                              shareApproval.mutate({ docId: doc.id, rotate: true })
+                            }
+                          >
+                            <RefreshCw />
+                            Replace the link
+                          </DropdownMenuItem>
+                        ) : null}
                         <DropdownMenuItem
                           variant="primary"
+                          disabled={emailToClient.isPending}
                           onClick={() => emailToClient.mutate(doc)}
                         >
                           <Mail />
-                          Email to the client
+                          {emailToClient.isPending ? "Sending…" : "Email to the client"}
                         </DropdownMenuItem>
                       </>
                     ) : null}
