@@ -35,6 +35,7 @@ import {
   Payments,
   Plus,
   ReceiptLong,
+  RefreshCw,
   Send,
   X,
 } from "@/lib/icons";
@@ -54,6 +55,17 @@ import {
 import { refreshAfterDocumentChange } from "@/lib/crm/refresh";
 
 import { Stack } from "@corelithzw/react";
+
+type ApprovalLink = { token: string; path: string; issued: boolean };
+
+/**
+ * The link the customer clicks. Built on the host the rep is already on, so a
+ * tenant reading their workspace at `acme.example.com` sends a link to the
+ * same place rather than to a domain their customer cannot resolve.
+ */
+function approvalUrl(link: ApprovalLink): string {
+  return `${window.location.origin}${link.path}`;
+}
 
 function KindIcon({ type }: { type: LeadDocument["type"] }) {
   const Icon = type === "RECEIPT" ? ReceiptLong : FileText;
@@ -155,20 +167,26 @@ export function DocumentList({
     useState<Parameters<typeof DocumentBuilderSheet>[0]["prefillLines"]>(undefined);
 
   const shareApproval = useMutation({
-    mutationFn: (docId: string) =>
-      // `{ token, path }`, bare. `successResponse` adds no envelope of its
-      // own, and declaring one here is why sharing a quote produced a link
-      // ending in `/undefined` — a lie the compiler accepted, surfacing only
-      // when a customer clicked it.
-      fetchJson<{ token: string; path: string }>(
-        `${basePath}/documents/${docId}/approval`,
-        { method: "POST", body: JSON.stringify({}) },
-      ),
+    // `{ token, path, issued }`, bare. `successResponse` adds no envelope of
+    // its own, and declaring one here is why sharing a quote produced a link
+    // ending in `/undefined` — a lie the compiler accepted, surfacing only
+    // when a customer clicked it.
+    //
+    // `rotate` is what the menu's two actions differ by. Without it the
+    // endpoint hands back the link the customer already has; with it, that
+    // link stops working. Copying used to rotate, so re-reading a link to
+    // forward it silently killed the copy already in the customer's inbox.
+    mutationFn: ({ docId, rotate }: { docId: string; rotate?: boolean }) =>
+      fetchJson<ApprovalLink>(`${basePath}/documents/${docId}/approval`, {
+        method: "POST",
+        body: JSON.stringify(rotate ? { rotate: true } : {}),
+      }),
     onSuccess: async (result) => {
-      const url = `${window.location.origin}${result.path}`;
+      const url = approvalUrl(result);
+      const title = result.issued ? "New approval link copied" : "Approval link copied";
       try {
         await navigator.clipboard?.writeText(url);
-        toast({ title: "Approval link copied", description: url });
+        toast({ title, description: url });
       } catch {
         // Clipboard is blocked in some browsers without a user gesture chain;
         // showing the link is still useful.
@@ -198,11 +216,11 @@ export function DocumentList({
    */
   const emailToClient = useMutation({
     mutationFn: async (doc: LeadDocument) => {
-      const approval = await fetchJson<{ token: string; path: string }>(
+      const approval = await fetchJson<ApprovalLink>(
         `${basePath}/documents/${doc.id}/approval`,
         { method: "POST", body: JSON.stringify({}) },
       );
-      return { doc, url: `${window.location.origin}${approval.path}` };
+      return { doc, url: approvalUrl(approval) };
     },
     onSuccess: ({ doc, url }) => {
       const kind = DOCUMENT_KIND_LABELS[doc.type].toLowerCase();
@@ -374,11 +392,25 @@ export function DocumentList({
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           variant="primary"
-                          onClick={() => shareApproval.mutate(doc.id)}
+                          onClick={() => shareApproval.mutate({ docId: doc.id })}
                         >
                           <Send />
                           {doc.approval ? "Copy approval link" : "Send for approval"}
                         </DropdownMenuItem>
+                        {/* Withdrawing a link is its own decision, and a
+                            destructive one: whatever the customer was sent
+                            stops working. It is not what copying does. */}
+                        {doc.approval ? (
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() =>
+                              shareApproval.mutate({ docId: doc.id, rotate: true })
+                            }
+                          >
+                            <RefreshCw />
+                            Replace the link
+                          </DropdownMenuItem>
+                        ) : null}
                         {/* Straight into whatever the reader sends mail with,
                             subject and link already written. The platform has
                             no outbound mail of its own — no provider, no

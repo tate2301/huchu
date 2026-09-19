@@ -1,5 +1,25 @@
 import type { NextConfig } from "next";
 
+/** The brotli-packed Chromium that `@sparticuz/chromium` unpacks at runtime. */
+const CHROMIUM_BINARY_FILES = [
+  "./node_modules/@sparticuz/chromium/bin/**",
+  "./node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/bin/**",
+];
+
+/** Every route that calls `renderDocumentSync` — see `lib/documents/service.ts`. */
+const PDF_RENDERING_ROUTES = [
+  "/api/documents/render",
+  "/api/documents/render-jobs/process",
+  "/api/documents/render-jobs/[id]",
+  "/api/v2/crm/leads/[id]/documents/[docId]/pdf",
+  "/api/v2/crm/deals/[id]/documents/[docId]/pdf",
+  "/api/v2/schools/reports/export",
+  "/api/accounting/sales/invoices/[id]/pdf",
+  "/api/accounting/sales/quotations/[id]/pdf",
+  "/api/accounting/sales/credit-notes/[id]/pdf",
+  "/api/accounting/sales/receipts/[id]/pdf",
+];
+
 const nextConfig: NextConfig = {
   experimental: {
     // Phosphor is not in Next's built-in optimizePackageImports list. Its SSR
@@ -9,20 +29,20 @@ const nextConfig: NextConfig = {
     // hand-rolling deep imports instead measured 3x WORSE (67s -> 3.6min).
     optimizePackageImports: ["@phosphor-icons/react", "@phosphor-icons/react/ssr"],
   },
-  outputFileTracingIncludes: {
-    "/api/documents/render": [
-      "./node_modules/@sparticuz/chromium/bin/**",
-      "./node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/bin/**",
-    ],
-    "/api/documents/render-jobs/process": [
-      "./node_modules/@sparticuz/chromium/bin/**",
-      "./node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/bin/**",
-    ],
-    "/api/documents/render-jobs/[id]": [
-      "./node_modules/@sparticuz/chromium/bin/**",
-      "./node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/bin/**",
-    ],
-  },
+  // Chromium is loaded at runtime by path, not by import. Bundling it strips
+  // the brotli-packed binary out of `@sparticuz/chromium` and rewrites the
+  // `__dirname` its `executablePath()` resolves against, so both packages have
+  // to stay external and be required from node_modules as they ship.
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  // Every route that renders a PDF in-process needs the Chromium binary traced
+  // into its own bundle. Only the three generic export routes were listed, so
+  // a quotation or invoice fetched straight from the CRM or from accounting —
+  // which call `renderDocumentSync` themselves — landed in a function with no
+  // browser in it and failed with "No Chromium executable found". Keep this in
+  // step with the callers of `renderDocumentSync`.
+  outputFileTracingIncludes: Object.fromEntries(
+    PDF_RENDERING_ROUTES.map((route) => [route, CHROMIUM_BINARY_FILES]),
+  ),
   images: {
     remotePatterns: [
       {
