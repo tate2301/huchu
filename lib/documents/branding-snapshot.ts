@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { getEffectiveBrandingForCompany } from "@/lib/platform/branding";
+import {
+  DOCUMENT_MONO_FONT_FAMILY,
+  getDocumentFontByKey,
+  getEffectiveBrandingForCompany,
+} from "@/lib/platform/branding";
 import type { CompanyBrandingSnapshot } from "@/lib/documents/types";
 
 export async function getDocumentBranding(companyId: string): Promise<CompanyBrandingSnapshot> {
@@ -57,9 +61,15 @@ export async function getDocumentBranding(companyId: string): Promise<CompanyBra
     }),
   ]);
 
+  // `effective.fontFamily` is the app's value and is built on CSS variables
+  // that only exist inside the app. A document needs the resolved face.
+  const documentFont = getDocumentFontByKey(effective.fontFamilyKey);
+
   return {
     displayName: effective.displayName,
-    fontFamily: effective.fontFamily,
+    fontFamily: documentFont.fontFamily,
+    fontImportUrl: documentFont.importUrl,
+    monoFontFamily: DOCUMENT_MONO_FONT_FAMILY,
     primaryColor: effective.colors.primary,
     secondaryColor: effective.colors.secondary,
     accentColor: effective.colors.accent,

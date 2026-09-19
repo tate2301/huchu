@@ -110,7 +110,16 @@ export type CompanyBrandingSnapshot = {
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;
+  /**
+   * A stack naming real families — never a `var()`. A document is rendered
+   * from a standalone HTML string with none of the app's CSS in scope, and an
+   * unresolved custom property invalidates the whole declaration.
+   */
   fontFamily?: string;
+  /** The webfont to fetch so the rendering container actually has that face. */
+  fontImportUrl?: string | null;
+  /** The monospace face figures are set in, matching the app. */
+  monoFontFamily?: string;
   documentLocale?: string | null;
   dateFormat?: string | null;
   timeFormat?: string | null;
