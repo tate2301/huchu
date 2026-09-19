@@ -11,6 +11,12 @@ import {
 } from "@/lib/schools/reports";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
+export const runtime = "nodejs";
+// Rendering spins up Chromium. A cold start plus the render itself runs well
+// past the platform's default function budget, and the timeout surfaced as an
+// unexplained failure with nothing in the logs.
+export const maxDuration = 120;
+
 /**
  * S-5.4 — a school report export is a real file.
  *

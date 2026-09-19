@@ -29,17 +29,20 @@ const nextConfig: NextConfig = {
     // hand-rolling deep imports instead measured 3x WORSE (67s -> 3.6min).
     optimizePackageImports: ["@phosphor-icons/react", "@phosphor-icons/react/ssr"],
   },
-  // Chromium is loaded at runtime by path, not by import. Bundling it strips
-  // the brotli-packed binary out of `@sparticuz/chromium` and rewrites the
-  // `__dirname` its `executablePath()` resolves against, so both packages have
-  // to stay external and be required from node_modules as they ship.
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
-  // Every route that renders a PDF in-process needs the Chromium binary traced
-  // into its own bundle. Only the three generic export routes were listed, so
-  // a quotation or invoice fetched straight from the CRM or from accounting —
-  // which call `renderDocumentSync` themselves — landed in a function with no
-  // browser in it and failed with "No Chromium executable found". Keep this in
-  // step with the callers of `renderDocumentSync`.
+  // Chromium is loaded at runtime by path, not by import, so the brotli-packed
+  // binary has to reach every function that renders a PDF.
+  //
+  // Next's automatic tracing does in fact pick it up on its own — measured by
+  // building this tree with and without these entries and diffing the emitted
+  // `.nft.json` manifests; both carry `chromium.br`. These are belt and braces
+  // for a file nothing statically imports, and they replace a list that named
+  // only three of the nine routes that launch a browser. Keep it in step with
+  // the callers of `renderDocumentSync`.
+  //
+  // `serverExternalPackages` is deliberately NOT set for these: Next already
+  // ships `@sparticuz/chromium` and `puppeteer-core` in its default external
+  // list (`next/dist/lib/server-external-packages.jsonc`), so restating them
+  // here would be config that looks load-bearing and is not.
   outputFileTracingIncludes: Object.fromEntries(
     PDF_RENDERING_ROUTES.map((route) => [route, CHROMIUM_BINARY_FILES]),
   ),

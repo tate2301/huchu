@@ -26,6 +26,10 @@ import {
 import type { DocumentRenderRequest } from "@/lib/documents/service";
 
 export const runtime = "nodejs";
+// Rendering spins up Chromium. A cold start plus the render itself runs well
+// past the platform's default function budget, and the timeout surfaced as an
+// unexplained failure with nothing in the logs.
+export const maxDuration = 120;
 
 function parseInlineBatchLimit() {
   const configured = Number(process.env.PDF_INLINE_BATCH_LIMIT ?? 2);
