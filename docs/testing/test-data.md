@@ -63,10 +63,27 @@ override needs a second person to approve it.
 | Students | **120** |
 | Guardians | **119** |
 | Fee invoices | **120** |
+| Timetable slots | **180** |
+| Conduct incidents | **34** |
+| Exam entries | **120** |
 
 Six classes, eight teachers, a term of attendance registers, two papers per
 class-subject, and fees in a mix of paid, part-paid and overdue. Three portals
 have real people behind them.
+
+Every `School*` table carries rows. Beyond the roll: a clash-free timetable with
+its rooms, periods, lesson plans and a cover; result sheets at every stage of
+moderation over a ZIMSEC grading scheme; two boarding houses down to the bed,
+with exeat, the gate log, evening roll call and the sick bay; conduct, merits
+and detention; two exam series with candidates, entries, seating and last
+year's results; admissions, leavers, clearance and alumni; library, transport,
+homework, schemes of work; guardian messages, portal invites, pastoral notes
+and the import jobs that built the roll.
+
+**Public exams are seeded but not visible.** `schools.exams` is billable and
+belongs to no bundle or tier, so no subscription can entitle it and the route
+answers `/access-blocked`. The data is there for when that is fixed; to look at
+it now, set `FEATURE_GATES_BYPASS_KEYS="schools.exams"`.
 
     npx tsx scripts/seed-staging-tenant.ts --slug stmarys --email head@stmarys.test \
       --password 'SchoolDemo123!' --name 'St Marys High School' \
