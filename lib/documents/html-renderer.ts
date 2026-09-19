@@ -178,6 +178,18 @@ const DATE_META = /\b(date|issued|generated|raised)\b/i;
 const PAYMENT_META = /\b(due|valid|terms|payable)\b/i;
 
 /**
+ * A meta row worth printing.
+ *
+ * `isoDate(null)` renders "-", so a quotation with no expiry printed
+ * "Valid Until: -" in the payment column — a field announcing its own
+ * emptiness. A row with nothing to say is left out instead.
+ */
+function hasValue(item: DocumentMeta): boolean {
+  const value = item.value.trim();
+  return value.length > 0 && value !== "-" && value !== "—";
+}
+
+/**
  * The document's identifying pair — its number and its date — which the header
  * states opposite the logo, exactly as the reference does.
  */
@@ -216,8 +228,9 @@ function buildSummaryColumns(
       lead: true,
     }));
 
-  const paymentMeta = rest.filter((item) => PAYMENT_META.test(item.label));
-  const detailMeta = rest.filter((item) => !PAYMENT_META.test(item.label));
+  const present = rest.filter(hasValue);
+  const paymentMeta = present.filter((item) => PAYMENT_META.test(item.label));
+  const detailMeta = present.filter((item) => !PAYMENT_META.test(item.label));
 
   if (detailMeta.length > 0) {
     columns.push({
@@ -436,6 +449,7 @@ export function renderDocumentHtml(input: {
 
   const { header: headerMeta, rest: bodyMeta } = pickHeaderMeta(payload.meta ?? []);
   const headerMetaHtml = headerMeta
+    .filter(hasValue)
     .map(
       (item) =>
         `<div class="stamp-item"><div class="stamp-label">${esc(item.label)}</div><div class="stamp-value mono">${esc(item.value)}</div></div>`,

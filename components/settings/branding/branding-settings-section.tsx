@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MasterDataShell } from "@corelithzw/react";
 import { ManagementShell } from "@/components/settings/management-shell";
+import { PaymentAccountsBlock } from "@/components/settings/branding/payment-accounts-block";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -915,6 +916,10 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
                 value={form.paymentTerms}
                 onChange={(event) => setField("paymentTerms", event.target.value)}
               />
+
+              {/* Saves on its own — these are rows, not fields of the branding
+                  record, so they do not wait on the form's Save button. */}
+              <PaymentAccountsBlock />
                 </section>
               ) : null}
 
