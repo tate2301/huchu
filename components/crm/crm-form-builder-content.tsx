@@ -8,15 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CRM_INTAKE_FIELD_TYPES, type CrmIntakeFieldType } from "@/lib/crm/intake-schema";
+import { FieldRow } from "@/components/crm/field-editor/field-row";
+
+/**
+ * Intake types that are meaningless without a list of choices.
+ *
+ * `crmIntakeFieldDefSchema` has always rejected these with an empty list, and
+ * this screen had no way to supply one — so picking "select" produced a form
+ * that could not be saved and gave no way out. Sharing `FieldRow` with the
+ * site-visit question editor brings the choices editor with it.
+ */
+const INTAKE_CHOICE_TYPES: readonly CrmIntakeFieldType[] = ["select", "multiselect"];
 
 type FieldDraft = {
   key: string;
@@ -177,67 +181,30 @@ function FormBuilderEditor({ formId, initial }: { formId: string; initial: FormR
         </CardHeader>
         <CardContent className="space-y-3">
           {fields.map((field, index) => (
-            <div key={index} className="grid grid-cols-6 items-center gap-2 sm:grid-cols-12">
-              <Input
-                className="col-span-3 sm:col-span-3"
-                placeholder="key"
-                value={field.key}
-                onChange={(e) => {
-                  const next = [...fields];
-                  next[index] = { ...field, key: e.target.value };
-                  setFields(next);
-                }}
-              />
-              <Input
-                className="col-span-3 sm:col-span-4"
-                placeholder="Label"
-                value={field.label}
-                onChange={(e) => {
-                  const next = [...fields];
-                  next[index] = { ...field, label: e.target.value };
-                  setFields(next);
-                }}
-              />
-              <Select
-                value={field.type}
-                onValueChange={(value) => {
-                  const next = [...fields];
-                  next[index] = { ...field, type: value as CrmIntakeFieldType };
-                  setFields(next);
-                }}
-              >
-                <SelectTrigger className="col-span-3 sm:col-span-3">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CRM_INTAKE_FIELD_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <label className="col-span-2 flex items-center gap-1 text-sm sm:col-span-1">
-                <input
-                  type="checkbox"
-                  checked={field.required}
-                  onChange={(e) => {
-                    const next = [...fields];
-                    next[index] = { ...field, required: e.target.checked };
-                    setFields(next);
-                  }}
-                />
-                req
-              </label>
-              <Button
-                className="col-span-1 justify-self-end sm:justify-self-auto"
-                variant="ghost"
-                size="sm"
-                onClick={() => setFields(fields.filter((_, i) => i !== index))}
-              >
-                ✕
-              </Button>
-            </div>
+            <FieldRow
+              key={index}
+              field={{
+                key: field.key,
+                label: field.label,
+                type: field.type,
+                required: field.required,
+                options: field.options ?? null,
+              }}
+              types={CRM_INTAKE_FIELD_TYPES}
+              choiceTypes={INTAKE_CHOICE_TYPES}
+              onChange={(next) => {
+                const copy = [...fields];
+                copy[index] = {
+                  key: next.key,
+                  label: next.label,
+                  type: next.type,
+                  required: next.required,
+                  options: next.options ?? undefined,
+                };
+                setFields(copy);
+              }}
+              onRemove={() => setFields(fields.filter((_, i) => i !== index))}
+            />
           ))}
           <p className="text-sm text-[var(--text-muted)]">
             Name, email, phone (with country code), and photos are always included.

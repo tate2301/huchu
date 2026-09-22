@@ -60,6 +60,7 @@ import { JobChecklist } from "./job-checklist";
 import { jobNextStep, type JobAct } from "./job-next-step";
 import { JobStageRail } from "./job-stage-rail";
 import { jobWindow, type JobInvoicePreview, type JobRecord, type JobStatus } from "./job-types";
+import { JobProjectCard } from "./job-project-card";
 import { useJobActions, type InvoiceLineInput } from "./use-job-actions";
 
 /** The stored enum, in the words somebody would say. */
@@ -307,6 +308,10 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
           </div>
         </RailSection>
       ) : null}
+
+      <RailSection title="Project">
+        <JobProjectCard jobId={jobId} />
+      </RailSection>
 
       {job.invoice ? (
         <RailSection title="Billed">

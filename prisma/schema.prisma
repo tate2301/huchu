@@ -14,6 +14,11 @@ model Company {
   id                            String             @id @default(uuid())
   name                          String
   slug                          String             @unique
+  /// Which site-visit question bank this tenant starts from. Null means the
+  /// generic checklist. Read by `ensureSiteVisitQuestionSets` on first use;
+  /// changing it afterwards does nothing, because the tenant's own rows are
+  /// the source of truth once seeded.
+  siteVisitTemplateKey          String?
   tenantStatus                  TenantStatus       @default(PROVISIONING)
   workspaceProfile              WorkspaceProfile   @default(GENERAL)
   isProvisioned                 Boolean            @default(false)
@@ -244,6 +249,16 @@ model Company {
   crmFollowUps                  CrmFollowUp[]
   crmAppointments               CrmAppointment[]
   crmSiteVisitItems             CrmSiteVisitItem[]
+  crmQuestionSets               CrmQuestionSet[]
+  crmQuestions                  CrmQuestion[]
+  crmSiteVisitSections          CrmSiteVisitSection[]
+  crmSiteVisitAnswers           CrmSiteVisitAnswer[]
+  crmSiteVisitPhotos            CrmSiteVisitPhoto[]
+  crmProjects                   CrmProject[]
+  crmRequisitions               CrmRequisition[]
+  crmDailyLogs                  CrmDailyLog[]
+  crmDailyCostEntries           CrmDailyCostEntry[]
+  crmDailyReports               CrmDailyReport[]
   crmSavedViews                 CrmSavedView[]
   crmIntakeForms                CrmIntakeForm[]
   crmIntakeSubmissions          CrmIntakeSubmission[]
@@ -1226,6 +1241,16 @@ model User {
   crmCollectionNotesCreated         CrmCollectionNote[]            @relation("CrmCollectionNoteCreatedBy")
   crmWorkOrdersAssigned             CrmWorkOrder[]                 @relation("CrmWorkOrderAssignedTo")
   crmWorkOrdersCreated              CrmWorkOrder[]                 @relation("CrmWorkOrderCreatedBy")
+  crmQuestionSetsCreated            CrmQuestionSet[]               @relation("CrmQuestionSetCreatedBy")
+  crmSiteVisitAnswers               CrmSiteVisitAnswer[]           @relation("CrmSiteVisitAnswerBy")
+  crmSiteVisitPhotos                CrmSiteVisitPhoto[]            @relation("CrmSiteVisitPhotoBy")
+  crmProjectsManaged                CrmProject[]                   @relation("CrmProjectManager")
+  crmProjectsCreated                CrmProject[]                   @relation("CrmProjectCreatedBy")
+  crmRequisitionsRequested          CrmRequisition[]               @relation("CrmRequisitionRequestedBy")
+  crmRequisitionsApproved           CrmRequisition[]               @relation("CrmRequisitionApprovedBy")
+  crmRequisitionsDisbursed          CrmRequisition[]               @relation("CrmRequisitionDisbursedBy")
+  crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
+  crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
@@ -2829,6 +2854,9 @@ enum NotificationType {
   CRM_TASK_DUE
   CRM_MENTIONED
   CRM_COMMENT_ADDED
+  CRM_REQUISITION_SUBMITTED
+  CRM_REQUISITION_DECIDED
+  CRM_DAILY_REPORT_READY
   /// What a school sends its families and staff. The audience is part of the
   /// type because a notice is addressed before it is written — "the Form 2
   /// parents" is the first decision the office makes, not a filter applied
@@ -2861,6 +2889,9 @@ enum NotificationEntityType {
   CRM_DOCUMENT
   CRM_TASK
   CRM_COMMENT
+  CRM_REQUISITION
+  CRM_PROJECT
+  CRM_DAILY_REPORT
 }
 
 enum HrIncidentCategory {
@@ -5963,6 +5994,7 @@ model BankAccount {
   salesReceipts      SalesReceipt[]
   purchasePayments   PurchasePayment[]
   reconciliations    BankReconciliation[]
+  crmRequisitions    CrmRequisition[]
   defaultForSettings AccountingSettings[] @relation("DefaultBankAccount")
 
   @@index([companyId, isActive])
@@ -10672,6 +10704,7 @@ model CrmClient {
   activities        CrmActivity[]
   followUps         CrmFollowUp[]
   appointments      CrmAppointment[]
+  projects          CrmProject[]
   intakeSubmissions CrmIntakeSubmission[]
   people            CrmPerson[]           @relation("CrmPersonPrimaryCompany")
   tasks             CrmTask[]
@@ -10952,10 +10985,231 @@ model CrmAppointment {
   createdBy  User?              @relation("CrmAppointmentCreatedBy", fields: [createdById], references: [id])
   followUps  CrmFollowUp[]
   visitItems CrmSiteVisitItem[]
+  sections   CrmSiteVisitSection[]
+  visitPhotos CrmSiteVisitPhoto[]
+
+  /// Generated on the device when a rep starts a visit away from signal. The
+  /// create handler upserts on this, so replaying a queued operation returns
+  /// the existing visit instead of booking a second one.
+  clientVisitId String?
 
   @@unique([companyId, appointmentNo])
+  @@unique([companyId, clientVisitId])
   @@index([companyId, assignedToId, scheduledStart])
   @@index([companyId, status, scheduledStart])
+}
+
+enum CrmQuestionSetKind {
+  /// Asked when this product or service is being assessed.
+  PRODUCT
+  /// The photo checklist every visit carries, whatever is being quoted.
+  EVIDENCE
+  /// The rep's sign-off gate at the end of the visit.
+  CLOSEOUT
+}
+
+enum CrmQuestionType {
+  SHORT_TEXT
+  LONG_TEXT
+  NUMBER
+  BOOLEAN
+  SINGLE_SELECT
+  MULTI_SELECT
+  DATE
+  /// "___ m x ___ m" — stored as { widthM, heightM } in `valueJson`.
+  DIMENSION
+  /// The answer is the photograph.
+  PHOTO_EVIDENCE
+}
+
+/// A named set of questions a rep works through on site.
+///
+/// Per tenant, and for PRODUCT sets, per thing being quoted. Seeded from a
+/// template the first time a tenant needs one (see `lib/crm/site-visits/`),
+/// after which these rows are the source of truth and the template no longer
+/// speaks for them — the same arrangement `ensureDefaultPipeline` uses.
+model CrmQuestionSet {
+  id        String             @id @default(uuid())
+  companyId String
+  /// Stable key. Immutable once set, so answers can reference it after a rename.
+  key       String
+  name      String
+  kind      CrmQuestionSetKind @default(PRODUCT)
+  /// What this set is asked about. Null for EVIDENCE and CLOSEOUT, and for a
+  /// PRODUCT set whose catalogue entry does not exist yet.
+  productId String?
+  position  Int                @default(0)
+  isActive  Boolean            @default(true)
+  /// Which template seeded this, for provenance. Null once hand-built.
+  sourceTemplateKey String?
+  archivedAt  DateTime?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product   Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  createdBy User?                 @relation("CrmQuestionSetCreatedBy", fields: [createdById], references: [id])
+  questions CrmQuestion[]
+  sections  CrmSiteVisitSection[]
+
+  @@unique([companyId, key])
+  @@index([companyId, kind, isActive])
+  @@index([companyId, productId])
+}
+
+/// One question. Mirrors `CrmFieldDefinition`'s conventions deliberately.
+model CrmQuestion {
+  id            String          @id @default(uuid())
+  companyId     String
+  questionSetId String
+  /// Immutable once set — answers snapshot it.
+  key           String
+  label         String
+  helpText      String?
+  type          CrmQuestionType
+  /// Choices for SINGLE_SELECT / MULTI_SELECT: [{ value, label }].
+  options       Json?
+  /// "mm", "m2", "m" — shown beside a NUMBER input.
+  unit          String?
+  isRequired    Boolean         @default(false)
+  /// The bank says to photograph this one.
+  requiresPhoto Boolean         @default(false)
+  /// The seeded type was a judgement call worth a human's eye. Advisory only;
+  /// never blocks capture.
+  needsReview   Boolean         @default(false)
+  position      Int             @default(0)
+  archivedAt    DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  questionSet CrmQuestionSet       @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  answers     CrmSiteVisitAnswer[]
+
+  @@unique([questionSetId, key])
+  @@index([companyId, questionSetId, position])
+}
+
+/// One product (or the evidence / close-out block) within a visit.
+///
+/// A rep quoting epoxy for the floor and branded mats for the entrance is on
+/// one visit to one address, so products are sections of a visit rather than
+/// visits of their own.
+model CrmSiteVisitSection {
+  id            String             @id @default(uuid())
+  companyId     String
+  appointmentId String
+  productId     String?
+  /// SetNull so archiving a question set never deletes captured work.
+  questionSetId String?
+  /// Snapshots, so an old report reads correctly after a rename.
+  name          String
+  kind          CrmQuestionSetKind @default(PRODUCT)
+  position      Int                @default(0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  appointment CrmAppointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  product     Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  questionSet CrmQuestionSet?      @relation(fields: [questionSetId], references: [id], onDelete: SetNull)
+  answers     CrmSiteVisitAnswer[]
+  photos      CrmSiteVisitPhoto[]
+
+  @@index([companyId, appointmentId, position])
+}
+
+model CrmSiteVisitAnswer {
+  id        String @id @default(uuid())
+  companyId String
+  sectionId String
+  /// SetNull — the definition may be archived; the answer stays readable via
+  /// the snapshot columns below.
+  questionId String?
+
+  /// Snapshotted at capture, per the convention `site-visits.ts` already sets
+  /// for the checklist: a report must read the same in a year.
+  questionKey   String
+  questionLabel String
+  questionType  CrmQuestionType
+
+  position Int @default(0)
+
+  /// Exactly one of these carries the answer, chosen by `questionType`.
+  /// Discrete columns rather than one JSON value so the interesting queries
+  /// ("which sites showed damp?") are indexed rather than a scan.
+  valueText    String?
+  valueNumber  Float?
+  valueBool    Boolean?
+  valueOptions String[]  @default([])
+  valueDate    DateTime?
+  /// DIMENSION { widthM, heightM }, and any future compound type.
+  valueJson    Json?
+
+  /// The rep's free note against this question, whatever its type.
+  notes         String?
+  /// Explicitly marked not applicable, which is not the same as left blank.
+  notApplicable Boolean @default(false)
+
+  answeredAt   DateTime @default(now())
+  answeredById String?
+
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  section    CrmSiteVisitSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  question   CrmQuestion?        @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  answeredBy User?               @relation("CrmSiteVisitAnswerBy", fields: [answeredById], references: [id])
+  photos     CrmSiteVisitPhoto[]
+
+  /// One answer per question per section — also the offline idempotency key.
+  @@unique([sectionId, questionKey])
+  @@index([companyId, questionKey, valueBool])
+  @@index([companyId, questionKey, valueNumber])
+  @@index([companyId, sectionId, position])
+}
+
+/// A photograph taken on site.
+///
+/// Always belongs to the visit; optionally to a section and an answer. The
+/// bank asks for both — "site/area overview photographs" belong to no question,
+/// while "photograph cracks, joints, contamination" belongs to one.
+model CrmSiteVisitPhoto {
+  id            String  @id @default(uuid())
+  companyId     String
+  appointmentId String
+  sectionId     String?
+  answerId      String?
+  /// For STANDARD SITE EVIDENCE shots: which checklist item this satisfies.
+  evidenceKey   String?
+
+  /// The object-storage key. This is the record; `url` is a cached convenience
+  /// for rendering and is re-derivable from the key.
+  blobPathname String
+  url          String
+  contentType  String
+  size         Int
+  width        Int?
+  height       Int?
+  caption      String?
+  /// From the device, not the server clock — a visit may sync days later.
+  capturedAt   DateTime?
+  latitude     Float?
+  longitude    Float?
+
+  /// Generated on the device before upload, so a replayed sync is a no-op.
+  clientPhotoId String
+  uploadedById  String?
+  createdAt     DateTime @default(now())
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  appointment CrmAppointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  section     CrmSiteVisitSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  answer      CrmSiteVisitAnswer?  @relation(fields: [answerId], references: [id], onDelete: SetNull)
+  uploadedBy  User?                @relation("CrmSiteVisitPhotoBy", fields: [uploadedById], references: [id])
+
+  @@unique([companyId, clientPhotoId])
+  @@index([companyId, appointmentId, createdAt])
+  @@index([companyId, answerId])
 }
 
 /// Measurements and specifications captured during a site visit. These convert
@@ -11671,6 +11925,7 @@ model CrmSite {
   createdBy      User?            @relation("CrmSiteCreatedBy", fields: [createdById], references: [id])
   deals          CrmDeal[]
   appointments   CrmAppointment[]
+  projects       CrmProject[]
   tasks          CrmTask[]
   comments       CrmComment[]
   files          CrmRecordFile[]
@@ -11743,7 +11998,8 @@ model CrmDeal {
   comments       CrmComment[]
   files          CrmRecordFile[]
 
-  workOrders CrmWorkOrder[]
+  workOrders          CrmWorkOrder[]
+  projects            CrmProject[]
 
   @@unique([companyId, dealNo])
   @@index([companyId, stageId])
@@ -12445,6 +12701,8 @@ model Product {
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
+  crmQuestionSets      CrmQuestionSet[]
+  crmSiteVisitSections CrmSiteVisitSection[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])
@@ -12563,6 +12821,256 @@ enum CrmCollectionOutcome {
 /// equipment breakdown — it requires an equipmentId, tracks downtime windows
 /// and assigns an Employee technician. None of that describes installing what
 /// a customer just bought at their own address.
+enum CrmProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum CrmRequisitionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  /// Approved and the money has actually left. Separate from APPROVED because
+  /// "he said yes" and "I have the cash" are different days and different
+  /// questions.
+  DISBURSED
+  /// Spent, with what it went on accounted for.
+  ACQUITTED
+  CANCELLED
+}
+
+/// What the money is for.
+///
+/// Deliberately not derived from the chart of accounts: a rep asking for fuel
+/// should pick "Fuel", not hunt for account 6220. Accounting maps these to
+/// accounts on its own side.
+enum CrmRequisitionCategory {
+  FUEL
+  AIRTIME
+  TRANSPORT
+  MATERIALS
+  EQUIPMENT
+  LABOUR
+  SUBSISTENCE
+  ACCOMMODATION
+  OTHER
+}
+
+enum CrmCashDirection {
+  RECEIVED
+  SPENT
+}
+
+/// A job that has become a piece of work with its own money.
+///
+/// The CRM's chain is lead, deal, quote, won, job. A job is a day's work with
+/// a checklist; a project is the thing a job belongs to when the work runs
+/// longer than that and has a budget somebody is answerable for. Requisitions
+/// and daily costs point here, which is what makes "what has this project cost
+/// us" answerable without a spreadsheet.
+model CrmProject {
+  id          String            @id @default(uuid())
+  companyId   String
+  projectNo   String
+  name        String
+  description String?
+  status      CrmProjectStatus  @default(PLANNING)
+
+  /// Where it came from. All optional: a project can be raised directly for
+  /// work that never went through the pipeline.
+  dealId      String?
+  clientId    String?
+  siteId      String?
+  workOrderId String?
+
+  /// Who is answerable for the budget.
+  managerId String?
+
+  startDate     DateTime?
+  targetEndDate DateTime?
+  actualEndDate DateTime?
+
+  /// What it was approved to cost. Null means nobody has set one yet, which is
+  /// not the same as zero.
+  budget   Decimal? @db.Decimal(14, 2)
+  currency String   @default("USD")
+
+  customFields Json?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deal        CrmDeal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  client      CrmClient?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  site        CrmSite?            @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  workOrder   CrmWorkOrder?       @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  manager     User?               @relation("CrmProjectManager", fields: [managerId], references: [id])
+  createdBy   User?               @relation("CrmProjectCreatedBy", fields: [createdById], references: [id])
+  requisitions CrmRequisition[]
+  costEntries  CrmDailyCostEntry[]
+
+  @@unique([companyId, projectNo])
+  @@index([companyId, status, updatedAt])
+  @@index([companyId, managerId, status])
+  @@index([companyId, dealId])
+}
+
+/// An employee asking for money.
+///
+/// `projectId` is nullable and that is the point. Fuel and airtime are asked
+/// for by people who are not on a project that day, and forcing a project onto
+/// them would either block the request or produce a fictional one — both of
+/// which make the project's cost figure a lie.
+model CrmRequisition {
+  id             String                 @id @default(uuid())
+  companyId      String
+  requisitionNo  String
+  status         CrmRequisitionStatus   @default(DRAFT)
+  category       CrmRequisitionCategory
+  /// What the money is for, in the requester's words.
+  purpose        String
+  notes          String?
+
+  /// Null for fuel, airtime and anything else that belongs to no project.
+  projectId String?
+
+  amount   Decimal @db.Decimal(14, 2)
+  currency String  @default("USD")
+
+  requestedById String
+  neededBy      DateTime?
+
+  submittedAt DateTime?
+
+  approvedById    String?
+  approvedAt      DateTime?
+  approvedAmount  Decimal?  @db.Decimal(14, 2)
+  decisionNote    String?
+
+  disbursedById  String?
+  disbursedAt    DateTime?
+  /// Which account it was paid from, when it was paid from one.
+  bankAccountId  String?
+
+  /// What it actually went on, once spent. A requisition is not finished when
+  /// the money is handed over; it is finished when somebody accounts for it.
+  acquittedAt     DateTime?
+  acquittedAmount Decimal?  @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project     CrmProject?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  requestedBy User                @relation("CrmRequisitionRequestedBy", fields: [requestedById], references: [id])
+  approvedBy  User?               @relation("CrmRequisitionApprovedBy", fields: [approvedById], references: [id])
+  disbursedBy User?               @relation("CrmRequisitionDisbursedBy", fields: [disbursedById], references: [id])
+  bankAccount BankAccount?        @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  costEntries CrmDailyCostEntry[]
+
+  @@unique([companyId, requisitionNo])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, requestedById, status])
+  @@index([companyId, projectId])
+}
+
+/// One person's money for one day.
+///
+/// The parent exists so a day can be submitted as a unit — "this is what I did
+/// with the cash today" — rather than leaving a trail of entries nobody ever
+/// declares finished.
+model CrmDailyLog {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String
+  /// The day being accounted for, at midnight. Not `createdAt`: a rep writes
+  /// up Tuesday on Wednesday morning more often than not.
+  logDate   DateTime @db.Date
+
+  notes       String?
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User                @relation("CrmDailyLogUser", fields: [userId], references: [id], onDelete: Cascade)
+  entries CrmDailyCostEntry[]
+
+  @@unique([companyId, userId, logDate])
+  @@index([companyId, logDate])
+}
+
+/// Money in or out of one person's hands on one day.
+model CrmDailyCostEntry {
+  id        String           @id @default(uuid())
+  companyId String
+  logId     String
+  direction CrmCashDirection
+  category  CrmRequisitionCategory
+  amount    Decimal          @db.Decimal(14, 2)
+  currency  String           @default("USD")
+  description String
+
+  /// Same nullability, same reason, as on a requisition: airtime belongs to
+  /// no project.
+  projectId String?
+  /// Where the money came from, when it came from a requisition. Lets a
+  /// disbursement be reconciled against what was actually spent.
+  requisitionId String?
+
+  /// A photograph of the receipt. Key, not blob, like every other upload here.
+  receiptUrl      String?
+  receiptPathname String?
+
+  /// Generated on the device: these are written in the field too.
+  clientEntryId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  log         CrmDailyLog     @relation(fields: [logId], references: [id], onDelete: Cascade)
+  project     CrmProject?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  requisition CrmRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, clientEntryId])
+  @@index([companyId, logId])
+  @@index([companyId, projectId, createdAt])
+  @@index([companyId, requisitionId])
+}
+
+/// What one person did in one day, assembled and kept.
+///
+/// Stored rather than rendered on demand: management asking "what did the team
+/// do on the 14th" three weeks later should get the 14th as it was, not the
+/// 14th recomputed against records that have since been edited.
+model CrmDailyReport {
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String
+  reportDate DateTime @db.Date
+
+  /// The assembled report: visits, jobs, tasks, money, in the shape
+  /// `lib/crm/daily-report.ts` builds. Denormalised on purpose — see above.
+  summary Json
+
+  generatedAt DateTime  @default(now())
+  /// Null until it has gone to management.
+  sentAt      DateTime?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation("CrmDailyReportUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, reportDate])
+  @@index([companyId, reportDate])
+}
+
 model CrmWorkOrder {
   id          String             @id @default(uuid())
   companyId   String
@@ -12631,6 +13139,7 @@ model CrmWorkOrder {
   assignedTo User?              @relation("CrmWorkOrderAssignedTo", fields: [assignedToId], references: [id])
   createdBy  User?              @relation("CrmWorkOrderCreatedBy", fields: [createdById], references: [id])
   items      CrmWorkOrderItem[]
+  projects   CrmProject[]
 
   @@unique([companyId, workOrderNo])
   @@index([companyId, status, scheduledStart])
