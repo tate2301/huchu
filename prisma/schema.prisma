@@ -244,6 +244,11 @@ model Company {
   crmFollowUps                  CrmFollowUp[]
   crmAppointments               CrmAppointment[]
   crmSiteVisitItems             CrmSiteVisitItem[]
+  crmQuestionSets               CrmQuestionSet[]
+  crmQuestions                  CrmQuestion[]
+  crmSiteVisitSections          CrmSiteVisitSection[]
+  crmSiteVisitAnswers           CrmSiteVisitAnswer[]
+  crmSiteVisitPhotos            CrmSiteVisitPhoto[]
   crmSavedViews                 CrmSavedView[]
   crmIntakeForms                CrmIntakeForm[]
   crmIntakeSubmissions          CrmIntakeSubmission[]
@@ -1226,6 +1231,9 @@ model User {
   crmCollectionNotesCreated         CrmCollectionNote[]            @relation("CrmCollectionNoteCreatedBy")
   crmWorkOrdersAssigned             CrmWorkOrder[]                 @relation("CrmWorkOrderAssignedTo")
   crmWorkOrdersCreated              CrmWorkOrder[]                 @relation("CrmWorkOrderCreatedBy")
+  crmQuestionSetsCreated            CrmQuestionSet[]               @relation("CrmQuestionSetCreatedBy")
+  crmSiteVisitAnswers               CrmSiteVisitAnswer[]           @relation("CrmSiteVisitAnswerBy")
+  crmSiteVisitPhotos                CrmSiteVisitPhoto[]            @relation("CrmSiteVisitPhotoBy")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
@@ -10952,10 +10960,231 @@ model CrmAppointment {
   createdBy  User?              @relation("CrmAppointmentCreatedBy", fields: [createdById], references: [id])
   followUps  CrmFollowUp[]
   visitItems CrmSiteVisitItem[]
+  sections   CrmSiteVisitSection[]
+  visitPhotos CrmSiteVisitPhoto[]
+
+  /// Generated on the device when a rep starts a visit away from signal. The
+  /// create handler upserts on this, so replaying a queued operation returns
+  /// the existing visit instead of booking a second one.
+  clientVisitId String?
 
   @@unique([companyId, appointmentNo])
+  @@unique([companyId, clientVisitId])
   @@index([companyId, assignedToId, scheduledStart])
   @@index([companyId, status, scheduledStart])
+}
+
+enum CrmQuestionSetKind {
+  /// Asked when this product or service is being assessed.
+  PRODUCT
+  /// The photo checklist every visit carries, whatever is being quoted.
+  EVIDENCE
+  /// The rep's sign-off gate at the end of the visit.
+  CLOSEOUT
+}
+
+enum CrmQuestionType {
+  SHORT_TEXT
+  LONG_TEXT
+  NUMBER
+  BOOLEAN
+  SINGLE_SELECT
+  MULTI_SELECT
+  DATE
+  /// "___ m x ___ m" — stored as { widthM, heightM } in `valueJson`.
+  DIMENSION
+  /// The answer is the photograph.
+  PHOTO_EVIDENCE
+}
+
+/// A named set of questions a rep works through on site.
+///
+/// Per tenant, and for PRODUCT sets, per thing being quoted. Seeded from a
+/// template the first time a tenant needs one (see `lib/crm/site-visits/`),
+/// after which these rows are the source of truth and the template no longer
+/// speaks for them — the same arrangement `ensureDefaultPipeline` uses.
+model CrmQuestionSet {
+  id        String             @id @default(uuid())
+  companyId String
+  /// Stable key. Immutable once set, so answers can reference it after a rename.
+  key       String
+  name      String
+  kind      CrmQuestionSetKind @default(PRODUCT)
+  /// What this set is asked about. Null for EVIDENCE and CLOSEOUT, and for a
+  /// PRODUCT set whose catalogue entry does not exist yet.
+  productId String?
+  position  Int                @default(0)
+  isActive  Boolean            @default(true)
+  /// Which template seeded this, for provenance. Null once hand-built.
+  sourceTemplateKey String?
+  archivedAt  DateTime?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product   Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  createdBy User?                 @relation("CrmQuestionSetCreatedBy", fields: [createdById], references: [id])
+  questions CrmQuestion[]
+  sections  CrmSiteVisitSection[]
+
+  @@unique([companyId, key])
+  @@index([companyId, kind, isActive])
+  @@index([companyId, productId])
+}
+
+/// One question. Mirrors `CrmFieldDefinition`'s conventions deliberately.
+model CrmQuestion {
+  id            String          @id @default(uuid())
+  companyId     String
+  questionSetId String
+  /// Immutable once set — answers snapshot it.
+  key           String
+  label         String
+  helpText      String?
+  type          CrmQuestionType
+  /// Choices for SINGLE_SELECT / MULTI_SELECT: [{ value, label }].
+  options       Json?
+  /// "mm", "m2", "m" — shown beside a NUMBER input.
+  unit          String?
+  isRequired    Boolean         @default(false)
+  /// The bank says to photograph this one.
+  requiresPhoto Boolean         @default(false)
+  /// The seeded type was a judgement call worth a human's eye. Advisory only;
+  /// never blocks capture.
+  needsReview   Boolean         @default(false)
+  position      Int             @default(0)
+  archivedAt    DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  questionSet CrmQuestionSet       @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  answers     CrmSiteVisitAnswer[]
+
+  @@unique([questionSetId, key])
+  @@index([companyId, questionSetId, position])
+}
+
+/// One product (or the evidence / close-out block) within a visit.
+///
+/// A rep quoting epoxy for the floor and branded mats for the entrance is on
+/// one visit to one address, so products are sections of a visit rather than
+/// visits of their own.
+model CrmSiteVisitSection {
+  id            String             @id @default(uuid())
+  companyId     String
+  appointmentId String
+  productId     String?
+  /// SetNull so archiving a question set never deletes captured work.
+  questionSetId String?
+  /// Snapshots, so an old report reads correctly after a rename.
+  name          String
+  kind          CrmQuestionSetKind @default(PRODUCT)
+  position      Int                @default(0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  appointment CrmAppointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  product     Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  questionSet CrmQuestionSet?      @relation(fields: [questionSetId], references: [id], onDelete: SetNull)
+  answers     CrmSiteVisitAnswer[]
+  photos      CrmSiteVisitPhoto[]
+
+  @@index([companyId, appointmentId, position])
+}
+
+model CrmSiteVisitAnswer {
+  id        String @id @default(uuid())
+  companyId String
+  sectionId String
+  /// SetNull — the definition may be archived; the answer stays readable via
+  /// the snapshot columns below.
+  questionId String?
+
+  /// Snapshotted at capture, per the convention `site-visits.ts` already sets
+  /// for the checklist: a report must read the same in a year.
+  questionKey   String
+  questionLabel String
+  questionType  CrmQuestionType
+
+  position Int @default(0)
+
+  /// Exactly one of these carries the answer, chosen by `questionType`.
+  /// Discrete columns rather than one JSON value so the interesting queries
+  /// ("which sites showed damp?") are indexed rather than a scan.
+  valueText    String?
+  valueNumber  Float?
+  valueBool    Boolean?
+  valueOptions String[]  @default([])
+  valueDate    DateTime?
+  /// DIMENSION { widthM, heightM }, and any future compound type.
+  valueJson    Json?
+
+  /// The rep's free note against this question, whatever its type.
+  notes         String?
+  /// Explicitly marked not applicable, which is not the same as left blank.
+  notApplicable Boolean @default(false)
+
+  answeredAt   DateTime @default(now())
+  answeredById String?
+
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  section    CrmSiteVisitSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  question   CrmQuestion?        @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  answeredBy User?               @relation("CrmSiteVisitAnswerBy", fields: [answeredById], references: [id])
+  photos     CrmSiteVisitPhoto[]
+
+  /// One answer per question per section — also the offline idempotency key.
+  @@unique([sectionId, questionKey])
+  @@index([companyId, questionKey, valueBool])
+  @@index([companyId, questionKey, valueNumber])
+  @@index([companyId, sectionId, position])
+}
+
+/// A photograph taken on site.
+///
+/// Always belongs to the visit; optionally to a section and an answer. The
+/// bank asks for both — "site/area overview photographs" belong to no question,
+/// while "photograph cracks, joints, contamination" belongs to one.
+model CrmSiteVisitPhoto {
+  id            String  @id @default(uuid())
+  companyId     String
+  appointmentId String
+  sectionId     String?
+  answerId      String?
+  /// For STANDARD SITE EVIDENCE shots: which checklist item this satisfies.
+  evidenceKey   String?
+
+  /// The object-storage key. This is the record; `url` is a cached convenience
+  /// for rendering and is re-derivable from the key.
+  blobPathname String
+  url          String
+  contentType  String
+  size         Int
+  width        Int?
+  height       Int?
+  caption      String?
+  /// From the device, not the server clock — a visit may sync days later.
+  capturedAt   DateTime?
+  latitude     Float?
+  longitude    Float?
+
+  /// Generated on the device before upload, so a replayed sync is a no-op.
+  clientPhotoId String
+  uploadedById  String?
+  createdAt     DateTime @default(now())
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  appointment CrmAppointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  section     CrmSiteVisitSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  answer      CrmSiteVisitAnswer?  @relation(fields: [answerId], references: [id], onDelete: SetNull)
+  uploadedBy  User?                @relation("CrmSiteVisitPhotoBy", fields: [uploadedById], references: [id])
+
+  @@unique([companyId, clientPhotoId])
+  @@index([companyId, appointmentId, createdAt])
+  @@index([companyId, answerId])
 }
 
 /// Measurements and specifications captured during a site visit. These convert
@@ -12445,6 +12674,8 @@ model Product {
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
+  crmQuestionSets      CrmQuestionSet[]
+  crmSiteVisitSections CrmSiteVisitSection[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])
