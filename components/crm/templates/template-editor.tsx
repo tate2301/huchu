@@ -4,11 +4,16 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, Switch } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
+import { Switch } from "@corelithzw/react";
+import { ActivityTrail, type ActivityEvent } from "@/components/management/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ClientDate } from "@/components/ui/client-date";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -20,18 +25,22 @@ import {
   type TemplateKind,
 } from "@/lib/crm/blocks";
 import { sampleValues, unknownVariables } from "@/lib/crm/template-variables";
-import { CopyLink, Eye, Layers, ShieldCheck, Users } from "@/lib/icons";
+import { ArrowLeft, Check, DotsThree, Eye, Info, Pencil } from "@/lib/icons";
 
-import { AttributeHeader } from "./attribute-header";
 import { BlockEditor } from "./block-editor";
 import { BlockRenderer } from "./block-renderer";
 import { TemplateAnalytics } from "./template-analytics";
+import styles from "./builder.module.css";
 
 type TemplateRecord = {
   id: string;
   name: string;
   kind: TemplateKind;
-  attributes: { emoji?: string | null; description?: string | null; custom?: Record<string, string> } | null;
+  attributes: {
+    emoji?: string | null;
+    description?: string | null;
+    custom?: Record<string, string>;
+  } | null;
   blocks: Block[];
   isShared: boolean;
   isActive: boolean;
@@ -48,12 +57,16 @@ type TemplateRecord = {
 };
 
 /**
- * A template, edited as the page it produces.
+ * A template, edited as the page it produces — `TemplateBuilder.dc.html`.
  *
- * The properties sit at the top the way Notion does them, the body is the
- * blocks, and the preview is the same renderer the customer will see. Nothing
- * here is a form that produces a document somewhere else — the thing on screen
- * is the thing.
+ * One 60px header over three columns: the blocks you can add, the page you are
+ * building, and the settings of whatever is selected on it. The preview is the
+ * same `BlockRenderer` the customer will meet, because a builder whose preview
+ * is a different component from its output is a builder that lies, and the lie
+ * is only discovered by a customer.
+ *
+ * Presentation only: every query key, endpoint and mutation below is the one
+ * that was here before.
  */
 export function TemplateEditor({ templateId }: { templateId: string }) {
   const router = useRouter();
@@ -61,6 +74,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState("");
+  const [renaming, setRenaming] = useState(false);
   const [emoji, setEmoji] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [custom, setCustom] = useState<Record<string, string>>({});
@@ -68,7 +82,6 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   const [isShared, setIsShared] = useState(true);
   const [isActive, setIsActive] = useState(true);
   const [view, setView] = useState<"edit" | "preview" | "activity">("edit");
-  const preview = view === "preview";
   const [seededFor, setSeededFor] = useState<string | null>(null);
 
   const templateQuery = useQuery({
@@ -93,9 +106,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   const problems = useMemo(() => templateProblems(kind, blocks), [kind, blocks]);
   const typos = useMemo(() => {
     const text = blocks
-      .map((block) =>
-        "text" in block && typeof block.text === "string" ? block.text : "",
-      )
+      .map((block) => ("text" in block && typeof block.text === "string" ? block.text : ""))
       .join("\n");
     return unknownVariables(text);
   }, [blocks]);
@@ -126,8 +137,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   });
 
   const remove = useMutation({
-    mutationFn: () =>
-      fetchJson(`/api/v2/crm/templates/${templateId}`, { method: "DELETE" }),
+    mutationFn: () => fetchJson(`/api/v2/crm/templates/${templateId}`, { method: "DELETE" }),
     onSuccess: () => {
       toast({ title: "Template deleted" });
       router.push("/templates");
@@ -143,7 +153,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   if (templateQuery.isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-15 w-full" />
         <Skeleton className="h-96 w-full" />
       </div>
     );
@@ -151,11 +161,11 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 
   if (templateQuery.error || !loaded) {
     return (
-      <Alert tone="danger" title="Template not found">
+      <p className={styles.empty}>
         {templateQuery.error
           ? getApiErrorMessage(templateQuery.error)
-          : "It may have been deleted."}
-      </Alert>
+          : "That template is gone."}
+      </p>
     );
   }
 
@@ -163,202 +173,283 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
     ? `${typeof window === "undefined" ? "" : window.location.origin}/f/${loaded.publicToken}`
     : null;
 
+  /**
+   * The record's own events, as the shared trail reads them.
+   *
+   * These are `CrmTemplateEvent` rows, not `PlatformAuditEvent` — the CRM
+   * template API carries its own event list and there is no audit route for
+   * this record. They are mapped rather than invented, and no chain claim is
+   * made: `chainVerified` is left undefined because nothing here walked a
+   * `prevEventHash`.
+   */
+  const events: ActivityEvent[] = (loaded.events ?? []).map((event) => ({
+    id: event.id,
+    eventType: `TEMPLATE.${event.type.toUpperCase()}`,
+    createdAt: event.createdAt,
+    summary: event.type === "VIEW" ? "Opened" : event.type === "SUBMIT" ? "Filled in" : event.type,
+    actor: event.source,
+  }));
+
   return (
-    <div className="space-y-5">
-      <PageChrome
-        title={name || "Untitled template"}
-        backHref="/templates"
-        backLabel="All templates"
-      >
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant={view === "edit" ? "secondary" : "ghost"}
-            onClick={() => setView("edit")}
-          >
-            Edit
-          </Button>
-          <Button
-            type="button"
-            variant={view === "preview" ? "secondary" : "ghost"}
-            onClick={() => setView("preview")}
-          >
-            <Eye className="mr-1.5 size-4" aria-hidden="true" />
-            Preview
-          </Button>
-          <Button
-            type="button"
-            variant={view === "activity" ? "secondary" : "ghost"}
-            onClick={() => setView("activity")}
-          >
-            Activity
-          </Button>
-          <Button
-            type="button"
-            disabled={save.isPending || problems.length > 0}
-            onClick={() => save.mutate()}
-          >
-            {save.isPending ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      </PageChrome>
+    <div className={styles.shell}>
+      <header className={styles.head}>
+        <button
+          type="button"
+          aria-label="Back to templates"
+          className={styles.iconBtn}
+          onClick={() => router.push("/templates")}
+        >
+          <ArrowLeft aria-hidden="true" />
+        </button>
 
-      {problems.length > 0 ? (
-        <Alert tone="warn" title="Not ready to save">
-          <ul className="list-disc space-y-0.5 pl-4">
-            {problems.map((problem) => (
-              <li key={problem}>{problem}</li>
-            ))}
-          </ul>
-        </Alert>
-      ) : null}
+        <span className={styles.titleGroup}>
+          {renaming ? (
+            <input
+              autoFocus
+              aria-label="Name"
+              className={styles.titleInput}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onBlur={() => setRenaming(false)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") setRenaming(false);
+                if (event.key === "Escape") {
+                  setName(loaded.name);
+                  setRenaming(false);
+                }
+              }}
+            />
+          ) : (
+            <>
+              {/* Rule 8: clicking either the title or the pencil opens it. */}
+              <h1 className={styles.title}>
+                <button
+                  type="button"
+                  className={styles.titleButton}
+                  onClick={() => setRenaming(true)}
+                >
+                  {name || `Untitled ${TEMPLATE_KIND_LABELS[kind].toLowerCase()}`}
+                </button>
+              </h1>
+              <button
+                type="button"
+                aria-label="Rename the template"
+                className={styles.pencil}
+                onClick={() => setRenaming(true)}
+              >
+                <Pencil aria-hidden="true" />
+              </button>
+            </>
+          )}
+        </span>
 
-      {typos.length > 0 ? (
-        <Alert tone="info" title="Variables nothing will fill">
-          {/* Shown rather than blanked: a variable spelled slightly wrong reads
-              as itself here and as an empty space in the customer's copy. */}
-          <p>
-            {typos.map((entry) => `{{${entry}}}`).join(", ")} — these will print as
-            written. Pick from the variable list to be sure they resolve.
-          </p>
-        </Alert>
-      ) : null}
+        {/* Rule 5: the chip marks the exception. A template the team can
+            already use draws nothing. */}
+        {!isShared ? <span className={styles.draft}>Draft</span> : null}
+        {!isActive ? <span className={styles.retired}>Retired</span> : null}
 
-      <AttributeHeader
-        emoji={emoji}
-        onEmojiChange={setEmoji}
-        title={name}
-        onTitleChange={setName}
-        titlePlaceholder={`Untitled ${TEMPLATE_KIND_LABELS[kind].toLowerCase()}`}
-        description={description}
-        onDescriptionChange={setDescription}
-        custom={custom}
-        onCustomChange={setCustom}
-        readOnly={preview}
-        rows={[
-          {
-            id: "kind",
-            label: "Kind",
-            icon: Layers,
-            display: (
+        <span className={styles.spacer} />
+
+        {/* One control, labelled with what it will do next — which is what
+            `TemplateRender.dc.html` draws beside the rendered document. */}
+        <button
+          type="button"
+          className={styles.btn}
+          aria-pressed={view === "preview"}
+          onClick={() => setView(view === "preview" ? "edit" : "preview")}
+        >
+          {view === "preview" ? (
+            <Pencil aria-hidden="true" />
+          ) : (
+            <Eye aria-hidden="true" />
+          )}
+          {view === "preview" ? "Edit blocks" : "Preview"}
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.btn} ${styles.btnPrimary}`}
+          disabled={save.isPending || problems.length > 0}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending ? "Saving…" : "Publish"}
+        </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" aria-label="More actions" className={styles.iconBtn}>
+              <DotsThree aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setView(view === "activity" ? "edit" : "activity")}>
+              {view === "activity" ? "Back to the blocks" : "Activity"}
+            </DropdownMenuItem>
+            {publicUrl ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  void navigator.clipboard?.writeText(publicUrl);
+                  toast({ title: "Link copied" });
+                }}
+              >
+                Copy the public link
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem disabled={remove.isPending} onSelect={() => remove.mutate()}>
+              Delete this template
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
+
+      {view === "preview" ? (
+        <div className={styles.previewBody}>
+          <div className={styles.previewStage}>
+            <div className={styles.previewPage}>
+              <BlockRenderer
+                blocks={blocks}
+                context={{
+                  mode: "preview",
+                  // Sample values, so a preview shows the shape of a filled-in
+                  // document rather than a page of dashes.
+                  values: sampleValues(),
+                  currency: "USD",
+                }}
+              />
+            </div>
+          </div>
+
+          <aside className={styles.aside}>
+            <div className={styles.asideHead}>
+              <span
+                className={styles.asideTile}
+                data-tone={isShared ? undefined : "draft"}
+                aria-hidden="true"
+              >
+                {isShared ? <Check /> : <Pencil />}
+              </span>
+              {/* The state is the heading, so nothing below repeats it — and
+                  it is the past tense of the header's verb, so the two read
+                  as one thing. "In use" is kept for `isActive`, which is a
+                  different fact and gets its own row. */}
+              <h2 className={styles.asideTitle}>{isShared ? "Published" : "Draft"}</h2>
+            </div>
+
+            <dl className={styles.facts}>
+              <dt>Used for</dt>
+              <dd>{TEMPLATE_KIND_LABELS[kind]}</dd>
+
+              <dt>Blocks</dt>
+              <dd className={styles.factMono}>{blocks.length}</dd>
+
+              <dt>Built by</dt>
+              <dd>{loaded.createdBy?.name ?? "—"}</dd>
+
+              <dt>Last saved</dt>
+              <dd>
+                <ClientDate value={loaded.updatedAt} mode="date" />
+              </dd>
+
+              {publicUrl ? (
+                <>
+                  <dt>Public link</dt>
+                  <dd className={styles.factMono}>{publicUrl}</dd>
+                </>
+              ) : null}
+            </dl>
+
+            <p className={styles.note}>
+              <Info aria-hidden="true" />
               <span>
-                {TEMPLATE_KIND_LABELS[kind]}
-                <span className="text-[var(--text-muted)]">
-                  {" · "}
-                  {BLOCKS_FOR_KIND[kind].length} block types
-                </span>
+                Colours and the logo come from Branding. Changing them there changes
+                every document.
               </span>
-            ),
-          },
-          {
-            id: "shared",
-            label: "Who can use it",
-            icon: Users,
-            display: (
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={isShared}
-                  disabled={preview}
-                  onChange={(event) => setIsShared(event.target.checked)}
-                  aria-label="Shared with the team"
-                />
-                {isShared ? "The whole team" : "Only me, for now"}
-              </label>
-            ),
-          },
-          {
-            id: "active",
-            label: "Status",
-            icon: ShieldCheck,
-            display: (
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={isActive}
-                  disabled={preview}
-                  onChange={(event) => setIsActive(event.target.checked)}
-                  aria-label="Active"
-                />
-                {isActive ? "In use" : "Retired"}
-              </label>
-            ),
-          },
-          ...(publicUrl
-            ? [
-                {
-                  id: "link",
-                  label: "Public link",
-                  icon: CopyLink,
-                  display: (
-                    <button
-                      type="button"
-                      className="truncate text-left font-mono text-sm underline decoration-[var(--border)] underline-offset-2"
-                      onClick={() => {
-                        void navigator.clipboard?.writeText(publicUrl);
-                        toast({ title: "Link copied" });
-                      }}
-                    >
-                      {publicUrl}
-                    </button>
-                  ),
-                },
-              ]
-            : []),
-          {
-            id: "activity",
-            label: "Activity",
-            display: (
-              <span className="text-[var(--text-muted)]">
-                {loaded.viewCount} view{loaded.viewCount === 1 ? "" : "s"} ·{" "}
-                {loaded.submitCount} submission{loaded.submitCount === 1 ? "" : "s"}
-                {loaded.lastSubmitAt ? (
-                  <>
-                    {" · last "}
-                    <ClientDate value={loaded.lastSubmitAt} mode="datetime" />
-                  </>
-                ) : null}
-              </span>
-            ),
-          },
-        ]}
-      />
-
-      <hr className="border-[var(--border-subtle)]" />
-
-      {view === "activity" ? (
-        <TemplateAnalytics
-          viewCount={loaded.viewCount}
-          submitCount={loaded.submitCount}
-          lastViewedAt={loaded.lastViewedAt}
-          lastSubmitAt={loaded.lastSubmitAt}
-          events={loaded.events ?? []}
-        />
-      ) : preview ? (
-        <div className="rounded-[var(--card-radius)] border border-[var(--border)] p-6">
-          <BlockRenderer
-            blocks={blocks}
-            context={{
-              mode: "preview",
-              // Sample values, so a preview shows the shape of a filled-in
-              // document rather than a page of dashes.
-              values: sampleValues(),
-              currency: "USD",
-            }}
-          />
+            </p>
+          </aside>
+        </div>
+      ) : view === "activity" ? (
+        <div className={styles.canvas}>
+          <div className={styles.sheet}>
+            <TemplateAnalytics
+              viewCount={loaded.viewCount}
+              submitCount={loaded.submitCount}
+              lastViewedAt={loaded.lastViewedAt}
+              lastSubmitAt={loaded.lastSubmitAt}
+            />
+            <ActivityTrail
+              events={events}
+              emptyLabel="Nothing recorded against this template yet"
+            />
+          </div>
         </div>
       ) : (
-        <BlockEditor kind={kind} blocks={blocks} onChange={setBlocks} />
-      )}
+        <BlockEditor
+          kind={kind}
+          blocks={blocks}
+          onChange={setBlocks}
+          banner={
+            problems.length > 0 || typos.length > 0 ? (
+              <ul className={styles.problems}>
+                {problems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+                {typos.length > 0 ? (
+                  <li>
+                    {`${typos.map((entry) => `{{${entry}}}`).join(", ")} — nothing fills these`}
+                  </li>
+                ) : null}
+              </ul>
+            ) : null
+          }
+          properties={
+            <>
+              {/* Rule 4: the kind is a fact about the record, not a chip on
+                  its title — so it is stated once, here, where the rest of
+                  the record's properties are. */}
+              <div className={styles.field}>
+                <span className={styles.propLabel}>Used for</span>
+                <span className={styles.propValue}>
+                  {`${TEMPLATE_KIND_LABELS[kind]} · ${BLOCKS_FOR_KIND[kind].length} blocks`}
+                </span>
+              </div>
 
-      <div className="flex justify-end border-t border-[var(--border-subtle)] pt-4">
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={remove.isPending}
-          onClick={() => remove.mutate()}
-        >
-          Delete this template
-        </Button>
-      </div>
+              <div className={styles.switchRow}>
+                <span className={styles.switchLabel}>The whole team can use it</span>
+                <Switch
+                  checked={isShared}
+                  onChange={(event) => setIsShared(event.target.checked)}
+                  aria-label="The whole team can use it"
+                />
+              </div>
+
+              <div className={styles.switchRow}>
+                <span className={styles.switchLabel}>In use</span>
+                <Switch
+                  checked={isActive}
+                  onChange={(event) => setIsActive(event.target.checked)}
+                  aria-label="In use"
+                />
+              </div>
+
+              {publicUrl ? (
+                <>
+                  <h3 className={styles.group}>Public link</h3>
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.linkBtn}`}
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(publicUrl);
+                      toast({ title: "Link copied" });
+                    }}
+                  >
+                    <span className={styles.linkBtnText}>{publicUrl}</span>
+                  </button>
+                </>
+              ) : null}
+            </>
+          }
+        />
+      )}
     </div>
   );
 }

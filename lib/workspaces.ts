@@ -18,7 +18,9 @@ import {
   type WorkspaceProfile,
 } from "@/lib/workspace-products";
 import {
+  Buildings,
   Dashboard,
+  Funnel,
   Gem,
   FileText,
   MedusaAcademicCapIcon,
@@ -46,6 +48,10 @@ export type WorkspaceSidebarModel = {
   quickActions: NavItem[];
   sections: WorkspaceNavSection[];
   supportItems: NavItem[];
+  /** Every workspace this person can switch to. One entry means no switcher. */
+  workspaces: WorkspaceOption[];
+  /** The one the sections above were built for. */
+  activeWorkspaceId: string;
 };
 
 type WorkspaceModelArgs = {
@@ -62,6 +68,14 @@ type WorkspaceModelArgs = {
    * offered. See `canReclassifyStockBetweenLocations`.
    */
   activeStockLocationSiteIds?: string[];
+  /**
+   * Which of a multi-workspace tenant's workspaces is being looked at.
+   *
+   * Ignored where the tenant has only one, which is nearly all of them. The
+   * choice is a per-person preference rather than a fact about the company, so
+   * it is held by the rail and passed down, not stored on the session.
+   */
+  activeWorkspaceId?: string | null;
 };
 
 type WorkspaceBuildContext = WorkspaceModelArgs & {
@@ -142,6 +156,85 @@ const PROFILE_OWNER_MODULES: Partial<Record<Exclude<WorkspaceProfile, "GENERAL">
   // foundational. For a bureau, HR is not a supporting module — it is the product.
   PAYROLL: "payroll",
 };
+/**
+ * The modules a workspace is built around.
+ *
+ * Everything else the platform has — people, payroll, accounting, stores,
+ * maintenance, reporting, management — is a function every business performs,
+ * and belongs in whichever workspace you happen to be standing in. These four
+ * are not functions, they are the business: a school, a shop, a sales desk, a
+ * mine. Two of them in one rail is not a longer rail, it is two jobs.
+ *
+ * A tenant that runs more than one gets one workspace per module, switched
+ * from the company mark. A tenant that runs one — which is nearly all of them
+ * — gets exactly what it got before: `getWorkspaceOptions` returns a single
+ * option and nothing below changes.
+ */
+const WORKSPACE_OWNER_MODULES: readonly WorkspaceModuleId[] = [
+  "schools",
+  "retail",
+  "crm",
+  "gold",
+];
+
+/**
+ * The stored profile a workspace resolves to, where one exists.
+ *
+ * CRM is absent on purpose. Its profile would have to be a value in the Prisma
+ * `WorkspaceProfile` enum, and a sales desk does not need one: scoped to the
+ * crm module, `GENERAL` builds precisely the rail a CRM-only tenant already
+ * has today.
+ */
+const WORKSPACE_OWNER_PROFILES: Partial<Record<WorkspaceModuleId, WorkspaceProfile>> = {
+  schools: "SCHOOLS",
+  retail: "RETAIL",
+  gold: "GOLD_MINE",
+};
+
+/**
+ * What a workspace is called.
+ *
+ * The product's own names, taken from the vertical bundles, so a split tenant
+ * reads the same word above its rail that an unsplit one does. Fixed rather
+ * than resolved: the bundle is inferred from the tenant's *whole* feature set
+ * and therefore answers the same thing on either side of the switcher, which
+ * is precisely the lie this avoids.
+ */
+const WORKSPACE_OWNER_LABELS: Partial<Record<WorkspaceModuleId, string>> = {
+  schools: "School Operations",
+  retail: "Retail",
+  crm: "Sales & CRM",
+  gold: "Gold Operations",
+};
+
+const WORKSPACE_OWNER_ICONS: Partial<Record<WorkspaceModuleId, LucideIcon>> = {
+  schools: MedusaAcademicCapIcon,
+  retail: MedusaBuildingStorefrontIcon,
+  crm: Funnel,
+  gold: Gem,
+};
+
+/**
+ * The back office, when a tenant runs more than one business.
+ *
+ * People, payroll, the books, the reports, the stores: one of each, however
+ * many verticals are running. Filing them under whichever vertical happens to
+ * be open would be a lie — a group with a school and a shop keeps one payroll —
+ * and repeating them in every workspace costs seven marks of the ten tier one
+ * has. So they get a mark of their own, and only where there is a switcher to
+ * put it in.
+ */
+const BUSINESS_WORKSPACE_ID = "business";
+
+/** One entry in the company mark's switcher. */
+export type WorkspaceOption = {
+  /** The module the workspace is built around; null is the remainder. */
+  moduleId: WorkspaceModuleId | null;
+  id: string;
+  label: string;
+  icon: LucideIcon;
+};
+
 const WORKSPACE_PROFILE_ICONS: Partial<Record<WorkspaceProfile, LucideIcon>> = {
   GOLD_MINE: Gem,
   SCHOOLS: MedusaAcademicCapIcon,
@@ -874,10 +967,20 @@ function buildAdditionalSections(
     .flatMap((moduleId) => buildModuleSections(moduleId, visibleModules, "additional", excludedHrefs));
 }
 
+/**
+ * @param verticalOnly A workspace that is one of several stops at its own
+ *   arrangement. The canonical core — people, payroll, the books, management —
+ *   is shared work rather than this business's, and it has a mark of its own in
+ *   the switcher; appending it here would put the same seven areas in every
+ *   workspace and cost tier one most of its column. Whatever the arrangement
+ *   itself pulls out of those modules stays, because that is a curated choice:
+ *   Campus keeps Staff and families, Fees keeps the fee ledger.
+ */
 function getPrimarySections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
   verticalProduct: VerticalProductBundleDefinition,
+  verticalOnly = false,
 ): WorkspaceNavSection[] {
   if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
     return buildGeneralSections(visibleModules, verticalProduct);
@@ -886,7 +989,7 @@ function getPrimarySections(
   const profileSections = buildProfileSections(recipe, visibleModules);
   const usedHrefs = collectSectionHrefs(profileSections);
 
-  if (recipe === WORKSPACE_PROFILE_RECIPES.RETAIL) {
+  if (verticalOnly || recipe === WORKSPACE_PROFILE_RECIPES.RETAIL) {
     return profileSections;
   }
 
@@ -894,6 +997,136 @@ function getPrimarySections(
     ...profileSections,
     ...buildCanonicalCoreSections(visibleModules, usedHrefs, verticalProduct, "primary"),
   ];
+}
+
+/**
+ * The workspaces a tenant's modules earn it.
+ *
+ * Exported so the rail can draw the switcher without building every
+ * workspace's sections to find out there is more than one.
+ */
+export function getWorkspaceOptions(args: WorkspaceModelArgs): WorkspaceOption[] {
+  const context = buildContext(args);
+  return workspaceOptionsFor(getVisibleModules(context), context);
+}
+
+function workspaceOptionsFor(
+  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  context: WorkspaceBuildContext,
+): WorkspaceOption[] {
+  /*
+    Running the business, not borrowing a row from it.
+
+    A module can be visible because something else lit one of its destinations
+    up: a bottle store gets `crm.customers`, so the CRM module answers with
+    retail's own customer ledger and nothing else. That is one row, not a
+    second business, and offering the shopkeeper a switcher for it would be
+    absurd. A module's own nav section surviving the feature gate is the
+    difference, and it is the same gate everything else here reads.
+  */
+  const owned = WORKSPACE_OWNER_MODULES.filter(
+    (moduleId) => visibleModules.has(moduleId) && context.navSectionById.has(moduleId),
+  );
+  if (owned.length === 0) {
+    // Nothing vertical is running — a bureau, a books-only tenant. There is one
+    // workspace and it is the whole platform, exactly as before.
+    return [
+      {
+        moduleId: null,
+        id: "GENERAL",
+        label: WORKSPACE_PROFILE_RECIPES.GENERAL.label,
+        icon: Dashboard,
+      },
+    ];
+  }
+  if (owned.length === 1) {
+    // One business. The rail is the whole platform, as it always was, and there
+    // is nothing to switch to — so no switcher and no back office to split off.
+    const moduleId = owned[0]!;
+    return [
+      {
+        moduleId,
+        id: moduleId,
+        label: WORKSPACE_OWNER_LABELS[moduleId] ?? WORKSPACE_MODULES[moduleId].label,
+        icon: WORKSPACE_OWNER_ICONS[moduleId] ?? Dashboard,
+      },
+    ];
+  }
+  return [
+    ...owned.map((moduleId) => ({
+      moduleId,
+      id: moduleId,
+      label: WORKSPACE_OWNER_LABELS[moduleId] ?? WORKSPACE_MODULES[moduleId].label,
+      icon: WORKSPACE_OWNER_ICONS[moduleId] ?? Dashboard,
+    })),
+    {
+      moduleId: null,
+      id: BUSINESS_WORKSPACE_ID,
+      label: "Business",
+      icon: Buildings,
+    },
+  ];
+}
+
+/**
+ * Which workspace to open on.
+ *
+ * The stored choice if it still exists — a module can be switched off between
+ * two sign-ins — then whichever one the tenant's own profile names, then the
+ * first. Never nothing: `workspaceOptionsFor` always returns at least one.
+ */
+function pickWorkspace(
+  options: WorkspaceOption[],
+  activeWorkspaceId: string | null | undefined,
+  tenantProfile: WorkspaceProfile,
+): WorkspaceOption {
+  const chosen = activeWorkspaceId
+    ? options.find((option) => option.id === activeWorkspaceId)
+    : undefined;
+  if (chosen) return chosen;
+  const byProfile = options.find(
+    (option) => option.moduleId && WORKSPACE_OWNER_PROFILES[option.moduleId] === tenantProfile,
+  );
+  if (byProfile) return byProfile;
+  // The tenant's profile names no vertical it is running — a bureau that has
+  // since bought a shop, or a company that has never said what it is. Opening
+  // it inside somebody else's business would be a guess; the back office is
+  // the one workspace that is certainly theirs.
+  return options.find((option) => option.id === BUSINESS_WORKSPACE_ID) ?? options[0]!;
+}
+
+/**
+ * One workspace's share of the modules.
+ *
+ * A vertical keeps the other verticals out but not the shared modules, because
+ * its own arrangement reaches into them — Campus draws Staff and families out
+ * of `people`, and scoping that away would empty an area the design put there.
+ * What it does not get is the *leftovers* of those modules: see the
+ * `verticalOnly` note on `getPrimarySections`.
+ */
+function scopeModulesToWorkspace(
+  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  active: WorkspaceOption,
+  recipe: WorkspaceProfileRecipe,
+): Map<WorkspaceModuleId, NavItem[]> {
+  const scoped = new Map(visibleModules);
+  if (active.moduleId === null) {
+    // The back office. Every vertical goes; what is left is the shared work.
+    for (const moduleId of WORKSPACE_OWNER_MODULES) scoped.delete(moduleId);
+    return scoped;
+  }
+  if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
+    // A vertical with no recipe of its own — CRM, whose profile is not a value
+    // the stored enum carries. There is no curated arrangement to pull shared
+    // destinations through, so the general builder would simply list every
+    // module it can see. This workspace is its own module and nothing else.
+    const items = visibleModules.get(active.moduleId);
+    return items ? new Map([[active.moduleId, items]]) : new Map();
+  }
+  for (const moduleId of WORKSPACE_OWNER_MODULES) {
+    if (moduleId !== active.moduleId) scoped.delete(moduleId);
+  }
+  return scoped;
 }
 
 function resolveEffectiveWorkspaceProfile(
@@ -1027,19 +1260,43 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
   // "GENERAL". See the parameter note on `resolveEffectiveWorkspaceProfile`.
   const profileWasStated = normalizeWorkspaceProfileInput(args.workspaceProfile) !== null;
   const context = buildContext(args);
-  const visibleModules = getVisibleModules(context);
-  const profile = resolveEffectiveWorkspaceProfile(
+  const allVisibleModules = getVisibleModules(context);
+  const workspaces = workspaceOptionsFor(allVisibleModules, context);
+  const tenantProfile = resolveEffectiveWorkspaceProfile(
     args.enabledFeatures,
     requestedProfile,
-    visibleModules,
+    allVisibleModules,
     profileWasStated,
   );
+  /*
+    One workspace is the ordinary case, and nothing about it moves: the rail is
+    the tenant's whole platform, resolved exactly as it was before any of this.
+
+    Two is the case this exists for. A tenant running a school *and* a shop used
+    to get both in one column — nine campus areas and seventeen retail rows,
+    most of them under the fold — because the arrangement had no way to say
+    "these are two jobs". Now the active workspace decides what the rail holds
+    and what it is called, and the company mark switches between them.
+  */
+  const isSplit = workspaces.length > 1;
+  const activeWorkspace = pickWorkspace(workspaces, args.activeWorkspaceId, tenantProfile);
+  /** A vertical of a split tenant; the back office is not one. */
+  const verticalOnly = isSplit && activeWorkspace.moduleId !== null;
+  // The back office keeps the tenant's own profile, so a bureau's Month end and
+  // Statutory survive the split — they are shared work, and the arrangement
+  // that curated them is still the right one for them.
+  const profile = verticalOnly
+    ? WORKSPACE_OWNER_PROFILES[activeWorkspace.moduleId!] ?? "GENERAL"
+    : tenantProfile;
   const recipe = getWorkspaceProfileRecipe(profile);
+  const visibleModules = isSplit
+    ? scopeModulesToWorkspace(allVisibleModules, activeWorkspace, recipe)
+    : allVisibleModules;
   const verticalProduct = resolveWorkspaceVerticalProductBundle({
     enabledFeatures: args.enabledFeatures,
     workspaceProfile: profile,
   });
-  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct);
+  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct, verticalOnly);
   const usedPrimaryHrefs = collectSectionHrefs(primarySections);
   const canonicalAdditionalSections =
     recipe === WORKSPACE_PROFILE_RECIPES.RETAIL
@@ -1050,7 +1307,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
           "additional",
         )
       : [];
-  const additionalSections = recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
+  const additionalSections = verticalOnly || recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
     ? []
     : [
         ...canonicalAdditionalSections,
@@ -1067,7 +1324,14 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
   return {
     homeHref: homeTarget.href,
     homeLabel: homeTarget.label,
-    workspaceLabel: verticalProduct.workspaceLabel || recipe.label,
+    // A split tenant's rail is named for the workspace it is showing. The
+    // bundle cannot do it: resolved from the tenant's whole feature set, it
+    // answers the same thing on either side of the switcher — which is how the
+    // back office ended up captioned "Sales & CRM". An unsplit tenant is the
+    // whole platform and keeps the name it has always had.
+    workspaceLabel: isSplit
+      ? activeWorkspace.label
+      : verticalProduct.workspaceLabel || recipe.label,
     workspaceIcon: WORKSPACE_PROFILE_ICONS[profile] ?? Dashboard,
     quickActions: getQuickActions({
       role: args.role,
@@ -1076,5 +1340,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
     }),
     sections,
     supportItems: getSupportItems(context),
+    workspaces,
+    activeWorkspaceId: activeWorkspace.id,
   };
 }

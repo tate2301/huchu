@@ -530,3 +530,40 @@ export const NoteBlank = createPhosphorIcon("NoteBlank", "NoteBlank");
  * "look at this", the circle says "this broke".
  */
 export const Warning = createPhosphorIcon("Warning", "Warning");
+
+/**
+ * The marks the workspace rail navigates by.
+ *
+ * A tier-one icon is the only thing standing for its area — there is no label
+ * beside it — so each one has to be read at 17px by somebody who has not been
+ * told what it means. That rules out the generic set: a bar chart cannot mean
+ * Results when it already means Insights, and a warning triangle cannot mean
+ * Conduct when it also means an overdue invoice two rows below. These are the
+ * specific ones. Where a mark is claimed by an area, nothing else in the same
+ * column may use it — see `AREA_ICONS` in `lib/rail/areas.ts`.
+ */
+export const Sun = createPhosphorIcon("Sun", "Sun");
+export const UsersThree = createPhosphorIcon("UsersThree", "UsersThree");
+export const Bed = createPhosphorIcon("Bed", "Bed");
+export const IdentificationCard = createPhosphorIcon(
+  "IdentificationCard",
+  "IdentificationCard",
+);
+export const TrayArrowDown = createPhosphorIcon(
+  "TrayArrowDown",
+  "TrayArrowDown",
+);
+export const ClipboardText = createPhosphorIcon(
+  "ClipboardText",
+  "ClipboardText",
+);
+export const Lightning = createPhosphorIcon("Lightning", "Lightning");
+export const ChartLineUp = createPhosphorIcon("ChartLineUp", "ChartLineUp");
+export const CashRegister = createPhosphorIcon("CashRegister", "CashRegister");
+export const Drop = createPhosphorIcon("Drop", "Drop");
+export const MagnifyingGlass = createPhosphorIcon(
+  "MagnifyingGlass",
+  "MagnifyingGlass",
+);
+export const SidebarSimple = createPhosphorIcon("SidebarSimple", "SidebarSimple");
+export const CaretLeft = createPhosphorIcon("CaretLeft", "CaretLeft");

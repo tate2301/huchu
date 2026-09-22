@@ -12,9 +12,28 @@ import { z } from "zod"
 
 const sectionSchema = z.object({
   name: z.string().trim().min(1).max(200),
+  /** The short reference a section is called by — `SC-11`. Never derived. */
+  code: z.string().trim().min(1).max(40).nullish(),
   siteId: z.string().uuid(),
+  /**
+   * The department that runs it. Null means the section belongs to its site
+   * alone, which is how every row created before this read.
+   */
+  departmentId: z.string().uuid().nullish(),
   isActive: z.boolean().optional(),
 })
+
+const sectionListSelect = {
+  id: true,
+  name: true,
+  code: true,
+  siteId: true,
+  departmentId: true,
+  isActive: true,
+  _count: { select: { shiftReports: true } },
+  site: { select: { name: true, code: true } },
+  department: { select: { id: true, code: true, name: true } },
+} as const
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +43,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const siteId = searchParams.get("siteId")
+    const departmentId = searchParams.get("departmentId")
     const search = searchParams.get("search")?.trim()
     const active = searchParams.get("active")
     const { page, limit, skip } = getPaginationParams(request)
@@ -33,22 +53,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (siteId) where.siteId = siteId
+    if (departmentId) where.departmentId = departmentId
     if (active !== null) where.isActive = active === "true"
     if (search) {
-      where.name = { contains: search, mode: "insensitive" }
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { code: { contains: search, mode: "insensitive" } },
+      ]
     }
 
     const [sections, total] = await Promise.all([
       prisma.section.findMany({
         where,
-        select: {
-          id: true,
-          name: true,
-          siteId: true,
-          isActive: true,
-          _count: { select: { shiftReports: true } },
-          site: { select: { name: true, code: true } },
-        },
+        select: sectionListSelect,
         orderBy: { name: "asc" },
         skip,
         take: limit,
@@ -84,20 +101,23 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid site", 403)
     }
 
+    if (validated.departmentId) {
+      const department = await prisma.department.findFirst({
+        where: { id: validated.departmentId, companyId: session.user.companyId },
+        select: { id: true },
+      })
+      if (!department) return errorResponse("Invalid department", 403)
+    }
+
     const section = await prisma.section.create({
       data: {
         name: validated.name,
+        code: validated.code ?? null,
         siteId: validated.siteId,
+        departmentId: validated.departmentId ?? null,
         isActive: validated.isActive ?? true,
       },
-      select: {
-        id: true,
-        name: true,
-        siteId: true,
-        isActive: true,
-        _count: { select: { shiftReports: true } },
-        site: { select: { name: true, code: true } },
-      },
+      select: sectionListSelect,
     })
 
     return successResponse(section, 201)

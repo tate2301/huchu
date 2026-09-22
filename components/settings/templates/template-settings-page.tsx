@@ -1,39 +1,46 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconTile, Stack } from "@corelithzw/react";
+
 import { ManagementShell } from "@/components/settings/management-shell";
-import { IconButton } from "@/components/ui/icon-button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+  ActivityTrail,
+  HeaderAction,
+  ListColumn,
+  ListRow,
+  RecordHeader,
+  RecordList,
+  RegisterLayout,
+  SectionHeading,
+  StatusBadge,
+  type ListColumnState,
+  type RecordListRow,
+  type StatusTone,
+} from "@/components/management/ui";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  CreateField,
+  CreateSheet,
+  DETAIL_CONTROL_CLASS,
+  DetailGrid,
+  DetailRow,
+  DetailSelect,
+  DetailValue,
+  NoRecord,
+} from "@/app/management/master-data/operations/_components/register-fields";
 import {
   DEFAULT_TEMPLATE_CATALOG,
   resolveCatalogTemplateEntry,
@@ -43,7 +50,18 @@ import {
   type DocumentTemplateSchema,
   templateSchema,
 } from "@/lib/documents/template-schema";
-import { CheckIcon, ChevronDown, DotsThree } from "@/lib/icons";
+import {
+  ArrowLeft,
+  CheckCircle,
+  Eye,
+  FileText,
+  Info,
+  ListBullets,
+  SlidersHorizontal,
+  Warning,
+} from "@/lib/icons";
+
+import styles from "./templates.module.css";
 
 type DocumentType =
   | "REPORT_TABLE"
@@ -83,6 +101,14 @@ type TemplateVersion = {
   schemaJson: string;
   isPublished: boolean;
   createdAt: string;
+  /**
+   * `DocumentTemplateVersion.publishedAt`. Already on every row the versions
+   * route returns — it selects the whole record — and it is the date the
+   * board's "Published 11 Sep 2026" is stating. `createdAt` is when the
+   * version was *saved*, which for a version published weeks later is a
+   * different day.
+   */
+  publishedAt?: string | null;
 };
 
 type SourceOption = {
@@ -92,12 +118,6 @@ type SourceOption = {
   sourceKey: string;
   documentType: DocumentType;
   targetType: ExportTargetType;
-};
-
-type Option = {
-  id: string;
-  label: string;
-  description?: string;
 };
 
 function buildSourceOptionId(
@@ -128,10 +148,33 @@ function toTargetTypeLabel(value: ExportTargetType) {
   return value.charAt(0) + value.slice(1).toLowerCase();
 }
 
-function formatTimestamp(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "N/A";
-  return date.toLocaleString();
+/**
+ * `6 Jan 2026`, fixed to en-GB.
+ *
+ * Not `toLocaleString()`: this renders inside a client component whose data
+ * arrives from a query, but a locale read off the browser still gives two
+ * machines two different strings for the same row, and the board's date column
+ * is a fixed-width mono column that assumes one.
+ */
+const DAY_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+function formatDay(value: string | Date | undefined | null) {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return DAY_FORMAT.format(date);
+}
+
+/** `Employment contract` → `EC`. The list's 30px mark. */
+function initialsOf(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 function tryParseSchemaStrict(value: string): DocumentTemplateSchema | null {
@@ -144,118 +187,57 @@ function tryParseSchemaStrict(value: string): DocumentTemplateSchema | null {
   }
 }
 
-function AutocompleteField({
-  label,
-  value,
-  options,
-  placeholder,
-  searchPlaceholder,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: string | null;
-  options: Option[];
-  placeholder: string;
-  searchPlaceholder: string;
-  disabled?: boolean;
-  onChange: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const selected = useMemo(
-    () => options.find((option) => option.id === value) ?? null,
-    [options, value],
-  );
-
-  const filteredOptions = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return options;
-    return options.filter((option) => {
-      const source = `${option.label} ${option.id} ${option.description ?? ""}`;
-      return source.toLowerCase().includes(normalized);
-    });
-  }, [options, query]);
-
-  return (
-    <div className="space-y-2">
-      <label className="text-sm font-semibold">{label}</label>
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (!next) setQuery("");
-        }}
-      >
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-between"
-            disabled={disabled}
-          >
-            <span className={selected ? "text-foreground" : "text-muted-foreground"}>
-              {selected?.label ?? placeholder}
-            </span>
-            <ChevronDown className="size-3 text-[var(--text-muted)]" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-          <Command shouldFilter={false}>
-            <CommandInput value={query} onValueChange={setQuery} placeholder={searchPlaceholder} />
-            <CommandList>
-              {filteredOptions.length === 0 ? (
-                <CommandEmpty>No options found.</CommandEmpty>
-              ) : (
-                <CommandGroup>
-                  {filteredOptions.map((option) => (
-                    <CommandItem
-                      key={option.id}
-                      value={`${option.label} ${option.id} ${option.description ?? ""}`}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onSelect={() => {
-                        onChange(option.id);
-                        setOpen(false);
-                        setQuery("");
-                      }}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{option.label}</div>
-                        <div className="truncate font-mono text-sm text-muted-foreground">
-                          {option.id}
-                        </div>
-                        {option.description ? (
-                          <div className="truncate text-sm text-muted-foreground">{option.description}</div>
-                        ) : null}
-                      </div>
-                      {value === option.id ? <CheckIcon className="h-4 w-4 text-primary" /> : null}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
+/**
+ * The status a template's header states, and the tone it states it in.
+ *
+ * Rule 5: a badge marks an exception. `Published` is the healthy norm here, so
+ * it is passed as `success` and `StatusBadge` in `context="header"` renders it
+ * as nothing. Retired and Draft are the two exceptions and both draw.
+ */
+function headerStatus(template: TemplateRow): { tone: StatusTone; label: string } {
+  if (!template.isActive) return { tone: "neutral", label: "Retired" };
+  if (!template.versions.some((version) => version.isPublished)) {
+    return { tone: "warn", label: "Draft" };
+  }
+  return { tone: "success", label: "Published" };
 }
 
+/**
+ * Document templates — the library, a template's record, and the document it
+ * renders.
+ *
+ * Boards: `Templates.dc.html` (the register) and `TemplateRender.dc.html` (the
+ * rendered document over the stage, with the version history beside it).
+ *
+ * Presentation only. Every endpoint, query key and invalidation below is the
+ * one that was here before; the surface around them is the design's.
+ */
 export default function TemplateSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState({
     name: "",
     sourceOptionId: "",
     setDefault: true,
   });
-
-  const [editTemplate, setEditTemplate] = useState<TemplateRow | null>(null);
+  const [schemaOpen, setSchemaOpen] = useState(false);
+  const [renderOpen, setRenderOpen] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
-  const [schemaJsonDraft, setSchemaJsonDraft] = useState("");
+  /**
+   * The unsaved schema, tagged with the template it belongs to.
+   *
+   * Carrying the id means the draft cannot outlive its template: when the
+   * selection moves, `schemaJsonDraft` below reads back as empty without
+   * anything having to remember to clear it.
+   */
+  const [schemaDraft, setSchemaDraft] = useState<{ templateId: string | null; json: string }>({
+    templateId: null,
+    json: "",
+  });
 
   const templatesQuery = useQuery({
     queryKey: ["document-templates"],
@@ -268,6 +250,38 @@ export default function TemplateSettingsPage() {
   });
 
   const templates = useMemo(() => templatesQuery.data ?? [], [templatesQuery.data]);
+
+  const rows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return templates;
+    return templates.filter((template) =>
+      `${template.name} ${template.sourceKey}`.toLowerCase().includes(needle),
+    );
+  }, [templates, query]);
+
+  /**
+   * A register opens on a record. Above 900px both columns are on screen and an
+   * empty right-hand column is half a screen spent on nothing, so the first row
+   * is picked for the reader; below it the two columns stack and picking one
+   * would drop them straight into a record they never asked for.
+   *
+   * Read during render rather than written from an effect: the list and the
+   * record it opens on come from the same pass, so there is no frame where the
+   * rows are there and the right-hand column is still empty.
+   */
+  const wide = useWideViewport();
+  const activeId =
+    wide && !(selectedId && rows.some((row) => row.id === selectedId))
+      ? (rows[0]?.id ?? null)
+      : selectedId;
+
+  const selected = useMemo(
+    () => templates.find((template) => template.id === activeId) ?? null,
+    [templates, activeId],
+  );
+
+  const schemaJsonDraft = schemaDraft.templateId === activeId ? schemaDraft.json : "";
+  const setSchemaJsonDraft = (json: string) => setSchemaDraft({ templateId: activeId, json });
 
   const sourceOptions = useMemo<SourceOption[]>(() => {
     const map = new Map<string, SourceOption>();
@@ -310,10 +324,10 @@ export default function TemplateSettingsPage() {
     : null;
 
   const versionsQuery = useQuery({
-    queryKey: ["document-template-versions", editTemplate?.id],
-    enabled: Boolean(editTemplate?.id),
+    queryKey: ["document-template-versions", activeId],
+    enabled: Boolean(activeId),
     queryFn: async () => {
-      const response = await fetch(`/api/document-templates/${editTemplate!.id}/versions`);
+      const response = await fetch(`/api/document-templates/${activeId!}/versions`);
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error ?? "Failed to load template versions");
       return payload as TemplateVersion[];
@@ -321,15 +335,6 @@ export default function TemplateSettingsPage() {
   });
 
   const versions = useMemo(() => versionsQuery.data ?? [], [versionsQuery.data]);
-  const versionOptions = useMemo<Option[]>(
-    () =>
-      versions.map((version) => ({
-        id: version.id,
-        label: `v${version.version}${version.isPublished ? " (Published)" : ""}`,
-        description: `Created ${formatTimestamp(version.createdAt)}`,
-      })),
-    [versions],
-  );
 
   const resolvedSelectedVersionId =
     selectedVersionId && versions.some((version) => version.id === selectedVersionId)
@@ -350,6 +355,39 @@ export default function TemplateSettingsPage() {
     () => tryParseSchemaStrict(effectiveSchemaJson),
     [effectiveSchemaJson],
   );
+
+  /**
+   * The rendered document behind `TemplateRender.dc.html`'s stage.
+   *
+   * `/api/document-templates/preview` already exists for exactly this — it
+   * renders the schema against the caller's real branding and a sample payload
+   * — but nothing called it, because the old editor was a JSON textarea. It is
+   * a POST, so the HTML is fetched and handed to the frame as `srcDoc` rather
+   * than pointed at.
+   */
+  const previewQuery = useQuery({
+    // The schema is part of the key, not just the body: the stage has to show
+    // the blocks as they stand, and an edited draft under the published
+    // version's id would otherwise be served the cached render of the old one.
+    // Only the render dialog reads this, and the block editor closes it, so
+    // keying on the draft cannot turn typing into requests.
+    queryKey: [
+      "document-template-preview",
+      activeId,
+      resolvedSelectedVersionId,
+      effectiveSchemaJson,
+    ],
+    enabled: renderOpen && Boolean(selected) && Boolean(parsedSchema),
+    queryFn: async () => {
+      const response = await fetch("/api/document-templates/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceKey: selected!.sourceKey, schema: parsedSchema }),
+      });
+      if (!response.ok) throw new Error("Failed to render the preview");
+      return response.text();
+    },
+  });
 
   const createTemplateMutation = useMutation({
     mutationFn: async () => {
@@ -374,7 +412,7 @@ export default function TemplateSettingsPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      setCreateDialogOpen(false);
+      setCreateOpen(false);
       setCreateDraft({ name: "", sourceOptionId: "", setDefault: true });
       toast({
         title: "Template created",
@@ -393,11 +431,11 @@ export default function TemplateSettingsPage() {
 
   const saveVersionMutation = useMutation({
     mutationFn: async () => {
-      if (!editTemplate) throw new Error("No template selected");
+      if (!selected) throw new Error("No template selected");
       const parsed = tryParseSchemaStrict(effectiveSchemaJson);
       if (!parsed) throw new Error("Invalid schema JSON");
 
-      const response = await fetch(`/api/document-templates/${editTemplate.id}/versions`, {
+      const response = await fetch(`/api/document-templates/${selected.id}/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ schemaJson: JSON.stringify(parsed) }),
@@ -406,8 +444,11 @@ export default function TemplateSettingsPage() {
       if (!response.ok) throw new Error(payload?.error ?? "Failed to save template version");
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["document-template-versions", editTemplate?.id] });
+      await queryClient.invalidateQueries({
+        queryKey: ["document-template-versions", activeId],
+      });
       await queryClient.invalidateQueries({ queryKey: ["document-templates"] });
+      setSchemaOpen(false);
       toast({
         title: "Version saved",
         description: "A new template version has been created.",
@@ -424,18 +465,20 @@ export default function TemplateSettingsPage() {
   });
 
   const publishMutation = useMutation({
-    mutationFn: async () => {
-      if (!editTemplate || !resolvedSelectedVersionId) throw new Error("Select a version to publish");
-      const response = await fetch(`/api/document-templates/${editTemplate.id}/publish`, {
+    mutationFn: async (versionId: string) => {
+      if (!selected) throw new Error("Select a version to publish");
+      const response = await fetch(`/api/document-templates/${selected.id}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionId: resolvedSelectedVersionId }),
+        body: JSON.stringify({ versionId }),
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error ?? "Failed to publish template version");
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["document-template-versions", editTemplate?.id] });
+      await queryClient.invalidateQueries({
+        queryKey: ["document-template-versions", activeId],
+      });
       await queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       toast({
         title: "Version published",
@@ -477,14 +520,18 @@ export default function TemplateSettingsPage() {
     },
   });
 
-  const openCreateDialog = (prefill?: TemplateRow) => {
+  function openCreate(prefill?: TemplateRow) {
     if (!prefill) {
       setCreateDraft({ name: "", sourceOptionId: "", setDefault: true });
-      setCreateDialogOpen(true);
+      setCreateOpen(true);
       return;
     }
 
-    const optionId = buildSourceOptionId(prefill.sourceKey, prefill.documentType, prefill.targetType);
+    const optionId = buildSourceOptionId(
+      prefill.sourceKey,
+      prefill.documentType,
+      prefill.targetType,
+    );
     const sourceOption =
       sourceOptionById.get(optionId) ??
       ({
@@ -497,446 +544,665 @@ export default function TemplateSettingsPage() {
       } as SourceOption);
 
     setCreateDraft({
-      name: `${prefill.name} Override`,
+      name:
+        prefill.scope === "SYSTEM" ? `${prefill.name} override` : `${prefill.name} copy`,
       sourceOptionId: sourceOption.id,
       setDefault: true,
     });
-    setCreateDialogOpen(true);
-  };
+    setCreateOpen(true);
+  }
 
-  const openEditDialog = (template: TemplateRow) => {
-    setEditTemplate(template);
-    setSelectedVersionId(null);
-    setSchemaJsonDraft(JSON.stringify(defaultTemplateSchema, null, 2));
-  };
-
-  const closeEditDialog = () => {
-    setEditTemplate(null);
+  function select(id: string) {
+    setSelectedId(id);
     setSelectedVersionId(null);
     setSchemaJsonDraft("");
-  };
+  }
 
-  const updateSchemaFlag = (
+  /** The page block of the draft schema — paper size and orientation. */
+  function updateSchemaPage(patch: Partial<DocumentTemplateSchema["page"]>) {
+    if (!parsedSchema) return;
+    setSchemaJsonDraft(
+      JSON.stringify({ ...parsedSchema, page: { ...parsedSchema.page, ...patch } }, null, 2),
+    );
+  }
+
+  function updateSchemaFlag(
     section: keyof DocumentTemplateSchema,
     key: string,
     checked: boolean,
-  ) => {
+  ) {
     if (!parsedSchema) return;
-    const next = {
-      ...parsedSchema,
-      [section]: {
-        ...parsedSchema[section],
-        [key]: checked,
-      },
-    };
-    setSchemaJsonDraft(JSON.stringify(next, null, 2));
-  };
+    setSchemaJsonDraft(
+      JSON.stringify(
+        { ...parsedSchema, [section]: { ...parsedSchema[section], [key]: checked } },
+        null,
+        2,
+      ),
+    );
+  }
 
+  const listState: ListColumnState = templatesQuery.isLoading
+    ? "loading"
+    : templatesQuery.isError
+      ? "failed"
+      : rows.length > 0
+        ? "ready"
+        : query.trim()
+          ? "no-matches"
+          : "empty";
+
+  const busy =
+    createTemplateMutation.isPending ||
+    saveVersionMutation.isPending ||
+    publishMutation.isPending ||
+    setDefaultMutation.isPending;
+
+  const versionRows: RecordListRow[] = versions.map((version, index) => {
+    const isCurrent =
+      version.isPublished &&
+      versions.findIndex((candidate) => candidate.isPublished) === index;
+    return {
+      id: version.id,
+      code: `v${version.version}`,
+      name: version.isPublished
+        ? `Published ${formatDay(version.publishedAt ?? version.createdAt)}`
+        : `Saved ${formatDay(version.createdAt)}`,
+      value: version.isPublished
+        ? { kind: "status", tone: isCurrent ? "success" : "neutral", label: isCurrent ? "Current" : "Superseded" }
+        : { kind: "status", tone: "warn", label: "Draft" },
+    };
+  });
+
+  const status = selected ? headerStatus(selected) : null;
+  /** `A4 · portrait` — the page block of the version's own schema. */
+  const paperLabel = parsedSchema
+    ? `${parsedSchema.page.size === "A4" ? "A4" : "Letter"} · ${parsedSchema.page.orientation}`
+    : "—";
+  const catalog = selected
+    ? resolveCatalogTemplateEntry({
+        sourceKey: selected.sourceKey,
+        documentType: selected.documentType,
+        targetType: selected.targetType,
+      })
+    : null;
 
   return (
-    <ManagementShell
-      area="document-templates"
-      title="Document Templates"
-      actions={
-        <Button type="button" onClick={() => openCreateDialog()}>
-          New Template
-        </Button>
-      }
-    >
-
-      {templatesQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load templates</AlertTitle>
-          <AlertDescription>{(templatesQuery.error as Error).message}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {/* A list, not a table. A document layout is one thing with a name, a
-          source and a version — seven columns of one-word cells made every
-          template look like a spreadsheet row and none of them scannable. */}
-      <Stack as="ul" gap="xs">
-        {templates.map((template) => {
-          const catalog = resolveCatalogTemplateEntry({
-            sourceKey: template.sourceKey,
-            documentType: template.documentType,
-            targetType: template.targetType,
-          });
-          const latest = template.versions[0];
-
-          return (
-            <li
-              key={template.id}
-              className="flex flex-col gap-2 rounded-[var(--radius-md)] px-3 py-2.5 transition-colors hover:bg-[var(--surface-subtle)] sm:flex-row sm:items-start sm:justify-between"
-            >
-              <div className="flex min-w-0 flex-1 gap-2.5">
-                <IconTile accentSeed={template.name} size="sm">
-                  {"\u{1F5A8}\u{FE0F}"}
-                </IconTile>
-
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{template.name}</span>
-                    {template.isDefault ? <Badge>Default</Badge> : null}
-                    <Badge variant="outline">{template.scope}</Badge>
-                    {latest ? (
-                      <Badge variant={latest.isPublished ? "secondary" : "outline"}>
-                        v{latest.version} · {latest.isPublished ? "Published" : "Draft"}
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  {template.description ? (
-                    <p className="text-sm text-[var(--text-muted)]">{template.description}</p>
-                  ) : null}
-
-                  <p className="text-sm text-[var(--text-muted)]">
-                    {catalog?.name ?? toSourceLabel(template.sourceKey)} ·{" "}
-                    {toDocumentTypeLabel(template.documentType)} ·{" "}
-                    {toTargetTypeLabel(template.targetType)} · updated{" "}
-                    {formatTimestamp(template.updatedAt)}
-                  </p>
-                </div>
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <IconButton
-                    aria-label={`Actions for ${template.name}`}
-                    disabled={
-                      createTemplateMutation.isPending ||
-                      saveVersionMutation.isPending ||
-                      publishMutation.isPending ||
-                      setDefaultMutation.isPending
-                    }
-                  >
-                    <DotsThree />
-                  </IconButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {template.scope === "COMPANY" ? (
-                    <>
-                      <DropdownMenuItem onClick={() => openEditDialog(template)}>
-                        Edit Template
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setDefaultMutation.mutate(template.id)}>
-                        Set as Default
-                      </DropdownMenuItem>
-                    </>
-                  ) : (
-                    <DropdownMenuItem onClick={() => openCreateDialog(template)}>
-                      Create Company Override
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </li>
-          );
-        })}
-
-        {templates.length === 0 ? (
-          <li className="px-3 py-6 text-center text-sm text-[var(--text-muted)]">
-            {templatesQuery.isLoading ? "Loading templates…" : "No templates yet."}
-          </li>
-        ) : null}
-      </Stack>
-
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent size="md">
-          <DialogHeader>
-            <DialogTitle>Create Template</DialogTitle>
-            <DialogDescription>
-              Create a company template from source defaults. Source options use id and label mapping.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Template Name</label>
-              <Input
-                value={createDraft.name}
-                onChange={(event) =>
-                  setCreateDraft((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-                placeholder="Template name"
+    <ManagementShell railCounts={{ templates: templates.length }}>
+      <RegisterLayout
+        hasSelection={Boolean(selected)}
+        list={
+          <ListColumn
+            title="Templates"
+            noun="template"
+            count={templates.length}
+            state={listState}
+            search={{ value: query, onChange: setQuery, placeholder: "Search templates" }}
+            onNew={() => openCreate()}
+            onRetry={() => void templatesQuery.refetch()}
+            emptyIcon={FileText}
+          >
+            {rows.map((template) => (
+              <ListRow
+                key={template.id}
+                name={template.name}
+                mark={initialsOf(template.name)}
+                selected={template.id === activeId}
+                onSelect={() => select(template.id)}
+                /*
+                  `ListRow` raises a marked row to 50px, which is right for the
+                  people lists it was drawn from. This board's rows are 42px
+                  around the same 30px mark, so the rung is answered once, here,
+                  where the utilities layer wins over the shared module.
+                */
+                className="min-h-[42px]"
               />
-            </div>
+            ))}
+          </ListColumn>
+        }
+      >
+        {selected && status ? (
+          <>
+            <BackToList label="Templates" onBack={() => setSelectedId(null)} />
 
-            <AutocompleteField
-              label="Source"
-              value={createDraft.sourceOptionId || null}
-              options={sourceOptions.map((option) => ({
-                id: option.id,
-                label: option.label,
-                description: option.description,
-              }))}
-              placeholder="Select source"
-              searchPlaceholder="Search source by label or id"
-              onChange={(id) =>
-                setCreateDraft((current) => ({
-                  ...current,
-                  sourceOptionId: id,
-                }))
+            <RecordHeader
+              title={selected.name}
+              icon={FileText}
+              badge={
+                <StatusBadge context="header" tone={status.tone}>
+                  {status.label}
+                </StatusBadge>
+              }
+              action={
+                <HeaderAction icon={Eye} onClick={() => setRenderOpen(true)}>
+                  Preview
+                </HeaderAction>
+              }
+              overflow={
+                <>
+                  {/* A system template is the one the product ships and nothing
+                      here may write it; duplicating is how a workspace gets one
+                      of its own, so `Edit blocks` is absent rather than greyed
+                      on those. */}
+                  {selected.scope === "COMPANY" ? (
+                    <DropdownMenuItem
+                      disabled={busy}
+                      onSelect={() => {
+                        setSchemaJsonDraft(
+                          selectedVersion?.schemaJson ??
+                            JSON.stringify(defaultTemplateSchema, null, 2),
+                        );
+                        setSchemaOpen(true);
+                      }}
+                    >
+                      Edit blocks
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem disabled={busy} onSelect={() => openCreate(selected)}>
+                    Duplicate
+                  </DropdownMenuItem>
+                  {/* Rule 9: an already-default template has nothing to set, so
+                      the item is absent rather than greyed. */}
+                  {selected.scope === "COMPANY" && !selected.isDefault ? (
+                    <DropdownMenuItem
+                      disabled={busy}
+                      onSelect={() => setDefaultMutation.mutate(selected.id)}
+                    >
+                      Set as the default
+                    </DropdownMenuItem>
+                  ) : null}
+                </>
               }
             />
 
-            <div className="rounded-md border p-3">
-              <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Selected Source Mapping
-              </p>
-              {createSourceOption ? (
-                <div className="mt-2 space-y-1 text-sm">
-                  <p className="font-medium">{createSourceOption.label}</p>
-                  <p className="font-mono text-sm text-muted-foreground">{createSourceOption.sourceKey}</p>
-                  <div className="flex gap-2">
-                    <Badge variant="outline">{toDocumentTypeLabel(createSourceOption.documentType)}</Badge>
-                    <Badge variant="secondary">{toTargetTypeLabel(createSourceOption.targetType)}</Badge>
-                  </div>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-muted-foreground">Pick a source option to continue.</p>
-              )}
-            </div>
+            <SectionHeading icon={SlidersHorizontal} tone="brand">
+              Details
+            </SectionHeading>
+            {/*
+              The board draws live controls here. `/api/document-templates` has
+              POST and nothing else — there is no `[id]` route at all, so no
+              PATCH — and a template's own fields cannot be written without a
+              new endpoint, which this refactor does not add.
 
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={createDraft.setDefault}
-                onChange={(event) =>
-                  setCreateDraft((current) => ({
-                    ...current,
-                    setDefault: event.target.checked,
-                  }))
-                }
+              So every fact is a `DetailValue`, which is the answer this group
+              of registers already settled on for a fact it cannot write (see
+              `downtime-codes`, `Code`): an input whose every commit would be a
+              rejected write is worse than the board's picture, and a control
+              that cannot be operated is an affordance that lies. The one field
+              that *is* writable — Paper, which lives in the version schema —
+              is changed through `Edit blocks`, which saves a version.
+
+              `Name` is not repeated here. On the board it is the rename
+              control; with nothing to rename it would be the record's title
+              drawn a second line below itself.
+            */}
+            <DetailGrid>
+              <DetailRow label="Issued for">
+                <DetailValue>
+                  {catalog?.name ?? toDocumentTypeLabel(selected.documentType)}
+                </DetailValue>
+              </DetailRow>
+              <DetailRow label="Applies to">
+                <DetailValue>{toTargetTypeLabel(selected.targetType)}</DetailValue>
+              </DetailRow>
+              <DetailRow label="Source">
+                <DetailValue mono>{selected.sourceKey}</DetailValue>
+              </DetailRow>
+              <DetailRow label="Paper">
+                <DetailValue>{paperLabel}</DetailValue>
+              </DetailRow>
+              <DetailRow label="Status">
+                <DetailValue>{status.label}</DetailValue>
+              </DetailRow>
+              <DetailRow label="Default">
+                <DetailValue>
+                  {selected.isDefault
+                    ? `Yes, for every ${toDocumentTypeLabel(selected.documentType).toLowerCase()}`
+                    : "No"}
+                </DetailValue>
+              </DetailRow>
+              <DetailRow label="Kept by">
+                <DetailValue>
+                  {selected.scope === "SYSTEM" ? "The system" : "This workspace"}
+                </DetailValue>
+              </DetailRow>
+            </DetailGrid>
+
+            <SectionHeading icon={ListBullets} count={versions.length}>
+              Versions
+            </SectionHeading>
+            {versionRows.length > 0 ? (
+              <RecordList
+                columns={{ row: "Published", value: "Status" }}
+                rows={versionRows}
+                valueWidth={88}
               />
-              Mark as default for this source
-            </label>
-          </div>
+            ) : (
+              <NoRecord
+                label={versionsQuery.isLoading ? "Loading versions" : "No versions yet."}
+              />
+            )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={
-                createTemplateMutation.isPending ||
-                !createDraft.name.trim() ||
-                !createDraft.sourceOptionId
-              }
-              onClick={() => createTemplateMutation.mutate()}
-            >
-              {createTemplateMutation.isPending ? "Creating..." : "Create Template"}
-            </Button>
-          </DialogFooter>
+            {/* Document templates write no `PlatformAuditEvent` and there is no
+                route that would read one for them, so the trail is drawn empty
+                rather than filled from the version list — a version is not an
+                audit record and dressing it as one would be a lie about what
+                the chain covers. */}
+            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+          </>
+        ) : (
+          <NoRecord
+            label={
+              templatesQuery.isLoading
+                ? "Loading templates"
+                : query.trim()
+                  ? "No template matches that search."
+                  : "No template to show yet."
+            }
+          />
+        )}
+      </RegisterLayout>
+
+      {/* ---------------------------------------------------------------- *
+          TemplateRender.dc.html — the document, and the versions beside it
+       * ---------------------------------------------------------------- */}
+      <Dialog open={renderOpen && Boolean(selected)} onOpenChange={setRenderOpen}>
+        <DialogContent
+          size="full"
+          tabletBehavior="centered"
+          showClose={false}
+          className="h-full w-full max-w-none gap-0 overflow-hidden rounded-[var(--radius-2xl)] border-0 p-0 sm:p-0 md:max-lg:max-h-[calc(100dvh-3rem)]"
+        >
+          <DialogTitle className="sr-only">{selected?.name ?? "Template"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            The rendered document and its version history
+          </DialogDescription>
+
+          {selected && status ? (
+            <div className={styles.render}>
+              <header className={styles.renderHead}>
+                <button
+                  type="button"
+                  aria-label="Back to the template"
+                  className={styles.iconBtn}
+                  onClick={() => setRenderOpen(false)}
+                >
+                  <ArrowLeft aria-hidden="true" />
+                </button>
+                <h1 className={styles.renderTitle}>{selected.name}</h1>
+                <span style={{ flexGrow: 1 }} />
+                {selected.scope === "COMPANY" ? (
+                  <button
+                    type="button"
+                    className={styles.btn}
+                    onClick={() => {
+                      setSchemaJsonDraft(
+                        selectedVersion?.schemaJson ??
+                          JSON.stringify(defaultTemplateSchema, null, 2),
+                      );
+                      setRenderOpen(false);
+                      setSchemaOpen(true);
+                    }}
+                  >
+                    Edit blocks
+                  </button>
+                ) : null}
+                {selectedVersion && !selectedVersion.isPublished ? (
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnPrimary}`}
+                    disabled={publishMutation.isPending}
+                    onClick={() => publishMutation.mutate(selectedVersion.id)}
+                  >
+                    {publishMutation.isPending ? "Publishing…" : "Publish"}
+                  </button>
+                ) : null}
+              </header>
+
+              <div className={styles.renderBody}>
+                <div className={styles.stage}>
+                  {previewQuery.data ? (
+                    <iframe
+                      title={`${selected.name} preview`}
+                      sandbox=""
+                      srcDoc={previewQuery.data}
+                      className={
+                        parsedSchema?.page.orientation === "landscape"
+                          ? `${styles.page} ${styles.pageLandscape}`
+                          : styles.page
+                      }
+                    />
+                  ) : (
+                    <div className={`${styles.page} ${styles.pageFallback}`}>
+                      {previewQuery.isError
+                        ? "The preview could not be rendered"
+                        : "Rendering…"}
+                    </div>
+                  )}
+                </div>
+
+                <aside className={styles.panel}>
+                  <div className={styles.panelHead}>
+                    <span
+                      className={styles.panelTile}
+                      data-tone={status.tone === "success" ? undefined : "warn"}
+                    >
+                      {status.tone === "success" ? (
+                        <CheckCircle aria-hidden="true" />
+                      ) : (
+                        <Warning aria-hidden="true" />
+                      )}
+                    </span>
+                    <h2 className={styles.panelTitle}>
+                      {status.tone === "success" ? "Published" : status.label}
+                    </h2>
+                  </div>
+
+                  <dl className={styles.panelFacts}>
+                    <dt>Used for</dt>
+                    <dd>
+                      <span className={styles.pill} data-tone="brand">
+                        {catalog?.name ?? toDocumentTypeLabel(selected.documentType)}
+                      </span>
+                    </dd>
+                    <dt>Default</dt>
+                    <dd>
+                      {selected.isDefault
+                        ? `Yes, for every ${toDocumentTypeLabel(selected.documentType).toLowerCase()}`
+                        : "No"}
+                    </dd>
+                    <dt>Paper</dt>
+                    <dd>
+                      {parsedSchema
+                        ? `${parsedSchema.page.size === "A4" ? "A4" : "Letter"} · ${parsedSchema.page.orientation}`
+                        : "—"}
+                    </dd>
+                    <dt>Branding</dt>
+                    <dd>Live snapshot</dd>
+                  </dl>
+
+                  <p className={styles.panelNote}>
+                    <Info aria-hidden="true" />
+                    <span>
+                      Colours, logo and the payment accounts come from Branding. Changing
+                      them there changes every document.
+                    </span>
+                  </p>
+
+                  <h3 className={styles.panelSection}>Versions</h3>
+                  <ul className={styles.versions}>
+                    {versions.map((version) => {
+                      const live = version.id === resolvedSelectedVersionId;
+                      return (
+                        <li
+                          key={version.id}
+                          className={styles.versionRow}
+                          data-live={live ? "true" : "false"}
+                        >
+                          <span className={styles.versionNum}>v{version.version}</span>
+                          <span style={{ flexGrow: 1, minWidth: 0 }}>
+                            <span className={styles.versionWhen}>
+                              {formatDay(
+                                version.isPublished
+                                  ? (version.publishedAt ?? version.createdAt)
+                                  : version.createdAt,
+                              )}
+                            </span>
+                            <span className={styles.versionWho}>
+                              {version.isPublished ? "Published" : "Draft"}
+                            </span>
+                          </span>
+                          {live ? (
+                            <span
+                              className={styles.pill}
+                              data-tone={version.isPublished ? "success" : "warn"}
+                            >
+                              {version.isPublished ? "Live" : "Draft"}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.rowBtn}
+                              onClick={() => setSelectedVersionId(version.id)}
+                            >
+                              Restore
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                    {versions.length === 0 ? (
+                      <li className={styles.versionRow}>
+                        <span className={styles.versionWhen}>No versions yet</span>
+                      </li>
+                    ) : null}
+                  </ul>
+                </aside>
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={Boolean(editTemplate)}
-        onOpenChange={(open) => {
-          if (!open) closeEditDialog();
+      {/* ---------------------------------------------------------------- *
+          New template
+       * ---------------------------------------------------------------- */}
+      {/* No board draws creation, so it follows the group's own create sheet —
+          the same label-over-control stack and the same footer every other
+          register in this surface opens. */}
+      <CreateSheet
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="New template"
+        submitLabel={createTemplateMutation.isPending ? "Creating…" : "Create template"}
+        busy={
+          createTemplateMutation.isPending ||
+          !createDraft.name.trim() ||
+          !createDraft.sourceOptionId
+        }
+        onSubmit={(event) => {
+          event.preventDefault();
+          createTemplateMutation.mutate();
         }}
       >
+        <CreateField label="Name">
+          {(id) => (
+            <Input
+              id={id}
+              value={createDraft.name}
+              className={DETAIL_CONTROL_CLASS}
+              onChange={(event) =>
+                setCreateDraft((current) => ({ ...current, name: event.target.value }))
+              }
+            />
+          )}
+        </CreateField>
+
+        {/* The repo's searchable select, not the Popover+Command autocomplete
+            this file used to carry its own copy of. Its own label is left off:
+            `CreateField` already names it, at the surface's label rung. */}
+        <CreateField label="Source">
+          <SearchableSelect
+            value={createDraft.sourceOptionId}
+            options={sourceOptions.map((option) => ({
+              value: option.id,
+              label: option.label,
+              description: option.description,
+            }))}
+            placeholder="Pick a source"
+            searchPlaceholder="Search by name or key"
+            onValueChange={(value) =>
+              setCreateDraft((current) => ({ ...current, sourceOptionId: value }))
+            }
+          />
+        </CreateField>
+
+        <CreateField label="Default for this source">
+          {(id) => (
+            <DetailSelect
+              id={id}
+              value={createDraft.setDefault ? "yes" : "no"}
+              onValueChange={(next) =>
+                setCreateDraft((current) => ({ ...current, setDefault: next === "yes" }))
+              }
+            >
+              <SelectItem value="yes">Yes</SelectItem>
+              <SelectItem value="no">No</SelectItem>
+            </DetailSelect>
+          )}
+        </CreateField>
+      </CreateSheet>
+
+      {/* ---------------------------------------------------------------- *
+          Edit blocks — the schema behind a version
+       * ---------------------------------------------------------------- */}
+      <Dialog open={schemaOpen && Boolean(selected)} onOpenChange={setSchemaOpen}>
         <DialogContent size="xl">
-          <DialogHeader>
-            <DialogTitle>Edit Template</DialogTitle>
-            <DialogDescription>
-              Save a new schema version, then publish and set default when ready.
-            </DialogDescription>
-          </DialogHeader>
+          <DialogTitle>{selected ? `${selected.name} — blocks` : "Blocks"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Choose which blocks the document prints, then save a new version
+          </DialogDescription>
 
-          {editTemplate ? (
-            <div className="space-y-4">
-              <div className="rounded-md border p-3 text-sm">
-                <p className="font-semibold">{editTemplate.name}</p>
-                <p className="font-mono text-sm text-muted-foreground">{editTemplate.sourceKey}</p>
+          <form
+            className={styles.form}
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveVersionMutation.mutate();
+            }}
+          >
+            {/* Paper is the one field the record's Details block draws that is
+                actually writable — it lives in the version schema, so it is
+                changed the way every other block is, by saving a version. */}
+            {parsedSchema ? (
+              <DetailGrid className="mb-[22px]">
+                <DetailRow label="Paper">
+                  {(id) => (
+                    <DetailSelect
+                      id={id}
+                      value={parsedSchema.page.size}
+                      onValueChange={(next) =>
+                        updateSchemaPage({ size: next as "A4" | "LETTER" })
+                      }
+                    >
+                      <SelectItem value="A4">A4</SelectItem>
+                      <SelectItem value="LETTER">Letter</SelectItem>
+                    </DetailSelect>
+                  )}
+                </DetailRow>
+                <DetailRow label="Orientation">
+                  {(id) => (
+                    <DetailSelect
+                      id={id}
+                      value={parsedSchema.page.orientation}
+                      onValueChange={(next) =>
+                        updateSchemaPage({
+                          orientation: next as "portrait" | "landscape",
+                        })
+                      }
+                    >
+                      <SelectItem value="portrait">Portrait</SelectItem>
+                      <SelectItem value="landscape">Landscape</SelectItem>
+                    </DetailSelect>
+                  )}
+                </DetailRow>
+              </DetailGrid>
+            ) : null}
+
+            {parsedSchema ? (
+              <div className={styles.toggles}>
+                {(
+                  [
+                    ["header", "showLogo", "Logo"],
+                    ["header", "showSecondaryLogo", "Second logo"],
+                    ["header", "showCompanyIdentity", "Company identity"],
+                    ["header", "showContactBlock", "Contact block"],
+                    ["table", "compact", "Compact table"],
+                    ["table", "zebra", "Banded table rows"],
+                    ["footer", "showFooterText", "Footer text"],
+                    ["footer", "showDisclaimer", "Disclaimer"],
+                    ["footer", "showPaymentDetails", "Payment details"],
+                    ["footer", "showSignature", "Signature line"],
+                    ["footer", "showStamp", "Stamp"],
+                  ] as Array<[keyof DocumentTemplateSchema, string, string]>
+                ).map(([section, key, label]) => {
+                  const group = parsedSchema[section] as Record<string, unknown>;
+                  const id = `schema-${section}-${key}`;
+                  return (
+                    <label key={id} className={styles.toggleRow} htmlFor={id}>
+                      <span className={styles.toggleLabel}>{label}</span>
+                      <Checkbox
+                        id={id}
+                        checked={Boolean(group[key])}
+                        onCheckedChange={(next) =>
+                          updateSchemaFlag(section, key, next === true)
+                        }
+                      />
+                    </label>
+                  );
+                })}
               </div>
+            ) : null}
 
-              <AutocompleteField
-                label="Version"
-                value={resolvedSelectedVersionId}
-                options={versionOptions}
-                placeholder="Select version"
-                searchPlaceholder="Search version"
-                disabled={versionsQuery.isLoading || versions.length === 0}
-                onChange={(id) => {
-                  setSelectedVersionId(id);
-                  const nextVersion = versions.find((version) => version.id === id);
-                  if (nextVersion) {
-                    setSchemaJsonDraft(nextVersion.schemaJson);
-                  }
-                }}
-              />
-
-              {versionsQuery.error ? (
-                <Alert variant="destructive">
-                  <AlertTitle>Unable to load versions</AlertTitle>
-                  <AlertDescription>{(versionsQuery.error as Error).message}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              {parsedSchema ? (
-                <div className="grid gap-2 md:grid-cols-3">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.header.showLogo}
-                      onChange={(event) =>
-                        updateSchemaFlag("header", "showLogo", event.target.checked)
-                      }
-                    />
-                    Show Logo
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.header.showSecondaryLogo}
-                      onChange={(event) =>
-                        updateSchemaFlag("header", "showSecondaryLogo", event.target.checked)
-                      }
-                    />
-                    Show Secondary Logo
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.header.showCompanyIdentity}
-                      onChange={(event) =>
-                        updateSchemaFlag("header", "showCompanyIdentity", event.target.checked)
-                      }
-                    />
-                    Show Company Identity
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.header.showContactBlock}
-                      onChange={(event) =>
-                        updateSchemaFlag("header", "showContactBlock", event.target.checked)
-                      }
-                    />
-                    Show Contact Block
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.table.compact}
-                      onChange={(event) => updateSchemaFlag("table", "compact", event.target.checked)}
-                    />
-                    Compact Table
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.table.zebra}
-                      onChange={(event) => updateSchemaFlag("table", "zebra", event.target.checked)}
-                    />
-                    Zebra Table
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.footer.showFooterText}
-                      onChange={(event) =>
-                        updateSchemaFlag("footer", "showFooterText", event.target.checked)
-                      }
-                    />
-                    Show Footer Text
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.footer.showDisclaimer}
-                      onChange={(event) =>
-                        updateSchemaFlag("footer", "showDisclaimer", event.target.checked)
-                      }
-                    />
-                    Show Disclaimer
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.footer.showPaymentDetails}
-                      onChange={(event) =>
-                        updateSchemaFlag("footer", "showPaymentDetails", event.target.checked)
-                      }
-                    />
-                    Show Payment Details
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.footer.showSignature}
-                      onChange={(event) =>
-                        updateSchemaFlag("footer", "showSignature", event.target.checked)
-                      }
-                    />
-                    Show Signature
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={parsedSchema.footer.showStamp}
-                      onChange={(event) =>
-                        updateSchemaFlag("footer", "showStamp", event.target.checked)
-                      }
-                    />
-                    Show Stamp
-                  </label>
-                </div>
-              ) : (
-                <Alert variant="destructive">
-                  <AlertTitle>Invalid JSON</AlertTitle>
-                  <AlertDescription>
-                    Template JSON is invalid. Fix it before saving a new version.
-                  </AlertDescription>
-                </Alert>
-              )}
-
+            <div className={styles.field}>
+              <label htmlFor="schema-json">Schema</label>
               <Textarea
-                className="min-h-[260px] font-mono text-sm"
+                id="schema-json"
+                className={styles.json}
+                aria-invalid={parsedSchema ? undefined : true}
                 value={effectiveSchemaJson}
                 onChange={(event) => setSchemaJsonDraft(event.target.value)}
               />
             </div>
-          ) : null}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeEditDialog}>
-              Close
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saveVersionMutation.isPending || !editTemplate}
-              onClick={() => saveVersionMutation.mutate()}
-            >
-              {saveVersionMutation.isPending ? "Saving..." : "Save New Version"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={publishMutation.isPending || !editTemplate || !resolvedSelectedVersionId}
-              onClick={() => publishMutation.mutate()}
-            >
-              {publishMutation.isPending ? "Publishing..." : "Publish Selected"}
-            </Button>
-            <Button
-              type="button"
-              disabled={setDefaultMutation.isPending || !editTemplate || editTemplate.scope !== "COMPANY"}
-              onClick={() => {
-                if (!editTemplate) return;
-                setDefaultMutation.mutate(editTemplate.id);
-              }}
-            >
-              {setDefaultMutation.isPending ? "Updating..." : "Set Default"}
-            </Button>
-          </DialogFooter>
+            <div className={styles.formFoot}>
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={() => setSchemaOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                disabled={saveVersionMutation.isPending || !parsedSchema}
+              >
+                {saveVersionMutation.isPending ? "Saving…" : "Save a new version"}
+              </button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </ManagementShell>
   );
+}
+
+const FULL_LOG_HREF = "/reports/audit-trails";
+
+/** The way back to the list below 900px, where the register shows one column. */
+function BackToList({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      className="mb-3 hidden items-center gap-2 text-[13px] font-medium leading-[1.4] text-[#565C69] max-[899px]:inline-flex"
+    >
+      <ArrowLeft className="size-4" aria-hidden="true" />
+      {label}
+    </button>
+  );
+}
+
+/** Below 900px the register shows one column at a time; see the auto-pick note. */
+function useWideViewport() {
+  const [wide, setWide] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 900px)");
+    const sync = () => setWide(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
+  return wide;
 }

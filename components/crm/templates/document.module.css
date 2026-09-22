@@ -1,0 +1,372 @@
+/*
+  The rendered document — `TemplateRender.dc.html`.
+
+  The board draws an A4 sheet at 540px, so its own numbers are a ~0.7 scale of
+  the real page: 9px body, 8px column headers. What is scale-free is the
+  *ratio* between them and the rules they sit on, so this file restates the
+  board at 1x against the contract's type ladder — 13px body, 11px uppercase
+  micro label, mono tabular figures — rather than copying a thumbnail's
+  font-size into a page somebody will read at arm's length.
+
+  One sheet, three audiences: the builder's preview, the public form somebody
+  fills in, and the finished document a customer reads. `BlockRenderer` draws
+  all three, so this is the only place a document's paint is decided.
+
+  `@layer components` for the same reason the rest of this refactor uses it:
+  above the design system, below Tailwind's utilities, so a caller's
+  `className` still wins.
+*/
+
+@layer components {
+  .doc {
+    --d-ink: var(--text-strong); /* #16181D */
+    --d-body: var(--text-body); /* #262A33 */
+    --d-label: var(--text-muted); /* #565C69 */
+    --d-meta: #5e6573; /* the DS's --text-subtle resolves to #8A91A0 */
+    --d-faint: var(--text-subtle); /* #8A91A0 */
+    --d-rule: var(--border); /* #E5E8EE */
+    --d-rule-soft: var(--border-subtle); /* #EEF0F4 */
+    --d-rule-strong: var(--border-strong); /* #D2D7E0 */
+    --d-tile: var(--canvas); /* #F7F8FA */
+    --d-brand: var(--brand); /* #0B5DF0 */
+    --d-mono: var(--font-mono);
+
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    color: var(--d-body);
+    font: 400 13px/1.5 var(--font-sans);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Type
+   * ------------------------------------------------------------------ */
+
+  .h1,
+  .h2,
+  .h3 {
+    margin: 0;
+    color: var(--d-ink);
+    letter-spacing: -0.012em;
+  }
+  .h1 {
+    font: 600 17px/1.25 var(--font-sans);
+  }
+  .h2 {
+    font: 600 15px/1.35 var(--font-sans);
+    letter-spacing: normal;
+  }
+  .h3 {
+    font: 600 13px/1.4 var(--font-sans);
+    letter-spacing: normal;
+  }
+
+  .text {
+    margin: 0;
+    white-space: pre-wrap;
+    font: 400 13px/1.55 var(--font-sans);
+    color: var(--d-body);
+  }
+
+  /*
+    The document's micro label — BILLED TO, DUE, ITEM, PAYMENT DETAILS.
+
+    Uppercase with .08em tracking is the one place the contract allows it: a
+    printed document's column captions are a typographic convention older than
+    the screen, and the board draws them that way. It is not the register list
+    header, which stays sentence case.
+  */
+  .micro {
+    display: block;
+    font: 500 11px/1 var(--font-sans);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--d-faint);
+  }
+
+  .muted {
+    margin: 0;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--d-meta);
+  }
+
+  .rule {
+    height: 0;
+    margin: 0;
+    border: 0;
+    border-top: 1px solid var(--d-rule-soft);
+  }
+
+  .image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Questions — a control when it is being filled in, a fact when read
+   * ------------------------------------------------------------------ */
+
+  .field {
+    display: grid;
+    gap: 7px;
+  }
+  .fieldLabel {
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--d-label);
+  }
+  .required {
+    color: var(--tone-danger); /* #B83A2A */
+  }
+  .help {
+    margin: 0;
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--d-meta);
+  }
+
+  /* The surface's control size, set once here rather than per call site. */
+  .doc :global(.input),
+  .doc :global(.select),
+  .doc :global(.textarea) {
+    font-size: 13px;
+  }
+
+  .choices {
+    display: grid;
+    gap: 7px;
+  }
+  .choice {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--d-body);
+  }
+
+  /* A read-back answer: the question small and muted, the answer the line. */
+  .fact {
+    display: grid;
+    gap: 3px;
+  }
+  .factLabel {
+    margin: 0;
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--d-meta);
+  }
+  .factValue {
+    margin: 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--d-ink);
+  }
+  .factValue[data-empty="true"] {
+    font-weight: 400;
+    color: var(--d-faint);
+  }
+
+  .file {
+    display: grid;
+    gap: 7px;
+  }
+  .fileRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .fileLink {
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-link); /* #0944C2 */
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  /* Removing an attachment is not the same act as opening it, so it is not
+     drawn in link blue. Same shape, muted ink. */
+  .fileRemove {
+    color: var(--d-label);
+  }
+
+  .fileDrop {
+    display: block;
+    width: 100%;
+    font: 400 13px/1.4 var(--font-sans);
+    color: var(--d-body);
+  }
+  .fileDrop::file-selector-button {
+    margin-right: 10px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--d-rule);
+    border-radius: 8px;
+    background: var(--surface);
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--d-ink);
+    cursor: pointer;
+  }
+  .fileError {
+    margin: 0;
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--tone-danger-strong); /* #7A2419 */
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Tables — the board's ITEM / QTY / RATE / AMOUNT grid
+   * ------------------------------------------------------------------ */
+
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .th {
+    padding: 0 0 7px;
+    text-align: left;
+    border-bottom: 1px solid var(--d-rule-strong);
+    font: 500 11px/1 var(--font-sans);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--d-faint);
+    white-space: nowrap;
+  }
+  .th + .th,
+  .thNum {
+    text-align: right;
+  }
+  .td {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--d-rule-soft);
+    font: 400 13px/1.4 var(--font-sans);
+    color: var(--d-body);
+    vertical-align: top;
+  }
+  /*
+    A column of figures lines up digit under digit or it cannot be scanned,
+    which is the whole reason a total is worth printing.
+  */
+  .tdNum {
+    text-align: right;
+    font: 400 13px/1.4 var(--d-mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .tdAmount {
+    font-weight: 500;
+    color: var(--d-ink);
+  }
+  .tdEmpty {
+    padding: 14px 0;
+    text-align: center;
+    font: 400 13px/1.4 var(--font-sans);
+    color: var(--d-meta);
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Totals
+   * ------------------------------------------------------------------ */
+
+  .totals {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .totalsStack {
+    width: 260px;
+    max-width: 100%;
+    margin: 0;
+  }
+  .totalsRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 5px 0;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--d-label);
+  }
+  .totalsRow dt,
+  .totalsRow dd {
+    margin: 0;
+  }
+  .totalsRow dd {
+    font-family: var(--d-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--d-body);
+  }
+  .totalsGrand {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 5px;
+    padding: 9px 0 0;
+    border-top: 1px solid var(--d-ink);
+    font: 600 15px/1.4 var(--font-sans);
+    color: var(--d-ink);
+  }
+  .totalsGrand dt,
+  .totalsGrand dd {
+    margin: 0;
+  }
+  .totalsGrand dd {
+    font-family: var(--d-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Signature and terms
+   * ------------------------------------------------------------------ */
+
+  .signatures {
+    display: grid;
+    gap: 24px;
+  }
+  .signaturesPair {
+    grid-template-columns: 1fr 1fr;
+  }
+  .signature {
+    display: grid;
+    gap: 6px;
+  }
+  .signatureLine {
+    height: 46px;
+    border-bottom: 1px solid var(--d-rule-strong);
+  }
+  .signatureLabel {
+    margin: 0;
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--d-meta);
+  }
+
+  .terms {
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--d-tile);
+  }
+  .termsText {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    font: 400 12px/1.5 var(--font-sans);
+    color: var(--d-meta);
+  }
+
+  .columns {
+    display: grid;
+    gap: 24px;
+  }
+  @media (min-width: 640px) {
+    .columns {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .column {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .empty {
+    margin: 0;
+    padding: 28px 0;
+    text-align: center;
+    font: 400 13px/1.4 var(--font-sans);
+    color: var(--d-meta);
+  }
+}
