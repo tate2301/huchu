@@ -1,0 +1,458 @@
+/*
+ * The workspace rail.
+ *
+ * All of the rail's paint lives here rather than at the call sites, so the
+ * rungs the design fixes — the 32px row, the 42px slot, the three grounds —
+ * are written once and a caller's className still wins over them.
+ *
+ * Three grounds, each a step lighter as you move right: the switcher, the
+ * panel, the page. In dark the step runs the other way, lighter as you come
+ * forward, which is the same relationship built out of lightness instead of
+ * shadow.
+ *
+ * Ink: `--text-subtle` resolves to #8A91A0, which is 3.16:1 on white and
+ * below the 4.5:1 floor. It stays on the *glyphs* — the icon buttons, the
+ * dimmed row icon, the pin, the empty mark — where the contrast floor does
+ * not apply, and every rung that sets readable **text** uses #5E6573
+ * instead: the find button's label, a dimmed row's label, the row counts and
+ * the badges.
+ */
+
+.rail {
+  --rail-switcher-bg: var(--surface-muted);
+  --rail-panel-bg: color-mix(in srgb, var(--surface-muted) 42%, var(--surface));
+  --rail-row-hover: var(--border-subtle);
+  --rail-row-active: var(--surface-sunken);
+
+  display: flex;
+  flex-shrink: 0;
+  height: 100%;
+  min-height: 0;
+  /* Positioning belongs to `Sidebar`, which the shell already provides: this
+     sits inside it so the provider's width variables, the mobile sheet and the
+     inset's own layout keep working. */
+}
+
+:global(body.is-dark) .rail {
+  --rail-switcher-bg: var(--surface);
+  --rail-panel-bg: var(--surface-muted);
+  --rail-row-hover: var(--surface-sunken);
+  --rail-row-active: var(--surface-deep);
+}
+
+/* ---- tier one: the switcher ---- */
+
+.switcher {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 56px;
+  background: var(--rail-switcher-bg);
+  border-right: 1px solid var(--border);
+}
+
+.company {
+  display: grid;
+  place-items: center;
+  height: 52px;
+  flex-shrink: 0;
+}
+
+.companyMark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--text-strong);
+  color: var(--text-inverse, #fff);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.marks {
+  flex-grow: 1;
+  min-height: 0;
+  padding: 0 6px;
+  /* The rail never scrolls: if this clips, the shape was wrong, not the
+     height, and `getRailModel` is where that is decided. */
+  overflow: hidden;
+}
+
+.markList {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.divider {
+  display: block;
+  width: 24px;
+  height: 1px;
+  margin: 8px auto;
+  background: var(--border);
+}
+
+.slot {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.slot:hover {
+  background: var(--rail-row-hover);
+}
+
+.slotActive {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 1px 2px rgb(22 24 29 / 6%);
+}
+
+.person {
+  display: grid;
+  place-items: center;
+  height: 56px;
+  flex-shrink: 0;
+}
+
+.personButton {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+/* ---- tier two: the panel ---- */
+
+.panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 224px;
+  background: var(--rail-panel-bg);
+  border-right: 1px solid var(--border);
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  flex-shrink: 0;
+  padding: 0 10px 0 12px;
+}
+
+.panelHeadBack {
+  padding-left: 6px;
+}
+
+.panelTitle {
+  flex-grow: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--rail-row-hover);
+  color: var(--text-body);
+}
+
+.panelTools {
+  display: grid;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 0 8px 10px;
+}
+
+.find {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: #5E6573;
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.findLabel {
+  flex-grow: 1;
+}
+
+.new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--action-primary-bg);
+  border-radius: 8px;
+  background: var(--action-primary-bg);
+  color: var(--action-primary-fg);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.new:hover {
+  background: var(--action-primary-hover);
+  border-color: var(--action-primary-hover);
+}
+
+.panelBody {
+  flex-grow: 1;
+  min-height: 0;
+  padding: 0 8px;
+  overflow: hidden;
+}
+
+.shelf {
+  flex-shrink: 0;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---- rows ---- */
+
+.rows {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 32px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: var(--text-body);
+  text-decoration: none;
+}
+
+.row:hover {
+  background: var(--rail-row-hover);
+}
+
+.rowActive {
+  background: var(--rail-row-active);
+  color: var(--text-strong);
+}
+
+.rowActive .rowLabel {
+  font-weight: 600;
+}
+
+.rowIcon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.rowActive .rowIcon {
+  color: var(--text-strong);
+}
+
+.rowDim .rowLabel {
+  color: #5E6573;
+}
+
+.rowDim .rowIcon {
+  color: var(--text-subtle);
+}
+
+.rowLabel {
+  flex-grow: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 9px;
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+/* ---- figures ---- */
+
+.count {
+  flex-shrink: 0;
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #5E6573;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--surface-muted);
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #5E6573;
+}
+
+.badgeUrgent {
+  background: var(--action-destructive-soft-bg);
+  color: var(--action-destructive-bg);
+}
+
+/* A mark cannot carry a figure at 36px — it carries a dot. */
+.markAlert {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--action-destructive-bg);
+  box-shadow: 0 0 0 2px var(--rail-switcher-bg);
+}
+
+.slotWrap {
+  position: relative;
+}
+
+/* ---- the pin, which appears on hover ---- */
+
+.pinButton {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.row:hover .pinButton,
+.pinButton:focus-visible {
+  display: inline-flex;
+}
+
+.pinButtonOn {
+  display: inline-flex;
+  color: var(--action-primary-bg);
+}
+
+/* ---- the collapsed flyout ---- */
+
+.flyout {
+  width: 216px;
+  padding: 6px;
+  border-radius: 11px;
+  background: var(--rail-panel-bg);
+  box-shadow:
+    0 12px 32px -8px rgb(42 38 34 / 18%),
+    0 2px 6px rgb(42 38 34 / 6%);
+}
+
+.flyoutTitle {
+  margin: 0;
+  padding: 6px 9px 7px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+/* ---- the empty state ---- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.emptyMark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--surface-muted);
+  color: var(--text-subtle);
+}
+
+.emptyLabel {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
