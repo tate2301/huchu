@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { getActiveNavHref } from "@/components/layout/app-sidebar/sidebar-helpers";
+import { SidebarCrmCollections } from "@/components/layout/app-sidebar/sidebar-crm-collections";
 import { RailAvatar } from "@/components/layout/workspace-rail/rail-avatar";
 import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
 import { WorkspaceRail } from "@/components/layout/workspace-rail";
@@ -131,6 +132,7 @@ export function AppSidebar() {
         activeWorkspaceId={sidebarModel.activeWorkspaceId}
         onSelectWorkspace={onSelectWorkspace}
         user={{ name: user?.name, image: user?.image }}
+        collections={<SidebarCrmCollections isCollapsed={isCollapsed} />}
         accountMenu={
           <RailAccount name={user?.name} email={user?.email} image={user?.image} />
         }

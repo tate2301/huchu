@@ -55,6 +55,7 @@ export function WorkspaceRail({
   onSelectWorkspace,
   user,
   accountMenu,
+  collections,
 }: {
   sections: WorkspaceNavSection[];
   workspaceLabel: string;
@@ -72,6 +73,12 @@ export function WorkspaceRail({
   onSelectWorkspace?: (id: string) => void;
   user?: { name?: string | null; image?: string | null };
   accountMenu?: React.ReactNode;
+  /**
+   * The user's own shelves — saved views, lists. Sits under the
+   * product's own rows because it is not part of the app's structure.
+   * Renders nothing outside the surface that owns it.
+   */
+  collections?: React.ReactNode;
 }) {
   const model = React.useMemo(() => getRailModel(sections), [sections]);
   const { shape, areas, pinCapacity } = model;
@@ -268,6 +275,7 @@ export function WorkspaceRail({
           shelf={shelf}
         >
           {body}
+          {collections}
         </RailPanel>
       )}
     </div>

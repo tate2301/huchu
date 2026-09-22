@@ -332,7 +332,7 @@ export const navSections: NavSection[] = [
   // hanging off a "School Operations" link. That only works if almost nothing
   // is left ungrouped, and two things are: the school's own front page, and the
   // reporting screen. Both are destinations rather than categories to expand,
-  // and `SidebarNavSections` renders them as plain links ahead of the groups.
+  // and the workspace rail renders them as plain rows ahead of the groups.
   //
   // Nine groups, each named with a word a school uses about itself. The shell
   // register — Setup, Services, Communication, Paperwork — is gone, and with it

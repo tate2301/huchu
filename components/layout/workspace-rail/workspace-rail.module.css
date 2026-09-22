@@ -249,7 +249,7 @@
   flex-grow: 1;
   min-height: 0;
   padding: 0 8px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .shelf {
