@@ -52,6 +52,7 @@ import {
   UserRound,
   Users,
   Wallet,
+  Work,
   Wrench,
   Zap,
   type LucideIcon,
@@ -727,6 +728,10 @@ export const navSections: NavSection[] = [
       // from people and companies drew a line the data does not have.
       { id: "objects", label: "Objects" },
       { id: "work", label: "Work" },
+      // Money the business hands out, as opposed to money it asks for. Quotes
+      // and invoices are the documents group; this is the float a rep draws,
+      // what they spent it on, and what a project has cost.
+      { id: "money", label: "Money out" },
       { id: "documents", label: "Sales documents" },
       { id: "learn", label: "Insights" },
       { id: "workflows", label: "Workflows" },
@@ -753,6 +758,19 @@ export const navSections: NavSection[] = [
       // and everybody in the building already call it.
       { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "work" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
+      // A project is what a job belongs to when the work runs past a day and
+      // somebody is answerable for what it costs.
+      { href: "/crm/projects", icon: Work, label: "Projects", group: "work" },
+
+      { href: "/crm/my-day", icon: ClipboardList, label: "My day", group: "money" },
+      { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money" },
+      {
+        href: "/crm/daily-reports",
+        icon: Coins,
+        label: "Daily reports",
+        roles: ["SUPERADMIN", "MANAGER"],
+        group: "money",
+      },
 
       { href: "/crm/quotes", icon: FileText, label: "Quotes", group: "documents" },
       { href: "/crm/invoices", icon: ReceiptLong, label: "Invoices", group: "documents" },
