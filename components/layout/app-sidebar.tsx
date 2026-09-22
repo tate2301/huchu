@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { getActiveNavHref } from "@/components/layout/app-sidebar/sidebar-helpers";
 import { RailAvatar } from "@/components/layout/workspace-rail/rail-avatar";
+import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
 import { WorkspaceRail } from "@/components/layout/workspace-rail";
 
 export function AppSidebar() {
@@ -45,6 +46,14 @@ export function AppSidebar() {
   const workspaceProfile = user?.workspaceProfile;
   const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const router = useRouter();
+
+  // A company that runs two businesses has two rails, and which one you left
+  // off in is yours rather than the tenant's. Keyed by company so the same
+  // person signed into two of them keeps two answers.
+  const { activeWorkspaceId, select } = useActiveWorkspace(
+    user?.companySlug ?? "default",
+  );
 
   // Which stock surfaces are worth offering depends on how the stock is laid
   // out, and that is a fact about the tenant rather than about its plan — a
@@ -61,15 +70,28 @@ export function AppSidebar() {
     [stockLocationsQuery.data],
   );
 
-  const sidebarModel = React.useMemo(
-    () =>
-      getWorkspaceSidebarModel({
-        role,
-        enabledFeatures,
-        workspaceProfile,
-        activeStockLocationSiteIds,
-      }),
+  const modelArgs = React.useMemo(
+    () => ({ role, enabledFeatures, workspaceProfile, activeStockLocationSiteIds }),
     [activeStockLocationSiteIds, enabledFeatures, role, workspaceProfile],
+  );
+
+  const sidebarModel = React.useMemo(
+    () => getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId }),
+    [activeWorkspaceId, modelArgs],
+  );
+
+  // Switching lands you at the new workspace's front door. Staying put would
+  // leave the rail describing one business while the page shows another, and
+  // there is no row in the new rail that takes you back to where you were.
+  const onSelectWorkspace = React.useCallback(
+    (id: string) => {
+      select(id);
+      const target = getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId: id });
+      if (target.homeHref && target.homeHref !== pathname) {
+        router.push(target.homeHref);
+      }
+    },
+    [modelArgs, pathname, router, select],
   );
 
   const activeHref = React.useMemo(
@@ -105,6 +127,9 @@ export function AppSidebar() {
         supportItems={sidebarModel.supportItems}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setOpen(isCollapsed)}
+        workspaces={sidebarModel.workspaces}
+        activeWorkspaceId={sidebarModel.activeWorkspaceId}
+        onSelectWorkspace={onSelectWorkspace}
         user={{ name: user?.name, image: user?.image }}
         accountMenu={
           <RailAccount name={user?.name} email={user?.email} image={user?.image} />

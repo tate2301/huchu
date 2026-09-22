@@ -9,7 +9,7 @@ import {
   Package,
 } from "@/lib/icons";
 import type { NavItem } from "@/lib/navigation";
-import type { WorkspaceNavSection } from "@/lib/workspaces";
+import type { WorkspaceNavSection, WorkspaceOption } from "@/lib/workspaces";
 import { areaForHref, getRailModel } from "@/lib/rail/model";
 import type { RailArea } from "@/lib/rail/areas";
 import {
@@ -50,6 +50,9 @@ export function WorkspaceRail({
   onOpenSearch,
   onOpenNew,
   onOpenSwitcher,
+  workspaces,
+  activeWorkspaceId,
+  onSelectWorkspace,
   user,
   accountMenu,
 }: {
@@ -63,6 +66,10 @@ export function WorkspaceRail({
   onOpenSearch?: () => void;
   onOpenNew?: () => void;
   onOpenSwitcher?: () => void;
+  /** The businesses this company runs. Fewer than two draws no switcher. */
+  workspaces?: WorkspaceOption[];
+  activeWorkspaceId?: string;
+  onSelectWorkspace?: (id: string) => void;
   user?: { name?: string | null; image?: string | null };
   accountMenu?: React.ReactNode;
 }) {
@@ -198,6 +205,9 @@ export function WorkspaceRail({
           companyInitials={initialsFor(companyName)}
           companyLabel={companyName}
           onCompanyClick={onOpenSwitcher}
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
+          onSelectWorkspace={onSelectWorkspace}
           groups={[]}
           person={person}
         />
@@ -241,6 +251,9 @@ export function WorkspaceRail({
         companyInitials={initialsFor(companyName)}
         companyLabel={companyName}
         onCompanyClick={onOpenSwitcher}
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onSelectWorkspace={onSelectWorkspace}
         groups={marks}
         person={person}
       />
@@ -281,7 +294,11 @@ export function RailFlyout({
   return (
     <Popover>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent side="right" align="start" className={styles.flyout}>
+      <PopoverContent
+        side="right"
+        align="start"
+        className={cn("w-56 p-1.5", styles.flyout)}
+      >
         <p className={styles.flyoutTitle}>{title}</p>
         <RailRows>
           {items.map((item) => (

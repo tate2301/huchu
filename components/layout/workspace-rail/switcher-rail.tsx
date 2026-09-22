@@ -5,6 +5,13 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "@/lib/icons";
+import { Check } from "@/lib/icons";
+import type { WorkspaceOption } from "@/lib/workspaces";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -32,31 +39,101 @@ export function SwitcherRail({
   companyInitials,
   companyLabel,
   onCompanyClick,
+  workspaces,
+  activeWorkspaceId,
+  onSelectWorkspace,
   groups,
   person,
 }: {
   companyInitials: string;
   companyLabel: string;
   onCompanyClick?: () => void;
+  /** The workspaces to switch between. Fewer than two draws no switcher. */
+  workspaces?: WorkspaceOption[];
+  activeWorkspaceId?: string;
+  onSelectWorkspace?: (id: string) => void;
   groups: RailMark[][];
   person: React.ReactNode;
 }) {
+  // One workspace is not a choice, and a control that offers one is a control
+  // that teaches people it does nothing.
+  const canSwitch = (workspaces?.length ?? 0) > 1;
+
   return (
     <div className={styles.switcher}>
       <div className={styles.company}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={`${companyLabel} — switch workspace`}
-              className={styles.companyMark}
-              onClick={onCompanyClick}
+        {canSwitch ? (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={`${companyLabel} — switch workspace`}
+                className={styles.companyMark}
+              >
+                {companyInitials}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="right"
+              align="start"
+              /* Width and padding as utilities: `PopoverContent` sets `w-72`
+                 and `.popover` sets 16px of its own, and `cn()` only merges
+                 Tailwind classes — a module class would be left to win on
+                 stylesheet order. */
+              className={cn("w-52 p-1.5", styles.workspaceMenu)}
             >
-              {companyInitials}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{companyLabel}</TooltipContent>
-        </Tooltip>
+              {/* The company, once, above its businesses. The rows below are
+                  named for the business rather than the company, so without
+                  this the menu never says whose they are. */}
+              <p className={styles.workspaceMenuTitle}>{companyLabel}</p>
+              <ul className={styles.rows}>
+                {workspaces!.map((workspace) => {
+                  const active = workspace.id === activeWorkspaceId;
+                  return (
+                    <li key={workspace.id}>
+                      <button
+                        type="button"
+                        aria-current={active ? "true" : undefined}
+                        onClick={() => onSelectWorkspace?.(workspace.id)}
+                        className={cn(
+                          styles.row,
+                          styles.rowButton,
+                          active && styles.rowActive,
+                        )}
+                      >
+                        <workspace.icon
+                          width={16}
+                          height={16}
+                          className={styles.rowIcon}
+                        />
+                        <span className={styles.rowLabel}>
+                          {workspace.label}
+                        </span>
+                        {active ? (
+                          <Check width={14} height={14} className={styles.rowIcon} />
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={companyLabel}
+                className={styles.companyMark}
+                onClick={onCompanyClick}
+              >
+                {companyInitials}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{companyLabel}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       <nav className={styles.marks} aria-label="Areas">

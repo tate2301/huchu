@@ -292,6 +292,17 @@
   font-weight: 600;
 }
 
+/* A row that acts rather than navigates — the workspace switcher's entries.
+   Same rung, so a button and a link are the same object to the eye. */
+.rowButton {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .rowIcon {
   flex-shrink: 0;
   color: var(--text-muted);
@@ -405,11 +416,28 @@
   color: var(--action-primary-bg);
 }
 
+/* ---- the workspace switcher ---- */
+
+.workspaceMenu {
+  border-radius: 11px;
+}
+
+.workspaceMenuTitle {
+  margin: 0 0 4px;
+  padding: 5px 9px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---- the collapsed flyout ---- */
 
 .flyout {
-  width: 216px;
-  padding: 6px;
   border-radius: 11px;
   background: var(--rail-panel-bg);
   box-shadow:

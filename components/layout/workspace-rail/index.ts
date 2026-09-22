@@ -5,3 +5,4 @@ export { RailHeading, RailRow, RailRows } from "./rail-row";
 export { SwitcherRail } from "./switcher-rail";
 export type { RailMark } from "./switcher-rail";
 export { usePins } from "./use-pins";
+export { useActiveWorkspace } from "./use-active-workspace";
