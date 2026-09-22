@@ -88,7 +88,15 @@ for (const viewport of [
       // it lists the same pupil, so a page-wide assertion would pass with the
       // palette empty — which is exactly the bug being watched for.
       const dialog = page.getByRole("dialog");
-      await expect(dialog.getByText("Students", { exact: true })).toBeVisible({ timeout: 20_000 });
+      // The group *heading*, not any text reading "Students". The palette also
+      // offers "Students" as a record type to filter by, so a bare text match
+      // is two elements and fails strict mode — which is what it did, on both
+      // widths, the first time this ran against a tenant whose palette offers
+      // that filter. The heading is what "the palette grouped the results"
+      // means, so ask for it by role.
+      await expect(
+        dialog.getByRole("heading", { name: "Students", exact: true }),
+      ).toBeVisible({ timeout: 20_000 });
       // `.first()`: the highlighted row's reference is also shown in the preview
       // pane beside it, so an unqualified match is two elements at desktop width
       // and one on a phone, where the pane is hidden.

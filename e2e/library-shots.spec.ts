@@ -24,6 +24,11 @@ import { shooter } from "./_support/shots";
 test.describe.configure({ timeout: 180_000 });
 test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
 
+/** A title is data, and a title with a `(` in it is a regular expression. */
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 type Shelf = {
   books: { title: string; copies: { loans: unknown[] }[] }[];
   loans: unknown[];
@@ -59,12 +64,22 @@ for (const viewport of [
       ).toBeVisible({ timeout: 30_000 });
 
       // A copy on the shelf is a row you can lend, not an absence.
-      await expect(page.getByText(onShelf.title).first()).toBeVisible({
-        timeout: 30_000,
-      });
-      await expect(page.getByRole("button", { name: "Lend it" }).first()).toBeVisible({
-        timeout: 30_000,
-      });
+      //
+      // The shelves are a grid of covers and the copies are behind the one you
+      // open — `library-content.tsx` renders the copy list only for `openBook`.
+      // So the title has to be *clicked*, not merely found: asserting "Lend it"
+      // on the unopened grid asks for a control the page has not rendered, and
+      // waits thirty seconds to be told so. Retried, because a click landing
+      // before hydration is swallowed by a button that is already in the DOM.
+      await expect(async () => {
+        await page
+          .getByRole("button", { name: new RegExp(escapeForRegExp(onShelf.title)) })
+          .first()
+          .click();
+        await expect(
+          page.getByRole("button", { name: "Lend it" }).filter({ visible: true }).first(),
+        ).toBeVisible({ timeout: 3_000 });
+      }).toPass({ timeout: 60_000, intervals: [2_000] });
 
       await shot(page, "library");
     });
@@ -85,12 +100,17 @@ for (const viewport of [
         page.getByRole("heading", { name: "Library", exact: true }).first(),
       ).toBeVisible({ timeout: 30_000 });
 
+      // "Out" is a **link**, not a button: `library-views.tsx` draws the two
+      // views as "links that look like segments", and `/schools/library/loans`
+      // is a page of its own. Asking for a button found nothing and waited out
+      // its budget on every attempt — unnoticed, because this test skipped for
+      // want of a single catalogued book until the seed grew a library.
       await expect(async () => {
-        await page.getByRole("button", { name: "Out" }).first().click();
-        await expect(page.getByText(/if back today/).first()).toBeVisible({
-          timeout: 3_000,
-        });
-      }).toPass({ timeout: 40_000 });
+        await page.getByRole("link", { name: /^Out/ }).first().click();
+        await expect(
+          page.getByText(/if back today/).filter({ visible: true }).first(),
+        ).toBeVisible({ timeout: 3_000 });
+      }).toPass({ timeout: 60_000, intervals: [2_000] });
 
       await shot(page, "library-overdue");
     });

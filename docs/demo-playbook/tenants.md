@@ -51,7 +51,10 @@ something the owner cares about); a purchase order part-received; 94 refunds;
 
 **What is in it:** 120 pupils across 6 forms, 8 teachers, 119 guardians, a term
 of registers (90 sessions, 1,800 marks), 156 assessments with 3,100 scores, and
-120 fee invoices.
+120 fee invoices. Since 2026-09-22 also: two boarding houses with 96 beds and 40
+boarders placed; a school calendar with 14 fixtures, 9 of which close the school;
+a library of 12 titles with 4 loans overdue; an admissions pipeline of 11
+applications; and a ZIMSEC November sitting with 20 candidates and 160 entries.
 
 **Beats to hit**
 - The roll, then a pupil record — attendance percentage and fee status sit right
@@ -59,11 +62,25 @@ of registers (90 sessions, 1,800 marks), 156 assessments with 3,100 scores, and
 - **All three portals.** Sign in as the parent and show them their own child's
   attendance and invoice. This is usually the moment a school buys.
 - Fees: paid, part-paid, overdue, all visible in one list.
+- **The bed board**, which shows the empty beds and not only who is in — and the
+  two out of service with the reason written on them.
+- **A public holiday on the register.** Open Attendance on a closed day: it says
+  "Not a school day" rather than showing six red Missing badges. Heads recognise
+  this one immediately.
+- **The lapsed offer** on the admissions board — an offer nobody answered, which
+  the board shouts about rather than leaving as a row to notice.
 
 **Wrong on purpose:** one pupil suspended (still on the roll, still in the class
 they will come back to); **one pupil with no guardian on file**; a pupil at
 **46.7% attendance** next to classmates at 100%; twelve invoices genuinely
-overdue; one exam left unmarked; one pupil marked absent for an assessment.
+overdue; one exam left unmarked; one pupil marked absent for an assessment; two
+beds out of service with a joiner booked; four library books overdue, one by a
+month; one offer expired unanswered; three exam entries filed late and carrying
+the penalty fee.
+
+**Do not open `/schools/exams` on stage.** The sitting is seeded but
+`schools.exams` is in no sellable bundle, so the route redirects to
+`/access-blocked`. See `known-issues.md`.
 
 ---
 

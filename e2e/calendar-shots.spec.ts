@@ -64,9 +64,13 @@ for (const viewport of [
 
       const shot = shooter("schools", `calendar-${viewport.name}`);
 
-      await page.goto("/schools/academics");
+      // `/schools/academics` forwards to Master Data and the "Academics Setup"
+      // heading went with the page it named; ask for the destination directly,
+      // so a failure here is about the calendar rather than about a forward.
+      // `visual-pass.spec.ts` follows the same forward and carries the note.
+      await page.goto("/management/master-data/schools/years");
       await expect(
-        page.getByRole("heading", { name: "Academics Setup", exact: true }).first(),
+        page.getByRole("heading", { name: "Years and terms", exact: true }).first(),
       ).toBeVisible({ timeout: 30_000 });
 
       // Retry the click rather than click once and wait. A click landing
@@ -78,8 +82,16 @@ for (const viewport of [
       // The title comes from the calendar rather than being typed here: it used
       // to be the literal "Africa Day", which was a public holiday on the tenant
       // this spec was written against and is not one here.
+      //
+      // `tab`, and the label is "Holidays and events". It read `button` and
+      // "Holidays & Events" — neither of which this page has ever rendered, and
+      // neither of which anything caught, because the seed wrote no calendar
+      // events and the test skipped before it got here.
       await expect(async () => {
-        await page.getByRole("button", { name: /Holidays & Events/ }).first().click();
+        await page
+          .getByRole("tab", { name: /Holidays and events/i })
+          .first()
+          .click();
         await expect(page.getByText(events[0].title).first()).toBeVisible({
           timeout: 2_000,
         });

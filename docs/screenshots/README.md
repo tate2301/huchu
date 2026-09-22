@@ -16,6 +16,20 @@ width as well as phone. The bug is fixed (see `e2e-status.md`), but any image in
 `schools/` taken before 2026-09-08 may show the cropped version. Re-run
 `marketing-shots.spec.ts` and `visual-pass.spec.ts` before shipping those.
 
+The `schools/` set was regenerated on 2026-09-22 against a re-seeded St Mary's,
+and grew: boarding, the school calendar, the library, admissions, conduct,
+leavers and alumni, results publishing, the office week, and the student and
+parent portals screen by screen. Four of those journeys existed as specs that
+had never produced an image, because the seed wrote no hostels, no calendar
+events, no books and no applications and every one of them skipped. The seed
+writes all four now — see `docs/testing/test-data.md`.
+
+One clipping finding is open again and is **in** this set:
+`visual-pass-phone/01-class-fees.png`. At 390px the amount column and the row
+buttons on `/schools/finance/class/<id>` overflow `div.mobile-list`, which
+clips rather than scrolls, so the right-hand edge of each row is cut off. Do
+not put that image in a deck.
+
 Journeys suffixed `-legacy` came from the pre-harness specs. They are kept
 because the images are good; the specs that made them have since been retired or
 migrated.

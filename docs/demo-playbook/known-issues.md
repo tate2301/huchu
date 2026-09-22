@@ -34,6 +34,22 @@ breaks; it appears in the browser console on the second page load of a session.
 If a client has dev tools open, this is what they will see. The fix belongs in
 `components/providers/offline-provider.tsx`.
 
+## Avoid on stage, in schools
+
+**`/schools/exams` redirects to `/access-blocked`, on every tenant.** Read
+2026-09-22. `schools.exams` is billable, and `getCompanyFeatureMap` resolves a
+billable feature as `requested && subscriptionEntitled.has(key)` — entitlement
+has to come from a tier or an addon bundle. No tier and no bundle in
+`lib/platform/feature-catalog.ts` carries the key: `ADDON_SCHOOLS_SUITE` lists
+the other eleven `schools.*` features and not this one. So a per-company flag
+cannot switch it on, and there is nothing a school could buy that would.
+
+Public Exams is otherwise complete — twelve Prisma models, five screens, a
+persona grant, a $99-a-term list price, and since 2026-09-22 a seeded ZIMSEC
+November sitting with 20 candidates and 160 entries sitting behind the gate. It
+needs a line in the catalogue, not code. Until then, do not open it, and do not
+promise it.
+
 ## Not bugs, though they look like them
 
 **Some routes have no index page.** `/gold/shift-output` and `/gold/insights`

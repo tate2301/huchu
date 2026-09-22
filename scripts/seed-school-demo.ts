@@ -179,6 +179,24 @@ async function main() {
     await prisma.schoolFeeInvoice.deleteMany({ where: { companyId } });
     await prisma.schoolEnrollment.deleteMany({ where: { companyId } });
     await prisma.schoolStudentGuardian.deleteMany({ where: { companyId } });
+    // The four below are the boarding house, the calendar, the shelves and the
+    // admissions pipeline. Hostels cascade to their rooms, beds, allocations,
+    // leave requests and roll calls, so the house comes down in one statement;
+    // the library and the pipeline have to be unwound child-first themselves.
+    await prisma.schoolBookLoan.deleteMany({ where: { companyId } });
+    await prisma.schoolBookCopy.deleteMany({ where: { companyId } });
+    await prisma.schoolBook.deleteMany({ where: { companyId } });
+    await prisma.schoolHostel.deleteMany({ where: { companyId } });
+    await prisma.schoolCalendarEvent.deleteMany({ where: { companyId } });
+    await prisma.schoolApplicationEvent.deleteMany({ where: { companyId } });
+    await prisma.schoolApplication.deleteMany({ where: { companyId } });
+    // Series before board, and both explicitly. `SchoolExamSeries.board` is a
+    // required relation with no `onDelete`, which is Restrict — so deleting the
+    // board first fails on the series hanging off it. The series takes its
+    // candidates, papers, sessions and entries with it; the board then takes
+    // its centres and exam subjects.
+    await prisma.schoolExamSeries.deleteMany({ where: { companyId } });
+    await prisma.schoolExamBoard.deleteMany({ where: { companyId } });
     console.log("  reset: cleared previous roll activity");
   }
 
@@ -284,7 +302,14 @@ async function main() {
 
   /* ── The roll ─────────────────────────────────────────────────────── */
 
-  type Pupil = { id: string; no: string; name: string; classId: string; boarding: boolean };
+  type Pupil = {
+    id: string;
+    no: string;
+    name: string;
+    classId: string;
+    boarding: boolean;
+    gender: string | null;
+  };
   const pupils: Pupil[] = [];
 
   for (let index = 0; index < STUDENT_COUNT; index += 1) {
@@ -320,7 +345,7 @@ async function main() {
         isBoarding: boarding,
         admissionDate: new Date(Date.UTC(2026 - between(0, 4), 1, 12)),
       },
-      select: { id: true },
+      select: { id: true, gender: true },
     });
 
     pupils.push({
@@ -329,6 +354,11 @@ async function main() {
       name: `${first} ${last}`,
       classId: schoolClass.id,
       boarding,
+      // Read back rather than recomputed. On a re-run the upsert takes the
+      // `update` branch, which leaves gender alone — so the row's gender is the
+      // only answer that is still true the second time, and boarding places
+      // children by it.
+      gender: student.gender,
     });
   }
   console.log(
@@ -744,6 +774,707 @@ async function main() {
   }
   console.log(
     `  ${invoiceCount} fee invoices — ${paidCount} paid, ${partPaidCount} part-paid, ${overdueCount} overdue`,
+  );
+
+  /* ── Boarding ─────────────────────────────────────────────────────── */
+
+  /*
+    Two houses, because a single-sex house is the rule the placer enforces and
+    a seed with one house never exercises it. `boarding-rules.ts` refuses a bed
+    in a MALE house to a girl and refuses either to a child with no gender on
+    file, so the roll's gender is what decides where a boarder sleeps here.
+
+    Deliberately more beds than boarders. The bed board's whole claim — asserted
+    in `e2e/boarding-shots.spec.ts` — is that it shows **empty** beds and not
+    only who is in, and a house seeded full proves nothing. Two beds are also
+    out of service with a reason written on them, because a warden's real
+    question is not "is this bed free" but "why can nobody sleep in it".
+  */
+
+  const HOUSES = [
+    { code: "NYA", name: "Nyangani House", policy: "MALE", emoji: "🏔️" },
+    { code: "CHI", name: "Chimanimani House", policy: "FEMALE", emoji: "⛰️" },
+  ] as const;
+
+  /** Bunks down two wall runs: bay 1 is nearest the door, U and L of each. */
+  const BEDS_PER_ROOM = 12;
+  const ROOMS_PER_HOUSE = ["A", "B", "C", "D"];
+
+  type Bed = { id: string; hostelId: string; roomId: string; policy: string };
+  const bedsByPolicy = new Map<string, Bed[]>();
+
+  for (const house of HOUSES) {
+    const hostel = await prisma.schoolHostel.upsert({
+      where: { companyId_code: { companyId, code: house.code } },
+      update: { name: house.name, genderPolicy: house.policy, emoji: house.emoji },
+      create: {
+        companyId,
+        code: house.code,
+        name: house.name,
+        genderPolicy: house.policy,
+        capacity: ROOMS_PER_HOUSE.length * BEDS_PER_ROOM,
+        emoji: house.emoji,
+      },
+      select: { id: true },
+    });
+
+    for (const [roomIndex, letter] of ROOMS_PER_HOUSE.entries()) {
+      const room = await prisma.schoolHostelRoom.upsert({
+        where: {
+          companyId_hostelId_code: { companyId, hostelId: hostel.id, code: `${house.code}-${letter}` },
+        },
+        update: {},
+        create: {
+          companyId,
+          hostelId: hostel.id,
+          code: `${house.code}-${letter}`,
+          floor: roomIndex < 2 ? "Ground" : "First",
+          capacity: BEDS_PER_ROOM,
+          // The last dormitory in each house is the prefects'. The placer will
+          // not offer one of its beds to a pupil who is not one.
+          isPrefectDorm: letter === "D",
+          yearGroupIds: [],
+        },
+        select: { id: true, isPrefectDorm: true },
+      });
+
+      for (let bedIndex = 0; bedIndex < BEDS_PER_ROOM; bedIndex += 1) {
+        const bay = Math.floor(bedIndex / 2) + 1;
+        const tier = bedIndex % 2 === 0 ? "L" : "U";
+        const code = `${pad(bay, 2)}${tier}`;
+        // Two beds in the whole school are out of service, and both say why.
+        const broken = letter === "B" && bay === 3;
+        const bed = await prisma.schoolHostelBed.upsert({
+          where: { companyId_roomId_code: { companyId, roomId: room.id, code } },
+          update: {},
+          create: {
+            companyId,
+            hostelId: hostel.id,
+            roomId: room.id,
+            code,
+            bay,
+            tier,
+            status: broken ? "OUT_OF_SERVICE" : "AVAILABLE",
+            statusReason: broken ? "Bunk ladder broken · joiner booked Thursday" : null,
+          },
+          select: { id: true, status: true },
+        });
+
+        if (bed.status === "AVAILABLE" && !room.isPrefectDorm) {
+          const list = bedsByPolicy.get(house.policy) ?? [];
+          list.push({ id: bed.id, hostelId: hostel.id, roomId: room.id, policy: house.policy });
+          bedsByPolicy.set(house.policy, list);
+        }
+      }
+    }
+  }
+
+  /*
+    Place the boarders. A child whose house is full, or who has no gender on
+    file, is left unplaced rather than forced somewhere — which is the state
+    `/schools/boarding/allocations` exists to surface, and one the roll already
+    produces on its own.
+  */
+  const nextBed = new Map<string, number>();
+  let placed = 0;
+  let unplaced = 0;
+
+  for (const pupil of pupils) {
+    if (!pupil.boarding) continue;
+    const policy = pupil.gender === "M" ? "MALE" : pupil.gender === "F" ? "FEMALE" : null;
+    const available = policy ? (bedsByPolicy.get(policy) ?? []) : [];
+    const cursor = policy ? (nextBed.get(policy) ?? 0) : 0;
+    const bed = available[cursor];
+    if (!policy || !bed) {
+      unplaced += 1;
+      continue;
+    }
+    nextBed.set(policy, cursor + 1);
+
+    const existing = await prisma.schoolBoardingAllocation.findFirst({
+      where: { companyId, studentId: pupil.id, termId: term.id },
+      select: { id: true },
+    });
+    if (existing) {
+      await prisma.schoolBoardingAllocation.update({
+        where: { id: existing.id },
+        data: { hostelId: bed.hostelId, roomId: bed.roomId, bedId: bed.id, status: "ACTIVE" },
+      });
+    } else {
+      await prisma.schoolBoardingAllocation.create({
+        data: {
+          companyId,
+          studentId: pupil.id,
+          termId: term.id,
+          hostelId: bed.hostelId,
+          roomId: bed.roomId,
+          bedId: bed.id,
+          status: "ACTIVE",
+          startDate: new Date(Date.UTC(2026, 8, 8)),
+        },
+      });
+    }
+    placed += 1;
+  }
+
+  const bedTotal = HOUSES.length * ROOMS_PER_HOUSE.length * BEDS_PER_ROOM;
+  console.log(
+    `  boarding: ${HOUSES.length} houses, ${bedTotal} beds, ${placed} placed` +
+      (unplaced > 0 ? `, ${unplaced} boarder(s) unplaced` : ""),
+  );
+
+  /* ── The calendar ─────────────────────────────────────────────────── */
+
+  /*
+    A school year is not 365 teaching days, and the product's claim — tested in
+    `e2e/calendar-shots.spec.ts` — is that a public holiday reads as "Not a
+    school day" on the register rather than as six missing registers somebody
+    has to explain. That claim needs a closed day on the calendar to be about.
+
+    Dates are Zimbabwe's 2026 public holidays plus the school's own fixtures.
+    `isTeachingDay` is the load-bearing field: it is what closes the school.
+  */
+
+  const CALENDAR: Array<{
+    title: string;
+    kind: "HOLIDAY" | "PUBLIC_HOLIDAY" | "HALF_TERM" | "EXAM" | "EVENT" | "STAFF_ONLY";
+    start: [number, number, number];
+    end?: [number, number, number];
+    teaching: boolean;
+    notes?: string;
+  }> = [
+    { title: "Independence Day", kind: "PUBLIC_HOLIDAY", start: [2026, 3, 18], teaching: false },
+    { title: "Workers' Day", kind: "PUBLIC_HOLIDAY", start: [2026, 4, 1], teaching: false },
+    { title: "Africa Day", kind: "PUBLIC_HOLIDAY", start: [2026, 4, 25], teaching: false },
+    { title: "Heroes' Day", kind: "PUBLIC_HOLIDAY", start: [2026, 7, 10], teaching: false },
+    { title: "Defence Forces Day", kind: "PUBLIC_HOLIDAY", start: [2026, 7, 11], teaching: false },
+    {
+      title: "Staff development day",
+      kind: "STAFF_ONLY",
+      start: [2026, 8, 28],
+      teaching: false,
+      notes: "Marking moderation and Term 3 schemes of work. No pupils on site.",
+    },
+    {
+      title: "Founders' Day",
+      kind: "EVENT",
+      start: [2026, 8, 25],
+      teaching: true,
+      notes: "Chapel at 08:00, shortened lessons, house photographs after break.",
+    },
+    { title: "Inter-house athletics", kind: "EVENT", start: [2026, 9, 9], teaching: true },
+    {
+      title: "Parents' evening — Forms 1 and 2",
+      kind: "EVENT",
+      start: [2026, 9, 2],
+      teaching: true,
+      notes: "16:00–19:00 in the hall. Booked through the parent portal.",
+    },
+    {
+      title: "Half term",
+      kind: "HALF_TERM",
+      start: [2026, 9, 16],
+      end: [2026, 9, 19],
+      teaching: false,
+    },
+    {
+      title: "End-of-term examinations",
+      kind: "EXAM",
+      start: [2026, 10, 23],
+      end: [2026, 11, 4],
+      teaching: true,
+      notes: "Normal registers. Timetable suspended for examination classes.",
+    },
+    { title: "Prize giving", kind: "EVENT", start: [2026, 10, 13], teaching: true },
+    { title: "Unity Day", kind: "PUBLIC_HOLIDAY", start: [2026, 11, 22], teaching: false },
+    { title: "Christmas Day", kind: "PUBLIC_HOLIDAY", start: [2026, 11, 25], teaching: false },
+  ];
+
+  const utc = ([year, month, day]: [number, number, number]) =>
+    new Date(Date.UTC(year, month, day));
+
+  let calendarCount = 0;
+  for (const entry of CALENDAR) {
+    const startDate = utc(entry.start);
+    const endDate = entry.end ? utc(entry.end) : startDate;
+    // No natural key on the model, so match on what identifies the day to a
+    // reader: this school, this title, this start.
+    const existing = await prisma.schoolCalendarEvent.findFirst({
+      where: { companyId, title: entry.title, startDate },
+      select: { id: true },
+    });
+    const data = {
+      title: entry.title,
+      kind: entry.kind,
+      startDate,
+      endDate,
+      isTeachingDay: entry.teaching,
+      notes: entry.notes ?? null,
+    };
+    if (existing) {
+      await prisma.schoolCalendarEvent.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.schoolCalendarEvent.create({ data: { companyId, ...data } });
+    }
+    calendarCount += 1;
+  }
+  console.log(
+    `  calendar: ${calendarCount} events — ` +
+      `${CALENDAR.filter((entry) => !entry.teaching).length} days the school is shut`,
+  );
+
+  /* ── The library ──────────────────────────────────────────────────── */
+
+  /*
+    Set texts and the shelves around them. Two copies of most titles, because a
+    library with one copy of everything never shows the state that matters —
+    one out, one in — and `e2e/library-shots.spec.ts` looks for exactly that: a
+    title with a copy nobody has out, next to a loan that is late and carrying
+    a fine estimate.
+  */
+
+  const BOOKS = [
+    { isbn: "9780435905255", title: "Things Fall Apart", author: "Chinua Achebe", category: "Literature in English", shelf: "823 ACH" },
+    { isbn: "9780949932792", title: "Nervous Conditions", author: "Tsitsi Dangarembga", category: "Literature in English", shelf: "823 DAN" },
+    { isbn: "9781779220837", title: "The House of Hunger", author: "Dambudzo Marechera", category: "Literature in English", shelf: "823 MAR" },
+    { isbn: "9780521189057", title: "Cambridge O Level Mathematics", author: "Audrey Simpson", category: "Mathematics", shelf: "510 SIM" },
+    { isbn: "9781444176421", title: "Cambridge O Level Physics", author: "Heather Kennett", category: "Sciences", shelf: "530 KEN" },
+    { isbn: "9780198399063", title: "Complete Chemistry for Cambridge O Level", author: "RoseMarie Gallagher", category: "Sciences", shelf: "540 GAL" },
+    { isbn: "9781107614956", title: "Biology for Cambridge O Level", author: "Mary Jones", category: "Sciences", shelf: "570 JON" },
+    { isbn: "9780582558656", title: "Shona Grammar for Schools", author: "Herbert Chimhundu", category: "Shona", shelf: "496 CHI" },
+    { isbn: "9781868309641", title: "A History of Zimbabwe", author: "Alois Mlambo", category: "History", shelf: "968 MLA" },
+    { isbn: "9780195788945", title: "Atlas of Southern Africa", author: null, category: "Geography", shelf: "912 ATL" },
+    { isbn: "9781444191646", title: "Principles of Accounts", author: "Frank Wood", category: "Commercials", shelf: "657 WOO" },
+    { isbn: "9780140449136", title: "Things a Prefect Should Know", author: null, category: "General", shelf: "371 GEN" },
+  ];
+
+  const borrowers = pupils.filter((pupil) => pupil.no !== "STU-0008").slice(0, 14);
+  let copyCount = 0;
+  let loanCount = 0;
+  let overdueLoans = 0;
+  const TODAY = new Date(Date.UTC(2026, 8, 22));
+  const daysFrom = (days: number) =>
+    new Date(TODAY.getTime() + days * 24 * 60 * 60 * 1000);
+
+  for (const [bookIndex, entry] of BOOKS.entries()) {
+    const book = await prisma.schoolBook.findFirst({
+      where: { companyId, title: entry.title },
+      select: { id: true },
+    });
+    const bookId =
+      book?.id ??
+      (
+        await prisma.schoolBook.create({
+          data: {
+            companyId,
+            isbn: entry.isbn,
+            title: entry.title,
+            author: entry.author,
+            publisher: null,
+            category: entry.category,
+            shelfMark: entry.shelf,
+          },
+          select: { id: true },
+        })
+      ).id;
+
+    // Three copies of a set text, two of everything else — and never all of
+    // them out, so the shelf always has a row that offers "Lend it".
+    const copies = entry.category === "Literature in English" ? 3 : 2;
+    for (let copyIndex = 0; copyIndex < copies; copyIndex += 1) {
+      const copyCode = `ACC-${pad(bookIndex * 5 + copyIndex + 1)}`;
+      const copy = await prisma.schoolBookCopy.upsert({
+        where: { companyId_copyCode: { companyId, copyCode } },
+        update: {},
+        create: {
+          companyId,
+          bookId,
+          copyCode,
+          condition: copyIndex === 0 ? "Good" : "Fair",
+        },
+        select: { id: true },
+      });
+      copyCount += 1;
+
+      // Only the first copy of a title ever goes out, so the second is always
+      // on the shelf.
+      if (copyIndex !== 0 || bookIndex >= borrowers.length) continue;
+
+      const borrower = borrowers[bookIndex];
+      // Four of the loans are late, and one of those is late by a month — the
+      // row the librarian is chasing and the fine the page has to estimate.
+      const late = bookIndex % 3 === 0;
+      const borrowedAt = daysFrom(late ? (bookIndex === 0 ? -38 : -24) : -6);
+      const dueAt = daysFrom(late ? (bookIndex === 0 ? -24 : -10) : 8);
+
+      const existingLoan = await prisma.schoolBookLoan.findFirst({
+        where: { companyId, copyId: copy.id, returnedAt: null },
+        select: { id: true },
+      });
+      if (existingLoan) {
+        await prisma.schoolBookLoan.update({
+          where: { id: existingLoan.id },
+          data: { studentId: borrower.id, borrowedAt, dueAt },
+        });
+      } else {
+        await prisma.schoolBookLoan.create({
+          data: {
+            companyId,
+            copyId: copy.id,
+            studentId: borrower.id,
+            borrowedAt,
+            dueAt,
+            issuedById: markerId,
+          },
+        });
+      }
+      loanCount += 1;
+      if (late) overdueLoans += 1;
+    }
+  }
+  console.log(
+    `  library: ${BOOKS.length} titles, ${copyCount} copies, ` +
+      `${loanCount} out — ${overdueLoans} overdue`,
+  );
+
+  /* ── Admissions ───────────────────────────────────────────────────── */
+
+  /*
+    A pipeline with somebody at every stage, because the board groups by stage
+    and a stage with nobody in it is a heading nobody can read a count off.
+
+    The row that matters most is the **lapsed offer**: an offer whose expiry has
+    passed and which nothing has moved. `e2e/admissions-shots.spec.ts` looks for
+    the board shouting about it, and an admissions office that is not shouted at
+    loses the place to a family that gave up waiting.
+  */
+
+  const APPLICANTS: Array<{
+    first: string;
+    last: string;
+    stage: "ENQUIRY" | "APPLIED" | "ASSESSMENT" | "WAITLISTED" | "OFFERED" | "ACCEPTED";
+    score?: number;
+    offerDays?: number;
+    source: string;
+    previous: string | null;
+  }> = [
+    { first: "Anotida", last: "Chirume", stage: "ENQUIRY", source: "Website", previous: "Mufakose Primary" },
+    { first: "Tanyaradzwa", last: "Bere", stage: "ENQUIRY", source: "Walk-in", previous: null },
+    { first: "Kudakwashe", last: "Mudenda", stage: "APPLIED", source: "Referral", previous: "Chitungwiza Primary" },
+    { first: "Nyaradzo", last: "Chapeyama", stage: "APPLIED", source: "Website", previous: "Avondale Primary" },
+    { first: "Tinotenda", last: "Mashava", stage: "ASSESSMENT", score: 74, source: "Referral", previous: "Borrowdale Primary" },
+    { first: "Ruvarashe", last: "Zimuto", stage: "ASSESSMENT", score: 81, source: "Website", previous: "Hatfield Primary" },
+    { first: "Mufaro", last: "Ndlovu", stage: "ASSESSMENT", score: 63, source: "Walk-in", previous: "Glen View Primary" },
+    { first: "Tapiwanashe", last: "Guvamombe", stage: "WAITLISTED", score: 55, source: "Website", previous: "Kuwadzana Primary" },
+    // The lapsed one. Offered in July, expired in August, nobody answered.
+    { first: "Makanaka", last: "Chiwara", stage: "OFFERED", score: 88, offerDays: -34, source: "Referral", previous: "Highlands Primary" },
+    { first: "Tavonga", last: "Muchemwa", stage: "OFFERED", score: 79, offerDays: 12, source: "Website", previous: "Belvedere Primary" },
+    { first: "Nokutenda", last: "Sibanda", stage: "ACCEPTED", score: 85, offerDays: 9, source: "Referral", previous: "Mount Pleasant Primary" },
+  ];
+
+  const entryClass = classes[0];
+  let applicationCount = 0;
+
+  for (const [index, applicant] of APPLICANTS.entries()) {
+    const applicationNo = `APP-2027-${pad(index + 1, 3)}`;
+    const appliedAt = daysFrom(-90 + index * 4);
+    const data = {
+      firstName: applicant.first,
+      lastName: applicant.last,
+      dateOfBirth: new Date(Date.UTC(2013, (index * 3) % 12, ((index * 7) % 27) + 1)),
+      gender: index % 2 === 0 ? "F" : "M",
+      guardianName: `${pick(FIRST_NAMES)} ${applicant.last}`,
+      guardianPhone: `+2637${between(10, 79)}${between(100000, 999999)}`,
+      guardianEmail: `${applicant.last.toLowerCase()}.family@example.test`,
+      previousSchool: applicant.previous,
+      source: applicant.source,
+      appliedForClassId: entryClass.id,
+      intendedTermId: term.id,
+      stage: applicant.stage,
+      assessmentScore: applicant.score === undefined ? null : new Prisma.Decimal(applicant.score),
+      assessmentAt: applicant.score === undefined ? null : daysFrom(-60 + index * 3),
+      offeredAt: applicant.offerDays === undefined ? null : daysFrom(applicant.offerDays - 21),
+      offerExpiresAt: applicant.offerDays === undefined ? null : daysFrom(applicant.offerDays),
+      notes:
+        applicant.offerDays !== undefined && applicant.offerDays < 0
+          ? "Offer letter sent by email and WhatsApp. No answer on either."
+          : null,
+    };
+
+    const application = await prisma.schoolApplication.upsert({
+      where: { companyId_applicationNo: { companyId, applicationNo } },
+      update: data,
+      create: { companyId, applicationNo, ...data, createdAt: appliedAt },
+      select: { id: true },
+    });
+
+    // The trail, so "who turned her down in March" has an answer. One row per
+    // stage the application has actually been through.
+    const STAGES = ["ENQUIRY", "APPLIED", "ASSESSMENT", "WAITLISTED", "OFFERED", "ACCEPTED"] as const;
+    const reached = STAGES.slice(0, STAGES.indexOf(applicant.stage) + 1).filter(
+      (stage) => stage !== "WAITLISTED" || applicant.stage === "WAITLISTED",
+    );
+    await prisma.schoolApplicationEvent.deleteMany({
+      where: { companyId, applicationId: application.id },
+    });
+    await prisma.schoolApplicationEvent.createMany({
+      data: reached.map((stage, stageIndex) => ({
+        companyId,
+        applicationId: application.id,
+        fromStage: stageIndex === 0 ? null : reached[stageIndex - 1],
+        toStage: stage,
+        actorUserId: markerId,
+        actedAt: new Date(appliedAt.getTime() + stageIndex * 9 * 24 * 60 * 60 * 1000),
+      })),
+    });
+    applicationCount += 1;
+  }
+  console.log(
+    `  admissions: ${applicationCount} applications across ` +
+      `${new Set(APPLICANTS.map((applicant) => applicant.stage)).size} stages ` +
+      "(one offer already lapsed)",
+  );
+
+  /* ── Public examinations ──────────────────────────────────────────── */
+
+  /*
+    A ZIMSEC November sitting, with Form 4 entered for it.
+
+    ## The page this data feeds cannot be reached yet, and that is not the seed
+
+    `schools.exams` is billable, and `getCompanyFeatureMap` resolves a billable
+    feature as `requested && subscriptionEntitled.has(key)` — a per-company flag
+    alone is never enough. Entitlement comes from a tier or an addon bundle, and
+    **no tier and no bundle in `feature-catalog.ts` carries `schools.exams`**:
+    `ADDON_SCHOOLS_SUITE` lists the other eleven `schools.*` keys and not this
+    one. So `/schools/exams` redirects to `/access-blocked` for every tenant
+    there is, including this ENTERPRISE one, and will keep doing so until the
+    catalogue puts the key in something sellable. Read on 2026-09-22.
+
+    The flag is written anyway, because it is the half of the answer this seed
+    legitimately owns — the same flag `provisionSchool` writes for the eleven —
+    and because the day the catalogue carries the key, St Mary's has the module
+    on and a sitting already in it rather than an empty screen. The data below
+    is written for the same reason: `e2e/boarding-shots.spec.ts` sat skipped for
+    a month waiting for a boarding house, and a seed that waits for the feature
+    is how that happens again.
+
+    The entry deadline is the consequential date. `SchoolExamSeries` says so in
+    its own docstring — a missed ZIMSEC deadline costs a pupil a year, with no
+    appeal — so it is seeded close enough to today that the series screen draws
+    its alert, which is the state worth showing.
+  */
+
+  const examsFeature = await prisma.platformFeature.findUnique({
+    where: { key: "schools.exams" },
+    select: { id: true },
+  });
+  if (examsFeature) {
+    await prisma.companyFeatureFlag.upsert({
+      where: {
+        companyId_featureId: { companyId, featureId: examsFeature.id },
+      },
+      update: { isEnabled: true },
+      create: { companyId, featureId: examsFeature.id, isEnabled: true },
+    });
+  }
+
+  const board = await prisma.schoolExamBoard.upsert({
+    where: { companyId_code: { companyId, code: "ZIMSEC" } },
+    update: { name: "Zimbabwe School Examinations Council" },
+    create: {
+      companyId,
+      code: "ZIMSEC",
+      name: "Zimbabwe School Examinations Council",
+    },
+    select: { id: true },
+  });
+
+  // The centre number is the board's, not ours — it is what a school quotes
+  // on the telephone when something has gone wrong with an entry.
+  const centre = await prisma.schoolExamCentre.upsert({
+    where: { companyId_boardId_number: { companyId, boardId: board.id, number: "025419" } },
+    update: { name: company.name },
+    create: { companyId, boardId: board.id, number: "025419", name: company.name },
+    select: { id: true },
+  });
+
+  /** ZIMSEC syllabus codes, against the school's own subject codes. */
+  const SYLLABUS: Array<{ subject: string; code: string; name: string; papers: number }> = [
+    { subject: "ENG", code: "1122", name: "English Language", papers: 2 },
+    { subject: "MAT", code: "4008", name: "Mathematics", papers: 2 },
+    { subject: "SHO", code: "3159", name: "Shona", papers: 2 },
+    { subject: "COM", code: "4003", name: "Combined Science", papers: 2 },
+    { subject: "BIO", code: "4025", name: "Biology", papers: 2 },
+    { subject: "CHE", code: "4027", name: "Chemistry", papers: 2 },
+    { subject: "PHY", code: "4023", name: "Physics", papers: 2 },
+    { subject: "GEO", code: "4022", name: "Geography", papers: 2 },
+    { subject: "HIS", code: "2167", name: "History", papers: 2 },
+    { subject: "ACC", code: "7112", name: "Principles of Accounts", papers: 2 },
+    { subject: "BST", code: "7115", name: "Business Studies", papers: 2 },
+    { subject: "AGR", code: "5035", name: "Agriculture", papers: 2 },
+    { subject: "CSC", code: "4021", name: "Computer Science", papers: 2 },
+  ];
+
+  const examSubjects = new Map<string, string>();
+  for (const entry of SYLLABUS) {
+    const schoolSubject = subjects.find((subject) => subject.code === entry.subject);
+    const examSubject = await prisma.schoolExamSubject.upsert({
+      where: {
+        companyId_boardId_code_level: {
+          companyId,
+          boardId: board.id,
+          code: entry.code,
+          level: "O_LEVEL",
+        },
+      },
+      update: { name: entry.name, subjectId: schoolSubject?.id ?? null },
+      create: {
+        companyId,
+        boardId: board.id,
+        subjectId: schoolSubject?.id ?? null,
+        code: entry.code,
+        name: entry.name,
+        level: "O_LEVEL",
+      },
+      select: { id: true },
+    });
+    examSubjects.set(entry.subject, examSubject.id);
+  }
+
+  const existingSeries = await prisma.schoolExamSeries.findFirst({
+    where: { companyId, name: "November 2026", year: 2026, level: "O_LEVEL" },
+    select: { id: true },
+  });
+  const seriesData = {
+    boardId: board.id,
+    centreId: centre.id,
+    name: "November 2026",
+    year: 2026,
+    level: "O_LEVEL" as const,
+    status: "ENTRIES_OPEN" as const,
+    cohortLevel: 4,
+    entriesOpenAt: daysFrom(-31),
+    // Eleven days out, so the deadline reads as the thing to act on.
+    entriesCloseAt: daysFrom(11),
+    lateEntriesCloseAt: daysFrom(25),
+    startsOn: new Date(Date.UTC(2026, 10, 2)),
+    endsOn: new Date(Date.UTC(2026, 10, 27)),
+    resultsDueOn: new Date(Date.UTC(2027, 0, 22)),
+    feePerSubject: new Prisma.Decimal(11),
+    lateFeePerSubject: new Prisma.Decimal(22),
+    currency: "USD",
+  };
+  const series = existingSeries
+    ? await prisma.schoolExamSeries.update({
+        where: { id: existingSeries.id },
+        data: seriesData,
+        select: { id: true },
+      })
+    : await prisma.schoolExamSeries.create({
+        data: { companyId, ...seriesData },
+        select: { id: true },
+      });
+
+  // The timetable. Two papers a subject, spread across the sitting, because a
+  // seating plan and a clash check both need papers with dates on them.
+  let paperCount = 0;
+  for (const [index, entry] of SYLLABUS.entries()) {
+    const examSubjectId = examSubjects.get(entry.subject);
+    if (!examSubjectId) continue;
+    for (let paperNumber = 1; paperNumber <= entry.papers; paperNumber += 1) {
+      const sitsAt = new Date(
+        Date.UTC(2026, 10, 2 + index * 2 + (paperNumber - 1), paperNumber === 1 ? 9 : 14, 0),
+      );
+      await prisma.schoolExamPaper.upsert({
+        where: {
+          seriesId_examSubjectId_paperNumber: {
+            seriesId: series.id,
+            examSubjectId,
+            paperNumber,
+          },
+        },
+        update: { sitsAt },
+        create: {
+          companyId,
+          seriesId: series.id,
+          examSubjectId,
+          paperNumber,
+          code: `${entry.code}/${paperNumber}`,
+          sitsAt,
+          durationMinutes: paperNumber === 1 ? 90 : 150,
+        },
+      });
+      paperCount += 1;
+    }
+  }
+
+  /*
+    Form 4 sits it. Each candidate takes the five everybody takes plus three
+    chosen from the rest, which is what an eight-subject O Level looks like —
+    and it means the entry list is not thirteen identical rows.
+  */
+  const CORE = ["ENG", "MAT", "SHO", "COM", "HIS"];
+  const OPTIONS = ["BIO", "CHE", "PHY", "GEO", "ACC", "BST", "AGR", "CSC"];
+  const formFour = classes.find((schoolClass) => schoolClass.code === "F4");
+  const candidates = formFour
+    ? pupils.filter((pupil) => pupil.classId === formFour.id)
+    : [];
+
+  let candidateCount = 0;
+  let entryCount = 0;
+  let lateEntries = 0;
+
+  for (const [index, pupil] of candidates.entries()) {
+    const candidate = await prisma.schoolCandidate.upsert({
+      where: { seriesId_studentId: { seriesId: series.id, studentId: pupil.id } },
+      update: { certifiedName: pupil.name },
+      create: {
+        companyId,
+        seriesId: series.id,
+        studentId: pupil.id,
+        // Four digits, allocated by the school inside the centre. Not the
+        // pupil number, which is ours and means nothing to the board.
+        candidateNumber: pad(1000 + index + 1),
+        certifiedName: pupil.name,
+        status: "ENTERED",
+        enteredAt: daysFrom(-14 + (index % 7)),
+      },
+      select: { id: true },
+    });
+    candidateCount += 1;
+
+    const chosen = [...CORE, ...OPTIONS.slice(index % 4, (index % 4) + 3)];
+    for (const subjectCode of chosen) {
+      const examSubjectId = examSubjects.get(subjectCode);
+      if (!examSubjectId) continue;
+      // Every seventh candidate got their last subject in after the deadline
+      // and carries the penalty rather than the ordinary fee. A list where
+      // nothing is late never shows what late costs.
+      const isLate = index % 7 === 0 && subjectCode === chosen[chosen.length - 1];
+      await prisma.schoolExamEntry.upsert({
+        where: { candidateId_examSubjectId: { candidateId: candidate.id, examSubjectId } },
+        update: { status: "ENTERED", isLate },
+        create: {
+          companyId,
+          seriesId: series.id,
+          candidateId: candidate.id,
+          examSubjectId,
+          status: "ENTERED",
+          isLate,
+          fee: new Prisma.Decimal(isLate ? 22 : 11),
+          currency: "USD",
+          enteredAt: daysFrom(-14 + (index % 7)),
+        },
+      });
+      entryCount += 1;
+      if (isLate) lateEntries += 1;
+    }
+  }
+
+  console.log(
+    `  exams: ZIMSEC November 2026, ${paperCount} papers, ` +
+      `${candidateCount} candidates, ${entryCount} entries (${lateEntries} late)`,
   );
 
   /* ── Sign-in card ─────────────────────────────────────────────────── */

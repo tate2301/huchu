@@ -53,7 +53,19 @@ const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900, hasTouch: false },
 ];
 
-type Target = { name: string; path: string; heading: string };
+type Target = {
+  name: string;
+  path: string;
+  heading: string;
+  /**
+   * Where arriving counts as arrived, when the route forwards.
+   *
+   * Defaults to `path`. `_support/nav.ts` carries the same option for the same
+   * reason: a forward that the spec knows about is a destination to assert, not
+   * a redirect to fail on.
+   */
+  landsOn?: string;
+};
 
 /** The pages whose path and heading are both known without asking the server. */
 const PAGES: readonly Target[] = [
@@ -63,8 +75,20 @@ const PAGES: readonly Target[] = [
     it used to render is gone with the page. Following the forward keeps the
     width measurement — which is what this file is for — pointed at the screen
     a person actually reaches.
+
+    Following it also has to be *said*, twice, and until 2026-09-22 it was said
+    neither time: the heading read "Years and Terms" against a page that renders
+    "Years and terms" — and `exact: true` is case-sensitive — while the path
+    assertion below still demanded `/schools/academics`, which following a
+    forward is precisely not. Three tests, one per viewport, that had never
+    passed and never could.
   */
-  { name: "academics", path: "/schools/academics", heading: "Years and Terms" },
+  {
+    name: "academics",
+    path: "/schools/academics",
+    landsOn: "/management/master-data/schools/years",
+    heading: "Years and terms",
+  },
   { name: "guardians", path: "/schools/guardians", heading: "Guardians" },
   { name: "students", path: "/schools/students", heading: "Students" },
   { name: "attendance", path: "/schools/attendance", heading: "Attendance" },
@@ -152,7 +176,7 @@ async function layoutPass(
   expect(
     new URL(page.url()).pathname,
     `redirected away from ${target.path} — landed on ${page.url()}`,
-  ).toBe(target.path);
+  ).toBe(target.landsOn ?? target.path);
   await expect(
     page.locator('input[type="password"]'),
     "a password field is on screen — this is a sign-in page, not the app",

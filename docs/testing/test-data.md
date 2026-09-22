@@ -56,17 +56,35 @@ sat at `POSTED`.
 `stock` (STOCK_CLERK). The two cashiers matter: a till test that needs an
 override needs a second person to approve it.
 
-### `stmarys` — a 120-pupil secondary school
+### `stmarys` — a 120-pupil boarding secondary school
 
 | | |
 |---|---|
-| Students | **120** |
+| Students | **120** (40 boarders) |
 | Guardians | **119** |
 | Fee invoices | **120** |
+| Beds | **96** across 2 houses, **40** slept in |
+| Calendar events | **14**, of which 9 close the school |
+| Library | **12** titles, 27 copies, 12 out, 4 overdue |
+| Applications | **11** across 6 stages |
+| Exam entries | **160** for 20 candidates |
 
 Six classes, eight teachers, a term of attendance registers, two papers per
 class-subject, and fees in a mix of paid, part-paid and overdue. Three portals
 have real people behind them.
+
+Boarding, the calendar, the library, admissions and public exams were added on
+2026-09-22. Until then the seed wrote none of them, and `boarding-shots`,
+`calendar-shots`, `library-shots` and the admissions board test all skipped
+with that as their stated reason — four shot specs that had never once run.
+They run now.
+
+**The exam data is not reachable through the UI, deliberately recorded.**
+`schools.exams` is billable and belongs to no tier and no addon bundle in
+`feature-catalog.ts`, so `/schools/exams` redirects to `/access-blocked` on
+every tenant including this one. The sitting is seeded so that it is there the
+day the catalogue makes the key sellable; the seed says so at the point it
+writes it.
 
     npx tsx scripts/seed-staging-tenant.ts --slug stmarys --email head@stmarys.test \
       --password 'SchoolDemo123!' --name 'St Marys High School' \
