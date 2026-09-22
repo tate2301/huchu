@@ -249,6 +249,11 @@ model Company {
   crmSiteVisitSections          CrmSiteVisitSection[]
   crmSiteVisitAnswers           CrmSiteVisitAnswer[]
   crmSiteVisitPhotos            CrmSiteVisitPhoto[]
+  crmProjects                   CrmProject[]
+  crmRequisitions               CrmRequisition[]
+  crmDailyLogs                  CrmDailyLog[]
+  crmDailyCostEntries           CrmDailyCostEntry[]
+  crmDailyReports               CrmDailyReport[]
   crmSavedViews                 CrmSavedView[]
   crmIntakeForms                CrmIntakeForm[]
   crmIntakeSubmissions          CrmIntakeSubmission[]
@@ -1234,6 +1239,13 @@ model User {
   crmQuestionSetsCreated            CrmQuestionSet[]               @relation("CrmQuestionSetCreatedBy")
   crmSiteVisitAnswers               CrmSiteVisitAnswer[]           @relation("CrmSiteVisitAnswerBy")
   crmSiteVisitPhotos                CrmSiteVisitPhoto[]            @relation("CrmSiteVisitPhotoBy")
+  crmProjectsManaged                CrmProject[]                   @relation("CrmProjectManager")
+  crmProjectsCreated                CrmProject[]                   @relation("CrmProjectCreatedBy")
+  crmRequisitionsRequested          CrmRequisition[]               @relation("CrmRequisitionRequestedBy")
+  crmRequisitionsApproved           CrmRequisition[]               @relation("CrmRequisitionApprovedBy")
+  crmRequisitionsDisbursed          CrmRequisition[]               @relation("CrmRequisitionDisbursedBy")
+  crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
+  crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
@@ -5971,6 +5983,7 @@ model BankAccount {
   salesReceipts      SalesReceipt[]
   purchasePayments   PurchasePayment[]
   reconciliations    BankReconciliation[]
+  crmRequisitions    CrmRequisition[]
   defaultForSettings AccountingSettings[] @relation("DefaultBankAccount")
 
   @@index([companyId, isActive])
@@ -10680,6 +10693,7 @@ model CrmClient {
   activities        CrmActivity[]
   followUps         CrmFollowUp[]
   appointments      CrmAppointment[]
+  projects          CrmProject[]
   intakeSubmissions CrmIntakeSubmission[]
   people            CrmPerson[]           @relation("CrmPersonPrimaryCompany")
   tasks             CrmTask[]
@@ -11900,6 +11914,7 @@ model CrmSite {
   createdBy      User?            @relation("CrmSiteCreatedBy", fields: [createdById], references: [id])
   deals          CrmDeal[]
   appointments   CrmAppointment[]
+  projects       CrmProject[]
   tasks          CrmTask[]
   comments       CrmComment[]
   files          CrmRecordFile[]
@@ -11972,7 +11987,8 @@ model CrmDeal {
   comments       CrmComment[]
   files          CrmRecordFile[]
 
-  workOrders CrmWorkOrder[]
+  workOrders          CrmWorkOrder[]
+  projects            CrmProject[]
 
   @@unique([companyId, dealNo])
   @@index([companyId, stageId])
@@ -12794,6 +12810,256 @@ enum CrmCollectionOutcome {
 /// equipment breakdown — it requires an equipmentId, tracks downtime windows
 /// and assigns an Employee technician. None of that describes installing what
 /// a customer just bought at their own address.
+enum CrmProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum CrmRequisitionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  /// Approved and the money has actually left. Separate from APPROVED because
+  /// "he said yes" and "I have the cash" are different days and different
+  /// questions.
+  DISBURSED
+  /// Spent, with what it went on accounted for.
+  ACQUITTED
+  CANCELLED
+}
+
+/// What the money is for.
+///
+/// Deliberately not derived from the chart of accounts: a rep asking for fuel
+/// should pick "Fuel", not hunt for account 6220. Accounting maps these to
+/// accounts on its own side.
+enum CrmRequisitionCategory {
+  FUEL
+  AIRTIME
+  TRANSPORT
+  MATERIALS
+  EQUIPMENT
+  LABOUR
+  SUBSISTENCE
+  ACCOMMODATION
+  OTHER
+}
+
+enum CrmCashDirection {
+  RECEIVED
+  SPENT
+}
+
+/// A job that has become a piece of work with its own money.
+///
+/// The CRM's chain is lead, deal, quote, won, job. A job is a day's work with
+/// a checklist; a project is the thing a job belongs to when the work runs
+/// longer than that and has a budget somebody is answerable for. Requisitions
+/// and daily costs point here, which is what makes "what has this project cost
+/// us" answerable without a spreadsheet.
+model CrmProject {
+  id          String            @id @default(uuid())
+  companyId   String
+  projectNo   String
+  name        String
+  description String?
+  status      CrmProjectStatus  @default(PLANNING)
+
+  /// Where it came from. All optional: a project can be raised directly for
+  /// work that never went through the pipeline.
+  dealId      String?
+  clientId    String?
+  siteId      String?
+  workOrderId String?
+
+  /// Who is answerable for the budget.
+  managerId String?
+
+  startDate     DateTime?
+  targetEndDate DateTime?
+  actualEndDate DateTime?
+
+  /// What it was approved to cost. Null means nobody has set one yet, which is
+  /// not the same as zero.
+  budget   Decimal? @db.Decimal(14, 2)
+  currency String   @default("USD")
+
+  customFields Json?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deal        CrmDeal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  client      CrmClient?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  site        CrmSite?            @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  workOrder   CrmWorkOrder?       @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  manager     User?               @relation("CrmProjectManager", fields: [managerId], references: [id])
+  createdBy   User?               @relation("CrmProjectCreatedBy", fields: [createdById], references: [id])
+  requisitions CrmRequisition[]
+  costEntries  CrmDailyCostEntry[]
+
+  @@unique([companyId, projectNo])
+  @@index([companyId, status, updatedAt])
+  @@index([companyId, managerId, status])
+  @@index([companyId, dealId])
+}
+
+/// An employee asking for money.
+///
+/// `projectId` is nullable and that is the point. Fuel and airtime are asked
+/// for by people who are not on a project that day, and forcing a project onto
+/// them would either block the request or produce a fictional one — both of
+/// which make the project's cost figure a lie.
+model CrmRequisition {
+  id             String                 @id @default(uuid())
+  companyId      String
+  requisitionNo  String
+  status         CrmRequisitionStatus   @default(DRAFT)
+  category       CrmRequisitionCategory
+  /// What the money is for, in the requester's words.
+  purpose        String
+  notes          String?
+
+  /// Null for fuel, airtime and anything else that belongs to no project.
+  projectId String?
+
+  amount   Decimal @db.Decimal(14, 2)
+  currency String  @default("USD")
+
+  requestedById String
+  neededBy      DateTime?
+
+  submittedAt DateTime?
+
+  approvedById    String?
+  approvedAt      DateTime?
+  approvedAmount  Decimal?  @db.Decimal(14, 2)
+  decisionNote    String?
+
+  disbursedById  String?
+  disbursedAt    DateTime?
+  /// Which account it was paid from, when it was paid from one.
+  bankAccountId  String?
+
+  /// What it actually went on, once spent. A requisition is not finished when
+  /// the money is handed over; it is finished when somebody accounts for it.
+  acquittedAt     DateTime?
+  acquittedAmount Decimal?  @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project     CrmProject?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  requestedBy User                @relation("CrmRequisitionRequestedBy", fields: [requestedById], references: [id])
+  approvedBy  User?               @relation("CrmRequisitionApprovedBy", fields: [approvedById], references: [id])
+  disbursedBy User?               @relation("CrmRequisitionDisbursedBy", fields: [disbursedById], references: [id])
+  bankAccount BankAccount?        @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  costEntries CrmDailyCostEntry[]
+
+  @@unique([companyId, requisitionNo])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, requestedById, status])
+  @@index([companyId, projectId])
+}
+
+/// One person's money for one day.
+///
+/// The parent exists so a day can be submitted as a unit — "this is what I did
+/// with the cash today" — rather than leaving a trail of entries nobody ever
+/// declares finished.
+model CrmDailyLog {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String
+  /// The day being accounted for, at midnight. Not `createdAt`: a rep writes
+  /// up Tuesday on Wednesday morning more often than not.
+  logDate   DateTime @db.Date
+
+  notes       String?
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User                @relation("CrmDailyLogUser", fields: [userId], references: [id], onDelete: Cascade)
+  entries CrmDailyCostEntry[]
+
+  @@unique([companyId, userId, logDate])
+  @@index([companyId, logDate])
+}
+
+/// Money in or out of one person's hands on one day.
+model CrmDailyCostEntry {
+  id        String           @id @default(uuid())
+  companyId String
+  logId     String
+  direction CrmCashDirection
+  category  CrmRequisitionCategory
+  amount    Decimal          @db.Decimal(14, 2)
+  currency  String           @default("USD")
+  description String
+
+  /// Same nullability, same reason, as on a requisition: airtime belongs to
+  /// no project.
+  projectId String?
+  /// Where the money came from, when it came from a requisition. Lets a
+  /// disbursement be reconciled against what was actually spent.
+  requisitionId String?
+
+  /// A photograph of the receipt. Key, not blob, like every other upload here.
+  receiptUrl      String?
+  receiptPathname String?
+
+  /// Generated on the device: these are written in the field too.
+  clientEntryId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  log         CrmDailyLog     @relation(fields: [logId], references: [id], onDelete: Cascade)
+  project     CrmProject?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  requisition CrmRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, clientEntryId])
+  @@index([companyId, logId])
+  @@index([companyId, projectId, createdAt])
+  @@index([companyId, requisitionId])
+}
+
+/// What one person did in one day, assembled and kept.
+///
+/// Stored rather than rendered on demand: management asking "what did the team
+/// do on the 14th" three weeks later should get the 14th as it was, not the
+/// 14th recomputed against records that have since been edited.
+model CrmDailyReport {
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String
+  reportDate DateTime @db.Date
+
+  /// The assembled report: visits, jobs, tasks, money, in the shape
+  /// `lib/crm/daily-report.ts` builds. Denormalised on purpose — see above.
+  summary Json
+
+  generatedAt DateTime  @default(now())
+  /// Null until it has gone to management.
+  sentAt      DateTime?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation("CrmDailyReportUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, reportDate])
+  @@index([companyId, reportDate])
+}
+
 model CrmWorkOrder {
   id          String             @id @default(uuid())
   companyId   String
@@ -12862,6 +13128,7 @@ model CrmWorkOrder {
   assignedTo User?              @relation("CrmWorkOrderAssignedTo", fields: [assignedToId], references: [id])
   createdBy  User?              @relation("CrmWorkOrderCreatedBy", fields: [createdById], references: [id])
   items      CrmWorkOrderItem[]
+  projects   CrmProject[]
 
   @@unique([companyId, workOrderNo])
   @@index([companyId, status, scheduledStart])
