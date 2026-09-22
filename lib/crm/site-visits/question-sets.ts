@@ -105,6 +105,25 @@ export function matchProductId(
 }
 
 /**
+ * The bank this tenant starts from, or the generic checklist.
+ *
+ * A column rather than a hardcoded slug check: the next tenant with their own
+ * question bank should be a settings change, not a deployment.
+ */
+async function tenantTemplateKey(tx: Tx, companyId: string): Promise<string> {
+  const company = await tx.company.findUnique({
+    where: { id: companyId },
+    select: { siteVisitTemplateKey: true },
+  });
+  const key = company?.siteVisitTemplateKey;
+  // An unknown key would throw below and take the whole visit page with it.
+  // A tenant with a typo in a settings field should get the generic
+  // checklist, not a broken visit.
+  if (key && getTemplate(key)) return key;
+  return GENERIC_TEMPLATE_KEY;
+}
+
+/**
  * Materialise a template into a tenant's question sets, once.
  *
  * Idempotent, and safe to call on any read path that needs question sets to
@@ -114,7 +133,17 @@ export function matchProductId(
 export async function ensureSiteVisitQuestionSets(
   tx: Tx,
   companyId: string,
-  templateKey: string = GENERIC_TEMPLATE_KEY,
+  /**
+   * Which bank to seed from. Omitted, it is read from the tenant's own
+   * `siteVisitTemplateKey`.
+   *
+   * It used to default to the generic checklist, which meant the FloorCode
+   * bank never reached a real visit: nothing in the application passed a key,
+   * so every tenant seeded the eight generic items and the 152 questions sat
+   * unread — the exact failure this whole feature existed to fix. The test
+   * passed the key itself and so proved only that the function worked.
+   */
+  templateKey?: string,
 ) {
   const existing = await tx.crmQuestionSet.findMany({
     where: { companyId, archivedAt: null },
@@ -128,10 +157,11 @@ export async function ensureSiteVisitQuestionSets(
   });
   if (existing.length > 0) return existing;
 
-  const template = getTemplate(templateKey);
+  const resolvedKey = templateKey ?? (await tenantTemplateKey(tx, companyId));
+  const template = getTemplate(resolvedKey);
   if (!template) {
     throw new Error(
-      `Unknown site-visit template ${templateKey}. Known: ${listTemplateKeys().join(", ")}`,
+      `Unknown site-visit template ${resolvedKey}. Known: ${listTemplateKeys().join(", ")}`,
     );
   }
 
@@ -152,7 +182,7 @@ export async function ensureSiteVisitQuestionSets(
         productId:
           section.kind === "product" ? matchProductId(section.name, products) : null,
         position: index,
-        sourceTemplateKey: templateKey,
+        sourceTemplateKey: resolvedKey,
         questions: {
           create: section.questions.map((question, questionIndex) => ({
             companyId,

@@ -14,6 +14,11 @@ model Company {
   id                            String             @id @default(uuid())
   name                          String
   slug                          String             @unique
+  /// Which site-visit question bank this tenant starts from. Null means the
+  /// generic checklist. Read by `ensureSiteVisitQuestionSets` on first use;
+  /// changing it afterwards does nothing, because the tenant's own rows are
+  /// the source of truth once seeded.
+  siteVisitTemplateKey          String?
   tenantStatus                  TenantStatus       @default(PROVISIONING)
   workspaceProfile              WorkspaceProfile   @default(GENERAL)
   isProvisioned                 Boolean            @default(false)

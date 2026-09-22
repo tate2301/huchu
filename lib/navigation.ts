@@ -797,6 +797,13 @@ export const navSections: NavSection[] = [
 
       { href: "/crm/import", icon: Upload, label: "Import", group: "setup" },
       {
+        href: "/crm/settings/site-visit-questions",
+        icon: Checklist,
+        label: "Site visit questions",
+        roles: ["SUPERADMIN", "MANAGER"],
+        group: "setup",
+      },
+      {
         href: "/crm/settings",
         icon: ManageAccounts,
         label: "CRM settings",

@@ -13,7 +13,6 @@ import { prisma } from "@/lib/prisma";
 import { FLOORCODE_QUESTION_BANK } from "@/lib/crm/site-visits/floorcode-question-bank";
 import {
   FLOORCODE_TEMPLATE_KEY,
-  GENERIC_TEMPLATE_KEY,
   ensureSiteVisitQuestionSets,
   matchProductId,
   questionSetsForVisit,
@@ -25,18 +24,22 @@ const GENERIC_SLUG = "question-sets-test-generic";
 let floorcodeId: string;
 let genericId: string;
 
-async function makeCompany(slug: string, name: string) {
+async function makeCompany(slug: string, name: string, templateKey?: string) {
   const company = await prisma.company.upsert({
     where: { slug },
-    update: {},
-    create: { name, slug },
+    update: { siteVisitTemplateKey: templateKey ?? null },
+    create: { name, slug, siteVisitTemplateKey: templateKey ?? null },
   });
   await prisma.crmQuestionSet.deleteMany({ where: { companyId: company.id } });
   return company.id;
 }
 
 beforeAll(async () => {
-  floorcodeId = await makeCompany(FLOORCODE_SLUG, "Question Sets Test Floorcode");
+  floorcodeId = await makeCompany(
+    FLOORCODE_SLUG,
+    "Question Sets Test Floorcode",
+    FLOORCODE_TEMPLATE_KEY,
+  );
   genericId = await makeCompany(GENERIC_SLUG, "Question Sets Test Generic");
 
   // A catalogue to match product sections against.
@@ -48,12 +51,10 @@ beforeAll(async () => {
     ],
   });
 
-  await prisma.$transaction(async (tx) => {
-    await ensureSiteVisitQuestionSets(tx, floorcodeId, FLOORCODE_TEMPLATE_KEY);
-  });
-  await prisma.$transaction(async (tx) => {
-    await ensureSiteVisitQuestionSets(tx, genericId, GENERIC_TEMPLATE_KEY);
-  });
+  // Deliberately NOT passing a template key: this is the call the site-visit
+  // page makes, and the tenant's own column has to be what decides.
+  await prisma.$transaction((tx) => questionSetsForVisit(tx, floorcodeId));
+  await prisma.$transaction((tx) => questionSetsForVisit(tx, genericId));
 });
 
 afterAll(async () => {
@@ -157,15 +158,90 @@ describe("seeding is safe to call repeatedly", () => {
       data: { label: "Edited by the tenant" },
     });
 
-    await prisma.$transaction(async (tx) => {
-      await ensureSiteVisitQuestionSets(tx, floorcodeId, FLOORCODE_TEMPLATE_KEY);
-    });
+    await prisma.$transaction((tx) => questionSetsForVisit(tx, floorcodeId));
 
     expect(await prisma.crmQuestion.count({ where: { companyId: floorcodeId } })).toBe(before);
     const after = await prisma.crmQuestion.findUnique({ where: { id: first!.id } });
     expect(after?.label).toBe("Edited by the tenant");
 
     await prisma.crmQuestion.update({ where: { id: first!.id }, data: { label: first!.label } });
+  });
+});
+
+describe("the tenant's own column decides the bank", () => {
+  /**
+   * The test this file was missing, and the bug it let through.
+   *
+   * Every seeding test here used to pass `FLOORCODE_TEMPLATE_KEY` by hand, so
+   * all of them proved was that `ensureSiteVisitQuestionSets` works when told
+   * the answer. Nothing in the application ever told it: the site-visit page
+   * calls `questionSetsForVisit(tx, companyId)`, which defaulted to the
+   * generic checklist. FloorCode would have been seeded the same eight items
+   * James complained about, with a green suite saying otherwise.
+   */
+  it("seeds FloorCode's bank through the call the visit page actually makes", async () => {
+    const slug = "question-sets-wiring-test";
+    const company = await prisma.company.upsert({
+      where: { slug },
+      update: { siteVisitTemplateKey: FLOORCODE_TEMPLATE_KEY },
+      create: {
+        name: "Question Sets Wiring Test",
+        slug,
+        siteVisitTemplateKey: FLOORCODE_TEMPLATE_KEY,
+      },
+    });
+    await prisma.crmQuestionSet.deleteMany({ where: { companyId: company.id } });
+
+    // No template key passed — exactly as the route calls it.
+    await prisma.$transaction((tx) => questionSetsForVisit(tx, company.id));
+
+    const count = await prisma.crmQuestion.count({ where: { companyId: company.id } });
+    expect(count).toBe(152);
+
+    await prisma.crmQuestionSet.deleteMany({ where: { companyId: company.id } });
+    await prisma.company.delete({ where: { id: company.id } });
+  });
+
+  it("falls back to the generic checklist when the key is nonsense", async () => {
+    // A typo in a settings field must not take the visit page down with it.
+    const slug = "question-sets-badkey-test";
+    const company = await prisma.company.upsert({
+      where: { slug },
+      update: { siteVisitTemplateKey: "not-a-real-template" },
+      create: {
+        name: "Question Sets Bad Key Test",
+        slug,
+        siteVisitTemplateKey: "not-a-real-template",
+      },
+    });
+    await prisma.crmQuestionSet.deleteMany({ where: { companyId: company.id } });
+
+    const sets = await prisma.$transaction((tx) => questionSetsForVisit(tx, company.id));
+
+    expect(sets.closeout).toHaveLength(1);
+    expect(sets.product).toHaveLength(0);
+
+    await prisma.crmQuestionSet.deleteMany({ where: { companyId: company.id } });
+    await prisma.company.delete({ where: { id: company.id } });
+  });
+
+  it("still honours an explicit key, for seeds and back-fills", async () => {
+    const slug = "question-sets-explicit-test";
+    const company = await prisma.company.upsert({
+      where: { slug },
+      update: { siteVisitTemplateKey: null },
+      create: { name: "Question Sets Explicit Test", slug },
+    });
+    await prisma.crmQuestionSet.deleteMany({ where: { companyId: company.id } });
+
+    await prisma.$transaction((tx) =>
+      ensureSiteVisitQuestionSets(tx, company.id, FLOORCODE_TEMPLATE_KEY),
+    );
+
+    expect(await prisma.crmQuestion.count({ where: { companyId: company.id } })).toBe(152);
+
+    await prisma.crmQuestionSet.deleteMany({ where: { companyId: company.id } });
+    await prisma.company.delete({ where: { id: company.id } });
   });
 });
 

@@ -1,0 +1,13 @@
+-- Which site-visit question bank a tenant starts from.
+--
+-- Without this the FloorCode bank never reached a real visit. `ensureSite
+-- VisitQuestionSets` takes a template key defaulting to 'generic-v1', and the
+-- only caller that ever passed 'floorcode-flooring-v1' was its own test. The
+-- seeding function was correct and nothing in the application asked it for
+-- the right bank, so FloorCode would have been seeded the same eight generic
+-- items James complained about -- with a green test suite saying otherwise.
+--
+-- Nullable, and null means generic, so every existing tenant keeps exactly
+-- what it has. Read once, on first seed: after that the tenant's own rows are
+-- the source of truth and changing this column deliberately does nothing.
+ALTER TABLE "Company" ADD COLUMN "siteVisitTemplateKey" TEXT;
