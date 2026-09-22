@@ -40,11 +40,14 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const search = searchParams.get("search")?.trim();
     const mine = searchParams.get("mine") === "true";
+    // Used by a job's own page to ask "has this already become a project?".
+    const workOrderId = searchParams.get("workOrderId");
 
     const where: Prisma.CrmProjectWhereInput = {
       companyId,
       ...(status ? { status: status as Prisma.EnumCrmProjectStatusFilter["equals"] } : {}),
       ...(mine ? { managerId: session.user.id } : {}),
+      ...(workOrderId ? { workOrderId } : {}),
       ...(search
         ? {
             OR: [
