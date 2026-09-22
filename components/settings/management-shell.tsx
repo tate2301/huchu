@@ -1,193 +1,300 @@
 "use client";
 
-import { useMemo, type CSSProperties, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import * as React from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { PageChrome } from "@/components/layout/page-chrome";
-import { NavRail } from "@/components/ui/nav-rail";
-import { NavGroup, NavItem } from "@/components/ui/settings-rail";
 import {
-  getAreaLabel,
-  getVisibleManagementAreaNavItems,
-  getVisibleManagementModuleItems,
-  isActiveHref,
-  isPathMatchingPrefix,
-  type ManagementArea,
+  FormPage,
+  RecordHeader,
+  RegisterLayout,
+  SettingsRail,
+  SettingsSurface,
+  type SettingsRailGroup,
+} from "@/components/management/ui";
+import {
+  findActiveSettingsNavEntry,
+  getSettingsRailGroups,
 } from "@/lib/settings/management-nav";
+import { cn } from "@/lib/utils";
 
-type ManagementShellProps = {
-  area: ManagementArea;
+/**
+ * Where "Back to the app" goes.
+ *
+ * A fixed destination rather than `router.back()`: the surface is reachable
+ * from a sidebar entry, a workspace home href and a handful of in-page links,
+ * and half of those arrive with a history entry that is another settings page.
+ * Going "back" from Billing to Job grades is not leaving the surface.
+ */
+const BACK_TO_APP_HREF = "/dashboard";
+
+/**
+ * Whether a settings screen is already on the reader's screen.
+ *
+ * Module scope, deliberately. Every settings route renders its own
+ * `SettingsFrame`, and moving between two of them is a page change, so React
+ * tears the whole surface down and builds it again — which replays the
+ * dialog's 200ms fade-and-zoom on every single rail click. `Opening.dc.html`
+ * annotates that transition as the surface *arriving* over the app; a rail
+ * click is movement inside a surface that is already there, and re-running it
+ * reads as the screen flinching.
+ *
+ * The flag survives a client-side navigation because the module is not
+ * re-evaluated, and the mount of the incoming page renders before the outgoing
+ * one's cleanup runs — so the incoming frame sees `true` and opens without the
+ * animation. Leaving the surface altogether clears it on the next task, so the
+ * following entry animates again. A full page load re-evaluates the module and
+ * the flag starts `false`, which is also correct: that is an arrival.
+ */
+let surfaceIsOnScreen = false;
+let surfaceLeavingTimer: ReturnType<typeof setTimeout> | undefined;
+
+export type SettingsFrameProps = {
   /**
-   * The section, not the module — "Job grades", not "Master data". It names
-   * the band; where it is the area's own name there is no second name to
-   * state and the band drops it.
+   * The screen. A `<RegisterLayout />` or a `<FormPage />` is passed straight
+   * through as the surface's content column and draws its own chrome.
+   * Anything else is wrapped in the record column and given the title line
+   * below, which is how a page that has not been rebuilt yet still gets a
+   * rule-3 header instead of the band this shell used to draw.
    */
-  title: string;
-  /** The section's lede, read as a fragment after the name rather than as a sentence under it. */
-  description?: string;
-  /** The section's primary verb. One per section, in the band. */
-  actions?: ReactNode;
-  children: ReactNode;
+  children: React.ReactNode;
+  /** The fallback title line's text. Ignored once children draw their own. */
+  title?: string;
+  /** The fallback title line's one verb. Ignored once children draw their own. */
+  actions?: React.ReactNode;
+  /**
+   * Counts for the rail, keyed by nav entry id (`users`, `job-grades`, …).
+   *
+   * A prop, not a query. `Rail.dc.html` draws a figure beside most entries,
+   * but resolving twenty-three of them would mean twenty-three new requests
+   * fired from the shell on every settings page — new data fetching, which
+   * this refactor does not do. A page that has already loaded a figure can
+   * hand it over; the rest render without one, which the rail supports.
+   */
+  railCounts?: Record<string, number>;
+  /** Entry ids with something needing attention — the amber dot. */
+  railAttention?: string[];
 };
 
 /**
- * The frame every management section sits in: the app bar names the module,
- * the band names the section, the rail is the map, and the panel below is one
- * page deep.
+ * Management and account preferences, as one surface over the app.
  *
- * ## Why the band carries the name
+ * ## Why there is one shell now and not two
  *
- * The rail highlight is the only other thing that says which section is open,
- * and it scrolls away with the rail on a narrow window — so
- * the one line that never scrolls is where the section's name belongs. The
- * module's name is not repeated there: "Master data" is already what the
- * sidebar entry you clicked says, and the app bar is already showing it.
+ * There were two: this one, and `PreferencesShell`. They drew the same grid
+ * with different chrome — one put the section name and its verb in a sticky
+ * band, the other teleported both into the app bar through `PageChrome`, and
+ * Branding and Templates managed to use the management shell from inside a
+ * `/preferences` route, so the rail changed out from under you mid-surface.
+ * `PreferencesShell` now calls this, and both keep their own exported name so
+ * no call site had to move.
  *
- * That is also why the band draws at all only when there is a second name to
- * state. Branding and Document templates are single-section areas whose
- * section name *is* the area name, and a band that repeats the bar is a band
- * of vertical space spent on nothing.
+ * ## Why the band is gone
  *
- * ## Why the primary action is in the band and not in the panel
+ * Rule 4. A title is followed by its rule and then its content; a strip under
+ * the heading repeating facts the fields already carry is a band spent on
+ * nothing. The section's name and its one verb moved into the record header,
+ * where the thing they act on is. `PageChrome` is gone for the same reason —
+ * the surface covers the app bar, so a title registered into it is a title
+ * drawn behind a scrim.
  *
- * The verb is the one thing you can do on any section, so it should sit in the
- * same place on all of them rather than wherever each panel happens to compose
- * its own header. It was in the panel once: on a 390px screen that put "New
- * department" about four hundred pixels down — under a title the bar was
- * already showing, under the description, and under the whole
- * search-and-pagination row — so the one verb on the page was the last thing
- * you could reach. The band is sticky, so it is reachable from anywhere in a
- * list of four hundred rows and it sits beside the section it acts on.
+ * ## Why it is a dialog
  *
- * There is no sticky unsaved bar anywhere below it, for the same reason: a
- * section commits each record as it is edited, so saving is a property of the
- * page rather than of any panel on it.
+ * `Main.dc.html` and `Opening.dc.html` draw the app dimmed behind an inset
+ * card, and the transition they annotate — `fade-in-0`, `zoom-in .985`, 200ms,
+ * no zoom under `prefers-reduced-motion` — is `components/ui/dialog.tsx`'s
+ * own at `size="full"`. `SettingsSurface` wraps exactly that.
+ *
+ * Presentation only: no query, no mutation and no gate lives here. The rail's
+ * entries arrive already filtered by the same two predicates that guarded
+ * them before, and every route still gates itself on the server exactly as it
+ * did.
  */
-export function ManagementShell({
-  area,
-  title,
-  description,
-  actions,
+export function SettingsFrame({
   children,
-}: ManagementShellProps) {
+  title,
+  actions,
+  railCounts,
+  railAttention,
+}: SettingsFrameProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const { data: session } = useSession();
-  const enabledFeatures = useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
-    [session],
+
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)
+    ?.enabledFeatures;
+
+  // Open on mount and closed by leaving: the surface is a route, so its
+  // "closed" state is a different page rather than a different render.
+  const [open, setOpen] = React.useState(true);
+
+  // Read once, at the first render of this frame, before the flag is raised:
+  // the outgoing frame has not cleaned up yet, so `true` here means the reader
+  // is moving within the surface rather than opening it.
+  const [arriving] = React.useState(() => !surfaceIsOnScreen);
+  React.useEffect(() => {
+    // Cancels the clear the outgoing frame scheduled a moment ago: the two
+    // frames of a rail click share one commit, cleanup first and mount second,
+    // so a navigation is exactly "a frame left and another arrived before the
+    // task ran". Leaving the surface for the app schedules the same clear and
+    // nothing cancels it, so the next entry animates.
+    clearTimeout(surfaceLeavingTimer);
+    surfaceLeavingTimer = undefined;
+    surfaceIsOnScreen = true;
+
+    return () => {
+      surfaceLeavingTimer = setTimeout(() => {
+        surfaceIsOnScreen = false;
+        surfaceLeavingTimer = undefined;
+      }, 0);
+    };
+  }, []);
+
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      setOpen(next);
+      if (!next) router.push(BACK_TO_APP_HREF);
+    },
+    [router],
   );
 
-  const visibleModules = useMemo(
-    () => getVisibleManagementModuleItems(enabledFeatures),
-    [enabledFeatures],
-  );
-  const visibleAreaTabs = useMemo(
-    () => getVisibleManagementAreaNavItems(area, enabledFeatures),
-    [area, enabledFeatures],
-  );
-  const areaLabel = getAreaLabel(area);
+  const groups = React.useMemo<SettingsRailGroup[]>(() => {
+    const visible = getSettingsRailGroups({ role, enabledFeatures });
+    const active = findActiveSettingsNavEntry(
+      pathname ?? "",
+      visible.flatMap((group) => group.items),
+    );
+    const attention = new Set(railAttention ?? []);
 
-  // Compared case-insensitively: the rail and the page reached the same name
-  // by two routes and one of them capitalises it differently.
-  const section = title.trim().toLowerCase() === areaLabel.toLowerCase() ? undefined : title.trim();
-  /* z-40 rather than the 30 a page band usually carries: a section drawn by
-     another module can bring a band of its own, and the outer one has to be
-     the one that stays on top — two opaque strips fighting over the same
-     offset is a torn edge rather than a seam. The offset they should be
-     pinning to is published below as `--stack-top`. */
-  const band = section || actions ? (
-    <div className="band-shell sticky top-0 z-40 mb-4 flex min-h-[var(--page-band-h)] items-center gap-2.5 border-b border-[var(--border)] bg-[var(--canvas)]">
-      {/* `h2`: the bar's `h1` names the module and this names the section
-          inside it, so the two read as the levels they are. */}
-      {section ? (
-        <h2 className="shrink-0 text-base font-bold leading-tight tracking-[-0.012em] text-[var(--text-strong)]">
-          {section}
-        </h2>
-      ) : null}
-      {/* Hidden below `md`: the lede is the half a reader already has from the
-          rail entry they pressed, and on a phone the band's width is owed to
-          the name and the verb. */}
-      {section && description ? (
-        <span className="hidden min-w-0 truncate border-l border-[var(--border)] pl-2.5 text-sm text-[var(--text-subtle)] md:inline">
-          {description}
-        </span>
-      ) : null}
-      {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
-    </div>
-  ) : null;
+    return visible.map((group) => ({
+      id: group.id,
+      label: group.label,
+      items: group.items.map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        href: entry.href,
+        icon: entry.icon,
+        count: railCounts?.[entry.id],
+        attention: attention.has(entry.id),
+        /* Named, not the component's generic default. The dot is drawn on a
+           row whose own label is already read out, but a screen reader moving
+           through a rail with two of them would otherwise hear "Needs
+           attention" twice with nothing to tell the two apart. */
+        attentionLabel: `${entry.label} needs attention`,
+        active: entry.id === active?.id,
+      })),
+    }));
+  }, [enabledFeatures, pathname, railAttention, railCounts, role]);
 
   return (
-    <div className="mx-auto w-full">
-      {/* The app bar names the module you are in. It used to name the section
-          instead, which the band now does — and a page that repeats its own
-          name sixty pixels lower has spent the band on nothing. */}
-      <PageChrome title={areaLabel} />
+    <SettingsSurface
+      open={open}
+      onOpenChange={handleOpenChange}
+      rail={<SettingsRail groups={groups} backHref={BACK_TO_APP_HREF} />}
+      /* The surface's single grid row is implicit and therefore `auto`, which
+         a tall form would grow past and `overflow: hidden` would then clip.
+         Pinning it to the surface's own height is what lets each column below
+         own its scrolling — the list and the record separately, as the board
+         draws them. A utility because utilities outrank the module's layer. */
+      className={cn(
+        "grid-rows-[minmax(0,1fr)]",
+        /* `!important`, and an arbitrary property rather than `animate-none`,
+           because the class it has to beat is `animate-in` from
+           `tw-animate-css` — a plugin utility, so tailwind-merge does not
+           know the two conflict and both survive `cn`. Two plain utilities
+           setting `animation` would then be decided by their order in the
+           generated stylesheet, which is not something a call site can rely
+           on. `fade-in-0` and `zoom-in` survive too but only set the
+           `--tw-enter-*` variables the stopped animation read.
 
-      {/* Above the rail, not beside it: the band spans the section and its
-          navigation both, the same way CRM's settings band spans its own. */}
-      {band}
+           The panel only. The scrim is the dialog's own element with its fade
+           hard-coded in `components/ui/dialog.tsx`, so it still re-fades on a
+           rail click — but the panel covers everything except the 24px gutter,
+           so what is left of the flash is a thin frame, not the whole
+           screen. */
+        arriving ? undefined : "[animation:none]!",
+      )}
+    >
+      <SettingsContent title={title} actions={actions}>
+        {children}
+      </SettingsContent>
+    </SettingsSurface>
+  );
+}
 
-      <div className="settings-layout container mx-auto w-full">
-        {/* A rail on a desktop, a scrolling strip on a phone. Stacked, these
-            thirteen sections were five hundred pixels of navigation above the
-            page they navigate to — you scrolled past the whole of Settings to
-            reach Master Data's own content. */}
-        <NavRail
-          className="settings-rail"
-          label="Management navigation"
-          orientation="responsive"
-        >
-          <NavGroup label="Settings">
-            {visibleModules.map((module) => {
-              const ModuleIcon = module.icon;
-              return (
-                <NavItem
-                  key={module.id}
-                  to={module.href}
-                  active={isPathMatchingPrefix(pathname, module.matchPrefixes)}
-                  icon={ModuleIcon ? <ModuleIcon className="size-4" aria-hidden="true" /> : undefined}
-                >
-                  {module.label}
-                </NavItem>
-              );
-            })}
-          </NavGroup>
+/**
+ * The surface's second grid child.
+ *
+ * A register manages its own two scrollers, so it is handed the row whole. A
+ * form page has one column and no scroller of its own, so the row scrolls for
+ * it. Both cases need the row bounded, which is what `min-h-0` buys.
+ */
+function SettingsContent({
+  title,
+  actions,
+  children,
+}: {
+  title?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  /* `some`, not "the only child": a converted page is routinely a register
+     beside a `Sheet` or a `Dialog` that creates the record. Those portal out
+     and occupy no row, so what decides is whether the screen itself is one of
+     the two layouts that draw their own header and own their own scrolling. */
+  const drawsOwnChrome = React.Children.toArray(children).some(
+    (child) =>
+      React.isValidElement(child) &&
+      (child.type === RegisterLayout || child.type === FormPage),
+  );
 
-          <NavGroup label={areaLabel}>
-            {visibleAreaTabs.map((tab) => {
-              const TabIcon = tab.icon;
-              return (
-                <NavItem
-                  key={tab.id}
-                  to={tab.href}
-                  active={isActiveHref(pathname, tab.href)}
-                  icon={TabIcon ? <TabIcon className="size-4" aria-hidden="true" /> : undefined}
-                >
-                  {tab.label}
-                </NavItem>
-              );
-            })}
-          </NavGroup>
-        </NavRail>
-
-        {/* `band-stack-content` publishes the offset anything sticky below
-            pins to. With no band above there is nothing to clear, so it goes
-            back to zero rather than reserving 44px for a band never drawn.
-            No `max-w` here: these are tables beside a detail pane, and a cap
-            leaves dead margin on each side of exactly the surfaces that are
-            short of width. */}
-        <section className="settings-content">
-          {/* One child, so the DS grid's own 40px gap governs nothing and the
-              spacing between panels is this stack's to state. */}
-          <div
-            className="band-stack-content w-full space-y-6"
-            style={band ? undefined : ({ "--stack-top": "0px" } as CSSProperties)}
-          >
-            {children}
-          </div>
-        </section>
-      </div>
+  return (
+    <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] overflow-y-auto">
+      {drawsOwnChrome ? (
+        children
+      ) : (
+        /* The record column's own padding, for a page still composing its
+           body itself. `title` becomes a real record header rather than the
+           band it used to be, so an unconverted page reads the same way a
+           converted one does. */
+        <div style={{ padding: "24px 40px 40px" }}>
+          {title ? <RecordHeader title={title} action={actions} /> : null}
+          {children}
+        </div>
+      )}
     </div>
+  );
+}
+
+export type ManagementShellProps = {
+  /** The fallback title line. A converted page puts its own `RecordHeader` in `children` instead. */
+  title?: string;
+  /** The fallback title line's verb. */
+  actions?: React.ReactNode;
+  railCounts?: Record<string, number>;
+  railAttention?: string[];
+  children: React.ReactNode;
+};
+
+/**
+ * The management entry point into the surface. See {@link SettingsFrame}.
+ *
+ * It used to carry `area` and `description` as well. Neither was read: the
+ * rail is the whole surface's and is not scoped to an area, and rule 1
+ * deleted the descriptions. A prop that is declared, passed and never read is
+ * a prop the next reader has to go and check, so both are gone from the type
+ * and from the call sites that were still handing them over.
+ */
+export function ManagementShell(props: ManagementShellProps) {
+  return (
+    <SettingsFrame
+      title={props.title}
+      actions={props.actions}
+      railCounts={props.railCounts}
+      railAttention={props.railAttention}
+    >
+      {props.children}
+    </SettingsFrame>
   );
 }

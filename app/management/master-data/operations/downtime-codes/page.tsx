@@ -2,24 +2,25 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { DataTableColumn } from "@corelithzw/react";
+
 import {
-  DetailFact,
-  MasterDataPage,
-} from "@/components/management/master-data/master-data-page";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+  ActivityTrail,
+  HeaderAction,
+  ListColumn,
+  ListRow,
+  RecordHeader,
+  RegisterLayout,
+  SectionHeading,
+  StatusBadge,
+  StatusDot,
+  type ListColumnState,
+} from "@/components/management/ui";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { SelectItem } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { useReservedId } from "@/hooks/use-reserved-id";
 import {
   createDowntimeCode,
   deleteDowntimeCode,
@@ -29,49 +30,63 @@ import {
   updateDowntimeCode,
 } from "@/lib/api";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import {
+  Archive,
+  RefreshCcw,
+  SlidersHorizontal,
+  Warning,
+} from "@/lib/icons";
 
-type DowntimeCodeFormState = {
-  code: string;
-  description: string;
-  siteId: string;
-  sortOrder: string;
-  isActive: boolean;
-};
+import {
+  CommitInput,
+  CreateField,
+  CreateSheet,
+  DETAIL_CONTROL_CLASS,
+  DetailGrid,
+  DetailRow,
+  DetailSelect,
+  DetailValue,
+  NoRecord,
+  StatusSelect,
+} from "../_components/register-fields";
 
-const emptyForm: DowntimeCodeFormState = {
-  code: "",
-  description: "",
-  siteId: "",
-  sortOrder: "0",
-  isActive: true,
-};
+const DOWNTIME_KEY = ["management", "master-data", "downtime-codes"] as const;
 
+/**
+ * A code that belongs to every site rather than to one.
+ *
+ * Radix's `Select` treats `""` as "no value chosen", so a genuinely global code
+ * needs a token of its own — otherwise the control reads as unanswered on a row
+ * that has in fact been answered.
+ */
 const GLOBAL_SENTINEL = "__global__";
 
+const FULL_LOG_HREF = "/reports/audit-trails";
+
+/**
+ * Downtime codes — `DowntimeCodes.dc.html`.
+ *
+ * Presentation only: the two query keys, `useReservedId`, all three mutations
+ * and the `maintenance.breakdowns` gating are exactly as they were.
+ */
 export default function DowntimeCodesManagementPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<DowntimeCode | null>(null);
-  const [formState, setFormState] = useState<DowntimeCodeFormState>(emptyForm);
-  const downtimeSiteId =
-    !editing && formState.siteId && formState.siteId !== GLOBAL_SENTINEL
-      ? formState.siteId
-      : undefined;
-  const {
-    reservedId,
-    isReserving,
-    error: reserveError,
-  } = useReservedId({
-    entity: "DOWNTIME_CODE",
-    siteId: downtimeSiteId,
-    enabled: formOpen && !editing && Boolean(downtimeSiteId),
-  });
-  const resolvedCode = editing ? formState.code : reservedId;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["management", "master-data", "downtime-codes"],
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [draftDescription, setDraftDescription] = useState("");
+  const [draftSiteId, setDraftSiteId] = useState("");
+
+  const { reservedId, isReserving, error: reserveError } = useReservedId({
+    entity: "DOWNTIME_CODE",
+    siteId: draftSiteId || undefined,
+    enabled: creating && Boolean(draftSiteId),
+  });
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: DOWNTIME_KEY,
     queryFn: () => fetchDowntimeCodes({ active: "all" }),
   });
   const loadErrorMessage = resolveDisplayErrorMessage([error]);
@@ -80,8 +95,8 @@ export default function DowntimeCodesManagementPage() {
     queryKey: ["management", "master-data", "sites-options", "downtime"],
     queryFn: () => fetchSitesList({ active: true }),
   });
+  const sites = useMemo(() => sitesData ?? [], [sitesData]);
 
-  const [search, setSearch] = useState("");
   const all = useMemo(() => data ?? [], [data]);
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -92,18 +107,21 @@ export default function DowntimeCodesManagementPage() {
         row.description.toLowerCase().includes(needle),
     );
   }, [all, search]);
-  const sites = sitesData ?? [];
+
+  const selected: DowntimeCode | null =
+    all.find((row) => row.id === selectedId) ?? rows[0] ?? null;
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: [...DOWNTIME_KEY] });
 
   const createMutation = useMutation({
     mutationFn: createDowntimeCode,
-    onSuccess: () => {
-      toast({
-        title: "Downtime code created",
-        variant: "success",
-      });
-      setFormOpen(false);
-      setFormState(emptyForm);
-      queryClient.invalidateQueries({ queryKey: ["management", "master-data", "downtime-codes"] });
+    onSuccess: (created) => {
+      toast({ title: "Downtime code created", variant: "success" });
+      setCreating(false);
+      setDraftDescription("");
+      setSelectedId(created.id);
+      invalidate();
     },
     onError: (err) => {
       toast({
@@ -115,17 +133,13 @@ export default function DowntimeCodesManagementPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (payload: { id: string; input: Parameters<typeof updateDowntimeCode>[1] }) =>
-      updateDowntimeCode(payload.id, payload.input),
+    mutationFn: (payload: {
+      id: string;
+      input: Parameters<typeof updateDowntimeCode>[1];
+    }) => updateDowntimeCode(payload.id, payload.input),
     onSuccess: () => {
-      toast({
-        title: "Downtime code updated",
-        variant: "success",
-      });
-      setFormOpen(false);
-      setEditing(null);
-      setFormState(emptyForm);
-      queryClient.invalidateQueries({ queryKey: ["management", "master-data", "downtime-codes"] });
+      toast({ title: "Downtime code updated", variant: "success" });
+      invalidate();
     },
     onError: (err) => {
       toast({
@@ -139,315 +153,268 @@ export default function DowntimeCodesManagementPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteDowntimeCode,
     onSuccess: () => {
-      toast({
-        title: "Downtime code archived",
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: ["management", "master-data", "downtime-codes"] });
+      toast({ title: "Downtime code retired", variant: "success" });
+      invalidate();
     },
     onError: (err) => {
       toast({
-        title: "Unable to archive downtime code",
+        title: "Unable to retire downtime code",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });
     },
   });
 
-  const columns = useMemo<DataTableColumn<DowntimeCode>[]>(
-    () => [
-      {
-        key: "code",
-        header: "Code",
-        width: 112,
-        render: (row) => <span className="font-mono">{row.code}</span>,
-      },
-      { key: "description", header: "Description", sortable: true },
-      {
-        key: "site",
-        header: "Site",
-        render: (row) => {
-          if (!row.siteId) return "Every site";
-          if (!row.site) return "Site not on file";
-          return `${row.site.code} · ${row.site.name}`;
-        },
-      },
-      { key: "sortOrder", header: "Sort", sortable: true, width: 100 },
-      {
-        key: "status",
-        header: "Status",
-        width: 120,
-        render: (row) => (
-          <Badge variant={row.isActive ? "secondary" : "outline"}>
-            {row.isActive ? "Active" : "Inactive"}
-          </Badge>
-        ),
-      },
-    ],
-    [],
-  );
+  const patch = (id: string, input: Parameters<typeof updateDowntimeCode>[1]) =>
+    updateMutation.mutate({ id, input });
 
-  const handleSave = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!formState.description.trim()) {
-      toast({
-        title: "Incomplete form",
-        description: "Downtime description is required.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const sortOrder = Number(formState.sortOrder);
-    if (!Number.isInteger(sortOrder) || sortOrder < 0) {
-      toast({
-        title: "Invalid sort order",
-        description: "Sort order must be a non-negative whole number.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!formState.siteId) {
-      toast({
-        title: "Site selection required",
-        description: "A site must be selected for this downtime code.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!editing && !resolvedCode.trim()) {
-      toast({
-        title: "Downtime code unavailable",
-        description: reserveError ?? "Select a site and wait for code reservation.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const payload = {
-      description: formState.description.trim(),
-      siteId: formState.siteId === GLOBAL_SENTINEL ? null : formState.siteId,
-      sortOrder,
-      isActive: formState.isActive,
-    };
-
-    if (editing) {
-      updateMutation.mutate({
-        id: editing.id,
-        input: payload,
-      });
-      return;
-    }
-
-    if (payload.siteId === null) {
-      toast({
-        title: "Site selection required",
-        description: "Global downtime code creation is restricted.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createMutation.mutate({
-      code: resolvedCode.trim(),
-      description: payload.description,
-      siteId: payload.siteId,
-      sortOrder: payload.sortOrder,
-      isActive: payload.isActive,
-    });
-  };
+  const listState: ListColumnState = isLoading
+    ? "loading"
+    : loadErrorMessage
+      ? "failed"
+      : rows.length
+        ? "ready"
+        : search.trim()
+          ? "no-matches"
+          : "empty";
 
   return (
-    <MasterDataPage<DowntimeCode>
-      title="Downtime codes"
-      description="why the plant stops — the reasons a shift report can put a stoppage down to"
-      createLabel="New downtime code"
-      onCreate={() => {
-        setEditing(null);
-        setFormState({ ...emptyForm, siteId: sites[0]?.id ?? "" });
-        setFormOpen(true);
-      }}
-      columns={columns}
-      data={rows}
-      rowKey={(row) => row.id}
-      isLoading={isLoading}
-      error={loadErrorMessage}
-      total={all.length}
-      searchTerm={search}
-      onSearchChange={setSearch}
-      searchPlaceholder="Search by code or reason"
-      emptyLabel="No downtime codes yet"
-      detailTitle={(row) => row.description}
-      renderDetail={(row, close) => (
-        <div className="space-y-4">
-          <div className="space-y-3">
-            {/* The reason is the pane's own heading and is not repeated here. */}
-            <DetailFact label="Code">
-              <span className="font-mono tabular-nums">{row.code}</span>
-            </DetailFact>
-            <DetailFact label="Site">
-              {!row.siteId
-                ? "Every site"
-                : row.site
-                  ? `${row.site.code} · ${row.site.name}`
-                  : "Site not on file"}
-            </DetailFact>
-            <DetailFact label="Sort order">
-              <span className="font-mono tabular-nums">{row.sortOrder}</span>
-            </DetailFact>
-            <DetailFact label="Status">
-              <Badge variant={row.isActive ? "secondary" : "outline"}>
-                {row.isActive ? "Active" : "Inactive"}
-              </Badge>
-            </DetailFact>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setEditing(row);
-                setFormState({
-                  code: row.code,
-                  description: row.description,
-                  siteId: row.siteId ?? GLOBAL_SENTINEL,
-                  sortOrder: String(row.sortOrder),
-                  isActive: Boolean(row.isActive),
-                });
-                setFormOpen(true);
-              }}
-            >
-              Edit
-            </Button>
-            {row.isActive ? (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  void dsConfirm({
-                    title: `Archive ${row.code}?`,
-                    description:
-                      "Shift reports already filed against this reason keep it. It stops being offered on new ones until it is set active again.",
-                    confirmLabel: "Archive the code",
-                    variant: "warning",
-                  }).then((confirmed) => {
-                    if (confirmed) deleteMutation.mutate(row.id, { onSuccess: close });
-                  });
-                }}
-              >
-                Archive
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={updateMutation.isPending}
-                onClick={() =>
-                  updateMutation.mutate({ id: row.id, input: { isActive: true } })
+    <ManagementShell railCounts={{ "downtime-codes": all.length }}>
+      <RegisterLayout
+        hasSelection={Boolean(selected)}
+        list={
+          <ListColumn
+            title="Downtime codes"
+            noun="downtime code"
+            count={all.length}
+            state={listState}
+            // The board's "Entries" column counts downtime events, and no
+            // route on this page reads that figure — `/api/downtime-codes`
+            // selects no `_count`, and adding one is data fetching.
+            //
+            // Status is what goes there instead. This list is loaded with
+            // `active: "all"`, so retired codes sit in it looking exactly like
+            // live ones, and rule 6 wants the one column people scan down to
+            // carry the state every row is in. `sortOrder` was the other
+            // candidate and is the wrong one: the rows arrive ordered by it,
+            // so a column of it would only restate each row's position.
+            columns={{ row: "Downtime code", value: "Status" }}
+            search={{
+              value: search,
+              onChange: setSearch,
+              placeholder: "Code or name",
+            }}
+            onNew={() => {
+              setDraftDescription("");
+              setDraftSiteId(sites[0]?.id ?? "");
+              setCreating(true);
+            }}
+            onRetry={() => void refetch()}
+          >
+            {rows.map((row) => (
+              <ListRow
+                key={row.id}
+                code={row.code}
+                name={row.description}
+                value={
+                  <StatusDot
+                    tone={row.isActive === false ? "neutral" : "success"}
+                    label={row.isActive === false ? "Retired" : "Active"}
+                  />
                 }
-              >
-                Set active
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-    >
-      <Sheet
-        open={formOpen}
-        onOpenChange={(open) => {
-          setFormOpen(open);
-          if (!open) {
-            setEditing(null);
-            setFormState(emptyForm);
-          }
-        }}
+                selected={row.id === selected?.id}
+                onSelect={() => setSelectedId(row.id)}
+              />
+            ))}
+          </ListColumn>
+        }
       >
-        <SheetContent size="md" className="w-full p-6">
-          <SheetHeader>
-            <SheetTitle>{editing ? "Edit downtime code" : "New downtime code"}</SheetTitle>
-            <SheetDescription>
-              {editing
-                ? "Update downtime code record details and status."
-                : "Create a downtime code record for a site."}
-            </SheetDescription>
-          </SheetHeader>
-          <form onSubmit={handleSave} className="mt-6 space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Code *</label>
-              <Input
-                value={resolvedCode}
-                readOnly
-                placeholder={isReserving ? "Reserving code..." : "Auto-generated"}
-                required
-              />
-              <p className="mt-1 text-sm text-muted-foreground">
-                {editing
-                  ? "Downtime code cannot be changed."
-                  : reserveError ?? "Code is generated automatically and cannot be edited."}
-              </p>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Description *</label>
-              <Input
-                value={formState.description}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, description: event.target.value }))
-                }
-                placeholder="Mechanical breakdown"
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Site *</label>
-              <Select
-                value={formState.siteId}
-                onValueChange={(value) => setFormState((prev) => ({ ...prev, siteId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a site" />
-                </SelectTrigger>
-                <SelectContent>
-                  {formState.siteId === GLOBAL_SENTINEL ? (
+        {selected ? (
+          <>
+            <RecordHeader
+              title={selected.description}
+              icon={Warning}
+              onRename={(description) => patch(selected.id, { description })}
+              renameLabel="Rename the downtime code"
+              badge={
+                <StatusBadge
+                  context="header"
+                  tone={selected.isActive === false ? "neutral" : "success"}
+                >
+                  Retired
+                </StatusBadge>
+              }
+              action={
+                selected.isActive === false ? (
+                  <HeaderAction
+                    icon={RefreshCcw}
+                    disabled={updateMutation.isPending}
+                    onClick={() => patch(selected.id, { isActive: true })}
+                  >
+                    Set active
+                  </HeaderAction>
+                ) : (
+                  <HeaderAction
+                    icon={Archive}
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      void dsConfirm({
+                        title: `Retire ${selected.description}?`,
+                        description:
+                          "Downtime already logged against it keeps it. It stops being offered on new shift reports until it is set active again.",
+                        confirmLabel: "Retire the code",
+                        variant: "warning",
+                      }).then((confirmed) => {
+                        if (confirmed) deleteMutation.mutate(selected.id);
+                      });
+                    }}
+                  >
+                    Retire
+                  </HeaderAction>
+                )
+              }
+            />
+
+            <SectionHeading icon={SlidersHorizontal} tone="brand">
+              Details
+            </SectionHeading>
+            <DetailGrid>
+              {/*
+                Drawn as a fact, not as a control, because it is not one.
+                `PATCH /api/downtime-codes/[id]` answers 400 "Downtime code is
+                immutable and cannot be changed" to any body carrying `code`,
+                and the code itself is reserved through `useReservedId` at
+                creation. The board draws an input here; an input whose every
+                commit is a rejected write is worse than the board's picture.
+              */}
+              <DetailRow label="Code">
+                <DetailValue mono>{selected.code}</DetailValue>
+              </DetailRow>
+              <DetailRow label="Site">
+                {(id) => (
+                  <DetailSelect
+                    id={id}
+                    value={selected.siteId ?? GLOBAL_SENTINEL}
+                    onValueChange={(next) =>
+                      patch(selected.id, {
+                        siteId: next === GLOBAL_SENTINEL ? null : next,
+                      })
+                    }
+                  >
                     <SelectItem value={GLOBAL_SENTINEL}>Every site</SelectItem>
-                  ) : null}
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.code} · {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Sort order *</label>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                value={formState.sortOrder}
-                onChange={(event) => setFormState((prev) => ({ ...prev, sortOrder: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="button"
-                variant={formState.isActive ? "secondary" : "outline"}
-                onClick={() => setFormState((prev) => ({ ...prev, isActive: !prev.isActive }))}
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.code} · {site.name}
+                      </SelectItem>
+                    ))}
+                  </DetailSelect>
+                )}
+              </DetailRow>
+              <DetailRow label="Order">
+                {(id) => (
+                  <CommitInput
+                    id={id}
+                    mono
+                    inputMode="numeric"
+                    value={String(selected.sortOrder ?? 0)}
+                    onCommit={(next) => {
+                      const sortOrder = Number.parseInt(next, 10);
+                      if (Number.isNaN(sortOrder)) return;
+                      patch(selected.id, { sortOrder });
+                    }}
+                  />
+                )}
+              </DetailRow>
+              <DetailRow label="Status">
+                {(id) => (
+                  <StatusSelect
+                    id={id}
+                    archivedLabel="Retired"
+                    active={selected.isActive !== false}
+                    onChange={(isActive) => patch(selected.id, { isActive })}
+                  />
+                )}
+              </DetailRow>
+            </DetailGrid>
+
+            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+          </>
+        ) : (
+          <NoRecord
+            label={
+              isLoading
+                ? "Loading downtime codes"
+                : search.trim()
+                  ? "No downtime code matches that search."
+                  : "No downtime code to show yet."
+            }
+          />
+        )}
+
+        <CreateSheet
+          open={creating}
+          onOpenChange={setCreating}
+          title="New downtime code"
+          submitLabel="Create downtime code"
+          busy={createMutation.isPending || isReserving}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!draftDescription.trim() || !draftSiteId) {
+              toast({
+                title: "Incomplete form",
+                description: "A name and a site are required.",
+                variant: "destructive",
+              });
+              return;
+            }
+            createMutation.mutate({
+              code: reservedId || undefined,
+              description: draftDescription.trim(),
+              siteId: draftSiteId,
+              isActive: true,
+            });
+          }}
+        >
+          <CreateField label="Site">
+            {(id) => (
+              <DetailSelect
+                id={id}
+                value={draftSiteId}
+                onValueChange={setDraftSiteId}
+                placeholder="Pick a site"
               >
-                {formState.isActive ? "Active" : "Inactive"}
-              </Button>
-              <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending || (!editing && (isReserving || !resolvedCode))}>
-                {editing ? "Save changes" : "Create downtime code"}
-              </Button>
-            </div>
-          </form>
-        </SheetContent>
-      </Sheet>
-    </MasterDataPage>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.code} · {site.name}
+                  </SelectItem>
+                ))}
+              </DetailSelect>
+            )}
+          </CreateField>
+          <CreateField label="Code">
+            {(id) => (
+              <Input
+                id={id}
+                readOnly
+                value={reserveError ? "" : reservedId}
+                placeholder={reserveError ?? "Reserved once a site is picked"}
+                className={`${DETAIL_CONTROL_CLASS} font-mono`}
+              />
+            )}
+          </CreateField>
+          <CreateField label="Name">
+            {(id) => (
+              <Input
+                id={id}
+                value={draftDescription}
+                onChange={(event) => setDraftDescription(event.target.value)}
+                placeholder="Mill liner change"
+                className={DETAIL_CONTROL_CLASS}
+              />
+            )}
+          </CreateField>
+        </CreateSheet>
+      </RegisterLayout>
+    </ManagementShell>
   );
 }

@@ -1,6 +1,18 @@
 import type { UserRole } from "@/lib/roles";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 
+/**
+ * The two groups this file has always had.
+ *
+ * The surface's rail no longer draws them: `Rail.dc.html` groups every
+ * destination — these and the management ones — as People, Operations,
+ * Compliance, Company, School and My account, and that regrouping lives in
+ * `lib/settings/management-nav.ts` beside the entries it orders. It is
+ * presentation, and it reads `canViewPreferenceItem` below rather than
+ * restating any part of it, so the arrays and the predicates here stay exactly
+ * as they are — `getVisiblePreferencesItems` still returns the ordered ids
+ * `nav.test.ts` pins, and `requirePreferencesAccess` still gates every route.
+ */
 export type PreferencesGroup = "account" | "organization";
 
 export type PreferencesNavItem = {
@@ -8,6 +20,11 @@ export type PreferencesNavItem = {
   group: PreferencesGroup;
   label: string;
   href: string;
+  /**
+   * No longer rendered anywhere — rule 1 deleted the descriptive helper text
+   * the shell drew from it. Kept because removing the field is a type change
+   * that ripples well past presentation.
+   */
   description: string;
 };
 

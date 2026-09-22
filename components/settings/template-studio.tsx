@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@corelithzw/react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -17,6 +20,11 @@ import {
 } from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  BLOCK_LABELS,
+  TEMPLATE_KIND_LABELS,
+  type TemplateKind,
+} from "@/lib/crm/blocks";
+import {
   DEFAULT_TEMPLATE_CATALOG,
   type DefaultTemplateCatalogEntry,
 } from "@/lib/documents/default-template-catalog";
@@ -24,6 +32,9 @@ import {
   defaultTemplateSchema,
   type DocumentTemplateSchema,
 } from "@/lib/documents/template-schema";
+import { BarChart3, DotsThree, FileText, Info, Pencil, TableRows } from "@/lib/icons";
+
+import styles from "./template-studio.module.css";
 
 type TemplateRow = {
   id: string;
@@ -58,7 +69,38 @@ function groupEntries(): Array<{ id: string; title: string; entries: DefaultTemp
   })).filter((group) => group.entries.length > 0);
 }
 
-function Toggle({
+/**
+ * What kind of document each catalogue entry produces, in the vocabulary the
+ * rest of the product uses for templates (`lib/crm/blocks.ts`).
+ *
+ * A dashboard pack and a generic record are not one of those kinds, and the
+ * inspector says so by falling back to the entry's own name rather than
+ * inventing a kind for them.
+ */
+const KIND_FOR_DOCUMENT_TYPE: Partial<Record<DefaultTemplateCatalogEntry["documentType"], TemplateKind>> = {
+  SALES_INVOICE: "INVOICE",
+  SALES_QUOTATION: "QUOTE",
+  SALES_RECEIPT: "RECEIPT",
+  REPORT_TABLE: "EXPORT",
+};
+
+/** The proportion of the sheet on the stage, from the paper it will print on. */
+const PAPER_RATIO: Record<DocumentTemplateSchema["page"]["size"], number> = {
+  A4: 210 / 297,
+  LETTER: 8.5 / 11,
+};
+
+function entryTitle(entry: DefaultTemplateCatalogEntry): string {
+  return entry.name.replace(" Default", "");
+}
+
+function PaletteIcon({ entry }: { entry: DefaultTemplateCatalogEntry }) {
+  if (entry.documentType === "DASHBOARD_PACK") return <BarChart3 aria-hidden="true" />;
+  if (entry.documentType === "REPORT_TABLE") return <TableRows aria-hidden="true" />;
+  return <FileText aria-hidden="true" />;
+}
+
+function SwitchRow({
   label,
   checked,
   onChange,
@@ -68,13 +110,29 @@ function Toggle({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 py-1.5 text-sm">
-      <span>{label}</span>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-    </label>
+    <div className={styles.switchRow}>
+      <span className={styles.switchLabel}>{label}</span>
+      <Switch
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        aria-label={label}
+      />
+    </div>
   );
 }
 
+/**
+ * The document template studio — `TemplateBuilder.dc.html`.
+ *
+ * One 60px header over three columns: the documents the system prints, the
+ * document itself on its scrim as `TemplateRender.dc.html` draws it, and the
+ * settings of whichever one is selected. The title in the header is the title
+ * the document will carry, edited in place with its pencil, so the header
+ * names the thing rather than labelling a box at the bottom of a form.
+ *
+ * Presentation only: every query key, endpoint and mutation below is the one
+ * that was here before.
+ */
 export function TemplateStudio() {
   const queryClient = useQueryClient();
   const grouped = useMemo(() => groupEntries(), []);
@@ -85,7 +143,8 @@ export function TemplateStudio() {
   const [draft, setDraft] = useState<{ key: string; schema: DocumentTemplateSchema } | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [savedFlash, setSavedFlash] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [rename, setRename] = useState("");
 
   const entry = useMemo(
     () => DEFAULT_TEMPLATE_CATALOG.find((e) => e.sourceKey === selectedKey) ?? null,
@@ -175,8 +234,6 @@ export function TemplateStudio() {
     onSuccess: () => {
       setDraft(null);
       setError(null);
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 1600);
       queryClient.invalidateQueries({ queryKey: ["doc-templates"] });
       queryClient.invalidateQueries({ queryKey: ["doc-template-versions"] });
     },
@@ -187,157 +244,303 @@ export function TemplateStudio() {
     setDraft({ key: seedKey, schema: { ...schema, ...patch } });
   }
 
+  const title = schema.labels.documentTitle?.trim() || (entry ? entryTitle(entry) : "Template");
+  const kind = entry ? KIND_FOR_DOCUMENT_TYPE[entry.documentType] : undefined;
+  const landscape = schema.page.orientation === "landscape";
+  const ratio = landscape ? 1 / PAPER_RATIO[schema.page.size] : PAPER_RATIO[schema.page.size];
+  // Rule 9: nothing to reset to is nothing to offer.
+  const changedFromDefault =
+    entry !== null && JSON.stringify(schema) !== JSON.stringify(entry.schema);
+
+  function commitRename() {
+    const next = rename.trim();
+    setRenaming(false);
+    if (next === (schema.labels.documentTitle ?? "")) return;
+    patchSchema({ labels: { ...schema.labels, documentTitle: next || undefined } });
+  }
+
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[220px_320px_1fr]">
-      {/* Document list */}
-      <Card className="h-fit">
-        <CardContent className="p-2">
+    <div className={styles.shell}>
+      <header className={styles.head}>
+        <span className={styles.titleGroup}>
+          {renaming ? (
+            <input
+              autoFocus
+              aria-label="Document title"
+              className={styles.titleInput}
+              value={rename}
+              onChange={(event) => setRename(event.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") commitRename();
+                if (event.key === "Escape") setRenaming(false);
+              }}
+            />
+          ) : (
+            <>
+              {/* Rule 8: clicking either the title or the pencil opens it. */}
+              <h1 className={styles.title}>
+                <button
+                  type="button"
+                  className={styles.titleButton}
+                  onClick={() => {
+                    setRename(schema.labels.documentTitle ?? "");
+                    setRenaming(true);
+                  }}
+                >
+                  {title}
+                </button>
+              </h1>
+              <button
+                type="button"
+                aria-label="Rename this document"
+                className={styles.pencil}
+                onClick={() => {
+                  setRename(schema.labels.documentTitle ?? "");
+                  setRenaming(true);
+                }}
+              >
+                <Pencil aria-hidden="true" />
+              </button>
+            </>
+          )}
+        </span>
+
+        {/* Rule 5: the chip marks the exception — edits nobody has published
+            yet. A document that matches what is published draws nothing. */}
+        {dirty ? <span className={styles.draft}>Draft</span> : null}
+
+        <span className={styles.spacer} />
+
+        <button
+          type="button"
+          className={`${styles.btn} ${styles.btnPrimary}`}
+          disabled={!dirty || save.isPending}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending ? "Publishing…" : "Publish"}
+        </button>
+
+        {/* Rule 3: the rare verb lives in the overflow — and rule 9, the
+            overflow itself goes when there is nothing in it. */}
+        {changedFromDefault ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label="More actions" className={styles.iconBtn}>
+                <DotsThree aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => entry && setDraft({ key: seedKey, schema: entry.schema })}
+              >
+                Reset to the system default
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </header>
+
+      <div className={styles.body}>
+        <div className={styles.palette}>
+          <h2 className={styles.paletteTitle}>Documents</h2>
+
           {grouped.map((group) => (
-            <div key={group.id} className="mb-3">
-              <p className="px-2 py-1 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                {group.title}
-              </p>
+            <div key={group.id} className={styles.paletteSection}>
+              <p className={styles.paletteGroup}>{group.title}</p>
               {group.entries.map((e) => {
                 const customized = (templates.data ?? []).some(
                   (t) => t.scope === "COMPANY" && t.sourceKey === e.sourceKey && t.isDefault && t.isActive,
                 );
-                const active = e.sourceKey === selectedKey;
                 return (
                   <button
                     key={e.sourceKey}
+                    type="button"
+                    className={styles.paletteItem}
+                    aria-current={e.sourceKey === selectedKey ? "true" : undefined}
                     onClick={() => setSelectedKey(e.sourceKey)}
-                    className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm ${
-                      active ? "bg-[var(--sidebar-item-active-bg)] font-medium" : "hover:bg-[var(--surface-hover)]"
-                    }`}
                   >
-                    <span>{e.name.replace(" Default", "")}</span>
-                    {customized ? <Badge variant="outline">Custom</Badge> : null}
+                    <PaletteIcon entry={e} />
+                    <span className={styles.paletteLabel}>{entryTitle(e)}</span>
+                    {customized ? <span className={styles.paletteMark}>Custom</span> : null}
                   </button>
                 );
               })}
             </div>
           ))}
-        </CardContent>
-      </Card>
 
-      {/* Editor */}
-      <Card className="h-fit">
-        <CardContent className="space-y-5 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">{entry?.name.replace(" Default", "") ?? "Template"}</p>
-            <div className="flex items-center gap-2">
-              {savedFlash ? <span className="text-sm text-green-600">Saved</span> : null}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => entry && setDraft({ key: seedKey, schema: entry.schema })}
-              >
-                Reset
-              </Button>
-              <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
-                Save & publish
-              </Button>
-            </div>
-          </div>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <p className={styles.paletteFoot}>
+            <span className={styles.paletteFootMark} aria-hidden="true">
+              {"{}"}
+            </span>
+            DEFAULT_TEMPLATE_CATALOG
+          </p>
+        </div>
 
-          <div>
-            <p className="mb-1 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Page</p>
-            <div className="grid grid-cols-3 gap-2">
-              <Select
-                value={schema.page.size}
-                onValueChange={(size) => patchSchema({ page: { ...schema.page, size: size as "A4" | "LETTER" } })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="A4">A4</SelectItem>
-                  <SelectItem value="LETTER">Letter</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={schema.page.orientation}
-                onValueChange={(orientation) =>
-                  patchSchema({ page: { ...schema.page, orientation: orientation as "portrait" | "landscape" } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="portrait">Portrait</SelectItem>
-                  <SelectItem value="landscape">Landscape</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                min={5}
-                max={40}
-                value={schema.page.marginMm}
-                onChange={(e) =>
-                  patchSchema({ page: { ...schema.page, marginMm: Number(e.target.value || 10) } })
-                }
+        <div className={styles.stage}>
+          {/* The sheet is drawn whether or not the render has come back: a
+              blank page is what a document being rendered looks like, and it
+              does not move the stage when the paint arrives. */}
+          <div
+            className={styles.sheet}
+            style={
+              {
+                "--sheet-ratio": `${ratio}`,
+                "--sheet-width": landscape ? "760px" : "540px",
+              } as CSSProperties
+            }
+          >
+            {previewHtml ? (
+              <iframe
+                title={`${title} preview`}
+                sandbox=""
+                srcDoc={previewHtml}
+                className={styles.sheetFrame}
               />
-            </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className={styles.inspector}>
+          <div className={styles.inspectorHead}>
+            <span className={styles.inspectorTile} aria-hidden="true">
+              <FileText />
+            </span>
+            <h2 className={styles.inspectorTitle}>
+              {kind ? TEMPLATE_KIND_LABELS[kind] : entry ? entryTitle(entry) : "Template"}
+            </h2>
           </div>
 
-          <div>
-            <p className="mb-1 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Header</p>
-            <Toggle label="Company logo" checked={schema.header.showLogo} onChange={(v) => patchSchema({ header: { ...schema.header, showLogo: v } })} />
-            <Toggle label="Secondary logo" checked={schema.header.showSecondaryLogo} onChange={(v) => patchSchema({ header: { ...schema.header, showSecondaryLogo: v } })} />
-            <Toggle label="Company identity" checked={schema.header.showCompanyIdentity} onChange={(v) => patchSchema({ header: { ...schema.header, showCompanyIdentity: v } })} />
-            <Toggle label="Contact details" checked={schema.header.showContactBlock} onChange={(v) => patchSchema({ header: { ...schema.header, showContactBlock: v } })} />
+          {error ? <p className={styles.failure}>{error}</p> : null}
+
+          <h3 className={styles.group}>Paper</h3>
+
+          <div className={styles.field}>
+            <label htmlFor="tpl-size">Size</label>
+            <Select
+              value={schema.page.size}
+              onValueChange={(size) => patchSchema({ page: { ...schema.page, size: size as "A4" | "LETTER" } })}
+            >
+              <SelectTrigger id="tpl-size">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A4">A4</SelectItem>
+                <SelectItem value="LETTER">Letter</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div>
-            <p className="mb-1 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Line items</p>
-            <Toggle label="Compact rows" checked={schema.table.compact} onChange={(v) => patchSchema({ table: { ...schema.table, compact: v } })} />
-            <Toggle label="Zebra striping" checked={schema.table.zebra} onChange={(v) => patchSchema({ table: { ...schema.table, zebra: v } })} />
+          <div className={styles.field}>
+            <label htmlFor="tpl-orientation">Orientation</label>
+            <Select
+              value={schema.page.orientation}
+              onValueChange={(orientation) =>
+                patchSchema({ page: { ...schema.page, orientation: orientation as "portrait" | "landscape" } })
+              }
+            >
+              <SelectTrigger id="tpl-orientation">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="portrait">Portrait</SelectItem>
+                <SelectItem value="landscape">Landscape</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div>
-            <p className="mb-1 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Footer</p>
-            <Toggle label="Footer text" checked={schema.footer.showFooterText} onChange={(v) => patchSchema({ footer: { ...schema.footer, showFooterText: v } })} />
-            <Toggle label="Legal disclaimer" checked={schema.footer.showDisclaimer} onChange={(v) => patchSchema({ footer: { ...schema.footer, showDisclaimer: v } })} />
-            <Toggle label="Payment details" checked={schema.footer.showPaymentDetails} onChange={(v) => patchSchema({ footer: { ...schema.footer, showPaymentDetails: v } })} />
-            <Toggle label="Signature" checked={schema.footer.showSignature} onChange={(v) => patchSchema({ footer: { ...schema.footer, showSignature: v } })} />
-            <Toggle label="Stamp" checked={schema.footer.showStamp} onChange={(v) => patchSchema({ footer: { ...schema.footer, showStamp: v } })} />
-          </div>
-
-          <div>
-            <p className="mb-1 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Labels</p>
-            <Label htmlFor="tpl-title" className="text-sm">Document title</Label>
+          <div className={styles.field}>
+            <label htmlFor="tpl-margin">Margin (mm)</label>
             <Input
-              id="tpl-title"
-              value={schema.labels.documentTitle ?? ""}
-              placeholder="Use default"
+              id="tpl-margin"
+              type="number"
+              min={5}
+              max={40}
+              value={schema.page.marginMm}
               onChange={(e) =>
-                patchSchema({ labels: { ...schema.labels, documentTitle: e.target.value || undefined } })
+                patchSchema({ page: { ...schema.page, marginMm: Number(e.target.value || 10) } })
               }
             />
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Live preview */}
-      <Card>
-        <CardContent className="p-2">
-          <div className="mb-1 flex items-center justify-between px-2">
-            <p className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Live preview — sample data, your branding
-            </p>
-          </div>
-          {previewHtml ? (
-            <iframe
-              title="Template preview"
-              sandbox=""
-              srcDoc={previewHtml}
-              className="h-[75vh] w-full rounded-lg border border-[var(--border)] bg-white"
+          <h3 className={styles.group}>Header</h3>
+          <div className={styles.switchGroup}>
+            <SwitchRow
+              label="Company logo"
+              checked={schema.header.showLogo}
+              onChange={(v) => patchSchema({ header: { ...schema.header, showLogo: v } })}
             />
-          ) : (
-            <div className="flex h-[75vh] items-center justify-center text-sm text-[var(--text-muted)]">
-              Rendering preview…
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <SwitchRow
+              label="Secondary logo"
+              checked={schema.header.showSecondaryLogo}
+              onChange={(v) => patchSchema({ header: { ...schema.header, showSecondaryLogo: v } })}
+            />
+            <SwitchRow
+              label="Company identity"
+              checked={schema.header.showCompanyIdentity}
+              onChange={(v) => patchSchema({ header: { ...schema.header, showCompanyIdentity: v } })}
+            />
+            <SwitchRow
+              label="Contact details"
+              checked={schema.header.showContactBlock}
+              onChange={(v) => patchSchema({ header: { ...schema.header, showContactBlock: v } })}
+            />
+          </div>
+
+          {/* The block's own name, so the studio and the builder call the
+              same thing by the same word. */}
+          <h3 className={styles.group}>{BLOCK_LABELS.lineItems}</h3>
+          <div className={styles.switchGroup}>
+            <SwitchRow
+              label="Compact rows"
+              checked={schema.table.compact}
+              onChange={(v) => patchSchema({ table: { ...schema.table, compact: v } })}
+            />
+            <SwitchRow
+              label="Striped rows"
+              checked={schema.table.zebra}
+              onChange={(v) => patchSchema({ table: { ...schema.table, zebra: v } })}
+            />
+          </div>
+
+          <h3 className={styles.group}>Footer</h3>
+          <div className={styles.switchGroup}>
+            <SwitchRow
+              label="Footer text"
+              checked={schema.footer.showFooterText}
+              onChange={(v) => patchSchema({ footer: { ...schema.footer, showFooterText: v } })}
+            />
+            <SwitchRow
+              label={BLOCK_LABELS.terms}
+              checked={schema.footer.showDisclaimer}
+              onChange={(v) => patchSchema({ footer: { ...schema.footer, showDisclaimer: v } })}
+            />
+            <SwitchRow
+              label="Payment details"
+              checked={schema.footer.showPaymentDetails}
+              onChange={(v) => patchSchema({ footer: { ...schema.footer, showPaymentDetails: v } })}
+            />
+            <SwitchRow
+              label={BLOCK_LABELS.signature}
+              checked={schema.footer.showSignature}
+              onChange={(v) => patchSchema({ footer: { ...schema.footer, showSignature: v } })}
+            />
+            <SwitchRow
+              label="Stamp"
+              checked={schema.footer.showStamp}
+              onChange={(v) => patchSchema({ footer: { ...schema.footer, showStamp: v } })}
+            />
+          </div>
+
+          <p className={styles.note}>
+            <Info aria-hidden="true" />
+            <span>
+              Colours, the logo and the payment accounts come from Branding. Changing them
+              there changes every document.
+            </span>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

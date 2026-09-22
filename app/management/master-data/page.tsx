@@ -1,85 +1,78 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { ManagementShell } from "@/components/settings/management-shell";
-import { ChevronRight } from "@/lib/icons";
-import { getVisibleManagementAreaNavItems } from "@/lib/settings/management-nav";
+import { getSettingsRailGroups } from "@/lib/settings/management-nav";
+
+/** Where the reader lands when no rail entry at all survives their gates. */
+const LAST_RESORT_HREF = "/preferences/profile";
 
 /**
- * The area's front page: every reference set it holds, with the one line that
- * says what each is for.
+ * Master data's front page, which is now the rail.
  *
- * A list rather than a grid of cards. These are destinations you scan to find
- * one and open it — never figures you compare — so a row that is a mark, a
- * name and one supporting line says everything a card said in a third of the
- * height, and the whole row is the target. The mark is the rail's own icon, so
- * a set looks the same here as it does in the navigation beside it.
+ * It used to be a list of every reference set with a line under each saying
+ * what it was for: a second copy of the navigation beside it, and — after rule
+ * 1 took the lines away — a list of names you could already see. `Rail.dc.html`
+ * draws the sets themselves under Operations, People and School, so there is
+ * no area landing page left to draw.
+ *
+ * The route stays, because a sidebar entry, a workspace `homeHref` and a retail
+ * setup link all point at it. It opens the surface and moves to the first set
+ * the reader may actually see.
+ *
+ * ## Why it picks from the rail rather than the old area table
+ *
+ * Because the rail is what the reader is about to look at. Choosing from any
+ * other list can land them on a row the rail beside them does not draw, which
+ * reads as the surface disagreeing with itself. Every candidate below has
+ * already been through `getSettingsRailGroups`, so it has passed the same
+ * predicate — `canViewPreferenceItem` or the route registry's feature check —
+ * that guards the route itself. Nothing here decides access; it only picks
+ * among destinations the reader could already reach, and falls back to
+ * Profile, which every signed-in role has.
  */
-export default function MasterDataOverviewPage() {
-  const { data: session } = useSession();
-  const enabledFeatures = useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
-    [session],
-  );
-  const visibleItems = useMemo(
-    () =>
-      getVisibleManagementAreaNavItems("master-data", enabledFeatures).filter(
-        (item) => item.id !== "overview",
-      ),
-    [enabledFeatures],
-  );
+export default function MasterDataIndexPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
 
+  const user = session?.user as
+    | { role?: string; enabledFeatures?: string[] }
+    | undefined;
+  const role = user?.role;
+  const enabledFeatures = user?.enabledFeatures;
+
+  const destination = useMemo(() => {
+    const visible = getSettingsRailGroups({ role, enabledFeatures }).flatMap(
+      (group) => group.items,
+    );
+
+    // A master-data set first, because that is the route the reader asked for.
+    // Only when they may see none of them does this widen to the rest of the
+    // rail, so a reader who can reach Users but no reference set still arrives
+    // somewhere useful rather than at their own profile.
+    const inArea = visible.find((entry) =>
+      entry.href.startsWith("/management/master-data/"),
+    );
+
+    return inArea?.href ?? visible[0]?.href ?? LAST_RESORT_HREF;
+  }, [enabledFeatures, role]);
+
+  useEffect(() => {
+    // Waiting for the session first: filtering against an undefined role and
+    // feature list would send a reader to whichever set happens to be ungated.
+    if (status === "loading") return;
+    router.replace(destination);
+  }, [destination, router, status]);
+
+  // The surface, already open, with its rail. A blank content column for the
+  // one frame this is on screen reads as the surface deciding where to land —
+  // a spinner over a full-screen dialog reads as a page that failed.
   return (
-    <ManagementShell
-      area="master-data"
-      title="Overview"
-      description="the reference data every other module is filed against"
-    >
-      {/* Separated by space rather than by rules: a divider draws a line the
-          reader has to cross for every row, and a gap separates just as well
-          without adding anything to look at. */}
-      <ul className="space-y-1">
-        {visibleItems.map((entry) => {
-          const Icon = entry.icon;
-          return (
-            <li key={entry.href}>
-              <Link
-                href={entry.href}
-                className="flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] border border-[color:var(--border-subtle)] bg-[color:var(--surface)] px-3 py-2 no-underline transition-colors hover:border-[color:var(--border)] hover:bg-[color:var(--surface-subtle)]"
-              >
-                {Icon ? (
-                  <Icon
-                    className="size-4 shrink-0 text-[color:var(--text-faint)]"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-[color:var(--text-strong)]">
-                    {entry.label}
-                  </span>
-                  {/* Nothing is rendered where a set has no lede, rather than an
-                      empty line — a row with a hole in it reads as a row that
-                      failed to load. */}
-                  {entry.description ? (
-                    <span className="block truncate text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {entry.description}
-                    </span>
-                  ) : null}
-                </span>
-                {/* The row is a long way across on a wide screen, and without
-                    something at the far end nothing there says it opens. */}
-                <ChevronRight
-                  className="size-4 shrink-0 text-[color:var(--text-faint)]"
-                  aria-hidden="true"
-                />
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+    <ManagementShell>
+      <div />
     </ManagementShell>
   );
 }

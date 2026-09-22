@@ -173,15 +173,46 @@ export type ShiftGroupScheduleRecord = {
   createdBy?: { id: string; name: string } | null;
 };
 
+/**
+ * A section as a department lists it — `Departments.dc.html`.
+ *
+ * There is no `people` count: counting people in a section would need
+ * `Employee.sectionId`, which does not exist. `shiftReports` is what a section
+ * genuinely knows about itself, and is what the endpoint returns.
+ */
+export type DepartmentSectionRecord = {
+  id: string;
+  code: string | null;
+  name: string;
+  isActive: boolean;
+  siteId: string;
+  _count?: { shiftReports: number };
+};
+
 export type DepartmentRecord = {
   id: string;
   companyId: string;
   code: string;
   name: string;
   isActive: boolean;
+  /** Null until somebody names one; no department is backfilled with a head. */
+  headEmployeeId: string | null;
+  costCenterId: string | null;
+  /** Null reads as company-wide, which is how every pre-existing row reads. */
+  siteId: string | null;
   createdAt: string;
   updatedAt: string;
   _count?: { employees: number };
+  /** The head is an `Employee` — a person on the payroll, who may never sign in. */
+  head?: {
+    id: string;
+    employeeId: string;
+    name: string;
+    jobTitle: string | null;
+  } | null;
+  costCenter?: { id: string; code: string; name: string; isActive: boolean } | null;
+  site?: { id: string; code: string; name: string } | null;
+  sections?: DepartmentSectionRecord[];
 };
 
 export type JobGradeRecord = {
@@ -562,10 +593,15 @@ export type EmployeePayment = {
 export type SectionSummary = {
   id: string;
   name: string;
+  /** `SC-11`. Null on every row created before sections carried a code. */
+  code?: string | null;
   siteId: string;
+  /** Null means the section belongs to its site alone, with no department. */
+  departmentId?: string | null;
   isActive: boolean;
   _count?: { shiftReports: number };
   site?: { name: string; code: string };
+  department?: { id: string; code: string; name: string } | null;
 };
 
 export type DowntimeCode = {
@@ -1621,6 +1657,9 @@ export async function createDepartment(input: {
   code?: string;
   name: string;
   isActive?: boolean;
+  headEmployeeId?: string | null;
+  costCenterId?: string | null;
+  siteId?: string | null;
 }) {
   return fetchJson<DepartmentRecord>("/api/departments", {
     method: "POST",
@@ -1634,6 +1673,11 @@ export async function updateDepartment(
     code?: string;
     name?: string;
     isActive?: boolean;
+    // `null` clears the field, omitting the key leaves it alone — the two are
+    // different on the wire and the route treats them differently.
+    headEmployeeId?: string | null;
+    costCenterId?: string | null;
+    siteId?: string | null;
   },
 ) {
   return fetchJson<DepartmentRecord>(`/api/departments/${id}`, {
@@ -1923,6 +1967,8 @@ export async function fetchEmployeePayments(
 export async function fetchSections(
   params: {
     siteId?: string;
+    departmentId?: string;
+    search?: string;
     active?: boolean;
     page?: number;
     limit?: number;
@@ -1934,7 +1980,9 @@ export async function fetchSections(
 
 export async function createSection(input: {
   name: string;
+  code?: string | null;
   siteId: string;
+  departmentId?: string | null;
   isActive?: boolean;
 }) {
   return fetchJson<SectionSummary>("/api/sections", {
@@ -1947,7 +1995,9 @@ export async function updateSection(
   id: string,
   input: {
     name?: string;
+    code?: string | null;
     siteId?: string;
+    departmentId?: string | null;
     isActive?: boolean;
   },
 ) {

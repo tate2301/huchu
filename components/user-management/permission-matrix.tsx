@@ -1,33 +1,85 @@
 "use client";
 
 import * as React from "react";
-import { Badge, Input, Radio, RadioGroup } from "@corelithzw/react";
 
-import { Button } from "@/components/ui/button";
+/*
+  The file rather than the barrel: `@/components/management/ui` re-exports
+  `SettingsSurface`, which pulls Radix's Dialog in behind it, and this block
+  also renders on two ordinary pages that have no surface. A client barrel is
+  not reliably tree-shaken.
+*/
+import { SectionHeading } from "@/components/management/ui/section-heading";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Search } from "@/lib/icons";
-import { cn } from "@/lib/utils";
 import type {
   PermissionEntry,
   PermissionGroup,
   PermissionState,
 } from "@/lib/user-management-api";
 
+import styles from "./permission-matrix.module.css";
+
 /**
  * One person's permissions, all of them, in one searchable list.
  *
  * The two things that make this usable rather than exhausting are the search
- * — nobody scrolls two hundred rows to find "export" — and the third radio.
+ * — nobody scrolls two hundred rows to find "export" — and the third state.
  * "Role default" has to be a visible, choosable state, not the absence of a
  * choice, because otherwise an admin cannot tell "she may export because reps
  * may" apart from "she may export because somebody decided so in March", and
  * those two behave differently the day her role changes.
+ *
+ * Drawn as a section of the Users record (`Main.dc.html`), which is what it
+ * has always been and never looked like. Three changes carry that:
+ *
+ *   - **A group is a list, so it is drawn as one.** Section heading with its
+ *     count (rule 7), the 11px column header line over an #E5E8EE hairline
+ *     (rule 6), then one-line rows on #EEF0F4 at the lists' own 470 cap. It
+ *     used to be an `h3` at 14px over a bare `divide-y` stack.
+ *   - **The state is a state, not a chip.** A 6px dot and the word in that
+ *     state's ink, which is how the contract expresses a status value inside
+ *     a record list. A column of `Badge`s reads as a column of buttons.
+ *   - **The control is the design system's.** A three-option `Select` in the
+ *     row's value column replaces a horizontal `RadioGroup` that could not
+ *     fit on one line and so forced every row to two or three.
+ *
+ * Both descriptions — the group's and the entry's — stop being drawn. Rule 1:
+ * no descriptive helper text; if a control needs explaining its name is
+ * wrong. They are still read, by the search, which is the one place the extra
+ * words earn their keep.
  */
 
-const STATE_OPTIONS: Array<{ value: PermissionState; label: string; hint: string }> = [
-  { value: "DEFAULT", label: "Role default", hint: "Follows the role" },
-  { value: "ALLOW", label: "Allow", hint: "Granted to this person" },
-  { value: "DENY", label: "Deny", hint: "Taken away from this person" },
-];
+/** What the reader is told, per state. */
+type StateTone = "neutral" | "success" | "danger";
+
+const STATES: PermissionState[] = ["DEFAULT", "ALLOW", "DENY"];
+
+/**
+ * The words the old badges used, kept — they are the right ones. What moved
+ * is that they are now the *choices* as well as the readout, so the trigger
+ * says what the row's access actually is rather than naming a mechanism.
+ *
+ * Following the role is the norm and stays grey whichever way the role
+ * answers; the word carries the difference. Colour is spent on the two
+ * exceptions, an admin's grant and an admin's denial (rule 5).
+ */
+function describe(
+  entry: PermissionEntry,
+  state: PermissionState,
+): { label: string; tone: StateTone } {
+  if (state === "ALLOW") return { label: "Granted", tone: "success" };
+  if (state === "DENY") return { label: "Denied", tone: "danger" };
+  return {
+    label: entry.roleDefault ? "Allowed by role" : "Not in role",
+    tone: "neutral",
+  };
+}
 
 function matches(entry: PermissionEntry, needle: string): boolean {
   if (!needle) return true;
@@ -35,65 +87,66 @@ function matches(entry: PermissionEntry, needle: string): boolean {
   return haystack.includes(needle);
 }
 
-function StateBadge({ entry }: { entry: PermissionEntry }) {
-  if (entry.state === "DEFAULT") {
-    return (
-      <Badge tone="neutral">
-        {entry.roleDefault ? "Allowed by role" : "Not in role"}
-      </Badge>
-    );
-  }
-  return (
-    <Badge tone={entry.state === "ALLOW" ? "success" : "danger"}>
-      {entry.state === "ALLOW" ? "Granted" : "Denied"}
-    </Badge>
-  );
-}
-
 function PermissionRow({
   entry,
-  disabled,
+  canEdit,
   pending,
   onChange,
 }: {
   entry: PermissionEntry;
-  disabled: boolean;
+  canEdit: boolean;
   pending: boolean;
   onChange: (entry: PermissionEntry, state: PermissionState) => void;
 }) {
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-3 py-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6",
-        pending && "opacity-60",
-      )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">{entry.label}</span>
-          <StateBadge entry={entry} />
-        </div>
-        <p className="mt-0.5 text-sm text-[var(--text-muted)]">{entry.description}</p>
-      </div>
+  const current = describe(entry, entry.state);
 
-      <RadioGroup
-        orientation="horizontal"
-        value={entry.state}
-        disabled={disabled || pending}
-        onChange={(value) => onChange(entry, value as PermissionState)}
-        aria-label={`${entry.label} access`}
-        className="flex shrink-0 flex-wrap items-center gap-4"
-      >
-        {STATE_OPTIONS.map((option) => (
-          <Radio
-            key={option.value}
-            value={option.value}
-            label={option.label}
-            title={option.hint}
-          />
-        ))}
-      </RadioGroup>
-    </div>
+  return (
+    <li
+      className={styles.row}
+      data-editable={canEdit ? "true" : "false"}
+      data-pending={pending ? "true" : "false"}
+    >
+      <span className={styles.rowName} title={entry.label}>
+        {entry.label}
+      </span>
+      <span className={styles.rowValue}>
+        {canEdit ? (
+          <Select
+            value={entry.state}
+            disabled={pending}
+            onValueChange={(value) => onChange(entry, value as PermissionState)}
+          >
+            <SelectTrigger
+              size="sm"
+              aria-label={`${entry.label} access`}
+              className={styles.stateTrigger}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATES.map((state) => {
+                const option = describe(entry, state);
+                return (
+                  <SelectItem key={state} value={state}>
+                    <span className={styles.state} data-tone={option.tone}>
+                      {option.label}
+                    </span>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        ) : (
+          /*
+            Rule 9, read the other way round: where the admin may not change
+            this, there is no disabled control to explain — there is a fact.
+          */
+          <span className={styles.state} data-tone={current.tone}>
+            {current.label}
+          </span>
+        )}
+      </span>
+    </li>
   );
 }
 
@@ -114,6 +167,7 @@ export function PermissionMatrix({
   overrideCount: number;
   isResetting?: boolean;
 }) {
+  const searchId = React.useId();
   const [search, setSearch] = React.useState("");
   const [onlyOverrides, setOnlyOverrides] = React.useState(false);
 
@@ -133,70 +187,96 @@ export function PermissionMatrix({
     [groups, needle, onlyOverrides],
   );
 
+  const filtered = needle.length > 0 || onlyOverrides;
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-56 flex-1">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-subtle)]"
-            aria-hidden="true"
-          />
-          <Input
+    <div className={styles.block}>
+      {/* Rule 2: the block's controls sit at the top of the block. */}
+      <div className={styles.toolbar}>
+        <div className={styles.searchWrap}>
+          <label htmlFor={searchId} className={styles.srOnly}>
+            Search permissions
+          </label>
+          <Search className="size-3.5" />
+          <input
+            id={searchId}
+            type="search"
+            className={styles.searchInput}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search permissions"
-            aria-label="Search permissions"
-            className="pl-9"
           />
         </div>
 
-        <Button
+        <button
           type="button"
-          variant={onlyOverrides ? "secondary" : "ghost"}
-          size="sm"
+          className={styles.button}
+          aria-pressed={onlyOverrides}
           onClick={() => setOnlyOverrides((current) => !current)}
         >
           Changed from role
           {overrideCount > 0 ? (
-            <span className="ml-1.5 rounded-full bg-[var(--surface-subtle)] px-1.5 text-sm">
-              {overrideCount}
-            </span>
+            <span className={styles.buttonCount}>{overrideCount}</span>
           ) : null}
-        </Button>
+        </button>
 
+        {/* Rule 9: an admin who may not reset, or has nothing to reset, is
+            shown no button rather than a dead one. */}
         {canEdit && onReset && overrideCount > 0 ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onReset} disabled={isResetting}>
+          <button
+            type="button"
+            className={styles.button}
+            onClick={onReset}
+            disabled={isResetting}
+          >
             {isResetting ? "Resetting…" : "Reset to role"}
-          </Button>
+          </button>
         ) : null}
       </div>
 
       {visible.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-          {onlyOverrides
-            ? "Nothing here differs from the role."
-            : "No permission matches that search."}
-        </p>
+        <div className={styles.empty}>
+          <span>
+            {onlyOverrides && needle.length === 0
+              ? "Nothing differs from the role"
+              : "No matches"}
+          </span>
+          {filtered ? (
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => {
+                setSearch("");
+                setOnlyOverrides(false);
+              }}
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {visible.map((group) => (
-        <section key={group.id} className="space-y-1">
-          <div>
-            <h3 className="text-sm font-semibold">{group.label}</h3>
-            <p className="text-sm text-[var(--text-muted)]">{group.description}</p>
+        <section key={group.id}>
+          <SectionHeading count={group.entries.length}>{group.label}</SectionHeading>
+
+          {/* Rule 6: every list names its columns. */}
+          <div className={styles.columns}>
+            <span className={styles.columnName}>Permission</span>
+            <span className={styles.columnValue}>Access</span>
           </div>
 
-          <div className="divide-y divide-[var(--border-subtle)]">
+          <ul className={styles.rows}>
             {group.entries.map((entry) => (
               <PermissionRow
                 key={entry.id}
                 entry={entry}
-                disabled={!canEdit}
+                canEdit={canEdit}
                 pending={pendingKey === entry.id}
                 onChange={onChange}
               />
             ))}
-          </div>
+          </ul>
         </section>
       ))}
     </div>
