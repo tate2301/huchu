@@ -51,7 +51,17 @@ test.describe.configure({ timeout: 900_000 });
 test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
 
 /** One screen, one image. */
-type Shot = { path: string; name: string };
+type Shot = {
+  path: string;
+  name: string;
+  /**
+   * A console error this screen is *supposed* to produce.
+   *
+   * Only one screen has one, and it is the product working: see the pastoral
+   * entry below. Anything not named here still fails the run.
+   */
+  allow?: RegExp;
+};
 
 /**
  * Photograph a list of screens as one test, after checking each is healthy.
@@ -65,9 +75,9 @@ function journey(title: string, slug: string, shots: readonly Shot[]): void {
     const shot = shooter("schools", slug);
     await page.setViewportSize(VIEWPORT.desktop);
 
-    for (const { path, name } of shots) {
+    for (const { path, name, allow } of shots) {
       await visitSettled(page, path);
-      await expectHealthyPage(page, console_);
+      await expectHealthyPage(page, console_, allow ? { allow } : {});
       await shot(page, name);
     }
 
@@ -79,7 +89,27 @@ journey("schools — the discipline record", "conduct", [
   { path: "/schools/conduct", name: "incidents" },
   { path: "/schools/conduct/merits", name: "merits" },
   { path: "/schools/conduct/detention", name: "detention" },
-  { path: "/schools/conduct/pastoral", name: "pastoral-care" },
+  {
+    path: "/schools/conduct/pastoral",
+    name: "pastoral-care",
+    /*
+      Two 403s, and both are the product refusing rather than the page breaking.
+
+      Pastoral notes are read by the pastoral team and nobody else:
+      `app/api/v2/schools/conduct/pastoral/notes/route.ts` denies anyone without
+      `schools.pastoral:view`, and the head teacher — SUPERADMIN, and the only
+      account this spec has — does not hold it. The route's own comment says it
+      answers with the page rather than a 404 on purpose, "for somebody who
+      holds the grant and no clearance", so that a nurse does not conclude the
+      feature is missing.
+
+      That refusal is the screen worth photographing: a system that will not
+      show a child's pastoral record to the head is a system a safeguarding
+      officer can believe. Allowed by name, so any *other* console error on this
+      page still fails the run.
+    */
+    allow: /\/api\/v2\/schools\/conduct\/pastoral\/(notes|readers)/,
+  },
 ]);
 
 journey("schools — the boarding week", "boarding", [

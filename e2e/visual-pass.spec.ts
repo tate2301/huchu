@@ -169,8 +169,22 @@ async function layoutPass(
   // `.first()` because the design system's header renders a heading per
   // breakpoint variant and a card may repeat the word. One visible match
   // is all this needs to prove: that we are on the page, not a login form.
+  //
+  // Which is why the filter belongs *before* the `.first()`, and until
+  // 2026-09-22 it did not: the variant that sorts first is not always the one
+  // the current breakpoint shows, so the assertion could resolve to a
+  // perfectly correct heading and report it hidden.
+  //
+  // It does not rescue `/schools/results/class/<id>` at 768px, and that is a
+  // finding rather than a gap here: at tablet width **no** variant of that
+  // page's title is visible, while its body ("No mark sheets for this year
+  // group yet") is. Recorded in `docs/demo-playbook/known-issues.md`; the
+  // check stays honest about it rather than accepting a hidden heading.
   await expect(
-    page.getByRole("heading", { name: target.heading, exact: true }).first(),
+    page
+      .getByRole("heading", { name: target.heading, exact: true })
+      .filter({ visible: true })
+      .first(),
     `never rendered the "${target.heading}" heading — landed on ${page.url()}`,
   ).toBeVisible({ timeout: 60_000 });
   expect(

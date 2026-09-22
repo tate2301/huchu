@@ -65,7 +65,7 @@ for (const viewport of [
       const list = await page.request.get("/api/v2/schools/students?limit=25");
       expect(list.status()).toBeLessThan(400);
       const body = await list.json();
-      const students: { id: string; studentNo: string; firstName: string; lastName: string }[] =
+      const students: { id: string; studentNo: string; lastName: string }[] =
         body?.data ?? [];
       expect(students.length, "the school tenant has no students to find").toBeGreaterThan(0);
       const student = students[0];
@@ -97,10 +97,23 @@ for (const viewport of [
       await expect(
         dialog.getByRole("heading", { name: "Students", exact: true }),
       ).toBeVisible({ timeout: 20_000 });
+      // A pupil *of that surname*, which is what "search finds a pupil by name"
+      // claims. It used to pin one specific pupil's `studentNo` — `STU-0037`
+      // against rows that print `ADM-0037`, so the wrong identifier — and even
+      // the right one is not safe to pin: the palette caps its rows, so the
+      // pupil the API happens to return first need not be among them. Neither
+      // was ever caught, because the group-heading assertion above this one
+      // failed first on every run there had ever been.
+      //
       // `.first()`: the highlighted row's reference is also shown in the preview
       // pane beside it, so an unqualified match is two elements at desktop width
       // and one on a phone, where the pane is hidden.
-      await expect(dialog.getByText(student.studentNo, { exact: true }).first()).toBeVisible();
+      await expect(
+        dialog
+          .getByText(new RegExp(student.lastName))
+          .filter({ visible: true })
+          .first(),
+      ).toBeVisible({ timeout: 20_000 });
       await shot(page, "student");
     });
 

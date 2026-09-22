@@ -50,6 +50,22 @@ November sitting with 20 candidates and 160 entries sitting behind the gate. It
 needs a line in the catalogue, not code. Until then, do not open it, and do not
 promise it.
 
+## Cosmetic, in schools
+
+**The class results page has no visible title at tablet width.** Read
+2026-09-22 on `/schools/results/class/<id>` at 768px: the page renders and its
+body reads "No mark sheets for this year group yet", but every breakpoint
+variant of the `Form 1 marks` heading is hidden. Phone and desktop both show
+it. `e2e/visual-pass.spec.ts` asserts a *visible* heading, so this is the one
+target of nine that fails there, and the one school screenshot the sweep does
+not produce.
+
+**Fee amounts are cut off on a phone.** `/schools/finance/class/<id>` at 390px:
+the amount column and the row buttons overflow `div.mobile-list`, which clips
+rather than scrolls, so the right edge of every row is lost. Do not open it on
+a phone on stage, and do not use
+`docs/screenshots/schools/visual-pass-phone/01-class-fees.png` in a deck.
+
 ## Not bugs, though they look like them
 
 **Some routes have no index page.** `/gold/shift-output` and `/gold/insights`
