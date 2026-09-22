@@ -120,6 +120,8 @@ const CAPABILITY_GROUP: Record<CrmCapability, string> = {
   "documents.issue": "crm-documents",
   "documents.approve": "crm-documents",
   "commissions.manage": "crm-money",
+  "money.approve": "crm-money",
+  "money.disburse": "crm-money",
   "settings.manage": "crm-config",
 };
 
@@ -142,7 +144,7 @@ const CAPABILITY_GROUP_META: Record<string, { label: string; description: string
   },
   "crm-money": {
     label: "CRM · Money",
-    description: "Commission rules and what they pay out.",
+    description: "Commission rules, and who may approve or pay out a requisition.",
   },
   "crm-config": {
     label: "CRM · Configuration",

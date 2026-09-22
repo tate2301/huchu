@@ -2849,6 +2849,9 @@ enum NotificationType {
   CRM_TASK_DUE
   CRM_MENTIONED
   CRM_COMMENT_ADDED
+  CRM_REQUISITION_SUBMITTED
+  CRM_REQUISITION_DECIDED
+  CRM_DAILY_REPORT_READY
   /// What a school sends its families and staff. The audience is part of the
   /// type because a notice is addressed before it is written — "the Form 2
   /// parents" is the first decision the office makes, not a filter applied
@@ -2881,6 +2884,9 @@ enum NotificationEntityType {
   CRM_DOCUMENT
   CRM_TASK
   CRM_COMMENT
+  CRM_REQUISITION
+  CRM_PROJECT
+  CRM_DAILY_REPORT
 }
 
 enum HrIncidentCategory {
