@@ -48,6 +48,17 @@ export type PostingContext = {
   entryDate: Date;
   description: string;
   createdById: string;
+  /**
+   * The cost centre every line of this entry belongs to, when the event knows
+   * one — a CRM project's, today.
+   *
+   * `PostingRuleLine.costCenterId` has always existed and was never read on
+   * this path: an automatic entry carried no cost centre at all, only a
+   * hand-written journal did. So the dimension was modelled, reportable and
+   * always empty. A rule's own cost centre still wins where it sets one; this
+   * is the fallback for events that know which piece of work they belong to.
+   */
+  costCenterId?: string | null;
   // `MoneyLike` rather than `number`: callers hold `Prisma.Decimal` now — the
   // school fee columns always did, the HR payroll columns do since the
   // Zimbabwe payroll work. `resolveBasisAmount` already went through `toMoney`,
@@ -103,6 +114,7 @@ export type PostingSimulationResult = {
     debit: number;
     credit: number;
     memo: string;
+    costCenterId: string | null;
   }>;
   totalDebit: number;
   totalCredit: number;
@@ -251,6 +263,10 @@ function getConditionValue(field: PostingRuleConditionField, context: PostingCon
       return envelope.saleType ?? context.sourceSubtype ?? null;
     case "MOVEMENT_TYPE":
       return envelope.movementType ?? context.sourceSubtype ?? null;
+    case "EXPENSE_CATEGORY":
+      // Same source as MOVEMENT_TYPE by design — what differs is what the
+      // rule reads like to the person editing it.
+      return context.sourceSubtype ?? null;
     default:
       return null;
   }
@@ -543,6 +559,9 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
         debit: direction === "DEBIT" ? amount : 0,
         credit: direction === "CREDIT" ? amount : 0,
         memo: memo || context.description,
+        // The rule's own cost centre is a deliberate choice by whoever wrote
+        // the rule, so it wins. The event's is what the work belongs to.
+        costCenterId: line.costCenterId ?? context.costCenterId ?? null,
       });
     }
   }
@@ -660,6 +679,7 @@ export async function createJournalEntryFromSource(context: PostingContext, db: 
             debit: line.debit,
             credit: line.credit,
             memo: line.memo,
+            costCenterId: line.costCenterId ?? undefined,
           })),
         },
       },

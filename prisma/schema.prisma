@@ -5008,6 +5008,21 @@ enum AccountingSourceType {
   SCHOOL_FEE_WAIVER
   SCHOOL_FEE_WRITE_OFF
   SCHOOL_FEE_REFUND
+
+  // The CRM's money-out flows. Their UIs live in the CRM; their effect belongs
+  // here. Disbursement expenses the money as it leaves, per the tenant's
+  // choice, so the two acquittal types carry only the *variance* — what the
+  // employee handed back, or what they were owed for spending their own.
+  // Separate types rather than one signed amount because a posting rule line
+  // has a fixed direction.
+  CRM_REQUISITION_DISBURSEMENT
+  CRM_REQUISITION_REFUND
+  CRM_REQUISITION_TOPUP
+  CRM_COST_ENTRY_SPEND
+  /// Captured, deliberately unmapped. Cash arriving in a rep's hands has no
+  /// credit side the system can infer — a customer payment belongs in the
+  /// receipt flow, not here — so this stays PENDING for a tenant to map.
+  CRM_COST_ENTRY_RECEIPT
 }
 
 enum PostingRuleScopeType {
@@ -5029,6 +5044,11 @@ enum PostingRuleConditionField {
   VENDOR_TAX_CATEGORY_ID
   SALE_TYPE
   MOVEMENT_TYPE
+  /// What the money was for: FUEL, MATERIALS, LABOUR and the rest. Resolves
+  /// from the event's `sourceSubtype`, the same place MOVEMENT_TYPE reads, but
+  /// named for what a fuel rule is actually matching on — a rule an accountant
+  /// has to read and edit should not say "movement type" when it means "fuel".
+  EXPENSE_CATEGORY
 }
 
 enum PostingRuleOperator {
@@ -6213,6 +6233,7 @@ model CostCenter {
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   journalLines     JournalLine[]
   postingRuleLines PostingRuleLine[]
+  crmProjects      CrmProject[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
@@ -12899,12 +12920,19 @@ model CrmProject {
   budget   Decimal? @db.Decimal(14, 2)
   currency String   @default("USD")
 
+  /// The cost centre every journal line raised against this project carries,
+  /// which is what makes "each project has its own accounting" true in the
+  /// ledger rather than only in the CRM's own rollup. Created with the project
+  /// and nullable for the ones raised before this existed.
+  costCenterId String?
+
   customFields Json?
   createdById  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  costCenter  CostCenter?         @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
   deal        CrmDeal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
   client      CrmClient?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
   site        CrmSite?            @relation(fields: [siteId], references: [id], onDelete: SetNull)
@@ -12915,6 +12943,7 @@ model CrmProject {
   costEntries  CrmDailyCostEntry[]
 
   @@unique([companyId, projectNo])
+  @@index([companyId, costCenterId])
   @@index([companyId, status, updatedAt])
   @@index([companyId, managerId, status])
   @@index([companyId, dealId])

@@ -126,6 +126,41 @@ export type CreateProjectInput = z.infer<typeof createProjectSchema>;
  * Takes a transaction because the caller usually has other work to do in the
  * same breath — attaching the job that prompted it, most often.
  */
+/**
+ * The cost centre a project's spend is tagged with in the ledger.
+ *
+ * "Each project has its own accounting" is only true if a journal line can say
+ * which project it belongs to, and `CostCenter` is the dimension this ledger
+ * already has for exactly that. Created with the project and named after it,
+ * so an accountant opening the cost-centre list recognises the work.
+ *
+ * Best-effort: a tenant whose accounting is not set up should still be able to
+ * raise a project. A null cost centre costs project-level ledger reporting,
+ * not the project.
+ */
+async function ensureProjectCostCentre(
+  tx: Tx,
+  companyId: string,
+  projectNo: string,
+  name: string,
+): Promise<string | null> {
+  try {
+    const existing = await tx.costCenter.findFirst({
+      where: { companyId, code: projectNo },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+
+    const created = await tx.costCenter.create({
+      data: { companyId, code: projectNo, name: name.slice(0, 200) },
+      select: { id: true },
+    });
+    return created.id;
+  } catch {
+    return null;
+  }
+}
+
 export async function createProject(
   tx: Tx,
   companyId: string,
@@ -133,11 +168,13 @@ export async function createProject(
   input: CreateProjectInput,
 ) {
   const projectNo = await reserveIdentifier(tx, { companyId, entity: "CRM_PROJECT" });
+  const costCenterId = await ensureProjectCostCentre(tx, companyId, projectNo, input.name);
 
   return tx.crmProject.create({
     data: {
       companyId,
       projectNo,
+      costCenterId,
       name: input.name,
       description: input.description ?? null,
       status: input.status ?? "PLANNING",
