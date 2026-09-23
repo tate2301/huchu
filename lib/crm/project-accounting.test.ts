@@ -110,6 +110,7 @@ beforeEach(clear);
 afterAll(async () => {
   await clear();
   await prisma.crmProject.deleteMany({ where: { companyId } });
+  await prisma.costCenter.deleteMany({ where: { companyId } });
   await prisma.crmWorkOrder.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
   await prisma.company.deleteMany({ where: { slug: SLUG } });
@@ -120,6 +121,29 @@ describe("raising a project", () => {
     const project = await prisma.crmProject.findUnique({ where: { id: projectId } });
     expect(project?.projectNo).toMatch(/^PRJ/);
     expect(project?.status).toBe("PLANNING");
+  });
+
+  it("opens a cost centre so its spend is findable in the ledger", async () => {
+    // "Each project has its own accounting" is only true if a journal line can
+    // say which project it belongs to, and CostCenter is that dimension.
+    const project = await prisma.crmProject.findUnique({
+      where: { id: projectId },
+      include: { costCenter: true },
+    });
+    expect(project?.costCenterId).not.toBeNull();
+    expect(project?.costCenter?.code).toBe(project?.projectNo);
+    expect(project?.costCenter?.name).toBe("Warehouse floor");
+  });
+
+  it("reuses a cost centre rather than colliding on its code", async () => {
+    const second = await prisma.$transaction((tx) =>
+      createProject(tx, companyId, userId, { name: "Another floor", currency: "USD" }),
+    );
+    expect(second.costCenterId).not.toBeNull();
+    expect(second.costCenterId).not.toBe(
+      (await prisma.crmProject.findUnique({ where: { id: projectId } }))?.costCenterId,
+    );
+    await prisma.crmProject.delete({ where: { id: second.id } });
   });
 
   it("carries a job's client, site and deal across rather than asking twice", async () => {

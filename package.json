@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && node --max-old-space-size=8192 ./node_modules/next/dist/bin/next build",
+    "build": "prisma generate && pnpm run typecheck && node --max-old-space-size=6144 ./node_modules/next/dist/bin/next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "node --max-old-space-size=7168 ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json",
+    "typecheck": "node --max-old-space-size=6144 ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json",
     "typecheck:scripts": "node --max-old-space-size=3072 ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.scripts.json",
     "test": "vitest run",
     "test:watch": "vitest",

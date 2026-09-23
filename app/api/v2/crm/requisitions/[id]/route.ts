@@ -29,6 +29,10 @@ import {
   type RequisitionStatus,
 } from "@/lib/crm/requisitions";
 import { emitCrmNotification } from "@/lib/notifications";
+import {
+  postRequisitionAcquittalVariance,
+  postRequisitionDisbursement,
+} from "@/lib/crm/money-posting";
 import { requireCrmCapability } from "../../_helpers";
 import { notifyApprovers } from "../_shared";
 
@@ -186,6 +190,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             bankAccountId: body.bankAccountId ?? null,
           },
         });
+        // The money has left the business, so the ledger hears about it now.
+        // Best-effort: a disbursement that refuses to record itself because
+        // posting failed leaves the cash gone and the CRM saying it never went.
+        try {
+          await postRequisitionDisbursement(companyId, requisition, session.user.id);
+        } catch (error) {
+          console.error("[API] requisition disbursement posting failed:", error);
+        }
+
         await emitCrmNotification({
           companyId,
           recipientIds: [existing.requestedById],
@@ -213,7 +226,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             ...(body.notes ? { notes: body.notes } : {}),
           },
         });
-        return successResponse({ requisition });
+
+        // Only the difference: the whole amount was expensed when it was paid
+        // out, so an acquittal that agrees with the disbursement has nothing
+        // to say to the ledger.
+        let variance: Awaited<ReturnType<typeof postRequisitionAcquittalVariance>> | null = null;
+        try {
+          variance = await postRequisitionAcquittalVariance(
+            companyId,
+            requisition,
+            session.user.id,
+          );
+        } catch (error) {
+          console.error("[API] requisition acquittal posting failed:", error);
+        }
+
+        return successResponse({ requisition, variance });
       }
     }
   } catch (error) {

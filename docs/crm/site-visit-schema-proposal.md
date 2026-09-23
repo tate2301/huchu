@@ -1,6 +1,14 @@
 # Site visits: schema proposal
 
-Work order item 3. **For review — no migration, no UI written.**
+Work order item 3. Originally written for review, before any migration or UI.
+
+> [!NOTE]
+> **Superseded — this was built and shipped on 22 Sep 2026 (PR #173).**
+> For what actually exists, read
+> [site-visit-questions.md](./site-visit-questions.md). This document is kept
+> for the reasoning: what was already in the repo, what was weighed, and why
+> answers ended up as rows rather than JSON. Where the two disagree, the other
+> one is right.
 
 James: *a site visit for each of these products and services, each allowing
 pictures taken on site and shared with the office.*
