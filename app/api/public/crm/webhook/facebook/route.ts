@@ -1,10 +1,14 @@
 /**
- * Meta's Lead Ads callback: `/api/public/crm/webhook/facebook/{token}`.
+ * Meta's Lead Ads callback: `/api/public/crm/webhook/facebook`.
+ *
+ * One URL for the whole deployment, because a Meta app has exactly one webhook
+ * and one app serves every tenant. Which workspace a delivery belongs to is
+ * decided from the Page it names, not from the URL it arrived on.
  *
  * Unauthenticated by design — Meta has no session and cannot send a header of
  * ours. Authenticity is the `X-Hub-Signature-256` over the delivered bytes,
- * checked in `lib/crm/facebook/webhook.ts` against the app secret on the
- * connection this token names.
+ * checked in `lib/crm/facebook/webhook.ts` against the app secret before
+ * anything else happens.
  *
  * The route is thin on purpose. It does the three things the handler cannot:
  * reads the raw bytes, flattens the headers, and turns an outcome into a
@@ -22,14 +26,10 @@ export const runtime = "nodejs";
 // A webhook delivery must never be served from a cache.
 export const dynamic = "force-dynamic";
 
-type RouteParams = { params: Promise<{ token: string }> };
-
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  const { token } = await params;
+export function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams;
 
-  const result = await verifyWebhookSubscription({
-    callbackToken: token,
+  const result = verifyWebhookSubscription({
     mode: query.get("hub.mode"),
     verifyToken: query.get("hub.verify_token"),
     challenge: query.get("hub.challenge"),
@@ -45,14 +45,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   });
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
-  const { token } = await params;
-
-  // Keyed on the callback token rather than on the connection, because the
-  // limit has to apply before a row is loaded: the cheap way to abuse a public
-  // URL is to POST garbage at it, and that never gets as far as a connection.
-  // 600/minute is far above Meta's real batching and far below a flood.
-  const limit = checkRateLimit({ key: `fb-webhook:${token}`, limit: 600, windowMs: 60_000 });
+export async function POST(request: NextRequest) {
+  // One limit for the endpoint, because there is one endpoint. Meta batches
+  // deliveries, so this sits far above real traffic and far below a flood;
+  // an unsigned POST is refused by the signature check for the cost of one
+  // hash, without a database lookup.
+  const limit = checkRateLimit({ key: "fb-webhook", limit: 3000, windowMs: 60_000 });
   if (!limit.allowed) {
     return NextResponse.json(
       { ok: false, error: "Rate limit exceeded" },
@@ -70,7 +68,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
 
   try {
-    const result = await handleFacebookWebhook({ callbackToken: token, rawBody, headers });
+    const result = await handleFacebookWebhook({ rawBody, headers });
     return NextResponse.json(
       {
         ok: result.httpStatus < 400,
