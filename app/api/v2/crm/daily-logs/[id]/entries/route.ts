@@ -14,6 +14,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { addCostEntry, costEntrySchema, dayTotals } from "@/lib/crm/daily-log";
+import { postCostEntry } from "@/lib/crm/money-posting";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -56,6 +57,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const entry = await prisma.$transaction((tx) => addCostEntry(tx, companyId, id, data));
+
+    // An entry that names a requisition posts nothing: that money was
+    // expensed when it was disbursed, and posting it again would double the
+    // cost. Best-effort, like every other posting call — the day's record is
+    // the thing the rep needs saved.
+    try {
+      await postCostEntry(companyId, entry, session.user.id);
+    } catch (error) {
+      console.error("[API] cost entry posting failed:", error);
+    }
 
     const entries = await prisma.crmDailyCostEntry.findMany({
       where: { companyId, logId: id },

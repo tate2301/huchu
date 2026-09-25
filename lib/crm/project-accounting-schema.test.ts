@@ -248,6 +248,35 @@ describe("deleting things does not erase the money trail", () => {
   });
 });
 
+describe("a project reaches the ledger", () => {
+  it("carries a cost centre, nullable for the ones raised before it existed", async () => {
+    const col = (await columns("CrmProject")).get("costCenterId");
+    expect(col, "CrmProject.costCenterId is missing").toBeDefined();
+    expect(col?.is_nullable).toBe("YES");
+  });
+
+  it("keeps the project when its cost centre goes", async () => {
+    expect(await deleteRule("CrmProject", "CrmProject_costCenterId_fkey")).toBe("SET NULL");
+  });
+
+  it("names the CRM money flows the ledger can post", async () => {
+    const values = await enumValues("AccountingSourceType");
+    for (const required of [
+      "CRM_REQUISITION_DISBURSEMENT",
+      "CRM_REQUISITION_REFUND",
+      "CRM_REQUISITION_TOPUP",
+      "CRM_COST_ENTRY_SPEND",
+      "CRM_COST_ENTRY_RECEIPT",
+    ]) {
+      expect(values, `${required} is missing`).toContain(required);
+    }
+  });
+
+  it("lets a posting rule match on what the money was for", async () => {
+    expect(await enumValues("PostingRuleConditionField")).toContain("EXPENSE_CATEGORY");
+  });
+});
+
 describe("the enums the code branches on", () => {
   it("keeps approval, disbursement and acquittal as separate states", async () => {
     expect(await enumValues("CrmRequisitionStatus")).toEqual([
