@@ -12,7 +12,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { CostEntryError, addCostEntry, submitDailyLog, toLogDate } from "@/lib/crm/daily-log";
+import {
+  CostEntryError,
+  addCostEntry,
+  costEntrySchema,
+  submitDailyLog,
+  toLogDate,
+} from "@/lib/crm/daily-log";
 
 const SLUG = "daily-log-test";
 const EMAIL = "daily-log-test@example.invalid";
@@ -149,5 +155,37 @@ describe("writing a line of money", () => {
     expect(entry.receiptPathname).toBe("companies/x/crm-receipts/receipt.jpg");
     expect(entry.projectId).toBeNull();
     expect(entry.requisitionId).toBeNull();
+  });
+});
+
+describe("what a line can be against", () => {
+  const REQUISITION = "11111111-2222-4333-8444-555555555555";
+  const INVOICE = "66666666-7777-4888-8999-000000000000";
+
+  it("lets an expense come out of a requisition", () => {
+    expect(costEntrySchema.safeParse({ ...line, requisitionId: REQUISITION }).success).toBe(true);
+  });
+
+  it("lets income pay an invoice", () => {
+    expect(
+      costEntrySchema.safeParse({ ...line, direction: "RECEIVED", invoiceDocumentId: INVOICE }).success,
+    ).toBe(true);
+  });
+
+  it("refuses an expense that claims to pay an invoice", () => {
+    const parsed = costEntrySchema.safeParse({ ...line, invoiceDocumentId: INVOICE });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.path).toEqual(["invoiceDocumentId"]);
+  });
+
+  it("refuses a customer's payment that also claims to be a requisition's float", () => {
+    const parsed = costEntrySchema.safeParse({
+      ...line,
+      direction: "RECEIVED",
+      invoiceDocumentId: INVOICE,
+      requisitionId: REQUISITION,
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.path).toEqual(["requisitionId"]);
   });
 });

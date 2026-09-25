@@ -16,9 +16,9 @@
  *                    figure their reported spend lines come to, never a
  *                    typed one
  *
- * Reading one is the requester's business, the business of whoever approves
- * or pays out money, and the project owner's: somebody's float is in these
- * figures, and a colleague is not owed a look at it.
+ * Reading one is the requester's business, the business of whoever approves,
+ * pays out or oversees money, and the project owner's: somebody's float is in
+ * these figures, and a colleague is not owed a look at it.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -72,12 +72,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!requisition) return errorResponse("Requisition not found", 404);
 
     const isRequester = requisition.requestedById === session.user.id;
-    const [mayApprove, mayDisburse] = await Promise.all([
+    const [mayApprove, mayDisburse, mayViewAll] = await Promise.all([
       requireCrmCapability(session, "money.approve"),
       requireCrmCapability(session, "money.disburse"),
+      requireCrmCapability(session, "money.view_all"),
     ]);
     const ownsProject = requisition.project?.managerId === session.user.id;
-    if (!isRequester && !mayApprove && !mayDisburse && !ownsProject) {
+    if (!isRequester && !mayApprove && !mayDisburse && !mayViewAll && !ownsProject) {
       return errorResponse("Requisition not found", 404);
     }
 

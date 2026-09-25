@@ -36,7 +36,7 @@ type ListResponse = {
   data: RequisitionRow[];
   pagination?: { total: number };
   queueCounts: Partial<Record<Queue, number>>;
-  permissions: { mayApprove: boolean; mayDisburse: boolean };
+  permissions: { mayApprove: boolean; mayDisburse: boolean; mayViewAll: boolean };
 };
 
 const QUEUES: Array<{ value: Queue; label: string }> = [
@@ -112,8 +112,12 @@ export function RequisitionsContent() {
     staleTime: 5 * 60_000,
   });
 
-  const permissions = listQuery.data?.permissions ?? { mayApprove: false, mayDisburse: false };
-  const canSeeOthers = permissions.mayApprove || permissions.mayDisburse;
+  const permissions = listQuery.data?.permissions ?? {
+    mayApprove: false,
+    mayDisburse: false,
+    mayViewAll: false,
+  };
+  const canSeeOthers = permissions.mayApprove || permissions.mayDisburse || permissions.mayViewAll;
 
   const teamQuery = useQuery({
     queryKey: ["crm", "team"],

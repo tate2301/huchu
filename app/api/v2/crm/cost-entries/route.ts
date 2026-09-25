@@ -11,15 +11,142 @@
  * POST is idempotent when the device supplies a `clientEntryId`, which the
  * offline outbox always does. A replayed entry lands once; without that a bad
  * afternoon on the road doubles the day's spend.
+ *
+ * GET is the cost tracker's register: a person's own lines, or — for
+ * somebody who may see everybody's money — everybody's unless they narrow it
+ * to one person.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import {
+  errorResponse,
+  getPaginationParams,
+  paginationResponse,
+  successResponse,
+  validateSession,
+} from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { CostEntryError, addCostEntry, costEntrySchema, dayTotals } from "@/lib/crm/daily-log";
+import {
+  CostEntryError,
+  addCostEntry,
+  costEntrySchema,
+  dayTotals,
+  toLogDate,
+} from "@/lib/crm/daily-log";
+import { isNotReceipted, receiptGaps, type ReceiptGap } from "@/lib/crm/finance";
 import { postCostEntry } from "@/lib/crm/money-posting";
 import { canReport, type RequisitionStatus } from "@/lib/crm/requisitions";
+import { requireCrmCapability } from "../_helpers";
+
+const ENTRY_INCLUDE = {
+  log: { select: { logDate: true, submittedAt: true, user: { select: { id: true, name: true } } } },
+  project: { select: { id: true, name: true, projectNo: true } },
+  requisition: { select: { id: true, requisitionNo: true, status: true } },
+  invoiceDocument: { select: { id: true, invoice: { select: { invoiceNumber: true } } } },
+} satisfies Prisma.CrmDailyCostEntryInclude;
+
+/** A `YYYY-MM-DD` query value as the DATE a log is keyed on, or null. */
+function dayParam(value: string | null): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : toLogDate(date);
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    const { companyId } = session.user;
+
+    const { searchParams } = new URL(request.url);
+    const { page, limit, skip } = getPaginationParams(request);
+
+    // Whose money. A member reads their own. Somebody who may see everybody's
+    // money reads everybody's, or one person's — their own included — when
+    // they ask. Asking for somebody else without that is refused rather than
+    // quietly answered with your own.
+    const mayViewAll = await requireCrmCapability(session, "money.view_all");
+    const person = searchParams.get("person") ?? (mayViewAll ? "all" : "me");
+    let userId: string | null = session.user.id;
+    if (person === "all") {
+      if (!mayViewAll) return errorResponse("You can only see your own money", 403);
+      userId = null;
+    } else if (person !== "me" && person !== session.user.id) {
+      if (!mayViewAll) return errorResponse("You can only see your own money", 403);
+      userId = person;
+    }
+
+    const from = dayParam(searchParams.get("from"));
+    const to = dayParam(searchParams.get("to"));
+    const projectId = searchParams.get("project");
+    const requisitionId = searchParams.get("requisition");
+    const type = searchParams.get("type");
+    const flag = searchParams.get("flag");
+    const search = searchParams.get("q")?.trim();
+
+    const conditions: Prisma.CrmDailyCostEntryWhereInput[] = [];
+    if (search) conditions.push({ description: { contains: search, mode: "insensitive" } });
+    if (projectId) conditions.push({ projectId: projectId === "none" ? null : projectId });
+    if (requisitionId) conditions.push({ requisitionId: requisitionId === "none" ? null : requisitionId });
+    if (type === "SPENT" || type === "RECEIVED") conditions.push({ direction: type });
+
+    // The two things a manager scans this list for. Spend with no photo of
+    // its receipt; and cash received against an invoice that accounting has
+    // not receipted — the gap a float disappears into.
+    let gaps: Map<string, ReceiptGap> | null = null;
+    if (flag === "no-receipt") conditions.push({ direction: "SPENT", receiptUrl: null });
+    if (flag === "not-receipted") {
+      gaps = await receiptGaps(prisma, companyId);
+      conditions.push({ direction: "RECEIVED", invoiceDocumentId: { in: [...gaps.keys()] } });
+    }
+
+    const where: Prisma.CrmDailyCostEntryWhereInput = {
+      companyId,
+      log: {
+        ...(userId ? { userId } : {}),
+        ...(from || to
+          ? { logDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+          : {}),
+      },
+      ...(conditions.length ? { AND: conditions } : {}),
+    };
+
+    const [entries, total] = await Promise.all([
+      prisma.crmDailyCostEntry.findMany({
+        where,
+        include: ENTRY_INCLUDE,
+        orderBy: [{ log: { logDate: "desc" } }, { createdAt: "desc" }],
+        skip,
+        take: limit,
+      }),
+      prisma.crmDailyCostEntry.count({ where }),
+    ]);
+
+    // Only the invoices on this page are asked about, unless the whole gap
+    // map was already read for the filter.
+    const invoiceIds = [
+      ...new Set(entries.map((entry) => entry.invoiceDocumentId).filter((id): id is string => Boolean(id))),
+    ];
+    const pageGaps =
+      gaps ?? (invoiceIds.length ? await receiptGaps(prisma, companyId, { invoiceDocumentIds: invoiceIds }) : new Map());
+
+    return successResponse({
+      ...paginationResponse(
+        entries.map((entry) => ({ ...entry, notReceipted: isNotReceipted(entry, pageGaps) })),
+        total,
+        page,
+        limit,
+      ),
+      mayViewAll,
+    });
+  } catch (error) {
+    console.error("[API] GET /api/v2/crm/cost-entries error:", error);
+    return errorResponse("Failed to load the money");
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,6 +163,16 @@ export async function POST(request: NextRequest) {
         select: { id: true },
       });
       if (!project) return errorResponse("Project not found", 404);
+    }
+
+    // Money received against an invoice has to be this company's invoice —
+    // not a quote, not a receipt, and not somebody else's.
+    if (data.invoiceDocumentId) {
+      const document = await prisma.crmLeadDocument.findFirst({
+        where: { id: data.invoiceDocumentId, companyId, type: "INVOICE" },
+        select: { id: true },
+      });
+      if (!document) return errorResponse("Invoice not found", 404);
     }
 
     // A line against a requisition is somebody reporting what they did with

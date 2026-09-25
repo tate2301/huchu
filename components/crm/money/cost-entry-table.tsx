@@ -23,27 +23,45 @@ function signedAmount(entry: CostEntryRow): string {
 /**
  * The receipt, or the fact that there is none.
  *
- * Only spending owes a receipt. Money received is evidenced by the requisition
- * it came from or by the customer's own paperwork, so a blank there is not a
- * gap and is not drawn as one.
+ * Only spending owes a photo of a receipt. Money received is evidenced by the
+ * requisition it came from or by the customer's own paperwork, so a blank
+ * there is not a gap and is not drawn as one. What cash from a customer does
+ * owe is the office's receipt, and a line the office has not caught up with
+ * says so here, beside any photo it has.
  */
 function ReceiptCell({ entry }: { entry: CostEntryRow }) {
+  const notReceipted = entry.notReceipted ? (
+    <span className="text-sm font-medium text-[var(--badge-warn-fg)]">Not receipted</span>
+  ) : null;
+
   if (entry.receiptUrl) {
     return (
-      <a
-        href={entry.receiptUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="text-sm text-[var(--brand-strong)] hover:underline"
-      >
-        Photo
-      </a>
+      <span className="flex min-w-0 items-baseline gap-2">
+        <a
+          href={entry.receiptUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sm text-[var(--brand-strong)] hover:underline"
+        >
+          Photo
+        </a>
+        {notReceipted}
+      </span>
     );
   }
   if (entry.direction === "SPENT") {
     return <span className="text-sm font-medium text-[var(--badge-bad-fg)]">No receipt</span>;
   }
-  return <RecordCell value={null} />;
+  return notReceipted ?? <RecordCell value={null} />;
+}
+
+/**
+ * What a line was against: the requisition money spent came out of, or the
+ * invoice money received was paying.
+ */
+function againstOf(entry: CostEntryRow): string | null {
+  if (entry.direction === "SPENT") return entry.requisition?.requisitionNo ?? null;
+  return entry.invoiceDocument?.invoice?.invoiceNumber ?? null;
 }
 
 /**
@@ -52,24 +70,26 @@ function ReceiptCell({ entry }: { entry: CostEntryRow }) {
  * A line is not a record — there is nothing of its own to open — so rows do
  * not link; the receipt and the project in it do. Which columns show depends
  * on where the table sits: a person's own money leaves out whose it is, a
- * project's leaves out which project.
+ * project's leaves out which project, a requisition's report leaves out the
+ * requisition every line is against.
  */
 export function CostEntryTable({
   entries,
   isLoading,
   showPerson = true,
   showProject = true,
-  showRequisition = true,
+  showAgainst = true,
   emptyTitle = "No money has moved",
   emptyBody,
   emptyAction,
   onRemove,
+  removable,
 }: {
   entries: CostEntryRow[];
   isLoading?: boolean;
   showPerson?: boolean;
   showProject?: boolean;
-  showRequisition?: boolean;
+  showAgainst?: boolean;
   emptyTitle?: string;
   emptyBody?: string;
   emptyAction?: ReactNode;
@@ -79,7 +99,10 @@ export function CostEntryTable({
    * refuses the rest regardless.
    */
   onRemove?: (entry: CostEntryRow) => void;
+  /** Which lines `onRemove` is offered on, where not every line is. */
+  removable?: (entry: CostEntryRow) => boolean;
 }) {
+  const canRemove = (entry: CostEntryRow) => Boolean(onRemove) && (removable?.(entry) ?? true);
   const columns: RecordTableColumn<CostEntryRow>[] = [
     {
       id: "what",
@@ -136,16 +159,14 @@ export function CostEntryTable({
           },
         ]
       : []),
-    ...(showRequisition
+    ...(showAgainst
       ? [
           {
-            id: "requisition",
-            label: "From",
+            id: "against",
+            label: "Against",
             icon: Wallet,
             width: "8rem",
-            cell: (entry: CostEntryRow) => (
-              <RecordCell kind="code" value={entry.requisition?.requisitionNo} />
-            ),
+            cell: (entry: CostEntryRow) => <RecordCell kind="code" value={againstOf(entry)} />,
           },
         ]
       : []),
@@ -153,7 +174,7 @@ export function CostEntryTable({
       id: "receipt",
       label: "Receipt",
       icon: Receipt,
-      width: "7rem",
+      width: "10rem",
       cell: (entry) => <ReceiptCell entry={entry} />,
     },
     {
@@ -170,11 +191,12 @@ export function CostEntryTable({
             id: "remove",
             label: "",
             width: "3rem",
-            cell: (entry: CostEntryRow) => (
-              <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
-                <Trash2 />
-              </IconButton>
-            ),
+            cell: (entry: CostEntryRow) =>
+              canRemove(entry) ? (
+                <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
+                  <Trash2 />
+                </IconButton>
+              ) : null,
           },
         ]
       : []),
@@ -194,10 +216,12 @@ export function CostEntryTable({
           isLoading={isLoading}
           showPerson={showPerson}
           showProject={showProject}
+          showAgainst={showAgainst}
           emptyTitle={emptyTitle}
           emptyBody={emptyBody}
           emptyAction={emptyAction}
           onRemove={onRemove}
+          canRemove={canRemove}
         />
       }
     />
@@ -210,19 +234,23 @@ function CostEntryList({
   isLoading,
   showPerson,
   showProject,
+  showAgainst,
   emptyTitle,
   emptyBody,
   emptyAction,
   onRemove,
+  canRemove,
 }: {
   entries: CostEntryRow[];
   isLoading?: boolean;
   showPerson: boolean;
   showProject: boolean;
+  showAgainst: boolean;
   emptyTitle: string;
   emptyBody?: string;
   emptyAction?: ReactNode;
   onRemove?: (entry: CostEntryRow) => void;
+  canRemove: (entry: CostEntryRow) => boolean;
 }) {
   if (isLoading) {
     return (
@@ -250,6 +278,7 @@ function CostEntryList({
                 entry.log?.logDate.slice(0, 10),
                 showPerson ? entry.log?.user.name : null,
                 showProject ? entry.project?.name : null,
+                showAgainst ? againstOf(entry) : null,
                 CATEGORY_LABELS[entry.category],
               ]
                 .filter(Boolean)
@@ -269,7 +298,7 @@ function CostEntryList({
             </p>
             <ReceiptCell entry={entry} />
           </div>
-          {onRemove ? (
+          {onRemove && canRemove(entry) ? (
             <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
               <Trash2 />
             </IconButton>

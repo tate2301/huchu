@@ -452,7 +452,7 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
                   // otherwise, so the column earns its place only when the
                   // requisition itself was for no project.
                   showProject={!requisition.project}
-                  showRequisition={false}
+                  showAgainst={false}
                   showPerson={false}
                   emptyTitle="Nothing reported yet"
                   emptyBody={

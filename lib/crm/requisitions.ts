@@ -194,8 +194,10 @@ export function outstandingFloat(requisition: {
  * — the ledger has to have seen the money leave before it can see it come
  * back.
  */
+export const REPORTABLE_STATUSES = ["APPROVED", "DISBURSED"] as const satisfies readonly RequisitionStatus[];
+
 export function canReport(status: RequisitionStatus): boolean {
-  return status === "APPROVED" || status === "DISBURSED";
+  return (REPORTABLE_STATUSES as readonly RequisitionStatus[]).includes(status);
 }
 
 type ReportLine = {

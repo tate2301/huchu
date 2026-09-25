@@ -148,6 +148,11 @@ and the balance to return (or owed to them).
 saying yes and handing over cash should be two people wherever a business is
 big enough for it to be. Both default to managers.
 
+`money.view_all` is reading everybody's money without deciding on any of it —
+every requisition, every line in the cost tracker. It defaults on for
+managers and for the finance officer role, who reads the books and approves
+nothing.
+
 Nobody approves their own request. That is refused in
 `app/api/v2/crm/requisitions/[id]/route.ts`, not by hiding a button.
 
@@ -168,11 +173,29 @@ today's log" an upsert rather than a find-or-create race. `logDate` is a
 `DATE`, not a timestamp: a rep writes Tuesday up on Wednesday morning, and the
 entry belongs to Tuesday whatever time zone the phone was in.
 
-`/crm/my-day` is built for somebody standing at a fuel pump — four fields and
-a button, the running balance at the top where a thumb-scroll starts, one
-press to close the day. The date can be moved back and not forward: a log for
-Friday written on Wednesday is a guess, and a guess in the cost figures is
-worse than a gap.
+`/crm/cost-tracker` is built for somebody standing at a fuel pump. The top of
+the page is the day being written up: the form on the page rather than in a
+modal (expense or income, how much, on what, which project, and then the
+requisition an expense came out of or the invoice income was paying, with a
+receipt photo), what the day has come to so far, and one press to close it.
+The day can be moved back and not forward: a log for Friday written on
+Wednesday is a guess, and a guess in the cost figures is worse than a gap.
+
+Under it is the register of every line, filtered from the toolbar and kept in
+the URL — day range, person (for somebody with `money.view_all`), project,
+requisition, expense or income, and the two things a manager scans it for:
+**no receipt photo**, and **not receipted**.
+
+### Not receipted
+
+Cash a rep collects on site is logged in their tracker against the invoice
+(`CrmDailyCostEntry.invoiceDocumentId`), and the office records the receipt
+that settles it. Until the second happens the first is cash in somebody's hand
+that the business holds no receipt for. `lib/crm/finance.ts` compares, per
+invoice, what the field logged with the invoice's `amountPaid`; every income
+line on an invoice with a gap is flagged, because which of three collections
+is the unreceipted one is a question for the people who logged them. The rule
+only reads accounting — nothing is matched or written.
 
 Entries carry a device-generated `clientEntryId`, unique per tenant, so an
 entry replayed on reconnect lands once instead of doubling the day's spend.
@@ -226,11 +249,12 @@ not *"what did everybody do"*.
 | --- | --- |
 | `/crm/projects`, `/crm/projects/[id]` | The work and what it cost |
 | `/crm/requisitions` | Asking for money, and answering |
-| `/crm/my-day` | A rep's own day |
+| `/crm/cost-tracker` | A day's money written up, and every line read back |
 | `/crm/daily-reports` | Management's read |
 
-Navigation groups them under **Money out**, distinct from Sales documents:
-one is money the business asks for, the other is money it hands out.
+Navigation groups the money pages under **Finance**, distinct from Sales
+documents: one is the money moving through people's hands, the other is the
+paperwork the business sends its customers.
 
 | Module | Holds |
 | --- | --- |
@@ -239,6 +263,7 @@ one is money the business asks for, the other is money it hands out.
 | `lib/crm/project-timeline.ts` | Jobs laid out against a project's dates |
 | `lib/crm/requisitions.ts` | Lifecycle, categories, money helpers |
 | `lib/crm/daily-log.ts` | Day arithmetic, entry idempotency, submission |
+| `lib/crm/finance.ts` | Reading accounting for the money pages — never writing it |
 | `lib/crm/daily-report.ts` | Assembly and storage |
 
 ## Conventions worth not breaking

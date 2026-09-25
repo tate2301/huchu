@@ -27,6 +27,7 @@ export const CRM_CAPABILITIES = [
   "commissions.manage",
   "money.approve",
   "money.disburse",
+  "money.view_all",
   "settings.manage",
 ] as const;
 
@@ -49,6 +50,7 @@ export const CRM_CAPABILITY_LABELS: Record<CrmCapability, string> = {
   "commissions.manage": "Set commission rules",
   "money.approve": "Approve requisitions",
   "money.disburse": "Record money paid out",
+  "money.view_all": "See everybody's money",
   "settings.manage": "Change CRM settings",
 };
 
@@ -77,6 +79,8 @@ export const CRM_CAPABILITY_NOTES: Record<CrmCapability, string> = {
   "commissions.manage": "Changes what the team gets paid.",
   "money.approve": "Says yes to somebody's request for money. Not the same as handing it over.",
   "money.disburse": "Records that the money actually left. Usually a different person, and it should be.",
+  "money.view_all":
+    "The finance overview, and anybody's cost tracker and floats — not only their own. Reading, not changing.",
   "settings.manage": "Everything on the CRM settings screen.",
 };
 
@@ -95,8 +99,17 @@ const REP_CAPABILITIES = new Set<CrmCapability>([
 
 const MANAGER_CAPABILITIES = new Set<CrmCapability>(CRM_CAPABILITIES);
 
+/**
+ * A finance officer works the CRM as a rep does, and also reads everybody's
+ * money: the overview, the floats and the cost trackers are what the role is
+ * for. Seeing is not approving or paying out — those stay with managers unless
+ * an admin grants them.
+ */
+const FINANCE_CAPABILITIES = new Set<CrmCapability>([...REP_CAPABILITIES, "money.view_all"]);
+
 export function capabilitiesForRole(role: string | null | undefined): Set<CrmCapability> {
-  return hasCrmFullAccess(role) ? MANAGER_CAPABILITIES : REP_CAPABILITIES;
+  if (hasCrmFullAccess(role)) return MANAGER_CAPABILITIES;
+  return role === "FINANCE_OFFICER" ? FINANCE_CAPABILITIES : REP_CAPABILITIES;
 }
 
 export function can(session: AuthenticatedSession, capability: CrmCapability): boolean {

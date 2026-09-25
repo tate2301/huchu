@@ -1,11 +1,12 @@
 "use client";
 
 import { useId, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
   SelectContent,
@@ -15,50 +16,156 @@ import {
 } from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
-import { CATEGORIES, CATEGORY_LABELS, todayKey, type Category } from "./money";
+import { CATEGORIES, CATEGORY_LABELS, formatMoney, todayKey, type Category } from "./money";
 import { ReceiptField, type UploadedReceipt } from "./receipt-field";
 
+type Direction = "SPENT" | "RECEIVED";
+
+/** A select cannot hold "" as a value, so "none of them" needs a name of its own. */
+const NONE = "__none";
+
+type ProjectOption = { id: string; name: string; currency: string };
+
+type RequisitionOption = {
+  id: string;
+  requisitionNo: string;
+  purpose: string;
+  category: Category;
+  currency: string;
+  project: { id: string; name: string } | null;
+};
+
+type InvoiceOption = {
+  id: string;
+  number: string | null;
+  customer: string | null;
+  balance: number | null;
+  currency: string;
+};
+
+const DIRECTIONS = [
+  { value: "SPENT", label: "Expense" },
+  { value: "RECEIVED", label: "Income" },
+] as const;
+
 /**
- * One line of spend, written where it happened — a requisition's report, a
- * project's spend — through the one door every money line uses
- * (`/api/v2/crm/cost-entries`, `addCostEntry` behind it).
+ * One line of money, written where it happened — the cost tracker, a
+ * requisition's report, a project's spend — through the one door every money
+ * line uses (`/api/v2/crm/cost-entries`, `addCostEntry` behind it).
  *
  * What the page already knows is fixed rather than asked: a line on a
  * requisition's report is against that requisition and its project, and one
- * added on a project is that project's. What is left is what only the person
- * holding the receipt knows — how much, on what, which day, and the photo.
+ * added on a project is that project's. Whatever is left open is the
+ * person's to answer — on the cost tracker that is nearly everything: money
+ * in or out, which project, and which requisition an expense came out of or
+ * which invoice income was paying.
  *
  * The day can be moved back and never forward: a rep writes Tuesday up on
  * Wednesday, and a line for Friday written on Wednesday is a guess.
  *
  * Each attempt carries a `clientEntryId`, kept across a failed retry and
  * replaced once a line lands, so a double press on a bad connection records
- * the spend once.
+ * the money once.
  */
 export function CostEntryForm({
-  fixed,
+  fixed = {},
+  day: chosenDay,
   defaultCategory = "MATERIALS",
   submitLabel = "Add the line",
+  primary = false,
   onSaved,
 }: {
-  fixed: {
-    direction: "SPENT" | "RECEIVED";
-    currency: string;
+  /** What the page already knows. Anything left out, the form asks. */
+  fixed?: {
+    direction?: Direction;
+    currency?: string;
     projectId?: string | null;
     requisitionId?: string | null;
   };
+  /**
+   * The day the line goes on, as `YYYY-MM-DD`, when the page has chosen it —
+   * the cost tracker picks the day above the form, because its balance and
+   * its closing are that day's too. Without it the form asks.
+   */
+  day?: string;
   defaultCategory?: Category;
   submitLabel?: string;
+  /** Whether adding the line is the page's main action, or one among others. */
+  primary?: boolean;
   onSaved: () => void;
 }) {
   const id = useId();
+  const [chosenDirection, setDirection] = useState<Direction>("SPENT");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<Category>(defaultCategory);
   const [description, setDescription] = useState("");
-  const [day, setDay] = useState(todayKey);
+  const [ownDay, setOwnDay] = useState(todayKey);
+  const [projectId, setProjectId] = useState(NONE);
+  const [requisitionId, setRequisitionId] = useState(NONE);
+  const [invoiceId, setInvoiceId] = useState(NONE);
   const [receipt, setReceipt] = useState<UploadedReceipt | null>(null);
   const [clientEntryId, setClientEntryId] = useState(() => crypto.randomUUID());
   const [error, setError] = useState<string | null>(null);
+
+  const direction = fixed.direction ?? chosenDirection;
+  const day = chosenDay ?? ownDay;
+  const asksRequisition = direction === "SPENT" && fixed.requisitionId === undefined;
+  const asksInvoice = direction === "RECEIVED";
+
+  const requisitions = useQuery({
+    queryKey: ["crm", "requisitions", "reportable"],
+    queryFn: () =>
+      fetchJson<{ data: RequisitionOption[] }>(
+        "/api/v2/crm/requisitions?queue=MINE&reportable=true&limit=100",
+      ),
+    enabled: asksRequisition,
+  });
+  const pickedRequisition = asksRequisition
+    ? requisitions.data?.data.find((option) => option.id === requisitionId)
+    : undefined;
+
+  // A requisition names its project, so an expense out of one is that
+  // project's — the same rule its own report page follows.
+  const asksProject = fixed.projectId === undefined && !pickedRequisition;
+
+  const projects = useQuery({
+    queryKey: ["crm", "projects", "open-picker"],
+    queryFn: () =>
+      fetchJson<{ data: ProjectOption[] }>("/api/v2/crm/projects?open=true&costs=false&limit=100"),
+    enabled: fixed.projectId === undefined,
+    staleTime: 5 * 60_000,
+  });
+  const pickedProject = asksProject
+    ? projects.data?.data.find((option) => option.id === projectId)
+    : undefined;
+
+  const invoices = useQuery({
+    queryKey: ["crm", "documents", "outstanding-invoices"],
+    queryFn: () =>
+      fetchJson<{ data: InvoiceOption[] }>(
+        "/api/v2/crm/documents?type=INVOICE&outstanding=true&limit=100",
+      ),
+    enabled: asksInvoice,
+    staleTime: 60_000,
+  });
+  const pickedInvoice = asksInvoice
+    ? invoices.data?.data.find((option) => option.id === invoiceId)
+    : undefined;
+
+  // The money is in the currency of whatever it came out of or was paying.
+  const currency =
+    fixed.currency ??
+    pickedRequisition?.currency ??
+    pickedInvoice?.currency ??
+    pickedProject?.currency ??
+    "USD";
+
+  const pickRequisition = (next: string) => {
+    setRequisitionId(next);
+    const requisition = requisitions.data?.data.find((option) => option.id === next);
+    // What the money was asked for is what it most likely went on.
+    if (requisition) setCategory(requisition.category);
+  };
 
   const save = useMutation({
     mutationFn: () =>
@@ -66,13 +173,21 @@ export function CostEntryForm({
         method: "POST",
         body: JSON.stringify({
           date: day,
-          direction: fixed.direction,
+          direction,
           category,
           amount: Number(amount),
-          currency: fixed.currency,
+          currency,
           description: description.trim(),
-          ...(fixed.projectId === undefined ? {} : { projectId: fixed.projectId }),
-          requisitionId: fixed.requisitionId ?? null,
+          // Left out when a requisition was picked: the server takes the
+          // project from the requisition.
+          ...(fixed.projectId !== undefined
+            ? { projectId: fixed.projectId }
+            : asksProject
+              ? { projectId: projectId === NONE ? null : projectId }
+              : {}),
+          requisitionId:
+            direction === "SPENT" ? (fixed.requisitionId ?? pickedRequisition?.id ?? null) : null,
+          invoiceDocumentId: direction === "RECEIVED" ? (pickedInvoice?.id ?? null) : null,
           receiptUrl: receipt?.url ?? null,
           receiptPathname: receipt?.pathname ?? null,
           clientEntryId,
@@ -90,6 +205,7 @@ export function CostEntryForm({
   });
 
   const ready = Number(amount) > 0 && description.trim().length > 0;
+  const spending = direction === "SPENT";
 
   return (
     <form
@@ -99,6 +215,16 @@ export function CostEntryForm({
         if (ready) save.mutate();
       }}
     >
+      {fixed.direction ? null : (
+        <SegmentedControl
+          ariaLabel="Money in or out"
+          value={chosenDirection}
+          onValueChange={setDirection}
+          options={DIRECTIONS}
+          variant="border"
+        />
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${id}-amount`}>How much</Label>
@@ -114,7 +240,7 @@ export function CostEntryForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`${id}-category`}>On what</Label>
+          <Label htmlFor={`${id}-category`}>{spending ? "On what" : "What for"}</Label>
           <Select value={category} onValueChange={(next) => setCategory(next as Category)}>
             <SelectTrigger id={`${id}-category`}>
               <SelectValue />
@@ -130,28 +256,110 @@ export function CostEntryForm({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+      <div className={chosenDay ? "space-y-1.5" : "grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]"}>
         <div className="space-y-1.5">
           <Label htmlFor={`${id}-description`}>What it was</Label>
           <Input
             id={`${id}-description`}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="20 bags of screed, Builders Warehouse"
+            placeholder={
+              spending ? "20 bags of screed, Builders Warehouse" : "Deposit from Mrs Moyo, cash"
+            }
           />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${id}-day`}>Which day</Label>
-          <Input
-            id={`${id}-day`}
-            type="date"
-            className="font-mono"
-            max={todayKey()}
-            value={day}
-            onChange={(event) => setDay(event.target.value)}
-          />
-        </div>
+        {chosenDay ? null : (
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-day`}>Which day</Label>
+            <Input
+              id={`${id}-day`}
+              type="date"
+              className="font-mono"
+              max={todayKey()}
+              value={ownDay}
+              onChange={(event) => setOwnDay(event.target.value)}
+            />
+          </div>
+        )}
       </div>
+
+      {asksRequisition || asksInvoice || fixed.projectId === undefined ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {asksRequisition ? (
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-requisition`}>Out of which requisition</Label>
+              <Select value={requisitionId} onValueChange={pickRequisition}>
+                <SelectTrigger id={`${id}-requisition`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>My own money</SelectItem>
+                  {(requisitions.data?.data ?? []).map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.requisitionNo} · {option.purpose}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {asksInvoice ? (
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-invoice`}>Paying which invoice</Label>
+              <Select value={invoiceId} onValueChange={setInvoiceId}>
+                <SelectTrigger id={`${id}-invoice`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Not for an invoice</SelectItem>
+                  {(invoices.data?.data ?? []).map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {[
+                        option.number ?? "Invoice",
+                        option.customer,
+                        option.balance !== null
+                          ? `${formatMoney(option.balance, option.currency)} owed`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {fixed.projectId !== undefined ? null : asksProject ? (
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-project`}>Which project</Label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger id={`${id}-project`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Not for a project</SelectItem>
+                  {(projects.data?.data ?? []).map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium text-[var(--text-strong)]">Which project</p>
+              <p className="text-sm text-[var(--text-muted)]">
+                {pickedRequisition?.project
+                  ? `${pickedRequisition.project.name}, the project the money was asked for`
+                  : "None — the requisition was not for a project"}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="space-y-1.5">
         <Label>Receipt</Label>
@@ -164,7 +372,7 @@ export function CostEntryForm({
         </p>
       ) : null}
 
-      <Button type="submit" variant="outline" disabled={!ready || save.isPending}>
+      <Button type="submit" variant={primary ? "primary" : "outline"} disabled={!ready || save.isPending}>
         {save.isPending ? "Saving…" : submitLabel}
       </Button>
     </form>

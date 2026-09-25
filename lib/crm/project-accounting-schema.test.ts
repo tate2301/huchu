@@ -321,3 +321,21 @@ describe("receipts waived on an acquittal are on the record", () => {
     );
   });
 });
+
+// Migration witness for 20260925110000_crm_cost_entry_invoice.
+describe("cash collected against an invoice says which invoice", () => {
+  it("links a cost entry to an invoice, optionally — most lines pay none", async () => {
+    expect((await columns("CrmDailyCostEntry")).get("invoiceDocumentId")?.is_nullable).toBe("YES");
+  });
+
+  it("keeps the line when the invoice goes: the cash was still collected", async () => {
+    expect(
+      await deleteRule("CrmDailyCostEntry", "CrmDailyCostEntry_invoiceDocumentId_fkey"),
+    ).toBe("SET NULL");
+  });
+
+  it("indexes the link the not-receipted check groups on", async () => {
+    const defs = await indexes("CrmDailyCostEntry");
+    expect(defs.some((def) => /\("companyId", "invoiceDocumentId"\)/.test(def))).toBe(true);
+  });
+});

@@ -65,6 +65,11 @@ export const costEntrySchema = z.object({
   projectId: z.string().uuid().nullable().optional(),
   /** Set when the cash came from a requisition, so the float reconciles. */
   requisitionId: z.string().uuid().nullable().optional(),
+  /**
+   * The invoice money received is paying. What accounting has receipted on it
+   * is compared with what the field logged — see `lib/crm/finance.ts`.
+   */
+  invoiceDocumentId: z.string().uuid().nullable().optional(),
   receiptUrl: z.string().url().nullable().optional(),
   receiptPathname: z.string().trim().max(500).nullable().optional(),
   /**
@@ -72,7 +77,26 @@ export const costEntrySchema = z.object({
    * replayed on reconnect must land once rather than doubling the day's spend.
    */
   clientEntryId: z.string().uuid().nullable().optional(),
-});
+})
+  // Only money coming in can be paying an invoice, and a customer's payment
+  // is never also a requisition's float — a line naming both would be
+  // claiming they are the same money.
+  .superRefine((entry, context) => {
+    if (!entry.invoiceDocumentId) return;
+    if (entry.direction === "SPENT") {
+      context.addIssue({
+        code: "custom",
+        path: ["invoiceDocumentId"],
+        message: "Money spent is not paying an invoice. Pick a requisition, or none.",
+      });
+    } else if (entry.requisitionId) {
+      context.addIssue({
+        code: "custom",
+        path: ["requisitionId"],
+        message: "A customer's payment did not come out of a requisition. Pick one or the other.",
+      });
+    }
+  });
 
 export const openLogSchema = z.object({
   logDate: z.coerce.date().optional(),
@@ -143,7 +167,7 @@ export async function addCostEntry(tx: Tx, input: AddCostEntryInput) {
   });
   if (log.submittedAt) {
     throw new CostEntryError(
-      "That day has been submitted. Ask a manager to reopen it if something is missing.",
+      "That day has been submitted, so nothing more can be added to it.",
     );
   }
 
@@ -157,6 +181,7 @@ export async function addCostEntry(tx: Tx, input: AddCostEntryInput) {
     description: input.description,
     projectId: input.projectId ?? null,
     requisitionId: input.requisitionId ?? null,
+    invoiceDocumentId: input.invoiceDocumentId ?? null,
     receiptUrl: input.receiptUrl ?? null,
     receiptPathname: input.receiptPathname ?? null,
     clientEntryId: input.clientEntryId ?? null,
@@ -176,6 +201,7 @@ export async function addCostEntry(tx: Tx, input: AddCostEntryInput) {
       description: data.description,
       projectId: data.projectId,
       requisitionId: data.requisitionId,
+      invoiceDocumentId: data.invoiceDocumentId,
       receiptUrl: data.receiptUrl,
       receiptPathname: data.receiptPathname,
     },

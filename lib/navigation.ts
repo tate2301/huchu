@@ -33,6 +33,7 @@ import {
   PackageCheck,
   Payments,
   Phone,
+  Receipt,
   ReceiptLong,
   ReportProblem,
   Scale,
@@ -733,10 +734,11 @@ export const navSections: NavSection[] = [
       // a place people go to — its jobs, its money, its team — not another
       // queue of things to do today.
       { id: "projects", label: "Projects" },
-      // Money the business hands out, as opposed to money it asks for. Quotes
-      // and invoices are the documents group; this is the float a rep draws,
-      // what they spent it on, and what a project has cost.
-      { id: "money", label: "Money out" },
+      // The money that moves through people's hands, as opposed to the
+      // paperwork that asks for it: the float a rep draws, what they spent it
+      // on, what they collected, and each day's report. Quotes and invoices
+      // are the documents group.
+      { id: "money", label: "Finance" },
       { id: "documents", label: "Sales documents" },
       { id: "learn", label: "Insights" },
       { id: "workflows", label: "Workflows" },
@@ -765,7 +767,7 @@ export const navSections: NavSection[] = [
       { href: "/crm/projects", icon: Work, label: "Projects", group: "projects" },
       { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects" },
 
-      { href: "/crm/my-day", icon: ClipboardList, label: "My day", group: "money" },
+      { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money" },
       { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money" },
       {
         href: "/crm/daily-reports",

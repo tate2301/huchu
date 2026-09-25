@@ -92,8 +92,20 @@ export type CostEntryRow = {
   receiptUrl: string | null;
   createdAt?: string;
   project?: { id: string; name: string; projectNo: string } | null;
-  requisition?: { id: string; requisitionNo: string } | null;
-  log: { logDate: string; user: { id: string; name: string | null } } | null;
+  requisition?: { id: string; requisitionNo: string; status?: RequisitionStatus } | null;
+  /** The invoice money received was paying, when it was a customer's. */
+  invoiceDocument?: { id: string; invoice: { invoiceNumber: string } | null } | null;
+  /**
+   * Cash logged against an invoice accounting has not receipted yet. Only the
+   * cost tracker's register works it out; elsewhere it is absent, which is
+   * not the same as false.
+   */
+  notReceipted?: boolean;
+  log: {
+    logDate: string;
+    submittedAt?: string | null;
+    user: { id: string; name: string | null };
+  } | null;
 };
 
 export function formatMoney(amount: string | number, currency = "USD"): string {

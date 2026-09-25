@@ -19,7 +19,7 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { reserveIdentifier } from "@/lib/id-generator";
-import { createRequisitionSchema } from "@/lib/crm/requisitions";
+import { REPORTABLE_STATUSES, createRequisitionSchema } from "@/lib/crm/requisitions";
 import { requireCrmCapability } from "../_helpers";
 import { notifyApprovers } from "./_shared";
 
@@ -57,15 +57,19 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get("projectId");
     const requestedById = searchParams.get("requestedById");
     const search = searchParams.get("q")?.trim();
+    // Only the ones spend can still be reported against — the cost tracker's
+    // "from which requisition" picker.
+    const reportable = searchParams.get("reportable") === "true";
     const { page, limit, skip } = getPaginationParams(request);
 
     // A rep sees their own requests whatever queue they ask for. Somebody's
     // pay is in these figures, and the approval queue is not a rep's business.
-    const [mayApprove, mayDisburse] = await Promise.all([
+    const [mayApprove, mayDisburse, mayViewAll] = await Promise.all([
       requireCrmCapability(session, "money.approve"),
       requireCrmCapability(session, "money.disburse"),
+      requireCrmCapability(session, "money.view_all"),
     ]);
-    const canSeeOthers = mayApprove || mayDisburse;
+    const canSeeOthers = mayApprove || mayDisburse || mayViewAll;
 
     // `AND`, not a spread: the queue already sets `requestedById` on Mine and
     // Waiting on me, and a filter merged over it by key would widen the queue
@@ -75,6 +79,7 @@ export async function GET(request: NextRequest) {
       AND: [
         projectId ? { projectId: projectId === "none" ? null : projectId } : {},
         canSeeOthers && requestedById ? { requestedById } : {},
+        reportable ? { status: { in: [...REPORTABLE_STATUSES] } } : {},
         search
           ? {
               OR: [
@@ -115,7 +120,7 @@ export async function GET(request: NextRequest) {
     return successResponse({
       ...paginationResponse(requisitions, total, page, limit),
       queueCounts: Object.fromEntries(queueCounts),
-      permissions: { mayApprove, mayDisburse },
+      permissions: { mayApprove, mayDisburse, mayViewAll },
     });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/requisitions error:", error);

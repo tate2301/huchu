@@ -458,7 +458,12 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
                       reported on the requisition.
                     </p>
                     <CostEntryForm
-                      fixed={{ direction: "SPENT", currency: project.currency, projectId: project.id }}
+                      fixed={{
+                        direction: "SPENT",
+                        currency: project.currency,
+                        projectId: project.id,
+                        requisitionId: null,
+                      }}
                       onSaved={() => {
                         setAddingSpend(false);
                         void query.refetch();

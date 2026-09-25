@@ -10874,6 +10874,7 @@ model CrmLeadDocument {
   discountApprovals CrmDiscountApproval[]
   collectionNotes   CrmCollectionNote[]
   workOrders        CrmWorkOrder[]
+  costEntries       CrmDailyCostEntry[]
 
   @@unique([companyId, quotationId])
   @@unique([companyId, invoiceId])
@@ -13096,6 +13097,10 @@ model CrmDailyCostEntry {
   /// Where the money came from, when it came from a requisition. Lets a
   /// disbursement be reconciled against what was actually spent.
   requisitionId String?
+  /// The invoice money received is paying, when it is a customer's. The
+  /// document rather than the `SalesInvoice`, because it is the CRM's own
+  /// handle on the bill; what accounting has receipted is read through it.
+  invoiceDocumentId String?
 
   /// A photograph of the receipt. Key, not blob, like every other upload here.
   receiptUrl      String?
@@ -13111,11 +13116,13 @@ model CrmDailyCostEntry {
   log         CrmDailyLog     @relation(fields: [logId], references: [id], onDelete: Cascade)
   project     CrmProject?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   requisition CrmRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  invoiceDocument CrmLeadDocument? @relation(fields: [invoiceDocumentId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, clientEntryId])
   @@index([companyId, logId])
   @@index([companyId, projectId, createdAt])
   @@index([companyId, requisitionId])
+  @@index([companyId, invoiceDocumentId])
 }
 
 /// What one person did in one day, assembled and kept.
