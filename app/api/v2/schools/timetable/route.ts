@@ -124,6 +124,11 @@ export async function GET(request: NextRequest) {
         endMinute: true,
         sequence: true,
         isTeaching: true,
+        // Retired periods still travel with the grid: lessons placed in one
+        // before it was retired are still scheduled there, and a row the grid
+        // cannot draw is a lesson nobody can find. The flag lets the grid mark
+        // the row rather than lose it.
+        isActive: true,
       },
       orderBy: [{ sequence: "asc" }, { startMinute: "asc" }],
     });

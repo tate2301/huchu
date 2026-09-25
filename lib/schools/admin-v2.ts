@@ -618,6 +618,13 @@ export type SchoolsPeriodRecord = {
   endMinute: number;
   sequence: number;
   isTeaching: boolean;
+  /**
+   * Retirement, spelled the way every other school master-data model spells it.
+   * A retired period keeps the lessons already placed in it, stops being
+   * offered, and stops occupying its minutes — so nothing else is blocked from
+   * the slot it used to hold.
+   */
+  isActive: boolean;
   termId: string | null;
   term?: { id: string; code: string; name: string } | null;
   _count?: { slots: number };
@@ -671,12 +678,36 @@ export async function fetchSchoolsPeriods(params: {
   limit?: number;
   termId?: string;
   isTeaching?: boolean;
+  /** Omit for both. The register lists retired periods and draws them retired. */
+  isActive?: boolean;
 } = {}) {
   const query = buildQuery(params);
   const response = await fetchJson<Paginated<SchoolsPeriodRecord>>(
     `/api/v2/schools/periods${query}`,
   );
   return response;
+}
+
+/**
+ * The school day's Archive verb, and its undo.
+ *
+ * It is a PATCH rather than the DELETE next to it because the two do different
+ * things: DELETE removes the period and refuses while lessons are placed in it,
+ * archiving keeps both the period and those lessons and only takes it out of
+ * the day. The route gates this on `schools.academics:archive` — the same grant
+ * the page reads for `canArchive` — while ordinary field edits stay on `edit`.
+ *
+ * Restoring can be refused with a 409: something else may have taken the
+ * minutes while this period was away.
+ */
+export async function setSchoolsPeriodActive(id: string, isActive: boolean) {
+  // Typed as the record itself, not `ApiResponse<...>`: the route ends in
+  // `successResponse(updated)`, and per the note on `ApiResponse` above that
+  // sends the period as the body with no envelope around it.
+  return fetchJson<SchoolsPeriodRecord>(`/api/v2/schools/periods/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ isActive }),
+  });
 }
 
 export async function fetchSchoolsRooms(params: {

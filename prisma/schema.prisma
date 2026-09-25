@@ -1004,6 +1004,7 @@ model Site {
   company               Company                @relation(fields: [companyId], references: [id])
   publicHolidays        PublicHoliday[]
   sections              Section[]
+  departments           Department[]
   shiftGroups           ShiftGroup[]
   shiftGroupSchedules   ShiftGroupSchedule[]
   shiftReports          ShiftReport[]
@@ -1038,17 +1039,25 @@ model Site {
 }
 
 model Section {
-  id        String   @id @default(uuid())
-  name      String // shaft, level, pit name
-  siteId    String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String // shaft, level, pit name
+  /// The short reference a section is called by on a register — `SC-11`. Null
+  /// on every row created before sections had one; nothing derives it.
+  code         String?
+  siteId       String
+  /// The department that runs it. Null means the section belongs to its site
+  /// alone, which is how every existing row reads.
+  departmentId String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   site         Site          @relation(fields: [siteId], references: [id])
+  department   Department?   @relation(fields: [departmentId], references: [id])
   shiftReports ShiftReport[]
 
   @@index([siteId])
+  @@index([departmentId])
 }
 
 enum UserRole {
@@ -1074,18 +1083,21 @@ enum UserRole {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  name          String
-  password      String? // Optional for OAuth users
-  role          UserRole
-  companyId     String
-  phone         String?
-  isActive      Boolean   @default(true)
-  emailVerified DateTime? // For NextAuth
-  image         String? // For NextAuth
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  email             String    @unique
+  name              String
+  password          String? // Optional for OAuth users
+  role              UserRole
+  companyId         String
+  phone             String?
+  isActive          Boolean   @default(true)
+  emailVerified     DateTime? // For NextAuth
+  image             String? // For NextAuth
+  /// When the password was last set. Null means it has never been changed since
+  /// the account was made — there is no backfill, and `createdAt` is not it.
+  passwordChangedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   company                           Company                        @relation(fields: [companyId], references: [id])
   createdShiftReports               ShiftReport[]                  @relation("CreatedBy")
@@ -1156,6 +1168,7 @@ model User {
   createdVatReturns                 VatReturnSummary[]             @relation("VatReturnCreatedBy")
   notificationRecipients            NotificationRecipient[]
   notificationPreference            UserNotificationPreference?
+  displayPreference               UserDisplayPreference?
   webPushSubscriptions              WebPushSubscription[]
   featureFlags                      UserFeatureFlag[]
   permissionOverrides               UserPermissionOverride[]       @relation("UserPermissionOverrideUser")
@@ -1336,6 +1349,7 @@ model Employee {
   user                      User?                      @relation("EmployeeUser", fields: [userId], references: [id])
   schoolTeacherProfile      SchoolTeacherProfile?      @relation("SchoolTeacherProfileEmployee")
   department                Department?                @relation(fields: [departmentId], references: [id])
+  headedDepartments         Department[]               @relation("DepartmentHead")
   grade                     JobGrade?                  @relation(fields: [gradeId], references: [id])
   supervisor                Employee?                  @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
   supervisees               Employee[]                 @relation("EmployeeSupervisor")
@@ -1458,17 +1472,30 @@ model EmployeePayment {
 }
 
 model Department {
-  id        String   @id @default(uuid())
-  companyId String
-  code      String
-  name      String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(uuid())
+  companyId      String
+  code           String
+  name           String
+  isActive       Boolean  @default(true)
+  /// Who runs it. An `Employee`, not a `User`: a head of department is a person
+  /// on the payroll, and plenty of them never sign in. Null until somebody says.
+  headEmployeeId String?
+  /// Where its cost lands in the ledger. `CostCenter` already existed for
+  /// accounting; this is the first HR edge onto it.
+  costCenterId   String?
+  /// The site it belongs to. Null means company-wide — a department that spans
+  /// every site, which is how every existing row reads.
+  siteId         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   company           Company            @relation(fields: [companyId], references: [id])
   employees         Employee[]
   compensationRules CompensationRule[]
+  head              Employee?          @relation("DepartmentHead", fields: [headEmployeeId], references: [id])
+  costCenter        CostCenter?        @relation(fields: [costCenterId], references: [id])
+  site              Site?              @relation(fields: [siteId], references: [id])
+  sections          Section[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1899,6 +1926,31 @@ model UserNotificationPreference {
   crmEnabled     Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// How one person wants the app drawn: row density, the page it opens on, and
+/// whether animation is suppressed. The theme (light / dark / system) is not
+/// here — it has to be applied before first paint to avoid a flash, so it stays
+/// in `localStorage` where `appearance-provider` already reads it synchronously.
+///
+/// Shaped after `UserNotificationPreference` on purpose: a flat typed row per
+/// user, not a JSON settings blob. Nothing in this schema keeps preferences as
+/// JSON, and a blob gives up the typing every other preference table has.
+///
+/// Defaults are the drawn defaults, so a user who has never opened Appearance
+/// reads identically whether or not a row exists for them.
+model UserDisplayPreference {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  /// comfortable | compact
+  density      String   @default("comfortable")
+  /// last-page | dashboard | shift-report
+  openOn       String   @default("dashboard")
+  reduceMotion Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -6250,6 +6302,7 @@ model CostCenter {
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   journalLines     JournalLine[]
   postingRuleLines PostingRuleLine[]
+  departments      Department[]
   crmProjects      CrmProject[]
 
   @@unique([companyId, code])
@@ -8374,6 +8427,10 @@ model SchoolPeriod {
   /// school may want registration shown first though it overlaps nothing.
   sequence    Int
   isTeaching  Boolean  @default(true)
+  /// Retirement, the way every other school master-data model spells it. A
+  /// retired period stays on the timetables that already reference it and stops
+  /// being offered — and stops blocking the clock it used to occupy.
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -180,7 +180,7 @@ export const navSections: NavSection[] = [
     title: "Start",
     items: [
       { href: "/", icon: Home, label: "Home" },
-      { href: "/help", icon: FileText, label: "Quick Tips" },
+      { href: "/help", icon: FileText, label: "Help" },
     ],
   },
   {
@@ -188,18 +188,18 @@ export const navSections: NavSection[] = [
     // Attendance left this section. Marking a register is not mining — a school,
     // a bureau and a workshop all keep one, and it is now People › Time ›
     // Attendance. What stays here is production reporting, which is.
-    title: "Daily Operations",
+    title: "Today",
     description: "Mining shift and plant capture",
     items: [
       {
         href: "/shift-report",
         icon: NoteAdd,
-        label: "Submit Shift Report",
+        label: "Shift report",
       },
       {
         href: "/plant-report",
         icon: Factory,
-        label: "Submit Plant Report",
+        label: "Plant report",
       },
     ],
   },
@@ -209,7 +209,7 @@ export const navSections: NavSection[] = [
     description: "Open report pages across operations",
     featureKey: "reports.dashboard",
     items: [
-      { href: "/reports", icon: FileCheck, label: "Reports Dashboard" },
+      { href: "/reports", icon: FileCheck, label: "Overview" },
       { href: "/reports/shift", icon: EventNote, label: "Shift Reports" },
       { href: "/reports/attendance", icon: Checklist, label: "Attendance" },
       { href: "/reports/plant", icon: TableRows, label: "Plant Reports" },
@@ -229,11 +229,11 @@ export const navSections: NavSection[] = [
         icon: Package,
         label: "Equipment Service",
       },
-      { href: "/reports/gold-chain", icon: ChartLine, label: "Gold Chain" },
+      { href: "/reports/gold-chain", icon: ChartLine, label: "Chain" },
       {
         href: "/reports/gold-receipts",
         icon: ReceiptLong,
-        label: "Gold Receipts",
+        label: "Receipts",
       },
       { href: "/reports/audit-trails", icon: FileCheck, label: "Audit Trails" },
       {
@@ -281,7 +281,7 @@ export const navSections: NavSection[] = [
   },
   {
     id: "maintenance",
-    title: "Maintenance & Assets",
+    title: "Assets",
     description: "Equipment, work orders, scheduling",
     featureKey: "maintenance.dashboard",
     items: [
@@ -289,7 +289,7 @@ export const navSections: NavSection[] = [
       {
         href: "/maintenance/equipment",
         icon: Wrench,
-        label: "Equipment Register",
+        label: "Equipment",
       },
       {
         href: "/maintenance/work-orders",
@@ -306,7 +306,7 @@ export const navSections: NavSection[] = [
   },
   {
     id: "stores",
-    title: "Stores & Inventory",
+    title: "Stock",
     description: "Inventory and fuel control",
     featureKey: "stores.dashboard",
     // Issuing and receiving left this list when they became dialogs — a write
@@ -318,7 +318,7 @@ export const navSections: NavSection[] = [
     items: [
       { href: "/stores/dashboard", icon: Dashboard, label: "Overview" },
 
-      { href: "/stores/inventory", icon: Package, label: "Stock on hand", group: "stock" },
+      { href: "/stores/inventory", icon: Package, label: "On hand", group: "stock" },
       { href: "/stores/locations", icon: MapPin, label: "Locations", group: "stock" },
       { href: "/stores/movements", icon: History, label: "Movements", group: "stock" },
       { href: "/stores/fuel", icon: Fuel, label: "Fuel log", group: "stock" },
@@ -334,7 +334,7 @@ export const navSections: NavSection[] = [
   // hanging off a "School Operations" link. That only works if almost nothing
   // is left ungrouped, and two things are: the school's own front page, and the
   // reporting screen. Both are destinations rather than categories to expand,
-  // and `SidebarNavSections` renders them as plain links ahead of the groups.
+  // and the workspace rail renders them as plain rows ahead of the groups.
   //
   // Nine groups, each named with a word a school uses about itself. The shell
   // register — Setup, Services, Communication, Paperwork — is gone, and with it
@@ -643,16 +643,16 @@ export const navSections: NavSection[] = [
       { href: "/retail/sales", icon: ClipboardList, label: "Sales" },
       { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts" },
       { href: "/retail/customers", icon: Users, label: "Customers" },
-      { href: "/retail/catalog", icon: TableRows, label: "Catalog" },
-      { href: "/retail/merchandising/pricing", icon: Coins, label: "Pricing" },
+      { href: "/retail/catalog", icon: TableRows, label: "Products" },
+      { href: "/retail/merchandising/pricing", icon: Coins, label: "Prices" },
       { href: "/retail/merchandising/promotions", icon: ReceiptLong, label: "Promotions" },
-      { href: "/retail/stock", icon: Package, label: "Stock Overview" },
-      { href: "/retail/stock/count", icon: ClipboardList, label: "Stock Count" },
+      { href: "/retail/stock", icon: Package, label: "Stock" },
+      { href: "/retail/stock/count", icon: ClipboardList, label: "Counts" },
       { href: "/retail/stock/transfers", icon: ArrowDownward, label: "Transfers" },
-      { href: "/retail/purchasing/orders", icon: Package, label: "Purchase Orders" },
-      { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Goods Receipts" },
+      { href: "/retail/purchasing/orders", icon: Package, label: "Orders" },
+      { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Receipts" },
       { href: "/retail/reports", icon: BarChart3, label: "Reports" },
-      { href: "/retail/setup", icon: Building2, label: "Setup Overview" },
+      { href: "/retail/setup", icon: Building2, label: "Setup" },
       { href: "/retail/setup/operations", icon: Building2, label: "Operations" },
       { href: "/retail/setup/branding", icon: Building2, label: "Branding" },
       { href: "/retail/setup/pos-policy", icon: Scale, label: "POS Policy" },
@@ -681,25 +681,25 @@ export const navSections: NavSection[] = [
       {
         href: "/gold/intake/pours/new",
         icon: Dataset,
-        label: "Log Gold Output",
+        label: "Pours",
       },
       {
         href: "/gold/intake/purchases/new",
         icon: Payments,
-        label: "Record Purchase",
+        label: "Purchases",
       },
       {
         href: "/gold/transit/dispatches/new",
         icon: LocalShipping,
-        label: "Record Dispatch",
+        label: "Dispatches",
       },
       {
         href: "/gold/settlement/receipts/new",
         icon: ReceiptLong,
-        label: "Record Settlement Receipt",
+        label: "Settlements",
       },
       { href: "/gold/exceptions", icon: ReportProblem, label: "Exceptions" },
-      { href: "/reports/gold-chain", icon: ChartLine, label: "Gold Reports" },
+      { href: "/reports/gold-chain", icon: ChartLine, label: "Reports" },
     ],
   },
   // The CRM is not one thing you open, it is six. A single parent entry meant
@@ -745,7 +745,7 @@ export const navSections: NavSection[] = [
       { id: "setup", label: "CRM setup" },
     ],
     items: [
-      { href: "/crm", icon: Dashboard, label: "CRM overview" },
+      { href: "/crm", icon: Dashboard, label: "Overview" },
 
       { href: "/crm/leads", icon: Funnel, label: "Leads", group: "objects" },
       { href: "/crm/deals", icon: Funnel, label: "Deals", group: "objects" },
@@ -811,7 +811,7 @@ export const navSections: NavSection[] = [
       {
         href: "/crm/settings",
         icon: ManageAccounts,
-        label: "CRM settings",
+        label: "Settings",
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
       },
@@ -823,7 +823,7 @@ export const navSections: NavSection[] = [
     description: "Ledger, journals, and finance controls",
     featureKey: "accounting.core",
     items: [
-      { href: "/accounting", icon: Scale, label: "Accounting Overview" },
+      { href: "/accounting", icon: Scale, label: "Overview" },
       { href: "/accounting/receivables", icon: ReceiptLong, label: "Receivables" },
       { href: "/accounting/payables", icon: PackageCheck, label: "Payables" },
       { href: "/accounting/financial-reports", icon: BarChart3, label: "Financial Reports" },
@@ -837,7 +837,7 @@ export const navSections: NavSection[] = [
       {
         href: "/dashboard",
         icon: Dashboard,
-        label: "Production Dashboard",
+        label: "Dashboard",
         roles: ["SUPERADMIN", "MANAGER"],
       },
       {
@@ -855,7 +855,7 @@ export const navSections: NavSection[] = [
       {
         href: "/management/master-data",
         icon: TableRows,
-        label: "Master Data",
+        label: "Management",
         roles: ["SUPERADMIN", "MANAGER"],
       },
       {

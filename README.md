@@ -46,10 +46,13 @@ Use Node.js 20+; Node 24 is known to work in this workspace. Use pnpm through Co
 | `e2e/` | Playwright tests. |
 | `public/` | Static assets, PWA assets, service worker, fonts, and uploads used in local/dev flows. |
 | `types/` | Shared TypeScript declaration files. |
-| `docker/` | Container-related assets. |
+| `docker-compose.yml` | The local development database. See Quick Start. |
 | `cctv-server/` | CCTV conversion/gateway notes and supporting server code. |
 
 ## Quick Start
+
+Docker Desktop and Node 20+ are the only prerequisites; Postgres runs in a
+container, so nothing is installed on the host.
 
 1. Enable Corepack if needed:
 
@@ -75,26 +78,28 @@ On Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-4. Set at least these values in `.env`:
+4. Point `.env` at the container database and give NextAuth a secret. The
+   credentials below are the ones in `docker-compose.yml`; the secret is any 32
+   random bytes (`openssl rand -base64 32`):
 
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/huchu_mines?schema=public"
-NEXTAUTH_SECRET="replace-with-a-long-random-secret"
-NEXTAUTH_URL="http://localhost:3000"
-PLATFORM_ROOT_DOMAIN=""
-PLATFORM_ROOT_HOSTS="localhost:3000"
-ADMIN_ROOT_DOMAIN=""
+DATABASE_URL="postgresql://huchu:huchu_dev@localhost:5432/huchu_mines?schema=public"
+NEXTAUTH_SECRET="<openssl rand -base64 32>"
+NEXTAUTH_URL="http://acme.apps.localtest.me:3000"
+PLATFORM_ROOT_DOMAIN="apps.localtest.me"
+PLATFORM_ROOT_HOSTS="apps.localtest.me,apps.localtest.me:3000,localhost:3000"
+ADMIN_ROOT_DOMAIN="admin.localtest.me"
 ```
 
-5. Generate Prisma Client:
+The hostnames are not decoration: tenant workspaces, the portals and the admin
+portal are each selected by host, and `*.localtest.me` resolves to 127.0.0.1
+without any DNS setup. See [Local DNS And Tenant Hosts](#local-dns-and-tenant-hosts).
+
+5. Start the database and load the schema:
 
 ```bash
+pnpm db:up
 pnpm db:generate
-```
-
-6. Push the schema to a local development database:
-
-```bash
 pnpm db:push
 ```
 
@@ -110,24 +115,139 @@ drift, so it can gate a deploy.
 
  Use it for local development databases. For shared environments and production-intended schema work, create/review migrations and follow the database workflow below.
 
-7. Create minimum tenant data:
+6. Create a tenant you can actually sign in as:
 
 ```bash
-pnpm create-company --name "Acme Mine" --slug acme
+pnpm manage-platform org provision \
+  --name "Acme Mine" --slug acme \
+  --admin-email admin@example.com --admin-name "Admin User" \
+  --admin-password "change-me-now" \
+  --actor you@example.com --yes
 pnpm create-site --name "Main Site" --code MAIN
-pnpm create-user --email admin@example.com --name "Admin User" --password "change-me" --role superadmin
 pnpm templates:seed-defaults
 ```
 
+Use `org provision` rather than `create-company` plus `create-user`. Login
+checks subscription health, and a company with no subscription row fails sign-in
+with `TENANT_INACTIVE` however correct its password is. `org provision` writes
+the company, the admin, and an ACTIVE subscription in one transaction.
+
 If more than one company exists, pass `--company-id <uuid>` to scripts that support it.
+
+7. Seed demo data (optional, but a new database has nothing to look at):
+
+```bash
+npx tsx scripts/platform/sync-catalog.ts
+npx tsx scripts/seed-staging-tenant.ts --slug stmarys --email head@stmarys.test \
+  --password 'SchoolDemo123!' --name "St Marys High School" --user-name "Head Teacher"
+npx tsx scripts/seed-school-demo.ts --slug stmarys --reset
+```
+
+That is the schools vertical — a roll of 120 pupils, guardians, a term of
+registers, assessments, fee invoices, and the student/parent/teacher portal
+accounts, which is what makes the portals reachable at all. The other four
+verticals follow the same shape; `docs/demo-playbook/environment.md` has all
+five with their credentials, and `sync-catalog.ts` must run first on a fresh
+database or there are no features to grant.
 
 8. Start development:
 
 ```bash
-pnpm dev
+pnpm dev:up
 ```
 
-Open `http://localhost:3000/login`.
+It prints the URLs to open — `http://acme.apps.localtest.me:3000/login` for the
+workspace. `localhost:3000` is the admin portal in development, not the
+workspace.
+
+### Running The Stack
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev:up` | Start the database, then `next dev` in this terminal. |
+| `pnpm dev:up --detach` | The same, with the server in the background logging to `.dev-server.log`. |
+| `pnpm dev:down` | Kill the dev server and stop the database. |
+| `pnpm dev:down --wipe` | The same, and delete the database volume. All local data goes. |
+| `pnpm dev:status` | Show what is currently up. |
+| `pnpm db:up` / `pnpm db:down` | The database on its own. |
+| `pnpm db:psql` | A `psql` shell in the container. |
+| `pnpm db:logs` | Follow the Postgres log. |
+
+`dev:down` kills whatever is listening on the dev port if it belongs to this
+repo, so it also clears the stray `pnpm dev` that has been holding 3000 since
+this morning. Data lives in the `huchu_pgdata` Docker volume and survives
+`dev:down`; only `--wipe` removes it.
+
+Set `POSTGRES_PORT` in the environment if 5432 is already taken on your machine,
+and change `DATABASE_URL` in `.env` to match.
+
+### Local DNS And Tenant Hosts
+
+Tenant routing, the school/POS portals and the admin portal are all decided by
+the **hostname**, so `localhost` alone cannot reach most of the platform. Two
+hostnames' worth of behaviour is invisible from `localhost:3000`:
+
+- a tenant workspace lives on `<slug>.<PLATFORM_ROOT_DOMAIN>`;
+- `localhost` **is the admin portal** in development — `isAdminPortalHost()`
+  returns true for any loopback host outside production
+  (`lib/admin-portal.ts`), so `localhost:3000` redirects to `/admin/login`
+  whatever `ADMIN_ROOT_DOMAIN` is set to. That is deliberate, and it is why the
+  workspace needs a real hostname.
+
+No DNS setup is needed for this: `*.localtest.me` is a public domain whose
+every subdomain resolves to `127.0.0.1`. The configured `.env` uses it, so
+these hosts work with nothing installed and no hosts-file edit:
+
+| Host | Serves |
+| --- | --- |
+| `acme.apps.localtest.me:3000` | The tenant workspace. |
+| `apps.localtest.me:3000` | The central host. Signing in here is refused with `TENANT_HOST_REQUIRED` — by design. |
+| `students.acme.apps.localtest.me:3000` | Student portal (`/portal/student`). |
+| `parents.acme.apps.localtest.me:3000` | Parent portal. `guardian.` is an alias for it. |
+| `staff.acme.apps.localtest.me:3000` | Teacher portal. |
+| `pos.acme.apps.localtest.me:3000` | POS portal. |
+| `admin.localtest.me:3000` | Platform admin. So does `localhost:3000`. |
+
+A new tenant needs no DNS work — the wildcard already covers every slug.
+
+**`NEXTAUTH_URL` picks one origin, and post-login redirects all go there.** The
+login form hands NextAuth a relative path, and the `redirect` callback in
+`lib/auth.ts` resolves it against `NEXTAUTH_URL` — so with `NEXTAUTH_URL` on
+`localhost`, signing in on a tenant host bounces you to `localhost` (the admin
+portal) the moment the form succeeds. It is set to the tenant host here for
+that reason. If you work on a second tenant, point it at that tenant instead;
+admin redirects correct themselves to the admin host either way.
+
+#### Offline, or without public DNS
+
+`localtest.me` needs a working resolver, and some routers hijack it via
+DNS-rebind protection (that is what happened in
+`docs/testing/e2e-plan-2026-09-01.md`). The offline-proof alternative is the
+hosts file, which is what `.env.example`'s `apps.pagka.local` block is for.
+Switch `.env` to that root domain and add:
+
+```bash
+sudo tee -a /etc/hosts <<'HOSTS'
+127.0.0.1 apps.pagka.local
+127.0.0.1 acme.apps.pagka.local
+127.0.0.1 students.acme.apps.pagka.local
+127.0.0.1 parents.acme.apps.pagka.local
+127.0.0.1 guardian.acme.apps.pagka.local
+127.0.0.1 staff.acme.apps.pagka.local
+127.0.0.1 pos.acme.apps.pagka.local
+127.0.0.1 admin.pagka.local
+127.0.0.1 portal.admin.pagka.local
+HOSTS
+```
+
+The hosts file has no wildcards, so every new tenant slug costs five more lines
+and another `sudo`. That is the trade: `localtest.me` needs the network,
+`/etc/hosts` needs maintenance.
+
+Do not use a `*.localhost` root domain for this. `localhost` and anything
+ending in `.localhost` are treated as loopback, which turns **off** strict
+tenant enforcement (`lib/platform/tenant.ts`) — the hosts would resolve and the
+thing you wanted to test would be disabled.
 
 ## Fixing `pnpm db:push` Ignored Builds
 
@@ -166,7 +286,8 @@ Commit the resulting `pnpm-workspace.yaml` change so other developers do not hit
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm dev` | Start the Next.js dev server. |
+| `pnpm dev` | Start the Next.js dev server on its own, against whatever `DATABASE_URL` points at. |
+| `pnpm dev:up` / `pnpm dev:down` | Start or kill the whole stack — see [Running The Stack](#running-the-stack). |
 | `pnpm build` | Generate Prisma Client and build the production bundle. |
 | `pnpm start` | Start the built production app. |
 | `pnpm lint` | Run ESLint. |

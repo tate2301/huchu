@@ -3,13 +3,19 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Alert, Badge } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SectionAction } from "@/components/management/ui";
+import { ViewIcon } from "@/components/ui/view-icon";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Check, ChevronDown, ChevronRight, Plus } from "@/lib/icons";
-import { ViewIcon } from "@/components/ui/view-icon";
-import { cn } from "@/lib/utils";
+
+import {
+  FactRow,
+  FactRowsSkeleton,
+  FormSection,
+  LoadFailure,
+  NothingHere,
+} from "./form-parts";
+import styles from "./organization.module.css";
 
 type PricingFeature = {
   key: string;
@@ -65,77 +71,53 @@ function money(value: number): string {
 function ModuleRow({ module }: { module: PricingModule }) {
   const [expanded, setExpanded] = useState(false);
   const label = DOMAIN_LABELS[module.domain] ?? module.domain;
+  const Chevron = expanded ? ChevronDown : ChevronRight;
 
   return (
-    <li className="border-b border-[var(--border-subtle)] last:border-b-0">
+    <li className={styles.module}>
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
-        className="flex w-full items-center gap-3 px-1 py-3 text-left hover:bg-[var(--surface-subtle)]"
+        className={styles.moduleButton}
       >
-        {expanded ? (
-          <ChevronDown className="size-4 shrink-0 text-[var(--text-subtle)]" aria-hidden="true" />
-        ) : (
-          <ChevronRight className="size-4 shrink-0 text-[var(--text-subtle)]" aria-hidden="true" />
-        )}
-        <ViewIcon
-          id={module.domain}
-          label={label}
-          className="size-4 shrink-0 text-[var(--text-muted)]"
-        />
-
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium">{label}</span>
-          <span className="block text-sm text-[var(--text-muted)]">
-            {module.enabledCount} of {module.totalCount} on
-            {module.availableTotal > 0
-              ? ` · ${money(module.availableTotal)} more available`
-              : ""}
-          </span>
+        <span className={styles.moduleGutter}>
+          <Chevron className="size-3.5" aria-hidden="true" />
+          <ViewIcon id={module.domain} label={label} className="size-3.5" />
         </span>
-
-        <span className="shrink-0 font-mono text-sm">
-          {module.monthlyTotal > 0 ? `${money(module.monthlyTotal)}/mo` : "—"}
+        <span className={styles.moduleName}>{label}</span>
+        <span className={styles.moduleOn}>
+          {module.enabledCount}/{module.totalCount}
+        </span>
+        <span className={styles.modulePrice}>
+          {module.monthlyTotal > 0 ? money(module.monthlyTotal) : "—"}
         </span>
       </button>
 
       {expanded ? (
-        <ul className="space-y-0.5 pb-3 pl-11 pr-1">
+        <ul className={styles.features}>
           {module.features.map((feature) => (
-            <li
-              key={feature.key}
-              className="flex items-start gap-3 rounded-[var(--radius-sm)] px-2 py-1.5"
-            >
-              <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
-                {feature.enabled ? (
-                  <Check
-                    className="size-4 text-[var(--status-success-text)]"
-                    aria-label="On"
-                  />
-                ) : (
-                  <Plus
-                    className="size-3.5 text-[var(--text-subtle)]"
-                    aria-label="Available"
-                  />
-                )}
-              </span>
-
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm">{feature.name}</span>
-                <span className="block text-sm text-[var(--text-muted)]">
-                  {feature.description}
-                </span>
-              </span>
-
+            <li key={feature.key} className={styles.feature}>
+              {/* `role="img"` beside the label: an `aria-label` on a bare
+                  <svg> is not reliably announced, and this mark is the only
+                  thing on the row that says whether the feature is on. */}
               <span
-                className={cn(
-                  "shrink-0 font-mono text-sm",
-                  feature.enabled ? "" : "text-[var(--text-muted)]",
+                className={styles.featureState}
+                data-on={feature.enabled ? "true" : "false"}
+              >
+                {feature.enabled ? (
+                  <Check className="size-3.5" role="img" aria-label="On" />
+                ) : (
+                  <Plus className="size-3" role="img" aria-label="Available" />
                 )}
+              </span>
+              <span className={styles.featureName}>{feature.name}</span>
+              <span
+                className={styles.featurePrice}
+                data-on={feature.enabled ? "true" : "false"}
               >
                 {feature.isBillable && feature.monthlyPrice > 0
-                  ? `${money(feature.monthlyPrice)}/mo`
+                  ? money(feature.monthlyPrice)
                   : "Included"}
               </span>
             </li>
@@ -156,23 +138,41 @@ function ModuleRow({ module }: { module: PricingModule }) {
  *
  * Nothing here switches anything on. Turning a module on is a billing decision
  * with a contract behind it, and a one-click purchase inside a settings screen
- * is how somebody buys Surveillance by mis-clicking.
+ * is how somebody buys Surveillance by mis-clicking. That is also why this is
+ * now reached from Billing's "Change plan" rather than drawn permanently under
+ * the plan: it answers a question somebody came with, and `Billing.dc.html`
+ * draws a page with two sections on it, not six.
+ *
+ * Every feature used to carry its `description` under its name — rule 1 says
+ * if a control needs explaining its name is wrong, and eighty lines of grey
+ * text under eighty feature names is the most expensive way there is to say
+ * nothing. The name and the price are what the row is for.
  */
 export function PricingPanel() {
   const [showAll, setShowAll] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["platform-pricing"],
     queryFn: () => fetchJson<PricingResponse>("/api/v2/platform/pricing"),
   });
 
-  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isLoading) {
+    return (
+      <>
+        <FormSection>Pricing</FormSection>
+        <FactRowsSkeleton rows={4} />
+      </>
+    );
+  }
 
   if (error || !data) {
     return (
-      <Alert tone="danger" title="Couldn't load pricing">
-        {error ? getApiErrorMessage(error) : "Try again in a moment."}
-      </Alert>
+      <LoadFailure
+        message={error ? getApiErrorMessage(error) : "Couldn’t load pricing."}
+        onRetry={() => {
+          void refetch();
+        }}
+      />
     );
   }
 
@@ -180,56 +180,49 @@ export function PricingPanel() {
   const visible = showAll ? data.modules : paying;
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold">What you are paying for</h2>
-          <p className="text-sm text-[var(--text-muted)]">
-            Every module, what is switched on inside it, and what the rest would add.
-          </p>
-        </div>
+    <>
+      <FormSection
+        count={visible.length}
+        action={
+          data.modules.length > paying.length ? (
+            <SectionAction
+              aria-expanded={showAll}
+              onClick={() => setShowAll((current) => !current)}
+            >
+              {showAll ? "Only what is on" : "Everything available"}
+            </SectionAction>
+          ) : undefined
+        }
+      >
+        Pricing
+      </FormSection>
 
-        <div className="text-right">
-          <p className="font-mono text-xl font-semibold">{money(data.monthlyTotal)}</p>
-          <p className="text-sm text-[var(--text-muted)]">per month, before tax</p>
-        </div>
-      </div>
-
-      {paying.length === 0 ? (
-        <Alert tone="info" title="Nothing billable is switched on">
-          Everything this workspace uses is included in the base plan.
-        </Alert>
+      {visible.length === 0 ? (
+        <NothingHere>Nothing billable is switched on</NothingHere>
       ) : (
-        <ul className="rounded-[var(--card-radius)] border border-[var(--border)] px-2">
-          {visible.map((module) => (
-            <ModuleRow key={module.domain} module={module} />
-          ))}
-        </ul>
+        <>
+          <div className={styles.columns}>
+            <span className={styles.columnGutter} />
+            <span className={styles.columnRow}>Module</span>
+            <span className={styles.columnOn}>On</span>
+            <span className={styles.columnPrice}>Per month</span>
+          </div>
+          <ul className={styles.modules}>
+            {visible.map((module) => (
+              <ModuleRow key={module.domain} module={module} />
+            ))}
+          </ul>
+        </>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowAll((current) => !current)}
-        >
-          {showAll
-            ? "Show only what is on"
-            : `Show everything available (${data.modules.length - paying.length} more)`}
-        </Button>
-
-        {data.availableTotal > 0 ? (
-          <Badge tone="neutral">
-            {money(data.availableTotal)}/mo available but not switched on
-          </Badge>
-        ) : null}
-      </div>
-
-      <p className="text-sm text-[var(--text-muted)]">
-        Switching a module on is a billing change — talk to whoever holds the account
-        and it will appear here next cycle.
-      </p>
-    </section>
+      <FactRow label="Per month" mono className={styles.total}>
+        {money(data.monthlyTotal)}
+      </FactRow>
+      {data.availableTotal > 0 ? (
+        <FactRow label="Available, not on" mono>
+          {money(data.availableTotal)}
+        </FactRow>
+      ) : null}
+    </>
   );
 }

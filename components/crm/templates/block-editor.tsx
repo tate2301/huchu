@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 
 import { Switch } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -21,11 +19,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowDownward,
-  ArrowUpward,
-  DotsThree,
+  Calculate,
+  Camera,
+  ChevronDown,
+  EditSquare,
+  FileText,
+  Grid3x3,
+  ListBullets,
+  Minus,
+  NotePencil,
   Plus,
+  Policy,
+  ReceiptLong,
+  Square,
+  TableRows,
   Trash2,
+  X,
 } from "@/lib/icons";
 import {
   BLOCKS_FOR_KIND,
@@ -35,26 +44,67 @@ import {
   emptyBlock,
   type Block,
   type BlockType,
+  type FieldType,
   type TemplateKind,
 } from "@/lib/crm/blocks";
 import { starterBlocks, startersForKind } from "@/lib/crm/starter-templates";
-import { cn } from "@/lib/utils";
 
+import styles from "./builder.module.css";
 import { VariablePicker } from "./variable-picker";
 
 /**
- * A Notion-style block editor, cut down to what a document needs.
+ * The form builder — `TemplateBuilder.dc.html`.
  *
- * The Notion things worth keeping: everything is a block, blocks are added
- * between blocks rather than at the end, each block reveals its controls on
- * hover instead of wearing them, and the page is the document rather than a
- * form that produces one.
+ * The block list, the page, the inspector. What changed from the editor this
+ * replaces is where a block's settings live: they used to be inline, so the
+ * canvas was a stack of forms and you could not see the document you were
+ * building. Now the canvas draws the block as the reader will meet it and the
+ * inspector edits whichever one is selected — which is also why a block on the
+ * canvas is a `<button>`: selecting it is the only thing clicking it does.
  *
- * The Notion things left out: slash commands over a hundred block types,
- * arbitrary nesting, and inline databases. Somebody laying out an invoice
- * wants eleven blocks that all print correctly, not a general-purpose
- * document tool they have to be trained on.
+ * The block and field vocabulary is `lib/crm/blocks.ts` and nothing here
+ * invents a kind: `BLOCKS_FOR_KIND` decides what the palette offers, so a
+ * quote never gets a signature question and an export never gets a logo.
  */
+
+/**
+ * A glyph per block type, from the repo's own icon layer.
+ *
+ * `lib/icons.tsx` is a hand-maintained alias list and is not this agent's file
+ * to extend, so each of these is the nearest existing export rather than the
+ * exact glyph the board drew. Meaning survives; three of the twelve are a
+ * different picture of the same idea.
+ */
+const BLOCK_ICONS: Record<BlockType, React.ComponentType<{ className?: string }>> = {
+  heading: FileText,
+  text: ListBullets,
+  field: EditSquare,
+  divider: Minus,
+  spacer: Square,
+  image: Camera,
+  table: TableRows,
+  lineItems: ReceiptLong,
+  totals: Calculate,
+  signature: NotePencil,
+  terms: Policy,
+  columns: Grid3x3,
+};
+
+/** The six-dot grip the board draws to the left of every block. */
+function Grip({ className }: { className?: string }) {
+  return (
+    <span className={className} aria-hidden="true">
+      <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+        <circle cx="2.5" cy="3" r="1.3" />
+        <circle cx="7.5" cy="3" r="1.3" />
+        <circle cx="2.5" cy="8" r="1.3" />
+        <circle cx="7.5" cy="8" r="1.3" />
+        <circle cx="2.5" cy="13" r="1.3" />
+        <circle cx="7.5" cy="13" r="1.3" />
+      </svg>
+    </span>
+  );
+}
 
 function ids(prefix: string): string {
   // Not a uuid: block ids double as field keys, and a key somebody might have
@@ -63,34 +113,212 @@ function ids(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * `Raised by {{employee.fullName}}` drawn as the board draws it: the prose as
+ * prose and each variable as a mono chip, so a token that will be filled in
+ * does not read as text somebody typed.
+ */
+function withTokens(text: string): ReactNode {
+  const parts = text.split(/(\{\{[^}]*\}\})/g);
+  return parts.map((part, index) => {
+    const match = /^\{\{\s*([^}]*?)\s*\}\}$/.exec(part);
+    return match ? (
+      <span key={index} className={styles.token}>
+        {match[1]}
+      </span>
+    ) : (
+      <Fragment key={index}>{part}</Fragment>
+    );
+  });
+}
+
+/** The drawing of a control, per answer type. Never a live control. */
+function ControlPreview({ block }: { block: Extract<Block, { type: "field" }> }) {
+  const mono = block.fieldType === "date" || block.fieldType === "number";
+
+  if (block.fieldType === "longText") {
+    return (
+      <span className={styles.control}>
+        <span className={styles.controlArea}>
+          {block.placeholder || " "}
+        </span>
+      </span>
+    );
+  }
+
+  if (block.fieldType === "select" || block.fieldType === "multiSelect") {
+    return (
+      <span className={styles.control}>
+        <span className={styles.controlBox}>
+          {(block.options ?? [])[0] ?? ""}
+          <ChevronDown className={styles.controlChevron} aria-hidden="true" />
+        </span>
+      </span>
+    );
+  }
+
+  if (block.fieldType === "checkbox") {
+    return (
+      <span className={styles.control}>
+        <span className={`${styles.controlBox} ${styles.controlCheck}`} />
+      </span>
+    );
+  }
+
+  return (
+    <span className={styles.control}>
+      <span className={`${styles.controlBox}${mono ? ` ${styles.controlMono}` : ""}`}>
+        {block.placeholder ? (
+          <span className={styles.blockPlaceholder}>{block.placeholder}</span>
+        ) : (
+          " "
+        )}
+      </span>
+    </span>
+  );
+}
+
+/** One block, as the reader will meet it. */
+function BlockPreview({ block }: { block: Block }) {
+  switch (block.type) {
+    case "heading":
+      return (
+        <span className={styles.blockHeading}>
+          {block.text || <span className={styles.blockPlaceholder}>Heading</span>}
+        </span>
+      );
+
+    case "text":
+      return (
+        <span className={styles.blockText}>
+          {block.text ? (
+            withTokens(block.text)
+          ) : (
+            <span className={styles.blockPlaceholder}>Text</span>
+          )}
+        </span>
+      );
+
+    case "terms":
+      return (
+        <>
+          <span className={styles.blockText}>
+            {block.text ? (
+              withTokens(block.text)
+            ) : (
+              <span className={styles.blockPlaceholder}>Terms and conditions</span>
+            )}
+          </span>
+          <span className={styles.hint}>Terms</span>
+        </>
+      );
+
+    case "field":
+      return (
+        <>
+          <span className={styles.blockLabel}>
+            {block.label || <span className={styles.blockPlaceholder}>Question</span>}
+            {block.required ? <span className={styles.required}> *</span> : null}
+          </span>
+          <ControlPreview block={block} />
+          <span className={styles.hint}>{FIELD_TYPE_LABELS[block.fieldType]}</span>
+        </>
+      );
+
+    case "divider":
+      return <span className={styles.controlRule} />;
+
+    case "spacer":
+      return (
+        <span
+          className={styles.hint}
+          style={{ height: block.size === "lg" ? 32 : block.size === "sm" ? 8 : 20 }}
+        >
+          {`Space · ${block.size}`}
+        </span>
+      );
+
+    case "image":
+      return (
+        <>
+          <span className={styles.controlSign} />
+          <span className={styles.hint}>
+            {block.source === "branding.logo" ? "Your logo" : block.url || "Image"}
+          </span>
+        </>
+      );
+
+    case "signature":
+      return (
+        <>
+          <span className={styles.blockLabel}>{block.label || "Signed"}</span>
+          <span className={styles.controlSign} />
+        </>
+      );
+
+    case "table":
+      return (
+        <>
+          <span className={styles.blockLabel}>
+            {block.columns.map((column) => column.label).join("  ·  ") || "Table"}
+          </span>
+          <span className={`${styles.controlRule} ${styles.ruleGap}`} />
+          <span className={styles.hint}>{block.source || "Table"}</span>
+        </>
+      );
+
+    case "lineItems":
+      return (
+        <>
+          <span className={styles.blockLabel}>Line items</span>
+          <span className={`${styles.controlRule} ${styles.ruleGap}`} />
+          <span className={styles.hint}>{block.showTax ? "With tax" : "No tax"}</span>
+        </>
+      );
+
+    case "totals":
+      return (
+        <>
+          <span className={styles.blockLabel}>Totals</span>
+          <span className={`${styles.controlRule} ${styles.ruleGap}`} />
+          <span className={styles.hint}>{block.showTax ? "With tax" : "No tax"}</span>
+        </>
+      );
+
+    case "columns":
+      return (
+        <>
+          <span className={styles.blockLabel}>Side by side</span>
+          <span className={styles.hint}>
+            {`${block.left.length} left · ${block.right.length} right`}
+          </span>
+        </>
+      );
+  }
+}
+
+/** The dashed + between two blocks. */
 function BlockInsert({
   kind,
   onInsert,
-  label = "Add a block",
+  label,
 }: {
   kind: TemplateKind;
   onInsert: (type: BlockType) => void;
-  label?: string;
+  label: string;
 }) {
   return (
-    <div className="group/insert relative flex h-4 items-center justify-center">
-      <span
-        aria-hidden="true"
-        className="absolute inset-x-0 top-1/2 h-px bg-[var(--border-subtle)] opacity-0 transition-opacity group-hover/insert:opacity-100 pointer-coarse:opacity-100"
-      />
+    <div className={styles.insert}>
+      <span aria-hidden="true" className={styles.insertLine} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={label}
-            className="relative z-10 flex size-5 items-center justify-center rounded-full border border-dashed border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] opacity-0 transition-opacity hover:border-[var(--brand)] hover:text-[var(--text)] focus-visible:opacity-100 group-hover/insert:opacity-100 pointer-coarse:opacity-100"
-          >
-            <Plus className="size-3" aria-hidden="true" />
+          <button type="button" aria-label={label} className={styles.insertButton}>
+            <Plus aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" className="max-h-72 overflow-y-auto">
           {BLOCKS_FOR_KIND[kind].map((type) => (
-            <DropdownMenuItem key={type} onClick={() => onInsert(type)}>
+            <DropdownMenuItem key={type} onSelect={() => onInsert(type)}>
               {BLOCK_LABELS[type]}
             </DropdownMenuItem>
           ))}
@@ -100,323 +328,319 @@ function BlockInsert({
   );
 }
 
-function FieldEditor({
-  block,
-  onChange,
-}: {
-  block: Extract<Block, { type: "field" }>;
-  onChange: (next: Partial<Extract<Block, { type: "field" }>>) => void;
-}) {
-  const needsOptions = block.fieldType === "select" || block.fieldType === "multiSelect";
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <Input
-          className="min-w-48 flex-1"
-          value={block.label}
-          placeholder="What are you asking?"
-          aria-label="Question"
-          onChange={(event) => onChange({ label: event.target.value })}
-        />
-        <Select
-          value={block.fieldType}
-          onValueChange={(value) =>
-            onChange({ fieldType: value as (typeof FIELD_TYPES)[number] })
-          }
-        >
-          <SelectTrigger className="w-full max-w-40" aria-label="Answer type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FIELD_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {FIELD_TYPE_LABELS[type]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {needsOptions ? (
-        <Textarea
-          rows={3}
-          value={(block.options ?? []).join("\n")}
-          placeholder={"One option per line"}
-          aria-label="Options"
-          onChange={(event) =>
-            onChange({
-              options: event.target.value
-                .split("\n")
-                .map((line) => line.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          className="min-w-40 flex-1"
-          value={block.help ?? ""}
-          placeholder="Help text (optional)"
-          aria-label="Help text"
-          onChange={(event) => onChange({ help: event.target.value })}
-        />
-        <label className="flex items-center gap-2 text-sm">
-          <Switch
-            checked={block.required}
-            onChange={(event) => onChange({ required: event.target.checked })}
-            aria-label="Required"
-          />
-          Required
-        </label>
-      </div>
-
-      <p className="text-sm text-[var(--text-subtle)]">
-        {/* The key is shown rather than editable: renaming it orphans every
-            answer already collected under the old one. */}
-        Answers save as <span className="font-mono">{block.key}</span>
-      </p>
-    </div>
-  );
-}
-
-function BlockEditorRow({
+/** Everything the selected block has to set, and nothing it has not. */
+function Inspector({
   block,
   onChange,
   onRemove,
-  onMove,
-  isFirst,
-  isLast,
 }: {
   block: Block;
   onChange: (next: Block) => void;
   onRemove: () => void;
-  onMove: (direction: -1 | 1) => void;
-  isFirst: boolean;
-  isLast: boolean;
 }) {
+  const Icon = BLOCK_ICONS[block.type];
+
   function patch(next: Record<string, unknown>) {
     onChange({ ...block, ...next } as Block);
   }
 
+  const choices =
+    block.type === "field" &&
+    (block.fieldType === "select" || block.fieldType === "multiSelect")
+      ? (block.options ?? [])
+      : null;
+
   return (
-    <div className="group relative rounded-[var(--radius-md)] px-2 py-2 transition-colors hover:bg-[var(--surface-subtle)]">
-      <div className="absolute right-1 top-1 flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
-        <Button
+    <>
+      <div className={styles.inspectorHead}>
+        <span className={styles.inspectorTile}>
+          <Icon aria-hidden="true" />
+        </span>
+        <h2 className={styles.inspectorTitle}>{BLOCK_LABELS[block.type]}</h2>
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Move up"
-          disabled={isFirst}
-          onClick={() => onMove(-1)}
+          aria-label="Delete this block"
+          className={styles.inspectorDelete}
+          onClick={onRemove}
         >
-          <ArrowUpward className="size-4" aria-hidden="true" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Move down"
-          disabled={isLast}
-          onClick={() => onMove(1)}
-        >
-          <ArrowDownward className="size-4" aria-hidden="true" />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton aria-label="Block options">
-              <DotsThree aria-hidden="true" />
-            </IconButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onRemove}>
-              <Trash2 className="size-4" aria-hidden="true" />
-              Delete block
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          <Trash2 aria-hidden="true" />
+        </button>
       </div>
 
-      <p className="mb-1 text-sm text-[var(--text-subtle)]">{BLOCK_LABELS[block.type]}</p>
+      {block.type === "field" ? (
+        <>
+          <div className={styles.field}>
+            <label htmlFor="inspector-label">Label</label>
+            <Input
+              id="inspector-label"
+              value={block.label}
+              onChange={(event) => patch({ label: event.target.value })}
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label htmlFor="inspector-answer">Answer</label>
+            <Select
+              value={block.fieldType}
+              onValueChange={(value) => patch({ fieldType: value as FieldType })}
+            >
+              <SelectTrigger id="inspector-answer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FIELD_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {FIELD_TYPE_LABELS[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className={styles.switchRow}>
+            <span className={styles.switchLabel}>Required</span>
+            <Switch
+              checked={block.required}
+              onChange={(event) => patch({ required: event.target.checked })}
+              aria-label="Required"
+            />
+          </div>
+
+          {choices ? (
+            <>
+              <h3 className={styles.group}>Choices</h3>
+              <ul className={styles.choices}>
+                {choices.map((choice, index) => (
+                  <li key={index} className={styles.choiceRow}>
+                    <Grip className={styles.choiceGrip} />
+                    <Input
+                      value={choice}
+                      aria-label={`Choice ${index + 1}`}
+                      onChange={(event) =>
+                        patch({
+                          options: choices.map((existing, position) =>
+                            position === index ? event.target.value : existing,
+                          ),
+                        })
+                      }
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Remove choice ${index + 1}`}
+                      className={styles.choiceRemove}
+                      onClick={() =>
+                        patch({
+                          options: choices.filter((_existing, position) => position !== index),
+                        })
+                      }
+                    >
+                      <X aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={() => patch({ options: [...choices, ""] })}
+              >
+                <Plus aria-hidden="true" />
+                Add a choice
+              </button>
+            </>
+          ) : null}
+
+          <h3 className={styles.group}>Key</h3>
+          <div className={`${styles.field} ${styles.mono}`}>
+            {/* Read-only: renaming a key orphans every answer already collected
+                under the old one. */}
+            <label htmlFor="inspector-key" className="sr-only">
+              Key
+            </label>
+            <Input id="inspector-key" value={block.key} readOnly />
+          </div>
+        </>
+      ) : null}
 
       {block.type === "heading" ? (
-        <div className="flex gap-2">
-          <Input
-            className="flex-1"
-            value={block.text}
-            placeholder="Heading"
-            aria-label="Heading text"
-            onChange={(event) => patch({ text: event.target.value })}
-          />
-          <Select
-            value={String(block.level)}
-            onValueChange={(value) => patch({ level: Number(value) })}
-          >
-            <SelectTrigger className="w-24 shrink-0" aria-label="Heading level">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Large</SelectItem>
-              <SelectItem value="2">Medium</SelectItem>
-              <SelectItem value="3">Small</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <>
+          <div className={styles.field}>
+            <label htmlFor="inspector-heading">Text</label>
+            <Input
+              id="inspector-heading"
+              value={block.text}
+              onChange={(event) => patch({ text: event.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="inspector-level">Size</label>
+            <Select
+              value={String(block.level)}
+              onValueChange={(value) => patch({ level: Number(value) })}
+            >
+              <SelectTrigger id="inspector-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Large</SelectItem>
+                <SelectItem value="2">Medium</SelectItem>
+                <SelectItem value="3">Small</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </>
       ) : null}
 
       {block.type === "text" || block.type === "terms" ? (
-        <div className="space-y-1.5">
+        <div className={styles.field}>
+          <label htmlFor="inspector-text">{BLOCK_LABELS[block.type]}</label>
           <Textarea
-            rows={block.type === "terms" ? 5 : 3}
+            id="inspector-text"
+            rows={block.type === "terms" ? 8 : 5}
             value={block.text}
-            placeholder={
-              block.type === "terms"
-                ? "Terms and conditions"
-                : "Text. Use {{variables}} to fill in details."
-            }
-            aria-label={BLOCK_LABELS[block.type]}
             onChange={(event) => patch({ text: event.target.value })}
           />
           <VariablePicker onPick={(token) => patch({ text: `${block.text}${token}` })} />
         </div>
       ) : null}
 
-      {block.type === "field" ? (
-        <FieldEditor
-          block={block}
-          onChange={(next) => onChange({ ...block, ...next })}
-        />
-      ) : null}
-
       {block.type === "spacer" ? (
-        <Select value={block.size} onValueChange={(value) => patch({ size: value })}>
-          <SelectTrigger className="w-full max-w-32" aria-label="Space size">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="sm">Small</SelectItem>
-            <SelectItem value="md">Medium</SelectItem>
-            <SelectItem value="lg">Large</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className={styles.field}>
+          <label htmlFor="inspector-size">Size</label>
+          <Select value={block.size} onValueChange={(value) => patch({ size: value })}>
+            <SelectTrigger id="inspector-size">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sm">Small</SelectItem>
+              <SelectItem value="md">Medium</SelectItem>
+              <SelectItem value="lg">Large</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       ) : null}
 
       {block.type === "image" ? (
-        <div className="space-y-2">
-          <Select value={block.source} onValueChange={(value) => patch({ source: value })}>
-            <SelectTrigger className="w-full max-w-56" aria-label="Image source">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="branding.logo">Your company logo</SelectItem>
-              <SelectItem value="url">A specific image</SelectItem>
-            </SelectContent>
-          </Select>
+        <>
+          <div className={styles.field}>
+            <label htmlFor="inspector-source">Source</label>
+            <Select value={block.source} onValueChange={(value) => patch({ source: value })}>
+              <SelectTrigger id="inspector-source">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="branding.logo">Your company logo</SelectItem>
+                <SelectItem value="url">A specific image</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {block.source === "url" ? (
-            <Input
-              value={block.url ?? ""}
-              placeholder="https://…"
-              aria-label="Image URL"
-              onChange={(event) => patch({ url: event.target.value })}
-            />
+            <div className={styles.field}>
+              <label htmlFor="inspector-url">Address</label>
+              <Input
+                id="inspector-url"
+                value={block.url ?? ""}
+                onChange={(event) => patch({ url: event.target.value })}
+              />
+            </div>
           ) : null}
-        </div>
+        </>
       ) : null}
 
       {block.type === "table" ? (
-        <div className="space-y-2">
-          <Input
-            value={block.source}
-            placeholder="Which list fills the rows, e.g. lines"
-            aria-label="Row source"
-            onChange={(event) => patch({ source: event.target.value })}
-          />
-          <Textarea
-            rows={3}
-            value={block.columns.map((column) => `${column.key}: ${column.label}`).join("\n")}
-            placeholder={"key: Column heading\nqty: Quantity"}
-            aria-label="Columns"
-            onChange={(event) =>
-              patch({
-                columns: event.target.value
-                  .split("\n")
-                  .map((line) => {
-                    const [key, ...rest] = line.split(":");
-                    return { key: key.trim(), label: rest.join(":").trim() || key.trim() };
-                  })
-                  .filter((column) => column.key),
-              })
-            }
-          />
-        </div>
+        <>
+          <div className={styles.field}>
+            <label htmlFor="inspector-rows">Rows</label>
+            <Input
+              id="inspector-rows"
+              value={block.source}
+              onChange={(event) => patch({ source: event.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="inspector-columns">Columns</label>
+            <Textarea
+              id="inspector-columns"
+              rows={5}
+              value={block.columns.map((column) => `${column.key}: ${column.label}`).join("\n")}
+              onChange={(event) =>
+                patch({
+                  columns: event.target.value
+                    .split("\n")
+                    .map((line) => {
+                      const [key, ...rest] = line.split(":");
+                      return { key: key.trim(), label: rest.join(":").trim() || key.trim() };
+                    })
+                    .filter((column) => column.key),
+                })
+              }
+            />
+          </div>
+        </>
       ) : null}
 
       {block.type === "lineItems" || block.type === "totals" ? (
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
+        <>
+          <div className={styles.switchRow}>
+            <span className={styles.switchLabel}>Tax</span>
             <Switch
               checked={block.showTax}
               onChange={(event) => patch({ showTax: event.target.checked })}
-              aria-label="Show tax"
+              aria-label="Tax"
             />
-            Show tax
-          </label>
+          </div>
           {block.type === "lineItems" ? (
-            <label className="flex items-center gap-2 text-sm">
+            <div className={styles.switchRow}>
+              <span className={styles.switchLabel}>Discount</span>
               <Switch
                 checked={block.showDiscount}
                 onChange={(event) => patch({ showDiscount: event.target.checked })}
-                aria-label="Show discount"
+                aria-label="Discount"
               />
-              Show discount
-            </label>
+            </div>
           ) : (
-            <label className="flex items-center gap-2 text-sm">
+            <div className={styles.switchRow}>
+              <span className={styles.switchLabel}>Paid</span>
               <Switch
                 checked={block.showPaid}
                 onChange={(event) => patch({ showPaid: event.target.checked })}
-                aria-label="Show what has been paid"
+                aria-label="Paid"
               />
-              Show paid
-            </label>
+            </div>
           )}
-        </div>
+        </>
       ) : null}
 
       {block.type === "signature" ? (
-        <div className="flex flex-wrap gap-2">
-          <Input
-            className="min-w-40 flex-1"
-            value={block.label}
-            placeholder="Signature line label"
-            aria-label="Signature label"
-            onChange={(event) => patch({ label: event.target.value })}
-          />
-          <Select value={block.party} onValueChange={(value) => patch({ party: value })}>
-            <SelectTrigger className="w-full max-w-40 sm:w-40" aria-label="Who signs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="customer">The customer</SelectItem>
-              <SelectItem value="us">Us</SelectItem>
-              <SelectItem value="both">Both</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <>
+          <div className={styles.field}>
+            <label htmlFor="inspector-sign-label">Label</label>
+            <Input
+              id="inspector-sign-label"
+              value={block.label}
+              onChange={(event) => patch({ label: event.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="inspector-party">Who signs</label>
+            <Select value={block.party} onValueChange={(value) => patch({ party: value })}>
+              <SelectTrigger id="inspector-party">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="customer">The customer</SelectItem>
+                <SelectItem value="us">Us</SelectItem>
+                <SelectItem value="both">Both</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </>
       ) : null}
 
-      {block.type === "divider" ? (
-        <hr className="border-[var(--border-subtle)]" />
+      {block.type === "divider" || block.type === "columns" ? (
+        <p className={styles.empty}>Nothing to set</p>
       ) : null}
-
-      {block.type === "columns" ? (
-        <p className="text-sm text-[var(--text-muted)]">
-          Two columns. Add blocks to each side below.
-        </p>
-      ) : null}
-    </div>
+    </>
   );
 }
 
@@ -424,18 +648,37 @@ export function BlockEditor({
   kind,
   blocks,
   onChange,
+  banner,
+  properties,
 }: {
   kind: TemplateKind;
   blocks: Block[];
   onChange: (next: Block[]) => void;
+  /** Drawn above the page — what is stopping this template being published. */
+  banner?: ReactNode;
+  /**
+   * What the inspector shows when no block is selected.
+   *
+   * The template's own properties go here rather than into a band above the
+   * page: they are the same kind of thing as a block's settings — the
+   * properties of whatever is selected — and the board has exactly one panel
+   * for that.
+   */
+  properties?: ReactNode;
 }) {
-  const [, forceKey] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const selectedIndex = blocks.findIndex((block) => block.id === selectedId);
+  const selected = selectedIndex >= 0 ? blocks[selectedIndex] : null;
+
+  const starters = useMemo(() => startersForKind(kind), [kind]);
 
   function insertAt(index: number, type: BlockType) {
+    const block = emptyBlock(type, ids(type));
     const next = [...blocks];
-    next.splice(index, 0, emptyBlock(type, ids(type)));
+    next.splice(index, 0, block);
     onChange(next);
-    forceKey((value) => value + 1);
+    setSelectedId(block.id);
   }
 
   function replaceAt(index: number, block: Block) {
@@ -444,65 +687,107 @@ export function BlockEditor({
 
   function removeAt(index: number) {
     onChange(blocks.filter((_block, position) => position !== index));
-  }
-
-  function moveAt(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= blocks.length) return;
-    const next = [...blocks];
-    [next[index], next[target]] = [next[target], next[index]];
-    onChange(next);
+    setSelectedId(null);
   }
 
   return (
-    <div className={cn("space-y-0")}>
-      <BlockInsert kind={kind} onInsert={(type) => insertAt(0, type)} label="Add a block at the top" />
+    <div className={styles.body}>
+      <div className={styles.palette}>
+        <h2 className={styles.paletteTitle}>Blocks</h2>
+        {BLOCKS_FOR_KIND[kind].map((type) => {
+          const Icon = BLOCK_ICONS[type];
+          return (
+            <button
+              key={type}
+              type="button"
+              className={styles.paletteItem}
+              onClick={() =>
+                insertAt(selectedIndex >= 0 ? selectedIndex + 1 : blocks.length, type)
+              }
+            >
+              <Icon aria-hidden="true" />
+              <span className={styles.paletteLabel}>{BLOCK_LABELS[type]}</span>
+            </button>
+          );
+        })}
+        {/* Which list the palette came from, stated in the vocabulary the code
+            uses, so a missing block is traceable to the kind rather than to a
+            bug. The braces are typography, not an icon: the whole line is
+            already mono, and `lib/icons.tsx` has no `{}` glyph to add one
+            from — extending that file is another agent's. */}
+        <p className={styles.paletteFoot}>
+          <span className={styles.paletteFootMark} aria-hidden="true">
+            {"{}"}
+          </span>
+          {`BLOCKS_FOR_KIND.${kind}`}
+        </p>
+      </div>
 
-      {blocks.map((block, index) => (
-        <div key={block.id}>
-          <BlockEditorRow
-            block={block}
-            isFirst={index === 0}
-            isLast={index === blocks.length - 1}
-            onChange={(next) => replaceAt(index, next)}
-            onRemove={() => removeAt(index)}
-            onMove={(direction) => moveAt(index, direction)}
+      <div className={styles.canvas}>
+        {banner ? <div className={styles.bannerWrap}>{banner}</div> : null}
+        <div className={styles.sheet}>
+          <BlockInsert
+            kind={kind}
+            onInsert={(type) => insertAt(0, type)}
+            label="Add a block at the top"
           />
-          <BlockInsert kind={kind} onInsert={(type) => insertAt(index + 1, type)} />
-        </div>
-      ))}
 
-      {blocks.length === 0 ? (
-        <div className="py-6 text-center">
-          <p className="text-sm text-[var(--text-muted)]">
-            Empty. Use the + above to add the first block.
-          </p>
+          {blocks.map((block, index) => (
+            <Fragment key={block.id}>
+              <button
+                type="button"
+                className={styles.block}
+                aria-current={block.id === selectedId ? "true" : undefined}
+                aria-label={`${BLOCK_LABELS[block.type]} block`}
+                onClick={() => setSelectedId(block.id)}
+              >
+                {block.id === selectedId ? (
+                  <span className={styles.blockTag}>{BLOCK_LABELS[block.type]}</span>
+                ) : null}
+                <Grip className={styles.grip} />
+                <BlockPreview block={block} />
+              </button>
+              <BlockInsert
+                kind={kind}
+                onInsert={(type) => insertAt(index + 1, type)}
+                label={`Add a block after ${BLOCK_LABELS[block.type].toLowerCase()}`}
+              />
+            </Fragment>
+          ))}
 
-          {/* Or don't start from nothing. Somebody who reached a blank
-              template did not necessarily choose one — they may have picked
-              Blank in the dialog and then discovered what that means. */}
-          {startersForKind(kind).length > 0 ? (
-            <div className="mt-4">
-              <p className="text-sm font-medium text-[var(--text-strong)]">Or start from</p>
-              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                {startersForKind(kind).map((starter) => (
-                  <button
-                    key={starter.id}
-                    type="button"
-                    onClick={() => onChange(starterBlocks(starter, ""))}
-                    className="rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-1.5 text-sm hover:border-[var(--interactive-primary)] hover:bg-[var(--surface-hover)]"
-                  >
-                    <span aria-hidden="true" className="mr-1.5">
-                      {starter.emoji}
-                    </span>
-                    {starter.name}
-                  </button>
-                ))}
-              </div>
+          {blocks.length === 0 ? (
+            <div className={styles.blank}>
+              <p className={styles.empty}>Nothing on the page yet</p>
+              {starters.length > 0 ? (
+                <div className={styles.starters}>
+                  {starters.map((starter) => (
+                    <button
+                      key={starter.id}
+                      type="button"
+                      className={styles.btn}
+                      onClick={() => onChange(starterBlocks(starter, ""))}
+                    >
+                      {starter.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
-      ) : null}
+      </div>
+
+      <div className={styles.inspector}>
+        {selected ? (
+          <Inspector
+            block={selected}
+            onChange={(next) => replaceAt(selectedIndex, next)}
+            onRemove={() => removeAt(selectedIndex)}
+          />
+        ) : (
+          (properties ?? <p className={styles.empty}>Pick a block</p>)
+        )}
+      </div>
     </div>
   );
 }

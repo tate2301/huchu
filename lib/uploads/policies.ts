@@ -16,6 +16,16 @@ export const uploadPolicies = {
     maxBytes: 5 * MB,
     folder: "employee-national-ids",
   },
+  // A signed-in person's own avatar. Its own context rather than a reuse of
+  // `employee-passport`: the allowances happen to match today, but an avatar is
+  // a small square that gets scaled to 32px and a passport photo is an identity
+  // document somebody may have to audit. Filing one in the other's folder makes
+  // both harder to reason about later.
+  "user-avatar": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp"],
+    maxBytes: 2 * MB,
+    folder: "user-avatars",
+  },
   "scrap-purchase-ticket-photo": {
     allowedTypes: ["image/jpeg", "image/png", "image/webp"],
     maxBytes: 8 * MB,

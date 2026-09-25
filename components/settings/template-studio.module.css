@@ -1,0 +1,585 @@
+/*
+  The document template studio — the frame `TemplateBuilder.dc.html` draws.
+
+  The studio was three `Card`s in a grid: a list card, a card of stacked
+  checkboxes, and a card holding the preview. The boards have no shape for a
+  card here. `TemplateBuilder.dc.html` draws this screen as one 60px header
+  over three columns — what you are editing on the left, the document itself
+  in the middle on its scrim, and the settings of the selection on the right —
+  and `TemplateRender.dc.html` draws the document as a sheet on `#F1F3F6`
+  with a panel beside it. This file is the paint for that arrangement.
+
+  The class names follow `components/crm/templates/builder.module.css`, which
+  paints the same two boards for the CRM builder. It is not imported: that
+  module belongs to another component, and a stylesheet shared by two
+  components is one nobody can change. The values are the boards'.
+
+  `@layer components` for the same reason the shared management layer uses it:
+  above the design system, below Tailwind's utilities, so a caller's
+  `className` still wins.
+*/
+
+@layer components {
+  .shell {
+    --s-ink: var(--text-strong); /* #16181D */
+    --s-body: var(--text-body); /* #262A33 */
+    --s-label: var(--text-muted); /* #565C69 */
+    --s-meta: #5e6573; /* the DS's --text-subtle resolves to #8A91A0 */
+    --s-faint: var(--text-subtle); /* #8A91A0 */
+    --s-rule: var(--border); /* #E5E8EE */
+    --s-rule-soft: var(--border-subtle); /* #EEF0F4 */
+    --s-page: var(--surface); /* #FFFFFF */
+    --s-ground: var(--canvas); /* #F7F8FA */
+    --s-tile: var(--surface-muted); /* #F1F3F6 */
+    --s-selected: #e8ebf0;
+    --s-primary: var(--brand); /* #0B5DF0 */
+    --s-on-tint: var(--brand-strong); /* #0944C2 */
+    --s-tint: var(--brand-soft); /* #E8EFFE */
+    --s-warn-bg: var(--tone-warn-bg); /* #F4E6C5 */
+    --s-warn-fg: #6b4a12; /* no --tone-warn-strong exists */
+    --s-warn-dot: var(--tone-warn); /* #B07626 */
+    --s-danger-bg: var(--tone-danger-bg, #f6e2dd);
+    --s-danger-fg: var(--tone-danger-strong, #7a2419);
+    --s-mono: var(--font-mono);
+
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--stack-top, 0px) - 96px);
+    min-height: 560px;
+    overflow: clip;
+    background: var(--s-page);
+    color: var(--s-body);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The header — one line, then the rule
+   * ------------------------------------------------------------------ */
+
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 60px;
+    flex-shrink: 0;
+    padding: 0 16px 0 10px;
+    border-bottom: 1px solid var(--s-rule);
+  }
+
+  .titleGroup {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .title {
+    margin: 0;
+    min-width: 0;
+    font: 600 17px/1.25 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--s-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Rule 8: the title itself opens the rename, not only the pencil. The
+     button borrows the title's metrics so the line does not shift. */
+  .titleButton {
+    display: block;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .titleButton:focus-visible {
+    outline: 2px solid var(--s-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Rule 8 again: editing happens in place — no edit mode, no save button
+     for a name. The input inherits the title's type. */
+  .titleInput {
+    min-width: 0;
+    width: 100%;
+    max-width: 420px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--s-primary);
+    border-radius: 0;
+    background: transparent;
+    font: 600 17px/1.25 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--s-ink);
+    outline: none;
+  }
+
+  .pencil {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--s-faint);
+    cursor: pointer;
+  }
+
+  .pencil svg {
+    width: 13px;
+    height: 13px;
+    font-size: 13px;
+  }
+
+  .pencil:hover {
+    background: var(--s-tile);
+    color: var(--s-label);
+  }
+
+  .pencil:focus-visible {
+    outline: none;
+    border-color: var(--s-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /* Rule 5: the chip marks the exception. A document whose settings are the
+     published ones draws nothing at all. */
+  .draft {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    flex-shrink: 0;
+    padding: 0 9px;
+    border-radius: 9999px;
+    background: var(--s-warn-bg);
+    color: var(--s-warn-fg);
+    font: 500 12px/1 var(--font-sans);
+  }
+
+  .draft::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--s-warn-dot);
+  }
+
+  .spacer {
+    flex-grow: 1;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Buttons — 32. The DS has 24/30/36/44.
+   * ------------------------------------------------------------------ */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    flex-shrink: 0;
+    padding: 0 12px;
+    border: 1px solid var(--s-rule);
+    border-radius: 8px;
+    background: var(--s-page);
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--s-ink);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn svg {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    flex-shrink: 0;
+    color: var(--s-label);
+  }
+
+  .btn:hover {
+    background: var(--s-tile);
+  }
+
+  .btn:focus-visible {
+    outline: none;
+    border-color: var(--s-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .btnPrimary {
+    padding: 0 14px;
+    border-color: var(--s-primary);
+    background: var(--s-primary);
+    color: #ffffff;
+  }
+
+  .btnPrimary svg {
+    color: #ffffff;
+  }
+
+  .btnPrimary:hover {
+    background: var(--s-on-tint);
+  }
+
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .iconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--s-label);
+    cursor: pointer;
+  }
+
+  .iconBtn svg {
+    width: 17px;
+    height: 17px;
+    font-size: 17px;
+  }
+
+  .iconBtn:hover {
+    background: var(--s-tile);
+  }
+
+  .iconBtn:focus-visible {
+    outline: none;
+    border-color: var(--s-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The three columns
+   * ------------------------------------------------------------------ */
+
+  .body {
+    display: flex;
+    flex-grow: 1;
+    min-height: 0;
+  }
+
+  /* The board's palette, holding what this studio picks between: the
+     documents the system can print. */
+  .palette {
+    width: 192px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 14px 10px;
+    border-right: 1px solid var(--s-rule);
+    background: var(--s-ground);
+    overflow-y: auto;
+  }
+
+  .paletteTitle {
+    margin: 0 0 8px;
+    padding: 0 8px;
+    font: 600 13px/1.4 var(--font-sans);
+    color: var(--s-ink);
+  }
+
+  .paletteSection + .paletteSection {
+    margin-top: 14px;
+  }
+
+  .paletteGroup {
+    margin: 0 0 4px;
+    padding: 0 8px;
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--s-label);
+  }
+
+  .paletteItem {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 32px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--s-body);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .paletteItem svg {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    flex-shrink: 0;
+    color: var(--s-label);
+  }
+
+  .paletteItem:hover {
+    background: var(--s-tile);
+  }
+
+  .paletteItem:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .paletteItem[aria-current="true"] {
+    background: var(--s-selected);
+    color: var(--s-ink);
+  }
+
+  .paletteLabel {
+    flex-grow: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Rule 5 in a narrow column: the exception is that this document has been
+     changed from what shipped. The ones still on the system default carry
+     no mark. */
+  .paletteMark {
+    flex-shrink: 0;
+    font: 500 11px/1.5 var(--s-mono);
+    color: var(--s-meta);
+  }
+
+  /* The board's foot names the constant this column is drawn from. This
+     one's name is longer than the column is wide, so it wraps rather than
+     being cut off at a character. */
+  .paletteFoot {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    overflow-wrap: anywhere;
+    margin: 18px 8px 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--s-rule);
+    font: 500 11px/1.5 var(--s-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--s-meta);
+  }
+
+  .paletteFootMark {
+    flex-shrink: 0;
+    color: inherit;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The stage — the document on its scrim, as `TemplateRender.dc.html`
+   * draws it. The sheet keeps the paper's own proportion, so choosing
+   * landscape turns the page on the stage rather than only in the PDF.
+   * ------------------------------------------------------------------ */
+
+  .stage {
+    flex-grow: 1;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    padding: 26px;
+    background: var(--s-tile);
+    overflow: auto;
+  }
+
+  /* Height first, width from the paper's ratio: the stage is short and wide
+     more often than it is tall, so the page that has to fit is the one
+     measured against the height. `max-height` stops A4 being drawn larger
+     than the 540px-wide sheet the board draws. */
+  .sheet {
+    box-sizing: border-box;
+    height: 100%;
+    max-height: calc(var(--sheet-width, 540px) / var(--sheet-ratio, 0.707));
+    width: auto;
+    max-width: 100%;
+    aspect-ratio: var(--sheet-ratio, 0.707);
+    background: var(--s-page);
+    box-shadow: var(--shadow-popover);
+    overflow: hidden;
+  }
+
+  .sheetFrame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: var(--s-page);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The inspector
+   * ------------------------------------------------------------------ */
+
+  .inspector {
+    width: 308px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 18px 18px 24px;
+    border-left: 1px solid var(--s-rule);
+    overflow-y: auto;
+  }
+
+  .inspectorHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .inspectorTile {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 7px;
+    background: var(--s-tint);
+    color: var(--s-on-tint);
+  }
+
+  .inspectorTile svg {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+  }
+
+  .inspectorTitle {
+    margin: 0;
+    flex-grow: 1;
+    min-width: 0;
+    font: 600 13px/1.4 var(--font-sans);
+    color: var(--s-ink);
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .field > label {
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--s-label);
+  }
+
+  /* The board's control is 13px; the DS `.input` is 14. Scoped to the
+     inspector so no call site overrides it a field at a time. */
+  .inspector :global(.input),
+  .inspector :global(.select) {
+    font-size: 13px;
+  }
+
+  .group {
+    margin: 20px 0 10px;
+  }
+
+  /* The head already carries its 18px; the first heading under it does not
+     add a second gap. */
+  .inspectorHead + .group {
+    margin-top: 0;
+    font: 600 15px/1.35 var(--font-sans);
+    color: var(--s-ink);
+  }
+
+  .switchRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 40px;
+    border-bottom: 1px solid var(--s-rule-soft);
+  }
+
+  /* The board draws a rule above and below one switch. A stack of them
+     wants one rule between each pair, not two — so only the first of a
+     group carries the top rule. */
+  .switchGroup > .switchRow:first-child {
+    border-top: 1px solid var(--s-rule-soft);
+  }
+
+  .switchLabel {
+    flex-grow: 1;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--s-ink);
+  }
+
+  /* What failed, where the failure happened. Red rather than the builder's
+     amber: amber is something to attend to, and a publish that did not
+     happen is a failure. */
+  .failure {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--s-danger-bg);
+    color: var(--s-danger-fg);
+    font: 400 12px/1.45 var(--font-sans);
+  }
+
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 20px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--s-tint);
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--s-on-tint);
+  }
+
+  .note svg {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Narrower than the board
+   * ------------------------------------------------------------------ */
+
+  @media (max-width: 1099px) {
+    .palette {
+      width: 160px;
+    }
+
+    .inspector {
+      width: 264px;
+    }
+
+    .stage {
+      padding: 18px;
+    }
+  }
+
+  /* Below that there is no room for three columns, and the stage is the
+     one that can go: the inspector shows what the settings are, and the
+     preview is a round trip to the server for a picture. */
+  @media (max-width: 860px) {
+    .stage {
+      display: none;
+    }
+  }
+}

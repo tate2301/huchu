@@ -1,0 +1,394 @@
+/*
+  Organization paint: General and Billing.
+
+  Everything structural comes from `components/management/ui` — `FormPage`
+  draws the centred column and the title line, `HeaderAction` the 32px verb,
+  `SectionAction` the 28px one, `StatusBadge` the chip. What is left is the
+  handful of shapes `General.dc.html` and `Billing.dc.html` draw that the
+  shared layer has no component for.
+
+  Why a bare heading rather than `<SectionHeading />`: `General.dc.html` and
+  `Billing.dc.html` — like every other form board — draw their headings with no
+  tinted tile, at `margin: 36px 0 14px`. The tile belongs to the register and
+  record boards, which is where `SectionHeading` is used. Matching the board is
+  the contract's own tie-break. The same shapes live in
+  `components/preferences/account/account.module.css`; they are duplicated
+  rather than shared because two page groups agreeing today is not yet a
+  contract, and a premature one is how the last shell ended up with a band.
+
+  Why a fact row rather than `<RecordList />`: `RecordList` is a code/name/
+  value list under named columns. These rows are one label against one value,
+  with an optional verb — there are no columns to name because there is never
+  a second row with the same label.
+
+  `@layer components` for the same reason `settings.module.css` uses it: above
+  the design system, below Tailwind's utilities, so a caller's `className`
+  still wins.
+*/
+
+@layer components {
+  /*
+    The boards draw the title line 32px tall — the height of the icon button
+    at its right end — over the header's own 16px of padding and its 1px rule:
+    49px in all. `box-sizing: border-box` is global (`app/styles/tokens.css`),
+    so the floor has to count the padding and the border, not just the content;
+    a 32px floor is under the title's own 38px and does nothing at all.
+    General has no verb, so without the right floor its rule rides ~11px higher
+    than the board and General and Billing do not agree with each other either.
+    Measured against `General.dc.html` and `Billing.dc.html`: rule at y=73.
+    The element selector reaches `RecordHeader`'s own `<header>`, whose class
+    belongs to the shared module.
+  */
+  .page header {
+    min-height: 49px;
+  }
+
+  .heading {
+    margin: 36px 0 14px;
+    font: 600 15px/1.35 var(--font-sans);
+    color: var(--text-strong); /* #16181D */
+  }
+
+  /* Rule 7: a heading over a list carries its count, and rule 2 puts that
+     list's own verb on the same row. 12px under it rather than 14 — the board
+     tightens the gap when the row has something in it besides the word. */
+  .headingRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 36px 0 12px;
+  }
+
+  .headingRow .heading {
+    margin: 0;
+  }
+
+  .count {
+    font: 500 11px/1.5 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    /* The DS's runtime --text-subtle is #8A91A0 and fails 4.5:1 on white. */
+    color: #5e6573;
+  }
+
+  .spacer {
+    flex-grow: 1;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The 44px fact row
+   * ------------------------------------------------------------------ */
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 44px;
+    border-bottom: 1px solid var(--border-subtle); /* #EEF0F4 */
+  }
+
+  .rowLabel {
+    width: 150px;
+    flex-shrink: 0;
+    font: 400 12px/1.45 var(--font-sans);
+    color: #5e6573;
+  }
+
+  .rowValue {
+    flex-grow: 1;
+    min-width: 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-strong);
+  }
+
+  .rowMono {
+    flex-grow: 1;
+    min-width: 0;
+    font: 500 11px/1.5 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-strong);
+  }
+
+  /*
+    An invoice row's left column. `Billing.dc.html` sets it in the label's own
+    sans 12/1.45 #5E6573, not in the mono face — the number is a name, not a
+    figure to line up. What it adds is the truncation: the drawn INV-2026-004
+    fits 150px, a gateway reference need not, and a row on this surface is one
+    line.
+  */
+  .reference {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /*
+    A verb at the right end of a 44px row — the board draws it on the same 32px
+    rung as `HeaderAction`, which is what `settings.module.css .button` already
+    is. This exists because the Download is an `<a>`, and the shared button
+    class is not reachable from here; `HeaderAction` covers the `<button>` case
+    and is used directly.
+  */
+  .rowAction {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border); /* #E5E8EE */
+    border-radius: var(--radius-md); /* 8px */
+    background: var(--surface);
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-strong);
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .rowAction svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--text-muted); /* #565C69 */
+  }
+
+  .rowAction:hover {
+    background: var(--surface-muted);
+    color: var(--text-strong);
+  }
+
+  .rowAction:focus-visible {
+    outline: none;
+    border-color: var(--brand); /* #0B5DF0 */
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Loading, failure, nothing
+   * ------------------------------------------------------------------ */
+
+  .skeletonBar {
+    display: block;
+    height: 9px;
+    border-radius: 3px;
+    background: var(--surface-sunken); /* #E8EBF0 */
+  }
+
+  /*
+    `States.dc.html` keeps a failed refresh visible and says so, rather than
+    emptying the screen: a page that blanks itself because a request failed is
+    a page that claims the workspace has no plan.
+  */
+  .failure {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 36px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md); /* 8px */
+    background: var(--tone-danger-bg); /* #F6E2DD */
+  }
+
+  .failureText {
+    flex-grow: 1;
+    min-width: 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--tone-danger-strong); /* #7A2419 */
+  }
+
+  /* The section rung: 28px against 12px type, the same as `SectionAction`. */
+  .failureRetry {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--tone-danger); /* #B83A2A */
+    border-radius: var(--radius-md);
+    background: transparent;
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--tone-danger-strong);
+    cursor: pointer;
+  }
+
+  .failureRetry:hover {
+    background: rgb(184 58 42 / 8%);
+  }
+
+  .failureRetry:focus-visible {
+    outline: 2px solid var(--tone-danger);
+    outline-offset: 2px;
+  }
+
+  .empty {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    min-height: 44px;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-muted); /* #565C69 */
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Pricing — what the plan is made of, module by module
+   * ------------------------------------------------------------------ */
+
+  /* Rule 6: the list names its columns and the figures sit in fixed widths. */
+  .columns {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 0 7px;
+    border-bottom: 1px solid var(--border); /* #E5E8EE */
+    font: 500 11px/1.5 var(--font-sans);
+    color: #5e6573;
+  }
+
+  .columnGutter {
+    width: 32px;
+    flex-shrink: 0;
+  }
+
+  .columnRow {
+    flex-grow: 1;
+    min-width: 0;
+  }
+
+  .columnOn {
+    width: 52px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .columnPrice {
+    width: 88px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .modules {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .module {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .module:last-child {
+    border-bottom: 0;
+  }
+
+  .moduleButton {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 38px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .moduleGutter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: 32px;
+    flex-shrink: 0;
+    color: var(--text-muted); /* #565C69 */
+  }
+
+  .moduleName {
+    flex-grow: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-strong);
+  }
+
+  .moduleOn {
+    width: 52px;
+    flex-shrink: 0;
+    text-align: right;
+    font: 500 11px/1.5 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: #5e6573;
+  }
+
+  .modulePrice {
+    width: 88px;
+    flex-shrink: 0;
+    text-align: right;
+    font: 500 11px/1.5 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-strong);
+  }
+
+  .features {
+    margin: 0 0 8px;
+    padding: 0 0 0 32px;
+    list-style: none;
+  }
+
+  .feature {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 30px;
+  }
+
+  /* The state mark carries its own ink so the tone is a token rather than a
+     literal in a Tailwind bracket. Both clear 3:1 on white as graphics. */
+  .featureState {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    flex-shrink: 0;
+  }
+
+  .featureState[data-on="true"] {
+    color: var(--tone-success); /* #5E8E54 */
+  }
+
+  .featureState[data-on="false"] {
+    color: var(--text-subtle); /* #8A91A0 */
+  }
+
+  .featureName {
+    flex-grow: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--text-body); /* #262A33 */
+  }
+
+  .featurePrice {
+    width: 88px;
+    flex-shrink: 0;
+    text-align: right;
+    font: 500 11px/1.5 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-strong);
+  }
+
+  .featurePrice[data-on="false"] {
+    color: #5e6573;
+  }
+
+  .total {
+    margin-top: 8px;
+  }
+}

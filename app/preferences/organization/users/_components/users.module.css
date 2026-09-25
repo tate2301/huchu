@@ -1,0 +1,66 @@
+/**
+ * The Users register's own type, and its one row override.
+ *
+ * Same reason as `app/management/master-data/operations/_components/
+ * register-fields.module.css`: the contract's ladder has three rungs below
+ * `text-sm` — meta at `400 12/1.45 #5E6573`, the 12px mark, and the 11px mono
+ * count — and the repo's `no-restricted-syntax` fence bans `text-[11px]` and
+ * `text-[12px]` across `app/preferences/**` so nobody reaches for a size the
+ * ladder does not have.
+ *
+ * Writing them as `text-[12px]/[1.45]` slips past that regex on a slash. That
+ * is dodging the fence, not satisfying it — and it puts the same four values in
+ * four class attributes, which is how two label columns drift apart. They live
+ * here, named, the way both shared modules on this surface solved it.
+ */
+
+/**
+ * A read-only fact's name in the record's details grid.
+ *
+ * Byte for byte `register-fields.module.css`'s `.detailLabel`, because it sits
+ * in the same 132px column as one: a `<label>` points at a control, a fact has
+ * no control to point at, and the two have to be the same ink and rung or the
+ * column reads as two kinds of thing.
+ */
+.factLabel {
+  align-self: center;
+  font: 400 12px/1.45 var(--font-sans);
+  color: #5e6573;
+}
+
+/**
+ * The record header's avatar: `600 12/1` (Main.dc.html).
+ *
+ * The rung only. `.recordMark` around it is already a centred 32px circle, and
+ * a second 32px grid inside one is a box that can only ever disagree with it.
+ */
+.headerMark {
+  font: 600 12px/1 var(--font-sans);
+}
+
+/** The pager's position, on the list column's own mono rung. */
+.pagerCount {
+  font: 500 11px/1.5 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: #5e6573;
+}
+
+/**
+ * A suspended account reads muted rather than carrying a chip — `Main.dc.html`
+ * draws it that way, and it is the same treatment an archived department gets.
+ *
+ * The selectors are positional because `ListRow` builds its mark and its name
+ * out of CSS-module classes whose hashed names this file cannot say. The shape
+ * they depend on is `<mark?><code?><span><name></span>`, which is `ListRow`'s
+ * whole body.
+ *
+ * One ink, not the board's two: the board mutes the initials to `#9AA0AC`,
+ * which is 2.3:1 on the `#F1F3F6` tile behind them. `settings.module.css`
+ * already made this call once — it refuses the design system's `#8A91A0` for
+ * failing 4.5:1 and writes `#5E6573` out by hand — so the mark follows the name
+ * down to the same readable grey instead.
+ */
+.mutedRow > span:first-child,
+.mutedRow > span > span {
+  color: #5e6573;
+}

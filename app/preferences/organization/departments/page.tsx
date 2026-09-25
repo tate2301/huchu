@@ -1,16 +1,18 @@
-import { DepartmentsPreferences } from "@/components/preferences/organization/departments-preferences";
-import { PreferencesShell } from "@/components/preferences/preferences-shell";
 import { requirePreferencesAccess } from "@/lib/preferences/server";
 
+import { DepartmentsRegister } from "./departments-register";
+
+/**
+ * The gate is unchanged: `requirePreferencesAccess("departments")` still runs
+ * on the server and still redirects. The register draws its own shell, so the
+ * surface's single grid row reaches `RegisterLayout` intact — handing the shell
+ * a wrapped child instead makes it draw a title line and a second inset around
+ * a screen that already has its own header.
+ *
+ * The lede this page used to pass is gone rather than hidden — rule 1.
+ */
 export default async function PreferencesDepartmentsPage() {
   await requirePreferencesAccess("departments");
 
-  return (
-    <PreferencesShell
-      title="Departments"
-      description="Manage departments used for people, compensation, and approvals."
-    >
-      <DepartmentsPreferences />
-    </PreferencesShell>
-  );
+  return <DepartmentsRegister />;
 }

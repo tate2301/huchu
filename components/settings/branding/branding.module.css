@@ -1,0 +1,659 @@
+/*
+  Branding — Identity & Theme, Assets & Contact, Finance & Defaults.
+
+  Boards: `BrandingIdentity.dc.html`, `BrandingAssets.dc.html`,
+  `BrandingFinance.dc.html`. Everything the three boards draw that the shared
+  layer (`components/management/ui`) has no component for lives here: the tab
+  row under the title, the colour row, the asset tile, the accounts list and
+  the two pill tones.
+
+  `@layer components`, for the same reason the shared layer is there: above
+  `corelith`, below Tailwind's utilities, so a caller's `className` still wins.
+  The type ladder is written out rather than reached for as a utility because
+  the eslint fence on `components/settings/**` forbids `text-[11px]` and
+  `text-[12px]`, and the boards use both.
+*/
+
+@layer components {
+  .page {
+    /* The board's ink and lines, named once. Exact DS tokens where the
+       runtime value matches; the literal where it does not — `#5E6573` is
+       unreachable as a token (the DS declares `--text-subtle` three times and
+       the last one wins at `#8A91A0`). */
+    --b-ink: var(--text-strong); /* #16181D */
+    --b-body: var(--text-body); /* #262A33 */
+    --b-label: var(--text-muted); /* #565C69 */
+    --b-meta: #5e6573;
+    --b-faint: var(--text-subtle); /* #8A91A0 */
+    --b-rule: var(--border); /* #E5E8EE */
+    --b-rule-soft: var(--border-subtle); /* #EEF0F4 */
+    --b-control-border: var(--border-strong); /* #D2D7E0 */
+    --b-page: var(--surface); /* #FFFFFF */
+    --b-ground: var(--canvas); /* #F7F8FA */
+    --b-tile: var(--surface-muted); /* #F1F3F6 */
+    --b-primary: var(--brand); /* #0B5DF0 */
+    --b-on-tint: var(--brand-strong); /* #0944C2 */
+    --b-tint: var(--brand-soft); /* #E8EFFE */
+    --b-ok-bg: var(--tone-success-bg); /* #E7EFE0 */
+    --b-ok-fg: var(--tone-success-strong); /* #2E5526 */
+    --b-ok-dot: var(--tone-success); /* #5E8E54 */
+    --b-warn-bg: var(--tone-warn-bg); /* #F4E6C5 */
+    --b-warn-fg: #6b4a12; /* no --tone-warn-strong exists */
+    --b-warn-dot: var(--tone-warn); /* #B07626 */
+    --b-bad-bg: var(--tone-danger-bg); /* #F6E2DD */
+    --b-bad-fg: var(--tone-danger-strong); /* #7A2419 */
+    --b-bad-dot: var(--tone-danger); /* #B83A2A */
+    --b-neutral-dot: #9aa0ac;
+    --b-mono: var(--font-mono);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The tab row
+   *
+   * Under the title line, on its own row — the three sections are three
+   * routes, so these are links and the active one is announced with
+   * `aria-current`, not only tinted.
+   * ------------------------------------------------------------------ */
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin: 20px 0 0;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--b-tile);
+  }
+
+  .tab {
+    display: inline-flex;
+    /* The boards draw `flex-grow: 1` on a button of its own width, so the
+       three tabs share the row in proportion to their labels rather than in
+       equal thirds. `1 1 0` squares them off and moves every label a few
+       pixels off the drawing. */
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    border: 0;
+    border-radius: var(--radius-md); /* 8px */
+    background: transparent;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-label);
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .tab:hover {
+    color: var(--b-ink);
+  }
+
+  .tab:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .tab[aria-current="page"] {
+    background: var(--b-page);
+    font-weight: 600;
+    color: var(--b-ink);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Section headings
+   *
+   * Two things the shared `SectionHeading` cannot express from its props:
+   *
+   *   - the boards give the branding headings 14px of air under them, not the
+   *     form variant's 12. Both attributes are in the selector so it is
+   *     0-3-0 and beats `.sectionHeading[data-variant="form"]` outright
+   *     rather than depending on which module's rules the bundler emits
+   *     first.
+   *   - `tone` is `brand | neutral`, and the boards draw Domain, Contact and
+   *     the accounts list with a green tile. Reported to the orchestrator; the
+   *     tile is reached structurally until the prop grows a third value.
+   *
+   * The 470px cap is NOT lifted here. `SectionHeading` writes `max-width` as
+   * an inline style, and no rule in a cascade layer outranks one — the call
+   * site passes `maxWidth={FORM_WIDTH}` instead, which is the only thing that
+   * actually moves it.
+   * ------------------------------------------------------------------ */
+
+  .heading[data-variant][data-bare] {
+    margin-bottom: 14px;
+  }
+
+  .headingOk h3 > span:first-child {
+    background: var(--b-ok-bg);
+    color: var(--b-ok-fg);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Fields
+   * ------------------------------------------------------------------ */
+
+  /* Two fields to a row — Branch/Branch code, Date format/Time format. */
+  .pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+  }
+
+  /* A code, an account number, a hex value: mono so digits line up and an O
+     is not a 0. The size comes from the shared layer's scoped `.input` rule. */
+  .mono {
+    font-family: var(--b-mono);
+  }
+
+  .hex {
+    font-family: var(--b-mono);
+    text-transform: uppercase;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The colour row
+   *
+   * A 36px swatch, then the hex value. The swatch is a real
+   * `<input type="color">`: `react-colorful` — what the board's open picker
+   * panel is drawn from — is not a dependency of this repo, and adding one is
+   * not a call this pass makes. Reported to the orchestrator.
+   * ------------------------------------------------------------------ */
+
+  .colorRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .swatch {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid var(--b-control-border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .swatch::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  .swatch::-webkit-color-swatch {
+    border: 0;
+    border-radius: 7px;
+  }
+
+  .swatch::-moz-color-swatch {
+    border: 0;
+    border-radius: 7px;
+  }
+
+  .swatch:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The asset tile — logo, secondary logo, signature, stamp
+   * ------------------------------------------------------------------ */
+
+  .asset {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+
+  .assetLabel {
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+  }
+
+  .assetTile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    border: 1px dashed var(--b-control-border);
+    border-radius: 10px;
+    background: var(--b-ground);
+  }
+
+  .assetPreview {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 1px solid var(--b-rule);
+    border-radius: var(--radius-md);
+    background: var(--b-page);
+    color: var(--b-faint);
+  }
+
+  .assetPreview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .assetPreview svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .assetBody {
+    flex-grow: 1;
+    min-width: 0;
+  }
+
+  .assetName {
+    display: block;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .assetName[data-empty="true"] {
+    color: var(--b-label);
+  }
+
+  /* The board paints this line `#8A91A0`, which is 3.2:1 on white. The line
+     carries the asset's actual address, so it is read rather than glanced at:
+     `--b-meta` is the same decision the shared layer's header records for
+     every meta value that has to be legible. */
+  .assetMeta {
+    display: block;
+    font: 500 11px/1.5 var(--b-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--b-meta);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The ✕. The board paints its glyph `#6B655A`, a warm grey with no token
+     behind it; the contract's icon-only button is `#565C69`, which is the same
+     weight on the page and passes 4.5:1. */
+  .assetRemove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--b-label);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .assetRemove svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .assetRemove:hover {
+    background: var(--b-tile);
+  }
+
+  .assetRemove:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Accounts shown on documents
+   * ------------------------------------------------------------------ */
+
+  .accounts {
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 54px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--b-rule-soft);
+  }
+
+  .account[data-dragging="true"] {
+    opacity: 0.5;
+  }
+
+  /* The drop line is a shadow, not a border: a 2px border on the row under
+     the pointer would reflow the whole list by 2px on every row the drag
+     crosses. */
+  .account[data-drop="true"] {
+    box-shadow: inset 0 2px 0 0 var(--b-primary);
+  }
+
+  /*
+    The grip is a real button, not a decorated `<div>`: it carries the row's
+    `aria-label` and moves the account with the arrow keys, so the order is
+    reachable without a pointer. Pointer dragging is the same action by
+    another route.
+  */
+  .grip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #bfb9a8;
+    cursor: grab;
+  }
+
+  .grip svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* At rest the grip is the board's `#BFB9A8`, which is 1.9:1 — fine for a
+     glyph you find by reaching for the row, not for the control you are
+     pointing at or have tabbed to. */
+  .grip:hover,
+  .grip:focus-visible {
+    color: var(--b-label);
+  }
+
+  .grip:focus-visible {
+    outline: none;
+    border-radius: var(--radius-xs);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  /*
+    18px, radius 5 — the DS ships no `.checkbox` rule at all, so the native
+    input is painted here rather than overridden. The tick is a mask so it
+    inherits the checked colour instead of shipping a second asset.
+  */
+  .check {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin: 0;
+    border: 1px solid var(--b-control-border);
+    border-radius: 5px;
+    background: var(--b-page);
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .check:checked {
+    border-color: var(--b-primary);
+    background-color: var(--b-primary);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M20.3 6.3a1 1 0 0 1 0 1.4l-10 10a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4l4.3 4.3 9.3-9.3a1 1 0 0 1 1.4 0Z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 12px 12px;
+  }
+
+  .check:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .check:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .accountBody {
+    flex-grow: 1;
+    min-width: 0;
+  }
+
+  .accountName {
+    display: block;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .accountName[data-off="true"] {
+    color: var(--b-meta);
+  }
+
+  /* Bank, account name, account number — the line somebody checks before they
+     tick the box. `#8A91A0` is 3.2:1 on white; see `.assetMeta`. */
+  .accountMeta {
+    display: block;
+    font: 500 11px/1.5 var(--b-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--b-meta);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .accountsEmpty {
+    margin: 0 0 14px;
+    padding: 12px 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-label);
+  }
+
+  /* The board's `+ Add an account` at the shared 32px rung. A link, because
+     accounts are created in the ledger and this page only chooses which of
+     them print. */
+  .accountsAdd {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--b-rule);
+    border-radius: var(--radius-md);
+    background: var(--b-page);
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .accountsAdd svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--b-label);
+  }
+
+  .accountsAdd:hover {
+    background: var(--b-tile);
+    color: var(--b-ink);
+  }
+
+  .accountsAdd:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The pill
+   *
+   * The boards' chip is 22px and round with a dot inside it; the shared
+   * `StatusBadge` is 20px, radius 6 and dotless. Both boards draw this one, so
+   * it is drawn here and the difference reported.
+   * ------------------------------------------------------------------ */
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 9px;
+    flex-shrink: 0;
+    border-radius: var(--radius-pill);
+    background: var(--b-tile);
+    color: var(--b-label);
+    font: 500 12px/1 var(--font-sans);
+    white-space: nowrap;
+  }
+
+  .pill::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: var(--radius-pill);
+    background: var(--b-neutral-dot);
+  }
+
+  .pill[data-tone="brand"] {
+    background: var(--b-tint);
+    color: var(--b-on-tint);
+  }
+
+  .pill[data-tone="brand"]::before {
+    background: var(--b-primary);
+  }
+
+  .pill[data-tone="success"] {
+    background: var(--b-ok-bg);
+    color: var(--b-ok-fg);
+  }
+
+  .pill[data-tone="success"]::before {
+    background: var(--b-ok-dot);
+  }
+
+  .pill[data-tone="warn"] {
+    background: var(--b-warn-bg);
+    color: var(--b-warn-fg);
+  }
+
+  .pill[data-tone="warn"]::before {
+    background: var(--b-warn-dot);
+  }
+
+  .pill[data-tone="danger"] {
+    background: var(--b-bad-bg);
+    color: var(--b-bad-fg);
+  }
+
+  .pill[data-tone="danger"]::before {
+    background: var(--b-bad-dot);
+  }
+
+  /* The domain's state line, tucked under the field it belongs to. */
+  .statusRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: -8px;
+  }
+
+  .statusMeta {
+    font: 500 11px/1.5 var(--b-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--b-meta);
+  }
+
+  /* The DNS record a pending domain needs, in the one place it is useful. */
+  .dns {
+    display: grid;
+    gap: 6px;
+    margin: 14px 0 22px;
+    padding: 12px;
+    border: 1px solid var(--b-rule);
+    border-radius: 10px;
+    background: var(--b-ground);
+  }
+
+  .dnsRow {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .dnsLabel {
+    width: 56px;
+    flex-shrink: 0;
+    font: 500 11px/1.5 var(--font-sans);
+    color: var(--b-meta);
+  }
+
+  .dnsValue {
+    min-width: 0;
+    font: 500 11px/1.5 var(--b-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--b-body);
+    word-break: break-all;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Loading and failure
+   * ------------------------------------------------------------------ */
+
+  .skeleton {
+    display: grid;
+    gap: 22px;
+    margin-top: 36px;
+  }
+
+  .skeletonField {
+    display: grid;
+    gap: 7px;
+  }
+
+  .skeletonLabel {
+    width: 96px;
+    height: 9px;
+    border-radius: 3px;
+    background: var(--surface-sunken);
+  }
+
+  .skeletonControl {
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: var(--b-tile);
+  }
+
+  .failure {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 36px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--b-bad-bg);
+    color: var(--b-bad-fg);
+    font: 500 13px/1.4 var(--font-sans);
+  }
+
+  .failure svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+}

@@ -3,18 +3,18 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Input, Button } from '@corelithzw/react';
 
 import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 import {
   AlertCircle,
   Eye,
   EyeOff,
-  Hexagon,
   Lock,
   Mail,
 } from "@/lib/icons";
 import { Checkbox } from "../ui/checkbox";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
 
 type LoginFormProps = {
   companyLabel: string;
@@ -176,10 +176,12 @@ export function LoginForm({
                   Work email
                 </label>
                 <div className="relative">
-
+                  <Mail
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]"
+                  />
                   <Input
                     id="login-email"
-                    leadingIcon={<Mail className="size-4" />}
                     type="email"
                     autoComplete="email"
                     placeholder={`you@${companyLabel
@@ -211,9 +213,11 @@ export function LoginForm({
                   </a>
                 </div>
                 <div className="relative">
-
+                  <Lock
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]"
+                  />
                   <Input
-                    leadingIcon={<Lock className="size-4" />}
                     id="login-password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
@@ -261,10 +265,10 @@ export function LoginForm({
               <Button
                 type="submit"
                 variant={"primary"}
-                className="mt-3 h-11 w-full text-[15px]"
+                className="mt-3 h-11 w-full "
                 disabled={loading}
               >
-                {loading ? "Signing in…" : "Sign in"}
+                {loading ? "Signing in…" : "Sign in to your account"}
               </Button>
             </form>
 

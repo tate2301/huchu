@@ -1,0 +1,328 @@
+/*
+  The Permissions block, on the management contract.
+
+  Why a module rather than utilities: the contract fixes the type ladder at
+  11/12/13/15px and an ink ramp the repo's eslint fence will not let us write
+  as `text-[11px]` on this tree. Same reason `components/management/ui/
+  settings.module.css` exists.
+
+  Why not simply import that module: it is the shared layer's paint and its
+  class names are its own. This block also renders outside the settings
+  surface — `components/user-management/user-detail.tsx` and
+  `components/crm/reps/rep-settings-tab.tsx` mount the matrix on ordinary
+  pages — so the geometry here cannot depend on `--s-*`, which only exists
+  inside that module's scope. The tokens below are the same global variables
+  it resolves to, read directly.
+
+  `@layer components`, to match: above the design system, below Tailwind's
+  utilities, so a caller's `className` still wins.
+*/
+
+@layer components {
+  .block {
+    /* Ink */
+    --pm-ink: var(--text-strong); /* #16181D */
+    --pm-body: var(--text-body); /* #262A33 */
+    /*
+      The DS declares `--text-subtle` three times and the last one wins at
+      #8A91A0, which fails 4.5:1 on white. Every readable meta value here is
+      the literal the contract names.
+    */
+    --pm-meta: #5e6573;
+    --pm-faint: var(--text-subtle); /* #8A91A0 */
+
+    /* Lines and surfaces */
+    --pm-rule: var(--border); /* #E5E8EE */
+    --pm-rule-soft: var(--border-subtle); /* #EEF0F4 */
+    --pm-page: var(--surface); /* #FFFFFF */
+    --pm-tile: var(--surface-muted); /* #F1F3F6 */
+    --pm-primary: var(--brand); /* #0B5DF0 */
+
+    /* The lists' own right edge. */
+    max-width: 470px;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The block's toolbar — search and the two verbs, at the top of the
+   * thing they act on (rule 2), on the same 470 the rows end at.
+   * ------------------------------------------------------------------ */
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 470px;
+  }
+
+  /*
+    The colour sits on the wrapper, not on the glyph: `lib/icons.tsx` writes
+    `style={{ color: "currentColor" }}` inline on every icon, and an inline
+    declaration outranks any layer. Setting it on the parent is the only way
+    to reach the mark.
+  */
+  .searchWrap {
+    position: relative;
+    flex-grow: 1;
+    min-width: 0;
+    color: var(--pm-meta);
+  }
+
+  .searchWrap svg {
+    position: absolute;
+    left: 10px;
+    top: 9px;
+    pointer-events: none;
+  }
+
+  .searchInput {
+    box-sizing: border-box;
+    width: 100%;
+    height: 32px;
+    padding: 0 10px 0 32px;
+    border: 1px solid var(--pm-rule);
+    border-radius: var(--radius-md);
+    background: var(--pm-page);
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--pm-ink);
+  }
+
+  .searchInput::placeholder {
+    color: var(--pm-faint);
+  }
+
+  .searchInput:focus-visible {
+    outline: none;
+    border-color: var(--pm-primary);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  /* The contract's 32px button. The DS has 24/30/36/44 and none of them. */
+  .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 12px;
+    flex-shrink: 0;
+    border: 1px solid var(--pm-rule);
+    border-radius: var(--radius-md);
+    background: var(--pm-page);
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--pm-ink);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .button:hover {
+    background: var(--pm-tile);
+  }
+
+  .button:focus-visible {
+    outline: none;
+    border-color: var(--pm-primary);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  /* The filter, while it is on. */
+  .button[aria-pressed="true"] {
+    background: var(--pm-tile);
+    border-color: var(--border-strong);
+  }
+
+  /* The override tally, in the same mono the section counts use. */
+  .buttonCount {
+    font: 500 11px/1.5 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--pm-meta);
+  }
+
+  .button[aria-pressed="true"] .buttonCount {
+    color: var(--pm-ink);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * A group: the column header line, then one-line rows.
+   *
+   * Same geometry as `RecordList` — 470 cap, 12px gutter, 11px column
+   * labels over an #E5E8EE hairline, rows on #EEF0F4 — with an editable
+   * value column, which `RecordList`'s value union has no case for.
+   * ------------------------------------------------------------------ */
+
+  .columns {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 470px;
+    padding: 0 0 7px;
+    border-bottom: 1px solid var(--pm-rule);
+  }
+
+  .columnName {
+    flex-grow: 1;
+    min-width: 0;
+    font: 500 11px/1.5 var(--font-sans);
+    color: var(--pm-meta);
+  }
+
+  .columnValue {
+    flex-shrink: 0;
+    min-width: 168px;
+    text-align: right;
+    font: 500 11px/1.5 var(--font-sans);
+    color: var(--pm-meta);
+  }
+
+  .rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-width: 470px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 38px;
+    border-bottom: 1px solid var(--pm-rule-soft);
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+
+  /*
+    A row carrying a control needs the control's own 32px plus air; the
+    read-only row stays on the contract's 38.
+  */
+  .row[data-editable="true"] {
+    min-height: 44px;
+  }
+
+  .row:last-child {
+    border-bottom: 0;
+  }
+
+  .row[data-pending="true"] {
+    opacity: 0.6;
+  }
+
+  /* Rows are one line and never wrap. */
+  .rowName {
+    flex-grow: 1;
+    min-width: 0;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--pm-body);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rowValue {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-shrink: 0;
+    width: 168px;
+  }
+
+  /*
+    The repo's own select (§3: select and autocomplete must be the DS
+    components), at this surface's 13px. The width is the wrapper's — the
+    trigger carries Tailwind's `w-full`, and a utility outranks this layer.
+  */
+  .stateTrigger {
+    font: 400 13px/1.5 var(--font-sans);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The state, as the record list expresses one: a 6px dot and the word
+   * in that state's ink. Never a chip — a column of chips reads as a
+   * column of buttons.
+   * ------------------------------------------------------------------ */
+
+  .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font: 500 12px/1.4 var(--font-sans);
+    white-space: nowrap;
+  }
+
+  .state::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: currentcolor;
+  }
+
+  /*
+    Following the role is the norm, so it is grey whichever way the role
+    answers; the word says which. Colour is spent on the two exceptions —
+    an admin's grant and an admin's denial (rule 5).
+
+    These four rules read `:root` tokens and literals rather than the
+    `--pm-*` set above, and that is load-bearing: the same span renders
+    inside `SelectContent`, which Radix portals to `document.body`. Out
+    there it has no `.block` ancestor, so anything scoped to `.block` would
+    resolve to nothing and the open menu would lose its ink.
+  */
+  .state[data-tone="neutral"] {
+    color: #5e6573; /* --text-subtle is #8A91A0 and fails 4.5:1 on white */
+  }
+
+  .state[data-tone="neutral"]::before {
+    background: #a8afbc; /* --gray-400 is #A6AEBD — two digits off */
+  }
+
+  .state[data-tone="success"] {
+    color: var(--tone-success-strong); /* #2E5526 */
+  }
+
+  .state[data-tone="success"]::before {
+    background: var(--tone-success); /* #5E8E54 */
+  }
+
+  .state[data-tone="danger"] {
+    color: var(--tone-danger-strong); /* #7A2419 */
+  }
+
+  .state[data-tone="danger"]::before {
+    background: var(--tone-danger); /* #B83A2A */
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Nothing to show
+   * ------------------------------------------------------------------ */
+
+  .srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 470px;
+    min-height: 38px;
+    margin-top: 16px;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--pm-meta);
+  }
+}
