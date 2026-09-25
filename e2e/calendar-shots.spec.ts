@@ -84,39 +84,32 @@ for (const viewport of [
 
       const shot = shooter("schools", `calendar-${viewport.name}`);
 
-      // `/schools/academics` forwards to Master Data and the "Academics Setup"
-      // heading went with the page it named; ask for the destination directly,
-      // so a failure here is about the calendar rather than about a forward.
-      // `visual-pass.spec.ts` follows the same forward and carries the note.
-      await page.goto("/management/master-data/schools/years");
+      // The calendar is a page now, not a tab. It used to be reached by going
+      // to the academic ladder under Master Data and clicking a
+      // "Holidays and events" view beside Academic years and Terms; that ladder
+      // has since been rebuilt as a master-detail settings surface with no such
+      // view on it, so the click had nothing to hit and the shot was of a year
+      // record rather than of a calendar.
+      //
+      // `/schools/calendar` renders the same `SchoolDaysContent` the tab did,
+      // with an app bar of its own. Its own docstring gives the reason there
+      // are two ways in: setting next year's terms up wants the calendar
+      // alongside, and asking whether the school is open on Monday should not
+      // go through Master Data to find out. That second reading is this test's,
+      // so it asks for the page.
+      await page.goto("/schools/calendar");
       await expect(
-        page.getByRole("heading", { name: "Years and terms", exact: true }).first(),
+        page.getByRole("heading", { name: "Calendar" }).first(),
       ).toBeVisible({ timeout: 30_000 });
 
-      // Retry the click rather than click once and wait. A click landing
-      // before React has hydrated is swallowed — the rail is server-rendered,
-      // so the button exists and is clickable well before it does anything —
-      // and waiting thirty seconds afterwards only waits for a click that never
-      // happened. `toPass` re-clicks until the view actually changes.
+      // Still retried rather than asserted once: the content fetches its events
+      // after hydration, so the page answers before the calendar is on it.
       //
       // The title comes from the calendar rather than being typed here: it used
       // to be the literal "Africa Day", which was a public holiday on the tenant
       // this spec was written against and is not one here. It is now any of the
       // calendar's titles rather than its first — see `anyEventTitle`.
-      //
-      // `tab`, and the label is "Holidays and events". It read `button` and
-      // "Holidays & Events" — neither of which this page has ever rendered, and
-      // neither of which anything caught, because the seed wrote no calendar
-      // events and the test skipped before it got here.
-      await expect(async () => {
-        await page
-          .getByRole("tab", { name: /Holidays and events/i })
-          .first()
-          .click();
-        await expect(anyEventTitle(page, events)).toBeVisible({
-          timeout: 2_000,
-        });
-      }).toPass({ timeout: 30_000 });
+      await expect(anyEventTitle(page, events)).toBeVisible({ timeout: 30_000 });
       await shot(page, "school-calendar");
     });
 
