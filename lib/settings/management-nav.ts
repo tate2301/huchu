@@ -11,6 +11,7 @@ import {
   FileCheck,
   FileText,
   Grid3x3,
+  History,
   IdentificationCard,
   Layers,
   MapPin,
@@ -251,6 +252,18 @@ export function getAreaLabel(area: ManagementArea): string {
 
 export function isPathMatchingPrefix(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+/**
+ * The routes that render the settings surface — the full-screen dialog
+ * `SettingsFrame` draws. The app shell draws nothing under them: the surface
+ * is the whole screen while it is open, and closing it leaves for the
+ * workspace's landing screen rather than revealing a page behind it.
+ */
+const SETTINGS_SURFACE_PREFIXES = ["/preferences", "/management", "/settings"];
+
+export function isSettingsSurfacePath(pathname: string): boolean {
+  return isPathMatchingPrefix(pathname, SETTINGS_SURFACE_PREFIXES);
 }
 
 export function isActiveHref(pathname: string, href: string): boolean {
@@ -534,6 +547,14 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     href: "/preferences/organization/billing",
     icon: Wallet,
     gate: { kind: "preference", itemId: "billing" },
+  },
+  {
+    id: "activity",
+    group: "company",
+    label: "Activity",
+    href: "/preferences/organization/activity",
+    icon: History,
+    gate: { kind: "preference", itemId: "activity" },
   },
 
   {

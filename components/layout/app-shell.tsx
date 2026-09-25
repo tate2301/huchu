@@ -4,20 +4,23 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 
 import { Navbar } from "@/components/layout/navbar";
-import { AppSidebar } from "@/components/layout/app-sidebar";
+import { AppSidebar, type WorkspaceBrand } from "@/components/layout/app-sidebar";
 import { PageChromeProvider } from "@/components/layout/page-chrome";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@/lib/public-routes";
+import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
 
 export function AppShell({
   children,
   hostPortalPath,
+  workspaceBrand,
 }: {
   children: React.ReactNode;
   hostPortalPath?: string | null;
+  workspaceBrand?: WorkspaceBrand | null;
 }) {
   const pathname = usePathname();
   const isAuthRoute = pathname === "/login";
@@ -40,6 +43,10 @@ export function AppShell({
   // The preview host control page. Drawing a workspace sidebar around it would
   // be drawing the workspace whose routing you are there to correct.
   const isPreviewHostRoute = pathname === "/preview-host";
+  // Settings and preferences are a full-screen dialog. Drawing the sidebar
+  // and app bar under its scrim put a second, unusable UI on screen; the
+  // dialog is the whole screen, and closing it goes to the landing screen.
+  const isSettingsRoute = isSettingsSurfacePath(pathname);
 
   if (
     isAuthRoute ||
@@ -47,7 +54,8 @@ export function AppShell({
     isPortalRoute ||
     isAdminRoute ||
     isPublicRoute ||
-    isPreviewHostRoute
+    isPreviewHostRoute ||
+    isSettingsRoute
   ) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }
@@ -55,7 +63,7 @@ export function AppShell({
   return (
     <PageChromeProvider>
       <SidebarProvider>
-        <AppSidebar />
+        <AppSidebar brand={workspaceBrand} />
         {/* Flat: no inset margin, rounding or gutter. The framed card read as a
             window floating over a desktop, which cost space on every side.
             What it does carry is one crisp hairline on the seam it shares with
