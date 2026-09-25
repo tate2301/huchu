@@ -508,9 +508,11 @@ function Figures({ items }: { items: Array<{ label: string; value: string; href?
           <dt className="text-sm text-[var(--text-muted)]">{item.label}</dt>
           <dd className="mt-1 truncate font-mono text-xl font-semibold tabular-nums text-[var(--text-strong)]">
             {item.href ? (
+              // A figure is not expected to lead anywhere, so one that does
+              // says so before the pointer finds it — as a fact's value does.
               <Link
                 href={item.href}
-                className="underline decoration-transparent underline-offset-4 hover:decoration-[var(--border-strong)]"
+                className="underline decoration-[var(--border-strong)] underline-offset-4 hover:decoration-current"
               >
                 {item.value}
               </Link>

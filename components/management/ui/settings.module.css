@@ -51,6 +51,8 @@
     money pages draw headings, lists, facts and states with these same
     components — carries the ink itself, so a status dot on a CRM page is the
     same ink as one in a register rather than whatever colour it inherits.
+    That includes a figure or a muted value drawn without its list round it,
+    as a phone's stacked rows draw them.
   */
   .scope,
   .surface,
@@ -62,6 +64,8 @@
   .recordList,
   .recordListColumns,
   .columnList,
+  .columnFigure,
+  .columnText,
   .factList,
   .statusDot,
   .statusBadge,

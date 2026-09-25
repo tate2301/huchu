@@ -105,7 +105,7 @@ export function RepsContent() {
       title="Team"
       search={search}
       onSearchChange={setSearch}
-      searchPlaceholder="Search the team by name or email"
+      searchPlaceholder="Search by name or email"
       error={repsQuery.error}
     >
       {repsQuery.isLoading ? (

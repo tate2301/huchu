@@ -214,7 +214,7 @@ function TheDay() {
           </FormField>
 
           {closed || !totals ? null : (
-            <div className="space-y-3">
+            <div className="flex flex-col items-start gap-3">
               {totals.missingReceipts > 0 ? (
                 <StatusDot
                   tone="warn"
@@ -231,7 +231,6 @@ function TheDay() {
               {closable && log ? (
                 <Button
                   variant="secondary"
-                  className="w-full"
                   disabled={close.isPending}
                   onClick={() => close.mutate(log.id)}
                 >

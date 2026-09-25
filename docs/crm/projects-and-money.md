@@ -255,7 +255,7 @@ not *"what did everybody do"*.
 `financeOverview` in `lib/crm/finance.ts`, which reads the requisitions, the
 cost tracker and the CRM's invoices and receipts, and writes nothing.
 
-Two kinds of figure, and the page says which each one is:
+Two kinds of figure:
 
 - **Flows, for the period.** *Money in* is customer payments receipted on the
   CRM's invoices. *Money out* is requisitions paid out plus spend that came out
@@ -266,11 +266,12 @@ Two kinds of figure, and the page says which each one is:
   accounted for* (paid out, not yet acquitted) and *approved, not yet paid*. The period does not move them: "the floats we
   had out last March" is not a question anybody asks.
 
-The project and person filters narrow both. A person's money is what they asked
-for and spent; money in belongs to whoever owns the deal it came from. Cash not
-receipted on an invoice two people collected against is shared between them in
-proportion to what each logged (`shareOfGap`), so the people add back up to the
-invoice.
+The filters head the page, above every figure they move, and a phone keeps
+the period on screen. The project and person filters narrow both kinds. A
+person's money is what they asked for and spent; money in belongs to whoever
+owns the deal it came from. Cash not receipted on an invoice two people
+collected against is shared between them in proportion to what each logged
+(`shareOfGap`), so the people add back up to the invoice.
 
 Money is added up one currency at a time — a total of dollars and ZiG is not a
 figure — defaulting to the currency most of the money is in, with a Currency

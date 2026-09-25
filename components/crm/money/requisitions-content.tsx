@@ -173,7 +173,7 @@ export function RequisitionsContent() {
           setSearch(value);
           setPage(1);
         }}
-        searchPlaceholder="Search by what it was for, or its number"
+        searchPlaceholder="Search by what it was for"
         searchNoun="requisitions"
         createLabel="Ask for money"
         onCreate={() => setRaising(true)}

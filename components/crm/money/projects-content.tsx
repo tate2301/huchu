@@ -156,7 +156,7 @@ export function ProjectsContent() {
       title="Projects"
       search={search}
       onSearchChange={resetPage(setSearch)}
-      searchPlaceholder="Search projects by name or number"
+      searchPlaceholder="Search by name or number"
       searchNoun="projects"
       createLabel="New project"
       onCreate={() => setCreating(true)}

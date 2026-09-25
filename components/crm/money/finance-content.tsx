@@ -200,8 +200,58 @@ export function FinanceContent() {
 
   return (
     <div className="pb-10">
+      {/* Which money — the period, a project, a person. Every figure on the
+          page follows it, so it heads the page rather than sitting between
+          the totals and the breakdown, where it read as the breakdown's own.
+          The period rides in the slot a phone keeps on screen: a total with
+          no period beside it is a number without a question. The rest fold
+          into the one button there. */}
+      <ViewToolbar
+        filterCount={
+          [chosen("project"), chosen("person"), chosen("currency")].filter((value) => value !== FILTER_ANY).length
+        }
+        search={
+          <DateRangeFilter
+            label="Period"
+            anyLabel="This month"
+            value={{ from: searchParams.get("from") ?? data?.period.from ?? null, to: searchParams.get("to") ?? data?.period.to ?? null }}
+            max={todayKey()}
+            onChange={(next) => setParams({ from: next.from, to: next.to })}
+          />
+        }
+        start={
+          <>
+            <ViewToolbarFilter
+              label="Project"
+              value={chosen("project")}
+              anyLabel="All projects"
+              options={projectOptions}
+              onChange={(next) => setParams({ project: next })}
+            />
+            <ViewToolbarFilter
+              label="Person"
+              value={chosen("person")}
+              anyLabel="Everyone"
+              options={personOptions}
+              onChange={(next) => setParams({ person: next })}
+            />
+            {/* Only when there is more than one: a total of dollars and
+                ZiG is not a figure, so the page adds up one at a time. */}
+            {data && data.currencies.length > 1 ? (
+              <ViewToolbarFilter
+                label="Currency"
+                value={chosen("currency")}
+                anyLabel={data.currency}
+                options={new Map(data.currencies.map((currency): [string, string] => [currency, currency]))}
+                onChange={(next) => setParams({ currency: next })}
+              />
+            ) : null}
+          </>
+        }
+      />
+
       {financeQuery.error ? (
-        <Alert tone="danger" title="The finance overview would not load" className="mb-6">
+        <Alert tone="danger" title="The finance overview would not load" className="mt-6">
           {getApiErrorMessage(financeQuery.error)}
         </Alert>
       ) : null}
@@ -213,7 +263,7 @@ export function FinanceContent() {
           <Standing data={data} />
         </>
       ) : (
-        <div className="space-y-3" aria-busy="true">
+        <div className="mt-6 space-y-3" aria-busy="true">
           <Skeleton height={120} />
           <Skeleton height={160} />
           <Skeleton height={140} />
@@ -221,8 +271,8 @@ export function FinanceContent() {
       )}
 
       <section aria-label="Where the money went" className="mt-10 space-y-3">
-        {/* Tabs on their own row, filters on the row below: which way to
-            break the money down, and which money, are two questions. */}
+        {/* Tabs on their own row: which way to break the money down is a
+            question of its own, asked after which money. */}
         <SectionTabs label="Break the money down">
           <SectionTab to={viewHref("project")} active={view === "project"}>
             By project
@@ -231,49 +281,6 @@ export function FinanceContent() {
             By person
           </SectionTab>
         </SectionTabs>
-
-        <ViewToolbar
-          filterCount={
-            [chosen("project"), chosen("person"), chosen("currency")].filter((value) => value !== FILTER_ANY)
-              .length + (searchParams.get("from") || searchParams.get("to") ? 1 : 0)
-          }
-          start={
-            <>
-              <DateRangeFilter
-                label="Period"
-                anyLabel="This month"
-                value={{ from: searchParams.get("from") ?? data?.period.from ?? null, to: searchParams.get("to") ?? data?.period.to ?? null }}
-                max={todayKey()}
-                onChange={(next) => setParams({ from: next.from, to: next.to })}
-              />
-              <ViewToolbarFilter
-                label="Project"
-                value={chosen("project")}
-                anyLabel="All projects"
-                options={projectOptions}
-                onChange={(next) => setParams({ project: next })}
-              />
-              <ViewToolbarFilter
-                label="Person"
-                value={chosen("person")}
-                anyLabel="Everyone"
-                options={personOptions}
-                onChange={(next) => setParams({ person: next })}
-              />
-              {/* Only when there is more than one: a total of dollars and
-                  ZiG is not a figure, so the page adds up one at a time. */}
-              {data && data.currencies.length > 1 ? (
-                <ViewToolbarFilter
-                  label="Currency"
-                  value={chosen("currency")}
-                  anyLabel={data.currency}
-                  options={new Map(data.currencies.map((currency): [string, string] => [currency, currency]))}
-                  onChange={(next) => setParams({ currency: next })}
-                />
-              ) : null}
-            </>
-          }
-        />
 
         {!data ? (
           <div className="space-y-1.5" aria-busy="true">
@@ -347,7 +354,7 @@ function NeedsAction({ data, listScope }: { data: FinanceResponse; listScope: UR
 
   return (
     <section aria-labelledby="finance-needs-action">
-      <SectionHeading count={rows.length} maxWidth={LIST_WIDTH} className="mt-0">
+      <SectionHeading count={rows.length} maxWidth={LIST_WIDTH}>
         <span id="finance-needs-action">Needs action</span>
       </SectionHeading>
       <ColumnList
