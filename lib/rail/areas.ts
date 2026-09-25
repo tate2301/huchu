@@ -22,6 +22,7 @@ import {
   Tag,
   TrayArrowDown,
   UsersThree,
+  Wallet,
 } from "@/lib/icons";
 import type { NavItem } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
@@ -77,6 +78,10 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   // CRM
   objects: Funnel,
   work: ClipboardText,
+  // Two marks for money, because the CRM has two: what passes through
+  // people's hands (floats, spend, the day's report) and what the business
+  // bills its customers.
+  money: Wallet,
   documents: Money,
   learn: ChartLineUp,
   workflows: Lightning,
@@ -126,7 +131,10 @@ const AREA_LABELS: Record<string, string> = {
   "retail-buy": "Buying",
   "retail-control": "Insights",
   objects: "Pipeline",
-  documents: "Money",
+  // Not "Money": the Finance area beside it is money too, and two areas that
+  // both sound like money is a coin toss. Quotes, invoices, receipts and
+  // collections are what the business bills.
+  documents: "Billing",
   learn: "Insights",
   workflows: "Automation",
   "gold-operations": "Production",

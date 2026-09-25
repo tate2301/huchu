@@ -767,6 +767,13 @@ export const navSections: NavSection[] = [
       { href: "/crm/projects", icon: Work, label: "Projects", group: "projects" },
       { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects" },
 
+      {
+        href: "/crm/finance",
+        icon: Dashboard,
+        label: "Overview",
+        roles: ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"],
+        group: "money",
+      },
       { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money" },
       { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money" },
       {

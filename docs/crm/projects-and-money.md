@@ -243,6 +243,44 @@ still out, overdue tasks, nothing recorded at all — because the question being
 asked of fifteen of these is *"is there anything here I need to deal with"*,
 not *"what did everybody do"*.
 
+## The finance overview
+
+> "a finance dashboard for non-accountants, requisitions split by project and
+> by person"
+
+`/crm/finance` is read-only and needs `money.view_all`. Its figures come from
+`financeOverview` in `lib/crm/finance.ts`, which reads the requisitions, the
+cost tracker and the CRM's invoices and receipts, and writes nothing.
+
+Two kinds of figure, and the page says which each one is:
+
+- **Flows, for the period.** *Money in* is customer payments receipted on the
+  CRM's invoices. *Money out* is requisitions paid out plus spend that came out
+  of nobody's float. Spend out of a float is inside the requisition's payment
+  already, so it is never added a second time — that is the whole reason the
+  cost tracker records which requisition a line came out of.
+- **Positions, as they stand now.** *Owed to us* (open invoices), *floats not
+  accounted for* (paid out, not yet acquitted) and *committed, not yet paid*
+  (approved, not yet paid out). The period does not move them: "the floats we
+  had out last March" is not a question anybody asks.
+
+The project and person filters narrow both. A person's money is what they asked
+for and spent; money in belongs to whoever owns the deal it came from. Cash not
+receipted on an invoice two people collected against is shared between them in
+proportion to what each logged (`shareOfGap`), so the people add back up to the
+invoice.
+
+Money is added up one currency at a time — a total of dollars and ZiG is not a
+figure — defaulting to the currency most of the money is in, with a Currency
+filter when there is more than one.
+
+The *Needs action* strip holds at most four things — requisitions waiting for
+approval (not counting the viewer's own, which are waiting on somebody else),
+cash not receipted, spend without a receipt photo, projects over budget — each
+linking to the list that holds them. *By project* is each project's standing to
+date (`projectCostSummary`); *By person* is the period's asking and spending
+beside what each person holds now. Rows open onto their requisitions.
+
 ## Where to find it
 
 | Route | For |
@@ -250,6 +288,7 @@ not *"what did everybody do"*.
 | `/crm/projects`, `/crm/projects/[id]` | The work and what it cost |
 | `/crm/requisitions` | Asking for money, and answering |
 | `/crm/cost-tracker` | A day's money written up, and every line read back |
+| `/crm/finance` | Money in and out, and where it stands — for `money.view_all` |
 | `/crm/daily-reports` | Management's read |
 
 Navigation groups the money pages under **Finance**, distinct from Sales
@@ -263,7 +302,7 @@ paperwork the business sends its customers.
 | `lib/crm/project-timeline.ts` | Jobs laid out against a project's dates |
 | `lib/crm/requisitions.ts` | Lifecycle, categories, money helpers |
 | `lib/crm/daily-log.ts` | Day arithmetic, entry idempotency, submission |
-| `lib/crm/finance.ts` | Reading accounting for the money pages — never writing it |
+| `lib/crm/finance.ts` | The not-receipted rule and the finance overview — reads, never writes |
 | `lib/crm/daily-report.ts` | Assembly and storage |
 
 ## Conventions worth not breaking

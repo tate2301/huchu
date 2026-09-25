@@ -11,6 +11,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@corelithzw/react";
@@ -82,11 +83,16 @@ function statusChip(project: ProjectRow) {
 }
 
 export function ProjectsContent() {
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>(FILTER_ANY);
   const [owner, setOwner] = useState<string>(FILTER_ANY);
   const [client, setClient] = useState<string>(FILTER_ANY);
-  const [budget, setBudget] = useState<string>(FILTER_ANY);
+  // The finance overview links here as "projects over budget", so the budget
+  // filter can arrive already set.
+  const [budget, setBudget] = useState<string>(() =>
+    BUDGET_OPTIONS.has(searchParams.get("budget") ?? "") ? searchParams.get("budget")! : FILTER_ANY,
+  );
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const debouncedSearch = useDebounced(search, 300);
