@@ -42,8 +42,6 @@ export type BillingPreferences = {
     trialEndsAt?: string | null;
     currentPeriodStart?: string | null;
     currentPeriodEnd?: string | null;
-    effectiveMonthlyAmount?: number | null;
-    lastPriceComputedAt?: string | null;
   } | null;
   plan: {
     id: string;
@@ -56,14 +54,16 @@ export type BillingPreferences = {
     maxSites?: number | null;
     maxUsers?: number | null;
   } | null;
-  addons: Array<{
-    id: string;
-    isEnabled: boolean;
-    name: string;
-    code: string;
-    monthlyPrice: number;
-    additionalSiteMonthlyPrice: number;
-  }>;
+  charges: {
+    currency: string;
+    lineItems: Array<{
+      code: string;
+      label: string;
+      amount: number;
+      type: "tier" | "site-overage" | "addon" | "addon-site" | "feature";
+    }>;
+    total: number;
+  };
   usage: {
     activeSites: number;
     totalSites: number;

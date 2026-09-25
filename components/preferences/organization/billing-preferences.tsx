@@ -24,8 +24,8 @@ import {
   LoadFailure,
   NothingHere,
 } from "./form-parts";
+import { ChangePlanDialog } from "./change-plan-dialog";
 import styles from "./organization.module.css";
-import { PricingPanel } from "./pricing-panel";
 
 function formatMoney(value: number | null | undefined, currency = "USD") {
   if (typeof value !== "number" || Number.isNaN(value)) return "Not set";
@@ -99,6 +99,13 @@ const HEALTH: Record<
  * three things, with the plan name in a stat tile and the seat count in a
  * different one.
  *
+ * **Charges** sit between the two: what the workspace is billed each month,
+ * line by line, and the total they come to. The lines are
+ * `computeCompanyPricing`'s, priced when the page loads — the same figure the
+ * platform persists as the subscription's monthly amount — so the plan, a site
+ * overage, each add-on and its per-site charge, and any feature switched on
+ * outside the plan all show, rather than add-ons alone at their list price.
+ *
  * **Invoices** are now real. `/api/preferences/billing` returns
  * `payments.history` — up to twelve settled `SubscriptionPayment` rows, newest
  * first, each with a reference, a settlement date and an amount. That is
@@ -112,9 +119,8 @@ const HEALTH: Record<
  * offline, `payments.onlinePaymentsSupported` is `false` by type. So the
  * header's one verb does the thing somebody actually opens this page to do
  * before they change a plan — it shows what the plan is made of, module by
- * module, at what price. That is `PricingPanel`, which already existed and was
- * previously stapled to the bottom of the page whether anybody wanted it or
- * not.
+ * module, at what price. That is `PricingPanel`, in `ChangePlanDialog`, so
+ * browsing it does not push the charges and invoices down the page.
  *
  * Two verbs the board draws are gated on the API's own capability flags rather
  * than on a guess here, because rule 9 says hide an action that is not valid
@@ -132,7 +138,7 @@ const HEALTH: Record<
  * when the flags flip.
  */
 export function BillingPreferences() {
-  const [showPricing, setShowPricing] = useState(false);
+  const [changingPlan, setChangingPlan] = useState(false);
 
   const billingQuery = useQuery({
     queryKey: ["preferences", "billing"],
@@ -168,7 +174,12 @@ export function BillingPreferences() {
     );
   }
 
-  const currency = billing.plan?.currency ?? "USD";
+  const { charges } = billing;
+  // A zero line is not a charge. The plan's own line is kept either way: a
+  // free plan is still the plan the total is for.
+  const chargeLines = charges.lineItems.filter(
+    (line) => line.type === "tier" ? billing.plan != null : line.amount > 0,
+  );
   const health = HEALTH[billing.health.state];
   const payment = ["Offline", ...billing.payments.methods].join(" · ");
   const invoices: InvoiceRow[] = billing.payments.history;
@@ -191,8 +202,8 @@ export function BillingPreferences() {
         action={
           <HeaderAction
             icon={Payments}
-            aria-expanded={showPricing}
-            onClick={() => setShowPricing((open) => !open)}
+            aria-haspopup="dialog"
+            onClick={() => setChangingPlan(true)}
           >
             Change plan
           </HeaderAction>
@@ -217,21 +228,29 @@ export function BillingPreferences() {
             to a screen nobody has written is not an implementation of it. */}
         <FactRow label="Payment">{payment}</FactRow>
 
-        {/* The itemised answer sits directly under the plan it itemises, not at
-            the foot of the page: the verb that reveals it is in the header, and
-            a disclosure that opens below the fold reads as nothing happening. */}
-        {showPricing ? <PricingPanel /> : null}
-
-        {billing.addons.length > 0 ? (
-          <>
-            <FormSection count={billing.addons.length}>Add-ons</FormSection>
-            {billing.addons.map((addon) => (
-              <FactRow key={addon.id} label={addon.name} mono>
-                {formatMoney(addon.monthlyPrice, currency)}
-              </FactRow>
-            ))}
-          </>
-        ) : null}
+        <FormSection count={chargeLines.length}>Charges</FormSection>
+        {chargeLines.length === 0 ? (
+          <NothingHere>Nothing billed</NothingHere>
+        ) : (
+          chargeLines.map((line) => (
+            <FactRow
+              key={line.code}
+              mono
+              label={
+                // "Gold site charge (3 x 15.00)" does not fit 150px; it
+                // truncates on one line like an invoice reference does.
+                <span className={styles.reference} title={line.label}>
+                  {line.label}
+                </span>
+              }
+            >
+              {formatMoney(line.amount, charges.currency)}
+            </FactRow>
+          ))
+        )}
+        <FactRow label="Total per month" mono className={styles.total}>
+          {formatMoney(charges.total, charges.currency)}
+        </FactRow>
 
         {/* Rule 7: the heading over a list carries its count. */}
         <FormSection count={invoices.length}>Invoices</FormSection>
@@ -281,6 +300,7 @@ export function BillingPreferences() {
           })
         )}
       </FormPage>
+      <ChangePlanDialog open={changingPlan} onOpenChange={setChangingPlan} />
     </PreferencesShell>
   );
 }

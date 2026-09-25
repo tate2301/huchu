@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { computeCompanyPricing } from "@/lib/platform/entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import { prisma } from "@/lib/prisma";
 
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     const [
       company,
       subscription,
-      addons,
+      pricing,
       activeSites,
       totalSites,
       activeUsers,
@@ -59,11 +60,10 @@ export async function GET(request: NextRequest) {
         include: { plan: true },
         orderBy: { updatedAt: "desc" },
       }),
-      prisma.companySubscriptionAddon.findMany({
-        where: { companyId, isEnabled: true },
-        include: { bundle: true },
-        orderBy: { updatedAt: "desc" },
-      }),
+      // Priced live rather than read off `effectiveMonthlyAmount`: that column
+      // is a snapshot written when somebody last recomputed, and a site opened
+      // since then is already on the bill.
+      computeCompanyPricing(companyId),
       prisma.site.count({ where: { companyId, isActive: true } }),
       prisma.site.count({ where: { companyId } }),
       prisma.user.count({ where: { companyId, isActive: true } }),
@@ -105,8 +105,6 @@ export async function GET(request: NextRequest) {
             trialEndsAt: subscription.trialEndsAt,
             currentPeriodStart: subscription.currentPeriodStart,
             currentPeriodEnd: subscription.currentPeriodEnd,
-            effectiveMonthlyAmount: subscription.effectiveMonthlyAmount,
-            lastPriceComputedAt: subscription.lastPriceComputedAt,
           }
         : null,
       plan: subscription?.plan
@@ -122,14 +120,14 @@ export async function GET(request: NextRequest) {
             maxUsers: subscription.plan.maxUsers,
           }
         : null,
-      addons: addons.map((addon) => ({
-        id: addon.id,
-        isEnabled: addon.isEnabled,
-        name: addon.bundle.name,
-        code: addon.bundle.code,
-        monthlyPrice: addon.bundle.monthlyPrice,
-        additionalSiteMonthlyPrice: addon.bundle.additionalSiteMonthlyPrice,
-      })),
+      // What the workspace is billed each month, line by line — the plan, any
+      // site overage, add-ons and their site charges, and features switched on
+      // outside the plan — and the total those lines come to.
+      charges: {
+        currency: pricing.currency,
+        lineItems: pricing.lineItems,
+        total: pricing.totalAmount,
+      },
       usage: {
         activeSites,
         totalSites,
