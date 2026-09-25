@@ -32,7 +32,9 @@ import {
 import { formatMoney } from "./document-types";
 import { CataloguePicker, type VisitItemOption } from "./catalogue-picker";
 import { DocumentTemplatePicker } from "./document-template-picker";
+import { ResourcePicker, useResourceLibrary } from "./resource-picker";
 import { refreshAfterDocumentChange } from "@/lib/crm/refresh";
+import { preselectedResourceIds } from "@/lib/crm/resources";
 
 /** A render layout the PDF can be drawn through, from the templates studio. */
 type LayoutOption = {
@@ -93,6 +95,23 @@ export function DocumentBuilderSheet({
   const [sendApproval, setSendApproval] = useState(mode === "quotation");
   const [renderTemplateId, setRenderTemplateId] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
+  // Null until somebody ticks or unticks one: until then the selection is
+  // whatever the library says a new document starts with, which is only
+  // known once the library has loaded. Derived rather than copied in an
+  // effect, so a slow library cannot overwrite a tick made meanwhile.
+  const [resourceIds, setResourceIds] = useState<string[] | null>(null);
+
+  const libraryQuery = useResourceLibrary(open);
+  const library = useMemo(() => libraryQuery.data?.data ?? [], [libraryQuery.data]);
+  const preselected = useMemo(() => preselectedResourceIds(library), [library]);
+  const chosenResourceIds = resourceIds ?? preselected;
+  const toggleResource = (id: string, checked: boolean) =>
+    setResourceIds((current) => {
+      const base = current ?? preselected;
+      return checked
+        ? [...base.filter((entry) => entry !== id), id]
+        : base.filter((entry) => entry !== id);
+    });
 
   // Which layout the PDF renders through. Distinct from the standing-terms
   // picker below: that fills the notes, this picks the page design.
@@ -146,6 +165,7 @@ export function DocumentBuilderSheet({
     setDueDate("");
     setSendApproval(mode === "quotation");
     setRenderTemplateId("");
+    setResourceIds(null);
     setErrors([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -182,6 +202,7 @@ export function DocumentBuilderSheet({
             currency,
             notes: noteParts.join(" ") || undefined,
             ...(renderTemplateId ? { renderTemplateId } : {}),
+            resourceIds: chosenResourceIds,
             ...(mode === "invoice" && isDeposit ? { isDeposit: true } : {}),
             ...(mode === "quotation"
               ? {
@@ -519,6 +540,16 @@ export function DocumentBuilderSheet({
           placeholder="Terms, lead times, exclusions — anything the client should read."
         />
       </div>
+
+      {/* After the notes, which is where the client meets them too: on the
+          approval page, in the email and at the foot of the PDF. */}
+      <ResourcePicker
+        library={library}
+        isLoading={libraryQuery.isLoading}
+        error={libraryQuery.error}
+        selected={chosenResourceIds}
+        onToggle={toggleResource}
+      />
 
       {isQuotation ? (
         <label className="flex cursor-pointer items-start gap-2.5">

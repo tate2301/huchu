@@ -13,12 +13,14 @@ import {
   MapPin,
   Megaphone,
   Package,
+  Paperclip,
   Plug,
   type LucideIcon,
 } from "@/lib/icons";
 import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
 import { CataloguePanel } from "@/components/inventory/catalogue-panel";
 import { ApiKeysPanel } from "@/components/crm/settings/api-keys-panel";
+import { ClientResourcesPanel } from "@/components/crm/settings/client-resources-panel";
 import { CommissionsPanel } from "@/components/crm/settings/commissions-panel";
 import { CustomFieldsPanel } from "@/components/crm/settings/custom-fields-panel";
 import { FacebookPanel } from "@/components/crm/settings/facebook-panel";
@@ -53,6 +55,7 @@ export type SetupCounts = {
   commissions: number;
   keys: number;
   integrations: number;
+  resources: number;
 };
 
 type SettingsSection = {
@@ -116,6 +119,15 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     addLabel: "Add item",
     description: "what the business sells — shared with Stock & Inventory and Retail",
     render: (props) => <CataloguePanel {...props} />,
+  },
+  {
+    id: "resources",
+    label: "Client resources",
+    icon: Paperclip,
+    countKey: "resources",
+    addLabel: "Add resource",
+    description: "brochures, data sheets and terms the client reviews alongside a quote",
+    render: (props) => <ClientResourcesPanel {...props} />,
   },
   {
     id: "commissions",

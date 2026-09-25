@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import type { ExportTargetType, UniversalDocumentPayload } from "@/lib/documents/types";
+import {
+  DOCUMENT_RESOURCES_SELECT,
+  documentResourceLinks,
+  resourcesHeading,
+} from "@/lib/crm/resources";
+import type {
+  DocumentLinkBlock,
+  ExportTargetType,
+  UniversalDocumentPayload,
+} from "@/lib/documents/types";
 import {
   isSchoolDocumentSourceKey,
   resolveSchoolDocument,
@@ -137,12 +146,28 @@ function applyDateFilter(dateField: string, filters: Record<string, string> | un
   return { [dateField]: dateFilter };
 }
 
+/**
+ * The resources a CRM document offered, as the block the PDF prints last.
+ *
+ * An invoice or quotation raised in Accounting has no CRM document behind it
+ * and prints no block. One raised from a deal has exactly one — the unique
+ * `(companyId, invoiceId)` on `CrmLeadDocument` — so the first is the only.
+ */
+function crmResourceBlock(
+  documentType: "QUOTATION" | "INVOICE",
+  crmDocuments: Array<{ resources: Parameters<typeof documentResourceLinks>[0] }>,
+): DocumentLinkBlock | undefined {
+  const items = documentResourceLinks(crmDocuments[0]?.resources ?? []);
+  return items.length > 0 ? { heading: resourcesHeading(documentType), items } : undefined;
+}
+
 async function resolveInvoice(companyId: string, recordId: string): Promise<SourceResolution> {
   const invoice = await prisma.salesInvoice.findUnique({
     where: { id: recordId },
     include: {
       customer: true,
       lines: true,
+      crmLeadDocuments: { where: { companyId }, select: { resources: DOCUMENT_RESOURCES_SELECT } },
     },
   });
 
@@ -197,6 +222,7 @@ async function resolveInvoice(companyId: string, recordId: string): Promise<Sour
       parties: [customerParty("Bill To", invoice.customer)],
       totals,
       notes: invoice.notes ? [invoice.notes] : [],
+      links: crmResourceBlock("INVOICE", invoice.crmLeadDocuments),
       record: {
         sections: [],
         lineColumns: FINANCIAL_LINE_COLUMNS,
@@ -213,6 +239,7 @@ async function resolveQuotation(companyId: string, recordId: string): Promise<So
     include: {
       customer: true,
       lines: true,
+      crmLeadDocuments: { where: { companyId }, select: { resources: DOCUMENT_RESOURCES_SELECT } },
     },
   });
 
@@ -259,6 +286,7 @@ async function resolveQuotation(companyId: string, recordId: string): Promise<So
           ? [`This quotation is valid until ${isoDate(quotation.validUntil)}.`]
           : []),
       ],
+      links: crmResourceBlock("QUOTATION", quotation.crmLeadDocuments),
       record: {
         sections: [],
         lineColumns: FINANCIAL_LINE_COLUMNS,

@@ -290,6 +290,8 @@ model Company {
   crmTasks                      CrmTask[]
   crmComments                   CrmComment[]
   crmRecordFiles                CrmRecordFile[]
+  crmResources                  CrmResource[]
+  crmDocumentResources          CrmDocumentResource[]
   crmMentions                   CrmMention[]
   crmFollowers                  CrmFollower[]
   crmAutomations                CrmAutomation[]
@@ -10879,6 +10881,8 @@ model CrmLeadDocument {
   discountApprovals CrmDiscountApproval[]
   collectionNotes   CrmCollectionNote[]
   workOrders        CrmWorkOrder[]
+  /// What the client is asked to look at alongside this document.
+  resources         CrmDocumentResource[]
 
   @@unique([companyId, quotationId])
   @@unique([companyId, invoiceId])
@@ -10886,6 +10890,60 @@ model CrmLeadDocument {
   @@index([companyId, leadId, type])
   @@index([companyId, dealId, type])
   @@index([companyId, supersedesId])
+}
+
+enum CrmResourceKind {
+  /// A page somewhere else — the brochure on the website, a video, a catalogue.
+  LINK
+  /// A file uploaded to our own storage.
+  FILE
+}
+
+/// Something the client should look at alongside a quote or an invoice: the
+/// brand's brochure, a product's data sheet, the terms of the guarantee.
+///
+/// The tenant's own library, kept as data. What Floorcode sends with a quote
+/// is rows here, entered on the settings screen — never a branch in the code.
+model CrmResource {
+  id          String          @id @default(uuid())
+  companyId   String
+  title       String
+  /// One line on why the client should open it.
+  description String?
+  kind        CrmResourceKind
+  url         String
+  /// The storage key, for a FILE.
+  pathname    String?
+  contentType String?
+  /// Ticked by default on every new quote and invoice.
+  isDefault   Boolean         @default(false)
+  /// Retired from new documents. Never deleted: a document already sent still
+  /// points at it, and its link has to keep working.
+  archivedAt  DateTime?
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  documents CrmDocumentResource[]
+
+  @@index([companyId, archivedAt, sortOrder])
+}
+
+/// A resource offered to the client on one document.
+model CrmDocumentResource {
+  id         String   @id @default(uuid())
+  companyId  String
+  documentId String
+  resourceId String
+  createdAt  DateTime @default(now())
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  document CrmLeadDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  resource CrmResource     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, resourceId])
+  @@index([companyId, resourceId])
 }
 
 model CrmDocumentApproval {

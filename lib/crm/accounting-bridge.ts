@@ -13,6 +13,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { settleCrmRecordIfPaid } from "./accounting-hooks";
+import { setDocumentResources } from "./resources";
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { reserveIdentifier } from "@/lib/id-generator";
@@ -267,6 +268,8 @@ export type CreateQuotationInput = DocumentOwnerRef & {
   revisionNote?: string | null;
   /** The document layout to render through. Absent means the company default. */
   renderTemplateId?: string | null;
+  /** Library resources the client is asked to review alongside it. */
+  resourceIds?: string[];
 };
 
 export async function createQuotationForLead(input: CreateQuotationInput) {
@@ -333,6 +336,12 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
       select: { id: true },
     });
 
+    await setDocumentResources(tx, {
+      companyId: input.companyId,
+      documentId: doc.id,
+      resourceIds: input.resourceIds ?? [],
+    });
+
     // The quote it replaces stops being live: two open quotes for the same
     // work is how a customer ends up holding the cheaper one.
     if (input.supersedesId) {
@@ -383,6 +392,8 @@ export type CreateInvoiceInput = DocumentOwnerRef & {
   isDeposit?: boolean;
   /** The document layout to render through. Null means the company default. */
   renderTemplateId?: string | null;
+  /** Library resources the client is asked to review alongside it. */
+  resourceIds?: string[];
 };
 
 export async function createInvoiceForLead(input: CreateInvoiceInput) {
@@ -467,6 +478,12 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
         createdById: input.userId,
       },
       select: { id: true },
+    });
+
+    await setDocumentResources(tx, {
+      companyId: input.companyId,
+      documentId: doc.id,
+      resourceIds: input.resourceIds ?? [],
     });
 
     await tx.crmActivity.create({

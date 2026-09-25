@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const { session } = sessionResult;
     const companyId = session.user.companyId;
 
-    const [pipelines, fields, sources, catalogue, commissions, keys, integrations] = await Promise.all([
+    const [pipelines, fields, sources, catalogue, commissions, keys, integrations, resources] = await Promise.all([
       prisma.crmPipeline.count({ where: { companyId, isActive: true } }),
       // Archived definitions still exist so historical records keep a field to
       // point at; they are not part of what is configured now.
@@ -41,10 +41,12 @@ export async function GET(request: NextRequest) {
       // which is what this tally is about. Disconnecting is how a Page stops
       // counting.
       prisma.crmFacebookConnection.count({ where: { companyId } }),
+      // What the builder can still offer; archived entries are history.
+      prisma.crmResource.count({ where: { companyId, archivedAt: null } }),
     ]);
 
     return successResponse({
-      data: { pipelines, fields, sources, catalogue, commissions, keys, integrations },
+      data: { pipelines, fields, sources, catalogue, commissions, keys, integrations, resources },
     });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/settings/counts error:", error);
