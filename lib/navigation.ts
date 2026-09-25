@@ -754,8 +754,10 @@ export const navSections: NavSection[] = [
       { href: "/crm/people", icon: Users, label: "People", group: "objects" },
       { href: "/crm/companies", icon: Building2, label: "Companies", group: "objects" },
       { href: "/crm/sites", icon: MapPin, label: "Sites", group: "objects" },
-      { href: "/crm/reps", icon: UserRound, label: "Sales reps", group: "objects" },
+      { href: "/crm/reps", icon: UserRound, label: "Team", group: "objects" },
 
+      // Whoever is signed in: `/crm/reps/me` redirects to their own page.
+      { href: "/crm/reps/me", icon: UserCheck, label: "My overview", group: "work" },
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },

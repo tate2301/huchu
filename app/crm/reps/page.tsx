@@ -5,12 +5,12 @@ import { CrmPage } from "@/components/crm/crm-page";
 import { RepsContent } from "@/components/crm/reps/reps-content";
 import { authOptions } from "@/lib/auth";
 
-export default async function CrmRepsPage() {
+export default async function CrmTeamPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage title="Reps" description="who is selling, and how they are doing">
+    <CrmPage title="Team" description="who is on it, and what each of them is carrying">
       <RepsContent />
     </CrmPage>
   );

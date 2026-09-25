@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { Badge } from "@corelithzw/react";
 
 import { useDebounced } from "@/hooks/use-debounced";
@@ -28,6 +29,8 @@ const ROLE_LABELS: Record<string, string> = {
  * person is carrying.
  */
 export function RepsContent() {
+  const { data: session } = useSession();
+  const me = session?.user?.id;
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounced(search, 300);
 
@@ -37,6 +40,7 @@ export function RepsContent() {
   });
 
   const reps = useMemo(() => repsQuery.data?.data ?? [], [repsQuery.data]);
+  const mayOpenEveryone = repsQuery.data?.mayOpenEveryone ?? false;
 
   const rows = useMemo<RecordListRow[]>(() => {
     const needle = debouncedSearch.trim().toLowerCase();
@@ -52,7 +56,9 @@ export function RepsContent() {
       const pipeline = rep.openLeadValue + rep.openDealValue;
       return {
         id: rep.id,
-        href: `/crm/reps/${rep.id}`,
+        // Everybody sees the whole team; a page is opened by its owner or a
+        // manager, so a colleague's row does not pretend to go anywhere.
+        href: mayOpenEveryone || rep.id === me ? `/crm/reps/${rep.id}` : undefined,
         leading: <RecordMark kind="rep" name={rep.name ?? rep.email} size="md" />,
         title: rep.name ?? rep.email ?? "Unnamed",
         subtitle: [
@@ -93,27 +99,27 @@ export function RepsContent() {
         ],
       };
     });
-  }, [debouncedSearch, reps]);
+  }, [debouncedSearch, mayOpenEveryone, me, reps]);
 
   return (
     <RecordListShell
-      title="Sales reps"
+      title="Team"
       search={search}
       onSearchChange={setSearch}
       searchPlaceholder="Search the team by name or email"
       error={repsQuery.error}
     >
-      {repsQuery.data && !repsQuery.data.canSeeEveryone ? (
+      {repsQuery.data && !mayOpenEveryone ? (
         <p className="text-sm text-[var(--text-muted)]">
-          You can see the whole team and what they are carrying. Sales figures are
-          your own.
+          You can see the whole team and what they are carrying. Your own overview is yours to
+          open; a manager can open anybody&apos;s.
         </p>
       ) : null}
 
       <RecordList
         rows={rows}
         isLoading={repsQuery.isLoading}
-        emptyTitle={debouncedSearch ? "Nobody matches that search" : "No sales reps yet"}
+        emptyTitle={debouncedSearch ? "Nobody matches that search" : "Nobody on the team yet"}
         emptyBody={
           debouncedSearch
             ? undefined

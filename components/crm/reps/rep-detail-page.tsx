@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
@@ -11,24 +12,34 @@ import {
   CRM_STAGE_STATUS,
 } from "@/components/crm/leads/stage-config";
 import { ClientDate } from "@/components/ui/client-date";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Calendar,
+  Check,
   Checklist,
+  Coins,
+  FileText,
   Mail,
+  MapPin,
   Payments,
   Phone,
+  Receipt,
   ShieldCheck,
   UserRound,
+  Wrench,
 } from "@/lib/icons";
-import { fetchCrmRep, type CrmRepDetail } from "@/lib/crm/crm-v2";
+import { fetchCrmRep, type CrmOutstandingItem, type CrmRepDetail } from "@/lib/crm/crm-v2";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
+import { CostEntryTable } from "@/components/crm/money/cost-entry-table";
+import { DailyReportCard, type DailyReportCardSummary } from "@/components/crm/money/daily-report-card";
+import { formatDay, todayKey, type CostEntryRow } from "@/components/crm/money/money";
 import { RecordList, type RecordListRow } from "@/components/records/record-list";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordAttributes } from "@/components/records/record-attributes";
-import { HistoryFeed, type HistoryEvent } from "@/components/crm/records/history-feed";
 import { RecordPageShell } from "@/components/records/record-page-shell";
 import { FilesTab } from "@/components/crm/records/files-tab";
 import { RepSettingsTab } from "@/components/crm/reps/rep-settings-tab";
@@ -39,29 +50,6 @@ const ROLE_LABELS: Record<string, string> = {
   SALES_REP: "Sales rep",
   SALES_EXEC: "Sales executive",
 };
-
-/** A number and what it is, sized so a row of them reads as one thing. */
-function Stat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <div className="rounded-[var(--card-radius)] border border-[var(--border)] p-3">
-      <h3 className="text-base font-semibold text-[var(--text-strong)] text-[var(--text-subtle)]">
-        {label}
-        <span className="acct-stat-value mt-1 block font-mono tabular-nums text-[var(--text-strong)]">
-          {value}
-        </span>
-      </h3>
-      {hint ? <p className="mt-0.5 text-sm text-[var(--text-muted)]">{hint}</p> : null}
-    </div>
-  );
-}
 
 function pipelineRows(detail: CrmRepDetail): RecordListRow[] {
   return [
@@ -116,34 +104,114 @@ function pipelineRows(detail: CrmRepDetail): RecordListRow[] {
   ];
 }
 
+/** What an outstanding item is, in the words its row leads with. */
+function outstandingSubtitle(item: CrmOutstandingItem) {
+  const on = (prefix: string) =>
+    item.at ? (
+      <>
+        {prefix} <ClientDate value={item.at} mode="date" />
+      </>
+    ) : (
+      prefix
+    );
+  switch (item.kind) {
+    case "task":
+      return on("Task, due");
+    case "follow-up":
+      return on("Follow-up, due");
+    case "requisition":
+      return on("Requisition, waiting since");
+    case "float":
+      return on("Float, paid out");
+    case "no-receipt":
+      return `${item.count} ${item.count === 1 ? "expense" : "expenses"} in this period`;
+    case "not-receipted":
+      return `On ${item.count} ${item.count === 1 ? "invoice" : "invoices"}`;
+    case "report":
+      return on("The day of");
+  }
+}
+
+/** The one word that says why a flagged item is late, or that it is waiting. */
+function outstandingBadge(item: CrmOutstandingItem) {
+  if (!item.flagged) {
+    return (
+      <Badge tone="neutral" size="sm">
+        {item.kind === "float" ? "Out" : "Waiting"}
+      </Badge>
+    );
+  }
+  const label: Record<CrmOutstandingItem["kind"], string> = {
+    task: "Overdue",
+    "follow-up": "Overdue",
+    requisition: "Waiting",
+    float: "Not accounted for",
+    "no-receipt": "No photo",
+    "not-receipted": "Not receipted",
+    report: "Not closed",
+  };
+  return (
+    <Badge tone="warn" size="sm">
+      {label[item.kind]}
+    </Badge>
+  );
+}
+
+type MemberDay = { date: string; submitted: boolean; summary: DailyReportCardSummary };
+
+/**
+ * One member of the team: what they got done, what is outstanding against
+ * them, their days, and their money — for a period chosen at the top.
+ *
+ * The same page answers a manager asking "how is Tendai doing" and Tendai
+ * asking "what do I still owe". So it leads with what they achieved, and the
+ * Outstanding section puts what is late before what is merely waiting.
+ */
 export function RepDetailPage({ repId }: { repId: string }) {
-  const [tab, setTab] = useState("pipeline");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+  // The sections that cost a query of their own load when they are opened.
+  const section = searchParams.get("section") ?? "overview";
 
   const repQuery = useQuery({
-    queryKey: ["crm", "rep", repId],
-    queryFn: () => fetchCrmRep(repId),
+    queryKey: ["crm", "rep", repId, from, to],
+    queryFn: () => fetchCrmRep(repId, { from: from ?? undefined, to: to ?? undefined }),
+    placeholderData: (previous) => previous,
   });
 
   const detail = repQuery.data;
+  // The period actually shown — this month so far, when nobody has chosen.
+  const period = detail?.period ?? null;
+  const periodQuery = period ? `from=${period.from}&to=${period.to}` : "";
 
-  const activityEvents = useMemo<HistoryEvent[]>(
-    () =>
-      (detail?.activities ?? []).map((activity) => ({
-        id: activity.id,
-        action: activity.type,
-        verb: activity.subject,
-        actorId: detail?.rep.id ?? null,
-        actorName: detail?.rep.name ?? "This rep",
-        occurredAt: activity.occurredAt,
-        note:
-          activity.body ??
-          [activity.deal?.title, activity.lead?.title, activity.client?.name]
-            .filter(Boolean)
-            .join(" · ") ??
-          null,
-      })),
-    [detail],
-  );
+  const activityQuery = useQuery({
+    queryKey: ["crm", "rep", repId, "activity", periodQuery],
+    queryFn: () =>
+      fetchJson<{ data: MemberDay[]; limit: number }>(`/api/v2/crm/reps/${repId}/activity?${periodQuery}`),
+    enabled: section === "activity" && Boolean(period),
+  });
+
+  const moneyQuery = useQuery({
+    queryKey: ["crm", "cost-entries", `person=${repId}&${periodQuery}`],
+    queryFn: () =>
+      fetchJson<{ data: CostEntryRow[] }>(
+        `/api/v2/crm/cost-entries?person=${repId}&${periodQuery}&limit=100`,
+      ),
+    enabled: section === "money" && Boolean(period),
+  });
+
+  const setPeriod = (next: { from: string | null; to: string | null }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(next)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    const rendered = params.toString();
+    router.replace(rendered ? `${pathname}?${rendered}` : pathname, { scroll: false });
+  };
 
   if (repQuery.isLoading) {
     return (
@@ -158,36 +226,41 @@ export function RepDetailPage({ repId }: { repId: string }) {
   }
 
   if (repQuery.error || !detail) {
+    const refused = repQuery.error instanceof ApiError && repQuery.error.status === 403;
     return (
       <Alert variant="destructive">
-        <AlertTitle>Rep not found</AlertTitle>
+        <AlertTitle>{refused ? "This is somebody else's overview" : "Team member not found"}</AlertTitle>
         <AlertDescription>
-          {repQuery.error
-            ? getApiErrorMessage(repQuery.error)
-            : "They may have been deactivated."}
+          {refused
+            ? "You can open your own. A manager can open anybody's."
+            : repQuery.error
+              ? getApiErrorMessage(repQuery.error)
+              : "They may have been deactivated."}
         </AlertDescription>
       </Alert>
     );
   }
 
-  const { rep, performance, closed } = detail;
+  const { rep, achieved, outstanding } = detail;
   const openPipeline =
     detail.deals.reduce((sum, deal) => sum + (deal.value ?? 0), 0) +
     detail.leads.reduce((sum, lead) => sum + (lead.estimatedValue ?? 0), 0);
+  const flagged = outstanding.filter((item) => item.flagged).length;
+  const name = rep.name ?? rep.email ?? "This person";
 
   return (
     <RecordPageShell
       icon={UserRound}
       bandValue={openPipeline > 0 ? formatMoney(openPipeline, "USD") : undefined}
       backHref="/crm/reps"
-      backLabel="Sales reps"
+      backLabel="Team"
       title={rep.name ?? rep.email ?? "Unnamed"}
       leading={<RecordMark kind="rep" name={rep.name ?? rep.email} />}
       status={
         rep.isActive ? null : { label: "Deactivated", status: "inactive" as const }
       }
       subtitle={ROLE_LABELS[rep.role] ?? rep.role}
-      activeTab={tab}
+      activeTab={section}
       attributes={
         <RecordAttributes
           attributes={[
@@ -230,7 +303,7 @@ export function RepDetailPage({ repId }: { repId: string }) {
               id: "workload",
               label: "Carrying",
               icon: Checklist,
-              value: `${detail.deals.length} deals · ${detail.leads.length} leads · ${detail.tasks.length} tasks`,
+              value: `${detail.deals.length} deals · ${detail.leads.length} leads · ${detail.openTasks} tasks`,
             },
             {
               id: "since",
@@ -245,107 +318,171 @@ export function RepDetailPage({ repId }: { repId: string }) {
           ]}
         />
       }
-      onTabChange={setTab}
+      // One period for every section: what they did, what they spent, which
+      // days — all of it this month unless somebody chooses otherwise.
+      beforeTabs={
+        <DateRangeFilter
+          label="Period"
+          anyLabel="This month"
+          value={{ from: from ?? period?.from ?? null, to: to ?? period?.to ?? null }}
+          max={todayKey()}
+          onChange={setPeriod}
+        />
+      }
+      // The open section is the URL's, which the shell's own links write.
+      onTabChange={() => undefined}
       tabs={[
         {
-          value: "pipeline",
-          label: "Pipeline",
-          count: detail.deals.length + detail.leads.length,
+          value: "overview",
+          label: "Overview",
           content: (
-            <RecordList
-              rows={pipelineRows(detail)}
-              emptyTitle="Nothing open"
-              emptyBody="Every lead and deal assigned to them is closed."
-            />
-          ),
-        },
-        {
-          value: "tasks",
-          label: "Tasks",
-          count: detail.tasks.length,
-          content: (
-            <RecordList
-              rows={detail.tasks.map((task) => ({
-                id: task.id,
-                href: task.dealId
-                  ? `/crm/deals/${task.dealId}`
-                  : task.leadId
-                    ? `/crm/leads/${task.leadId}`
-                    : task.clientId
-                      ? `/crm/companies/${task.clientId}`
-                      : "/crm/follow-ups",
-                title: task.title,
-                subtitle: task.type.replace(/_/g, " ").toLowerCase(),
-                status:
-                  new Date(task.dueAt) < new Date() ? (
-                    <Badge tone="danger" size="sm">
-                      Overdue
-                    </Badge>
-                  ) : null,
-                facts: [{ label: "Due", value: <ClientDate value={task.dueAt} mode="date" /> }],
-              }))}
-              emptyTitle="No open tasks"
-              emptyBody="Nothing is waiting on them right now."
-            />
-          ),
-        },
-        {
-          value: "performance",
-          label: "Performance",
-          content: detail.canSeeNumbers ? (
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Stat
-                  label="Collected"
-                  value={
-                    performance ? formatMoney(performance.collectedAmount, "USD") : "—"
-                  }
-                  hint="Receipts written against their leads"
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <MetricTile
+                  title="Deals won"
+                  value={achieved.dealsWon}
+                  valueLabel={String(achieved.dealsWon)}
+                  detail="in this period"
+                  tone="neutral"
+                  icon={Check}
                 />
-                <Stat
-                  label="Invoiced"
-                  value={performance ? formatMoney(performance.invoicedAmount, "USD") : "—"}
+                <MetricTile
+                  title="Value won"
+                  value={Number(achieved.wonValue)}
+                  valueLabel={formatMoney(Number(achieved.wonValue), achieved.wonCurrency)}
+                  detail="across the deals won"
+                  tone="neutral"
+                  icon={Coins}
                 />
-                <Stat
-                  label="Win rate"
-                  value={performance ? `${performance.winRate}%` : "—"}
-                  hint={`${closed.won} won · ${closed.lost} lost, all time`}
+                <MetricTile
+                  title="Jobs completed"
+                  value={achieved.jobsCompleted}
+                  valueLabel={String(achieved.jobsCompleted)}
+                  detail="in this period"
+                  tone="neutral"
+                  icon={Wrench}
                 />
-                <Stat
-                  label="First response"
-                  value={
-                    performance?.avgResponseHours === null ||
-                    performance?.avgResponseHours === undefined
-                      ? "—"
-                      : `${performance.avgResponseHours}h`
-                  }
-                  hint="Average time to first contact"
+                <MetricTile
+                  title="Visits done"
+                  value={achieved.visitsDone}
+                  valueLabel={String(achieved.visitsDone)}
+                  detail="in this period"
+                  tone="neutral"
+                  icon={MapPin}
+                />
+                <MetricTile
+                  title="Spent"
+                  value={Number(achieved.spent)}
+                  valueLabel={formatMoney(Number(achieved.spent), achieved.moneyCurrency)}
+                  detail="from their cost tracker"
+                  tone="neutral"
+                  icon={Receipt}
+                  href={`/crm/cost-tracker?person=${rep.id}&type=SPENT&${periodQuery}`}
+                />
+                <MetricTile
+                  title="Received"
+                  value={Number(achieved.received)}
+                  valueLabel={formatMoney(Number(achieved.received), achieved.moneyCurrency)}
+                  detail="from their cost tracker"
+                  tone="neutral"
+                  icon={Coins}
+                  href={`/crm/cost-tracker?person=${rep.id}&type=RECEIVED&${periodQuery}`}
                 />
               </div>
 
-              {!performance ? (
-                <p className="text-sm text-[var(--text-muted)]">
-                  Nothing was assigned to them in the last 90 days, so there is no
-                  performance to report — which is not the same as zero.
-                </p>
-              ) : null}
+              <section aria-labelledby="rep-carrying" className="space-y-2">
+                <h2 id="rep-carrying" className="text-base font-semibold text-[var(--text-strong)]">
+                  What they are carrying
+                </h2>
+                <RecordList
+                  rows={pipelineRows(detail)}
+                  emptyTitle="Nothing open"
+                  emptyBody="Every lead and deal assigned to them is closed."
+                />
+              </section>
             </div>
-          ) : (
-            <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-              Sales figures for other reps are visible to managers.
-            </p>
+          ),
+        },
+        {
+          value: "outstanding",
+          label: "Outstanding",
+          count: flagged || undefined,
+          content: (
+            <RecordList
+              rows={outstanding.map((item) => ({
+                id: `${item.kind}-${item.id}`,
+                href: item.href,
+                title: item.title,
+                subtitle: outstandingSubtitle(item),
+                status: outstandingBadge(item),
+                facts:
+                  item.amount === null
+                    ? []
+                    : [
+                        {
+                          label: "Amount",
+                          value: formatMoney(Number(item.amount), item.currency ?? "USD"),
+                          mono: true,
+                          primary: true,
+                        },
+                      ],
+              }))}
+              emptyTitle="Nothing outstanding"
+              emptyBody="No overdue work, no floats out, and every day closed."
+            />
           ),
         },
         {
           value: "activity",
           label: "Activity",
-          count: detail.activities.length,
+          content: activityQuery.isLoading || !activityQuery.data ? (
+            <div className="space-y-2" aria-busy="true">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          ) : activityQuery.data.data.length === 0 ? (
+            <p className="py-6 text-center text-sm text-[var(--text-muted)]">
+              Nothing was recorded against any day in this period.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {activityQuery.data.data.map((day) => (
+                <DailyReportCard
+                  key={day.date}
+                  heading={formatDay(day.date)}
+                  aside={day.submitted ? "Closed" : "Not closed"}
+                  summary={day.summary}
+                />
+              ))}
+              {activityQuery.data.data.length > 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">
+                  Days with anything on them, newest first — at most the last {activityQuery.data.limit} of
+                  the period.
+                </p>
+              ) : null}
+            </div>
+          ),
+        },
+        {
+          value: "money",
+          label: "Money",
           content: (
-            <HistoryFeed
-              events={activityEvents}
-              emptyMessage="They have not logged anything yet."
-              exportName={`${rep.name ?? "rep"}-activity`}
-            />
+            <div className="space-y-3">
+              <CostEntryTable
+                entries={moneyQuery.data?.data ?? []}
+                isLoading={moneyQuery.isLoading || !moneyQuery.data}
+                showPerson={false}
+                emptyTitle="No money in this period"
+                emptyBody={`Nothing ${name} received or spent is in their cost tracker for these days.`}
+              />
+              <Link
+                href={`/crm/cost-tracker?person=${rep.id}&${periodQuery}`}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--brand-strong)] hover:underline"
+              >
+                <FileText className="size-4" aria-hidden="true" />
+                Open in the cost tracker
+              </Link>
+            </div>
           ),
         },
         {
@@ -356,12 +493,7 @@ export function RepDetailPage({ repId }: { repId: string }) {
         {
           value: "settings",
           label: "Settings",
-          content: (
-            <RepSettingsTab
-              repId={rep.id}
-              repName={rep.name ?? rep.email ?? "This person"}
-            />
-          ),
+          content: <RepSettingsTab repId={rep.id} repName={name} />,
         },
       ]}
     />

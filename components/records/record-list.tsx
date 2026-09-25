@@ -53,7 +53,12 @@ export type RecordListFact = {
 
 export type RecordListRow = {
   id: string;
-  href: string;
+  /**
+   * Where the row goes. Left off for a row the reader may see but not open —
+   * a colleague on the team list — which then draws without the link's
+   * underline and chevron rather than as a link to a refusal.
+   */
+  href?: string;
   title: ReactNode;
   /** One line under the title: the thing that tells two similar rows apart. */
   subtitle?: ReactNode;
@@ -143,13 +148,14 @@ export function RecordList({
               />
             </span>
           ) : null}
-          <Link
+          <RowFrame
             href={row.href}
             className={cn(
               // `min-h-11` is the 44px touch target. `py-2.5` alone gives a
               // one-line row about 40px tall, which is under every platform's
               // minimum and reads as a near-miss rather than a miss.
-              "group/row flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-md)] py-2.5 pr-3 hover:bg-[var(--surface-muted)]",
+              "group/row flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-md)] py-2.5 pr-3",
+              row.href && "hover:bg-[var(--surface-muted)]",
               selection ? "pl-2" : "pl-3",
             )}
           >
@@ -159,7 +165,13 @@ export function RecordList({
               <span className="flex flex-wrap items-center gap-2">
                 {/* The same cue EntityLink draws: a quiet underline that says
                     "this opens" without waiting for a hover to admit it. */}
-                <span className="truncate text-sm font-medium text-[var(--text-strong)] underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text-muted)]">
+                <span
+                  className={cn(
+                    "truncate text-sm font-medium text-[var(--text-strong)]",
+                    row.href &&
+                      "underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text-muted)]",
+                  )}
+                >
                   {row.title}
                 </span>
                 {row.status}
@@ -228,8 +240,8 @@ export function RecordList({
               </span>
             ) : null}
 
-            <ChevronRight className="size-4 flex-none text-[var(--text-subtle)]" />
-          </Link>
+            {row.href ? <ChevronRight className="size-4 flex-none text-[var(--text-subtle)]" /> : null}
+          </RowFrame>
 
           {row.actions ? <span className="flex-none">{row.actions}</span> : null}
         </li>
@@ -250,6 +262,18 @@ export function RecordList({
     ) : null}
     </>
   );
+}
+
+/** The row's body: a link when it goes somewhere, a plain block when it does not. */
+function RowFrame({ href, className, children }: { href?: string; className: string; children: ReactNode }) {
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {children}
+      </Link>
+    );
+  }
+  return <div className={className}>{children}</div>;
 }
 
 /**

@@ -281,6 +281,31 @@ linking to the list that holds them. *By project* is each project's standing to
 date (`projectCostSummary`); *By person* is the period's asking and spending
 beside what each person holds now. Rows open onto their requisitions.
 
+## A team member's page
+
+`/crm/reps/[id]` — "Team" in the navigation, and "My overview" for whoever is
+signed in (`/crm/reps/me` redirects to their own). A member opens their own
+page; a manager, or anybody with `money.view_all`, opens anybody's
+(`mayOpenMember`). The team list stays visible to everybody — you cannot hand a
+lead to somebody you cannot see — but only the rows a viewer may open are links.
+
+One period, chosen at the top, governs every section:
+
+- **Overview** — deals won and their value, jobs completed, visits done, and
+  the money spent and received, then what they are carrying.
+- **Outstanding** — overdue tasks and follow-ups, requisitions waiting, floats
+  not accounted for, spend without a receipt photo, cash not receipted, and days
+  not closed. Late things come first, oldest first; a float counts as late after
+  a week out; a requisition waiting on an approver is waiting, not late.
+- **Activity** — their days, newest first, each the daily report's own card: the
+  report management got for a closed day, built fresh for an open one.
+- **Money** — their cost tracker lines for the period.
+- **Files** and **Settings**, as before.
+
+The figures are `lib/crm/member-overview.ts`, which reuses the daily report's
+builder, `receiptGaps`/`shareOfGap` and `payableAmount` rather than restating
+any of them.
+
 ## Where to find it
 
 | Route | For |
@@ -289,6 +314,7 @@ beside what each person holds now. Rows open onto their requisitions.
 | `/crm/requisitions` | Asking for money, and answering |
 | `/crm/cost-tracker` | A day's money written up, and every line read back |
 | `/crm/finance` | Money in and out, and where it stands — for `money.view_all` |
+| `/crm/reps/[id]` | One team member: done, outstanding, their days, their money |
 | `/crm/daily-reports` | Management's read |
 
 Navigation groups the money pages under **Finance**, distinct from Sales
@@ -303,6 +329,7 @@ paperwork the business sends its customers.
 | `lib/crm/requisitions.ts` | Lifecycle, categories, money helpers |
 | `lib/crm/daily-log.ts` | Day arithmetic, entry idempotency, submission |
 | `lib/crm/finance.ts` | The not-receipted rule and the finance overview — reads, never writes |
+| `lib/crm/member-overview.ts` | One member's achievements, outstanding items and days |
 | `lib/crm/daily-report.ts` | Assembly and storage |
 
 ## Conventions worth not breaking

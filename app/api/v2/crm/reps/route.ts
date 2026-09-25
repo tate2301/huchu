@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { getRepPerformance } from "@/lib/crm/insights";
+import { canUser } from "@/lib/crm/permissions";
 import { CRM_ROLES, hasCrmFullAccess } from "@/lib/crm/scope";
 import { rangeToDates, REPORT_RANGES, type ReportRange } from "@/lib/crm/reports";
 
@@ -88,7 +89,11 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return successResponse({ data: rows, range, canSeeEveryone: isManager });
+    // Whose page this viewer may open: their own, or anybody's for a manager
+    // or somebody who may see everybody's money (`mayOpenMember`).
+    const mayOpenEveryone = isManager || (await canUser(session, "money.view_all"));
+
+    return successResponse({ data: rows, range, canSeeEveryone: isManager, mayOpenEveryone });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/reps error:", error);
     return errorResponse("Failed to fetch the sales team");

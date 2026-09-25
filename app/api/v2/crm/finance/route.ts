@@ -3,30 +3,16 @@
  *
  * Read-only, and only for somebody who may see everybody's money
  * (`money.view_all`). The figures are `financeOverview`'s; this route turns
- * the query string into its scope.
- *
- * The period is a pair of calendar days, `from` and `to`, in the same UTC
- * terms a daily log is keyed on. Without them it is this month so far — the
- * question a manager opens a finance page to ask.
+ * the query string into its scope. The period is `from` and `to`, defaulting
+ * to this month so far (`lib/crm/period.ts`).
  */
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { financeOverview } from "@/lib/crm/finance";
+import { dayKey, periodFromQuery } from "@/lib/crm/period";
 import { requireCrmCapability } from "../_helpers";
-
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-function day(value: string | null): Date | null {
-  if (!value || !DAY.test(value)) return null;
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function dayKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,24 +26,19 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const from =
-      day(searchParams.get("from")) ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const to = day(searchParams.get("to")) ?? today;
-    if (from > to) return errorResponse("The period ends before it starts", 400);
+    const period = periodFromQuery(searchParams);
+    if (!period) return errorResponse("The period ends before it starts", 400);
 
     const overview = await financeOverview(prisma, {
       companyId,
-      from,
-      to,
+      ...period,
       projectId: searchParams.get("project"),
       userId: searchParams.get("person"),
       currency: searchParams.get("currency"),
       viewerId: session.user.id,
     });
 
-    return successResponse({ ...overview, period: { from: dayKey(from), to: dayKey(to) } });
+    return successResponse({ ...overview, period: { from: dayKey(period.from), to: dayKey(period.to) } });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/finance error:", error);
     return errorResponse("Failed to load the finance overview");
