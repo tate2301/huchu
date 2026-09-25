@@ -4,8 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -67,7 +67,7 @@ const QUERY_KEY = ["preferences", "organization", "departments"] as const;
  */
 const OPTIONS_KEY = ["preferences", "organization", "department-options"] as const;
 
-const FULL_LOG_HREF = "/reports/audit-trails";
+const FULL_LOG_HREF = "/preferences/organization/activity";
 
 /**
  * Radix `Select` has no empty item — `value=""` is how it says "nothing
@@ -609,7 +609,11 @@ export function DepartmentsRegister() {
               />
             )}
 
-            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+            <RecordActivityTrail
+              entityType="Department"
+              entityId={selected.id}
+              fullLogHref={FULL_LOG_HREF}
+            />
           </>
         ) : (
           <NoRecord

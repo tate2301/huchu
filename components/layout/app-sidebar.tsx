@@ -23,7 +23,13 @@ import { RailAvatar } from "@/components/layout/workspace-rail/rail-avatar";
 import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
 import { WorkspaceRail } from "@/components/layout/workspace-rail";
 
-export function AppSidebar() {
+/** The workspace's name and branding logo, resolved on the server by the root layout. */
+export type WorkspaceBrand = {
+  name: string;
+  logoUrl: string | null;
+};
+
+export function AppSidebar({ brand }: { brand?: WorkspaceBrand | null }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
@@ -100,10 +106,12 @@ export function AppSidebar() {
     [pathname, sidebarModel.sections, view],
   );
 
-  // No company name reaches the client today — only the slug — so the mark is
-  // built from that and falls back to the workspace's own name. A real name
-  // would be a lookup, which is a data change and not this one.
+  // The layout resolves the workspace's real name with its logo. Without one —
+  // no company behind this host or session — the mark is built from the slug
+  // and falls back to the workspace's own name.
+  const brandName = brand?.name;
   const companyName = React.useMemo(() => {
+    if (brandName) return brandName;
     const slug = user?.companySlug;
     if (!slug) return sidebarModel.workspaceLabel;
     return slug
@@ -111,7 +119,7 @@ export function AppSidebar() {
       .filter(Boolean)
       .map((part) => part[0]!.toUpperCase() + part.slice(1))
       .join(" ");
-  }, [sidebarModel.workspaceLabel, user?.companySlug]);
+  }, [brandName, sidebarModel.workspaceLabel, user?.companySlug]);
 
   return (
     <Sidebar
@@ -124,6 +132,7 @@ export function AppSidebar() {
         sections={sidebarModel.sections}
         workspaceLabel={sidebarModel.workspaceLabel}
         companyName={companyName}
+        companyLogoUrl={brand?.logoUrl}
         activeHref={activeHref}
         supportItems={sidebarModel.supportItems}
         isCollapsed={isCollapsed}

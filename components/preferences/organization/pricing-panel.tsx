@@ -139,9 +139,9 @@ function ModuleRow({ module }: { module: PricingModule }) {
  * Nothing here switches anything on. Turning a module on is a billing decision
  * with a contract behind it, and a one-click purchase inside a settings screen
  * is how somebody buys Surveillance by mis-clicking. That is also why this is
- * now reached from Billing's "Change plan" rather than drawn permanently under
+ * now opened in a dialog from Billing's "Change plan" rather than drawn under
  * the plan: it answers a question somebody came with, and `Billing.dc.html`
- * draws a page with two sections on it, not six.
+ * draws a page with a handful of sections on it, not six.
  *
  * Every feature used to carry its `description` under its name — rule 1 says
  * if a control needs explaining its name is wrong, and eighty lines of grey
@@ -159,7 +159,7 @@ export function PricingPanel() {
   if (isLoading) {
     return (
       <>
-        <FormSection>Pricing</FormSection>
+        <FormSection>Modules</FormSection>
         <FactRowsSkeleton rows={4} />
       </>
     );
@@ -194,7 +194,7 @@ export function PricingPanel() {
           ) : undefined
         }
       >
-        Pricing
+        Modules
       </FormSection>
 
       {visible.length === 0 ? (

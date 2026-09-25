@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "crypto"
 import type { Prisma } from "@prisma/client"
+import { markActivityExplicit } from "@/lib/activity/context"
 import { prisma } from "@/lib/prisma"
 
 /**
@@ -76,6 +77,9 @@ export async function writePlatformAuditEvent(
   args: PlatformAuditArgs,
   client: AuditClient = prisma,
 ): Promise<void> {
+  // The handler is describing its own work; the activity log does not add a
+  // second, generic line for the same request.
+  markActivityExplicit()
   const prev = await client.platformAuditEvent.findFirst({
     where: { companyId: args.companyId },
     orderBy: { createdAt: "desc" },

@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   ListColumn,
   ListRow,
   RecordHeader,
@@ -489,7 +489,7 @@ export function ClassesRegister({ selectedId }: { selectedId?: string }) {
               <RecordEmpty>Nothing is timetabled for this class yet</RecordEmpty>
             )}
 
-            <ActivityTrail events={[]} />
+            <RecordActivityTrail entityType="SchoolClass" entityId={record.id} />
           </>
         ) : (
           /* Rule 13's narrow case for a register whose selection is the route:

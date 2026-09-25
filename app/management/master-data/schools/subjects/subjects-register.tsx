@@ -4,8 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -443,7 +443,7 @@ export function SubjectsRegister({ selectedId }: { selectedId?: string }) {
               <RecordEmpty>No class takes this subject yet</RecordEmpty>
             )}
 
-            <ActivityTrail events={[]} />
+            <RecordActivityTrail entityType="SchoolSubject" entityId={record.id} />
           </>
         ) : (
           /* Below 900px this column is the whole screen once a row is picked,

@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -61,7 +61,7 @@ const DOWNTIME_KEY = ["management", "master-data", "downtime-codes"] as const;
  */
 const GLOBAL_SENTINEL = "__global__";
 
-const FULL_LOG_HREF = "/reports/audit-trails";
+const FULL_LOG_HREF = "/preferences/organization/activity";
 
 /**
  * Downtime codes — `DowntimeCodes.dc.html`.
@@ -337,7 +337,11 @@ export default function DowntimeCodesManagementPage() {
               </DetailRow>
             </DetailGrid>
 
-            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+            <RecordActivityTrail
+              entityType="DowntimeCode"
+              entityId={selected.id}
+              fullLogHref={FULL_LOG_HREF}
+            />
           </>
         ) : (
           <NoRecord

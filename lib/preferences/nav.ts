@@ -107,6 +107,13 @@ export const ORGANIZATION_PREFERENCES_ITEMS: PreferencesNavItem[] = [
     href: "/preferences/organization/billing",
     description: "Plan, renewal, limits, and offline payment guidance.",
   },
+  {
+    id: "activity",
+    group: "organization",
+    label: "Activity",
+    href: "/preferences/organization/activity",
+    description: "Who changed what across the workspace.",
+  },
 ];
 
 export function isOrgAdminRole(role: string | null | undefined): role is Extract<UserRole, "SUPERADMIN" | "MANAGER"> {
@@ -127,6 +134,9 @@ export function canViewPreferenceItem(
 
   if (itemId === "billing") return canViewBilling(input);
   if (itemId === "organization") return isOrgAdminRole(role);
+  // The log covers every module, so it answers to the workspace's admins on
+  // every plan — the same people `/api/activity` serves.
+  if (itemId === "activity") return isOrgAdminRole(role);
   if (itemId === "users") {
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.user-management.directory");
   }

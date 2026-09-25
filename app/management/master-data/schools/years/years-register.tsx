@@ -4,8 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -433,16 +433,7 @@ export function YearsRegister() {
               />
             )}
 
-            {/*
-              The trail comes from the shared layer, which draws its own
-              heading. `PlatformAuditEvent` is written for an academic year,
-              but the only route that reads one record's events back is
-              `/api/users/[id]/audit` — so the section says, accurately, that
-              it has nothing rather than inventing rows, and makes no "chain
-              verified" claim, which only a server walking `prevEventHash`
-              could support.
-            */}
-            <ActivityTrail events={[]} />
+            <RecordActivityTrail entityType="SchoolAcademicYear" entityId={selected.id} />
           </>
         ) : (
           /* Below 900px `RegisterLayout` shows one column at a time and this

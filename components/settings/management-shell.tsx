@@ -12,21 +12,13 @@ import {
   SettingsSurface,
   type SettingsRailGroup,
 } from "@/components/management/ui";
+import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
 import {
   findActiveSettingsNavEntry,
   getSettingsRailGroups,
 } from "@/lib/settings/management-nav";
 import { cn } from "@/lib/utils";
-
-/**
- * Where "Back to the app" goes.
- *
- * A fixed destination rather than `router.back()`: the surface is reachable
- * from a sidebar entry, a workspace home href and a handful of in-page links,
- * and half of those arrive with a history entry that is another settings page.
- * Going "back" from Billing to Job grades is not leaving the surface.
- */
-const BACK_TO_APP_HREF = "/dashboard";
+import { getComputedWorkspaceHomeHref } from "@/lib/workspaces";
 
 /**
  * Whether a settings screen is already on the reader's screen.
@@ -95,15 +87,19 @@ export type SettingsFrameProps = {
  * the heading repeating facts the fields already carry is a band spent on
  * nothing. The section's name and its one verb moved into the record header,
  * where the thing they act on is. `PageChrome` is gone for the same reason —
- * the surface covers the app bar, so a title registered into it is a title
+ * there is no app bar under the surface, so a title registered into it is a title
  * drawn behind a scrim.
  *
  * ## Why it is a dialog
  *
- * `Main.dc.html` and `Opening.dc.html` draw the app dimmed behind an inset
- * card, and the transition they annotate — `fade-in-0`, `zoom-in .985`, 200ms,
+ * `Opening.dc.html` draws the surface arriving as an inset card over a scrim,
+ * and the transition it annotates — `fade-in-0`, `zoom-in .985`, 200ms,
  * no zoom under `prefers-reduced-motion` — is `components/ui/dialog.tsx`'s
  * own at `size="full"`. `SettingsSurface` wraps exactly that.
+ *
+ * Nothing is drawn under it: `AppShell` renders these routes bare
+ * (`isSettingsSurfacePath`), so the dialog is the only UI on screen, and
+ * closing it navigates to the workspace's landing screen.
  *
  * Presentation only: no query, no mutation and no gate lives here. The rail's
  * entries arrive already filtered by the same two predicates that guarded
@@ -121,9 +117,36 @@ export function SettingsFrame({
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)
-    ?.enabledFeatures;
+  const user = session?.user as
+    | {
+        role?: string;
+        enabledFeatures?: string[];
+        workspaceProfile?: string;
+        companySlug?: string;
+      }
+    | undefined;
+  const role = user?.role;
+  const enabledFeatures = user?.enabledFeatures;
+
+  /*
+    Where closing the surface goes: the landing screen of the workspace the
+    reader was in — the same front door the sidebar's workspace switch lands
+    on. A fixed destination rather than `router.back()`: the surface is
+    reachable from a sidebar entry and a handful of in-page links, and half of
+    those arrive with a history entry that is another settings page. Going
+    "back" from Billing to Job grades is not leaving the surface.
+  */
+  const { activeWorkspaceId } = useActiveWorkspace(user?.companySlug ?? "default");
+  const landingHref = React.useMemo(
+    () =>
+      getComputedWorkspaceHomeHref({
+        role,
+        enabledFeatures,
+        workspaceProfile: user?.workspaceProfile,
+        activeWorkspaceId,
+      }),
+    [activeWorkspaceId, enabledFeatures, role, user?.workspaceProfile],
+  );
 
   // Open on mount and closed by leaving: the surface is a route, so its
   // "closed" state is a different page rather than a different render.
@@ -154,9 +177,9 @@ export function SettingsFrame({
   const handleOpenChange = React.useCallback(
     (next: boolean) => {
       setOpen(next);
-      if (!next) router.push(BACK_TO_APP_HREF);
+      if (!next) router.push(landingHref);
     },
-    [router],
+    [landingHref, router],
   );
 
   const groups = React.useMemo<SettingsRailGroup[]>(() => {
@@ -191,7 +214,7 @@ export function SettingsFrame({
     <SettingsSurface
       open={open}
       onOpenChange={handleOpenChange}
-      rail={<SettingsRail groups={groups} backHref={BACK_TO_APP_HREF} />}
+      rail={<SettingsRail groups={groups} backHref={landingHref} />}
       /* The surface's single grid row is implicit and therefore `auto`, which
          a tall form would grow past and `overflow: hidden` would then clip.
          Pinning it to the surface's own height is what lets each column below

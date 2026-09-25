@@ -4,8 +4,8 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ManagementShell } from "@/components/settings/management-shell";
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -537,14 +537,7 @@ export default function SchoolsPeriodsMasterDataPage() {
               />
             )}
 
-            {/*
-              Rule: every record ends with its trail. `PlatformAuditEvent` has
-              no route for a period — the only record-audit endpoint in the repo
-              is `/api/users/[id]/audit` — so this draws the empty state rather
-              than inventing rows, and makes no "chain verified" claim, which
-              only a server walking `prevEventHash` could support.
-            */}
-            <ActivityTrail events={[]} />
+            <RecordActivityTrail entityType="SchoolPeriod" entityId={selected.id} />
           </>
         ) : (
           <RecordEmpty>

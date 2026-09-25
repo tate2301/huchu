@@ -391,4 +391,27 @@
   .total {
     margin-top: 8px;
   }
+
+  /* The total is the figure the list above it comes to, so its label reads at
+     the value's weight rather than as one more grey caption. */
+  .total > :first-child {
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Change plan — the dialog the header verb opens
+   * ------------------------------------------------------------------ */
+
+  .dialogTitle {
+    font: 600 17px/1.25 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--text-strong);
+  }
+
+  /* A section heading and the failure band both carry a page's 36px above
+     them; under a dialog title that is a gap, not a rhythm. */
+  .dialogBody > :first-child {
+    margin-top: 4px;
+  }
 }

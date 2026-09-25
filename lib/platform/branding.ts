@@ -64,6 +64,12 @@ export type EffectiveBranding = {
   fontFamily: string;
   brandingEnabled: boolean;
   customDomainEnabled: boolean;
+  /**
+   * The workspace's own logo, from Branding → Assets. Drawn as the workspace
+   * mark in the app's rail and served as the favicon. Null when branding is
+   * off or no logo is set, and the generated initial stands in.
+   */
+  logoUrl: string | null;
   colors: {
     primary: string;
     secondary: string;
@@ -138,6 +144,7 @@ const DEFAULT_BRANDING: EffectiveBranding = {
   fontFamily: BRANDING_FONT_OPTIONS[0].fontFamily,
   brandingEnabled: false,
   customDomainEnabled: false,
+  logoUrl: null,
   colors: {
     primary: "#0B5DF0",
     secondary: "#E8EFFE",
@@ -276,6 +283,24 @@ export function isReservedCustomDomain(hostname: string): boolean {
   return rootHosts.includes(normalized);
 }
 
+/**
+ * A logo URL fit to put in an `<img src>` and a `<link rel="icon">`: an
+ * absolute http(s) URL or a same-origin path. The settings field takes any
+ * string up to 500 characters, so anything else — a `javascript:` URL, a typo
+ * with no scheme — is dropped rather than drawn as a broken image.
+ */
+function normalizeLogoUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getEffectiveBrandingForCompany(companyId: string): Promise<EffectiveBranding> {
   const normalizedCompanyId = companyId.trim();
   if (!normalizedCompanyId) {
@@ -292,6 +317,7 @@ export async function getEffectiveBrandingForCompany(companyId: string): Promise
           branding: {
             select: {
               displayName: true,
+              logoUrl: true,
               primaryColor: true,
               secondaryColor: true,
               accentColor: true,
@@ -335,6 +361,7 @@ export async function getEffectiveBrandingForCompany(companyId: string): Promise
       customDomainEnabled,
       fontFamilyKey,
       fontFamily: getFontFamilyByKey(fontFamilyKey),
+      logoUrl: brandingEnabled ? normalizeLogoUrl(company.branding?.logoUrl) : null,
       colors: {
         primary,
         secondary,
