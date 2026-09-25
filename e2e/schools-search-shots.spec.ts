@@ -30,18 +30,24 @@ test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
  * group picker, and a loose placeholder pattern typed a pupil's surname into the
  * year group filter, which then reported the palette as broken.
  *
- * Visible only, and that is the whole fix at desktop. `Navbar` mounts
- * `GlobalCommandBar` twice — once in the phone row and once in the `md:flex`
- * row — so at 1440px there are two buttons answering to this name and the one
- * that comes first in the DOM is the phone's, hidden at this width. `.first()`
- * alone therefore clicked a button nobody can see and the palette never opened,
- * while the same code passed at 390px where the phone row is the visible one.
- * Same breakpoint-variant trap as the house chip in `boarding-shots.spec.ts`.
+ * The trigger is asked for by its full name, and that is the fix at desktop.
+ * Matching `"Search"` used to be unambiguous; the workspace rail now carries a
+ * search of its own, labelled "Search ⌘K", which sits above the navigation and
+ * comes first in the DOM. So `"Search"` matched the rail's button, the click
+ * landed on it rather than on the palette, and the palette's input was reported
+ * missing — correctly, because nothing had opened it. Filtering to what is
+ * visible does not help: at 1440px the rail's search is visible too.
+ *
+ * `GlobalCommandBar` gives both of its variants the `aria-label`
+ * "Search records and actions", so that name reaches the palette and nothing
+ * else. `.filter({ visible: true })` still earns its place after it: `Navbar`
+ * mounts the bar twice, once in the phone row and once in the `md:flex` one,
+ * and only the row belonging to this width is on screen.
  */
 async function openPalette(page: Page) {
   await page.goto("/schools/students");
   const button = page
-    .getByRole("button", { name: "Search" })
+    .getByRole("button", { name: "Search records and actions" })
     .filter({ visible: true })
     .first();
   await expect(button).toBeVisible({ timeout: 30_000 });

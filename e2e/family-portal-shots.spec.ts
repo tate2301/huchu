@@ -74,13 +74,21 @@ const STUDENT_SCREENS = [
   {
     slug: "marks",
     path: "/portal/student/marks",
-    // Three states, not two. "No marks published yet" is the screen with
-    // nothing on it at all; "No marks in this term yet" is the hero's line when
-    // the pupil has published marks but none in the term now open, which is
-    // what St Mary's shows — and which this pattern used to miss, reporting a
-    // page that had rendered perfectly well as never ready. "out of" only ever
-    // appears in an `aria-label`, so it never matched by text in the first place.
-    ready: /No marks published yet|No marks in this term yet|Term mark/i,
+    // The populated state was the one missing. St Mary's pupil has marks, so
+    // the screen draws "Overall mark · Term 3" over a subject list and neither
+    // empty state appears — and the pattern named only empty states plus
+    // "Term mark", which this screen has never rendered. A page that was
+    // perfectly correct was therefore reported as never ready.
+    //
+    // "out of" is dropped with it: it appears only inside an `aria-label` on
+    // each subject's bar, so `getByText` was never going to match it and it
+    // read as cover that was not there.
+    //
+    // Both empty states stay. "No marks published yet" is the screen with
+    // nothing on it at all; "No marks in this term yet" is the hero's line for
+    // a pupil with marks but none in the term now open. A seed that publishes
+    // no results, or opens a fourth term, should not fail this shot.
+    ready: /Overall mark|Your subjects|No marks published yet|No marks in this term yet/i,
   },
   {
     slug: "homework",

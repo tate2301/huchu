@@ -61,11 +61,18 @@ function firstClosure(events: CalendarEvent[]): CalendarEvent | null {
  * What the test is actually for is that the view lists the calendar at all, so
  * it asserts exactly that: one of the titles the calendar knows about is on the
  * screen.
+ *
+ * The `.first()` at the end is the whole point of the shape and not a tidy-up.
+ * `or` is a union, so on the calendar page — where every event is drawn — the
+ * chain resolves to one element per event and `toBeVisible` fails strict mode
+ * with "resolved to 10 elements". A `.first()` on each branch does not prevent
+ * that, because it is the union that is ambiguous, not the branches.
  */
 function anyEventTitle(page: Page, events: CalendarEvent[]) {
   return events
     .map((event) => page.getByText(event.title).filter({ visible: true }).first())
-    .reduce((locator, next) => locator.or(next));
+    .reduce((locator, next) => locator.or(next))
+    .first();
 }
 
 for (const viewport of [
