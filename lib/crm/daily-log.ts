@@ -55,6 +55,12 @@ export const costEntrySchema = z.object({
   amount: z.number().finite().positive(),
   currency: z.string().trim().min(1).max(10).default("USD"),
   description: z.string().trim().min(1).max(500),
+  /**
+   * The day it belongs to. Defaults to today; can be moved back and never
+   * forward — a rep writes Tuesday up on Wednesday, and a line for Friday
+   * written on Wednesday is a guess.
+   */
+  date: z.coerce.date().optional(),
   /** Null for airtime and anything else that belongs to no project. */
   projectId: z.string().uuid().nullable().optional(),
   /** Set when the cash came from a requisition, so the float reconciles. */
@@ -90,22 +96,60 @@ export async function openDailyLog(
   });
 }
 
+/** A line the day cannot take: a day not yet lived, or one already closed. */
+export class CostEntryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CostEntryError";
+  }
+}
+
+export type AddCostEntryInput = CostEntryInput & {
+  companyId: string;
+  /** Whose money it is. The line goes on this person's log for the day. */
+  userId: string;
+  /** What "today" is, so a test is not at the mercy of the clock. */
+  now?: Date;
+};
+
 /**
- * Record one movement of cash.
+ * Record one movement of cash — the only way a spend or income line is ever
+ * written.
+ *
+ * The cost tracker, a requisition's report and a project's "Add spend" all
+ * come through here, so there is one ledger of field money rather than three
+ * that each add up slightly differently. It opens the person's log for the
+ * day if this is the first line on it, which is what lets a requisition's
+ * report and a project's spend land on the same day the tracker shows.
+ *
+ * Refuses a day in the future, and a day already submitted: a day somebody has
+ * declared finished and then quietly added to is not a day anybody can check.
  *
  * Idempotent on `clientEntryId` when the device supplies one. Without it the
  * entry is created outright, which is right for the web form: a person typing
  * the same amount twice usually means it happened twice.
  */
-export async function addCostEntry(
-  tx: Tx,
-  companyId: string,
-  logId: string,
-  input: CostEntryInput,
-) {
+export async function addCostEntry(tx: Tx, input: AddCostEntryInput) {
+  const { companyId, userId } = input;
+  const logDate = toLogDate(input.date ?? input.now ?? new Date());
+  if (logDate.getTime() > toLogDate(input.now ?? new Date()).getTime()) {
+    throw new CostEntryError("That day has not happened yet. Money is logged on the day it moved.");
+  }
+
+  const log = await tx.crmDailyLog.upsert({
+    where: { companyId_userId_logDate: { companyId, userId, logDate } },
+    update: {},
+    create: { companyId, userId, logDate },
+  });
+  if (log.submittedAt) {
+    throw new CostEntryError(
+      "That day has been submitted. Ask a manager to reopen it if something is missing.",
+    );
+  }
+
   const data = {
     companyId,
-    logId,
+    logId: log.id,
     direction: input.direction,
     category: input.category,
     amount: new Prisma.Decimal(input.amount),

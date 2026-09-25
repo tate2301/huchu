@@ -57,9 +57,11 @@ async function entry(
   amount: string,
   extra: { projectId?: string | null; category?: "FUEL" | "MATERIALS"; receipt?: boolean } = {},
 ) {
-  const log = await prisma.$transaction((tx) => openDailyLog(tx, companyId, userId, DAY));
   return prisma.$transaction((tx) =>
-    addCostEntry(tx, companyId, log.id, {
+    addCostEntry(tx, {
+      companyId,
+      userId,
+      date: DAY,
       direction,
       category: extra.category ?? "MATERIALS",
       amount: Number(amount),
@@ -279,8 +281,8 @@ describe("a day of cash", () => {
       clientEntryId,
     };
 
-    await prisma.$transaction((tx) => addCostEntry(tx, companyId, log.id, input));
-    await prisma.$transaction((tx) => addCostEntry(tx, companyId, log.id, input));
+    await prisma.$transaction((tx) => addCostEntry(tx, { companyId, userId, date: DAY, ...input }));
+    await prisma.$transaction((tx) => addCostEntry(tx, { companyId, userId, date: DAY, ...input }));
 
     const count = await prisma.crmDailyCostEntry.count({ where: { companyId, logId: log.id } });
     expect(count).toBe(1);

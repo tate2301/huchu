@@ -119,6 +119,29 @@ back from a disbursement is an acquittal.
 `outstandingFloat` goes negative when somebody spent their own money. That is
 real and worth saying out loud rather than rounding away.
 
+### Reporting and accounting for it
+
+The requisition's own page (`/crm/requisitions/[id]`, which the approval and
+payment notifications link to) shows where it has got to as a stepper and
+offers **one** move — the one this viewer may make next: *Send for approval*,
+*Approve or decline*, *Mark paid*, or *Account for it*.
+
+Once the money is approved or paid out, the requester **reports what they
+spent**, a line at a time, each with a photo of its receipt. The lines go
+through the same door as every other line of field money (see *One ledger*
+below), carrying the requisition and its project. Reporting opens at
+`APPROVED` as well as `DISBURSED`, because cash handed over on the spot is
+spent before anybody presses *Mark paid*; accounting for it still waits for the
+payment to be recorded.
+
+**The acquittal is the report.** *Account for it* sets `acquittedAmount` to
+the sum of the spend lines (`decideAcquittal` in `lib/crm/requisitions.ts`);
+there is no typed figure. It is **refused while any line has no receipt**. A
+manager — someone with `money.approve`, and never the requester — can accept
+them anyway, and must say why; `receiptsWaivedById` and `receiptWaiverNote`
+keep who and why. The page shows what was issued, what has been accounted for,
+and the balance to return (or owed to them).
+
 ### Permissions
 
 `money.approve` and `money.disburse` are **separate capabilities**, because
@@ -153,6 +176,20 @@ worse than a gap.
 
 Entries carry a device-generated `clientEntryId`, unique per tenant, so an
 entry replayed on reconnect lands once instead of doubling the day's spend.
+
+### One ledger
+
+`addCostEntry(tx, { companyId, userId, date, direction, … })` in
+`lib/crm/daily-log.ts` is **the only way a line of money is written**, and
+`POST /api/v2/crm/cost-entries` is the only route that calls it. The day
+tracker, a requisition's report and a project's *Add spend* all post there, so
+a line lands on its author's log for the day it names whichever screen it was
+typed on. It opens the day's log on the first line, refuses a day in the
+future, and refuses a day already submitted.
+
+Receipts upload through `/api/v2/crm/uploads` with `context=crm-receipt`
+(images and PDF, 10 MB), into a folder of their own: the evidence behind the
+money figures should be findable as such.
 
 **Submitting an empty log is refused unless there is a note.** "No movement
 today" is a real answer, but a quiet day and a day the person forgot about

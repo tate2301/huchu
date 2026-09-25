@@ -306,3 +306,18 @@ describe("the enums the code branches on", () => {
     expect(col?.column_default).toContain("DRAFT");
   });
 });
+
+// Migration witness for 20260925100000_crm_requisition_receipt_waiver.
+describe("receipts waived on an acquittal are on the record", () => {
+  it("keeps who waived them and why, both optional until somebody does", async () => {
+    const cols = await columns("CrmRequisition");
+    expect(cols.get("receiptsWaivedById")?.is_nullable).toBe("YES");
+    expect(cols.get("receiptWaiverNote")?.is_nullable).toBe("YES");
+  });
+
+  it("outlives the account of whoever waived them", async () => {
+    expect(await deleteRule("CrmRequisition", "CrmRequisition_receiptsWaivedById_fkey")).toBe(
+      "SET NULL",
+    );
+  });
+});

@@ -18,7 +18,7 @@ import {
   overBudgetProjectIds,
   projectFromDeal,
 } from "@/lib/crm/projects";
-import { addCostEntry, openDailyLog } from "@/lib/crm/daily-log";
+import { addCostEntry } from "@/lib/crm/daily-log";
 
 const SLUG = "project-spine-test";
 const OTHER_SLUG = "project-spine-other-test";
@@ -273,14 +273,15 @@ describe("over budget", () => {
       createProject(tx, companyId, userId, { name: "No budget" }),
     );
 
-    const log = await prisma.$transaction((tx) => openDailyLog(tx, companyId, userId));
     for (const [projectId, amount] of [
       [over.id, 150],
       [under.id, 150],
       [unbudgeted.id, 5000],
     ] as const) {
       await prisma.$transaction((tx) =>
-        addCostEntry(tx, companyId, log.id, {
+        addCostEntry(tx, {
+          companyId,
+          userId,
           direction: "SPENT",
           category: "MATERIALS",
           amount,
@@ -292,7 +293,9 @@ describe("over budget", () => {
     }
     // Money received against a project is not spend against its budget.
     await prisma.$transaction((tx) =>
-      addCostEntry(tx, companyId, log.id, {
+      addCostEntry(tx, {
+        companyId,
+        userId,
         direction: "RECEIVED",
         category: "OTHER",
         amount: 900,

@@ -36,6 +36,15 @@ export const uploadPolicies = {
     maxBytes: 10 * MB,
     folder: "crm-attachments",
   },
+  // A photograph of a till slip, or the PDF a supplier emailed. Its own folder
+  // rather than `crm-attachment`'s because these are the evidence behind the
+  // money figures, and an auditor asking for last month's receipts should be
+  // handed a folder of receipts, not every file anybody attached to a lead.
+  "crm-receipt": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+    maxBytes: 10 * MB,
+    folder: "crm-receipts",
+  },
   // A file question on a public form. Same allowance as an attachment, but a
   // separate folder — anything a stranger uploaded should be identifiable as
   // such without reading the row that references it.

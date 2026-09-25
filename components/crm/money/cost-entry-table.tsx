@@ -3,13 +3,14 @@
 import type { ReactNode } from "react";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
+import { IconButton } from "@/components/ui/icon-button";
 import { EntityLink } from "@/components/records/entity-link";
 import {
   RecordCell,
   RecordTable,
   type RecordTableColumn,
 } from "@/components/records/record-table";
-import { Calendar, Coins, FileText, Receipt, User, Wallet, Work } from "@/lib/icons";
+import { Calendar, Coins, FileText, Receipt, Trash2, User, Wallet, Work } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 import { CATEGORY_LABELS, formatMoney, type CostEntryRow } from "./money";
@@ -62,6 +63,7 @@ export function CostEntryTable({
   emptyTitle = "No money has moved",
   emptyBody,
   emptyAction,
+  onRemove,
 }: {
   entries: CostEntryRow[];
   isLoading?: boolean;
@@ -71,6 +73,12 @@ export function CostEntryTable({
   emptyTitle?: string;
   emptyBody?: string;
   emptyAction?: ReactNode;
+  /**
+   * Take a line back out — offered only where the page knows the line is the
+   * viewer's own and its day and requisition are still open. The server
+   * refuses the rest regardless.
+   */
+  onRemove?: (entry: CostEntryRow) => void;
 }) {
   const columns: RecordTableColumn<CostEntryRow>[] = [
     {
@@ -156,6 +164,20 @@ export function CostEntryTable({
       align: "end",
       cell: (entry) => <RecordCell kind="money" value={signedAmount(entry)} />,
     },
+    ...(onRemove
+      ? [
+          {
+            id: "remove",
+            label: "",
+            width: "3rem",
+            cell: (entry: CostEntryRow) => (
+              <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
+                <Trash2 />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -175,6 +197,7 @@ export function CostEntryTable({
           emptyTitle={emptyTitle}
           emptyBody={emptyBody}
           emptyAction={emptyAction}
+          onRemove={onRemove}
         />
       }
     />
@@ -190,6 +213,7 @@ function CostEntryList({
   emptyTitle,
   emptyBody,
   emptyAction,
+  onRemove,
 }: {
   entries: CostEntryRow[];
   isLoading?: boolean;
@@ -198,6 +222,7 @@ function CostEntryList({
   emptyTitle: string;
   emptyBody?: string;
   emptyAction?: ReactNode;
+  onRemove?: (entry: CostEntryRow) => void;
 }) {
   if (isLoading) {
     return (
@@ -244,6 +269,11 @@ function CostEntryList({
             </p>
             <ReceiptCell entry={entry} />
           </div>
+          {onRemove ? (
+            <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
+              <Trash2 />
+            </IconButton>
+          ) : null}
         </li>
       ))}
     </ul>

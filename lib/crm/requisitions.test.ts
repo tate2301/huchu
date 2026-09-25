@@ -17,11 +17,14 @@ import {
   RequisitionTransitionError,
   assertTransition,
   awaitsDecision,
+  canReport,
   canTransition,
+  decideAcquittal,
   expectsProject,
   isOutstanding,
   outstandingFloat,
   payableAmount,
+  reportTotals,
   type RequisitionStatus,
 } from "@/lib/crm/requisitions";
 
@@ -221,5 +224,122 @@ describe("the two questions a list view asks", () => {
       awaitsDecision(status),
     );
     expect(waiting).toEqual(["SUBMITTED"]);
+  });
+});
+
+function line(amount: string, receipt: boolean, direction: "SPENT" | "RECEIVED" = "SPENT") {
+  return { direction, amount, receiptUrl: receipt ? "https://example.invalid/receipt.jpg" : null };
+}
+
+const REQUESTER = { id: "requester", isRequester: true, mayWaive: true };
+const MANAGER = { id: "manager", isRequester: false, mayWaive: true };
+const COLLEAGUE = { id: "colleague", isRequester: false, mayWaive: false };
+
+describe("reporting spend against a requisition", () => {
+  it("opens once it is approved, and closes once it is accounted for", () => {
+    const open = REQUISITION_STATUSES.filter((status: RequisitionStatus) => canReport(status));
+    // Approved as well as paid out: cash handed over on the spot is spent
+    // before anybody records the payment.
+    expect(open).toEqual(["APPROVED", "DISBURSED"]);
+  });
+
+  it("adds up the spend and nothing else", () => {
+    const totals = reportTotals([
+      line("250.50", true),
+      line("60.00", false),
+      // The float arriving is not something it was spent on.
+      line("400.00", true, "RECEIVED"),
+    ]);
+    expect(totals.accounted.toString()).toBe("310.5");
+    expect(totals.spendLines).toBe(2);
+    expect(totals.missingReceipts).toBe(1);
+  });
+
+  it("keeps the cents", () => {
+    expect(reportTotals([line("0.10", true), line("0.20", true)]).accounted.toString()).toBe("0.3");
+  });
+});
+
+describe("accounting for a requisition from its lines", () => {
+  it("settles at what the lines come to when every one has a receipt", () => {
+    const decision = decideAcquittal({
+      lines: [line("250.50", true), line("60.00", true)],
+      actor: REQUESTER,
+    });
+    expect(decision).toMatchObject({ ok: true, waiver: null });
+    if (decision.ok) expect(decision.acquittedAmount.toString()).toBe("310.5");
+  });
+
+  it("settles a report of nothing at nothing — the cash came back", () => {
+    const decision = decideAcquittal({ lines: [], actor: REQUESTER });
+    expect(decision.ok).toBe(true);
+    if (decision.ok) expect(decision.acquittedAmount.toString()).toBe("0");
+  });
+
+  it("is blocked while any line lacks a receipt, and says how many", () => {
+    const decision = decideAcquittal({
+      lines: [line("90.00", false), line("30.00", false), line("10.00", true)],
+      actor: REQUESTER,
+    });
+    expect(decision).toMatchObject({ ok: false, status: 409, code: "RECEIPTS_MISSING" });
+    if (!decision.ok) expect(decision.message).toMatch(/^2 lines have no receipt/);
+  });
+
+  it("does not let the requester wave their own receipts through", () => {
+    const decision = decideAcquittal({
+      lines: [line("90.00", false)],
+      actor: REQUESTER,
+      waiveMissingReceipts: true,
+      waiverNote: "Lost it",
+    });
+    expect(decision).toMatchObject({ ok: false, status: 403, code: "WAIVER_BY_REQUESTER" });
+  });
+
+  it("does not let somebody who cannot approve money waive them", () => {
+    const decision = decideAcquittal({
+      lines: [line("90.00", false)],
+      actor: COLLEAGUE,
+      waiveMissingReceipts: true,
+      waiverNote: "Seemed fine",
+    });
+    expect(decision).toMatchObject({ ok: false, status: 403, code: "WAIVER_NOT_ALLOWED" });
+  });
+
+  it("makes a manager say why", () => {
+    const decision = decideAcquittal({
+      lines: [line("90.00", false)],
+      actor: MANAGER,
+      waiveMissingReceipts: true,
+      waiverNote: "   ",
+    });
+    expect(decision).toMatchObject({ ok: false, status: 400, code: "WAIVER_NEEDS_REASON" });
+  });
+
+  it("lets a manager accept them without, and keeps who and why", () => {
+    const decision = decideAcquittal({
+      lines: [line("90.00", false), line("30.00", true)],
+      actor: MANAGER,
+      waiveMissingReceipts: true,
+      waiverNote: "  Pump till was down  ",
+    });
+    expect(decision.ok).toBe(true);
+    if (decision.ok) {
+      expect(decision.acquittedAmount.toString()).toBe("120");
+      expect(decision.waiver).toEqual({
+        receiptsWaivedById: "manager",
+        receiptWaiverNote: "Pump till was down",
+      });
+    }
+  });
+
+  it("records no waiver when there was nothing to waive", () => {
+    const decision = decideAcquittal({
+      lines: [line("30.00", true)],
+      actor: MANAGER,
+      waiveMissingReceipts: true,
+      waiverNote: "Just in case",
+    });
+    expect(decision.ok).toBe(true);
+    if (decision.ok) expect(decision.waiver).toBeNull();
   });
 });

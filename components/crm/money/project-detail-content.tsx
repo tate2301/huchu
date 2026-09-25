@@ -49,11 +49,13 @@ import {
   Work,
 } from "@/lib/icons";
 
+import { CostEntryForm } from "./cost-entry-form";
 import { CostEntryTable } from "./cost-entry-table";
 import { formatMoney, type CostEntryRow, type RequisitionRow } from "./money";
 import { ProjectCostStrip, type ProjectCosts } from "./project-cost-strip";
 import { ProjectTeam, type ProjectMember } from "./project-team";
 import { ProjectTimelineView, type ProjectTimelineJob } from "./project-timeline-view";
+import { RaiseRequisitionSheet } from "./raise-requisition-sheet";
 import { RequisitionTable } from "./requisition-table";
 
 type ProjectDetail = {
@@ -107,6 +109,8 @@ function readableDay(value: string | null): string | null {
 export function ProjectDetailContent({ projectId }: { projectId: string }) {
   const { data: session } = useSession();
   const [tab, setTab] = useState("overview");
+  const [asking, setAsking] = useState(false);
+  const [addingSpend, setAddingSpend] = useState(false);
 
   const query = useQuery({
     queryKey: ["crm", "project", projectId],
@@ -411,12 +415,17 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
             count: requisitions.length,
             attention: openRequisitions > 0,
             content: (
-              <RequisitionTable
-                rows={requisitions}
-                showProject={false}
-                emptyTitle="Nobody has asked for money for this"
-                emptyBody="Requisitions raised against this project land here, with where each one has got to."
-              />
+              <div className="space-y-3">
+                <RequisitionTable
+                  rows={requisitions}
+                  showProject={false}
+                  emptyTitle="Nobody has asked for money for this"
+                  emptyBody="Requisitions raised against this project land here, with where each one has got to."
+                />
+                <Button variant="secondary" size="sm" onClick={() => setAsking(true)}>
+                  Ask for money for this project
+                </Button>
+              </div>
             ),
           },
           {
@@ -426,12 +435,42 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
             count: entries.length,
             attention: entries.some((entry) => entry.direction === "SPENT" && !entry.receiptUrl),
             content: (
-              <CostEntryTable
-                entries={entries}
-                showProject={false}
-                emptyTitle="Nothing spent on it yet"
-                emptyBody="Spend logged against this project lands here, with its receipt."
-              />
+              <div className="space-y-3">
+                <CostEntryTable
+                  entries={entries}
+                  showProject={false}
+                  emptyTitle="Nothing spent on it yet"
+                  emptyBody="Spend logged against this project lands here, with its receipt."
+                />
+                {/* Revealed on demand rather than standing open under the
+                    table: most people come here to read the spend, and a form
+                    they did not ask for pushes it off a phone's screen. */}
+                {addingSpend ? (
+                  <section
+                    aria-labelledby="project-add-spend"
+                    className="space-y-2 border-t border-[var(--border-subtle)] pt-4"
+                  >
+                    <h2 id="project-add-spend" className="text-base font-semibold text-[var(--text-strong)]">
+                      Add spend
+                    </h2>
+                    <p className="text-sm text-[var(--text-muted)]">
+                      Money you spent on this project yourself. Spend from a requisition is
+                      reported on the requisition.
+                    </p>
+                    <CostEntryForm
+                      fixed={{ direction: "SPENT", currency: project.currency, projectId: project.id }}
+                      onSaved={() => {
+                        setAddingSpend(false);
+                        void query.refetch();
+                      }}
+                    />
+                  </section>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={() => setAddingSpend(true)}>
+                    Add spend
+                  </Button>
+                )}
+              </div>
             ),
           },
           {
@@ -464,6 +503,16 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
       />
 
       {jobs.sheet}
+
+      <RaiseRequisitionSheet
+        open={asking}
+        onOpenChange={setAsking}
+        project={{
+          id: project.id,
+          label: `${project.projectNo} — ${project.name}`,
+          currency: project.currency,
+        }}
+      />
     </>
   );
 }

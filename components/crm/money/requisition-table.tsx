@@ -45,7 +45,7 @@ export function RequisitionTable({
   isLoading,
   showProject = true,
   showRequester = true,
-  rowHref = () => "/crm/requisitions",
+  rowHref = (row) => `/crm/requisitions/${row.id}`,
   emptyTitle = "Nobody has asked for money",
   emptyBody,
   emptyAction,

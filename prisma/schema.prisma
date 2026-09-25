@@ -1251,6 +1251,7 @@ model User {
   crmRequisitionsRequested          CrmRequisition[]               @relation("CrmRequisitionRequestedBy")
   crmRequisitionsApproved           CrmRequisition[]               @relation("CrmRequisitionApprovedBy")
   crmRequisitionsDisbursed          CrmRequisition[]               @relation("CrmRequisitionDisbursedBy")
+  crmRequisitionsReceiptsWaived     CrmRequisition[]               @relation("CrmRequisitionReceiptsWaivedBy")
   crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
@@ -13023,8 +13024,15 @@ model CrmRequisition {
 
   /// What it actually went on, once spent. A requisition is not finished when
   /// the money is handed over; it is finished when somebody accounts for it.
+  /// Set from the spend lines reported against it, never typed.
   acquittedAt     DateTime?
   acquittedAmount Decimal?  @db.Decimal(14, 2)
+
+  /// A spend line with no receipt blocks the acquittal. A manager — never the
+  /// requester — can let it through, and has to say why; both are kept, so
+  /// "who accepted a receipt-less 90 for diesel" has an answer.
+  receiptsWaivedById String?
+  receiptWaiverNote  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -13034,6 +13042,7 @@ model CrmRequisition {
   requestedBy User                @relation("CrmRequisitionRequestedBy", fields: [requestedById], references: [id])
   approvedBy  User?               @relation("CrmRequisitionApprovedBy", fields: [approvedById], references: [id])
   disbursedBy User?               @relation("CrmRequisitionDisbursedBy", fields: [disbursedById], references: [id])
+  receiptsWaivedBy User?          @relation("CrmRequisitionReceiptsWaivedBy", fields: [receiptsWaivedById], references: [id], onDelete: SetNull)
   bankAccount BankAccount?        @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   costEntries CrmDailyCostEntry[]
 

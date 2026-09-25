@@ -70,7 +70,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         where: { companyId, projectId: id },
         orderBy: { createdAt: "desc" },
         take: 200,
-        include: { log: { select: { logDate: true, user: { select: { id: true, name: true } } } } },
+        include: {
+          log: { select: { logDate: true, user: { select: { id: true, name: true } } } },
+          requisition: { select: { id: true, requisitionNo: true } },
+        },
       }),
       prisma.crmProjectMember.findMany({
         where: { companyId, projectId: id },

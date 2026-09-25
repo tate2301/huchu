@@ -131,9 +131,17 @@ export const disburseSchema = z.object({
   disbursedAt: z.coerce.date().optional(),
 });
 
+/**
+ * Accounting for a requisition.
+ *
+ * There is no amount in it: what the money went on is the sum of the spend
+ * lines reported against the requisition, each with its receipt, and a figure
+ * typed at the end is a figure nobody can check. The two fields are for a
+ * manager letting receipt-less lines through — see `decideAcquittal`.
+ */
 export const acquitSchema = z.object({
-  acquittedAmount: z.number().finite().nonnegative(),
-  notes: z.string().trim().max(2000).nullable().optional(),
+  waiveMissingReceipts: z.boolean().optional(),
+  waiverNote: z.string().trim().max(1000).nullable().optional(),
 });
 
 /**
@@ -174,6 +182,124 @@ export function outstandingFloat(requisition: {
       ? new Prisma.Decimal(0)
       : new Prisma.Decimal(requisition.acquittedAmount);
   return paid.minus(spent);
+}
+
+/**
+ * Where spend can be reported against a requisition.
+ *
+ * Paid out, obviously. Approved too: where the approver hands the cash over on
+ * the spot, the requester is spending it before anybody has pressed "Mark
+ * paid", and a receipt photographed at the pump should not have to wait for
+ * the paperwork. Accounting for it still waits for the payment to be recorded
+ * — the ledger has to have seen the money leave before it can see it come
+ * back.
+ */
+export function canReport(status: RequisitionStatus): boolean {
+  return status === "APPROVED" || status === "DISBURSED";
+}
+
+type ReportLine = {
+  direction: "RECEIVED" | "SPENT";
+  amount: Prisma.Decimal | number | string;
+  receiptUrl: string | null;
+};
+
+/**
+ * What a requisition's report comes to.
+ *
+ * Only spending counts. A RECEIVED line against a requisition is the float
+ * arriving in somebody's hand, not something it was spent on, and adding it
+ * would account for the money twice.
+ */
+export function reportTotals(lines: ReportLine[]): {
+  accounted: Prisma.Decimal;
+  spendLines: number;
+  missingReceipts: number;
+} {
+  let accounted = new Prisma.Decimal(0);
+  let spendLines = 0;
+  let missingReceipts = 0;
+  for (const line of lines) {
+    if (line.direction !== "SPENT") continue;
+    spendLines += 1;
+    accounted = accounted.plus(new Prisma.Decimal(line.amount));
+    if (!line.receiptUrl) missingReceipts += 1;
+  }
+  return { accounted, spendLines, missingReceipts };
+}
+
+export type AcquittalDecision =
+  | {
+      ok: true;
+      acquittedAmount: Prisma.Decimal;
+      waiver: { receiptsWaivedById: string; receiptWaiverNote: string } | null;
+    }
+  | { ok: false; status: 400 | 403 | 409; code: string; message: string };
+
+/**
+ * Whether a requisition can be accounted for now, and at what figure.
+ *
+ * The figure is the report's spend. A line with no receipt blocks it, because
+ * "I spent 90 on diesel" with nothing to show for it is the entry an audit
+ * asks about first. The way round is a manager — somebody who may approve
+ * money, and never the requester, which is the same rule as approving your
+ * own request — saying in words why these are accepted anyway.
+ *
+ * Accounting for nothing is allowed: a trip that fell through and the cash
+ * handed back is a real answer, and the whole amount comes back as change.
+ */
+export function decideAcquittal(input: {
+  lines: ReportLine[];
+  actor: { id: string; isRequester: boolean; mayWaive: boolean };
+  waiveMissingReceipts?: boolean;
+  waiverNote?: string | null;
+}): AcquittalDecision {
+  const report = reportTotals(input.lines);
+
+  if (report.missingReceipts === 0) {
+    return { ok: true, acquittedAmount: report.accounted, waiver: null };
+  }
+
+  const lines = `${report.missingReceipts} line${report.missingReceipts === 1 ? " has" : "s have"}`;
+  if (!input.waiveMissingReceipts) {
+    return {
+      ok: false,
+      status: 409,
+      code: "RECEIPTS_MISSING",
+      message: `${lines} no receipt. Add the photos, or ask a manager to accept them without.`,
+    };
+  }
+  if (input.actor.isRequester) {
+    return {
+      ok: false,
+      status: 403,
+      code: "WAIVER_BY_REQUESTER",
+      message: "Somebody else has to accept your own spend without receipts.",
+    };
+  }
+  if (!input.actor.mayWaive) {
+    return {
+      ok: false,
+      status: 403,
+      code: "WAIVER_NOT_ALLOWED",
+      message: "Only somebody who approves requisitions can accept spend without receipts.",
+    };
+  }
+  const note = input.waiverNote?.trim();
+  if (!note) {
+    return {
+      ok: false,
+      status: 400,
+      code: "WAIVER_NEEDS_REASON",
+      message: "Say why these are accepted without receipts. The reason is kept with the requisition.",
+    };
+  }
+
+  return {
+    ok: true,
+    acquittedAmount: report.accounted,
+    waiver: { receiptsWaivedById: input.actor.id, receiptWaiverNote: note },
+  };
 }
 
 /** Statuses where the money has left the business and not yet been accounted for. */

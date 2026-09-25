@@ -16,8 +16,10 @@ export default async function CrmRequisitionsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
+  // No title band: `RecordListShell` registers the page's name and its
+  // create button with the app bar, like every other CRM register.
   return (
-    <CrmPage title="Requisitions" description="money asked for, approved, paid and accounted for">
+    <CrmPage>
       <RequisitionsContent />
     </CrmPage>
   );

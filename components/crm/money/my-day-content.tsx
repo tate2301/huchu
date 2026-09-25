@@ -99,7 +99,7 @@ export function MyDayContent() {
 
   const removeEntry = useMutation({
     mutationFn: (entryId: string) =>
-      fetchJson(`/api/v2/crm/daily-logs/${data!.log.id}/entries?entryId=${entryId}`, {
+      fetchJson(`/api/v2/crm/cost-entries?id=${entryId}`, {
         method: "DELETE",
       }),
     onSuccess: invalidate,
@@ -214,7 +214,7 @@ export function MyDayContent() {
       )}
 
       {closed ? null : (
-        <EntryForm logId={log.id} projects={projects} onSaved={invalidate} />
+        <EntryForm day={date} projects={projects} onSaved={invalidate} />
       )}
 
       <section className="space-y-2">
@@ -271,11 +271,12 @@ function Figure({ label, value, strong }: { label: string; value: string; strong
 }
 
 function EntryForm({
-  logId,
+  day,
   projects,
   onSaved,
 }: {
-  logId: string;
+  /** The day the line goes on, as `YYYY-MM-DD`. */
+  day: string;
   projects: ProjectOption[];
   onSaved: () => void;
 }) {
@@ -288,9 +289,10 @@ function EntryForm({
 
   const add = useMutation({
     mutationFn: () =>
-      fetchJson(`/api/v2/crm/daily-logs/${logId}/entries`, {
+      fetchJson("/api/v2/crm/cost-entries", {
         method: "POST",
         body: JSON.stringify({
+          date: day,
           direction,
           category,
           amount: Number(amount),
