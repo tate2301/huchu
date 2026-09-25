@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ManagementShell } from "@/components/settings/management-shell";
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -782,12 +782,11 @@ export default function TemplateSettingsPage() {
               />
             )}
 
-            {/* Document templates write no `PlatformAuditEvent` and there is no
-                route that would read one for them, so the trail is drawn empty
-                rather than filled from the version list — a version is not an
-                audit record and dressing it as one would be a lie about what
-                the chain covers. */}
-            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+            <RecordActivityTrail
+              entityType="DocumentTemplate"
+              entityId={selected.id}
+              fullLogHref={FULL_LOG_HREF}
+            />
           </>
         ) : (
           <NoRecord
@@ -1176,7 +1175,7 @@ export default function TemplateSettingsPage() {
   );
 }
 
-const FULL_LOG_HREF = "/reports/audit-trails";
+const FULL_LOG_HREF = "/preferences/organization/activity";
 
 /** The way back to the list below 900px, where the register shows one column. */
 function BackToList({ label, onBack }: { label: string; onBack: () => void }) {

@@ -60,7 +60,7 @@ import { initialsOf } from "./initials";
 import styles from "./users.module.css";
 
 /** Every register on this surface links its trail out to the same log. */
-const FULL_LOG_HREF = "/reports/audit-trails";
+const FULL_LOG_HREF = "/preferences/organization/activity";
 
 /**
  * The record half of the Users register, drawn from `Main.dc.html`.

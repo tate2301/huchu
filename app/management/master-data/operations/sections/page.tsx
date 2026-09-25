@@ -3,8 +3,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -51,7 +51,7 @@ import {
 
 const SECTIONS_KEY = ["management", "master-data", "sections"] as const;
 
-const FULL_LOG_HREF = "/reports/audit-trails";
+const FULL_LOG_HREF = "/preferences/organization/activity";
 
 /**
  * One muted line, on the record's 470px measure.
@@ -352,7 +352,11 @@ export default function SectionsManagementPage() {
               </SectionNote>
             )}
 
-            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+            <RecordActivityTrail
+              entityType="Section"
+              entityId={selected.id}
+              fullLogHref={FULL_LOG_HREF}
+            />
           </>
         ) : (
           <NoRecord

@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -51,7 +51,7 @@ const SETTLEMENT_TYPES_KEY = [
   "gold-expense-types",
 ] as const;
 
-const FULL_LOG_HREF = "/reports/audit-trails";
+const FULL_LOG_HREF = "/preferences/organization/activity";
 
 /**
  * Settlement types — `SettlementTypes.dc.html`.
@@ -279,7 +279,11 @@ export default function GoldExpenseTypesManagementPage() {
               </DetailRow>
             </DetailGrid>
 
-            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+            <RecordActivityTrail
+              entityType="GoldExpenseType"
+              entityId={selected.id}
+              fullLogHref={FULL_LOG_HREF}
+            />
           </>
         ) : (
           <NoRecord

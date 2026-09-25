@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -52,7 +52,7 @@ import {
 
 const SITES_KEY = ["preferences", "organization", "sites"] as const;
 
-const FULL_LOG_HREF = "/reports/audit-trails";
+const FULL_LOG_HREF = "/preferences/organization/activity";
 
 /**
  * One muted line, on the record's 470px measure.
@@ -389,7 +389,11 @@ export function SitesRegister() {
               <SectionNote>No sections are filed under this site yet.</SectionNote>
             )}
 
-            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+            <RecordActivityTrail
+              entityType="Site"
+              entityId={selected.id}
+              fullLogHref={FULL_LOG_HREF}
+            />
           </>
         ) : (
           <NoRecord

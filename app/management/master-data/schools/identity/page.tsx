@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import type { CrmFieldType } from "@prisma/client";
 
 import { ManagementShell } from "@/components/settings/management-shell";
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
   ActivityTrail,
   HeaderAction,
@@ -907,7 +908,7 @@ function FieldRecord({
         </>
       ) : null}
 
-      <ActivityTrail events={[]} />
+      <RecordActivityTrail entityType="CrmFieldDefinition" entityId={row.id} />
     </>
   );
 }

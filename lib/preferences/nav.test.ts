@@ -30,6 +30,7 @@ describe("preferences navigation", () => {
       "branding",
       "templates",
       "billing",
+      "activity",
     ]);
   });
 
@@ -43,6 +44,7 @@ describe("preferences navigation", () => {
       "sites",
       "departments",
       "billing",
+      "activity",
     ]);
   });
 

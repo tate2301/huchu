@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ManagementShell } from "@/components/settings/management-shell";
+import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import {
-  ActivityTrail,
   HeaderAction,
   ListColumn,
   ListRow,
@@ -56,7 +56,7 @@ import {
 /** The register's query key. Unchanged — invalidation elsewhere depends on it. */
 const QUERY_KEY = ["management", "master-data", "job-grades"] as const;
 
-const FULL_LOG_HREF = "/reports/audit-trails";
+const FULL_LOG_HREF = "/preferences/organization/activity";
 
 /**
  * Job grades — `JobGrades.dc.html`: the list beside the record.
@@ -464,7 +464,11 @@ export default function JobGradesManagementPage() {
               </RosterNote>
             )}
 
-            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+            <RecordActivityTrail
+              entityType="JobGrade"
+              entityId={selected.id}
+              fullLogHref={FULL_LOG_HREF}
+            />
           </>
         ) : (
           <NoRecord
