@@ -21,7 +21,11 @@ import type { ImportEntity, ImportPlan } from "@/lib/crm/import";
 import type { FieldChoice, MergeFieldPlan } from "@/lib/crm/merge";
 import type { RecordSort } from "@/lib/crm/records";
 import type { LeadSort, LeadViewFilters } from "@/lib/crm/views";
-import type { SiteVisitItemInput, SiteVisitReportInput } from "@/lib/crm/site-visits";
+import type {
+  SiteVisitItemInput,
+  SiteVisitPhotoInput,
+  SiteVisitReportInput,
+} from "@/lib/crm/site-visits";
 
 export type CrmClientRecord = {
   id: string;
@@ -146,18 +150,12 @@ export type CrmVisitChecklistItem = {
   notes?: string | null;
 };
 
-export type CrmVisitPhoto = {
-  url: string;
-  fileName?: string | null;
-  contentType?: string | null;
-  size?: number | null;
-  kind: "PHOTO" | "FILE";
-  caption?: string | null;
-};
+/** A photo on the visit report — the same shape it is saved back in. */
+export type CrmVisitPhoto = SiteVisitPhotoInput;
 
 export type CrmVisitReportRecord = CrmAppointmentRecord & {
   checklist: CrmVisitChecklistItem[] | null;
-  photos: CrmVisitPhoto[] | null;
+  photos: CrmVisitPhoto[];
   siteConditions: string | null;
   reportNotes: string | null;
   outcomeNotes: string | null;

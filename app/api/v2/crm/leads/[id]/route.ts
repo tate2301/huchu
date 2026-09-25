@@ -92,7 +92,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           include: { createdBy: { select: { id: true, name: true } } },
         },
         followUps: { orderBy: { dueAt: "asc" } },
-        appointments: { orderBy: { scheduledStart: "desc" } },
+        // The story says how many photos a visit came back with.
+        appointments: {
+          orderBy: { scheduledStart: "desc" },
+          include: { _count: { select: { visitPhotos: true } } },
+        },
         intakeSubmissions: {
           select: { id: true, photoUrls: true, message: true, selectedServices: true, createdAt: true },
           orderBy: { createdAt: "desc" },

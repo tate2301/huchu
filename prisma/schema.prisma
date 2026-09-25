@@ -19,6 +19,12 @@ model Company {
   /// changing it afterwards does nothing, because the tenant's own rows are
   /// the source of truth once seeded.
   siteVisitTemplateKey          String?
+  /// The camera app reps are told to take site photos with, so every photo
+  /// carries a location stamp. Null means the default, "GPS Map Camera".
+  fieldCameraAppName            String?
+  /// Where to get that app. Null means a store search for its name, which
+  /// cannot rot the way a copied listing link can.
+  fieldCameraAppUrl             String?
   tenantStatus                  TenantStatus       @default(PROVISIONING)
   workspaceProfile              WorkspaceProfile   @default(GENERAL)
   isProvisioned                 Boolean            @default(false)
@@ -10979,10 +10985,9 @@ model CrmAppointment {
   updatedAt      DateTime             @updatedAt
 
   // Site-visit report captured on site. `checklist` is an array of
-  // { key, label, checked, notes? }; `photos` an array of
-  // { url, fileName, contentType, size, kind, caption? }.
+  // { key, label, checked, notes? }. The photographs are rows of their own —
+  // `visitPhotos` — because each one carries where and when it was taken.
   checklist         Json?
-  photos            Json?
   siteConditions    String?
   reportNotes       String?
   reportCompletedAt DateTime?
@@ -11196,6 +11201,10 @@ model CrmSiteVisitAnswer {
 /// Always belongs to the visit; optionally to a section and an answer. The
 /// bank asks for both — "site/area overview photographs" belong to no question,
 /// while "photograph cracks, joints, contamination" belongs to one.
+///
+/// The visit report's own attachments live here too, and that list has always
+/// taken the odd PDF — a drawing the client handed over. `contentType` is what
+/// tells the two apart; a PDF simply has no location to carry.
 model CrmSiteVisitPhoto {
   id            String  @id @default(uuid())
   companyId     String
@@ -11214,6 +11223,9 @@ model CrmSiteVisitPhoto {
   width        Int?
   height       Int?
   caption      String?
+  /// The name the file had on the phone, for a list that would otherwise read
+  /// "Photo, Photo, Photo".
+  fileName     String?
   /// From the device, not the server clock — a visit may sync days later.
   capturedAt   DateTime?
   latitude     Float?

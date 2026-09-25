@@ -5,13 +5,24 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import { Coins, Dataset, Funnel, Lock, Megaphone, Package, Plug, type LucideIcon } from "@/lib/icons";
+import {
+  Coins,
+  Dataset,
+  Funnel,
+  Lock,
+  MapPin,
+  Megaphone,
+  Package,
+  Plug,
+  type LucideIcon,
+} from "@/lib/icons";
 import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
 import { CataloguePanel } from "@/components/inventory/catalogue-panel";
 import { ApiKeysPanel } from "@/components/crm/settings/api-keys-panel";
 import { CommissionsPanel } from "@/components/crm/settings/commissions-panel";
 import { CustomFieldsPanel } from "@/components/crm/settings/custom-fields-panel";
 import { FacebookPanel } from "@/components/crm/settings/facebook-panel";
+import { FieldCameraPanel } from "@/components/crm/settings/field-camera-panel";
 import { LeadSourcesPanel } from "@/components/crm/settings/lead-sources-panel";
 import { PipelinesPanel } from "@/components/crm/settings/pipelines-panel";
 
@@ -48,16 +59,20 @@ type SettingsSection = {
   id: string;
   label: string;
   description: string;
-  /** The band's primary action for this section — "New pipeline", "Add field". */
-  addLabel: string;
+  /**
+   * The band's primary action for this section — "New pipeline", "Add field".
+   * Absent on a section that is one setting rather than a list of things: there
+   * is nothing to add, and its own form carries the one action it has.
+   */
+  addLabel?: string;
   icon: LucideIcon;
-  /** Which key in the counts response tallies this section. */
-  countKey: keyof SetupCounts;
+  /** Which key in the counts response tallies this section. Absent where there is nothing to count. */
+  countKey?: keyof SetupCounts;
   render: (props: SettingsPanelProps) => ReactNode;
 };
 
 /**
- * The seven setup sections.
+ * The setup sections.
  *
  * Exported because the page band names the active one and carries its action —
  * see `CrmSettingsShell`. The descriptions are the band ledes, which is why
@@ -129,6 +144,13 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Lead Ads forms delivered straight into the pipeline",
     render: (props) => <FacebookPanel {...props} />,
   },
+  {
+    id: "field-camera",
+    label: "Field camera",
+    icon: MapPin,
+    description: "the app reps take site photos with, so every photo says where it was taken",
+    render: () => <FieldCameraPanel />,
+  },
 ];
 
 /** Which section the query string is asking for, falling back to the first. */
@@ -177,7 +199,7 @@ export function CrmSettingsContent({ createOpen, onCreateOpenChange }: SettingsP
             icon={<section.icon className="size-4" aria-hidden="true" />}
             // A zero is a real answer here — "nothing set up yet" — but it is
             // only worth drawing once the counts have actually arrived.
-            count={counts.data ? counts.data[section.countKey] : undefined}
+            count={counts.data && section.countKey ? counts.data[section.countKey] : undefined}
             onClick={() => select(section.id)}
           >
             {section.label}
