@@ -74,7 +74,13 @@ const STUDENT_SCREENS = [
   {
     slug: "marks",
     path: "/portal/student/marks",
-    ready: /No marks published yet|out of|Term mark/i,
+    // Three states, not two. "No marks published yet" is the screen with
+    // nothing on it at all; "No marks in this term yet" is the hero's line when
+    // the pupil has published marks but none in the term now open, which is
+    // what St Mary's shows — and which this pattern used to miss, reporting a
+    // page that had rendered perfectly well as never ready. "out of" only ever
+    // appears in an `aria-label`, so it never matched by text in the first place.
+    ready: /No marks published yet|No marks in this term yet|Term mark/i,
   },
   {
     slug: "homework",

@@ -29,10 +29,21 @@ test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
  * placeholder: the register underneath has a search box of its own and a year
  * group picker, and a loose placeholder pattern typed a pupil's surname into the
  * year group filter, which then reported the palette as broken.
+ *
+ * Visible only, and that is the whole fix at desktop. `Navbar` mounts
+ * `GlobalCommandBar` twice — once in the phone row and once in the `md:flex`
+ * row — so at 1440px there are two buttons answering to this name and the one
+ * that comes first in the DOM is the phone's, hidden at this width. `.first()`
+ * alone therefore clicked a button nobody can see and the palette never opened,
+ * while the same code passed at 390px where the phone row is the visible one.
+ * Same breakpoint-variant trap as the house chip in `boarding-shots.spec.ts`.
  */
 async function openPalette(page: Page) {
   await page.goto("/schools/students");
-  const button = page.getByRole("button", { name: "Search" }).first();
+  const button = page
+    .getByRole("button", { name: "Search" })
+    .filter({ visible: true })
+    .first();
   await expect(button).toBeVisible({ timeout: 30_000 });
   const input = page.getByPlaceholder("Search quick actions");
 

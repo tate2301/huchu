@@ -48,6 +48,26 @@ function firstClosure(events: CalendarEvent[]): CalendarEvent | null {
   return events.find((event) => event.isTeachingDay === false) ?? null;
 }
 
+/**
+ * A locator matching any one of the calendar's own titles.
+ *
+ * Asserting on `events[0]` specifically is what this used to do, and it was an
+ * assumption about ordering rather than about the product. The API returns the
+ * calendar by date, and the seed's earliest two entries are public holidays in
+ * August — before the current term opens on 8 September — so the first event is
+ * one the term's view has no reason to draw. The page is not wrong to leave it
+ * out, and the test has no business naming which entry it wants.
+ *
+ * What the test is actually for is that the view lists the calendar at all, so
+ * it asserts exactly that: one of the titles the calendar knows about is on the
+ * screen.
+ */
+function anyEventTitle(page: Page, events: CalendarEvent[]) {
+  return events
+    .map((event) => page.getByText(event.title).filter({ visible: true }).first())
+    .reduce((locator, next) => locator.or(next));
+}
+
 for (const viewport of [
   { name: "phone", width: 390, height: 844 },
   { name: "desktop", width: 1440, height: 900 },
@@ -81,7 +101,8 @@ for (const viewport of [
       //
       // The title comes from the calendar rather than being typed here: it used
       // to be the literal "Africa Day", which was a public holiday on the tenant
-      // this spec was written against and is not one here.
+      // this spec was written against and is not one here. It is now any of the
+      // calendar's titles rather than its first — see `anyEventTitle`.
       //
       // `tab`, and the label is "Holidays and events". It read `button` and
       // "Holidays & Events" — neither of which this page has ever rendered, and
@@ -92,7 +113,7 @@ for (const viewport of [
           .getByRole("tab", { name: /Holidays and events/i })
           .first()
           .click();
-        await expect(page.getByText(events[0].title).first()).toBeVisible({
+        await expect(anyEventTitle(page, events)).toBeVisible({
           timeout: 2_000,
         });
       }).toPass({ timeout: 30_000 });
