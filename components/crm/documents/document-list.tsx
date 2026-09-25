@@ -33,6 +33,7 @@ import {
   FileText,
   Mail,
   Payments,
+  Pencil,
   Plus,
   ReceiptLong,
   RefreshCw,
@@ -46,6 +47,7 @@ import { BillingBand } from "./billing-band";
 import { DepositDialog } from "./deposit-dialog";
 import {
   DOCUMENT_KIND_LABELS,
+  documentEditLock,
   documentNumber,
   documentStatus,
   formatMoney,
@@ -160,6 +162,8 @@ export function DocumentList({
     mode: "quotation" | "invoice";
     fromQuotationId?: string;
     deposit?: boolean;
+    /** Opens the builder on an existing quote or invoice, prefilled. */
+    editing?: { documentId: string; number: string; version: number };
   } | null>(null);
   const [paymentFor, setPaymentFor] = useState<LeadDocument | null>(null);
   const [depositFor, setDepositFor] = useState<LeadDocument | null>(null);
@@ -314,6 +318,12 @@ export function DocumentList({
               Boolean(doc.quotationId) &&
               status.label !== "Declined" &&
               status.label !== "Voided";
+            const editLock = documentEditLock(doc);
+            const openEditor = () =>
+              setBuilder({
+                mode: doc.type === "INVOICE" ? "invoice" : "quotation",
+                editing: { documentId: doc.id, number: documentNumber(doc), version: doc.version },
+              });
 
             return (
               <li key={doc.id} className="flex flex-wrap items-center gap-3 p-3">
@@ -375,6 +385,34 @@ export function DocumentList({
                         Download PDF
                       </a>
                     </DropdownMenuItem>
+
+                    {/* A quote that can no longer change is simply not offered
+                        the verb: an accepted quote is an agreement, and a new
+                        quote is the next step. An invoice keeps the verb and
+                        says why it is locked, because what to do instead — a
+                        credit note in Accounting — is not obvious from here. */}
+                    {doc.type === "QUOTATION" && !editLock ? (
+                      <DropdownMenuItem onClick={openEditor}>
+                        <Pencil />
+                        Edit
+                      </DropdownMenuItem>
+                    ) : null}
+                    {doc.type === "INVOICE" ? (
+                      editLock ? (
+                        <DropdownMenuItem disabled title={editLock}>
+                          <Pencil />
+                          <span className="min-w-0 whitespace-normal">
+                            Edit
+                            <span className="block text-sm">{editLock}</span>
+                          </span>
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onClick={openEditor}>
+                          <Pencil />
+                          Edit
+                        </DropdownMenuItem>
+                      )
+                    ) : null}
 
                     {doc.type !== "RECEIPT" ? (
                       <>
@@ -474,8 +512,9 @@ export function DocumentList({
         currency={currency}
         fromQuotationId={builder?.fromQuotationId}
         isDeposit={builder?.deposit}
+        editing={builder?.editing}
         prefillLines={
-          depositLine ?? (builder?.fromQuotationId ? undefined : prefillLines)
+          depositLine ?? (builder?.fromQuotationId || builder?.editing ? undefined : prefillLines)
         }
       />
 

@@ -5646,6 +5646,12 @@ model SalesInvoice {
   /// The quotation this invoice was raised from, when it was. The CRM reads
   /// this to recognise its own work coming back from Accounting.
   quotationId   String?
+  /// How many times the issued invoice has been edited. Each edit reverses the
+  /// posted journal and posts the new figures under a source id of their own
+  /// (`salesInvoicePostingKey`), because a journal's source is unique and the
+  /// reversed entry keeps its claim on the invoice's id. 0 posts as the id
+  /// itself, which is what every invoice before editing existed did.
+  revision      Int                  @default(0)
   createdById   String?
   issuedById    String?
   issuedAt      DateTime?

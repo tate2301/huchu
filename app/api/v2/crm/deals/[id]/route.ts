@@ -105,6 +105,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 amountPaid: true,
                 creditTotal: true,
                 writeOffTotal: true,
+                // Whether it can still be edited, and if not why — see
+                // `invoiceEditLock`. The list greys "Edit" out with the reason.
+                fiscalStatus: true,
+                fiscalReceipt: { select: { id: true } },
+                _count: {
+                  select: {
+                    receipts: true,
+                    creditNotes: { where: { status: { not: "VOIDED" } } },
+                    writeOffs: { where: { status: { not: "VOIDED" } } },
+                  },
+                },
               },
             },
             receipt: {
