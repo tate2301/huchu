@@ -1,49 +1,60 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useGuidedMode } from "@/hooks/use-guided-mode";
-import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@/lib/icons";
 import { fetchStockLocations } from "@/lib/api";
+import { Circle, HelpCircle } from "@/lib/icons";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
+import { Sidebar, useSidebar } from "@/components/ui/sidebar";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarHeader,
-  SidebarRail,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import { SidebarAccountMenu } from "@/components/layout/app-sidebar/sidebar-account-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { getActiveNavHref } from "@/components/layout/app-sidebar/sidebar-helpers";
-import { SidebarNavSections } from "@/components/layout/app-sidebar/sidebar-nav-sections";
 import { SidebarCrmCollections } from "@/components/layout/app-sidebar/sidebar-crm-collections";
-import { SidebarQuickActions } from "@/components/layout/app-sidebar/sidebar-quick-actions";
-import { SidebarSupport } from "@/components/layout/app-sidebar/sidebar-support";
+import { RailAvatar } from "@/components/layout/workspace-rail/rail-avatar";
+import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
+import { WorkspaceRail } from "@/components/layout/workspace-rail";
 
 export function AppSidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
   const { data: session } = useSession();
-  const role = (session?.user as { role?: string } | undefined)?.role;
+  const user = session?.user as
+    | {
+        role?: string;
+        enabledFeatures?: string[];
+        workspaceProfile?: string;
+        companySlug?: string;
+        name?: string | null;
+        email?: string | null;
+        image?: string | null;
+      }
+    | undefined;
+  const role = user?.role;
   const enabledFeatures = React.useMemo(
-    () =>
-      (session?.user as { enabledFeatures?: string[] } | undefined)
-        ?.enabledFeatures,
-    [session],
+    () => user?.enabledFeatures,
+    [user?.enabledFeatures],
   );
-  const workspaceProfile = (
-    session?.user as { workspaceProfile?: string } | undefined
-  )?.workspaceProfile;
-  const { state, isMobile, setOpen } = useSidebar();
-  const { enabled: guidedModeEnabled, setGuidedMode } = useGuidedMode();
+  const workspaceProfile = user?.workspaceProfile;
+  const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const router = useRouter();
+
+  // A company that runs two businesses has two rails, and which one you left
+  // off in is yours rather than the tenant's. Keyed by company so the same
+  // person signed into two of them keeps two answers.
+  const { activeWorkspaceId, select } = useActiveWorkspace(
+    user?.companySlug ?? "default",
+  );
 
   // Which stock surfaces are worth offering depends on how the stock is laid
   // out, and that is a fact about the tenant rather than about its plan — a
@@ -60,222 +71,155 @@ export function AppSidebar() {
     [stockLocationsQuery.data],
   );
 
-  const sidebarModel = React.useMemo(
-    () =>
-      getWorkspaceSidebarModel({
-        role,
-        enabledFeatures,
-        workspaceProfile,
-        activeStockLocationSiteIds,
-      }),
+  const modelArgs = React.useMemo(
+    () => ({ role, enabledFeatures, workspaceProfile, activeStockLocationSiteIds }),
     [activeStockLocationSiteIds, enabledFeatures, role, workspaceProfile],
   );
 
-  const orderedSections = React.useMemo(
-    () => sidebarModel.sections,
-    [sidebarModel.sections],
+  const sidebarModel = React.useMemo(
+    () => getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId }),
+    [activeWorkspaceId, modelArgs],
   );
-  const topQuickLinks = React.useMemo(() => {
-    return [
-      {
-        href: sidebarModel.homeHref,
-        label: sidebarModel.homeLabel,
-        icon: MedusaHouseIcon,
-      },
-    ];
-  }, [sidebarModel.homeHref, sidebarModel.homeLabel]);
-  const topQuickLinkHrefs = React.useMemo(
-    () => new Set(topQuickLinks.map((item) => item.href)),
-    [topQuickLinks],
-  );
-  const orderedSectionsWithoutTopQuickLinks = React.useMemo(
-    () =>
-      orderedSections
-        .map((section) => ({
-          ...section,
-          items: section.items.filter(
-            (item) => !topQuickLinkHrefs.has(item.href),
-          ),
-        }))
-        .filter((section) => section.items.length > 0),
-    [orderedSections, topQuickLinkHrefs],
-  );
-  const primarySections = React.useMemo(
-    () =>
-      orderedSectionsWithoutTopQuickLinks.filter(
-        (section) => section.workspaceGroup !== "additional",
-      ),
-    [orderedSectionsWithoutTopQuickLinks],
-  );
-  const additionalSections = React.useMemo(
-    () =>
-      orderedSectionsWithoutTopQuickLinks.filter(
-        (section) => section.workspaceGroup === "additional",
-      ),
-    [orderedSectionsWithoutTopQuickLinks],
+
+  // Switching lands you at the new workspace's front door. Staying put would
+  // leave the rail describing one business while the page shows another, and
+  // there is no row in the new rail that takes you back to where you were.
+  const onSelectWorkspace = React.useCallback(
+    (id: string) => {
+      select(id);
+      const target = getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId: id });
+      if (target.homeHref && target.homeHref !== pathname) {
+        router.push(target.homeHref);
+      }
+    },
+    [modelArgs, pathname, router, select],
   );
 
   const activeHref = React.useMemo(
-    () => getActiveNavHref(orderedSections, pathname, view),
-    [orderedSections, pathname, view],
-  );
-  const activeSectionId = React.useMemo(
-    () =>
-      orderedSectionsWithoutTopQuickLinks.find((section) =>
-        section.items.some((item) => item.href === activeHref),
-      )?.id ?? null,
-    [activeHref, orderedSectionsWithoutTopQuickLinks],
-  );
-  const [openSectionId, setOpenSectionId] = React.useState<string | null>(
-    activeSectionId,
+    () => getActiveNavHref(sidebarModel.sections, pathname, view),
+    [pathname, sidebarModel.sections, view],
   );
 
-  const [moreExpanded, setMoreExpanded] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    const stored = localStorage.getItem("sidebar-more-expanded");
-    return stored === null ? true : stored !== "false";
-  });
-
-  const toggleMore = React.useCallback(() => {
-    setMoreExpanded((prev) => {
-      const next = !prev;
-      localStorage.setItem("sidebar-more-expanded", String(next));
-      return next;
-    });
-  }, []);
-
-  React.useEffect(() => {
-    if (activeSectionId) {
-      setOpenSectionId(activeSectionId);
-    }
-  }, [activeSectionId]);
-
-  const toggleSection = React.useCallback(
-    (sectionId: string) => {
-      if (isCollapsed) {
-        setOpen(true);
-      }
-      setOpenSectionId((current) => (current === sectionId ? null : sectionId));
-    },
-    [isCollapsed, setOpen],
-  );
+  // No company name reaches the client today — only the slug — so the mark is
+  // built from that and falls back to the workspace's own name. A real name
+  // would be a lookup, which is a data change and not this one.
+  const companyName = React.useMemo(() => {
+    const slug = user?.companySlug;
+    if (!slug) return sidebarModel.workspaceLabel;
+    return slug
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map((part) => part[0]!.toUpperCase() + part.slice(1))
+      .join(" ");
+  }, [sidebarModel.workspaceLabel, user?.companySlug]);
 
   return (
     <Sidebar
       collapsible="icon"
-      variant="inset"
-      // Scrolls as one column. The design system puts the scroll on
-      // `.sidebar-content`, which left the account switcher and the quick
-      // actions pinned while a strip in the middle moved under them — two
-      // scrollbars on one surface, and neither where the pointer expects.
-      className="p-1 sticky top-0 h-[100dvh] m-0 border-none overflow-y-auto overscroll-contain rounded-none bg-[var(--sidebar)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
+      // 280, split 56 and 224. The rail draws its own grounds and its own
+      // hairlines, so the frame around it carries none of its own.
+      className="sticky top-0 m-0 h-[100dvh] rounded-none border-none bg-transparent p-0 shadow-none [--sidebar-width:280px] [--sidebar-width-icon:56px]"
     >
-      <SidebarHeader className="p-1">
-        <SidebarAccountMenu
-          isCollapsed={isCollapsed}
-          isMobile={isMobile}
-          workspaceLabel={sidebarModel.workspaceLabel}
-          workspaceIcon={sidebarModel.workspaceIcon}
-        />
-        <SidebarQuickActions
-          items={topQuickLinks}
-          quickActions={sidebarModel.quickActions}
-          isCollapsed={isCollapsed}
-          isMobile={isMobile}
-          pathname={pathname}
-          view={view}
-        />
-      </SidebarHeader>
-
-      <SidebarContent className="gap-2.5 px-1 pt-0 [flex:none] [overflow:visible]">
-        {!isCollapsed ? (
-          <SidebarSectionHeading label={sidebarModel.workspaceLabel} />
-        ) : null}
-
-        {primarySections.length > 0 ? (
-          <SidebarGroup className="mb-0.5 py-0">
-            <SidebarGroupContent className="mt-0 gap-0">
-              <SidebarNavSections
-                sections={primarySections}
-                activeHref={activeHref}
-                isCollapsed={isCollapsed}
-                openSectionId={openSectionId}
-                onToggleSection={toggleSection}
-              />
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
-
-        {additionalSections.length > 0 ? (
-          <>
-            {!isCollapsed ? (
-              <SidebarSectionHeading
-                label="More"
-                expanded={moreExpanded}
-                onToggle={toggleMore}
-              />
-            ) : null}
-            {(moreExpanded || isCollapsed) ? (
-              <SidebarGroup className="mb-0.5 py-0">
-                <SidebarGroupContent className="mt-0 gap-0">
-                  <SidebarNavSections
-                    sections={additionalSections}
-                    activeHref={activeHref}
-                    isCollapsed={isCollapsed}
-                    openSectionId={openSectionId}
-                    onToggleSection={toggleSection}
-                  />
-                </SidebarGroupContent>
-              </SidebarGroup>
-            ) : null}
-          </>
-        ) : null}
-
-        {/* The user's own shelves, below the product's structure — these are
-            what this person keeps to hand, not part of the app's shape. */}
-        <SidebarCrmCollections isCollapsed={isCollapsed} />
-
-        <SidebarSupport
-          isCollapsed={isCollapsed}
-          guidedModeEnabled={guidedModeEnabled}
-          onToggleGuidedMode={() => setGuidedMode(!guidedModeEnabled)}
-        />
-      </SidebarContent>
-
-      <SidebarRail className="right-[-2px] h-10 w-[2px] rounded-full bg-[var(--action-primary-bg)]/35" />
+      <WorkspaceRail
+        sections={sidebarModel.sections}
+        workspaceLabel={sidebarModel.workspaceLabel}
+        companyName={companyName}
+        activeHref={activeHref}
+        supportItems={sidebarModel.supportItems}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={() => setOpen(isCollapsed)}
+        workspaces={sidebarModel.workspaces}
+        activeWorkspaceId={sidebarModel.activeWorkspaceId}
+        onSelectWorkspace={onSelectWorkspace}
+        user={{ name: user?.name, image: user?.image }}
+        collections={<SidebarCrmCollections isCollapsed={isCollapsed} />}
+        accountMenu={
+          <RailAccount name={user?.name} email={user?.email} image={user?.image} />
+        }
+      />
     </Sidebar>
   );
 }
 
-function SidebarSectionHeading({
-  label,
-  expanded,
-  onToggle,
+/**
+ * The person, at the foot of tier one.
+ *
+ * Carries everything the old account block did — preferences, management,
+ * users, sign out — plus the guided-tips switch, which used to sit on its own
+ * at the bottom of the rail. A rail of places is no home for a setting.
+ */
+function RailAccount({
+  name,
+  email,
+  image,
 }: {
-  label: string;
-  expanded?: boolean;
-  onToggle?: () => void;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
 }) {
-  if (onToggle !== undefined) {
-    return (
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center gap-1 px-2 pb-1 pt-2 text-sm font-medium text-[var(--text-subtle)] transition-colors hover:text-foreground"
-      >
-        <span className="truncate">{label}</span>
-        {expanded ? (
-          <MedusaChevronDownIcon className="ml-auto h-3.5 w-3.5 text-[var(--text-subtle)]" />
-        ) : (
-          <MedusaChevronRightIcon className="ml-auto h-3.5 w-3.5 text-[var(--text-subtle)]" />
-        )}
-      </button>
-    );
-  }
+  const { enabled: guidedModeEnabled, setGuidedMode } = useGuidedMode();
   return (
-    <div className="flex items-center gap-1 px-2 pb-1 pt-2 text-sm font-medium text-[var(--text-subtle)]">
-      <span className="truncate">{label}</span>
-      <MedusaChevronDownIcon className="h-3.5 w-3.5 text-[var(--text-subtle)]" />
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${name ?? email ?? "Account"} — account`}
+          className="cursor-pointer rounded-full border-0 bg-transparent p-0"
+        >
+          <RailAvatar src={image} name={name} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="end" className="w-60 p-1.5">
+        <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-1.5">
+          <RailAvatar src={image} name={name} size={36} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-semibold leading-tight text-[var(--text-strong)]">
+              {name ?? "Signed in"}
+            </span>
+            {email ? (
+              <span className="block truncate text-[13px] leading-snug text-[var(--text-subtle)]">
+                {email}
+              </span>
+            ) : null}
+          </span>
+        </div>
+        <span className="mx-1.5 block h-px bg-[var(--border-subtle)]" />
+        <div className="grid gap-px pt-1.5">
+          {[
+            { href: "/preferences/profile", label: "Profile" },
+            { href: "/preferences/notifications", label: "Notifications" },
+            { href: "/preferences/appearance", label: "Appearance" },
+            { href: "/preferences/organization/users", label: "Users" },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex h-8 items-center rounded-lg px-2 text-[13px] font-medium text-[var(--text-body)] hover:bg-[var(--border-subtle)]"
+            >
+              {item.label}
+            </Link>
+          ))}
+          <button
+            type="button"
+            onClick={() => setGuidedMode(!guidedModeEnabled)}
+            className="flex h-8 items-center gap-2 rounded-lg px-2 text-left text-[13px] font-medium text-[var(--text-body)] hover:bg-[var(--border-subtle)]"
+          >
+            {guidedModeEnabled ? (
+              <HelpCircle className="h-3.5 w-3.5 text-[var(--action-primary-bg)]" />
+            ) : (
+              <Circle className="h-3.5 w-3.5 text-[var(--text-subtle)]" />
+            )}
+            <span className="flex-1">Guided tips</span>
+          </button>
+        </div>
+        <span className="mx-1.5 mt-1.5 block h-px bg-[var(--border-subtle)]" />
+        <Link
+          href="/api/auth/signout"
+          className="mt-1.5 flex h-8 items-center rounded-lg px-2 text-[13px] font-medium text-[var(--action-destructive-bg)] hover:bg-[var(--action-destructive-soft-bg)]"
+        >
+          Sign out
+        </Link>
+      </PopoverContent>
+    </Popover>
   );
 }

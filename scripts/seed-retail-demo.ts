@@ -205,10 +205,18 @@ async function main() {
   */
   await prisma.company.update({
     where: { id: companyId },
-    // The enum member, not the string. `RETAIL` is `@map("THRIFT")` in the
-    // database — the profile predates the rename and the column still holds
-    // the old label — so Prisma's generated type does not accept the literal.
-    data: { workspaceProfile: WorkspaceProfile.RETAIL },
+  /*
+    The Prisma-level name, not the generated constant.
+
+    `RETAIL` is `@map("THRIFT")` in the database — the profile predates the
+    rename and the column still holds the old label. Under Prisma 7 the
+    generated `WorkspaceProfile.RETAIL` constant carries the *mapped* value
+    ("THRIFT"), which the query API then rejects: it validates against the
+    schema name. Passing the constant fails at runtime with "Invalid value for
+    argument `workspaceProfile`". `scripts/demo-focus.ts` writes the name for
+    the same reason.
+  */
+    data: { workspaceProfile: "RETAIL" as WorkspaceProfile },
   })
 
   console.log(`Seeding ${days} days of trade into ${company.name} (${slug})`)

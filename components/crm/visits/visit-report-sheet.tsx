@@ -22,6 +22,7 @@ import {
   type CrmVisitPhoto,
 } from "@/lib/crm/crm-v2";
 import { buildDefaultChecklist } from "@/lib/crm/site-visits";
+import { VisitQuestionSections } from "@/components/crm/visits/visit-question-sections";
 
 export type MeasurementDraft = {
   category: string;
@@ -256,6 +257,17 @@ export function VisitReportSheet({
         </div>
       ) : (
         <div className="space-y-4">
+          {/* What is actually being quoted, and that product's own questions.
+              The generic checklist below stays for the visit as a whole: it
+              asks whether the rep got access and took photographs, which is
+              true of every visit regardless of what is being priced. */}
+          <section className="space-y-2">
+            <h3 className="text-base font-semibold text-[var(--text-strong)]">
+              Site visit questions
+            </h3>
+            {appointmentId ? <VisitQuestionSections appointmentId={appointmentId} /> : null}
+          </section>
+
           <section className="space-y-2">
             <h3 className="text-base font-semibold text-[var(--text-strong)]">
               On-site checklist

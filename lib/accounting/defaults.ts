@@ -204,6 +204,78 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "5410", name: "Inventory Shrinkage", type: "EXPENSE", category: "Inventory", systemManaged: true },
   { code: "5420", name: "Cash Over Short", type: "EXPENSE", category: "Cash", systemManaged: true },
   { code: "5600", name: "Bad Debt Expense", type: "EXPENSE", category: "Receivables", systemManaged: true },
+  // The CRM's money-out categories. A rep asks for "fuel", not for account
+  // 5500, so the requisition form offers a category and one seeded rule per
+  // category resolves it here. Nine categories, nine accounts, and an
+  // accountant who disagrees with one edits that rule rather than the code.
+  //
+  // LABOUR deliberately has no account of its own: it posts to 5200 Wages
+  // Expense, where the payroll already puts wages. Casual labour paid out of a
+  // requisition and a salary paid through a run are the same cost, and
+  // splitting them makes the wages figure answer neither question.
+  {
+    code: "5500",
+    name: "Fuel",
+    type: "EXPENSE",
+    category: "Operations",
+    description: "Diesel and petrol, whether drawn on a requisition or bought from a float.",
+    systemManaged: true,
+  },
+  {
+    code: "5510",
+    name: "Telephone & Airtime",
+    type: "EXPENSE",
+    category: "Operations",
+    systemManaged: true,
+  },
+  {
+    code: "5520",
+    name: "Transport & Travel",
+    type: "EXPENSE",
+    category: "Operations",
+    description: "Getting people and things to site. Fuel has its own account (5500).",
+    systemManaged: true,
+  },
+  {
+    code: "5530",
+    name: "Site Materials",
+    type: "EXPENSE",
+    category: "Operations",
+    description:
+      "Materials bought for a job out of a requisition or a float. Distinct from 5000 Cost of Goods Sold, which is stock sold, and from 1200 Inventory, which is stock held.",
+    systemManaged: true,
+  },
+  {
+    code: "5540",
+    name: "Equipment Hire",
+    type: "EXPENSE",
+    category: "Operations",
+    systemManaged: true,
+  },
+  {
+    code: "5550",
+    name: "Subsistence",
+    type: "EXPENSE",
+    category: "Operations",
+    description: "Feeding a crew that is away from base.",
+    systemManaged: true,
+  },
+  {
+    code: "5560",
+    name: "Accommodation",
+    type: "EXPENSE",
+    category: "Operations",
+    systemManaged: true,
+  },
+  {
+    code: "5590",
+    name: "Sundry Expenses",
+    type: "EXPENSE",
+    category: "Operations",
+    description:
+      "Where an OTHER requisition lands. A growing balance here is a sign the category list is missing something, not that the account is working.",
+    systemManaged: true,
+  },
 ];
 
 const GOLD_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -369,6 +441,120 @@ export const DEFAULT_TAX_RULES: DefaultTaxRule[] = [
   },
 ];
 
+/**
+ * Where each requisition category lands.
+ *
+ * Declared above `BASE_POSTING_RULES` and not below it, because that array
+ * spreads `buildCrmMoneyRules()` into itself at module load — so the function
+ * runs while these maps are still in the temporal dead zone if they sit after
+ * it. Moving them back down throws `Cannot access ... before initialization`
+ * on import, which takes out every module that reads the chart of accounts.
+ *
+ * LABOUR shares 5200 Wages Expense with the payroll on purpose: casual labour
+ * paid from a requisition and a salary paid through a run are the same cost to
+ * the business, and separating them makes the wages figure answer neither
+ * "what did we spend on people" nor "what went through the payroll".
+ */
+export const CRM_EXPENSE_CATEGORY_ACCOUNTS: Record<string, string> = {
+  FUEL: "5500",
+  AIRTIME: "5510",
+  TRANSPORT: "5520",
+  MATERIALS: "5530",
+  EQUIPMENT: "5540",
+  LABOUR: "5200",
+  SUBSISTENCE: "5550",
+  ACCOMMODATION: "5560",
+  OTHER: "5590",
+};
+
+const CRM_CATEGORY_LABELS: Record<string, string> = {
+  FUEL: "Fuel",
+  AIRTIME: "Airtime",
+  TRANSPORT: "Transport",
+  MATERIALS: "Materials",
+  EQUIPMENT: "Equipment",
+  LABOUR: "Labour",
+  SUBSISTENCE: "Subsistence",
+  ACCOMMODATION: "Accommodation",
+  OTHER: "Other",
+};
+
+/**
+ * One rule per category per event, generated rather than typed out.
+ *
+ * Thirty-six rules looks like a lot beside the handful above, and it is the
+ * point: a posting rule is the surface an accountant edits. Somebody who wants
+ * fuel in a different account opens "Fuel — requisition paid out" and changes
+ * the account, rather than asking for a deployment. The alternative — one rule
+ * that resolves the account from the event — would have been four rows nobody
+ * could steer.
+ *
+ * The bank is credited on a disbursement because that is where requisition
+ * money comes from. A cost entry with no requisition behind it credits
+ * Accounts Payable instead: the business has incurred the cost and owes
+ * whoever laid the money out, which is true whether it was petty cash or a
+ * rep's own pocket.
+ */
+function buildCrmMoneyRules(): DefaultPostingRule[] {
+  const rules: DefaultPostingRule[] = [];
+
+  for (const [category, accountCode] of Object.entries(CRM_EXPENSE_CATEGORY_ACCOUNTS)) {
+    const label = CRM_CATEGORY_LABELS[category] ?? category;
+    const onCategory: DefaultPostingRuleCondition[] = [
+      { field: "EXPENSE_CATEGORY", operator: "EQ", valueString: category },
+    ];
+
+    rules.push({
+      name: `${label} — requisition paid out`,
+      sourceType: "CRM_REQUISITION_DISBURSEMENT",
+      description: `Money handed over on a ${label.toLowerCase()} requisition, expensed as it leaves.`,
+      conditions: onCategory,
+      lines: [
+        { accountCode, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+      ],
+    });
+
+    rules.push({
+      name: `${label} — requisition change returned`,
+      sourceType: "CRM_REQUISITION_REFUND",
+      description:
+        "The employee spent less than they were given. Carries the difference only — the whole amount was expensed when it was paid out.",
+      conditions: onCategory,
+      lines: [
+        { accountCode: "1010", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode, direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+      ],
+    });
+
+    rules.push({
+      name: `${label} — requisition overspend`,
+      sourceType: "CRM_REQUISITION_TOPUP",
+      description:
+        "The employee spent more than they were given and is owed the difference. Carries the difference only.",
+      conditions: onCategory,
+      lines: [
+        { accountCode, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+      ],
+    });
+
+    rules.push({
+      name: `${label} — spent without a requisition`,
+      sourceType: "CRM_COST_ENTRY_SPEND",
+      description:
+        "A daily-log spend with no requisition behind it. The cost is incurred and somebody is owed it.",
+      conditions: onCategory,
+      lines: [
+        { accountCode, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode: "2000", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+      ],
+    });
+  }
+
+  return rules;
+}
+
 const BASE_POSTING_RULES: DefaultPostingRule[] = [
   {
     name: "Stock Receipt",
@@ -524,7 +710,9 @@ const BASE_POSTING_RULES: DefaultPostingRule[] = [
       { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
     ],
   },
+  ...buildCrmMoneyRules(),
 ];
+
 
 const GOLD_POSTING_RULES: DefaultPostingRule[] = [
   {

@@ -81,3 +81,7 @@ e2e/.auth/
 # carries live banking details, so the sources stay local. Generated artefacts
 # (lib/crm/site-visits/floorcode-question-bank.ts) are committed instead.
 /docs/client/
+
+# Local dev stack (pnpm dev:up --detach)
+.dev-server.pid
+.dev-server.log

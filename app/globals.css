@@ -429,6 +429,7 @@
   .btn-label {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: inherit;
     min-width: 0;
   }
@@ -444,6 +445,9 @@
         the icon is both the first and the last *element*, and the auto margin
         shoved the icon and its label together against the right edge. A
         genuine trailing caret has a sibling element before it. */
+        .btn-label:where(:only-child) {
+            justify-content: center;
+        }
   .btn:where(.w-full) {
     justify-content: flex-start;
   }

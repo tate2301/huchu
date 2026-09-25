@@ -21,6 +21,24 @@ const PDF_RENDERING_ROUTES = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * Type errors are NOT ignored. `pnpm run typecheck` runs immediately before
+   * `next build` in the build script and fails the deploy on the first error —
+   * this only stops Next running a *second* check inside the build.
+   *
+   * It is here because that second check is what killed the production build.
+   * The 8 GB builder finished compiling, started the check while the compile
+   * still held its memory, and the container was SIGKILLed:
+   *
+   *     ✓ Compiled successfully in 2.5min
+   *       Running TypeScript ...
+   *     Error: Command "pnpm run build" exited with SIGKILL
+   *
+   * The check needs 2.6 GB on its own (measured) and the compile peaks near
+   * 7 GB. Run in sequence they fit; run stacked they do not. Deleting this
+   * line puts the check back inside the build and breaks the deploy again.
+   */
+  typescript: { ignoreBuildErrors: true },
   experimental: {
     // Phosphor is not in Next's built-in optimizePackageImports list. Its SSR
     // barrel re-exports 1,513 modules and lib/icons.tsx imports the barrel, so

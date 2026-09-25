@@ -1,16 +1,13 @@
 import { BillingPreferences } from "@/components/preferences/organization/billing-preferences";
-import { PreferencesShell } from "@/components/preferences/preferences-shell";
 import { requirePreferencesAccess } from "@/lib/preferences/server";
 
+/**
+ * The gate is unchanged — `requirePreferencesAccess("billing")`, exactly as
+ * before. See the organization page for why the shell moved inside the
+ * component.
+ */
 export default async function PreferencesBillingPage() {
   await requirePreferencesAccess("billing");
 
-  return (
-    <PreferencesShell
-      title="Billing"
-      description="Review plan, renewal, limits, and offline payment handling."
-    >
-      <BillingPreferences />
-    </PreferencesShell>
-  );
+  return <BillingPreferences />;
 }

@@ -211,7 +211,19 @@ describe("the name above the sidebar", () => {
     expect(model("SCHOOLS", EVERYTHING).workspaceLabel).toBe("School Operations");
     expect(model("GOLD_MINE", EVERYTHING).workspaceLabel).toBe("Gold Operations");
     expect(model("RETAIL", EVERYTHING).workspaceLabel).toBe("Retail");
-    expect(model("PAYROLL", EVERYTHING).workspaceLabel).toBe("Payroll");
+  });
+
+  /*
+    A bureau is named Payroll — but a tenant holding *every* feature is not a
+    bureau, it is five businesses, and it now gets one workspace each with a
+    switcher between them. `PAYROLL` names none of those five, so it opens in
+    the back office, where payroll actually lives. The bureau's own case is
+    below and still reads "Payroll".
+  */
+  it("names the bureau that is one", () => {
+    expect(model("PAYROLL", PAYROLL_BUREAU).workspaceLabel).toBe("Payroll");
+    expect(model("PAYROLL", PAYROLL_BUREAU).workspaces).toHaveLength(1);
+    expect(model("PAYROLL", EVERYTHING).workspaceLabel).toBe("Business");
   });
 
   it("never says Retail above a school or a mine", () => {
@@ -386,16 +398,58 @@ describe("an explicit GENERAL survives every layer", () => {
 
   it("agrees with the sidebar, which is the layer above it", () => {
     // The bug was these two disagreeing: the profile resolved to GENERAL and
-    // the label came back "School Operations".
+    // the label came back "School Operations". The tenant here runs one
+    // business, so there is one name and both layers have to say it.
     const bundle = resolveWorkspaceVerticalProductBundle({
-      enabledFeatures: EVERYTHING,
+      enabledFeatures: CRM_FEATURES,
       workspaceProfile: "GENERAL",
     });
     const sidebar = getWorkspaceSidebarModel({
       role: "SUPERADMIN",
+      enabledFeatures: CRM_FEATURES,
+      workspaceProfile: "GENERAL",
+    });
+    expect(sidebar.workspaces).toHaveLength(1);
+    expect(sidebar.workspaceLabel).toBe(bundle.workspaceLabel);
+  });
+
+  /*
+    A tenant holding everything is not one business with a name, it is five,
+    and the bundle cannot tell you which one you are looking at: resolved from
+    the whole feature set, it answers "Sales & CRM" on every side of the
+    switcher. So the rail is named for the workspace it is showing, and a
+    tenant that has never said which business it is opens in the back office
+    rather than in a guess at one of them.
+  */
+  it("names the workspace, not the tenant, once there is more than one", () => {
+    const everything = getWorkspaceSidebarModel({
+      role: "SUPERADMIN",
       enabledFeatures: EVERYTHING,
       workspaceProfile: "GENERAL",
     });
-    expect(sidebar.workspaceLabel).toBe(bundle.workspaceLabel);
+    expect(everything.workspaces.map((workspace) => workspace.label)).toEqual([
+      "School Operations",
+      "Retail",
+      "Sales & CRM",
+      "Gold Operations",
+      "Business",
+    ]);
+    expect(everything.activeWorkspaceId).toBe("business");
+    expect(everything.workspaceLabel).toBe("Business");
+
+    const campus = getWorkspaceSidebarModel({
+      role: "SUPERADMIN",
+      enabledFeatures: EVERYTHING,
+      workspaceProfile: "GENERAL",
+      activeWorkspaceId: "schools",
+    });
+    expect(campus.workspaceLabel).toBe("School Operations");
+    // And it holds the school's work alone — not the shop's, not the mine's.
+    const hrefs = campus.sections.flatMap((section) =>
+      section.items.map((item) => item.href),
+    );
+    expect(hrefs.filter((href) => href.startsWith("/retail"))).toEqual([]);
+    expect(hrefs.filter((href) => href.startsWith("/gold"))).toEqual([]);
+    expect(hrefs.some((href) => href.startsWith("/schools"))).toBe(true);
   });
 });

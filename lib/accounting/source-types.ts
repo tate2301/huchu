@@ -40,6 +40,30 @@ export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType
   { value: "SCHOOL_FEE_WAIVER", label: "School Fee Waiver" },
   { value: "SCHOOL_FEE_WRITE_OFF", label: "School Fee Write-off" },
   { value: "SCHOOL_FEE_REFUND", label: "School Fee Refund" },
+  { value: "CRM_REQUISITION_DISBURSEMENT", label: "Requisition Paid Out" },
+  { value: "CRM_REQUISITION_REFUND", label: "Requisition Change Returned" },
+  { value: "CRM_REQUISITION_TOPUP", label: "Requisition Overspend" },
+  { value: "CRM_COST_ENTRY_SPEND", label: "Daily Log Spend" },
+  { value: "CRM_COST_ENTRY_RECEIPT", label: "Daily Log Cash Received" },
+];
+
+/**
+ * The CRM money readiness contract, the same shape as retail's and the
+ * school's.
+ *
+ * `CRM_COST_ENTRY_RECEIPT` is **not** here, and its absence is the point: cash
+ * arriving in a rep's hands has no credit side the system can infer. A
+ * customer payment belongs in the receipt flow, where it becomes revenue
+ * against an invoice; money drawn from the office is already the
+ * disbursement's other leg. So the event is captured and left PENDING on the
+ * integration log, visible to somebody who can decide, rather than posted to a
+ * guess.
+ */
+export const CRM_MONEY_REQUIRED_SOURCE_TYPES: AccountingSourceType[] = [
+  "CRM_REQUISITION_DISBURSEMENT",
+  "CRM_REQUISITION_REFUND",
+  "CRM_REQUISITION_TOPUP",
+  "CRM_COST_ENTRY_SPEND",
 ];
 
 export const RETAIL_REQUIRED_SOURCE_TYPES: AccountingSourceType[] = [

@@ -19,6 +19,12 @@ const updateSchema = z
     endMinute: z.number().int().min(0).max(1440).optional(),
     sequence: z.number().int().min(0).max(100).optional(),
     isTeaching: z.boolean().optional(),
+    /**
+     * Retirement. `isTeaching` is already on this schema, so a second boolean
+     * beside it is symmetric rather than new shape — and it is how every other
+     * school master-data model is archived.
+     */
+    isActive: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field must be provided",
@@ -32,6 +38,7 @@ const periodSelect = {
   endMinute: true,
   sequence: true,
   isTeaching: true,
+  isActive: true,
   termId: true,
   term: { select: { id: true, code: true, name: true } },
   _count: { select: { slots: true } },
@@ -84,16 +91,32 @@ export async function PATCH(
       where: { id, companyId },
       select: {
         id: true,
+        name: true,
         termId: true,
         startMinute: true,
         endMinute: true,
         isTeaching: true,
+        isActive: true,
         _count: { select: { slots: true } },
       },
     });
     if (!existing) return errorResponse("Period not found", 404);
 
     const validated = updateSchema.parse(await request.json());
+
+    // Archiving is its own verb, not a field edit: the page draws it from
+    // `access.can("schools.academics", "archive")` and the DELETE below is
+    // gated the same way. A persona with edit but not archive (the HOD grant
+    // is exactly `view, create, edit`) may rename a period and may not retire
+    // it, which is what the screen already shows them.
+    if (validated.isActive !== undefined && validated.isActive !== existing.isActive) {
+      const archiveDenied = schoolPermissionDenial(
+        session,
+        "schools.academics",
+        "archive",
+      );
+      if (archiveDenied) return errorResponse(archiveDenied, 403);
+    }
 
     const startMinute = validated.startMinute ?? existing.startMinute;
     const endMinute = validated.endMinute ?? existing.endMinute;
@@ -102,7 +125,18 @@ export async function PATCH(
       return errorResponse("A period must end after it starts", 400);
     }
 
-    if (validated.startMinute !== undefined || validated.endMinute !== undefined) {
+    // A retired period does not hold its minutes — that is the whole point of
+    // retiring one, and `findOverlappingPeriod` skips inactive rows. So
+    // bringing one back has to clear the clock it is returning to, exactly as
+    // moving its times does: somebody may have put a new period in that slot
+    // while this one was away.
+    const returningFromArchive = validated.isActive === true && !existing.isActive;
+
+    if (
+      validated.startMinute !== undefined ||
+      validated.endMinute !== undefined ||
+      returningFromArchive
+    ) {
       const overlapping = await findOverlappingPeriod({
         companyId,
         termId: existing.termId,
@@ -112,7 +146,9 @@ export async function PATCH(
       });
       if (overlapping) {
         return errorResponse(
-          `These times overlap ${overlapping.name}.`,
+          returningFromArchive
+            ? `${overlapping.name} now covers these times. Move one of them before restoring ${existing.name}.`
+            : `These times overlap ${overlapping.name}.`,
           409,
         );
       }

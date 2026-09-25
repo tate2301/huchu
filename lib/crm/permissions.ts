@@ -25,6 +25,8 @@ export const CRM_CAPABILITIES = [
   "documents.issue",
   "documents.approve",
   "commissions.manage",
+  "money.approve",
+  "money.disburse",
   "settings.manage",
 ] as const;
 
@@ -45,6 +47,8 @@ export const CRM_CAPABILITY_LABELS: Record<CrmCapability, string> = {
   "documents.issue": "Issue quotes and invoices",
   "documents.approve": "Send documents for customer approval",
   "commissions.manage": "Set commission rules",
+  "money.approve": "Approve requisitions",
+  "money.disburse": "Record money paid out",
   "settings.manage": "Change CRM settings",
 };
 
@@ -71,6 +75,8 @@ export const CRM_CAPABILITY_NOTES: Record<CrmCapability, string> = {
   "documents.issue": "Raises quotes and invoices against a customer.",
   "documents.approve": "Sends a document to the customer for signature.",
   "commissions.manage": "Changes what the team gets paid.",
+  "money.approve": "Says yes to somebody's request for money. Not the same as handing it over.",
+  "money.disburse": "Records that the money actually left. Usually a different person, and it should be.",
   "settings.manage": "Everything on the CRM settings screen.",
 };
 

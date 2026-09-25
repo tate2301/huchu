@@ -1,0 +1,534 @@
+/*
+  Document templates — the paint the shared layer does not already carry.
+
+  Everything structural on these three screens (the register grid, the list
+  column, the record header, the section headings, the record list, the
+  activity trail) comes from `components/management/ui`, and the record's
+  `Details` grid and its create sheet come from the register's own field
+  helpers, shared with the other registers on this surface. What is left here
+  is the two things neither draws:
+
+    - the rendered-document screen (`TemplateRender.dc.html`), which is a
+      60px header over a stage and a 380px panel and shares nothing with a
+      register;
+    - the 32/28/26px button rungs and the 22px pill, which the design system
+      has no equivalent of (it stops at 24/30/36/44).
+
+  `@layer components`, to sit above `corelith` and below Tailwind's utilities
+  for the same reason the shared layer does: a caller's `className` still wins.
+*/
+
+@layer components {
+  /* The module's two roots. Every class below is drawn inside one of them —
+     the rendered-document screen, or a dialog form — so the tokens are
+     declared on both rather than on a wrapper neither dialog has: a portalled
+     dialog is not a descendant of the register, and a `var()` that resolves to
+     nothing takes the whole declaration with it. */
+  .render,
+  .form {
+    --t-ink: var(--text-strong); /* #16181D */
+    --t-body: var(--text-body); /* #262A33 */
+    --t-label: var(--text-muted); /* #565C69 */
+    --t-meta: #5E6573; /* the DS's --text-subtle resolves to #8A91A0 and fails 4.5:1 */
+    --t-faint: var(--text-subtle); /* #8A91A0 */
+    --t-rule: var(--border); /* #E5E8EE */
+    --t-rule-soft: var(--border-subtle); /* #EEF0F4 */
+    --t-control: var(--border-strong); /* #D2D7E0 */
+    --t-page: var(--surface); /* #FFFFFF */
+    --t-ground: var(--canvas); /* #F7F8FA */
+    --t-tile: var(--surface-muted); /* #F1F3F6 */
+    --t-primary: var(--brand); /* #0B5DF0 */
+    --t-on-tint: var(--brand-strong); /* #0944C2 */
+    --t-tint: var(--brand-soft); /* #E8EFFE */
+    --t-ok-bg: var(--tone-success-bg); /* #E7EFE0 */
+    --t-ok-fg: var(--tone-success-strong); /* #2E5526 */
+    --t-ok-dot: var(--tone-success); /* #5E8E54 */
+    --t-warn-bg: var(--tone-warn-bg); /* #F4E6C5 */
+    --t-warn-fg: #6B4A12; /* no --tone-warn-strong exists */
+    --t-warn-dot: var(--tone-warn); /* #B07626 */
+    --t-neutral-dot: #A8AFBC;
+    --t-mono: var(--font-mono);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Buttons — 32 (header), 28 (section), 26 (row). The DS has 24/30/36/44.
+   * ------------------------------------------------------------------ */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--t-rule);
+    border-radius: 8px;
+    background: var(--t-page);
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--t-ink);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--t-label);
+  }
+
+  .btn:hover {
+    background: var(--t-tile);
+  }
+
+  .btn:focus-visible {
+    outline: none;
+    border-color: var(--t-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .btnPrimary {
+    padding: 0 14px;
+    border-color: var(--t-primary);
+    background: var(--t-primary);
+    color: #ffffff;
+  }
+
+  .btnPrimary svg {
+    color: #ffffff;
+  }
+
+  .btnPrimary:hover {
+    background: var(--brand-strong, #0944c2);
+  }
+
+  .btnPrimary:disabled,
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .iconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--t-label);
+    cursor: pointer;
+  }
+
+  .iconBtn svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .iconBtn:hover {
+    background: var(--t-tile);
+  }
+
+  .iconBtn:focus-visible {
+    outline: none;
+    border-color: var(--t-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .rowBtn {
+    height: 26px;
+    flex-shrink: 0;
+    padding: 0 9px;
+    border: 1px solid var(--t-rule);
+    border-radius: 7px;
+    background: var(--t-page);
+    font: 500 12px/1 var(--font-sans);
+    color: var(--t-ink);
+    cursor: pointer;
+  }
+
+  .rowBtn:hover {
+    background: var(--t-tile);
+  }
+
+  .rowBtn:focus-visible {
+    outline: none;
+    border-color: var(--t-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .rowBtn:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  /* A 22px dot-and-word pill. Not `StatusBadge`: that is the 20px square-ish
+     chip a row carries, and both boards draw this one as a round 22px pill
+     with a leading dot. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    flex-shrink: 0;
+    padding: 0 9px;
+    border-radius: 9999px;
+    font: 500 12px/1 var(--font-sans);
+  }
+
+  .pill::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+
+  /* The dot is the state's own colour, not the label's: on every board it is a
+     shade darker than the chip and a shade lighter than the word. */
+  .pill[data-tone="brand"] {
+    background: var(--t-tint);
+    color: var(--t-on-tint);
+  }
+
+  .pill[data-tone="brand"]::before {
+    background: var(--t-primary);
+  }
+
+  .pill[data-tone="success"] {
+    background: var(--t-ok-bg);
+    color: var(--t-ok-fg);
+  }
+
+  .pill[data-tone="success"]::before {
+    background: var(--t-ok-dot);
+  }
+
+  .pill[data-tone="warn"] {
+    background: var(--t-warn-bg);
+    color: var(--t-warn-fg);
+  }
+
+  .pill[data-tone="warn"]::before {
+    background: var(--t-warn-dot);
+  }
+
+  .pill[data-tone="neutral"] {
+    background: var(--t-tile);
+    color: var(--t-label);
+  }
+
+  .pill[data-tone="neutral"]::before {
+    background: var(--t-neutral-dot);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * TemplateRender.dc.html — the rendered document
+   * ------------------------------------------------------------------ */
+
+  .render {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    background: var(--t-page);
+    color: var(--t-body);
+  }
+
+  .renderHead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 60px;
+    flex-shrink: 0;
+    padding: 0 16px 0 10px;
+    border-bottom: 1px solid var(--t-rule);
+  }
+
+  .renderTitle {
+    margin: 0;
+    min-width: 0;
+    font: 600 17px/1.25 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--t-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .renderBody {
+    display: flex;
+    flex-grow: 1;
+    min-height: 0;
+  }
+
+  .stage {
+    flex-grow: 1;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    padding: 26px;
+    background: var(--t-tile);
+    overflow: auto;
+  }
+
+  /* The board's page is 540 × 764 — A4's ratio at the size the stage gives it.
+     `--shadow-popover` is the DS's own and is the board's value exactly. */
+  .page {
+    box-sizing: border-box;
+    width: 540px;
+    height: 764px;
+    flex-shrink: 0;
+    border: 0;
+    background: var(--t-page);
+    box-shadow: var(--shadow-popover);
+  }
+
+  .pageLandscape {
+    width: 764px;
+    height: 540px;
+  }
+
+  .pageFallback {
+    display: grid;
+    place-items: center;
+    padding: 34px 38px;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--t-meta);
+    text-align: center;
+  }
+
+  .panel {
+    width: 380px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 22px 22px 28px;
+    border-left: 1px solid var(--t-rule);
+    overflow-y: auto;
+  }
+
+  @media (max-width: 899px) {
+    .renderBody {
+      flex-direction: column;
+    }
+
+    .panel {
+      width: auto;
+      border-left: 0;
+      border-top: 1px solid var(--t-rule);
+    }
+
+    .page {
+      width: 100%;
+      max-width: 540px;
+      height: 70vh;
+    }
+  }
+
+  .panelHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .panelTile {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    background: var(--t-ok-bg);
+    color: var(--t-ok-fg);
+  }
+
+  .panelTile svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .panelTile[data-tone="warn"] {
+    background: var(--t-warn-bg);
+    color: var(--t-warn-fg);
+  }
+
+  .panelTitle {
+    margin: 0;
+    font: 600 15px/1.35 var(--font-sans);
+    color: var(--t-ink);
+  }
+
+  .panelFacts {
+    display: grid;
+    grid-template-columns: 116px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 6px;
+  }
+
+  .panelFacts dt {
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--t-meta);
+  }
+
+  .panelFacts dd {
+    margin: 0;
+    min-width: 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--t-ink);
+    overflow-wrap: anywhere;
+  }
+
+  /* The one piece of prose on the surface, and it is on the board: where the
+     logo, the colours and the bank accounts come from is not a property of
+     this template and there is nowhere else on the screen to say so. */
+  .panelNote {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--t-tint);
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--t-on-tint);
+  }
+
+  .panelNote svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .panelSection {
+    margin: 22px 0 8px;
+    font: 600 15px/1.35 var(--font-sans);
+    color: var(--t-ink);
+  }
+
+  .versions {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .versionRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--t-rule-soft);
+  }
+
+  .versionNum {
+    width: 26px;
+    flex-shrink: 0;
+    font: 500 12px/1.5 var(--t-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--t-meta);
+  }
+
+  .versionRow[data-live="true"] .versionNum {
+    color: var(--t-ink);
+  }
+
+  .versionWhen {
+    display: block;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--t-meta);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .versionRow[data-live="true"] .versionWhen {
+    color: var(--t-ink);
+  }
+
+  /* The board's second line is the actor, in mono. `DocumentTemplateVersion`
+     carries only a `createdById` — an id, never resolved to a name — so the
+     line states the version's state instead, and a state is not a figure:
+     rule 6 puts a status word in the sans face, never in mono with tabular
+     numerals. Same rung, same ink, sans. */
+  .versionWho {
+    display: block;
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--t-meta);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The create dialog and the schema editor
+   * ------------------------------------------------------------------ */
+
+  .form {
+    display: block;
+  }
+
+  .field {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 22px;
+  }
+
+  .field > label {
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--t-label);
+  }
+
+  /* The board's control is 13px; the DS `.input` is 14. Scoped here so no call
+     site has to override it one field at a time. */
+  .field :global(.input),
+  .field :global(.select),
+  .field :global(.textarea) {
+    font-size: 13px;
+  }
+
+  .toggles {
+    display: grid;
+    gap: 0;
+    margin-bottom: 22px;
+  }
+
+  .toggleRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 40px;
+    border-bottom: 1px solid var(--t-rule-soft);
+  }
+
+  .toggleRow:first-child {
+    border-top: 1px solid var(--t-rule-soft);
+  }
+
+  .toggleLabel {
+    flex-grow: 1;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--t-ink);
+  }
+
+  .json {
+    min-height: 220px;
+    font-family: var(--t-mono);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .formFoot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 36px;
+    padding-top: 22px;
+    border-top: 1px solid var(--t-rule-soft);
+  }
+}

@@ -1,18 +1,55 @@
 "use client";
 
+import type { ComponentType, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MasterDataShell } from "@corelithzw/react";
-import { ManagementShell } from "@/components/settings/management-shell";
-import { PaymentAccountsBlock } from "@/components/settings/branding/payment-accounts-block";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
+import {
+  FormField,
+  FormPage,
+  HeaderAction,
+  SectionAction,
+  SectionHeading,
+} from "@/components/management/ui";
+import { PreferencesShell } from "@/components/preferences/preferences-shell";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  AlertTriangle,
+  Badge as BrandMark,
+  Buildings,
+  Certificate,
+  CheckCircle,
+  FileText,
+  Gavel,
+  Globe,
+  Palette,
+  Pencil,
+  Phone,
+  Policy,
+  Save,
+  SlidersHorizontal,
+  Tag,
+} from "@/lib/icons";
 import { cn } from "@/lib/utils";
+
+import { AssetField } from "./asset-field";
+import styles from "./branding.module.css";
+import { BrandingTabs, type BrandingSection } from "./branding-tabs";
+import { ColorField } from "./color-field";
+import { PaymentAccounts } from "./payment-accounts";
+
+export type { BrandingSection };
 
 type DomainStatus =
   | "PENDING_VERIFICATION"
@@ -97,78 +134,8 @@ type BrandingSettingsResponse = {
 };
 
 type BrandingFormState = {
-  displayName: string;
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  fontFamilyKey: string;
-  logoUrl: string;
-  secondaryLogoUrl: string;
-  signatureUrl: string;
-  stampUrl: string;
-  legalName: string;
-  tradingName: string;
-  registrationNumber: string;
-  vatNumber: string;
-  taxNumber: string;
-  email: string;
-  phone: string;
-  website: string;
-  physicalAddress: string;
-  postalAddress: string;
-  privacyPolicyUrl: string;
-  termsUrl: string;
-  bankName: string;
-  bankBranch: string;
-  bankBranchCode: string;
-  bankAddress: string;
-  bankAccountName: string;
-  bankAccountNumber: string;
-  bankSwiftCode: string;
-  bankIban: string;
-  defaultFooterText: string;
-  legalDisclaimer: string;
-  paymentTerms: string;
-  documentLocale: string;
-  dateFormat: string;
-  timeFormat: string;
-  numberFormat: string;
-  currencyDisplayMode: string;
+  [K in keyof BrandingPayload]: string;
 };
-
-export type BrandingSection = "identity" | "assets" | "finance";
-
-/**
- * The rail of the branding surface. Three routes serve the same form —
- * they're sections of one record (the company's brand), not three pages —
- * so the shell is the DS master-data split: sections on the left, the
- * selected section's fields on the right.
- */
-const BRANDING_SECTIONS: Array<{
-  id: BrandingSection;
-  label: string;
-  blurb: string;
-  href: string;
-}> = [
-  {
-    id: "identity",
-    label: "Identity & Theme",
-    blurb: "Name, palette, font, and custom domain.",
-    href: "/preferences/organization/branding/identity",
-  },
-  {
-    id: "assets",
-    label: "Assets & Contact",
-    blurb: "Logos, signatures, and contact details.",
-    href: "/preferences/organization/branding/assets",
-  },
-  {
-    id: "finance",
-    label: "Finance & Defaults",
-    blurb: "Banking, legal text, and document defaults.",
-    href: "/preferences/organization/branding/finance",
-  },
-];
 
 const DEFAULT_FORM_STATE: BrandingFormState = {
   displayName: "",
@@ -210,20 +177,76 @@ const DEFAULT_FORM_STATE: BrandingFormState = {
   currencyDisplayMode: "",
 };
 
-function statusVariant(status: DomainStatus) {
-  if (status === "ACTIVE") return "default" as const;
-  if (status === "FAILED") return "destructive" as const;
-  if (status === "PENDING_VERIFICATION") return "secondary" as const;
-  return "outline" as const;
+/*
+  The four document format fields.
+
+  `BrandingFinance.dc.html` draws them as pickers with worked examples rather
+  than as the free-text boxes they were — "Date Format (e.g. yyyy-MM-dd)" in a
+  placeholder is rule 1's helper text with extra steps. The stored value stays
+  a string of at most 40 characters, exactly as `/api/settings/branding`
+  validates it, and anything already saved that is not on a list is offered
+  back as its own option so choosing nothing cannot quietly rewrite it.
+
+  Date and time keep format strings, which is the vocabulary the old
+  placeholders established. Number and currency have never had one — nothing
+  in the repo reads either column yet — so the sample itself is the value,
+  which is at least self-describing to whoever writes the renderer.
+*/
+const DATE_FORMATS = [
+  { value: "dd MMM yyyy", label: "31 Dec 2026" },
+  { value: "yyyy-MM-dd", label: "2026-12-31" },
+  { value: "dd/MM/yyyy", label: "31/12/2026" },
+];
+
+const TIME_FORMATS = [
+  { value: "HH:mm", label: "24 hour" },
+  { value: "h:mm a", label: "12 hour" },
+];
+
+const NUMBER_FORMATS = [
+  { value: "1 234 567.89", label: "1 234 567.89" },
+  { value: "1,234,567.89", label: "1,234,567.89" },
+];
+
+const CURRENCY_MODES = [
+  { value: "USD 1 234.00", label: "USD 1 234.00" },
+  { value: "$1 234.00", label: "$1 234.00" },
+  { value: "1 234.00 USD", label: "1 234.00 USD" },
+];
+
+function withCurrent(
+  options: Array<{ value: string; label: string }>,
+  current: string,
+) {
+  const value = current.trim();
+  if (!value || options.some((option) => option.value === value)) return options;
+  return [...options, { value, label: value }];
 }
 
-function statusLabel(status: DomainStatus) {
-  return status
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
+const DOMAIN_TONE: Record<DomainStatus, "success" | "warn" | "danger" | "neutral"> = {
+  ACTIVE: "success",
+  VERIFIED: "success",
+  PENDING_VERIFICATION: "warn",
+  FAILED: "danger",
+  DISABLED: "neutral",
+};
+
+const DOMAIN_LABEL: Record<DomainStatus, string> = {
+  ACTIVE: "Active",
+  VERIFIED: "Verified",
+  PENDING_VERIFICATION: "Pending",
+  FAILED: "Failed",
+  DISABLED: "Disabled",
+};
+
+/**
+ * The form column's width, and so the width every section heading aligns to.
+ *
+ * `FormPage` defaults to 560 and the three boards draw 560; naming it keeps
+ * the headings from drifting away from the fields under them if that ever
+ * changes.
+ */
+const FORM_WIDTH = 560;
 
 function toValue(value: string | null | undefined) {
   return value ?? "";
@@ -234,96 +257,11 @@ function toNullable(value: string) {
   return trimmed ? trimmed : null;
 }
 
-function normalizeHexColor(input: string): string | null {
-  const value = input.trim().toUpperCase();
-  if (!/^#([0-9A-F]{6})$/.test(value)) return null;
-  return value;
-}
-
-function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
-  const normalized = normalizeHexColor(hex);
-  if (!normalized) return null;
-  const raw = normalized.slice(1);
-  const r = Number.parseInt(raw.slice(0, 2), 16) / 255;
-  const g = Number.parseInt(raw.slice(2, 4), 16) / 255;
-  const b = Number.parseInt(raw.slice(4, 6), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
-  let h = 0;
-  let s = 0;
-  const l = (max + min) / 2;
-
-  if (delta > 0) {
-    s = delta / (1 - Math.abs(2 * l - 1));
-    if (max === r) h = ((g - b) / delta) % 6;
-    else if (max === g) h = (b - r) / delta + 2;
-    else h = (r - g) / delta + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-
-  return { h, s: s * 100, l: l * 100 };
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  const sat = Math.max(0, Math.min(100, s)) / 100;
-  const light = Math.max(0, Math.min(100, l)) / 100;
-  const chroma = (1 - Math.abs(2 * light - 1)) * sat;
-  const sector = h / 60;
-  const x = chroma * (1 - Math.abs((sector % 2) - 1));
-  const m = light - chroma / 2;
-
-  let rPrime = 0;
-  let gPrime = 0;
-  let bPrime = 0;
-  if (sector >= 0 && sector < 1) [rPrime, gPrime, bPrime] = [chroma, x, 0];
-  else if (sector < 2) [rPrime, gPrime, bPrime] = [x, chroma, 0];
-  else if (sector < 3) [rPrime, gPrime, bPrime] = [0, chroma, x];
-  else if (sector < 4) [rPrime, gPrime, bPrime] = [0, x, chroma];
-  else if (sector < 5) [rPrime, gPrime, bPrime] = [x, 0, chroma];
-  else [rPrime, gPrime, bPrime] = [chroma, 0, x];
-
-  const toHex = (v: number) =>
-    Math.round((v + m) * 255)
-      .toString(16)
-      .padStart(2, "0")
-      .toUpperCase();
-
-  return `#${toHex(rPrime)}${toHex(gPrime)}${toHex(bPrime)}`;
-}
-
-type PaletteOption = {
-  id: string;
-  label: string;
-  secondary: string;
-  accent: string;
-};
-
-function buildPaletteOptions(primaryColor: string): PaletteOption[] {
-  const hsl = hexToHsl(primaryColor) ?? { h: 176, s: 84, l: 31 };
-  const shifted = (hsl.h + 18) % 360;
-
-  return [
-    {
-      id: "soft-neutral",
-      label: "Soft Neutral",
-      secondary: hslToHex(hsl.h, Math.max(18, hsl.s * 0.28), 96),
-      accent: hslToHex(hsl.h, Math.max(22, hsl.s * 0.35), 91),
-    },
-    {
-      id: "balanced-brand",
-      label: "Balanced Brand",
-      secondary: hslToHex(hsl.h, Math.max(20, hsl.s * 0.36), 95),
-      accent: hslToHex(hsl.h, Math.max(32, hsl.s * 0.48), 86),
-    },
-    {
-      id: "high-contrast",
-      label: "High Contrast",
-      secondary: hslToHex(hsl.h, Math.max(16, hsl.s * 0.24), 97),
-      accent: hslToHex(shifted, Math.max(28, hsl.s * 0.42), 84),
-    },
-  ];
+function formatCheckedAt(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
 async function fetchBrandingSettings(): Promise<BrandingSettingsResponse> {
@@ -335,15 +273,26 @@ async function fetchBrandingSettings(): Promise<BrandingSettingsResponse> {
   return response.json();
 }
 
+/**
+ * The company's brand: what it is called, what it looks like, and what every
+ * generated document says at the top and the bottom of the page.
+ *
+ * Boards: `BrandingIdentity.dc.html`, `BrandingAssets.dc.html`,
+ * `BrandingFinance.dc.html` — one form page, three sections of one record,
+ * with the sections as a tab row under the title line rather than the 280px
+ * third-level rail this used to draw inside the surface's own rail.
+ *
+ * Presentation only. The query key stays `["branding-settings"]`, the three
+ * mutations still hit `/api/settings/branding` and its two domain routes
+ * unchanged, and the route's `requirePreferencesAccess("branding")` gate is
+ * untouched.
+ */
 export function BrandingSettingsSection({ section }: { section: BrandingSection }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [formDraft, setFormDraft] = useState<BrandingFormState | null>(null);
   const [domainInputDraft, setDomainInputDraft] = useState<string | null>(null);
-  // Mobile drill-in for the master-data shell. A section is always selected
-  // (the route carries it), so the detail leads; the rail is one tap back.
-  const [mobilePane, setMobilePane] = useState<"list" | "detail">("detail");
 
   const settingsQuery = useQuery({
     queryKey: ["branding-settings"],
@@ -356,44 +305,46 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
 
   const baseForm = useMemo<BrandingFormState>(() => {
     if (!settings) return DEFAULT_FORM_STATE;
+    const branding = settings.branding;
     return {
-      displayName: toValue(settings.branding?.displayName),
-      primaryColor: settings.branding?.primaryColor ?? settings.effective.colors.primary,
-      secondaryColor: settings.branding?.secondaryColor ?? settings.effective.colors.secondary,
-      accentColor: settings.branding?.accentColor ?? settings.effective.colors.accent,
-      fontFamilyKey: settings.branding?.fontFamilyKey ?? settings.effective.fontFamilyKey,
-      logoUrl: toValue(settings.branding?.logoUrl),
-      secondaryLogoUrl: toValue(settings.branding?.secondaryLogoUrl),
-      signatureUrl: toValue(settings.branding?.signatureUrl),
-      stampUrl: toValue(settings.branding?.stampUrl),
-      legalName: toValue(settings.branding?.legalName),
-      tradingName: toValue(settings.branding?.tradingName),
-      registrationNumber: toValue(settings.branding?.registrationNumber),
-      vatNumber: toValue(settings.branding?.vatNumber),
-      taxNumber: toValue(settings.branding?.taxNumber),
-      email: toValue(settings.branding?.email),
-      phone: toValue(settings.branding?.phone),
-      website: toValue(settings.branding?.website),
-      physicalAddress: toValue(settings.branding?.physicalAddress),
-      postalAddress: toValue(settings.branding?.postalAddress),
-      privacyPolicyUrl: toValue(settings.branding?.privacyPolicyUrl),
-      termsUrl: toValue(settings.branding?.termsUrl),
-      bankName: toValue(settings.branding?.bankName),
-      bankBranch: toValue(settings.branding?.bankBranch),
-      bankBranchCode: toValue(settings.branding?.bankBranchCode),
-      bankAddress: toValue(settings.branding?.bankAddress),
-      bankAccountName: toValue(settings.branding?.bankAccountName),
-      bankAccountNumber: toValue(settings.branding?.bankAccountNumber),
-      bankSwiftCode: toValue(settings.branding?.bankSwiftCode),
-      bankIban: toValue(settings.branding?.bankIban),
-      defaultFooterText: toValue(settings.branding?.defaultFooterText),
-      legalDisclaimer: toValue(settings.branding?.legalDisclaimer),
-      paymentTerms: toValue(settings.branding?.paymentTerms),
-      documentLocale: toValue(settings.branding?.documentLocale),
-      dateFormat: toValue(settings.branding?.dateFormat),
-      timeFormat: toValue(settings.branding?.timeFormat),
-      numberFormat: toValue(settings.branding?.numberFormat),
-      currencyDisplayMode: toValue(settings.branding?.currencyDisplayMode),
+      ...DEFAULT_FORM_STATE,
+      displayName: toValue(branding?.displayName),
+      primaryColor: branding?.primaryColor ?? settings.effective.colors.primary,
+      secondaryColor: branding?.secondaryColor ?? settings.effective.colors.secondary,
+      accentColor: branding?.accentColor ?? settings.effective.colors.accent,
+      fontFamilyKey: branding?.fontFamilyKey ?? settings.effective.fontFamilyKey,
+      logoUrl: toValue(branding?.logoUrl),
+      secondaryLogoUrl: toValue(branding?.secondaryLogoUrl),
+      signatureUrl: toValue(branding?.signatureUrl),
+      stampUrl: toValue(branding?.stampUrl),
+      legalName: toValue(branding?.legalName),
+      tradingName: toValue(branding?.tradingName),
+      registrationNumber: toValue(branding?.registrationNumber),
+      vatNumber: toValue(branding?.vatNumber),
+      taxNumber: toValue(branding?.taxNumber),
+      email: toValue(branding?.email),
+      phone: toValue(branding?.phone),
+      website: toValue(branding?.website),
+      physicalAddress: toValue(branding?.physicalAddress),
+      postalAddress: toValue(branding?.postalAddress),
+      privacyPolicyUrl: toValue(branding?.privacyPolicyUrl),
+      termsUrl: toValue(branding?.termsUrl),
+      bankName: toValue(branding?.bankName),
+      bankBranch: toValue(branding?.bankBranch),
+      bankBranchCode: toValue(branding?.bankBranchCode),
+      bankAddress: toValue(branding?.bankAddress),
+      bankAccountName: toValue(branding?.bankAccountName),
+      bankAccountNumber: toValue(branding?.bankAccountNumber),
+      bankSwiftCode: toValue(branding?.bankSwiftCode),
+      bankIban: toValue(branding?.bankIban),
+      defaultFooterText: toValue(branding?.defaultFooterText),
+      legalDisclaimer: toValue(branding?.legalDisclaimer),
+      paymentTerms: toValue(branding?.paymentTerms),
+      documentLocale: toValue(branding?.documentLocale),
+      dateFormat: toValue(branding?.dateFormat),
+      timeFormat: toValue(branding?.timeFormat),
+      numberFormat: toValue(branding?.numberFormat),
+      currencyDisplayMode: toValue(branding?.currencyDisplayMode),
     };
   }, [settings]);
 
@@ -542,471 +493,682 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
   });
 
   const fontOptions = settings?.fontOptions ?? [];
-  const effectivePreview = useMemo(
-    () => ({
-      displayName: form.displayName.trim() || settings?.company?.name || "Company",
-      primaryColor: form.primaryColor,
-      secondaryColor: form.secondaryColor,
-      accentColor: form.accentColor,
-    }),
-    [form, settings?.company?.name],
-  );
-  const paletteOptions = useMemo(
-    () => buildPaletteOptions(form.primaryColor),
-    [form.primaryColor],
-  );
+  /*
+    Rule 13: a refresh that fails does not blank a form that already loaded.
+    React Query keeps `data` and sets `error` when a refetch fails, so the
+    failure is the whole screen only when there is nothing behind it —
+    otherwise it is a line above the fields the tenant is still editing, and
+    Save still reaches the values they typed.
+  */
+  const loadError = settingsQuery.error as Error | null;
+  const ready = Boolean(settings);
 
-  const hasLoadError = Boolean(settingsQuery.error);
-  const activeSection = BRANDING_SECTIONS.find((entry) => entry.id === section)!;
-
-  const rail = (
-    <div className="space-y-1 p-2">
-      {BRANDING_SECTIONS.map((entry) => {
-        const active = entry.id === section;
-        return (
-          <button
-            key={entry.id}
-            type="button"
-            onClick={() => {
-              setMobilePane("detail");
-              if (!active) router.push(entry.href);
-            }}
-            aria-current={active ? "true" : undefined}
-            className={cn(
-              "w-full rounded-[10px] px-3 py-2 text-left text-sm transition-colors",
-              active
-                ? "bg-[var(--surface-muted)] font-medium text-[var(--text-strong)]"
-                : "hover:bg-[var(--surface-muted)]/60",
-            )}
-          >
-            <span className="block">{entry.label}</span>
-            <span className="block text-[var(--text-muted)]">{entry.blurb}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  const detailHeader = (
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
-        <button
-          type="button"
-          onClick={() => setMobilePane("list")}
-          className="mb-1 text-sm text-[var(--text-muted)] min-[720px]:hidden"
+  /*
+    Rule 2 and rule 9 together: the domain section carries one verb, and which
+    one it is depends on where the domain has got to. A typed hostname that is
+    not the saved one needs saving; a saved one that is not yet live needs
+    checking; a live one needs nothing, so nothing is drawn. Without the
+    add-on there is no verb at all rather than two disabled ones.
+  */
+  const domainVerb = (() => {
+    if (!customDomainEnabled) return null;
+    const typed = domainInput.trim();
+    if (typed && typed !== (currentDomain?.hostname ?? "")) {
+      return (
+        <SectionAction
+          icon={Save}
+          disabled={submitDomainMutation.isPending}
+          onClick={() => submitDomainMutation.mutate(typed)}
         >
-          ← All sections
-        </button>
-        <h2 className="text-base font-semibold text-[var(--text-strong)]">
-          {activeSection.label}
-        </h2>
-        <p className="text-sm text-[var(--text-muted)]">{activeSection.blurb}</p>
-      </div>
-      <Button
-        type="button"
-        onClick={() => saveBrandingMutation.mutate(formDraft ?? form)}
-        disabled={saveBrandingMutation.isPending || settingsQuery.isLoading || hasLoadError}
-      >
-        {saveBrandingMutation.isPending ? "Saving..." : "Save Changes"}
-      </Button>
-    </header>
-  );
+          {submitDomainMutation.isPending ? "Saving" : "Save domain"}
+        </SectionAction>
+      );
+    }
+    if (
+      currentDomain &&
+      currentDomain.status !== "ACTIVE" &&
+      currentDomain.status !== "VERIFIED"
+    ) {
+      return (
+        <SectionAction
+          icon={CheckCircle}
+          disabled={verifyDomainMutation.isPending}
+          onClick={() => verifyDomainMutation.mutate(currentDomain.hostname)}
+        >
+          {verifyDomainMutation.isPending ? "Checking" : "Check DNS"}
+        </SectionAction>
+      );
+    }
+    return null;
+  })();
+
+  const checkedAt = formatCheckedAt(currentDomain?.lastCheckedAt ?? null);
+
+  /*
+    Cancel abandons the page, not half of it. The domain is its own draft
+    because it saves through its own route on its own verb, but it is typed in
+    the same column as everything else — leaving a typed hostname sitting there
+    after Cancel would put the page back in a state the tenant had just said
+    they did not want.
+  */
+  const discard = () => {
+    setFormDraft(null);
+    setDomainInputDraft(null);
+  };
+
+  /* The overflow verb appears once there is anything at all to throw away. */
+  const canDiscard = formDraft !== null || domainInputDraft !== null;
 
   return (
-    <ManagementShell
-      area="branding"
-      title="Branding"
-      description="How the company presents itself — on screen and on every generated document."
-    >
-      <MasterDataShell pane={mobilePane} list={rail} listWidth={280}>
-        <div className="space-y-8 p-4 sm:p-6">
-          {detailHeader}
+    <PreferencesShell>
+      <FormPage
+        title="Branding"
+        width={FORM_WIDTH}
+        className={styles.page}
+        action={
+          <HeaderAction onClick={() => router.push("/preferences/organization/templates")}>
+            Preview a document
+          </HeaderAction>
+        }
+        overflow={
+          canDiscard ? (
+            <DropdownMenuItem onSelect={discard}>Discard changes</DropdownMenuItem>
+          ) : undefined
+        }
+        busy={saveBrandingMutation.isPending || !ready}
+        onCancel={discard}
+        onSubmit={(event) => {
+          event.preventDefault();
+          saveBrandingMutation.mutate(form);
+        }}
+      >
+        <BrandingTabs section={section} />
 
-          {settingsQuery.isLoading ? (
-            <p className="py-10 text-sm text-[var(--text-muted)]">
-              Loading branding settings...
-            </p>
-          ) : settingsQuery.error ? (
-            <p className="py-10 text-sm text-[var(--danger)]">
-              {(settingsQuery.error as Error).message}
-            </p>
-          ) : (
-            <>
-              {section === "identity" ? (
-                <section className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="display-name">
-                    Display Name
-                  </label>
-                  <Input
-                    id="display-name"
-                    placeholder={settings?.company.name ?? "Company Name"}
-                    value={form.displayName}
-                    onChange={(event) => setField("displayName", event.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="font-family">
-                    Primary Font
-                  </label>
-                  <Select
-                    value={form.fontFamilyKey}
-                    onValueChange={(value) => setField("fontFamilyKey", value)}
-                  >
-                    <SelectTrigger id="font-family">
-                      <SelectValue placeholder="Select font" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {fontOptions.map((option) => (
-                        <SelectItem key={option.key} value={option.key}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+        {settingsQuery.isLoading ? (
+          <LoadingFields />
+        ) : !settings ? (
+          <p className={styles.failure} role="alert">
+            <AlertTriangle />
+            {loadError?.message ?? "Couldn’t load branding"}
+          </p>
+        ) : (
+          <>
+            {loadError ? (
+              <p className={styles.failure} role="alert">
+                <AlertTriangle />
+                {loadError.message}
+              </p>
+            ) : null}
 
-              <div className="space-y-4 rounded-lg border border-[var(--edge-subtle)] p-4">
-                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold" htmlFor="primary-color">
-                      Primary Color
-                    </label>
+            {section === "identity" ? (
+              <>
+                <Heading icon={Tag} tone="brand">
+                  Name
+                </Heading>
+                <FormField label="Display name">
+                  {(id) => (
                     <Input
-                      id="primary-color"
-                      value={form.primaryColor}
-                      onChange={(event) => setField("primaryColor", event.target.value)}
-                      placeholder="#0F8F86"
+                      id={id}
+                      placeholder={settings?.company.name ?? ""}
+                      value={form.displayName}
+                      onChange={(event) => setField("displayName", event.target.value)}
                     />
-                  </div>
-                  <Input
-                    type="color"
-                    className="h-10 w-16 p-1"
-                    value={normalizeHexColor(form.primaryColor) ?? "#0F8F86"}
-                    onChange={(event) => setField("primaryColor", event.target.value.toUpperCase())}
-                    aria-label="Select primary color"
-                  />
-                </div>
+                  )}
+                </FormField>
 
-                <div className="grid gap-3 md:grid-cols-3">
-                  {paletteOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => {
-                        setField("secondaryColor", option.secondary);
-                        setField("accentColor", option.accent);
-                      }}
-                      className="rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-3 text-left transition-colors hover:bg-[var(--surface-soft)]"
+                <Heading icon={Palette} tone="brand">
+                  Palette
+                </Heading>
+                <ColorField
+                  label="Primary"
+                  swatchLabel="Pick the primary colour"
+                  fallback={DEFAULT_FORM_STATE.primaryColor}
+                  value={form.primaryColor}
+                  onChange={(next) => setField("primaryColor", next)}
+                />
+                <ColorField
+                  label="Secondary"
+                  swatchLabel="Pick the secondary colour"
+                  fallback={DEFAULT_FORM_STATE.secondaryColor}
+                  value={form.secondaryColor}
+                  onChange={(next) => setField("secondaryColor", next)}
+                />
+                <ColorField
+                  label="Accent"
+                  swatchLabel="Pick the accent colour"
+                  fallback={DEFAULT_FORM_STATE.accentColor}
+                  value={form.accentColor}
+                  onChange={(next) => setField("accentColor", next)}
+                />
+
+                <Heading icon={FileText}>Type</Heading>
+                <FormField label="Font">
+                  {(id) => (
+                    <Select
+                      value={form.fontFamilyKey || undefined}
+                      onValueChange={(value) => setField("fontFamilyKey", value)}
                     >
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <span
-                          className="h-6 w-6 rounded border border-[var(--edge-subtle)]"
-                          style={{ backgroundColor: form.primaryColor }}
-                          aria-hidden="true"
-                        />
-                        <span
-                          className="h-6 w-6 rounded border border-[var(--edge-subtle)]"
-                          style={{ backgroundColor: option.secondary }}
-                          aria-hidden="true"
-                        />
-                        <span
-                          className="h-6 w-6 rounded border border-[var(--edge-subtle)]"
-                          style={{ backgroundColor: option.accent }}
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                      <SelectTrigger id={id}>
+                        <SelectValue placeholder="Choose a font" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {fontOptions.map((option) => (
+                          <SelectItem key={option.key} value={option.key}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormField>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold" htmlFor="secondary-color">
-                      Secondary Color
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="secondary-color"
-                        value={form.secondaryColor}
-                        onChange={(event) => setField("secondaryColor", event.target.value)}
-                        placeholder="#DCF4F1"
-                      />
-                      <Input
-                        type="color"
-                        className="h-10 w-14 p-1"
-                        value={normalizeHexColor(form.secondaryColor) ?? "#DCF4F1"}
-                        onChange={(event) => setField("secondaryColor", event.target.value.toUpperCase())}
-                        aria-label="Select secondary color"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold" htmlFor="accent-color">
-                      Accent Color
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="accent-color"
-                        value={form.accentColor}
-                        onChange={(event) => setField("accentColor", event.target.value)}
-                        placeholder="#EBF7F5"
-                      />
-                      <Input
-                        type="color"
-                        className="h-10 w-14 p-1"
-                        value={normalizeHexColor(form.accentColor) ?? "#EBF7F5"}
-                        onChange={(event) => setField("accentColor", event.target.value.toUpperCase())}
-                        aria-label="Select accent color"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+                <Heading icon={Globe} tone="ok" action={domainVerb}>
+                  Domain
+                </Heading>
+                <FormField label="Custom domain">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      placeholder="portal.example.com"
+                      value={domainInput}
+                      onChange={(event) => setDomainInputDraft(event.target.value)}
+                    />
+                  )}
+                </FormField>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input
-                  placeholder="Legal Name"
-                  value={form.legalName}
-                  onChange={(event) => setField("legalName", event.target.value)}
-                />
-                <Input
-                  placeholder="Trading Name"
-                  value={form.tradingName}
-                  onChange={(event) => setField("tradingName", event.target.value)}
-                />
-                <Input
-                  placeholder="Registration Number"
-                  value={form.registrationNumber}
-                  onChange={(event) => setField("registrationNumber", event.target.value)}
-                />
-                <Input
-                  placeholder="Tax Number"
-                  value={form.taxNumber}
-                  onChange={(event) => setField("taxNumber", event.target.value)}
-                />
-                <Input
-                  placeholder="VAT Number"
-                  value={form.vatNumber}
-                  onChange={(event) => setField("vatNumber", event.target.value)}
-                />
-              </div>
-
-              <div className="rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
-                <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                  Live Preview
-                </p>
-                <div className="mt-3 flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-md" style={{ backgroundColor: effectivePreview.primaryColor }} />
-                  <div className="h-9 w-9 rounded-md border border-[var(--edge-subtle)]" style={{ backgroundColor: effectivePreview.secondaryColor }} />
-                  <div className="h-9 w-9 rounded-md border border-[var(--edge-subtle)]" style={{ backgroundColor: effectivePreview.accentColor }} />
-                  <div>
-                    <p className="text-sm font-semibold">{effectivePreview.displayName}</p>
-                  </div>
-                </div>
-              </div>
-                </section>
-              ) : null}
-
-              {section === "assets" ? (
-                <section className="space-y-4">
-                  <p className="text-sm text-[var(--text-muted)]">
-                    Asset and contact fields used by templates for headers, signatures, and contact
-                    blocks.
-                  </p>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input placeholder="Logo URL" value={form.logoUrl} onChange={(event) => setField("logoUrl", event.target.value)} />
-                <Input
-                  placeholder="Secondary Logo URL"
-                  value={form.secondaryLogoUrl}
-                  onChange={(event) => setField("secondaryLogoUrl", event.target.value)}
-                />
-                <Input
-                  placeholder="Signature URL"
-                  value={form.signatureUrl}
-                  onChange={(event) => setField("signatureUrl", event.target.value)}
-                />
-                <Input placeholder="Stamp URL" value={form.stampUrl} onChange={(event) => setField("stampUrl", event.target.value)} />
-                <Input placeholder="Email" value={form.email} onChange={(event) => setField("email", event.target.value)} />
-                <Input placeholder="Phone" value={form.phone} onChange={(event) => setField("phone", event.target.value)} />
-                <Input placeholder="Website" value={form.website} onChange={(event) => setField("website", event.target.value)} />
-                <Input
-                  placeholder="Physical Address"
-                  value={form.physicalAddress}
-                  onChange={(event) => setField("physicalAddress", event.target.value)}
-                />
-              </div>
-              <Textarea
-                placeholder="Postal Address"
-                value={form.postalAddress}
-                onChange={(event) => setField("postalAddress", event.target.value)}
-              />
-                </section>
-              ) : null}
-
-              {section === "finance" ? (
-                <section className="space-y-4">
-                  <p className="text-sm text-[var(--text-muted)]">
-                    Bank, payment, legal, and localization values used by invoice/report templates.
-                  </p>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input placeholder="Privacy Policy URL" value={form.privacyPolicyUrl} onChange={(event) => setField("privacyPolicyUrl", event.target.value)} />
-                <Input placeholder="Terms and Conditions URL" value={form.termsUrl} onChange={(event) => setField("termsUrl", event.target.value)} />
-                <Input placeholder="Bank Name" value={form.bankName} onChange={(event) => setField("bankName", event.target.value)} />
-                <Input placeholder="Branch" value={form.bankBranch} onChange={(event) => setField("bankBranch", event.target.value)} />
-                <Input placeholder="Branch Code" value={form.bankBranchCode} onChange={(event) => setField("bankBranchCode", event.target.value)} />
-                <Input placeholder="Bank Address" value={form.bankAddress} onChange={(event) => setField("bankAddress", event.target.value)} />
-                <Input
-                  placeholder="Bank Account Name"
-                  value={form.bankAccountName}
-                  onChange={(event) => setField("bankAccountName", event.target.value)}
-                />
-                <Input
-                  placeholder="Bank Account Number"
-                  value={form.bankAccountNumber}
-                  onChange={(event) => setField("bankAccountNumber", event.target.value)}
-                />
-                <Input
-                  placeholder="SWIFT Code"
-                  value={form.bankSwiftCode}
-                  onChange={(event) => setField("bankSwiftCode", event.target.value)}
-                />
-                <Input placeholder="IBAN" value={form.bankIban} onChange={(event) => setField("bankIban", event.target.value)} />
-                <Input
-                  placeholder="Document Locale (e.g. en-US)"
-                  value={form.documentLocale}
-                  onChange={(event) => setField("documentLocale", event.target.value)}
-                />
-                <Input
-                  placeholder="Date Format (e.g. yyyy-MM-dd)"
-                  value={form.dateFormat}
-                  onChange={(event) => setField("dateFormat", event.target.value)}
-                />
-                <Input
-                  placeholder="Time Format (e.g. HH:mm)"
-                  value={form.timeFormat}
-                  onChange={(event) => setField("timeFormat", event.target.value)}
-                />
-                <Input
-                  placeholder="Number Format"
-                  value={form.numberFormat}
-                  onChange={(event) => setField("numberFormat", event.target.value)}
-                />
-                <Input
-                  placeholder="Currency Display Mode"
-                  value={form.currencyDisplayMode}
-                  onChange={(event) => setField("currencyDisplayMode", event.target.value)}
-                />
-              </div>
-              <Textarea
-                placeholder="Default Footer Text"
-                value={form.defaultFooterText}
-                onChange={(event) => setField("defaultFooterText", event.target.value)}
-              />
-              <Textarea
-                placeholder="Legal Disclaimer"
-                value={form.legalDisclaimer}
-                onChange={(event) => setField("legalDisclaimer", event.target.value)}
-              />
-              <Textarea
-                placeholder="Payment Terms"
-                value={form.paymentTerms}
-                onChange={(event) => setField("paymentTerms", event.target.value)}
-              />
-
-              {/* Saves on its own — these are rows, not fields of the branding
-                  record, so they do not wait on the form's Save button. */}
-              <PaymentAccountsBlock />
-                </section>
-              ) : null}
-
-              {section === "identity" ? (
-                <section className="space-y-4 border-t border-[var(--border-subtle)] pt-6">
-                  <div>
-                    <h3 className="text-base font-semibold text-[var(--text-strong)]">
-                      Custom Domain
-                    </h3>
-                    <p className="text-sm text-[var(--text-muted)]">
-                      Connect your own domain and verify ownership using a DNS TXT record.
+                {currentDomain ? (
+                  <>
+                    <p className={styles.statusRow}>
+                      <span
+                        className={styles.pill}
+                        data-tone={DOMAIN_TONE[currentDomain.status]}
+                      >
+                        {DOMAIN_LABEL[currentDomain.status]}
+                      </span>
+                      <span className={styles.statusMeta}>
+                        {currentDomain.verificationType}
+                        {checkedAt ? ` · checked ${checkedAt}` : ""}
+                      </span>
                     </p>
-                  </div>
-              <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="custom-domain">
-                    Domain Hostname
-                  </label>
-                  <Input
-                    id="custom-domain"
-                    placeholder="portal.example.com"
-                    value={domainInput}
-                    onChange={(event) => setDomainInputDraft(event.target.value)}
+
+                    {/* The record the tenant has to go and create. Drawn only
+                        while it is still needed — once the domain is live it
+                        is a fact about the past. */}
+                    {currentDomain.status === "ACTIVE" ||
+                    currentDomain.status === "VERIFIED" ? null : (
+                      <div className={styles.dns}>
+                        <span className={styles.dnsRow}>
+                          <span className={styles.dnsLabel}>Type</span>
+                          <span className={styles.dnsValue}>
+                            {currentDomain.verificationType}
+                          </span>
+                        </span>
+                        <span className={styles.dnsRow}>
+                          <span className={styles.dnsLabel}>Host</span>
+                          <span className={styles.dnsValue}>
+                            {currentDomain.verificationHost}
+                          </span>
+                        </span>
+                        <span className={styles.dnsRow}>
+                          <span className={styles.dnsLabel}>Value</span>
+                          <span className={styles.dnsValue}>
+                            {currentDomain.verificationValue}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+
+                <Heading icon={Gavel}>Registration</Heading>
+                <FormField label="Legal name">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      value={form.legalName}
+                      onChange={(event) => setField("legalName", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Trading name">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      value={form.tradingName}
+                      onChange={(event) => setField("tradingName", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <div className={styles.pair}>
+                  <FormField label="Registration number">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        className={styles.mono}
+                        value={form.registrationNumber}
+                        onChange={(event) =>
+                          setField("registrationNumber", event.target.value)
+                        }
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="Tax number">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        className={styles.mono}
+                        value={form.taxNumber}
+                        onChange={(event) => setField("taxNumber", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="VAT number">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        className={styles.mono}
+                        value={form.vatNumber}
+                        onChange={(event) => setField("vatNumber", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                </div>
+              </>
+            ) : null}
+
+            {section === "assets" ? (
+              <>
+                <Heading icon={BrandMark} tone="brand">
+                  Logos
+                </Heading>
+                <AssetField
+                  label="Logo"
+                  icon={BrandMark}
+                  removeLabel="Remove the logo"
+                  addressLabel="Logo address"
+                  value={form.logoUrl}
+                  onChange={(next) => setField("logoUrl", next)}
+                />
+                <AssetField
+                  label="Secondary logo"
+                  icon={BrandMark}
+                  removeLabel="Remove the secondary logo"
+                  addressLabel="Secondary logo address"
+                  value={form.secondaryLogoUrl}
+                  onChange={(next) => setField("secondaryLogoUrl", next)}
+                />
+
+                <Heading icon={Pencil}>Signing</Heading>
+                <AssetField
+                  label="Signature"
+                  icon={Pencil}
+                  removeLabel="Remove the signature"
+                  addressLabel="Signature address"
+                  value={form.signatureUrl}
+                  onChange={(next) => setField("signatureUrl", next)}
+                />
+                <AssetField
+                  label="Stamp"
+                  icon={Certificate}
+                  removeLabel="Remove the stamp"
+                  addressLabel="Stamp address"
+                  value={form.stampUrl}
+                  onChange={(next) => setField("stampUrl", next)}
+                />
+
+                <Heading icon={Phone} tone="ok">
+                  Contact
+                </Heading>
+                <FormField label="Email">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      type="email"
+                      value={form.email}
+                      onChange={(event) => setField("email", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Phone">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      className={styles.mono}
+                      value={form.phone}
+                      onChange={(event) => setField("phone", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Website">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      value={form.website}
+                      onChange={(event) => setField("website", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Physical address">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      value={form.physicalAddress}
+                      onChange={(event) => setField("physicalAddress", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Postal address">
+                  {(id) => (
+                    <LongInput
+                      id={id}
+                      value={form.postalAddress}
+                      onChange={(next) => setField("postalAddress", next)}
+                    />
+                  )}
+                </FormField>
+              </>
+            ) : null}
+
+            {section === "finance" ? (
+              <>
+                <Heading icon={Buildings} tone="brand">
+                  Bank
+                </Heading>
+                <FormField label="Bank">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      value={form.bankName}
+                      onChange={(event) => setField("bankName", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <div className={styles.pair}>
+                  <FormField label="Branch">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        value={form.bankBranch}
+                        onChange={(event) => setField("bankBranch", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="Branch code">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        className={styles.mono}
+                        value={form.bankBranchCode}
+                        onChange={(event) => setField("bankBranchCode", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="Account name">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        value={form.bankAccountName}
+                        onChange={(event) => setField("bankAccountName", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="Account number">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        className={styles.mono}
+                        value={form.bankAccountNumber}
+                        onChange={(event) =>
+                          setField("bankAccountNumber", event.target.value)
+                        }
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="SWIFT">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        className={styles.mono}
+                        value={form.bankSwiftCode}
+                        onChange={(event) => setField("bankSwiftCode", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <FormField label="IBAN">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        className={styles.mono}
+                        value={form.bankIban}
+                        onChange={(event) => setField("bankIban", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                </div>
+                <FormField label="Bank address">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      value={form.bankAddress}
+                      onChange={(event) => setField("bankAddress", event.target.value)}
+                    />
+                  )}
+                </FormField>
+
+                <PaymentAccounts maxWidth={FORM_WIDTH} />
+
+                <Heading icon={SlidersHorizontal}>Document defaults</Heading>
+                <FormField label="Payment terms">
+                  {(id) => (
+                    <LongInput
+                      id={id}
+                      value={form.paymentTerms}
+                      onChange={(next) => setField("paymentTerms", next)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Footer line">
+                  {(id) => (
+                    <LongInput
+                      id={id}
+                      value={form.defaultFooterText}
+                      onChange={(next) => setField("defaultFooterText", next)}
+                    />
+                  )}
+                </FormField>
+                <div className={styles.pair}>
+                  <FormatField
+                    label="Date format"
+                    options={DATE_FORMATS}
+                    value={form.dateFormat}
+                    onChange={(next) => setField("dateFormat", next)}
+                  />
+                  <FormatField
+                    label="Time format"
+                    options={TIME_FORMATS}
+                    value={form.timeFormat}
+                    onChange={(next) => setField("timeFormat", next)}
+                  />
+                  <FormatField
+                    label="Number format"
+                    options={NUMBER_FORMATS}
+                    value={form.numberFormat}
+                    onChange={(next) => setField("numberFormat", next)}
+                  />
+                  <FormatField
+                    label="Currency shown as"
+                    options={CURRENCY_MODES}
+                    value={form.currencyDisplayMode}
+                    onChange={(next) => setField("currencyDisplayMode", next)}
                   />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => submitDomainMutation.mutate(domainInput)}
-                  disabled={!customDomainEnabled || submitDomainMutation.isPending || !domainInput.trim()}
-                >
-                  {submitDomainMutation.isPending ? "Saving..." : "Save Domain"}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => verifyDomainMutation.mutate(currentDomain?.hostname ?? domainInput)}
-                  disabled={
-                    !customDomainEnabled ||
-                    verifyDomainMutation.isPending ||
-                    !(currentDomain?.hostname || domainInput.trim())
-                  }
-                >
-                  {verifyDomainMutation.isPending ? "Verifying..." : "Verify DNS"}
-                </Button>
-              </div>
+                <FormField label="Document locale">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      className={styles.mono}
+                      placeholder="en-ZW"
+                      value={form.documentLocale}
+                      onChange={(event) => setField("documentLocale", event.target.value)}
+                    />
+                  )}
+                </FormField>
 
-              {!customDomainEnabled ? (
-                <p className="text-sm text-[var(--text-muted)]">
-                  Enable the custom domain add-on to connect a branded domain.
-                </p>
-              ) : null}
-
-              {currentDomain ? (
-                <div className="space-y-3 rounded-lg border p-4">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{currentDomain.hostname}</p>
-                    <Badge variant={statusVariant(currentDomain.status)}>
-                      {statusLabel(currentDomain.status)}
-                    </Badge>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        DNS TXT Host
-                      </p>
-                      <p className="mt-1 font-mono text-sm">{currentDomain.verificationHost}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        DNS TXT Value
-                      </p>
-                      <p className="mt-1 font-mono text-sm">{currentDomain.verificationValue}</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-[var(--text-muted)]">
-                  No custom domain configured yet.
-                </p>
-              )}
-                </section>
-              ) : null}
-            </>
-          )}
-        </div>
-      </MasterDataShell>
-    </ManagementShell>
+                <Heading icon={Policy}>Legal</Heading>
+                <FormField label="Disclaimer">
+                  {(id) => (
+                    <Textarea
+                      id={id}
+                      rows={3}
+                      value={form.legalDisclaimer}
+                      onChange={(event) => setField("legalDisclaimer", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Privacy policy">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      type="url"
+                      placeholder="https://"
+                      value={form.privacyPolicyUrl}
+                      onChange={(event) => setField("privacyPolicyUrl", event.target.value)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Terms and conditions">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      type="url"
+                      placeholder="https://"
+                      value={form.termsUrl}
+                      onChange={(event) => setField("termsUrl", event.target.value)}
+                    />
+                  )}
+                </FormField>
+              </>
+            ) : null}
+          </>
+        )}
+      </FormPage>
+    </PreferencesShell>
   );
 }
 
+/**
+ * The shared section heading at this page's measure.
+ *
+ * `SectionHeading` caps itself at 470px so a register's section verb lands on
+ * its list's right edge; a form column is 560 wide and has no list, so the cap
+ * is lifted to the column's own width. Through the prop, not the stylesheet:
+ * the shared component writes `max-width` as an inline style, which no rule in
+ * a cascade layer can outrank. The boards' 14px of air under the row is
+ * restored in `branding.module.css`, where the reasoning sits beside the
+ * selector.
+ *
+ * `tone="ok"` is this page's own: the shared prop is `brand | neutral`, and
+ * the boards draw Domain, Contact and the accounts list with a green tile.
+ */
+function Heading({
+  icon,
+  tone = "neutral",
+  action,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  tone?: "brand" | "neutral" | "ok";
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <SectionHeading
+      icon={icon}
+      variant="form"
+      maxWidth={FORM_WIDTH}
+      tone={tone === "brand" ? "brand" : "neutral"}
+      action={action}
+      className={cn(styles.heading, tone === "ok" && styles.headingOk)}
+    >
+      {children}
+    </SectionHeading>
+  );
+}
+
+/**
+ * A 36px box that grows into a textarea for a value that already has a line
+ * break in it.
+ *
+ * The boards draw payment terms, the footer line and the postal address as
+ * single-line fields, and for almost every tenant that is what they are. But
+ * an `<input>` runs the HTML value sanitization algorithm, which strips CR and
+ * LF — so rendering a stored two-line footer in one would delete the break the
+ * next time anything saved, silently and without anyone touching the field.
+ */
+function LongInput({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  if (value.includes("\n")) {
+    return (
+      <Textarea
+        id={id}
+        rows={2}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    );
+  }
+  return <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} />;
+}
+
+/** One of the four document format pickers. */
+function FormatField({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: Array<{ value: string; label: string }>;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <FormField label={label}>
+      {(id) => (
+        <Select value={value || undefined} onValueChange={onChange}>
+          <SelectTrigger id={id}>
+            <SelectValue placeholder="Choose" />
+          </SelectTrigger>
+          <SelectContent>
+            {withCurrent(options, value).map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </FormField>
+  );
+}
+
+/** Four field-shaped bars while the record loads. */
+function LoadingFields() {
+  return (
+    <div className={styles.skeleton} role="status" aria-label="Loading branding">
+      {[0, 1, 2, 3].map((row) => (
+        <div key={row} className={styles.skeletonField}>
+          <span className={styles.skeletonLabel} />
+          <span className={styles.skeletonControl} />
+        </div>
+      ))}
+    </div>
+  );
+}

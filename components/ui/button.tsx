@@ -83,7 +83,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
       variant={VARIANT_MAP[variant] ?? "primary"}
       size={SIZE_MAP[size] ?? "md"}
       iconOnly={iconOnly || undefined}
-      className={cn(className)}
+      className={cn(className, "justify-center")}
       {...props}
     >
       {children}

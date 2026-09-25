@@ -17,6 +17,8 @@ import { resolveVariables, type VariableValues } from "@/lib/crm/template-variab
 import type { Block, LeafBlock } from "@/lib/crm/blocks";
 import { cn } from "@/lib/utils";
 
+import styles from "./document.module.css";
+
 /**
  * A template, drawn.
  *
@@ -102,30 +104,30 @@ function FileAnswer({
         href={value}
         target="_blank"
         rel="noreferrer"
-        className="text-sm text-[var(--action-primary-bg)] underline"
+        className={styles.fileLink}
       >
         {fileNameFrom(value)}
       </a>
     ) : (
-      <p className="text-sm text-[var(--text-subtle)]">No file</p>
+      <p className={styles.muted}>No file</p>
     );
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className={styles.file}>
       {value ? (
-        <div className="flex items-center gap-2">
+        <div className={styles.fileRow}>
           <a
             href={value}
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-[var(--action-primary-bg)] underline"
+            className={styles.fileLink}
           >
             {fileNameFrom(value)}
           </a>
           <button
             type="button"
-            className="text-sm text-[var(--text-muted)] underline"
+            className={`${styles.fileLink} ${styles.fileRemove}`}
             onClick={() => onChange(null)}
           >
             Remove
@@ -137,7 +139,7 @@ function FileAnswer({
         id={id}
         type="file"
         disabled={busy}
-        className="block w-full text-sm file:mr-3 file:rounded-[var(--radius-sm)] file:border file:border-[var(--border)] file:bg-[var(--surface-subtle)] file:px-3 file:py-1.5 file:text-sm"
+        className={styles.fileDrop}
         onChange={async (event) => {
           const file = event.target.files?.[0];
           // The input is cleared either way: what it holds is a picking
@@ -169,8 +171,8 @@ function FileAnswer({
         }}
       />
 
-      {busy ? <p className="text-sm text-[var(--text-subtle)]">Uploading…</p> : null}
-      {error ? <p className="text-sm text-[var(--status-danger-text)]">{error}</p> : null}
+      {busy ? <p className={styles.help}>Uploading…</p> : null}
+      {error ? <p className={styles.fileError}>{error}</p> : null}
     </div>
   );
 }
@@ -196,39 +198,34 @@ function FieldBlock({
   const readOnly = context.mode !== "fill";
 
   const label = (
-    <Label htmlFor={`field-${block.id}`}>
+    <Label htmlFor={`field-${block.id}`} className={styles.fieldLabel}>
       {block.label || "Untitled question"}
-      {block.required ? <span className="text-[var(--status-error-text)]"> *</span> : null}
+      {block.required ? <span className={styles.required}> *</span> : null}
     </Label>
   );
 
   // In read mode a question is a fact, not a disabled control. A greyed-out
   // input is a promise the reader can edit it once they find the right button.
   if (context.mode === "read") {
+    const blank = value === undefined || value === null || value === "";
     return (
-      <div className="space-y-0.5">
-        <p className="text-sm text-[var(--text-muted)]">{block.label}</p>
-        <p className="text-sm">
-          {value === undefined || value === null || value === ""
-            ? "—"
-            : Array.isArray(value)
-              ? value.join(", ")
-              : String(value)}
+      <div className={styles.fact}>
+        <p className={styles.factLabel}>{block.label}</p>
+        <p className={styles.factValue} data-empty={blank ? "true" : undefined}>
+          {blank ? "—" : Array.isArray(value) ? value.join(", ") : String(value)}
         </p>
       </div>
     );
   }
 
-  const help = block.help ? (
-    <p className="text-sm text-[var(--text-muted)]">{block.help}</p>
-  ) : null;
+  const help = block.help ? <p className={styles.help}>{block.help}</p> : null;
 
   function set(next: unknown) {
     context.onAnswer?.(block.key, next);
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className={styles.field}>
       {label}
       {block.fieldType === "longText" ? (
         <Textarea
@@ -256,11 +253,11 @@ function FieldBlock({
           </SelectContent>
         </Select>
       ) : block.fieldType === "multiSelect" ? (
-        <div className="space-y-1.5">
+        <div className={styles.choices}>
           {(block.options ?? []).map((option) => {
             const selected = Array.isArray(value) && value.includes(option);
             return (
-              <label key={option} className="flex items-center gap-2 text-sm">
+              <label key={option} className={styles.choice}>
                 <Checkbox
                   checked={selected}
                   disabled={readOnly}
@@ -279,7 +276,7 @@ function FieldBlock({
           })}
         </div>
       ) : block.fieldType === "checkbox" ? (
-        <label className="flex items-center gap-2 text-sm">
+        <label className={styles.choice}>
           <Checkbox
             checked={value === true}
             disabled={readOnly}
@@ -339,12 +336,7 @@ function BlockBody({
     case "heading": {
       const Tag = block.level === 1 ? "h1" : block.level === 2 ? "h2" : "h3";
       return (
-        <Tag
-          className={cn(
-            "font-semibold text-[var(--text-strong)]",
-            block.level === 1 ? "text-xl" : block.level === 2 ? "text-base" : "text-sm",
-          )}
-        >
+        <Tag className={block.level === 1 ? styles.h1 : block.level === 2 ? styles.h2 : styles.h3}>
           <Fill text={block.text} context={context} />
         </Tag>
       );
@@ -352,7 +344,7 @@ function BlockBody({
 
     case "text":
       return (
-        <p className="whitespace-pre-wrap text-sm text-[var(--text-body)]">
+        <p className={styles.text}>
           <Fill text={block.text} context={context} />
         </p>
       );
@@ -361,13 +353,13 @@ function BlockBody({
       return <FieldBlock block={block} context={context} />;
 
     case "divider":
-      return <hr className="border-[var(--border-subtle)]" />;
+      return <hr className={styles.rule} />;
 
     case "spacer":
       return (
         <div
           aria-hidden="true"
-          className={block.size === "sm" ? "h-2" : block.size === "lg" ? "h-10" : "h-5"}
+          style={{ height: block.size === "sm" ? 8 : block.size === "lg" ? 40 : 20 }}
         />
       );
 
@@ -376,7 +368,7 @@ function BlockBody({
         block.source === "branding.logo" ? context.brandingLogoUrl : block.url ?? null;
       if (!src) {
         return (
-          <p className="text-sm text-[var(--text-subtle)]">
+          <p className={styles.muted}>
             {block.source === "branding.logo"
               ? "Your logo goes here — add one under Branding."
               : "No image chosen."}
@@ -391,7 +383,7 @@ function BlockBody({
           src={src}
           alt={block.alt ?? ""}
           style={block.width ? { width: block.width } : undefined}
-          className="max-w-full"
+          className={styles.image}
         />
       );
     }
@@ -400,18 +392,16 @@ function BlockBody({
       const rows = context.tables?.[block.source] ?? [];
       if (block.columns.length === 0) {
         return (
-          <p className="text-sm text-[var(--text-subtle)]">
-            This table has no columns yet.
-          </p>
+          <p className={styles.muted}>This table has no columns yet.</p>
         );
       }
       return (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-[var(--border)] text-left">
+        <div className={styles.scroll}>
+          <table className={styles.table}>
+            <thead>
               <tr>
                 {block.columns.map((column) => (
-                  <th key={column.key} className="py-1.5 pr-3 font-medium">
+                  <th key={column.key} scope="col" className={styles.th}>
                     {column.label}
                   </th>
                 ))}
@@ -420,18 +410,15 @@ function BlockBody({
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={block.columns.length}
-                    className="py-3 text-center text-[var(--text-muted)]"
-                  >
+                  <td colSpan={block.columns.length} className={styles.tdEmpty}>
                     {context.mode === "preview" ? "Rows appear here" : "Nothing to show"}
                   </td>
                 </tr>
               ) : (
                 rows.map((row, index) => (
-                  <tr key={index} className="border-b border-[var(--border-subtle)]">
+                  <tr key={index}>
                     {block.columns.map((column) => (
-                      <td key={column.key} className="py-1.5 pr-3">
+                      <td key={column.key} className={styles.td}>
                         {row[column.key] ?? "—"}
                       </td>
                     ))}
@@ -447,43 +434,50 @@ function BlockBody({
     case "lineItems": {
       const lines = context.lines ?? [];
       return (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-[var(--border)] text-left">
+        <div className={styles.scroll}>
+          <table className={styles.table}>
+            <thead>
               <tr>
-                <th className="py-1.5 pr-3 font-medium">Description</th>
-                <th className="py-1.5 pr-3 text-right font-medium">Qty</th>
-                <th className="py-1.5 pr-3 text-right font-medium">Unit</th>
+                <th scope="col" className={styles.th}>
+                  Item
+                </th>
+                <th scope="col" className={styles.th}>
+                  Qty
+                </th>
+                <th scope="col" className={styles.th}>
+                  Rate
+                </th>
                 {block.showTax ? (
-                  <th className="py-1.5 pr-3 text-right font-medium">Tax</th>
+                  <th scope="col" className={styles.th}>
+                    Tax
+                  </th>
                 ) : null}
-                <th className="py-1.5 text-right font-medium">Total</th>
+                <th scope="col" className={styles.th}>
+                  Amount
+                </th>
               </tr>
             </thead>
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={block.showTax ? 5 : 4}
-                    className="py-3 text-center text-[var(--text-muted)]"
-                  >
+                  <td colSpan={block.showTax ? 5 : 4} className={styles.tdEmpty}>
                     The document&apos;s lines appear here
                   </td>
                 </tr>
               ) : (
                 lines.map((line, index) => (
-                  <tr key={index} className="border-b border-[var(--border-subtle)]">
-                    <td className="py-1.5 pr-3">{line.description}</td>
-                    <td className="py-1.5 pr-3 text-right font-mono">{line.quantity}</td>
-                    <td className="py-1.5 pr-3 text-right font-mono">
+                  <tr key={index}>
+                    <td className={styles.td}>{line.description}</td>
+                    <td className={cn(styles.td, styles.tdNum)}>{line.quantity}</td>
+                    <td className={cn(styles.td, styles.tdNum)}>
                       {money(line.unitPrice, currency)}
                     </td>
                     {block.showTax ? (
-                      <td className="py-1.5 pr-3 text-right font-mono">
+                      <td className={cn(styles.td, styles.tdNum)}>
                         {line.taxRate ? `${line.taxRate}%` : "—"}
                       </td>
                     ) : null}
-                    <td className="py-1.5 text-right font-mono">
+                    <td className={cn(styles.td, styles.tdNum, styles.tdAmount)}>
                       {money(line.total, currency)}
                     </td>
                   </tr>
@@ -498,38 +492,42 @@ function BlockBody({
     case "totals": {
       const totals = context.totals ?? { subtotal: 0, tax: 0, total: 0 };
       return (
-        <dl className="ml-auto w-full max-w-64 space-y-1 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-[var(--text-muted)]">Subtotal</dt>
-            <dd className="font-mono">{money(totals.subtotal, currency)}</dd>
-          </div>
-          {block.showTax ? (
-            <div className="flex justify-between gap-3">
-              <dt className="text-[var(--text-muted)]">Tax</dt>
-              <dd className="font-mono">{money(totals.tax, currency)}</dd>
+        <div className={styles.totals}>
+          <dl className={styles.totalsStack}>
+            <div className={styles.totalsRow}>
+              <dt>Subtotal</dt>
+              <dd>{money(totals.subtotal, currency)}</dd>
             </div>
-          ) : null}
-          <div className="flex justify-between gap-3 border-t border-[var(--border)] pt-1 font-medium">
-            <dt>Total</dt>
-            <dd className="font-mono">{money(totals.total, currency)}</dd>
-          </div>
-          {block.showPaid ? (
-            <div className="flex justify-between gap-3">
-              <dt className="text-[var(--text-muted)]">Paid</dt>
-              <dd className="font-mono">{money(totals.paid ?? 0, currency)}</dd>
+            {block.showTax ? (
+              <div className={styles.totalsRow}>
+                <dt>Tax</dt>
+                <dd>{money(totals.tax, currency)}</dd>
+              </div>
+            ) : null}
+            <div className={styles.totalsGrand}>
+              <dt>{`Total ${currency}`}</dt>
+              <dd>{money(totals.total, currency)}</dd>
             </div>
-          ) : null}
-        </dl>
+            {block.showPaid ? (
+              <div className={styles.totalsRow}>
+                <dt>Paid</dt>
+                <dd>{money(totals.paid ?? 0, currency)}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
       );
     }
 
     case "signature":
       return (
-        <div className={cn("grid gap-6", block.party === "both" ? "sm:grid-cols-2" : "")}>
+        <div
+          className={cn(styles.signatures, block.party === "both" && styles.signaturesPair)}
+        >
           {(block.party === "both" ? ["customer", "us"] : [block.party]).map((party) => (
-            <div key={party} className="space-y-1">
-              <div className="h-12 border-b border-[var(--border)]" />
-              <p className="text-sm text-[var(--text-muted)]">
+            <div key={party} className={styles.signature}>
+              <div className={styles.signatureLine} />
+              <p className={styles.signatureLabel}>
                 {party === "us" ? "For the company" : block.label}
               </p>
             </div>
@@ -539,8 +537,9 @@ function BlockBody({
 
     case "terms":
       return (
-        <div className="rounded-[var(--radius-md)] bg-[var(--surface-subtle)] p-3">
-          <p className="whitespace-pre-wrap text-sm text-[var(--text-muted)]">
+        <div className={styles.terms}>
+          <span className={styles.micro}>Terms</span>
+          <p className={styles.termsText}>
             <Fill text={block.text} context={context} />
           </p>
         </div>
@@ -548,13 +547,13 @@ function BlockBody({
 
     case "columns":
       return (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-3">
+        <div className={styles.columns}>
+          <div className={styles.column}>
             {block.left.map((child: LeafBlock) => (
               <BlockBody key={child.id} block={child} context={context} />
             ))}
           </div>
-          <div className="space-y-3">
+          <div className={styles.column}>
             {block.right.map((child: LeafBlock) => (
               <BlockBody key={child.id} block={child} context={context} />
             ))}
@@ -577,15 +576,11 @@ export function BlockRenderer({
   className?: string;
 }) {
   if (blocks.length === 0) {
-    return (
-      <p className={cn("py-8 text-center text-sm text-[var(--text-muted)]", className)}>
-        Nothing here yet.
-      </p>
-    );
+    return <p className={cn(styles.empty, className)}>Nothing here yet.</p>;
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn(styles.doc, className)}>
       {blocks.map((block) => (
         <BlockBody key={block.id} block={block} context={context} />
       ))}

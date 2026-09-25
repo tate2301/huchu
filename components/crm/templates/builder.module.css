@@ -1,0 +1,1169 @@
+/*
+  The template builder — `TemplateBuilder.dc.html`.
+
+  Three columns under one 60px header: the block palette, the page being
+  built, and the inspector for whichever block is selected. The old editor put
+  every block's whole form inline in the canvas, so the canvas was a stack of
+  forms rather than a drawing of the document; this file is the paint for the
+  arrangement the board draws instead.
+
+  `@layer components` for the same reason the shared management layer uses it:
+  above the design system, below Tailwind's utilities, so a caller's
+  `className` still wins.
+*/
+
+@layer components {
+  .shell,
+  .palette,
+  .canvas,
+  .inspector {
+    --b-ink: var(--text-strong); /* #16181D */
+    --b-body: var(--text-body); /* #262A33 */
+    --b-label: var(--text-muted); /* #565C69 */
+    --b-meta: #5E6573; /* the DS's --text-subtle resolves to #8A91A0 */
+    --b-faint: var(--text-subtle); /* #8A91A0 */
+    --b-rule: var(--border); /* #E5E8EE */
+    --b-rule-soft: var(--border-subtle); /* #EEF0F4 */
+    --b-control: var(--border-strong); /* #D2D7E0 */
+    --b-page: var(--surface); /* #FFFFFF */
+    --b-ground: var(--canvas); /* #F7F8FA */
+    --b-tile: var(--surface-muted); /* #F1F3F6 */
+    --b-primary: var(--brand); /* #0B5DF0 */
+    --b-on-tint: var(--brand-strong); /* #0944C2 */
+    --b-tint: var(--brand-soft); /* #E8EFFE */
+    --b-warn-bg: var(--tone-warn-bg); /* #F4E6C5 */
+    --b-warn-fg: #6B4A12;
+    --b-warn-dot: var(--tone-warn); /* #B07626 */
+    --b-danger: var(--tone-danger); /* #B83A2A */
+    --b-mono: var(--font-mono);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The shell
+   * `app/templates/[id]/page.tsx` centres its child in a 768px column. The
+   * board is a full-bleed three-column app, so the shell steps back out of
+   * that column rather than that route being edited — it belongs to another
+   * agent. `100vw` with `left: 50%` is the standard escape and survives any
+   * centred container, including one with padding.
+   * ------------------------------------------------------------------ */
+
+  .shell {
+    position: relative;
+    width: 100vw;
+    max-width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--stack-top, 0px) - 96px);
+    min-height: 560px;
+    overflow: clip;
+    background: var(--b-page);
+    color: var(--b-body);
+  }
+
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 60px;
+    flex-shrink: 0;
+    padding: 0 16px 0 10px;
+    border-bottom: 1px solid var(--b-rule);
+  }
+
+  .titleGroup {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .title {
+    margin: 0;
+    min-width: 0;
+    font: 600 17px/1.25 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--b-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Rule 8: clicking the title opens it too, not only the pencil. The button
+     borrows the title's own metrics exactly, so the text does not shift when
+     the line becomes editable. */
+  .titleButton {
+    display: block;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .titleButton:focus-visible {
+    outline: 2px solid var(--b-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Rule 8: the name is plain text with a pencil beside it, and editing it is
+     in place — no edit mode, no save button for a name. The input inherits the
+     title's type so the line does not move when it becomes editable. */
+  .titleInput {
+    min-width: 0;
+    width: 100%;
+    max-width: 420px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--b-primary);
+    border-radius: 0;
+    background: transparent;
+    font: 600 17px/1.25 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--b-ink);
+    outline: none;
+  }
+
+  .pencil {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--b-faint);
+    cursor: pointer;
+  }
+
+  .pencil svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .pencil:hover {
+    background: var(--b-tile);
+    color: var(--b-label);
+  }
+
+  .pencil:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /* An amber Draft pill, and only when it is a draft. Rule 5: there is no
+     chip for the healthy state. */
+  .draft {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    flex-shrink: 0;
+    padding: 0 9px;
+    border-radius: 9999px;
+    background: var(--b-warn-bg);
+    color: var(--b-warn-fg);
+    font: 500 12px/1 var(--font-sans);
+  }
+
+  /*
+    Retired is the other exception, and it is neutral rather than amber: a
+    template nobody can reach any more is not a warning, it is a fact. Both
+    of these draw only when the template is not in its healthy state — an
+    ordinary published template carries no chip at all.
+  */
+  .retired {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    flex-shrink: 0;
+    padding: 0 9px;
+    border-radius: 9999px;
+    background: var(--b-tile);
+    color: var(--b-label);
+    font: 500 12px/1 var(--font-sans);
+  }
+
+  .retired::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    /* The contract's neutral list dot. `--gray-400` is #A6AEBD in light and
+       #3D4358 in dark, so the token would repaint the dot nearly black on a
+       chip whose tint does not flip with it. */
+    background: #a8afbc;
+  }
+
+  .draft::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--b-warn-dot);
+  }
+
+  .spacer {
+    flex-grow: 1;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Buttons — 32 and 28. The DS has 24/30/36/44.
+   * ------------------------------------------------------------------ */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    flex-shrink: 0;
+    padding: 0 12px;
+    border: 1px solid var(--b-rule);
+    border-radius: 8px;
+    background: var(--b-page);
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--b-label);
+  }
+
+  .btn:hover {
+    background: var(--b-tile);
+  }
+
+  .btn:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .btnPrimary {
+    padding: 0 14px;
+    border-color: var(--b-primary);
+    background: var(--b-primary);
+    color: #ffffff;
+  }
+
+  .btnPrimary svg {
+    color: #ffffff;
+  }
+
+  .btnPrimary:hover {
+    background: var(--b-on-tint);
+  }
+
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .iconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--b-label);
+    cursor: pointer;
+  }
+
+  .iconBtn svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .iconBtn:hover {
+    background: var(--b-tile);
+  }
+
+  .iconBtn:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The three columns
+   * ------------------------------------------------------------------ */
+
+  .body {
+    display: flex;
+    flex-grow: 1;
+    min-height: 0;
+  }
+
+  .palette {
+    width: 192px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 14px 10px;
+    border-right: 1px solid var(--b-rule);
+    background: var(--b-ground);
+    overflow-y: auto;
+  }
+
+  .paletteTitle {
+    margin: 0 0 8px;
+    padding: 0 8px;
+    font: 600 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+  }
+
+  .paletteItem {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    height: 32px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-body);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .paletteItem svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--b-label);
+  }
+
+  .paletteItem:hover {
+    background: var(--b-tile);
+  }
+
+  .paletteItem:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .paletteFoot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 8px 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--b-rule);
+    font: 500 11px/1.5 var(--b-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--b-meta);
+  }
+
+  /* The board's `{}` before the constant's name, in the same ink as the name:
+     the board draws the whole line at one weight, and `--b-control` is a line
+     colour — on the palette's own ground it is barely a mark at all. */
+  .paletteFootMark {
+    flex-shrink: 0;
+    color: inherit;
+  }
+
+  .canvas {
+    flex-grow: 1;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 26px 0 26px 48px;
+    background: var(--b-ground);
+    overflow-y: auto;
+  }
+
+  .sheet {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 28px 32px;
+    border: 1px solid var(--b-rule);
+    border-radius: 12px;
+    background: var(--b-page);
+  }
+
+  @media (max-width: 1099px) {
+    .palette {
+      width: 160px;
+    }
+
+    .inspector {
+      width: 264px;
+    }
+
+    .canvas {
+      padding-left: 26px;
+    }
+  }
+
+  @media (max-width: 899px) {
+    .body {
+      flex-direction: column;
+    }
+
+    .palette,
+    .inspector {
+      width: auto;
+      border: 0;
+      border-bottom: 1px solid var(--b-rule);
+    }
+
+    .canvas {
+      padding: 20px 16px;
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * A block on the canvas
+   * ------------------------------------------------------------------ */
+
+  .block {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .block:hover {
+    border-color: var(--b-rule);
+  }
+
+  .block[aria-current="true"] {
+    border-color: var(--b-primary);
+    background: var(--b-page);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.16);
+  }
+
+  .block:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /* The block's kind, named only while it is the one being edited — an
+     always-on label on every block turns the page into a diagram of itself. */
+  .blockTag {
+    position: absolute;
+    top: -9px;
+    left: 10px;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 9999px;
+    background: var(--b-primary);
+    font: 500 11px/18px var(--font-sans);
+    color: #ffffff;
+  }
+
+  .grip {
+    position: absolute;
+    left: -22px;
+    top: 12px;
+    display: grid;
+    place-items: center;
+    color: var(--b-control);
+  }
+
+  .blockLabel {
+    display: block;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .required {
+    color: var(--b-danger);
+  }
+
+  .blockHeading {
+    display: block;
+    font: 600 15px/1.3 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--b-ink);
+  }
+
+  .blockText {
+    display: block;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--b-body);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .blockPlaceholder {
+    color: var(--b-meta);
+  }
+
+  .token {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 6px;
+    background: var(--b-tint);
+    font: 500 12px/1 var(--b-mono);
+    color: var(--b-on-tint);
+  }
+
+  .control {
+    display: block;
+    margin-top: 6px;
+  }
+
+  /* A drawing of the control, not the control: the canvas is a picture of the
+     document and a live input here would collect answers nobody asked for. */
+  .controlBox {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--b-control);
+    border-radius: 8px;
+    background: var(--b-page);
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--b-body);
+  }
+
+  .controlMono {
+    font-family: var(--b-mono);
+  }
+
+  .controlArea {
+    box-sizing: border-box;
+    display: block;
+    height: 64px;
+    padding: 9px 12px;
+    border: 1px solid var(--b-control);
+    border-radius: 8px;
+    background: var(--b-page);
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--b-meta);
+  }
+
+  .controlChevron {
+    margin-left: auto;
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    color: var(--b-label);
+  }
+
+  .controlSign {
+    display: block;
+    margin-top: 8px;
+    height: 52px;
+    border: 1px dashed var(--b-control);
+    border-radius: 8px;
+    background: var(--b-ground);
+  }
+
+  .controlRule {
+    display: block;
+    height: 1px;
+    background: var(--b-rule);
+  }
+
+  .hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 7px;
+    font: 500 11px/1.5 var(--b-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--b-meta);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Between two blocks
+   * ------------------------------------------------------------------ */
+
+  .insert {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 16px;
+  }
+
+  /* The affordance for inserting above the first block sits inside the page's
+     own top padding rather than adding a row to it — the board draws the first
+     block hard against the 28px padding, and a hidden-until-hover control has
+     no business spending 16px of the page to be ready. */
+  .sheet > .insert:first-child {
+    margin-top: -16px;
+  }
+
+  .insertLine {
+    position: absolute;
+    inset-inline: 0;
+    height: 1px;
+    background: var(--b-rule-soft);
+    opacity: 0;
+    transition: opacity var(--dur-fast, 0.14s);
+  }
+
+  .insertButton {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border: 1px dashed var(--b-control);
+    border-radius: 9999px;
+    background: var(--b-page);
+    color: var(--b-faint);
+    opacity: 0;
+    transition: opacity var(--dur-fast, 0.14s);
+    cursor: pointer;
+  }
+
+  .insertButton svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .insert:hover .insertLine,
+  .insert:hover .insertButton,
+  .insertButton:focus-visible {
+    opacity: 1;
+  }
+
+  .insertButton:hover {
+    border-color: var(--b-primary);
+    color: var(--b-primary);
+  }
+
+  .insertButton:focus-visible {
+    outline: none;
+    border-style: solid;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  @media (pointer: coarse) {
+    .insertLine,
+    .insertButton {
+      opacity: 1;
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The inspector
+   * ------------------------------------------------------------------ */
+
+  .inspector {
+    width: 308px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 18px 18px 24px;
+    border-left: 1px solid var(--b-rule);
+    overflow-y: auto;
+  }
+
+  .inspectorHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .inspectorTile {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 7px;
+    background: var(--b-tint);
+    color: var(--b-on-tint);
+  }
+
+  .inspectorTile svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .inspectorTitle {
+    margin: 0;
+    flex-grow: 1;
+    min-width: 0;
+    font: 600 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+  }
+
+  .inspectorDelete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--b-label);
+    cursor: pointer;
+  }
+
+  .inspectorDelete svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .inspectorDelete:hover {
+    background: var(--tone-danger-bg, #f6e2dd);
+    color: var(--tone-danger-strong, #7a2419);
+  }
+
+  .inspectorDelete:focus-visible {
+    outline: none;
+    border-color: var(--b-primary);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .field > label {
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--b-label);
+  }
+
+  /* The board's control is 13px; the DS `.input` is 14. Scoped to the
+     inspector so no call site overrides it a field at a time. */
+  .inspector :global(.input),
+  .inspector :global(.select),
+  .inspector :global(.textarea) {
+    font-size: 13px;
+  }
+
+  .mono :global(.input),
+  .mono :global(input) {
+    font-family: var(--b-mono);
+  }
+
+  .switchRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 40px;
+    border-top: 1px solid var(--b-rule-soft);
+    border-bottom: 1px solid var(--b-rule-soft);
+  }
+
+  .switchLabel {
+    flex-grow: 1;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+  }
+
+  .group {
+    margin: 20px 0 10px;
+    font: 600 15px/1.35 var(--font-sans);
+    color: var(--b-ink);
+  }
+
+  .choices {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .choiceRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .choiceGrip {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: var(--b-control);
+  }
+
+  .choiceRemove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--b-faint);
+    cursor: pointer;
+  }
+
+  .choiceRemove svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .choiceRemove:hover {
+    background: var(--b-tile);
+    color: var(--b-label);
+  }
+
+  .empty {
+    margin: 0;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--b-meta);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Problems — what stops a template being published
+   * ------------------------------------------------------------------ */
+
+  .problems {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--b-warn-bg);
+    color: var(--b-warn-fg);
+    font: 400 12px/1.45 var(--font-sans);
+    list-style: none;
+  }
+
+  .problems li + li {
+    margin-top: 4px;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The preview — the same renderer the reader gets
+   * ------------------------------------------------------------------ */
+
+  .previewStage {
+    flex-grow: 1;
+    min-width: 0;
+    display: grid;
+    place-items: start center;
+    padding: 26px;
+    background: var(--b-tile);
+    overflow-y: auto;
+  }
+
+  .previewPage {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 560px;
+    padding: 34px 38px;
+    background: var(--b-page);
+    box-shadow: var(--shadow-popover);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The preview's aside — what is true of the document beside it
+   * `TemplateRender.dc.html` draws the state, the facts, and the versions
+   * behind them. This record keeps no versions, so the panel stops at the
+   * facts rather than drawing an empty list under a heading that promises
+   * one.
+   * ------------------------------------------------------------------ */
+
+  .previewBody {
+    display: flex;
+    flex-grow: 1;
+    min-height: 0;
+  }
+
+  .aside {
+    box-sizing: border-box;
+    width: 380px;
+    flex-shrink: 0;
+    padding: 22px 22px 28px;
+    border-left: 1px solid var(--b-rule);
+    overflow-y: auto;
+  }
+
+  @media (max-width: 1100px) {
+    .aside {
+      display: none;
+    }
+  }
+
+  .asideHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .asideTile {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    background: var(--tone-success-bg); /* #E7EFE0 */
+    color: var(--tone-success-strong); /* #2E5526 */
+  }
+
+  .asideTile svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .asideTile[data-tone="draft"] {
+    background: var(--b-warn-bg);
+    color: var(--b-warn-fg);
+  }
+
+  .asideTitle {
+    margin: 0;
+    font: 600 15px/1.35 var(--font-sans);
+    color: var(--b-ink);
+  }
+
+  .facts {
+    margin: 0 0 6px;
+    display: grid;
+    grid-template-columns: 116px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+  }
+
+  .facts dt {
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--b-meta);
+  }
+
+  .facts dd {
+    margin: 0;
+    min-width: 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+    overflow-wrap: anywhere;
+  }
+
+  .factMono {
+    font-family: var(--b-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--b-tint);
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--b-on-tint);
+  }
+
+  .note svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The counters
+   * ------------------------------------------------------------------ */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 0 22px;
+  }
+
+  .stat {
+    padding: 12px 14px;
+    border: 1px solid var(--b-rule);
+    border-radius: 10px;
+  }
+
+  .stat dt {
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--b-meta);
+  }
+
+  .stat dd {
+    margin: 4px 0 0;
+    font: 600 17px/1.25 var(--b-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--b-ink);
+  }
+
+  .stat dd.statWhen {
+    margin-top: 3px;
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--b-meta);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The variable picker
+   * The catalogue is the contract: a variable typed from memory renders as
+   * itself in a draft and as a blank in the customer's copy, so the list is
+   * legible at the same ladder as the inspector it opens from.
+   * ------------------------------------------------------------------ */
+
+  .pickerGroup {
+    margin: 0;
+    padding: 8px 8px 2px;
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--b-label);
+  }
+
+  .pickerItem {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .pickerItem:hover {
+    background: var(--b-tile);
+  }
+
+  .pickerItem:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .pickerLabel {
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--b-ink);
+  }
+
+  .pickerKey {
+    font: 400 12px/1.45 var(--b-mono);
+    color: var(--b-meta);
+  }
+
+  .pickerEmpty {
+    margin: 0;
+    padding: 18px 8px;
+    text-align: center;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--b-meta);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The last of the inline styles, named.
+   *
+   * These were written as `style={{…}}` while the board was being matched.
+   * They are here instead because a value that belongs to the drawing
+   * belongs in the drawing's stylesheet: `@layer components` keeps them
+   * under Tailwind, so a caller can still override any of them, which an
+   * inline style would not allow.
+   * ------------------------------------------------------------------ */
+
+  /* A stated fact in the properties panel: a label over a value that is
+     not a control, so it is a `span` pair rather than a `label` and an
+     input — `htmlFor` has nothing labelable to point at. */
+  .propLabel {
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--b-label);
+  }
+
+  .propValue {
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--b-body);
+  }
+
+  /* The public link, as a button that copies it. It has to truncate: a
+     token is long and the inspector is 308px. */
+  .linkBtn {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .linkBtnText {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--b-mono);
+  }
+
+  /* A checkbox is drawn as its box alone — there is no value to show. */
+  .controlCheck {
+    width: 36px;
+    padding: 0;
+  }
+
+  .paletteLabel {
+    flex-grow: 1;
+  }
+
+  /* The problems banner sits over the page, so it shares the page's width
+     rather than the canvas's. */
+  .bannerWrap {
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  /* Rule 6 of the list rules does not apply to a blank page: there is no
+     column to name, so the panel is the verb and nothing else. */
+  .blank {
+    padding: 24px 0;
+    text-align: center;
+  }
+
+  .starters {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  /* A rule under a block's own label, rather than between two blocks. */
+  .ruleGap {
+    margin-top: 8px;
+  }
+}

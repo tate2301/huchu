@@ -3,22 +3,21 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { DataTableColumn } from "@corelithzw/react";
 import {
-  DetailFact,
-  MasterDataPage,
-} from "@/components/management/master-data/master-data-page";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+  ActivityTrail,
+  HeaderAction,
+  ListColumn,
+  ListRow,
+  RecordHeader,
+  RegisterLayout,
+  SectionHeading,
+  StatusBadge,
+  StatusDot,
+  type ListColumnState,
+} from "@/components/management/ui";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 import {
   createGoldExpenseType,
@@ -28,32 +27,57 @@ import {
   updateGoldExpenseType,
 } from "@/lib/api";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
+import {
+  Archive,
+  Coins,
+  RefreshCcw,
+  SlidersHorizontal,
+} from "@/lib/icons";
 
-type GoldExpenseTypeFormState = {
-  name: string;
-  sortOrder: string;
-  isActive: boolean;
-};
+import {
+  CommitInput,
+  CreateField,
+  CreateSheet,
+  DETAIL_CONTROL_CLASS,
+  DetailGrid,
+  DetailRow,
+  NoRecord,
+  StatusSelect,
+} from "../_components/register-fields";
 
-const emptyForm: GoldExpenseTypeFormState = {
-  name: "",
-  sortOrder: "0",
-  isActive: true,
-};
+const SETTLEMENT_TYPES_KEY = [
+  "management",
+  "master-data",
+  "gold-expense-types",
+] as const;
 
+const FULL_LOG_HREF = "/reports/audit-trails";
+
+/**
+ * Settlement types — `SettlementTypes.dc.html`.
+ *
+ * The name drift this surface carried is settled here in the only direction
+ * that costs nothing: the rail said "Settlement types", the board says
+ * "Settlement types", the page said "Gold expense types". The list heading now
+ * reads the way the rail entry you pressed reads. The route, the API, the
+ * `GoldExpenseType` type and the query key are all untouched — renaming those
+ * is a data change, and this is not one.
+ */
 export default function GoldExpenseTypesManagementPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<GoldExpenseType | null>(null);
-  const [formState, setFormState] = useState<GoldExpenseTypeFormState>(emptyForm);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["management", "master-data", "gold-expense-types"],
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [draftName, setDraftName] = useState("");
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: SETTLEMENT_TYPES_KEY,
     queryFn: () => fetchGoldExpenseTypes({ active: "all" }),
   });
   const loadErrorMessage = resolveDisplayErrorMessage([error]);
-  const [search, setSearch] = useState("");
+
   const all = useMemo(() => data ?? [], [data]);
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -61,20 +85,24 @@ export default function GoldExpenseTypesManagementPage() {
     return all.filter((row) => row.name.toLowerCase().includes(needle));
   }, [all, search]);
 
+  const selected: GoldExpenseType | null =
+    all.find((row) => row.id === selectedId) ?? rows[0] ?? null;
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: [...SETTLEMENT_TYPES_KEY] });
+
   const createMutation = useMutation({
     mutationFn: createGoldExpenseType,
-    onSuccess: () => {
-      toast({
-        title: "Expense type created",
-        variant: "success",
-      });
-      setFormOpen(false);
-      setFormState(emptyForm);
-      queryClient.invalidateQueries({ queryKey: ["management", "master-data", "gold-expense-types"] });
+    onSuccess: (created) => {
+      toast({ title: "Settlement type created", variant: "success" });
+      setCreating(false);
+      setDraftName("");
+      setSelectedId(created.id);
+      invalidate();
     },
     onError: (err) => {
       toast({
-        title: "Unable to create expense type",
+        title: "Unable to create settlement type",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });
@@ -82,21 +110,17 @@ export default function GoldExpenseTypesManagementPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (payload: { id: string; input: Parameters<typeof updateGoldExpenseType>[1] }) =>
-      updateGoldExpenseType(payload.id, payload.input),
+    mutationFn: (payload: {
+      id: string;
+      input: Parameters<typeof updateGoldExpenseType>[1];
+    }) => updateGoldExpenseType(payload.id, payload.input),
     onSuccess: () => {
-      toast({
-        title: "Expense type updated",
-        variant: "success",
-      });
-      setFormOpen(false);
-      setEditing(null);
-      setFormState(emptyForm);
-      queryClient.invalidateQueries({ queryKey: ["management", "master-data", "gold-expense-types"] });
+      toast({ title: "Settlement type updated", variant: "success" });
+      invalidate();
     },
     onError: (err) => {
       toast({
-        title: "Unable to update expense type",
+        title: "Unable to update settlement type",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });
@@ -106,233 +130,201 @@ export default function GoldExpenseTypesManagementPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteGoldExpenseType,
     onSuccess: () => {
-      toast({
-        title: "Expense type archived",
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: ["management", "master-data", "gold-expense-types"] });
+      toast({ title: "Settlement type retired", variant: "success" });
+      invalidate();
     },
     onError: (err) => {
       toast({
-        title: "Unable to archive expense type",
+        title: "Unable to retire settlement type",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });
     },
   });
 
-  const columns = useMemo<DataTableColumn<GoldExpenseType>[]>(
-    () => [
-      { key: "name", header: "Expense type", sortable: true },
-      {
-        key: "sortOrder",
-        header: "Sort",
-        sortable: true,
-        width: 100,
-        align: "right",
-        render: (row) => <span className="font-mono tabular-nums">{row.sortOrder}</span>,
-      },
-      {
-        key: "status",
-        header: "Status",
-        width: 120,
-        render: (row) => (
-          <Badge variant={row.isActive ? "secondary" : "outline"}>
-            {row.isActive ? "Active" : "Inactive"}
-          </Badge>
-        ),
-      },
-    ],
-    [],
-  );
+  const patch = (
+    id: string,
+    input: Parameters<typeof updateGoldExpenseType>[1],
+  ) => updateMutation.mutate({ id, input });
 
-  const handleSave = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!formState.name.trim()) {
-      toast({
-        title: "Incomplete form",
-        description: "Expense type name is required.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const sortOrder = Number(formState.sortOrder);
-    if (!Number.isInteger(sortOrder) || sortOrder < 0) {
-      toast({
-        title: "Invalid sort order",
-        description: "Sort order must be a non-negative whole number.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const payload = {
-      name: formState.name.trim(),
-      sortOrder,
-      isActive: formState.isActive,
-    };
-
-    if (editing) {
-      updateMutation.mutate({
-        id: editing.id,
-        input: payload,
-      });
-      return;
-    }
-
-    createMutation.mutate(payload);
-  };
+  const listState: ListColumnState = isLoading
+    ? "loading"
+    : loadErrorMessage
+      ? "failed"
+      : rows.length
+        ? "ready"
+        : search.trim()
+          ? "no-matches"
+          : "empty";
 
   return (
-    <MasterDataPage<GoldExpenseType>
-      title="Gold expense types"
-      description="what gold-room spending can be booked against"
-      createLabel="New expense type"
-      onCreate={() => {
-        setEditing(null);
-        setFormState(emptyForm);
-        setFormOpen(true);
-      }}
-      columns={columns}
-      data={rows}
-      rowKey={(row) => row.id}
-      isLoading={isLoading}
-      error={loadErrorMessage}
-      total={all.length}
-      searchTerm={search}
-      onSearchChange={setSearch}
-      searchPlaceholder="Search expense types"
-      emptyLabel="No expense types yet"
-      detailTitle={(row) => row.name}
-      renderDetail={(row, close) => (
-        <div className="space-y-4">
-          <div className="space-y-3">
-            {/* The expense type is the pane's own heading, not its first row. */}
-            <DetailFact label="Sort order">
-              <span className="font-mono tabular-nums">{row.sortOrder}</span>
-            </DetailFact>
-            <DetailFact label="Status">
-              <Badge variant={row.isActive ? "secondary" : "outline"}>
-                {row.isActive ? "Active" : "Inactive"}
-              </Badge>
-            </DetailFact>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setEditing(row);
-                setFormState({
-                  name: row.name,
-                  sortOrder: String(row.sortOrder),
-                  isActive: row.isActive,
-                });
-                setFormOpen(true);
-              }}
-            >
-              Edit
-            </Button>
-            {row.isActive ? (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  void dsConfirm({
-                    title: `Archive ${row.name}?`,
-                    description:
-                      "Spending already booked against it keeps it. It stops being offered on new shift output forms until it is set active again.",
-                    confirmLabel: "Archive the type",
-                    variant: "warning",
-                  }).then((confirmed) => {
-                    if (confirmed) deleteMutation.mutate(row.id, { onSuccess: close });
-                  });
-                }}
-              >
-                Archive
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={updateMutation.isPending}
-                onClick={() =>
-                  updateMutation.mutate({ id: row.id, input: { isActive: true } })
+    <ManagementShell railCounts={{ "gold-expense-types": all.length }}>
+      <RegisterLayout
+        hasSelection={Boolean(selected)}
+        list={
+          <ListColumn
+            title="Settlement types"
+            noun="settlement type"
+            count={all.length}
+            state={listState}
+            // The board's column counts settlements booked against the type.
+            // Nothing this page reads returns that, and a header naming a
+            // figure the rows cannot show is worse than the board's picture.
+            //
+            // Status takes the column instead. The list is loaded with
+            // `active: "all"`, so a retired type sits in it looking exactly
+            // like a live one unless this column says otherwise — rule 6's
+            // list column, carrying the state on every row. `sortOrder` was
+            // the other candidate and only restates each row's position,
+            // since the rows arrive ordered by it.
+            columns={{ row: "Settlement type", value: "Status" }}
+            search={{ value: search, onChange: setSearch, placeholder: "Name" }}
+            onNew={() => {
+              setDraftName("");
+              setCreating(true);
+            }}
+            onRetry={() => void refetch()}
+          >
+            {rows.map((row) => (
+              <ListRow
+                key={row.id}
+                name={row.name}
+                value={
+                  <StatusDot
+                    tone={row.isActive ? "success" : "neutral"}
+                    label={row.isActive ? "Active" : "Retired"}
+                  />
                 }
-              >
-                Set active
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-    >
-      <Sheet
-        open={formOpen}
-        onOpenChange={(open) => {
-          setFormOpen(open);
-          if (!open) {
-            setEditing(null);
-            setFormState(emptyForm);
-          }
-        }}
+                selected={row.id === selected?.id}
+                onSelect={() => setSelectedId(row.id)}
+              />
+            ))}
+          </ListColumn>
+        }
       >
-        <SheetContent size="md" className="w-full p-6">
-          <SheetHeader>
-            <SheetTitle>{editing ? "Edit expense type" : "New expense type"}</SheetTitle>
-            <SheetDescription>
-              {editing
-                ? "Update expense type details and status."
-                : "Create a gold expense type for shift output forms."}
-            </SheetDescription>
-          </SheetHeader>
-          <form onSubmit={handleSave} className="mt-6 space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Expense type *</label>
+        {selected ? (
+          <>
+            <RecordHeader
+              title={selected.name}
+              icon={Coins}
+              onRename={(name) => patch(selected.id, { name })}
+              renameLabel="Rename the settlement type"
+              badge={
+                <StatusBadge
+                  context="header"
+                  tone={selected.isActive ? "success" : "neutral"}
+                >
+                  Retired
+                </StatusBadge>
+              }
+              action={
+                selected.isActive ? (
+                  <HeaderAction
+                    icon={Archive}
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      void dsConfirm({
+                        title: `Retire ${selected.name}?`,
+                        description:
+                          "Settlements already booked against it keep it. It stops being offered on new payouts until it is set active again.",
+                        confirmLabel: "Retire the type",
+                        variant: "warning",
+                      }).then((confirmed) => {
+                        if (confirmed) deleteMutation.mutate(selected.id);
+                      });
+                    }}
+                  >
+                    Retire
+                  </HeaderAction>
+                ) : (
+                  <HeaderAction
+                    icon={RefreshCcw}
+                    disabled={updateMutation.isPending}
+                    onClick={() => patch(selected.id, { isActive: true })}
+                  >
+                    Set active
+                  </HeaderAction>
+                )
+              }
+            />
+
+            <SectionHeading icon={SlidersHorizontal} tone="brand">
+              Details
+            </SectionHeading>
+            <DetailGrid>
+              <DetailRow label="Order">
+                {(id) => (
+                  <CommitInput
+                    id={id}
+                    mono
+                    inputMode="numeric"
+                    value={String(selected.sortOrder ?? 0)}
+                    onCommit={(next) => {
+                      const sortOrder = Number.parseInt(next, 10);
+                      if (Number.isNaN(sortOrder)) return;
+                      patch(selected.id, { sortOrder });
+                    }}
+                  />
+                )}
+              </DetailRow>
+              <DetailRow label="Status">
+                {(id) => (
+                  <StatusSelect
+                    id={id}
+                    archivedLabel="Retired"
+                    active={selected.isActive}
+                    onChange={(isActive) => patch(selected.id, { isActive })}
+                  />
+                )}
+              </DetailRow>
+            </DetailGrid>
+
+            <ActivityTrail events={[]} fullLogHref={FULL_LOG_HREF} />
+          </>
+        ) : (
+          <NoRecord
+            label={
+              isLoading
+                ? "Loading settlement types"
+                : search.trim()
+                  ? "No settlement type matches that search."
+                  : "No settlement type to show yet."
+            }
+          />
+        )}
+
+        <CreateSheet
+          open={creating}
+          onOpenChange={setCreating}
+          title="New settlement type"
+          submitLabel="Create settlement type"
+          busy={createMutation.isPending}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!draftName.trim()) {
+              toast({
+                title: "Incomplete form",
+                description: "A name is required.",
+                variant: "destructive",
+              });
+              return;
+            }
+            createMutation.mutate({ name: draftName.trim(), isActive: true });
+          }}
+        >
+          <CreateField label="Name">
+            {(id) => (
               <Input
-                value={formState.name}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, name: event.target.value }))
-                }
-                placeholder="Diesel"
-                required
+                id={id}
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                placeholder="Transport levy"
+                className={DETAIL_CONTROL_CLASS}
               />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Sort order *</label>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                value={formState.sortOrder}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, sortOrder: event.target.value }))
-                }
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="button"
-                variant={formState.isActive ? "secondary" : "outline"}
-                onClick={() => setFormState((prev) => ({ ...prev, isActive: !prev.isActive }))}
-              >
-                {formState.isActive ? "Active" : "Inactive"}
-              </Button>
-              <Button
-                type="submit"
-                className="flex-1"
-                disabled={createMutation.isPending || updateMutation.isPending}
-              >
-                {editing ? "Save changes" : "Create expense type"}
-              </Button>
-            </div>
-          </form>
-        </SheetContent>
-      </Sheet>
-    </MasterDataPage>
+            )}
+          </CreateField>
+        </CreateSheet>
+      </RegisterLayout>
+    </ManagementShell>
   );
 }

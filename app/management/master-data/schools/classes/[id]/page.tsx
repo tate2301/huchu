@@ -1,16 +1,18 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { ManagementShell } from "@/components/settings/management-shell";
-import { ClassRecordPage } from "@/components/schools/records/class-record-page";
 import { authOptions } from "@/lib/auth";
 
+import { ClassesRegister } from "../classes-register";
+
 /**
- * One class, as a record.
+ * One class, as a record — with the ladder still beside it.
  *
- * Inside the management shell rather than the school's, because the list it is
- * reached from lives here. The band keeps naming the section it was opened
- * from, and the record page below draws the class itself.
+ * The same register the index renders; the id is which row is open. A record
+ * that replaced the list would make going from Form 1 to Form 2 a trip back out
+ * to a page that then has to be found again.
+ *
+ * The session gate is untouched.
  */
 export default async function ClassRecordMasterDataRoute({
   params,
@@ -24,9 +26,5 @@ export default async function ClassRecordMasterDataRoute({
 
   const { id } = await params;
 
-  return (
-    <ManagementShell area="master-data" title="Classes and streams">
-      <ClassRecordPage classId={id} />
-    </ManagementShell>
-  );
+  return <ClassesRegister selectedId={id} />;
 }

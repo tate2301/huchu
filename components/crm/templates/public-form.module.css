@@ -1,0 +1,111 @@
+/*
+  A block form, filled in by somebody outside the company.
+
+  The one screen in this group with no rail, no header bar and no app around
+  it: a stranger opens a link and meets a sheet. So the sheet is the whole
+  design — the document's ground behind it, the page's own paper in front, and
+  nothing else competing for the only decision on the screen.
+
+  The blocks themselves are `document.module.css`; this file is only the
+  paper they sit on and the one verb underneath.
+*/
+
+@layer components {
+  .page {
+    min-height: 100dvh;
+    box-sizing: border-box;
+    padding: 40px 16px 64px;
+    background: var(--canvas); /* #F7F8FA */
+  }
+
+  .sheet {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 34px 38px 38px;
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow-popover);
+  }
+
+  @media (max-width: 560px) {
+    .page {
+      padding: 0;
+    }
+    .sheet {
+      max-width: none;
+      min-height: 100dvh;
+      padding: 28px 20px 40px;
+      border-radius: 0;
+      box-shadow: none;
+    }
+  }
+
+  .company {
+    margin: 0;
+    font: 500 12px/1.4 var(--font-sans);
+    color: var(--text-muted); /* #565C69 */
+  }
+
+  .title {
+    margin: 5px 0 0;
+    font: 600 17px/1.25 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--text-strong); /* #16181D */
+  }
+
+  .emoji {
+    margin-right: 8px;
+  }
+
+  .alert {
+    margin-top: 18px;
+  }
+
+  .form {
+    margin-top: 24px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border); /* #E5E8EE */
+  }
+
+  .foot {
+    margin-top: 32px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border-subtle); /* #EEF0F4 */
+  }
+
+  /*
+    34px, matching the form footers across this surface. The design system's
+    rungs are 30 and 36, and a 36px button here sits proud of every control
+    above it.
+  */
+  .send {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    padding: 0 16px;
+    border: 1px solid var(--brand);
+    border-radius: 8px;
+    background: var(--brand); /* #0B5DF0 */
+    font: 500 13px/1.4 var(--font-sans);
+    color: #ffffff;
+    cursor: pointer;
+  }
+
+  .send:hover:not(:disabled) {
+    background: var(--brand-strong); /* #0944C2 */
+    border-color: var(--brand-strong);
+  }
+
+  .send:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .send:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
