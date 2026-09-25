@@ -297,6 +297,32 @@ function buildNotes(payload: UniversalDocumentPayload): string {
   </section>`;
 }
 
+/**
+ * What the reader is asked to open, after everything else on the page.
+ *
+ * Each address is printed in full under its title. The PDF is also the copy
+ * that gets printed and signed, and a link on paper is only its text — so the
+ * title is the anchor on screen and the URL is what survives the printer.
+ */
+function buildLinks(payload: UniversalDocumentPayload): string {
+  const block = payload.links;
+  const items = (block?.items ?? []).filter((item) => item.title && item.url);
+  if (!block || items.length === 0) return "";
+  return `<section class="links-block">
+    <div class="notes-title">${esc(block.heading)}</div>
+    ${items
+      .map(
+        (item) => `<div class="link-item">
+      <a class="link-title" href="${esc(item.url)}">${esc(item.title)}</a>${
+        item.description ? `<div class="link-detail">${esc(item.description)}</div>` : ""
+      }
+      <div class="link-url mono">${esc(item.url)}</div>
+    </div>`,
+      )
+      .join("")}
+  </section>`;
+}
+
 function buildRecordSections(payload: UniversalDocumentPayload): string {
   const sections = payload.record?.sections ?? [];
   if (sections.length === 0) return "";
@@ -485,6 +511,7 @@ export function renderDocumentHtml(input: {
     buildTable(payload, template),
     buildTotals(payload),
     buildNotes(payload),
+    buildLinks(payload),
   ]
     .filter(Boolean)
     .join("");
@@ -590,6 +617,13 @@ export function renderDocumentHtml(input: {
     .notes-block { margin-top: 30px; border-left: 2px solid var(--accent); background: var(--accent-wash); padding: 9px 12px; border-radius: 0 4px 4px 0; }
     .notes-title { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); font-weight: 700; margin-bottom: 3px; }
     .notes-line { color: var(--ink-soft); font-size: 10.5px; }
+
+    /* ── Links to review: on hairlines, like the summary band ── */
+    .links-block { margin-top: 24px; border-top: 1px solid var(--rule); padding-top: 9px; }
+    .link-item { padding: 5px 0; break-inside: avoid; }
+    .link-title { color: var(--ink); font-weight: 600; text-decoration: none; }
+    .link-detail { color: var(--ink-soft); font-size: 10.5px; }
+    .link-url { color: var(--ink-muted); font-size: 9px; word-break: break-all; }
 
     /* ── Footer: fine print ─────────────────────────────────── */
     .footer { margin-top: 38px; border-top: 1px solid var(--rule); padding-top: 12px; color: var(--ink-muted); }

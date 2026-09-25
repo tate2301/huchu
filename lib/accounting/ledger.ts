@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { AccountingPeriod } from "@prisma/client";
+import type { AccountingPeriod, Prisma, PrismaClient } from "@prisma/client";
 
 export function toMoney(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -7,8 +7,19 @@ export function toMoney(value: unknown) {
   return parsed;
 }
 
-export async function getLatestEntryNumber(companyId: string) {
-  const latest = await prisma.journalEntry.findFirst({
+/**
+ * The highest entry number on the books, read through `db`.
+ *
+ * Pass the transaction when numbering inside one. Read through the global
+ * client, a transaction that has already written an entry — a reversal, say —
+ * cannot see it, hands the next entry the same number, and dies on the unique
+ * (companyId, entryNumber) index.
+ */
+export async function getLatestEntryNumber(
+  companyId: string,
+  db: PrismaClient | Prisma.TransactionClient = prisma,
+) {
+  const latest = await db.journalEntry.findFirst({
     where: { companyId },
     orderBy: { entryNumber: "desc" },
     select: { entryNumber: true },
@@ -16,8 +27,11 @@ export async function getLatestEntryNumber(companyId: string) {
   return latest?.entryNumber ?? 0;
 }
 
-export async function getNextEntryNumber(companyId: string) {
-  const latest = await getLatestEntryNumber(companyId);
+export async function getNextEntryNumber(
+  companyId: string,
+  db: PrismaClient | Prisma.TransactionClient = prisma,
+) {
+  const latest = await getLatestEntryNumber(companyId, db);
   return latest + 1;
 }
 

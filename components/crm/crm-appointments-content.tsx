@@ -16,6 +16,7 @@ import {
   bucketByDueDate,
   type RecordListSection,
 } from "@/components/records/record-list-groups";
+import { GeotagNotice } from "@/components/crm/visits/geotag-notice";
 import { VisitReportSheet } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
@@ -183,6 +184,9 @@ export function CrmAppointmentsContent() {
       createLabel="Schedule a visit"
       onCreate={() => setScheduling(true)}
       error={appointmentsQuery.error}
+      // Said before anybody leaves for site: by the time the report is open,
+      // the photos were taken with whatever camera was to hand.
+      notice={<GeotagNotice />}
     >
       <GroupedRecordList
         sections={sections}

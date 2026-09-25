@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
 import { createInvoiceForLead } from "@/lib/crm/accounting-bridge";
 import { getOrCreateApproval } from "@/lib/crm/approvals";
+import { documentResourceIdsSchema } from "@/lib/crm/resources";
 import { crmDocumentLineSchema } from "../../../_helpers";
 
 const bodySchema = z
@@ -17,6 +18,7 @@ const bodySchema = z
     sendApproval: z.boolean().optional(),
     isDeposit: z.boolean().optional(),
     renderTemplateId: z.string().uuid().optional(),
+    resourceIds: documentResourceIdsSchema.optional(),
     approvalExpiresInDays: z.number().int().min(1).max(90).optional(),
   })
   .refine((v) => v.lines || v.fromQuotationId, {
@@ -55,6 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       isDeposit: data.isDeposit ?? false,
       renderTemplateId: data.renderTemplateId ?? null,
+      resourceIds: data.resourceIds,
     });
 
     let approvalToken: string | undefined;

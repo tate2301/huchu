@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Alert } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -15,11 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus, Trash2 } from "@/lib/icons";
-import type { CrmDocumentLineInput } from "@/lib/crm/accounting-bridge";
+import type { CrmDocumentLineInput, EditableDocument } from "@/lib/crm/accounting-bridge";
 
 import {
   draftToLine,
@@ -32,7 +34,9 @@ import {
 import { formatMoney } from "./document-types";
 import { CataloguePicker, type VisitItemOption } from "./catalogue-picker";
 import { DocumentTemplatePicker } from "./document-template-picker";
+import { ResourcePicker, useResourceLibrary } from "./resource-picker";
 import { refreshAfterDocumentChange } from "@/lib/crm/refresh";
+import { preselectedResourceIds } from "@/lib/crm/resources";
 
 /** A render layout the PDF can be drawn through, from the templates studio. */
 type LayoutOption = {
@@ -69,6 +73,7 @@ export function DocumentBuilderSheet({
   prefillLines,
   fromQuotationId,
   isDeposit,
+  editing,
   onCreated,
 }: {
   open: boolean;
@@ -81,6 +86,12 @@ export function DocumentBuilderSheet({
   fromQuotationId?: string;
   /** This invoice is money down against the quote — stored on the document. */
   isDeposit?: boolean;
+  /**
+   * An existing quote or invoice to open, prefilled. A quote saves as its
+   * next version, voiding this one and moving the client's approval link; an
+   * invoice is corrected in place and its journal reposted.
+   */
+  editing?: { documentId: string; number: string; version: number };
   onCreated?: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -92,7 +103,41 @@ export function DocumentBuilderSheet({
   const [dueDate, setDueDate] = useState("");
   const [sendApproval, setSendApproval] = useState(mode === "quotation");
   const [renderTemplateId, setRenderTemplateId] = useState("");
+  const [revisionNote, setRevisionNote] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
+  // Null until somebody ticks or unticks one: until then the selection is
+  // whatever the library says a new document starts with, which is only
+  // known once the library has loaded. Derived rather than copied in an
+  // effect, so a slow library cannot overwrite a tick made meanwhile.
+  const [resourceIds, setResourceIds] = useState<string[] | null>(null);
+
+  // The document as it stands now — not as it stood when the list loaded,
+  // because somebody may have paid it in the meantime.
+  const editQuery = useQuery({
+    queryKey: ["crm", "document-edit", basePath, editing?.documentId],
+    enabled: open && Boolean(editing),
+    queryFn: () =>
+      fetchJson<EditableDocument>(`${basePath}/documents/${editing!.documentId}`),
+    staleTime: 0,
+  });
+  const editDoc = editing ? editQuery.data : undefined;
+
+  const libraryQuery = useResourceLibrary(open);
+  const library = useMemo(() => libraryQuery.data?.data ?? [], [libraryQuery.data]);
+  // An edit starts from what the document already offers; a new one from
+  // the library's defaults.
+  const preselected = useMemo(
+    () => preselectedResourceIds(library, editing ? (editDoc?.resourceIds ?? []) : null),
+    [library, editing, editDoc],
+  );
+  const chosenResourceIds = resourceIds ?? preselected;
+  const toggleResource = (id: string, checked: boolean) =>
+    setResourceIds((current) => {
+      const base = current ?? preselected;
+      return checked
+        ? [...base.filter((entry) => entry !== id), id]
+        : base.filter((entry) => entry !== id);
+    });
 
   // Which layout the PDF renders through. Distinct from the standing-terms
   // picker below: that fills the notes, this picks the page design.
@@ -146,9 +191,34 @@ export function DocumentBuilderSheet({
     setDueDate("");
     setSendApproval(mode === "quotation");
     setRenderTemplateId("");
+    setRevisionNote("");
+    setResourceIds(null);
     setErrors([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // An edit opens on the document's own lines and terms once they arrive.
+  // The prices are the ones on the document — any discount was already
+  // folded into them when it was raised — and a free line stays at 0 rather
+  // than being blanked into a line with no price.
+  useEffect(() => {
+    if (!open || !editDoc) return;
+    setLines(
+      editDoc.lines.length > 0
+        ? editDoc.lines.map((line) => ({
+            description: line.description,
+            quantity: String(line.quantity),
+            unitPrice: String(line.unitPrice),
+            discountPercent: "",
+            taxRate: line.taxRate ? String(line.taxRate) : "",
+          }))
+        : [emptyLine()],
+    );
+    setNotes(editDoc.notes ?? "");
+    setValidUntil(editDoc.validUntil ? editDoc.validUntil.slice(0, 10) : "");
+    setDueDate(editDoc.dueDate ? editDoc.dueDate.slice(0, 10) : "");
+    setRenderTemplateId(editDoc.renderTemplateId ?? "");
+  }, [open, editDoc]);
 
   const totals = useMemo(
     () => lineTotals(lines, toNumber(documentDiscount)),
@@ -172,8 +242,26 @@ export function DocumentBuilderSheet({
         noteParts.push(`A ${docDiscount}% discount has been applied across all lines.`);
       }
 
+      // An invoice is corrected in place: same number, journal reposted.
+      if (editing && mode === "invoice") {
+        return fetchJson<{ total?: number; quotationNumber?: string }>(
+          `${basePath}/documents/${editing.documentId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              lines: payload,
+              notes: noteParts.join(" ") || null,
+              dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+              renderTemplateId: renderTemplateId || null,
+              resourceIds: chosenResourceIds,
+            }),
+          },
+        );
+      }
+
+      // A quote — new, or the next version of one being edited.
       const endpoint = mode === "quotation" ? "quotation" : "invoice";
-      return fetchJson<{ total?: number }>(
+      return fetchJson<{ total?: number; quotationNumber?: string }>(
         `${basePath}/${endpoint}`,
         {
           method: "POST",
@@ -182,11 +270,18 @@ export function DocumentBuilderSheet({
             currency,
             notes: noteParts.join(" ") || undefined,
             ...(renderTemplateId ? { renderTemplateId } : {}),
+            resourceIds: chosenResourceIds,
             ...(mode === "invoice" && isDeposit ? { isDeposit: true } : {}),
             ...(mode === "quotation"
               ? {
                   validUntil: validUntil ? new Date(validUntil).toISOString() : undefined,
                   sendApproval,
+                  ...(editing
+                    ? {
+                        supersedesId: editing.documentId,
+                        revisionNote: revisionNote.trim() || undefined,
+                      }
+                    : {}),
                 }
               : { dueDate: dueDate ? new Date(dueDate).toISOString() : undefined }),
           }),
@@ -195,15 +290,27 @@ export function DocumentBuilderSheet({
     },
     onSuccess: (result) => {
       refreshAfterDocumentChange(queryClient);
-      toast({
-        title: mode === "quotation" ? "Quotation created" : "Invoice issued",
-        // Report the server's total, not the preview — per-line rounding can
-        // put the two a cent apart, and money should never look uncertain.
-        description:
-          typeof result.total === "number"
-            ? formatMoney(result.total, currency)
-            : undefined,
-      });
+      // Report the server's total, not the preview — per-line rounding can
+      // put the two a cent apart, and money should never look uncertain.
+      const money = typeof result.total === "number" ? formatMoney(result.total, currency) : null;
+      toast(
+        editing
+          ? mode === "quotation"
+            ? {
+                title: `Version ${editing.version + 1} issued`,
+                description: [
+                  result.quotationNumber ? `${result.quotationNumber} replaces ${editing.number}` : null,
+                  money,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+              }
+            : { title: `${editing.number} updated`, description: money ?? undefined }
+          : {
+              title: mode === "quotation" ? "Quotation created" : "Invoice issued",
+              description: money ?? undefined,
+            },
+      );
       onOpenChange(false);
       onCreated?.();
     },
@@ -227,21 +334,47 @@ export function DocumentBuilderSheet({
   };
 
   const isQuotation = mode === "quotation";
+  // Nothing to save until the document has loaded, and nothing at all once
+  // it has turned out to be locked since the list was drawn.
+  const editBlocked = Boolean(editing) && (!editDoc || Boolean(editDoc.editLock));
+
+  const title = editing
+    ? `Edit ${isQuotation ? "quotation" : "invoice"} ${editing.number}`
+    : isQuotation
+      ? "New quotation"
+      : "New invoice";
+  const description = editing
+    ? isQuotation
+      ? `Saving issues version ${editing.version + 1} and withdraws ${editing.number}. The client's approval link moves to the new version.`
+      : `${editing.number} keeps its number. Its journal is reversed and the new figures are posted.`
+    : fromQuotationId
+      ? "Converting the accepted quotation — the lines carry over exactly as quoted."
+      : isQuotation
+        ? "Price up the work. The client can approve it from a link without signing in."
+        : "Bill the work. Payments recorded against this invoice produce receipts.";
+  const submitLabel = create.isPending
+    ? "Saving…"
+    : editing
+      ? isQuotation
+        ? `Issue version ${editing.version + 1}`
+        : "Save changes"
+      : isQuotation
+        ? sendApproval
+          ? "Create & share"
+          : "Create quotation"
+        : "Issue invoice";
 
   return (
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isQuotation ? "New quotation" : "New invoice"}
-      description={fromQuotationId
-      ? "Converting the accepted quotation — the lines carry over exactly as quoted."
-      : isQuotation
-        ? "Price up the work. The client can approve it from a link without signing in."
-        : "Bill the work. Payments recorded against this invoice produce receipts."}
+      title={title}
+      description={description}
       size="xl"
       errors={errors}
       onSubmit={(event) => {
         event.preventDefault();
+        if (editBlocked) return;
         const found = validate();
         setErrors(found);
         if (found.length === 0) create.mutate();
@@ -250,17 +383,29 @@ export function DocumentBuilderSheet({
         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button type="submit" disabled={create.isPending}>
-          {create.isPending
-            ? "Saving…"
-            : isQuotation
-              ? sendApproval
-                ? "Create & share"
-                : "Create quotation"
-              : "Issue invoice"}
+        <Button type="submit" disabled={create.isPending || editBlocked}>
+          {submitLabel}
         </Button>
       </>}
     >
+      {editing && editQuery.isLoading ? (
+        <div className="space-y-3" aria-busy="true">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : editing && !editDoc ? (
+        <Alert tone="danger" title={`${editing.number} would not open for editing`}>
+          {getApiErrorMessage(editQuery.error)}
+        </Alert>
+      ) : (
+      <>
+      {editDoc?.editLock ? (
+        <Alert tone="warn" title={`${editDoc.number} can no longer be edited`}>
+          {editDoc.editLock}.
+        </Alert>
+      ) : null}
+
       {fromQuotationId ? (
         <p className="rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--surface-muted)]/50 p-3 text-sm">
           Lines are taken from the source quotation and can&apos;t be edited here — that keeps
@@ -504,6 +649,21 @@ export function DocumentBuilderSheet({
         ) : null}
       </section>
 
+      {/* Kept on the version and shown beside it in the list and the story,
+          so "why is there a v3" has an answer that is not somebody's memory. */}
+      {editing && isQuotation ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="doc-revision-note">What changed</Label>
+          <Input
+            id="doc-revision-note"
+            value={revisionNote}
+            onChange={(event) => setRevisionNote(event.target.value)}
+            maxLength={500}
+            placeholder="Customer asked for the cheaper panel"
+          />
+        </div>
+      ) : null}
+
       <DocumentTemplatePicker
         kind={isQuotation ? "QUOTE" : "INVOICE"}
         onPick={(text) => setNotes(text)}
@@ -520,6 +680,16 @@ export function DocumentBuilderSheet({
         />
       </div>
 
+      {/* After the notes, which is where the client meets them too: on the
+          approval page, in the email and at the foot of the PDF. */}
+      <ResourcePicker
+        library={library}
+        isLoading={libraryQuery.isLoading}
+        error={libraryQuery.error}
+        selected={chosenResourceIds}
+        onToggle={toggleResource}
+      />
+
       {isQuotation ? (
         <label className="flex cursor-pointer items-start gap-2.5">
           <Checkbox
@@ -535,6 +705,8 @@ export function DocumentBuilderSheet({
           </span>
         </label>
       ) : null}
+      </>
+      )}
     </RecordDialog>
   );
 }

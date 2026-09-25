@@ -2,6 +2,9 @@
 
 import * as React from "react";
 
+import { ExternalLink } from "@/lib/icons";
+import { resourcesHeading } from "@/lib/crm/resources";
+
 export type ApprovalDoc = {
   companyName: string;
   documentType: "QUOTATION" | "INVOICE" | "RECEIPT";
@@ -36,6 +39,8 @@ export type ApprovalDoc = {
     paymentTerms: string | null;
     footerText: string | null;
   };
+  /** What the rep asked the client to look at before answering. */
+  resources: Array<{ title: string; description: string | null; url: string }>;
   linkState: "ACTIVE" | "EXPIRED" | "REVOKED";
 };
 
@@ -434,6 +439,39 @@ export function ApprovalDocument({ doc }: { doc: ApprovalDoc }) {
               Notes
             </p>
             <p className="mt-0.5 whitespace-pre-wrap text-sm text-neutral-700">{doc.notes}</p>
+          </section>
+        ) : null}
+
+        {/* The brochure, the data sheet — what the rep asked the client to
+            read before answering. After the notes and before the fine print,
+            so it is the last thing between the price and the Approve button. */}
+        {doc.resources.length > 0 ? (
+          <section className="mt-7">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-neutral-500">
+              {resourcesHeading(doc.documentType)}
+            </p>
+            <ul className="mt-2 divide-y divide-neutral-200 border-y border-neutral-200">
+              {doc.resources.map((resource) => (
+                <li key={resource.url}>
+                  <a
+                    href={resource.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start justify-between gap-3 py-3 text-sm"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium text-neutral-900 underline decoration-neutral-300 underline-offset-2">
+                        {resource.title}
+                      </span>
+                      {resource.description ? (
+                        <span className="mt-0.5 block text-neutral-500">{resource.description}</span>
+                      ) : null}
+                    </span>
+                    <ExternalLink aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-neutral-400" />
+                  </a>
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
 

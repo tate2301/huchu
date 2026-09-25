@@ -656,7 +656,10 @@ export async function createJournalEntryFromSource(context: PostingContext, db: 
       };
     }
 
-    const entryNumber = await getNextEntryNumber(context.companyId);
+    // Numbered through the same client the entry is written with, so a caller
+    // that has already posted inside its transaction — an invoice edit posts a
+    // reversal first — does not get that entry's number handed out twice.
+    const entryNumber = await getNextEntryNumber(context.companyId, db);
     const entry = await db.journalEntry.create({
       data: {
         companyId: context.companyId,

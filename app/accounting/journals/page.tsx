@@ -420,7 +420,7 @@ export default function JournalsPage() {
     Reversing writes a second journal rather than editing the first.
 
     A posted entry is a fact about the books and stays one, so the ledger
-    cancels it with a mirror posting and marks the original REVERSED. Both
+    cancels it with a mirror posting and stamps the original reversed. Both
     journals then appear in the list, which is why cancelling the prompt has to
     abort: this is not a filter, it leaves two permanent entries behind.
   */
@@ -672,8 +672,9 @@ export default function JournalsPage() {
             /* The shared list view bands its rows by status whether or not it
                is asked to, so the order is stated rather than left to fall out
                alphabetically: work still to do comes before work already
-               done. */
-            groupBy="status"
+               done. Banded by the lifecycle rather than the stored column,
+               which says POSTED for an entry a mirror has since reversed. */
+            groupBy={journalStatusOf}
             groupOrder={[...lifecycle]}
             searchPlaceholder="Search journals"
             searchSubmitLabel="Search"

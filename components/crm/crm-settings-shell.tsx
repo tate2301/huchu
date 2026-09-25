@@ -53,10 +53,14 @@ export function CrmSettingsShell() {
       bandSlot={
         <>
           <span className="acct-caption hidden sm:inline">saves as you go</span>
-          <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-            <Plus aria-hidden="true" className="size-3.5" />
-            {active.addLabel}
-          </Button>
+          {/* A section that is one setting rather than a list has nothing to
+              add; its own form holds its one action. */}
+          {active.addLabel ? (
+            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+              <Plus aria-hidden="true" className="size-3.5" />
+              {active.addLabel}
+            </Button>
+          ) : null}
         </>
       }
     >

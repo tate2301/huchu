@@ -50,6 +50,17 @@ export type DocumentBadge = {
   tone: DocumentBadgeTone;
 };
 
+export type DocumentLink = {
+  title: string;
+  description?: string | null;
+  url: string;
+};
+
+export type DocumentLinkBlock = {
+  heading: string;
+  items: DocumentLink[];
+};
+
 export type UniversalDocumentPayload = {
   title: string;
   subtitle?: string;
@@ -63,6 +74,12 @@ export type UniversalDocumentPayload = {
   badge?: DocumentBadge;
   /** Free-form notes / terms rendered after the line items. */
   notes?: string[];
+  /**
+   * Links the reader is asked to open — a brochure, a data sheet — printed
+   * last, under their own heading, with each address written out in full
+   * because paper cannot be clicked.
+   */
+  links?: DocumentLinkBlock;
   list?: ListPayload;
   record?: RecordPayload;
   dashboard?: DashboardPayload;

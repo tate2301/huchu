@@ -19,6 +19,12 @@ model Company {
   /// changing it afterwards does nothing, because the tenant's own rows are
   /// the source of truth once seeded.
   siteVisitTemplateKey          String?
+  /// The camera app reps are told to take site photos with, so every photo
+  /// carries a location stamp. Null means the default, "GPS Map Camera".
+  fieldCameraAppName            String?
+  /// Where to get that app. Null means a store search for its name, which
+  /// cannot rot the way a copied listing link can.
+  fieldCameraAppUrl             String?
   tenantStatus                  TenantStatus       @default(PROVISIONING)
   workspaceProfile              WorkspaceProfile   @default(GENERAL)
   isProvisioned                 Boolean            @default(false)
@@ -284,6 +290,8 @@ model Company {
   crmTasks                      CrmTask[]
   crmComments                   CrmComment[]
   crmRecordFiles                CrmRecordFile[]
+  crmResources                  CrmResource[]
+  crmDocumentResources          CrmDocumentResource[]
   crmMentions                   CrmMention[]
   crmFollowers                  CrmFollower[]
   crmAutomations                CrmAutomation[]
@@ -5639,6 +5647,12 @@ model SalesInvoice {
   /// The quotation this invoice was raised from, when it was. The CRM reads
   /// this to recognise its own work coming back from Accounting.
   quotationId   String?
+  /// How many times the issued invoice has been edited. Each edit reverses the
+  /// posted journal and posts the new figures under a source id of their own
+  /// (`salesInvoicePostingKey`), because a journal's source is unique and the
+  /// reversed entry keeps its claim on the invoice's id. 0 posts as the id
+  /// itself, which is what every invoice before editing existed did.
+  revision      Int                  @default(0)
   createdById   String?
   issuedById    String?
   issuedAt      DateTime?
@@ -10875,6 +10889,8 @@ model CrmLeadDocument {
   collectionNotes   CrmCollectionNote[]
   workOrders        CrmWorkOrder[]
   costEntries       CrmDailyCostEntry[]
+  /// What the client is asked to look at alongside this document.
+  resources         CrmDocumentResource[]
 
   @@unique([companyId, quotationId])
   @@unique([companyId, invoiceId])
@@ -10882,6 +10898,60 @@ model CrmLeadDocument {
   @@index([companyId, leadId, type])
   @@index([companyId, dealId, type])
   @@index([companyId, supersedesId])
+}
+
+enum CrmResourceKind {
+  /// A page somewhere else — the brochure on the website, a video, a catalogue.
+  LINK
+  /// A file uploaded to our own storage.
+  FILE
+}
+
+/// Something the client should look at alongside a quote or an invoice: the
+/// brand's brochure, a product's data sheet, the terms of the guarantee.
+///
+/// The tenant's own library, kept as data. What Floorcode sends with a quote
+/// is rows here, entered on the settings screen — never a branch in the code.
+model CrmResource {
+  id          String          @id @default(uuid())
+  companyId   String
+  title       String
+  /// One line on why the client should open it.
+  description String?
+  kind        CrmResourceKind
+  url         String
+  /// The storage key, for a FILE.
+  pathname    String?
+  contentType String?
+  /// Ticked by default on every new quote and invoice.
+  isDefault   Boolean         @default(false)
+  /// Retired from new documents. Never deleted: a document already sent still
+  /// points at it, and its link has to keep working.
+  archivedAt  DateTime?
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  documents CrmDocumentResource[]
+
+  @@index([companyId, archivedAt, sortOrder])
+}
+
+/// A resource offered to the client on one document.
+model CrmDocumentResource {
+  id         String   @id @default(uuid())
+  companyId  String
+  documentId String
+  resourceId String
+  createdAt  DateTime @default(now())
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  document CrmLeadDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  resource CrmResource     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, resourceId])
+  @@index([companyId, resourceId])
 }
 
 model CrmDocumentApproval {
@@ -10981,10 +11051,9 @@ model CrmAppointment {
   updatedAt      DateTime             @updatedAt
 
   // Site-visit report captured on site. `checklist` is an array of
-  // { key, label, checked, notes? }; `photos` an array of
-  // { url, fileName, contentType, size, kind, caption? }.
+  // { key, label, checked, notes? }. The photographs are rows of their own —
+  // `visitPhotos` — because each one carries where and when it was taken.
   checklist         Json?
-  photos            Json?
   siteConditions    String?
   reportNotes       String?
   reportCompletedAt DateTime?
@@ -11198,6 +11267,10 @@ model CrmSiteVisitAnswer {
 /// Always belongs to the visit; optionally to a section and an answer. The
 /// bank asks for both — "site/area overview photographs" belong to no question,
 /// while "photograph cracks, joints, contamination" belongs to one.
+///
+/// The visit report's own attachments live here too, and that list has always
+/// taken the odd PDF — a drawing the client handed over. `contentType` is what
+/// tells the two apart; a PDF simply has no location to carry.
 model CrmSiteVisitPhoto {
   id            String  @id @default(uuid())
   companyId     String
@@ -11216,6 +11289,9 @@ model CrmSiteVisitPhoto {
   width        Int?
   height       Int?
   caption      String?
+  /// The name the file had on the phone, for a list that would otherwise read
+  /// "Photo, Photo, Photo".
+  fileName     String?
   /// From the device, not the server clock — a visit may sync days later.
   capturedAt   DateTime?
   latitude     Float?

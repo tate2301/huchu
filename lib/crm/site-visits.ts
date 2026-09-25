@@ -38,14 +38,53 @@ export const siteVisitChecklistItemSchema = z.object({
   notes: z.string().trim().max(500).nullable().optional(),
 });
 
+/**
+ * A photo (or the odd PDF) attached to the visit report, as the report sheet
+ * sends it. Stored as a `CrmSiteVisitPhoto` row.
+ *
+ * `latitude`, `longitude` and `capturedAt` are read off the file on the phone
+ * before upload — see `lib/crm/geotag.ts` — and are null when the camera
+ * recorded none. Whether a file is a photo is its content type's to say.
+ */
 export const siteVisitPhotoSchema = z.object({
+  /** Minted on the device before upload, so saving the report twice stores it once. */
+  clientPhotoId: z.string().uuid(),
   url: z.string().url().max(1000),
+  /** The storage key the upload handed back. */
+  pathname: z.string().trim().min(1).max(500),
   fileName: z.string().trim().max(255).nullable().optional(),
-  contentType: z.string().trim().max(120).nullable().optional(),
-  size: z.number().finite().nonnegative().nullable().optional(),
-  kind: z.enum(["PHOTO", "FILE"]).default("PHOTO"),
+  contentType: z.string().trim().min(1).max(120),
+  size: z.number().int().nonnegative(),
   caption: z.string().trim().max(300).nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  capturedAt: z.string().datetime().nullable().optional(),
 });
+
+export type SiteVisitPhotoInput = z.infer<typeof siteVisitPhotoSchema>;
+
+/** Drawn as a picture, or listed as a file. */
+export function isPhoto(photo: { contentType: string }): boolean {
+  return photo.contentType.startsWith("image/");
+}
+
+/**
+ * A photo's idempotency key, minted on the phone before the upload.
+ *
+ * `crypto.randomUUID` exists only in a secure context, and the tenant demo
+ * hosts are plain http — the trap `pos-portal-state.tsx` already records. The
+ * schema wants a real UUID, so where that call is missing one is built from
+ * `getRandomValues`, which every browser exposes on any origin.
+ */
+export function newClientPhotoId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  // Version 4, RFC 4122 variant.
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 export const siteVisitItemSchema = z.object({
   category: z.string().trim().max(80).nullable().optional(),
