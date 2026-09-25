@@ -2004,6 +2004,33 @@ async function main() {
   /* ── Public examinations ──────────────────────────────────────────── */
 
   /*
+    `schools.exams` is billable, and `getCompanyFeatureMap` resolves a billable
+    feature as `requested && subscriptionEntitled.has(key)`. Entitlement has to
+    come from a tier or an addon bundle, and no tier and no bundle in
+    `feature-catalog.ts` carries `schools.exams`: `ADDON_SCHOOLS_SUITE` lists
+    the other eleven `schools.*` keys and not this one. So `/schools/exams`
+    redirects to `/access-blocked` for every tenant there is, this ENTERPRISE
+    one included, until the catalogue puts the key in something sellable.
+    Read on 2026-09-22.
+
+    The flag is written anyway, because it is the half of the answer this seed
+    legitimately owns — the same flag `provisionSchool` writes for the eleven —
+    and because the day the catalogue carries the key, St Mary's has the module
+    on and a sitting already in it rather than an empty screen.
+  */
+  const examsFeature = await prisma.platformFeature.findUnique({
+    where: { key: "schools.exams" },
+    select: { id: true },
+  });
+  if (examsFeature) {
+    await prisma.companyFeatureFlag.upsert({
+      where: { companyId_featureId: { companyId, featureId: examsFeature.id } },
+      update: { isEnabled: true },
+      create: { companyId, featureId: examsFeature.id, isEnabled: true },
+    });
+  }
+
+  /*
     Two series, on purpose. The live one is mid-entry — that is where the work
     is, and where the screens have to show a candidate who is not entered yet.
     Last year's is RESULTS_IN, because a results screen with nothing in it

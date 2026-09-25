@@ -29,10 +29,27 @@ test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
  * placeholder: the register underneath has a search box of its own and a year
  * group picker, and a loose placeholder pattern typed a pupil's surname into the
  * year group filter, which then reported the palette as broken.
+ *
+ * The trigger is asked for by its full name, and that is the fix at desktop.
+ * Matching `"Search"` used to be unambiguous; the workspace rail now carries a
+ * search of its own, labelled "Search ⌘K", which sits above the navigation and
+ * comes first in the DOM. So `"Search"` matched the rail's button, the click
+ * landed on it rather than on the palette, and the palette's input was reported
+ * missing — correctly, because nothing had opened it. Filtering to what is
+ * visible does not help: at 1440px the rail's search is visible too.
+ *
+ * `GlobalCommandBar` gives both of its variants the `aria-label`
+ * "Search records and actions", so that name reaches the palette and nothing
+ * else. `.filter({ visible: true })` still earns its place after it: `Navbar`
+ * mounts the bar twice, once in the phone row and once in the `md:flex` one,
+ * and only the row belonging to this width is on screen.
  */
 async function openPalette(page: Page) {
   await page.goto("/schools/students");
-  const button = page.getByRole("button", { name: "Search" }).first();
+  const button = page
+    .getByRole("button", { name: "Search records and actions" })
+    .filter({ visible: true })
+    .first();
   await expect(button).toBeVisible({ timeout: 30_000 });
   const input = page.getByPlaceholder("Search quick actions");
 
@@ -65,7 +82,7 @@ for (const viewport of [
       const list = await page.request.get("/api/v2/schools/students?limit=25");
       expect(list.status()).toBeLessThan(400);
       const body = await list.json();
-      const students: { id: string; studentNo: string; firstName: string; lastName: string }[] =
+      const students: { id: string; studentNo: string; lastName: string }[] =
         body?.data ?? [];
       expect(students.length, "the school tenant has no students to find").toBeGreaterThan(0);
       const student = students[0];
@@ -88,11 +105,32 @@ for (const viewport of [
       // it lists the same pupil, so a page-wide assertion would pass with the
       // palette empty — which is exactly the bug being watched for.
       const dialog = page.getByRole("dialog");
-      await expect(dialog.getByText("Students", { exact: true })).toBeVisible({ timeout: 20_000 });
+      // The group *heading*, not any text reading "Students". The palette also
+      // offers "Students" as a record type to filter by, so a bare text match
+      // is two elements and fails strict mode — which is what it did, on both
+      // widths, the first time this ran against a tenant whose palette offers
+      // that filter. The heading is what "the palette grouped the results"
+      // means, so ask for it by role.
+      await expect(
+        dialog.getByRole("heading", { name: "Students", exact: true }),
+      ).toBeVisible({ timeout: 20_000 });
+      // A pupil *of that surname*, which is what "search finds a pupil by name"
+      // claims. It used to pin one specific pupil's `studentNo` — `STU-0037`
+      // against rows that print `ADM-0037`, so the wrong identifier — and even
+      // the right one is not safe to pin: the palette caps its rows, so the
+      // pupil the API happens to return first need not be among them. Neither
+      // was ever caught, because the group-heading assertion above this one
+      // failed first on every run there had ever been.
+      //
       // `.first()`: the highlighted row's reference is also shown in the preview
       // pane beside it, so an unqualified match is two elements at desktop width
       // and one on a phone, where the pane is hidden.
-      await expect(dialog.getByText(student.studentNo, { exact: true }).first()).toBeVisible();
+      await expect(
+        dialog
+          .getByText(new RegExp(student.lastName))
+          .filter({ visible: true })
+          .first(),
+      ).toBeVisible({ timeout: 20_000 });
       await shot(page, "student");
     });
 
