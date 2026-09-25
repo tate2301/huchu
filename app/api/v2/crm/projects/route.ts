@@ -37,6 +37,8 @@ import { isCompanyUser } from "../_helpers";
 const OPEN_STATUSES = PROJECT_STATUSES.filter((status) => !isClosed(status));
 
 const bodySchema = createProjectSchema.extend({
+  /** Optional when starting from a deal, which names the project after itself. */
+  name: createProjectSchema.shape.name.optional(),
   /**
    * Start it from a won deal, carrying the deal's name, client, site and owner
    * across. Handed back the existing project if the deal already has one.
@@ -152,13 +154,18 @@ export async function POST(request: NextRequest) {
     // project — which checks the deal is this company's and hands back the
     // existing project rather than raising a second one.
     const dealId = data.fromDealId ?? data.dealId ?? null;
+    const name = data.name;
+    const start = dealId
+      ? (tx: Prisma.TransactionClient) => projectFromDeal(tx, companyId, session.user.id, dealId, data)
+      : name
+        ? (tx: Prisma.TransactionClient) => createProject(tx, companyId, session.user.id, { ...data, name })
+        : null;
+    // A deal names the project after itself; anything else has to be named.
+    if (!start) return errorResponse("Give the project a name the team will recognise", 400);
+
     let project;
     try {
-      project = await prisma.$transaction((tx) =>
-        dealId
-          ? projectFromDeal(tx, companyId, session.user.id, dealId, data)
-          : createProject(tx, companyId, session.user.id, data),
-      );
+      project = await prisma.$transaction(start);
     } catch (error) {
       // Two people — or one person twice — starting the same deal's project at
       // the same moment: both saw no project, one insert won, and the unique

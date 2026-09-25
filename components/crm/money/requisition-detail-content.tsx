@@ -21,7 +21,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, Button, Skeleton, Stack, Stepper } from "@corelithzw/react";
+import { Alert, Button, Skeleton, Stack } from "@corelithzw/react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { StepProgress } from "@/components/ui/step-progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { EntityLink } from "@/components/records/entity-link";
@@ -108,19 +109,22 @@ type Detail = {
 type Move = "submit" | "decide" | "disburse" | "acquit" | null;
 
 const STEPS = [
-  { id: "asked", title: "Asked" },
-  { id: "approved", title: "Approved" },
-  { id: "paid", title: "Paid out" },
-  { id: "accounted", title: "Accounted for" },
+  { id: "asked", label: "Asked" },
+  { id: "approved", label: "Approved" },
+  { id: "paid", label: "Paid out" },
+  { id: "accounted", label: "Accounted for" },
 ];
 
-/** The step each status is waiting on, 1-based. Past the last step is done. */
+/**
+ * The step each status is waiting on, 0-based. One past the last step means
+ * every step is done — the counter still reads "Accounted for 4/4".
+ */
 const CURRENT_STEP: Partial<Record<RequisitionStatus, number>> = {
-  DRAFT: 1,
-  SUBMITTED: 2,
-  APPROVED: 3,
-  DISBURSED: 4,
-  ACQUITTED: 5,
+  DRAFT: 0,
+  SUBMITTED: 1,
+  APPROVED: 2,
+  DISBURSED: 3,
+  ACQUITTED: 4,
 };
 
 function readableDay(value: string | null): string | null {
@@ -221,6 +225,7 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
   const { requisition, permissions } = query.data;
   const move = nextMove(requisition.status, permissions);
   const issued = Number(payable(requisition));
+  const moneyOut = requisition.status === "DISBURSED" || requisition.status === "ACQUITTED";
   const accounted = accountedFor(requisition.costEntries);
   const missingReceipts = requisition.costEntries.filter(
     (entry) => entry.direction === "SPENT" && !entry.receiptUrl,
@@ -408,21 +413,32 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
                     {requisition.decisionNote ?? "Nothing more will happen on this one."}
                   </Alert>
                 ) : (
-                  <Stepper aria-label="Where this requisition has got to" steps={STEPS} current={CURRENT_STEP[requisition.status] ?? 1} />
+                  <StepProgress
+                    ariaLabel="Where this requisition has got to"
+                    steps={STEPS}
+                    currentStepIndex={CURRENT_STEP[requisition.status] ?? 0}
+                  />
                 )}
 
-                <dl className="grid grid-cols-3 gap-3">
-                  <Figure
-                    label={requisition.status === "APPROVED" ? "Approved" : "Issued"}
-                    value={formatMoney(issued, requisition.currency)}
-                  />
-                  <Figure label="Accounted for" value={formatMoney(accounted, requisition.currency)} />
-                  <Figure
-                    label={issued - accounted < 0 ? "Owed to them" : "To return"}
-                    value={formatMoney(Math.abs(issued - accounted), requisition.currency)}
-                    strong
-                  />
-                </dl>
+                {/* Only once there is money to account for. Before approval there
+                    is nothing issued, and "to return: 400" on a request nobody
+                    has said yes to is a figure that is simply untrue. */}
+                {moneyOut || requisition.status === "APPROVED" ? (
+                  <dl className="grid grid-cols-3 gap-3">
+                    <Figure
+                      label={moneyOut ? "Issued" : "Approved"}
+                      value={formatMoney(issued, requisition.currency)}
+                    />
+                    <Figure label="Accounted for" value={formatMoney(accounted, requisition.currency)} />
+                    {moneyOut ? (
+                      <Figure
+                        label={issued - accounted < 0 ? "Owed to them" : "To return"}
+                        value={formatMoney(Math.abs(issued - accounted), requisition.currency)}
+                        strong
+                      />
+                    ) : null}
+                  </dl>
+                ) : null}
 
                 {requisition.receiptWaiverNote ? (
                   <Alert tone="warn" title={`Accepted without every receipt by ${requisition.receiptsWaivedBy?.name ?? "a manager"}`}>

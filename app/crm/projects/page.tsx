@@ -7,16 +7,13 @@ import { authOptions } from "@/lib/auth";
 
 /**
  * Projects — what a won deal turns into, and what its jobs belong to.
- *
- * No title band: `RecordListShell` registers the page's name and its create
- * button with the app bar, the same as every other CRM register.
  */
 export default async function CrmProjectsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage>
+    <CrmPage title="Projects" description="what won deals turn into, and what they have cost">
       <ProjectsContent />
     </CrmPage>
   );
