@@ -43,6 +43,7 @@ export function WorkspaceRail({
   sections,
   workspaceLabel,
   companyName,
+  companyLogoUrl,
   activeHref,
   supportItems,
   isCollapsed,
@@ -60,6 +61,8 @@ export function WorkspaceRail({
   sections: WorkspaceNavSection[];
   workspaceLabel: string;
   companyName: string;
+  /** The workspace's branding logo, drawn as the company mark. */
+  companyLogoUrl?: string | null;
   activeHref: string | null;
   supportItems: NavItem[];
   isCollapsed?: boolean;
@@ -210,6 +213,7 @@ export function WorkspaceRail({
       <div className={styles.rail}>
         <SwitcherRail
           companyInitials={initialsFor(companyName)}
+          companyLogoUrl={companyLogoUrl}
           companyLabel={companyName}
           onCompanyClick={onOpenSwitcher}
           workspaces={workspaces}
@@ -256,6 +260,7 @@ export function WorkspaceRail({
     <div className={cn(styles.rail)}>
       <SwitcherRail
         companyInitials={initialsFor(companyName)}
+        companyLogoUrl={companyLogoUrl}
         companyLabel={companyName}
         onCompanyClick={onOpenSwitcher}
         workspaces={workspaces}

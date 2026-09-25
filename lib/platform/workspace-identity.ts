@@ -16,6 +16,8 @@ export type WorkspaceIdentity = {
   initial: string;
   backgroundColor: string;
   foregroundColor: string;
+  /** The branding logo, when the workspace has one. See `EffectiveBranding`. */
+  logoUrl: string | null;
   version: string;
   branding: EffectiveBranding;
 };
@@ -62,6 +64,7 @@ function buildVersionSeed(branding: EffectiveBranding, workspaceName: string) {
     primary: branding.colors.primary,
     secondary: branding.colors.secondary,
     accent: branding.colors.accent,
+    logoUrl: branding.logoUrl,
   });
 }
 
@@ -75,6 +78,7 @@ function toWorkspaceIdentity(branding: EffectiveBranding): WorkspaceIdentity {
     initial: deriveInitial(workspaceName),
     backgroundColor,
     foregroundColor: resolveForegroundColor(backgroundColor),
+    logoUrl: branding.logoUrl,
     version: createHash("sha1")
       .update(buildVersionSeed(branding, workspaceName))
       .digest("hex")

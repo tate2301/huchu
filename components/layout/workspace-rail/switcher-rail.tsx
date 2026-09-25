@@ -30,6 +30,34 @@ export type RailMark = {
 };
 
 /**
+ * The company mark's face: the branding logo when the workspace has one, the
+ * initials when it does not — or when the logo will not load, since a broken
+ * image in the rail's top corner is worse than the letters it replaced.
+ */
+function CompanyMark({
+  initials,
+  logoUrl,
+}: {
+  initials: string;
+  logoUrl?: string | null;
+}) {
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
+
+  if (!logoUrl || failedUrl === logoUrl) return <>{initials}</>;
+
+  // A tenant's logo is an arbitrary URL, not one `next/image` can list.
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={logoUrl}
+      alt=""
+      className={styles.companyLogo}
+      onError={() => setFailedUrl(logoUrl)}
+    />
+  );
+}
+
+/**
  * Tier one: the column the rail is navigated by.
  *
  * Every mark here is unlabelled, so every one of them carries an accessible
@@ -37,6 +65,7 @@ export type RailMark = {
  */
 export function SwitcherRail({
   companyInitials,
+  companyLogoUrl,
   companyLabel,
   onCompanyClick,
   workspaces,
@@ -46,6 +75,8 @@ export function SwitcherRail({
   person,
 }: {
   companyInitials: string;
+  /** The workspace's branding logo. Drawn in place of the initials when set. */
+  companyLogoUrl?: string | null;
   companyLabel: string;
   onCompanyClick?: () => void;
   /** The workspaces to switch between. Fewer than two draws no switcher. */
@@ -70,7 +101,7 @@ export function SwitcherRail({
                 aria-label={`${companyLabel} — switch workspace`}
                 className={styles.companyMark}
               >
-                {companyInitials}
+                <CompanyMark initials={companyInitials} logoUrl={companyLogoUrl} />
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -128,7 +159,7 @@ export function SwitcherRail({
                 className={styles.companyMark}
                 onClick={onCompanyClick}
               >
-                {companyInitials}
+                <CompanyMark initials={companyInitials} logoUrl={companyLogoUrl} />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">{companyLabel}</TooltipContent>
