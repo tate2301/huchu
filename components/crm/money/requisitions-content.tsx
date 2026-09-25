@@ -46,23 +46,11 @@ const QUEUES: Array<{ value: Queue; label: string }> = [
   { value: "OUTSTANDING", label: "Outstanding" },
 ];
 
-const EMPTY: Record<Queue, { title: string; body: string }> = {
-  MINE: {
-    title: "You have not asked for anything",
-    body: "Ask for money for fuel, materials or anything else the work needs. It goes straight to whoever approves.",
-  },
-  AWAITING_DECISION: {
-    title: "Nothing is waiting on you",
-    body: "Requests somebody has sent for approval land here. Your own go to somebody else.",
-  },
-  APPROVED: {
-    title: "Nothing to pay out",
-    body: "Approved requests land here until somebody marks them paid.",
-  },
-  OUTSTANDING: {
-    title: "Nothing outstanding",
-    body: "Money paid out lands here until the person who asked accounts for what it went on.",
-  },
+const EMPTY: Record<Queue, string> = {
+  MINE: "You have not asked for anything.",
+  AWAITING_DECISION: "Nothing is waiting on you.",
+  APPROVED: "Nothing to pay out.",
+  OUTSTANDING: "Nothing outstanding.",
 };
 
 const PAGE_SIZE = 50;
@@ -147,7 +135,7 @@ export function RequisitionsContent() {
   const filterCount = [project, person].filter((value) => value !== FILTER_ANY).length;
   const narrowed = Boolean(debouncedSearch.trim()) || filterCount > 0;
   const empty = narrowed
-    ? { title: "Nothing matches", body: "Nothing in this queue fits those filters." }
+    ? "Nothing in this queue matches."
     : EMPTY[queue];
 
   const queueHref = (value: Queue) => {
@@ -224,8 +212,7 @@ export function RequisitionsContent() {
           isLoading={listQuery.isLoading}
           showRequester={queue !== "MINE"}
           rowHref={(row) => `/crm/requisitions/${row.id}`}
-          emptyTitle={empty.title}
-          emptyBody={empty.body}
+          empty={empty}
           emptyAction={
             queue === "MINE" && !narrowed ? (
               <Button variant="primary" size="sm" onClick={() => setRaising(true)}>

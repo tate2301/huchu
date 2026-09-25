@@ -12,8 +12,11 @@
  * And then, by project or by person, where exactly — each row opening onto
  * the requisitions behind it.
  *
- * Everything on the page follows the filters, which live in the URL, so
- * "Tendai's money last month" is a link somebody can send.
+ * Drawn with the management contract's pieces (`components/management/ui`):
+ * section headings that carry their count, lists that name their columns
+ * once, figures mono against the right edge, and no sentence explaining a
+ * figure its label already names. Everything follows the filters, which live
+ * in the URL, so "Tendai's money last month" is a link somebody can send.
  */
 
 import Link from "next/link";
@@ -21,15 +24,21 @@ import { useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { Alert, EmptyState, Skeleton, StatHero } from "@corelithzw/react";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { ReportTable, amt, dim, node, total, type ReportRow } from "@/components/accounting/report-table";
+import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnText,
+  FactList,
+  SectionHeading,
+  StatusDot,
+} from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbar, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { DateRangeFilter, describeDayRange } from "@/components/ui/date-range-filter";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronRight, Coins, Receipt, Wallet, Work } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { REQUISITION_TONE } from "@/lib/crm/tones";
 
 import {
   REQUISITION_STATUS_LABELS,
@@ -81,6 +90,13 @@ const SCOPE_KEYS = ["from", "to", "project", "person", "currency"] as const;
 
 /** The project filter's word for "money that belongs to no project". */
 const NO_PROJECT = "none";
+
+/**
+ * The measure the short lists share with their headings. The breakdown is a
+ * comparison across six figures and takes the page's width instead.
+ */
+const LIST_WIDTH = 560;
+const WIDE = 1200;
 
 function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
@@ -167,19 +183,11 @@ export function FinanceContent() {
   if (financeQuery.error instanceof ApiError && financeQuery.error.status === 403) {
     return (
       <EmptyState
-        title="This page is for whoever looks after the money"
-        body="It shows everybody's requisitions, floats and spend. Ask an administrator for “See everybody's money” if you need it."
+        title="Finance is for whoever looks after the money"
+        body="Ask an administrator for “See everybody's money”."
       />
     );
   }
-
-  const period = data?.period ?? { from: searchParams.get("from"), to: searchParams.get("to") };
-  const periodLabel = describeDayRange({ from: period.from, to: period.to }, "This month");
-  const scopeLabel = [
-    periodLabel,
-    chosen("project") === FILTER_ANY ? "all projects" : projectOptions.get(chosen("project")) ?? "one project",
-    chosen("person") === FILTER_ANY ? "everyone" : personOptions.get(chosen("person")) ?? "one person",
-  ].join(" · ");
 
   // The same scope, handed to the lists the figures come from.
   const listScope = new URLSearchParams();
@@ -191,100 +199,28 @@ export function FinanceContent() {
   if (chosen("person") !== FILTER_ANY) listScope.set("person", chosen("person"));
 
   return (
-    <div className="space-y-6">
+    <div className="pb-10">
       {financeQuery.error ? (
-        <Alert tone="danger" title="The finance overview would not load">
+        <Alert tone="danger" title="The finance overview would not load" className="mb-6">
           {getApiErrorMessage(financeQuery.error)}
         </Alert>
       ) : null}
 
       {data ? (
-        <NeedsActionStrip data={data} listScope={listScope} />
+        <>
+          <NeedsAction data={data} listScope={listScope} />
+          <MoneyInOut data={data} listScope={listScope} />
+          <Standing data={data} />
+        </>
       ) : (
-        <Skeleton height={92} aria-busy="true" />
+        <div className="space-y-3" aria-busy="true">
+          <Skeleton height={120} />
+          <Skeleton height={160} />
+          <Skeleton height={140} />
+        </div>
       )}
 
-      {/* Two figures of equal weight, side by side: what came in and what
-          went out, for the period the filters below are set to. */}
-      <section aria-label="Money in and out" className="grid gap-3 md:grid-cols-2">
-        {data ? (
-          <>
-            <StatHero
-              label="Money in"
-              value={<span className="font-mono tabular-nums">{formatMoney(data.moneyIn.total, data.currency)}</span>}
-              subtitle={`${plural(data.moneyIn.receipts, "customer payment", "customer payments")} · ${scopeLabel}`}
-            />
-            <StatHero
-              label="Money out"
-              value={<span className="font-mono tabular-nums">{formatMoney(data.moneyOut.total, data.currency)}</span>}
-              subtitle={
-                <>
-                  <span className="font-mono">{formatMoney(data.moneyOut.requisitions, data.currency)}</span> paid out on
-                  requisitions ·{" "}
-                  <Link
-                    href={`/crm/cost-tracker?type=SPENT&requisition=none&${listScope.toString()}`}
-                    className="underline decoration-[var(--border)] underline-offset-2 hover:decoration-current"
-                  >
-                    <span className="font-mono">{formatMoney(data.moneyOut.direct, data.currency)}</span> spent directly
-                  </Link>
-                </>
-              }
-            />
-          </>
-        ) : (
-          <>
-            <Skeleton height={132} />
-            <Skeleton height={132} />
-          </>
-        )}
-      </section>
-
-      {/* Where it stands right now. Not the period's: "floats we had out last
-          March" is not a question anybody asks. */}
-      <section aria-label="Where the money stands now" className="grid gap-3 sm:grid-cols-3">
-        {data ? (
-          <>
-            <MetricTile
-              title="Owed to us"
-              value={Number(data.owedToUs.total)}
-              valueLabel={formatMoney(data.owedToUs.total, data.currency)}
-              delta={plural(data.owedToUs.invoices, "open invoice", "open invoices")}
-              detail="right now"
-              tone="neutral"
-              icon={Coins}
-              href="/crm/invoices"
-            />
-            <MetricTile
-              title="Floats not accounted for"
-              value={Number(data.floatsOut.total)}
-              valueLabel={formatMoney(data.floatsOut.total, data.currency)}
-              delta={plural(data.floatsOut.requisitions, "requisition", "requisitions")}
-              detail="paid out, not yet accounted for"
-              tone={data.floatsOut.requisitions > 0 ? "warn" : "neutral"}
-              icon={Wallet}
-              href="/crm/requisitions?queue=OUTSTANDING"
-            />
-            <MetricTile
-              title="Committed, not yet paid"
-              value={Number(data.committedUnpaid.total)}
-              valueLabel={formatMoney(data.committedUnpaid.total, data.currency)}
-              delta={plural(data.committedUnpaid.requisitions, "requisition", "requisitions")}
-              detail="approved, waiting to be paid"
-              tone="neutral"
-              icon={Wallet}
-              href="/crm/requisitions?queue=APPROVED"
-            />
-          </>
-        ) : (
-          <>
-            <Skeleton height={92} />
-            <Skeleton height={92} />
-            <Skeleton height={92} />
-          </>
-        )}
-      </section>
-
-      <section aria-label="Where the money went" className="space-y-3">
+      <section aria-label="Where the money went" className="mt-10 space-y-3">
         {/* Tabs on their own row, filters on the row below: which way to
             break the money down, and which money, are two questions. */}
         <SectionTabs label="Break the money down">
@@ -356,87 +292,191 @@ export function FinanceContent() {
 }
 
 /**
- * What needs somebody, at most four things, each linking to the list that
- * holds it. Only the ones with something in them are drawn.
+ * What needs somebody, at most four things, each a link to the list that
+ * holds it. Only the ones with something in them are drawn, and the heading
+ * counts them — nothing waiting is said once, under the heading.
  */
-function NeedsActionStrip({ data, listScope }: { data: FinanceResponse; listScope: URLSearchParams }) {
-  const tiles = data.needsAction
+function NeedsAction({ data, listScope }: { data: FinanceResponse; listScope: URLSearchParams }) {
+  const rows = data.needsAction
     .filter((item) => item.count > 0)
     .map((item) => {
       const amount = item.amount === null ? null : formatMoney(item.amount, data.currency);
       switch (item.kind) {
         case "awaiting-approval":
-          return (
-            <MetricTile
-              key={item.kind}
-              title="Waiting for approval"
-              value={item.count}
-              valueLabel={String(item.count)}
-              delta={amount ? `${amount} asked for` : undefined}
-              detail={item.count === 1 ? "requisition" : "requisitions"}
-              tone="warn"
-              icon={Wallet}
-              href="/crm/requisitions?queue=AWAITING_DECISION"
-            />
-          );
+          return {
+            id: item.kind,
+            name: "Waiting for approval",
+            href: "/crm/requisitions?queue=AWAITING_DECISION",
+            count: plural(item.count, "requisition", "requisitions"),
+            amount,
+            tone: "warn" as const,
+          };
         case "not-receipted":
-          return (
-            <MetricTile
-              key={item.kind}
-              title="Cash not receipted"
-              value={Number(item.amount)}
-              valueLabel={amount ?? ""}
-              delta={plural(item.count, "invoice", "invoices")}
-              detail="collected, no receipt issued"
-              tone="danger"
-              icon={Receipt}
-              // Positions, not flows: the person carries across, the period
-              // does not — cash is unreceipted until it is receipted.
-              href={`/crm/cost-tracker?flag=not-receipted${
-                listScope.get("person") ? `&person=${listScope.get("person")}` : ""
-              }`}
-            />
-          );
+          return {
+            id: item.kind,
+            name: "Cash not receipted",
+            // Positions, not flows: the person carries across, the period
+            // does not — cash is unreceipted until it is receipted.
+            href: `/crm/cost-tracker?flag=not-receipted${
+              listScope.get("person") ? `&person=${listScope.get("person")}` : ""
+            }`,
+            count: plural(item.count, "invoice", "invoices"),
+            amount,
+            tone: "danger" as const,
+          };
         case "no-receipt":
-          return (
-            <MetricTile
-              key={item.kind}
-              title="Spend without a receipt"
-              value={item.count}
-              valueLabel={String(item.count)}
-              delta={amount ?? undefined}
-              detail="in this period"
-              tone="warn"
-              icon={Receipt}
-              href={`/crm/cost-tracker?flag=no-receipt&${listScope.toString()}`}
-            />
-          );
+          return {
+            id: item.kind,
+            name: "Spend without a receipt",
+            href: `/crm/cost-tracker?flag=no-receipt&${listScope.toString()}`,
+            count: plural(item.count, "line", "lines"),
+            amount,
+            tone: "warn" as const,
+          };
         case "over-budget":
-          return (
-            <MetricTile
-              key={item.kind}
-              title="Projects over budget"
-              value={item.count}
-              valueLabel={String(item.count)}
-              detail="spent more than their budget"
-              tone="danger"
-              icon={Work}
-              href="/crm/projects?budget=over"
-            />
-          );
+          return {
+            id: item.kind,
+            name: "Projects over budget",
+            href: "/crm/projects?budget=over",
+            count: plural(item.count, "project", "projects"),
+            amount: null,
+            tone: "danger" as const,
+          };
       }
     });
 
   return (
-    <section aria-labelledby="finance-needs-action" className="space-y-2">
-      <h2 id="finance-needs-action" className="text-sm font-semibold text-[var(--text-strong)]">
-        Needs action
-      </h2>
-      {tiles.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)]">Nothing is waiting on anybody.</p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{tiles}</div>
-      )}
+    <section aria-labelledby="finance-needs-action">
+      <SectionHeading count={rows.length} maxWidth={LIST_WIDTH} className="mt-0">
+        <span id="finance-needs-action">Needs action</span>
+      </SectionHeading>
+      <ColumnList
+        label="Needs action"
+        maxWidth={LIST_WIDTH}
+        empty="Nothing is waiting on anybody."
+        columns={[
+          { id: "what", label: "What" },
+          { id: "count", label: "How many", align: "end" },
+          { id: "amount", label: "Amount", align: "end" },
+        ]}
+        rows={rows.map((row) => ({
+          id: row.id,
+          cells: {
+            what: <ColumnName name={row.name} href={row.href} />,
+            count: <ColumnText>{row.count}</ColumnText>,
+            amount: row.amount ? <ColumnFigure tone={row.tone}>{row.amount}</ColumnFigure> : null,
+          },
+        }))}
+      />
+    </section>
+  );
+}
+
+/**
+ * Two figures of equal weight, side by side: what came in and what went out,
+ * in the period the filters are set to. Under each, what it is made of.
+ */
+function MoneyInOut({ data, listScope }: { data: FinanceResponse; listScope: URLSearchParams }) {
+  return (
+    <section aria-label="Money in and out" className="grid gap-x-12 md:grid-cols-2">
+      <Headline
+        heading="Money in"
+        value={formatMoney(data.moneyIn.total, data.currency)}
+        facts={[{ label: "Customer payments", value: String(data.moneyIn.receipts), mono: true }]}
+      />
+      <Headline
+        heading="Money out"
+        value={formatMoney(data.moneyOut.total, data.currency)}
+        facts={[
+          {
+            label: "Paid out on requisitions",
+            value: formatMoney(data.moneyOut.requisitions, data.currency),
+            mono: true,
+          },
+          {
+            label: "Spent directly",
+            value: formatMoney(data.moneyOut.direct, data.currency),
+            mono: true,
+            href: `/crm/cost-tracker?type=SPENT&requisition=none&${listScope.toString()}`,
+          },
+        ]}
+      />
+    </section>
+  );
+}
+
+function Headline({
+  heading,
+  value,
+  facts,
+}: {
+  heading: string;
+  value: string;
+  facts: Array<{ label: string; value: string; mono?: boolean; href?: string }>;
+}) {
+  return (
+    <div className="min-w-0">
+      <SectionHeading maxWidth={LIST_WIDTH}>{heading}</SectionHeading>
+      <p className="mb-2 font-mono text-[28px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-[var(--text-strong)]">
+        {value}
+      </p>
+      <FactList items={facts} align="end" maxWidth={LIST_WIDTH} labelWidth={180} />
+    </div>
+  );
+}
+
+/**
+ * Where the money stands right now — not in the period: "floats we had out
+ * last March" is not a question anybody asks.
+ */
+function Standing({ data }: { data: FinanceResponse }) {
+  const currency = data.currency;
+  return (
+    <section aria-labelledby="finance-standing">
+      <SectionHeading maxWidth={LIST_WIDTH}>
+        <span id="finance-standing">Where it stands</span>
+      </SectionHeading>
+      <ColumnList
+        label="Where it stands"
+        maxWidth={LIST_WIDTH}
+        columns={[
+          { id: "what", label: "What" },
+          { id: "count", label: "How many", align: "end" },
+          { id: "amount", label: "Amount", align: "end" },
+        ]}
+        rows={[
+          {
+            id: "owed",
+            cells: {
+              what: <ColumnName name="Owed to us" href="/crm/invoices" />,
+              count: <ColumnText>{plural(data.owedToUs.invoices, "invoice", "invoices")}</ColumnText>,
+              amount: <ColumnFigure>{formatMoney(data.owedToUs.total, currency)}</ColumnFigure>,
+            },
+          },
+          {
+            id: "floats",
+            cells: {
+              what: <ColumnName name="Floats not accounted for" href="/crm/requisitions?queue=OUTSTANDING" />,
+              count: <ColumnText>{plural(data.floatsOut.requisitions, "requisition", "requisitions")}</ColumnText>,
+              amount: (
+                <ColumnFigure tone={data.floatsOut.requisitions > 0 ? "warn" : "default"}>
+                  {formatMoney(data.floatsOut.total, currency)}
+                </ColumnFigure>
+              ),
+            },
+          },
+          {
+            id: "committed",
+            cells: {
+              what: <ColumnName name="Approved, not yet paid" href="/crm/requisitions?queue=APPROVED" />,
+              count: (
+                <ColumnText>{plural(data.committedUnpaid.requisitions, "requisition", "requisitions")}</ColumnText>
+              ),
+              amount: <ColumnFigure>{formatMoney(data.committedUnpaid.total, currency)}</ColumnFigure>,
+            },
+          },
+        ]}
+      />
     </section>
   );
 }
@@ -454,125 +494,78 @@ function useExpanded() {
   return { isOpen: (id: string) => open.has(id), toggle };
 }
 
-/** The disclosure mark at the head of a row that opens. */
-function Disclosure({ open, children }: { open: boolean; children: ReactNode }) {
-  return (
-    <span className="flex min-w-0 items-center gap-1.5">
-      <ChevronRight
-        className={cn("size-3.5 shrink-0 text-[var(--text-subtle)] transition-transform", open && "rotate-90")}
-        aria-hidden="true"
-      />
-      <span className="min-w-0 truncate">{children}</span>
-    </span>
-  );
+function money(value: string | null, currency: string, tone?: "warn" | "danger") {
+  if (value === null) return <ColumnFigure tone="muted">—</ColumnFigure>;
+  return <ColumnFigure tone={tone}>{formatMoney(value, currency)}</ColumnFigure>;
 }
 
-function formatOrDim(value: string | null, currency: string) {
-  return value === null ? dim() : amt(formatMoney(value, currency));
-}
-
+/**
+ * Each project as it stands to date — a budget can only be spent against in
+ * full — with its requisitions for the period under it. Over budget first.
+ *
+ * On a phone the six figures come down to the two that matter, spent and
+ * left, rather than a table that scrolls sideways past the one you came for.
+ */
 function ProjectBreakdown({ rows, currency }: { rows: ProjectStanding[]; currency: string }) {
   const { isOpen, toggle } = useExpanded();
 
-  const detail = (row: ProjectStanding) => (
-    <RequisitionLines
-      requisitions={row.requisitions}
-      show="requester"
-      empty="No requisitions open on it, or moved in this period."
-      footer={
-        <Link href={`/crm/projects/${row.project.id}`} className="font-medium text-[var(--brand-strong)] hover:underline">
-          Open the project
-        </Link>
+  return (
+    <ColumnList
+      label="Money by project"
+      maxWidth={WIDE}
+      empty="No project has money moving in this period."
+      columns={[
+        { id: "project", label: "Project" },
+        { id: "budget", label: "Budget", align: "end", hideBelow: "md" },
+        { id: "committed", label: "Committed", align: "end", hideBelow: "md" },
+        { id: "spent", label: "Spent", align: "end" },
+        { id: "received", label: "Received", align: "end", hideBelow: "md" },
+        { id: "left", label: "Left", align: "end" },
+      ]}
+      rows={rows.map((row) => ({
+        id: row.project.id,
+        expanded: isOpen(row.project.id),
+        onToggle: () => toggle(row.project.id),
+        detail: (
+          <RequisitionLines
+            requisitions={row.requisitions}
+            show="requester"
+            empty="No requisitions on it in this period."
+            open={{ href: `/crm/projects/${row.project.id}`, label: "Open the project" }}
+          />
+        ),
+        cells: {
+          project: (
+            <ColumnName
+              code={row.project.projectNo}
+              name={row.project.name}
+              meta={row.overBudget ? <StatusDot tone="danger" label="Over budget" /> : undefined}
+            />
+          ),
+          budget: money(row.budget, currency),
+          committed: money(row.committed, currency),
+          spent: money(row.spent, currency),
+          received: money(row.received, currency),
+          left: money(row.remaining, currency, row.remaining !== null && Number(row.remaining) < 0 ? "danger" : undefined),
+        },
+      }))}
+      total={
+        rows.length > 1
+          ? {
+              project: "Total",
+              budget: null,
+              committed: <ColumnFigure>{formatMoney(sum(rows.map((row) => row.committed)), currency)}</ColumnFigure>,
+              spent: <ColumnFigure>{formatMoney(sum(rows.map((row) => row.spent)), currency)}</ColumnFigure>,
+              received: <ColumnFigure>{formatMoney(sum(rows.map((row) => row.received)), currency)}</ColumnFigure>,
+              left: null,
+            }
+          : undefined
       }
     />
   );
-
-  const tableRows: ReportRow[] = rows.map((row) => ({
-    id: row.project.id,
-    onSelect: () => toggle(row.project.id),
-    expanded: isOpen(row.project.id),
-    detail: detail(row),
-    cells: [
-      node(
-        <Disclosure open={isOpen(row.project.id)}>
-          <span className="font-semibold text-[var(--text-strong)]">{row.project.name}</span>
-          {row.overBudget ? (
-            <span className="acct-badge ml-2" data-tone="bad">
-              Over budget
-            </span>
-          ) : null}
-        </Disclosure>,
-      ),
-      formatOrDim(row.budget, currency),
-      amt(formatMoney(row.committed, currency)),
-      amt(formatMoney(row.spent, currency)),
-      amt(formatMoney(row.received, currency)),
-      row.remaining === null
-        ? dim()
-        : amt(formatMoney(row.remaining, currency), { tone: Number(row.remaining) < 0 ? "bad" : "strong" }),
-    ],
-  }));
-
-  if (rows.length > 0) {
-    tableRows.push({
-      id: "total",
-      emphasis: true,
-      cells: [
-        node(<span className="pl-5 font-semibold text-[var(--text-strong)]">All of them</span>),
-        dim(),
-        total(formatMoney(sum(rows.map((row) => row.committed)), currency)),
-        total(formatMoney(sum(rows.map((row) => row.spent)), currency)),
-        total(formatMoney(sum(rows.map((row) => row.received)), currency)),
-        dim(),
-      ],
-    });
-  }
-
-  return (
-    <>
-      <p className="text-sm text-[var(--text-muted)]">
-        Each project as it stands to date — its budget against everything committed and spent on it — whatever
-        the period.
-      </p>
-      <div className="hidden md:block">
-        <ReportTable
-          label="Money by project"
-          tracks="minmax(0,1fr) 120px 120px 120px 120px 120px"
-          columns={[
-            { label: "Project" },
-            { label: "Budget", align: "right" },
-            { label: "Committed", align: "right" },
-            { label: "Spent", align: "right" },
-            { label: "Received", align: "right" },
-            { label: "Left", align: "right" },
-          ]}
-          rows={tableRows}
-          emptyLabel="No project has money moving, or open, in this scope."
-        />
-      </div>
-      <BreakdownList
-        rows={rows.map((row) => ({
-          id: row.project.id,
-          title: row.project.name,
-          flag: row.overBudget ? "Over budget" : null,
-          figures: [
-            { label: "Spent", value: formatMoney(row.spent, currency) },
-            {
-              label: "Left",
-              value: row.remaining === null ? "No budget" : formatMoney(row.remaining, currency),
-              bad: row.remaining !== null && Number(row.remaining) < 0,
-            },
-          ],
-          detail: detail(row),
-        }))}
-        isOpen={isOpen}
-        toggle={toggle}
-        empty="No project has money moving, or open, in this scope."
-      />
-    </>
-  );
 }
 
+/** What each person asked for, was approved and spent in the period, and what they hold now. */
 function PersonBreakdown({
   rows,
   currency,
@@ -584,159 +577,64 @@ function PersonBreakdown({
 }) {
   const { isOpen, toggle } = useExpanded();
 
-  const detail = (row: PersonStanding) => {
+  const trackerHref = (personId: string) => {
     const tracker = new URLSearchParams(listScope);
-    tracker.set("person", row.person.id);
-    return (
-      <RequisitionLines
-        requisitions={row.requisitions}
-        show="project"
-        empty="No requisitions open, or moved in this period."
-        footer={
-          <Link href={`/crm/cost-tracker?${tracker.toString()}`} className="font-medium text-[var(--brand-strong)] hover:underline">
-            Open their cost tracker
-          </Link>
-        }
-      />
-    );
+    tracker.set("person", personId);
+    return `/crm/cost-tracker?${tracker.toString()}`;
   };
 
-  const tableRows: ReportRow[] = rows.map((row) => ({
-    id: row.person.id,
-    onSelect: () => toggle(row.person.id),
-    expanded: isOpen(row.person.id),
-    detail: detail(row),
-    cells: [
-      node(
-        <Disclosure open={isOpen(row.person.id)}>
-          <span className="font-semibold text-[var(--text-strong)]">{row.person.name ?? "Unnamed"}</span>
-        </Disclosure>,
-      ),
-      amt(formatMoney(row.requested, currency)),
-      amt(formatMoney(row.approved, currency)),
-      amt(formatMoney(row.floatHeld, currency), { tone: Number(row.floatHeld) > 0 ? "warn" : "strong" }),
-      amt(formatMoney(row.spent, currency)),
-      Number(row.unreceipted) > 0 ? amt(formatMoney(row.unreceipted, currency), { tone: "bad" }) : dim(),
-    ],
-  }));
-
-  if (rows.length > 0) {
-    tableRows.push({
-      id: "total",
-      emphasis: true,
-      cells: [
-        node(<span className="pl-5 font-semibold text-[var(--text-strong)]">Everyone</span>),
-        total(formatMoney(sum(rows.map((row) => row.requested)), currency)),
-        total(formatMoney(sum(rows.map((row) => row.approved)), currency)),
-        total(formatMoney(sum(rows.map((row) => row.floatHeld)), currency)),
-        total(formatMoney(sum(rows.map((row) => row.spent)), currency)),
-        total(formatMoney(sum(rows.map((row) => row.unreceipted)), currency)),
-      ],
-    });
-  }
-
   return (
-    <>
-      <p className="text-sm text-[var(--text-muted)]">
-        What each person asked for, was approved and spent in the period, and the money they are holding right now.
-      </p>
-      <div className="hidden md:block">
-        <ReportTable
-          label="Money by person"
-          tracks="minmax(0,1fr) 120px 120px 120px 120px 130px"
-          columns={[
-            { label: "Person" },
-            { label: "Asked for", align: "right" },
-            { label: "Approved", align: "right" },
-            { label: "Holding", align: "right" },
-            { label: "Spent", align: "right" },
-            { label: "Not receipted", align: "right" },
-          ]}
-          rows={tableRows}
-          emptyLabel="Nobody has money moving, or held, in this scope."
-        />
-      </div>
-      <BreakdownList
-        rows={rows.map((row) => ({
-          id: row.person.id,
-          title: row.person.name ?? "Unnamed",
-          flag: Number(row.unreceipted) > 0 ? `${formatMoney(row.unreceipted, currency)} not receipted` : null,
-          figures: [
-            { label: "Holding", value: formatMoney(row.floatHeld, currency) },
-            { label: "Spent", value: formatMoney(row.spent, currency) },
-          ],
-          detail: detail(row),
-        }))}
-        isOpen={isOpen}
-        toggle={toggle}
-        empty="Nobody has money moving, or held, in this scope."
-      />
-    </>
-  );
-}
-
-/**
- * The same rows on a phone: a name and the two figures that matter most,
- * opening onto the same requisitions. Six columns of money do not fit in
- * 390 pixels, and a table that scrolls sideways hides the figure you came for.
- */
-function BreakdownList({
-  rows,
-  isOpen,
-  toggle,
-  empty,
-}: {
-  rows: Array<{
-    id: string;
-    title: string;
-    flag: string | null;
-    figures: Array<{ label: string; value: string; bad?: boolean }>;
-    detail: ReactNode;
-  }>;
-  isOpen: (id: string) => boolean;
-  toggle: (id: string) => void;
-  empty: string;
-}) {
-  if (rows.length === 0) return <p className="text-sm text-[var(--text-muted)] md:hidden">{empty}</p>;
-
-  return (
-    <ul className="border-t border-[var(--table-divider)] md:hidden">
-      {rows.map((row) => (
-        <li key={row.id} className="border-b border-[var(--table-divider)]">
-          <button
-            type="button"
-            aria-expanded={isOpen(row.id)}
-            onClick={() => toggle(row.id)}
-            className="flex w-full items-start justify-between gap-3 py-2.5 text-left"
-          >
-            <span className="min-w-0">
-              <Disclosure open={isOpen(row.id)}>
-                <span className="font-medium text-[var(--text-strong)]">{row.title}</span>
-              </Disclosure>
-              {row.flag ? (
-                <span className="mt-0.5 block pl-5 text-sm font-medium text-[var(--badge-bad-fg)]">{row.flag}</span>
-              ) : null}
-            </span>
-            <span className="shrink-0 space-y-0.5 text-right">
-              {row.figures.map((figure) => (
-                <span key={figure.label} className="block text-sm">
-                  <span className="text-[var(--text-muted)]">{figure.label} </span>
-                  <span
-                    className={cn(
-                      "font-mono font-medium tabular-nums",
-                      figure.bad ? "text-[var(--badge-bad-fg)]" : "text-[var(--text-strong)]",
-                    )}
-                  >
-                    {figure.value}
-                  </span>
-                </span>
-              ))}
-            </span>
-          </button>
-          {isOpen(row.id) ? <div className="pb-3 pl-5">{row.detail}</div> : null}
-        </li>
-      ))}
-    </ul>
+    <ColumnList
+      label="Money by person"
+      maxWidth={WIDE}
+      empty="Nobody has money moving in this period."
+      columns={[
+        { id: "person", label: "Person" },
+        { id: "requested", label: "Asked for", align: "end", hideBelow: "md" },
+        { id: "approved", label: "Approved", align: "end", hideBelow: "md" },
+        { id: "holding", label: "Holding", align: "end" },
+        { id: "spent", label: "Spent", align: "end", hideBelow: "md" },
+        { id: "unreceipted", label: "Not receipted", align: "end" },
+      ]}
+      rows={rows.map((row) => ({
+        id: row.person.id,
+        expanded: isOpen(row.person.id),
+        onToggle: () => toggle(row.person.id),
+        detail: (
+          <RequisitionLines
+            requisitions={row.requisitions}
+            show="project"
+            empty="No requisitions in this period."
+            open={{ href: trackerHref(row.person.id), label: "Open their cost tracker" }}
+          />
+        ),
+        cells: {
+          person: <ColumnName name={row.person.name ?? "Unnamed"} />,
+          requested: money(row.requested, currency),
+          approved: money(row.approved, currency),
+          holding: money(row.floatHeld, currency, Number(row.floatHeld) > 0 ? "warn" : undefined),
+          spent: money(row.spent, currency),
+          unreceipted:
+            Number(row.unreceipted) > 0 ? (
+              money(row.unreceipted, currency, "danger")
+            ) : (
+              <ColumnFigure tone="muted">—</ColumnFigure>
+            ),
+        },
+      }))}
+      total={
+        rows.length > 1
+          ? {
+              person: "Total",
+              requested: <ColumnFigure>{formatMoney(sum(rows.map((row) => row.requested)), currency)}</ColumnFigure>,
+              approved: <ColumnFigure>{formatMoney(sum(rows.map((row) => row.approved)), currency)}</ColumnFigure>,
+              holding: <ColumnFigure>{formatMoney(sum(rows.map((row) => row.floatHeld)), currency)}</ColumnFigure>,
+              spent: <ColumnFigure>{formatMoney(sum(rows.map((row) => row.spent)), currency)}</ColumnFigure>,
+              unreceipted: <ColumnFigure>{formatMoney(sum(rows.map((row) => row.unreceipted)), currency)}</ColumnFigure>,
+            }
+          : undefined
+      }
+    />
   );
 }
 
@@ -745,48 +643,57 @@ function RequisitionLines({
   requisitions,
   show,
   empty,
-  footer,
+  open,
 }: {
   requisitions: RequisitionRow[];
-  /** The one thing the row's own heading does not already say. */
+  /** The one thing the row's own name does not already say. */
   show: "requester" | "project";
   empty: string;
-  footer: ReactNode;
-}) {
+  /** Where the row's own page is, said once under its requisitions. */
+  open: { href: string; label: string };
+}): ReactNode {
   return (
-    <div className="space-y-2">
-      {requisitions.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)]">{empty}</p>
-      ) : (
-        <ul className="divide-y divide-[var(--table-divider)]">
-          {requisitions.map((requisition) => (
-            <li key={requisition.id}>
-              <Link
+    <div className="space-y-2 pt-1">
+      <ColumnList
+        label="Requisitions"
+        maxWidth={WIDE}
+        empty={empty}
+        columns={[
+          { id: "requisition", label: "Requisition" },
+          { id: "status", label: "Status", hideBelow: "sm" },
+          { id: "amount", label: "Amount", align: "end" },
+        ]}
+        rows={requisitions.map((requisition) => ({
+          id: requisition.id,
+          cells: {
+            requisition: (
+              <ColumnName
+                code={requisition.requisitionNo}
+                name={requisition.purpose}
+                meta={
+                  show === "requester"
+                    ? (requisition.requestedBy?.name ?? "Unknown")
+                    : (requisition.project?.name ?? "Not for a project")
+                }
                 href={`/crm/requisitions/${requisition.id}`}
-                className="flex items-baseline gap-3 py-1.5 text-sm hover:bg-[var(--surface-muted)]"
-              >
-                <span className="w-20 shrink-0 font-mono text-[var(--text-muted)]">{requisition.requisitionNo}</span>
-                <span className="min-w-0 flex-1 truncate text-[var(--text-strong)]">
-                  {requisition.purpose}
-                  <span className="text-[var(--text-muted)]">
-                    {" · "}
-                    {show === "requester"
-                      ? requisition.requestedBy?.name ?? "Unknown"
-                      : requisition.project?.name ?? "Not for a project"}
-                  </span>
-                </span>
-                <span className="hidden shrink-0 text-[var(--text-muted)] sm:inline">
-                  {REQUISITION_STATUS_LABELS[requisition.status]}
-                </span>
-                <span className="w-28 shrink-0 text-right font-mono tabular-nums text-[var(--text-strong)]">
-                  {formatMoney(payable(requisition), requisition.currency)}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="text-sm">{footer}</div>
+              />
+            ),
+            status: (
+              <StatusDot
+                tone={REQUISITION_TONE[requisition.status] ?? "neutral"}
+                label={REQUISITION_STATUS_LABELS[requisition.status]}
+              />
+            ),
+            amount: <ColumnFigure>{formatMoney(payable(requisition), requisition.currency)}</ColumnFigure>,
+          },
+        }))}
+      />
+      <Link
+        href={open.href}
+        className="inline-block text-sm font-medium text-[var(--brand-strong)] underline decoration-transparent underline-offset-2 hover:decoration-current"
+      >
+        {open.label}
+      </Link>
     </div>
   );
 }

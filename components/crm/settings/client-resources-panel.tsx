@@ -231,7 +231,7 @@ export function ClientResourcesPanel({
             { label: "", align: "right" },
           ]}
           rows={liveRows}
-          emptyLabel="Nothing in the library yet. Add the brochure or the terms you send with every quote, and they come ticked from then on."
+          emptyLabel="Nothing in the library yet."
         />
       </SetupPanel>
 

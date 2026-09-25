@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LucideIcon } from "@/lib/icons";
@@ -43,7 +43,12 @@ export function SetupPanel({
   className?: string;
 }) {
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    // The card clips its corners with `overflow: hidden`, which also makes it
+    // the scroll container a sticky table header inside it pins against. The
+    // page's `--stack-top` (the band height) measured from the card's own top
+    // pushed a report table's header down over its first row, so inside a
+    // panel the stack starts again at nothing.
+    <Card className={cn("overflow-hidden", className)} style={{ "--stack-top": "0px" } as CSSProperties}>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {hint ? (

@@ -1015,6 +1015,7 @@ export function fetchCrmReps(params: { range?: string } = {}) {
 export type CrmOutstandingItem = {
   kind: "task" | "follow-up" | "requisition" | "float" | "no-receipt" | "not-receipted" | "report";
   id: string;
+  reference: string | null;
   title: string;
   href: string;
   flagged: boolean;

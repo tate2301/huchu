@@ -3,7 +3,7 @@
 /**
  * The daily reports, as management reads them.
  *
- * Grouped by day and led by the flags, because the manager's question is not
+ * One day at a time, led by the flags, because the manager's question is not
  * "what did everybody do" — they have fifteen of these — it is "is there
  * anything here I need to deal with". A report with nothing wrong should take
  * two seconds to pass over, and one with a float outstanding should not.
@@ -12,7 +12,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Stack } from "@corelithzw/react";
+import { SectionHeading } from "@/components/management/ui";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson } from "@/lib/api-client";
@@ -28,6 +28,9 @@ type Report = {
   summary: DailyReportCardSummary;
 };
 
+/** The reports' measure, which the day's heading and its picker share. */
+const WIDTH = 760;
+
 export function DailyReportsContent() {
   const [date, setDate] = useState(todayKey());
 
@@ -37,32 +40,39 @@ export function DailyReportsContent() {
   });
 
   return (
-    <Stack gap="md" className="max-w-3xl">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-[var(--text-strong)]">{formatDay(date)}</h2>
-        <Input
-          type="date"
-          className="w-auto"
-          value={date}
-          max={todayKey()}
-          onChange={(event) => setDate(event.target.value)}
-          aria-label="Which day"
-        />
-      </div>
+    <section aria-labelledby="daily-reports-day" style={{ maxWidth: WIDTH }}>
+      {/* The day is the section, so its picker sits on the section's heading. */}
+      <SectionHeading
+        count={data?.data.length}
+        maxWidth={WIDTH}
+        className="mt-0"
+        action={
+          <Input
+            type="date"
+            className="h-8 w-auto font-mono"
+            value={date}
+            max={todayKey()}
+            onChange={(event) => {
+              if (event.target.value) setDate(event.target.value);
+            }}
+            aria-label="Day"
+          />
+        }
+      >
+        <span id="daily-reports-day">{formatDay(date)}</span>
+      </SectionHeading>
 
       {isLoading ? <Skeleton className="h-40 w-full" /> : null}
 
       {data && data.data.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)]">
-          Nobody has closed this day yet. Reports arrive as people submit them.
-        </p>
+        <p className="text-sm text-[var(--text-muted)]">No reports for this day.</p>
       ) : null}
 
-      <Stack gap="sm">
+      <div>
         {(data?.data ?? []).map((report) => (
           <DailyReportCard key={report.id} heading={report.user.name ?? "Somebody"} summary={report.summary} />
         ))}
-      </Stack>
-    </Stack>
+      </div>
+    </section>
   );
 }

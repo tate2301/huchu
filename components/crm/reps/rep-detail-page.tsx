@@ -1,48 +1,47 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@corelithzw/react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { StatusChip } from "@/components/ui/status-chip";
 import {
-  CRM_STAGE_LABELS,
-  CRM_STAGE_STATUS,
-} from "@/components/crm/leads/stage-config";
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  SectionHeading,
+  StatusDot,
+  type ColumnListRow,
+} from "@/components/management/ui";
+import { CRM_STAGE_LABELS } from "@/components/crm/leads/stage-config";
 import { ClientDate } from "@/components/ui/client-date";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Calendar,
-  Check,
   Checklist,
-  Coins,
-  FileText,
   Mail,
-  MapPin,
   Payments,
   Phone,
-  Receipt,
   ShieldCheck,
   UserRound,
-  Wrench,
 } from "@/lib/icons";
 import { fetchCrmRep, type CrmOutstandingItem, type CrmRepDetail } from "@/lib/crm/crm-v2";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
 import { CostEntryTable } from "@/components/crm/money/cost-entry-table";
 import { DailyReportCard, type DailyReportCardSummary } from "@/components/crm/money/daily-report-card";
-import { formatDay, todayKey, type CostEntryRow } from "@/components/crm/money/money";
-import { RecordList, type RecordListRow } from "@/components/records/record-list";
+import { formatDate, formatDay, todayKey, type CostEntryRow } from "@/components/crm/money/money";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordAttributes } from "@/components/records/record-attributes";
 import { RecordPageShell } from "@/components/records/record-page-shell";
 import { FilesTab } from "@/components/crm/records/files-tab";
 import { RepSettingsTab } from "@/components/crm/reps/rep-settings-tab";
+
+/** The measure every section's heading and list share in the record pane. */
+const SECTION_WIDTH = 760;
 
 const ROLE_LABELS: Record<string, string> = {
   SUPERADMIN: "Owner",
@@ -51,110 +50,93 @@ const ROLE_LABELS: Record<string, string> = {
   SALES_EXEC: "Sales executive",
 };
 
-function pipelineRows(detail: CrmRepDetail): RecordListRow[] {
+/** Their live pipeline: the reference, the deal or lead, where it stands, what it is worth. */
+function carryingRows(detail: CrmRepDetail): ColumnListRow[] {
   return [
     ...detail.deals.map((deal) => ({
       id: `deal-${deal.id}`,
-      href: `/crm/deals/${deal.id}`,
-      title: deal.title,
-      subtitle: [deal.client?.name, deal.stage.name].filter(Boolean).join(" · "),
-      status: (
-        <Badge tone="info" size="sm">
-          Deal
-        </Badge>
-      ),
-      facts: [
-        ...(deal.expectedCloseDate
-          ? [
-              {
-                label: "Expected",
-                value: <ClientDate value={deal.expectedCloseDate} mode="date" />,
-              },
-            ]
-          : []),
-        {
-          label: "Value",
-          value: deal.value === null ? "—" : formatMoney(deal.value, deal.currency),
-          mono: true,
-        },
-      ],
+      cells: {
+        name: (
+          <ColumnName
+            code={deal.dealNo}
+            name={deal.title}
+            meta={[deal.client?.name, deal.stage.name].filter(Boolean).join(" · ")}
+            href={`/crm/deals/${deal.id}`}
+          />
+        ),
+        value: deal.value === null ? <ColumnFigure tone="muted">—</ColumnFigure> : <ColumnFigure>{formatMoney(deal.value, deal.currency)}</ColumnFigure>,
+      },
     })),
     ...detail.leads.map((lead) => ({
       id: `lead-${lead.id}`,
-      href: `/crm/leads/${lead.id}`,
-      title: lead.title,
-      subtitle: [lead.client?.name, lead.leadNo].filter(Boolean).join(" · "),
-      status: (
-        <StatusChip
-          status={CRM_STAGE_STATUS[lead.stage]}
-          label={CRM_STAGE_LABELS[lead.stage]}
-        />
-      ),
-      facts: [
-        {
-          label: "Value",
-          value:
-            lead.estimatedValue === null
-              ? "—"
-              : formatMoney(lead.estimatedValue, lead.currency),
-          mono: true,
-        },
-      ],
+      cells: {
+        name: (
+          <ColumnName
+            code={lead.leadNo}
+            name={lead.title}
+            meta={[lead.client?.name, CRM_STAGE_LABELS[lead.stage]].filter(Boolean).join(" · ")}
+            href={`/crm/leads/${lead.id}`}
+          />
+        ),
+        value:
+          lead.estimatedValue === null ? (
+            <ColumnFigure tone="muted">—</ColumnFigure>
+          ) : (
+            <ColumnFigure>{formatMoney(lead.estimatedValue, lead.currency)}</ColumnFigure>
+          ),
+      },
     })),
   ];
 }
 
-/** What an outstanding item is, in the words its row leads with. */
-function outstandingSubtitle(item: CrmOutstandingItem) {
-  const on = (prefix: string) =>
-    item.at ? (
-      <>
-        {prefix} <ClientDate value={item.at} mode="date" />
-      </>
-    ) : (
-      prefix
-    );
+/** What kind of thing an outstanding item is, in a word. */
+const OUTSTANDING_KIND: Record<CrmOutstandingItem["kind"], string> = {
+  task: "Task",
+  "follow-up": "Follow-up",
+  requisition: "Requisition",
+  float: "Float",
+  "no-receipt": "Spend",
+  "not-receipted": "Cash",
+  report: "Day",
+};
+
+/**
+ * The item's state as a dot and the word (rule 5). A late item is red — it
+ * is past the point it was owed — except the ones that are a job to finish
+ * rather than a date missed, which are amber. Something merely waiting is
+ * grey: it is on somebody else.
+ */
+function outstandingState(item: CrmOutstandingItem): ReactNode {
+  if (!item.flagged) {
+    return <StatusDot tone="neutral" label={item.kind === "float" ? "Out" : "Waiting"} />;
+  }
   switch (item.kind) {
     case "task":
-      return on("Task, due");
     case "follow-up":
-      return on("Follow-up, due");
-    case "requisition":
-      return on("Requisition, waiting since");
+      return <StatusDot tone="danger" label="Overdue" />;
     case "float":
-      return on("Float, paid out");
-    case "no-receipt":
-      return `${item.count} ${item.count === 1 ? "expense" : "expenses"} in this period`;
+      return <StatusDot tone="danger" label="Not accounted for" />;
     case "not-receipted":
-      return `On ${item.count} ${item.count === 1 ? "invoice" : "invoices"}`;
+      return <StatusDot tone="danger" label="Not receipted" />;
+    case "no-receipt":
+      return <StatusDot tone="warn" label="No receipt" />;
     case "report":
-      return on("The day of");
+      return <StatusDot tone="warn" label="Not closed" />;
+    case "requisition":
+      return <StatusDot tone="neutral" label="Waiting" />;
   }
 }
 
-/** The one word that says why a flagged item is late, or that it is waiting. */
-function outstandingBadge(item: CrmOutstandingItem) {
-  if (!item.flagged) {
-    return (
-      <Badge tone="neutral" size="sm">
-        {item.kind === "float" ? "Out" : "Waiting"}
-      </Badge>
-    );
+/** The line under an outstanding item's name: what it is, and how many where it is several. */
+function outstandingMeta(item: CrmOutstandingItem): string {
+  const kind = OUTSTANDING_KIND[item.kind];
+  if (item.kind === "no-receipt" && item.count !== null) {
+    return `${item.count} ${item.count === 1 ? "expense" : "expenses"}`;
   }
-  const label: Record<CrmOutstandingItem["kind"], string> = {
-    task: "Overdue",
-    "follow-up": "Overdue",
-    requisition: "Waiting",
-    float: "Not accounted for",
-    "no-receipt": "No photo",
-    "not-receipted": "Not receipted",
-    report: "Not closed",
-  };
-  return (
-    <Badge tone="warn" size="sm">
-      {label[item.kind]}
-    </Badge>
-  );
+  if (item.kind === "not-receipted" && item.count !== null) {
+    return `${item.count} ${item.count === 1 ? "invoice" : "invoices"}`;
+  }
+  return kind;
 }
 
 type MemberDay = { date: string; submitted: boolean; summary: DailyReportCardSummary };
@@ -251,7 +233,6 @@ export function RepDetailPage({ repId }: { repId: string }) {
   return (
     <RecordPageShell
       icon={UserRound}
-      bandValue={openPipeline > 0 ? formatMoney(openPipeline, "USD") : undefined}
       backHref="/crm/reps"
       backLabel="Team"
       title={rep.name ?? rep.email ?? "Unnamed"}
@@ -259,7 +240,6 @@ export function RepDetailPage({ repId }: { repId: string }) {
       status={
         rep.isActive ? null : { label: "Deactivated", status: "inactive" as const }
       }
-      subtitle={ROLE_LABELS[rep.role] ?? rep.role}
       activeTab={section}
       attributes={
         <RecordAttributes
@@ -336,153 +316,168 @@ export function RepDetailPage({ repId }: { repId: string }) {
           value: "overview",
           label: "Overview",
           content: (
-            <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <MetricTile
-                  title="Deals won"
-                  value={achieved.dealsWon}
-                  valueLabel={String(achieved.dealsWon)}
-                  detail="in this period"
-                  tone="neutral"
-                  icon={Check}
-                />
-                <MetricTile
-                  title="Value won"
-                  value={Number(achieved.wonValue)}
-                  valueLabel={formatMoney(Number(achieved.wonValue), achieved.wonCurrency)}
-                  detail="across the deals won"
-                  tone="neutral"
-                  icon={Coins}
-                />
-                <MetricTile
-                  title="Jobs completed"
-                  value={achieved.jobsCompleted}
-                  valueLabel={String(achieved.jobsCompleted)}
-                  detail="in this period"
-                  tone="neutral"
-                  icon={Wrench}
-                />
-                <MetricTile
-                  title="Visits done"
-                  value={achieved.visitsDone}
-                  valueLabel={String(achieved.visitsDone)}
-                  detail="in this period"
-                  tone="neutral"
-                  icon={MapPin}
-                />
-                <MetricTile
-                  title="Spent"
-                  value={Number(achieved.spent)}
-                  valueLabel={formatMoney(Number(achieved.spent), achieved.moneyCurrency)}
-                  detail="from their cost tracker"
-                  tone="neutral"
-                  icon={Receipt}
-                  href={`/crm/cost-tracker?person=${rep.id}&type=SPENT&${periodQuery}`}
-                />
-                <MetricTile
-                  title="Received"
-                  value={Number(achieved.received)}
-                  valueLabel={formatMoney(Number(achieved.received), achieved.moneyCurrency)}
-                  detail="from their cost tracker"
-                  tone="neutral"
-                  icon={Coins}
-                  href={`/crm/cost-tracker?person=${rep.id}&type=RECEIVED&${periodQuery}`}
-                />
-              </div>
-
-              <section aria-labelledby="rep-carrying" className="space-y-2">
-                <h2 id="rep-carrying" className="text-base font-semibold text-[var(--text-strong)]">
-                  What they are carrying
-                </h2>
-                <RecordList
-                  rows={pipelineRows(detail)}
-                  emptyTitle="Nothing open"
-                  emptyBody="Every lead and deal assigned to them is closed."
+            <>
+              <section aria-labelledby="rep-done">
+                <SectionHeading maxWidth={SECTION_WIDTH} className="mt-0">
+                  <span id="rep-done">Done in the period</span>
+                </SectionHeading>
+                <Figures
+                  items={[
+                    { label: "Deals won", value: String(achieved.dealsWon) },
+                    { label: "Value won", value: formatMoney(Number(achieved.wonValue), achieved.wonCurrency) },
+                    { label: "Jobs completed", value: String(achieved.jobsCompleted) },
+                    { label: "Visits done", value: String(achieved.visitsDone) },
+                    {
+                      label: "Spent",
+                      value: formatMoney(Number(achieved.spent), achieved.moneyCurrency),
+                      href: `/crm/cost-tracker?person=${rep.id}&type=SPENT&${periodQuery}`,
+                    },
+                    {
+                      label: "Received",
+                      value: formatMoney(Number(achieved.received), achieved.moneyCurrency),
+                      href: `/crm/cost-tracker?person=${rep.id}&type=RECEIVED&${periodQuery}`,
+                    },
+                  ]}
                 />
               </section>
-            </div>
+
+              <section aria-labelledby="rep-carrying">
+                <SectionHeading count={detail.deals.length + detail.leads.length} maxWidth={SECTION_WIDTH}>
+                  <span id="rep-carrying">Carrying</span>
+                </SectionHeading>
+                <ColumnList
+                  label="Carrying"
+                  maxWidth={SECTION_WIDTH}
+                  empty="Nothing open."
+                  columns={[
+                    { id: "name", label: "Deal or lead" },
+                    { id: "value", label: "Value", align: "end" },
+                  ]}
+                  rows={carryingRows(detail)}
+                />
+              </section>
+            </>
           ),
         },
         {
           value: "outstanding",
           label: "Outstanding",
-          count: flagged || undefined,
+          // The same count the section's heading carries; the dot says
+          // whether any of it is late.
+          count: outstanding.length,
+          attention: flagged > 0,
+          titled: true,
           content: (
-            <RecordList
-              rows={outstanding.map((item) => ({
-                id: `${item.kind}-${item.id}`,
-                href: item.href,
-                title: item.title,
-                subtitle: outstandingSubtitle(item),
-                status: outstandingBadge(item),
-                facts:
-                  item.amount === null
-                    ? []
-                    : [
-                        {
-                          label: "Amount",
-                          value: formatMoney(Number(item.amount), item.currency ?? "USD"),
-                          mono: true,
-                          primary: true,
-                        },
-                      ],
-              }))}
-              emptyTitle="Nothing outstanding"
-              emptyBody="No overdue work, no floats out, and every day closed."
-            />
+            <section aria-labelledby="rep-outstanding">
+              <SectionHeading count={outstanding.length} maxWidth={SECTION_WIDTH} className="mt-0">
+                <span id="rep-outstanding">Outstanding</span>
+              </SectionHeading>
+              <ColumnList
+                label="Outstanding"
+                maxWidth={SECTION_WIDTH}
+                empty="Nothing outstanding."
+                columns={[
+                  { id: "item", label: "Item" },
+                  { id: "since", label: "Since", hideBelow: "sm" },
+                  { id: "amount", label: "Amount", align: "end", hideBelow: "sm" },
+                  { id: "state", label: "Status" },
+                ]}
+                rows={outstanding.map((item) => ({
+                  id: `${item.kind}-${item.id}`,
+                  cells: {
+                    item: (
+                      <ColumnName
+                        code={item.reference}
+                        name={item.title}
+                        meta={outstandingMeta(item)}
+                        href={item.href}
+                      />
+                    ),
+                    since: <ColumnFigure tone="muted">{item.at ? formatDate(item.at) : "—"}</ColumnFigure>,
+                    amount:
+                      item.amount === null ? (
+                        <ColumnFigure tone="muted">—</ColumnFigure>
+                      ) : (
+                        <ColumnFigure>{formatMoney(Number(item.amount), item.currency ?? "USD")}</ColumnFigure>
+                      ),
+                    state: outstandingState(item),
+                  },
+                }))}
+              />
+            </section>
           ),
         },
         {
           value: "activity",
           label: "Activity",
-          content: activityQuery.isLoading || !activityQuery.data ? (
-            <div className="space-y-2" aria-busy="true">
-              <Skeleton className="h-32 w-full" />
-              <Skeleton className="h-32 w-full" />
-            </div>
-          ) : activityQuery.data.data.length === 0 ? (
-            <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-              Nothing was recorded against any day in this period.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {activityQuery.data.data.map((day) => (
-                <DailyReportCard
-                  key={day.date}
-                  heading={formatDay(day.date)}
-                  aside={day.submitted ? "Closed" : "Not closed"}
-                  summary={day.summary}
-                />
-              ))}
-              {activityQuery.data.data.length > 0 ? (
-                <p className="text-sm text-[var(--text-muted)]">
-                  Days with anything on them, newest first — at most the last {activityQuery.data.limit} of
-                  the period.
-                </p>
-              ) : null}
-            </div>
+          titled: true,
+          content: (
+            <section aria-labelledby="rep-days">
+              <SectionHeading
+                count={activityQuery.data?.data.length}
+                maxWidth={SECTION_WIDTH}
+                className="mt-0"
+              >
+                <span id="rep-days">Days</span>
+              </SectionHeading>
+              {activityQuery.isLoading || !activityQuery.data ? (
+                <div className="space-y-2" aria-busy="true" style={{ maxWidth: SECTION_WIDTH }}>
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              ) : activityQuery.data.data.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">Nothing recorded in this period.</p>
+              ) : (
+                <div style={{ maxWidth: SECTION_WIDTH }}>
+                  {activityQuery.data.data.map((day) => (
+                    <DailyReportCard
+                      key={day.date}
+                      heading={formatDay(day.date)}
+                      aside={
+                        day.submitted ? (
+                          <StatusDot tone="neutral" label="Closed" />
+                        ) : (
+                          <StatusDot tone="warn" label="Not closed" />
+                        )
+                      }
+                      summary={day.summary}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           ),
         },
         {
           value: "money",
           label: "Money",
+          titled: true,
           content: (
-            <div className="space-y-3">
+            <section aria-labelledby="rep-money">
+              <SectionHeading
+                count={moneyQuery.data?.data.length}
+                maxWidth={SECTION_WIDTH}
+                className="mt-0"
+                action={
+                  <Link
+                    href={`/crm/cost-tracker?person=${rep.id}&${periodQuery}`}
+                    className="text-sm font-medium text-[var(--brand-strong)] underline decoration-transparent underline-offset-2 hover:decoration-current"
+                  >
+                    Open in the cost tracker
+                  </Link>
+                }
+              >
+                <span id="rep-money">Money</span>
+              </SectionHeading>
               <CostEntryTable
+                label="Money"
                 entries={moneyQuery.data?.data ?? []}
                 isLoading={moneyQuery.isLoading || !moneyQuery.data}
                 showPerson={false}
-                emptyTitle="No money in this period"
-                emptyBody={`Nothing ${name} received or spent is in their cost tracker for these days.`}
+                empty="No money in this period."
+                maxWidth={SECTION_WIDTH}
               />
-              <Link
-                href={`/crm/cost-tracker?person=${rep.id}&${periodQuery}`}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--brand-strong)] hover:underline"
-              >
-                <FileText className="size-4" aria-hidden="true" />
-                Open in the cost tracker
-              </Link>
-            </div>
+            </section>
           ),
         },
         {
@@ -497,5 +492,34 @@ export function RepDetailPage({ repId }: { repId: string }) {
         },
       ]}
     />
+  );
+}
+
+/**
+ * What they got done, as six figures. No frame, no icon and no line under
+ * each saying "in this period" — the heading says it once, and the period is
+ * at the top of the page (rules 1 and 10).
+ */
+function Figures({ items }: { items: Array<{ label: string; value: string; href?: string }> }) {
+  return (
+    <dl className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3" style={{ maxWidth: SECTION_WIDTH }}>
+      {items.map((item) => (
+        <div key={item.label} className="min-w-0 border-t border-[var(--border-subtle)] pt-3">
+          <dt className="text-sm text-[var(--text-muted)]">{item.label}</dt>
+          <dd className="mt-1 truncate font-mono text-xl font-semibold tabular-nums text-[var(--text-strong)]">
+            {item.href ? (
+              <Link
+                href={item.href}
+                className="underline decoration-transparent underline-offset-4 hover:decoration-[var(--border-strong)]"
+              >
+                {item.value}
+              </Link>
+            ) : (
+              item.value
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

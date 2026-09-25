@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { FileUpload, useUpload } from "@corelithzw/react";
+import { useUpload } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { PhotoCamera } from "@/lib/icons";
@@ -27,24 +27,35 @@ function sizeLabel(bytes: number): string {
 /**
  * The receipt for one line of money: a photo or a PDF.
  *
- * Built for somebody at a counter with a phone in one hand. "Take a photo"
- * goes straight to the camera on a phone, rather than through a chooser that
- * opens on the gallery; on a desktop the drop zone takes the PDF a supplier
- * emailed. The upload shows its progress, because on a bad connection a
- * receipt that looks stuck is a receipt somebody gives up on.
+ * One row, the way the Profile board draws "Change photo" — a button beside
+ * what is there — rather than a drop zone taller than the rest of the form
+ * with a sentence under it saying what files it takes. The limit is not
+ * written on the page; a file over it is refused with the reason, which is
+ * the one moment anybody needs to know it.
+ *
+ * Built for somebody at a counter with a phone in one hand: "Take a photo"
+ * goes straight to the camera, rather than through a chooser that opens on
+ * the gallery. A desktop still takes the PDF a supplier emailed, from the
+ * chooser or dropped on the row. The upload shows its progress, because on a
+ * bad connection a receipt that looks stuck is a receipt somebody gives up
+ * on.
  *
  * The bytes go up first and the line is written with the url afterwards. The
  * other order leaves a line pointing at nothing, which reads as a receipt and
  * opens as an error.
  */
 export function ReceiptField({
+  id,
   value,
   onChange,
 }: {
+  /** The chooser's id, so a field label can point at it. */
+  id?: string;
   value: UploadedReceipt | null;
   onChange: (next: UploadedReceipt | null) => void;
 }) {
   const { upload, progress, status, response, reset } = useUpload();
+  const chooserRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -77,42 +88,40 @@ export function ReceiptField({
   if (value) {
     const isImage = value.contentType.startsWith("image/");
     return (
-      <div className="flex items-end gap-3">
-        <div className="file-tile">
-          <div className={isImage ? "ft-thumb img overflow-hidden" : "ft-thumb pdf"}>
-            {isImage ? (
-              // A receipt is checked by reading it, so the thumbnail is the
-              // photograph itself rather than an icon standing in for it.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={value.url} alt="The receipt" className="size-full object-cover" />
-            ) : (
-              "PDF"
-            )}
-          </div>
-          <div className="ft-body">
-            <div className="ft-name">{name ?? "Receipt"}</div>
-            <div className="ft-meta">{sizeLabel(value.size)}</div>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Button asChild variant="ghost" size="sm">
-            <a href={value.url} target="_blank" rel="noreferrer">
-              View
-            </a>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              onChange(null);
-              setName(null);
-              reset();
-            }}
-          >
-            Remove
-          </Button>
-        </div>
+      <div className="flex min-h-9 items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] bg-[var(--surface-muted)] font-mono text-sm text-[var(--text-muted)]">
+          {isImage ? (
+            // A receipt is checked by reading it, so the thumbnail is the
+            // photograph itself rather than an icon standing in for it.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value.url} alt="The receipt" className="size-full object-cover" />
+          ) : (
+            "PDF"
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-[var(--text-strong)]">{name ?? "Receipt"}</span>
+          <span className="block font-mono text-sm tabular-nums text-[var(--text-muted)]">
+            {sizeLabel(value.size)}
+          </span>
+        </span>
+        <Button asChild variant="ghost" size="sm">
+          <a href={value.url} target="_blank" rel="noreferrer">
+            View
+          </a>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            onChange(null);
+            setName(null);
+            reset();
+          }}
+        >
+          Remove
+        </Button>
       </div>
     );
   }
@@ -122,45 +131,59 @@ export function ReceiptField({
       <div className="space-y-1.5" aria-live="polite">
         <Progress value={Math.round(progress * 100)} label="Uploading the receipt" />
         <p className="font-mono text-sm tabular-nums text-[var(--text-muted)]">
-          Uploading {name ? `${name} ` : ""}— {Math.round(progress * 100)}%
+          {name ?? "Receipt"} — {Math.round(progress * 100)}%
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
-      <FileUpload
+    <div
+      className="space-y-2"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        const file = event.dataTransfer.files?.[0];
+        if (file) void send(file);
+      }}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Phones first: straight to the camera. A desktop has no camera
+            worth pointing at a till slip, so it is not offered there. */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="hidden gap-2 [@media(pointer:coarse)]:inline-flex"
+          onClick={() => cameraRef.current?.click()}
+        >
+          <PhotoCamera className="size-4" aria-hidden="true" />
+          Take a photo
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => chooserRef.current?.click()}>
+          Attach a file
+        </Button>
+      </div>
+      <input
+        ref={chooserRef}
+        id={id}
+        type="file"
         accept="image/*,application/pdf"
-        multiple={false}
-        // Generous on purpose: the drop zone silently ignores anything over
-        // its limit, and a file that does nothing when picked is worse than
-        // one refused with the reason — which `send` does.
-        maxSizeMb={100}
-        label="Add the receipt"
-        description={`A photo or a PDF, up to ${MAX_MB} MB`}
-        onFilesSelected={(files) => {
-          if (files[0]) void send(files[0]);
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) void send(file);
         }}
       />
-      {/* Phones only: straight to the camera. A desktop has no camera worth
-          pointing at a till slip, and the button would be a dead end there. */}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="hidden gap-2 [@media(pointer:coarse)]:inline-flex"
-        onClick={() => cameraRef.current?.click()}
-      >
-        <PhotoCamera className="size-4" aria-hidden="true" />
-        Take a photo
-      </Button>
       <input
         ref={cameraRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="hidden"
+        tabIndex={-1}
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";

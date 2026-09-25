@@ -47,9 +47,11 @@ the register's **New project**, with no deal behind them.
 The project page (`components/crm/money/project-detail-content.tsx`) is the
 standard record page: properties edited in place, sections in the rail with
 the open one in the URL, and one primary action, **Raise a job**. Overview is
-the cost strip and a timeline of the jobs by date between the start and the
-target end; then Jobs, Requisitions, Spend & receipts, Team, Files and
-History (field changes, written as names and days rather than ids).
+the costs and a schedule of the jobs by date between the start and the target
+end; then Jobs, Requisitions, Spend, Team, Files and History (field changes,
+written as names and days rather than ids). Each section's own verb — *Ask
+for money*, *Add spend*, *Add someone* — sits on that section's heading; *Raise
+a job* is the page's, so the Jobs section does not draw it a second time.
 
 ### Statuses
 
@@ -122,8 +124,8 @@ real and worth saying out loud rather than rounding away.
 ### Reporting and accounting for it
 
 The requisition's own page (`/crm/requisitions/[id]`, which the approval and
-payment notifications link to) shows where it has got to as a stepper and
-offers **one** move — the one this viewer may make next: *Send for approval*,
+payment notifications link to) names its four steps with the one it is
+waiting on marked, and offers **one** move — the one this viewer may make next: *Send for approval*,
 *Approve or decline*, *Mark paid*, or *Account for it*.
 
 Once the money is approved or paid out, the requester **reports what they
@@ -175,9 +177,10 @@ entry belongs to Tuesday whatever time zone the phone was in.
 
 `/crm/cost-tracker` is built for somebody standing at a fuel pump. The top of
 the page is the day being written up: the form on the page rather than in a
-modal (expense or income, how much, on what, which project, and then the
-requisition an expense came out of or the invoice income was paying, with a
-receipt photo), what the day has come to so far, and one press to close it.
+modal (expense or income, the amount, the category, the project, and then the
+requisition an expense was paid from or the invoice income was paying, with
+its receipt — a photo straight from the camera on a phone, or a file), what the
+day has come to so far, and one press to close it.
 The day can be moved back and not forward: a log for Friday written on
 Wednesday is a guess, and a guess in the cost figures is worse than a gap.
 
@@ -260,8 +263,7 @@ Two kinds of figure, and the page says which each one is:
   already, so it is never added a second time — that is the whole reason the
   cost tracker records which requisition a line came out of.
 - **Positions, as they stand now.** *Owed to us* (open invoices), *floats not
-  accounted for* (paid out, not yet acquitted) and *committed, not yet paid*
-  (approved, not yet paid out). The period does not move them: "the floats we
+  accounted for* (paid out, not yet acquitted) and *approved, not yet paid*. The period does not move them: "the floats we
   had out last March" is not a question anybody asks.
 
 The project and person filters narrow both. A person's money is what they asked
@@ -305,6 +307,35 @@ One period, chosen at the top, governs every section:
 The figures are `lib/crm/member-overview.ts`, which reuses the daily report's
 builder, `receiptGaps`/`shareOfGap` and `payableAmount` rather than restating
 any of them.
+
+## How the pages are drawn
+
+The money pages are drawn with the management surface's own layer
+(`components/management/ui`) — outside its full-screen dialog, inside the CRM's
+app bar, record rails and properties pane — so they follow the contract that
+surface was rebuilt to:
+
+- **No sentence explaining a control or a figure.** No lede under a page's
+  name, no helper line under a field, no paragraph over a table. A label that
+  needed one was renamed: the cost tracker asks *Amount*, *Category*,
+  *Description*, *Paid from*, *Project*, not "How much" and "Out of which
+  requisition".
+- **A section's verb is on its heading**, beside its count (`SectionHeading`,
+  `SectionAction`), never under the list and never twice.
+- **Every list names its columns once** (`ColumnList`): the reference and the
+  name, one line under it, then the figures mono against the right edge. Money
+  in and money out are two columns, not one column of signs. Facts about a
+  record are 44px rows (`FactList`).
+- **A state is a dot and a word in a list** (`StatusDot`); a chip in a record's
+  band only for the exception — a project on hold or cancelled, a requisition
+  declined or withdrawn. The inks are `PROJECT_TONE`, `JOB_TONE` and
+  `REQUISITION_TONE` in `lib/crm/tones.ts`: green live, amber somebody's move,
+  red refused or late, grey nothing to do.
+- **Dates are written one way**, day first — "25 Sept 2026" — and in UTC, the
+  terms a log day is keyed in (`formatDate` in `components/crm/money/money.ts`).
+- **What cannot be done is not offered.** "Close the day" appears once the day
+  can be closed; a requisition's project is said, not asked, once the
+  requisition decides it.
 
 ## Where to find it
 

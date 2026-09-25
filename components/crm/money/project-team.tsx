@@ -1,13 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { EmptyState } from "@corelithzw/react";
+import {
+  ColumnList,
+  ColumnName,
+  ColumnRowAction,
+  ColumnText,
+  FormField,
+  SectionAction,
+  SectionHeading,
+} from "@/components/management/ui";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -16,10 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { EntityLink } from "@/components/records/entity-link";
-import { RecordMark } from "@/components/records/record-mark";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Trash2 } from "@/lib/icons";
+import { Plus, Trash2 } from "@/lib/icons";
 
 export type ProjectMember = {
   id: string;
@@ -30,27 +36,38 @@ export type ProjectMember = {
 
 type TeamResponse = { data: { id: string; name: string | null; email: string }[] };
 
+/** The add row's measure: two fields, not the whole pane. */
+const FORM_WIDTH = 560;
+
 /**
  * Who is on the project.
  *
- * The owner leads the list and is not removable here: they answer for the
- * budget, and changing who that is belongs to the Owner property, where the
- * history records it. Everybody else can be added with a word about what they
- * do, and taken off again.
+ * The owner leads the list and is not removable here: changing who answers
+ * for the budget belongs to the Owner property, where the history records it.
+ * Everybody else can be added with a word about what they do, and taken off
+ * again.
+ *
+ * "Add someone" is the list's verb, so it sits on the list's heading (rule 2)
+ * and opens the add row under it; the row is not left standing open with a
+ * disabled Add in it for somebody who came to read the team.
  */
 export function ProjectTeam({
   projectId,
   owner,
   members,
   canEdit,
+  maxWidth = 760,
 }: {
   projectId: string;
   owner: { id: string; name: string | null } | null;
   members: ProjectMember[];
   canEdit: boolean;
+  /** The measure the list and its heading share with the page's other sections. */
+  maxWidth?: number;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [adding, setAdding] = useState(false);
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState("");
 
@@ -72,6 +89,7 @@ export function ProjectTeam({
     onSuccess: () => {
       setUserId("");
       setRole("");
+      setAdding(false);
       refresh();
     },
     onError: (error) =>
@@ -95,66 +113,79 @@ export function ProjectTeam({
   const onTeam = new Set([owner?.id, ...members.map((member) => member.user.id)]);
   const candidates = (team?.data ?? []).filter((person) => !onTeam.has(person.id));
 
+  const personLink = (id: string, name: string) => (
+    <Link
+      href={`/crm/reps/${id}`}
+      className="text-[var(--text-strong)] underline decoration-transparent underline-offset-2 hover:decoration-[var(--border-strong)]"
+    >
+      {name}
+    </Link>
+  );
+
+  const rows = [
+    ...(owner
+      ? [
+          {
+            id: `owner-${owner.id}`,
+            cells: {
+              person: <ColumnName name={personLink(owner.id, owner.name ?? "Unnamed")} />,
+              role: <ColumnText>Owner</ColumnText>,
+              remove: null,
+            },
+          },
+        ]
+      : []),
+    ...members.map((member) => ({
+      id: member.id,
+      cells: {
+        person: <ColumnName name={personLink(member.user.id, member.user.name ?? member.user.email)} />,
+        role: <ColumnText>{member.role ?? "—"}</ColumnText>,
+        remove: canEdit ? (
+          <ColumnRowAction>
+            <IconButton
+              aria-label={`Take ${member.user.name ?? "them"} off the project`}
+              size="sm"
+              disabled={remove.isPending}
+              onClick={() => remove.mutate(member.user.id)}
+            >
+              <Trash2 />
+            </IconButton>
+          </ColumnRowAction>
+        ) : null,
+      },
+    })),
+  ];
+
   return (
-    <div className="space-y-4">
-      <ul className="border-t border-[var(--table-divider)]">
-        {owner ? (
-          <li className="flex items-center gap-3 border-b border-[var(--table-divider)] py-2.5">
-            <RecordMark kind="rep" name={owner.name} size="sm" />
-            <span className="min-w-0 flex-1">
-              <EntityLink href={`/crm/reps/${owner.id}`}>{owner.name ?? "Unnamed"}</EntityLink>
-              <span className="block text-sm text-[var(--text-muted)]">Owner — answers for the budget</span>
-            </span>
-          </li>
-        ) : null}
-        {members.map((member) => (
-          <li
-            key={member.id}
-            className="flex items-center gap-3 border-b border-[var(--table-divider)] py-2.5"
-          >
-            <RecordMark kind="rep" name={member.user.name ?? member.user.email} size="sm" />
-            <span className="min-w-0 flex-1">
-              <EntityLink href={`/crm/reps/${member.user.id}`}>
-                {member.user.name ?? member.user.email}
-              </EntityLink>
-              <span className="block truncate text-sm text-[var(--text-muted)]">
-                {member.role ?? "On the team"}
-              </span>
-            </span>
-            {canEdit ? (
-              <IconButton
-                aria-label={`Take ${member.user.name ?? "them"} off the project`}
-                size="sm"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(member.user.id)}
-              >
-                <Trash2 />
-              </IconButton>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+    <section aria-labelledby="project-team">
+      <SectionHeading
+        count={rows.length}
+        maxWidth={maxWidth}
+        className="mt-0"
+        action={
+          canEdit && !adding && candidates.length > 0 ? (
+            <SectionAction icon={Plus} onClick={() => setAdding(true)}>
+              Add someone
+            </SectionAction>
+          ) : undefined
+        }
+      >
+        <span id="project-team">Team</span>
+      </SectionHeading>
 
-      {!owner && members.length === 0 ? (
-        <EmptyState
-          title="Nobody is on it yet"
-          body="Give the project an owner, and add the people doing the work."
-        />
-      ) : null}
-
-      {canEdit ? (
+      {adding ? (
         <form
-          className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+          className="mb-4 grid gap-x-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+          style={{ maxWidth: FORM_WIDTH }}
           onSubmit={(event) => {
             event.preventDefault();
             if (userId) add.mutate();
           }}
         >
-          <div className="space-y-1.5">
-            <Label>Add someone</Label>
+          <FormField label="Person" htmlFor="member-person">
             <Select value={userId} onValueChange={setUserId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a person" />
+              <SelectTrigger id="member-person">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {candidates.map((person) => (
@@ -164,21 +195,32 @@ export function ProjectTeam({
                 ))}
               </SelectContent>
             </Select>
+          </FormField>
+          <FormField label="Role" htmlFor="member-role">
+            <Input id="member-role" value={role} onChange={(event) => setRole(event.target.value)} />
+          </FormField>
+          <div className="flex gap-2 sm:col-span-2">
+            <Button type="submit" size="sm" disabled={!userId || add.isPending}>
+              {add.isPending ? "Adding…" : "Add"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
+              Cancel
+            </Button>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="member-role">What they do</Label>
-            <Input
-              id="member-role"
-              value={role}
-              onChange={(event) => setRole(event.target.value)}
-              placeholder="Crew lead, estimator…"
-            />
-          </div>
-          <Button type="submit" variant="outline" disabled={!userId || add.isPending}>
-            {add.isPending ? "Adding…" : "Add"}
-          </Button>
         </form>
       ) : null}
-    </div>
+
+      <ColumnList
+        label="Team"
+        maxWidth={maxWidth}
+        empty="Nobody is on it yet."
+        columns={[
+          { id: "person", label: "Person" },
+          { id: "role", label: "Role" },
+          ...(canEdit && members.length > 0 ? [{ id: "remove", label: "" }] : []),
+        ]}
+        rows={rows}
+      />
+    </section>
   );
 }

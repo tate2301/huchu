@@ -1,24 +1,21 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 
-import { EmptyState, Skeleton } from "@corelithzw/react";
-import { IconButton } from "@/components/ui/icon-button";
-import { EntityLink } from "@/components/records/entity-link";
+import { Skeleton } from "@corelithzw/react";
 import {
-  RecordCell,
-  RecordTable,
-  type RecordTableColumn,
-} from "@/components/records/record-table";
-import { Calendar, Coins, FileText, Receipt, Trash2, User, Wallet, Work } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnRowAction,
+  StatusDot,
+  type ColumnListColumn,
+} from "@/components/management/ui";
+import { IconButton } from "@/components/ui/icon-button";
+import { Trash2 } from "@/lib/icons";
 
-import { CATEGORY_LABELS, formatMoney, type CostEntryRow } from "./money";
-
-/** Money in reads as money in: signed, so a column of them can be added by eye. */
-function signedAmount(entry: CostEntryRow): string {
-  return `${entry.direction === "RECEIVED" ? "+" : "−"}${formatMoney(entry.amount, entry.currency)}`;
-}
+import { CATEGORY_LABELS, formatDate, formatMoney, type CostEntryRow } from "./money";
 
 /**
  * The receipt, or the fact that there is none.
@@ -28,20 +25,21 @@ function signedAmount(entry: CostEntryRow): string {
  * there is not a gap and is not drawn as one. What cash from a customer does
  * owe is the office's receipt, and a line the office has not caught up with
  * says so here, beside any photo it has.
+ *
+ * States are a dot and the word (rule 5): amber for a photo still to attach,
+ * red for cash the office has not receipted.
  */
-function ReceiptCell({ entry }: { entry: CostEntryRow }) {
-  const notReceipted = entry.notReceipted ? (
-    <span className="text-sm font-medium text-[var(--badge-warn-fg)]">Not receipted</span>
-  ) : null;
+function ReceiptState({ entry }: { entry: CostEntryRow }) {
+  const notReceipted = entry.notReceipted ? <StatusDot tone="danger" label="Not receipted" /> : null;
 
   if (entry.receiptUrl) {
     return (
-      <span className="flex min-w-0 items-baseline gap-2">
+      <span className="inline-flex items-baseline gap-3">
         <a
           href={entry.receiptUrl}
           target="_blank"
           rel="noreferrer"
-          className="text-sm text-[var(--brand-strong)] hover:underline"
+          className="text-sm text-[var(--brand-strong)] underline decoration-transparent underline-offset-2 hover:decoration-current"
         >
           Photo
         </a>
@@ -49,10 +47,8 @@ function ReceiptCell({ entry }: { entry: CostEntryRow }) {
       </span>
     );
   }
-  if (entry.direction === "SPENT") {
-    return <span className="text-sm font-medium text-[var(--badge-bad-fg)]">No receipt</span>;
-  }
-  return notReceipted ?? <RecordCell value={null} />;
+  if (entry.direction === "SPENT") return <StatusDot tone="warn" label="No receipt" />;
+  return notReceipted ?? <ColumnFigure tone="muted">—</ColumnFigure>;
 }
 
 /**
@@ -64,34 +60,56 @@ function againstOf(entry: CostEntryRow): string | null {
   return entry.invoiceDocument?.invoice?.invoiceNumber ?? null;
 }
 
+function dayOf(entry: CostEntryRow): string | null {
+  return entry.log ? formatDate(entry.log.logDate.slice(0, 10)) : null;
+}
+
 /**
- * Lines of money in somebody's hands, as a register.
+ * Lines of money in somebody's hands.
  *
  * A line is not a record — there is nothing of its own to open — so rows do
- * not link; the receipt and the project in it do. Which columns show depends
- * on where the table sits: a person's own money leaves out whose it is, a
- * project's leaves out which project, a requisition's report leaves out the
- * requisition every line is against.
+ * not link; the receipt and the project in them do. Money in and money out
+ * are two columns rather than one column of signed figures: a column of
+ * "−USD" is a column of minus signs to read past, and a reader adding up
+ * what went out wants the outs lined up on their own. Where every line goes
+ * the same way — a requisition's report is all spending — the one column
+ * says "Amount".
+ *
+ * Two layouts. The cost tracker's register has the page's width and gives
+ * whose, which project and what against a column each. A record's section —
+ * a project's spend, a requisition's report, a person's money — is a third of
+ * that, so the same facts ride on the line under the description instead of
+ * pushing the figures off the edge of the pane.
+ *
+ * Which facts show depends on where the list sits: a person's own money
+ * leaves out whose it is, a project's leaves out which project, a
+ * requisition's report leaves out the requisition every line is against.
  */
 export function CostEntryTable({
   entries,
   isLoading,
+  layout = "section",
   showPerson = true,
   showProject = true,
   showAgainst = true,
-  emptyTitle = "No money has moved",
-  emptyBody,
+  label = "Money",
+  empty,
   emptyAction,
   onRemove,
   removable,
+  maxWidth,
 }: {
   entries: CostEntryRow[];
   isLoading?: boolean;
+  layout?: "register" | "section";
   showPerson?: boolean;
   showProject?: boolean;
   showAgainst?: boolean;
-  emptyTitle?: string;
-  emptyBody?: string;
+  /** The list's accessible name — its section heading's words. */
+  label?: string;
+  /** Said once, in the meta ink, when there are no lines. */
+  empty: string;
+  /** The one verb that fixes an empty list — "Clear the filters". */
   emptyAction?: ReactNode;
   /**
    * Take a line back out — offered only where the page knows the line is the
@@ -101,210 +119,158 @@ export function CostEntryTable({
   onRemove?: (entry: CostEntryRow) => void;
   /** Which lines `onRemove` is offered on, where not every line is. */
   removable?: (entry: CostEntryRow) => boolean;
+  maxWidth?: number;
 }) {
-  const canRemove = (entry: CostEntryRow) => Boolean(onRemove) && (removable?.(entry) ?? true);
-  const columns: RecordTableColumn<CostEntryRow>[] = [
-    {
-      id: "what",
-      label: "What",
-      icon: FileText,
-      cell: (entry) => (
-        <span className="block min-w-0">
-          <span className="block truncate font-medium text-[var(--text-strong)]">
-            {entry.description}
-          </span>
-          <span className="acct-caption block truncate">{CATEGORY_LABELS[entry.category]}</span>
-        </span>
-      ),
-    },
-    {
-      id: "day",
-      label: "Day",
-      icon: Calendar,
-      width: "7.5rem",
-      cell: (entry) => <RecordCell kind="date" value={entry.log?.logDate.slice(0, 10)} />,
-    },
-    ...(showPerson
-      ? [
-          {
-            id: "person",
-            label: "Who",
-            icon: User,
-            width: "9rem",
-            cell: (entry: CostEntryRow) => (
-              <RecordCell
-                kind="relation"
-                value={entry.log?.user.name}
-                href={entry.log ? `/crm/reps/${entry.log.user.id}` : null}
-              />
-            ),
-          },
-        ]
-      : []),
-    ...(showProject
-      ? [
-          {
-            id: "project",
-            label: "Project",
-            icon: Work,
-            width: "11rem",
-            cell: (entry: CostEntryRow) =>
-              entry.project ? (
-                <span className="block truncate">
-                  <EntityLink href={`/crm/projects/${entry.project.id}`}>{entry.project.name}</EntityLink>
-                </span>
-              ) : (
-                <RecordCell value={null} />
-              ),
-          },
-        ]
-      : []),
-    ...(showAgainst
-      ? [
-          {
-            id: "against",
-            label: "Against",
-            icon: Wallet,
-            width: "8rem",
-            cell: (entry: CostEntryRow) => <RecordCell kind="code" value={againstOf(entry)} />,
-          },
-        ]
-      : []),
-    {
-      id: "receipt",
-      label: "Receipt",
-      icon: Receipt,
-      width: "10rem",
-      cell: (entry) => <ReceiptCell entry={entry} />,
-    },
-    {
-      id: "amount",
-      label: "Amount",
-      icon: Coins,
-      width: "9rem",
-      align: "end",
-      cell: (entry) => <RecordCell kind="money" value={signedAmount(entry)} />,
-    },
-    ...(onRemove
-      ? [
-          {
-            id: "remove",
-            label: "",
-            width: "3rem",
-            cell: (entry: CostEntryRow) =>
-              canRemove(entry) ? (
-                <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
-                  <Trash2 />
-                </IconButton>
-              ) : null,
-          },
-        ]
-      : []),
-  ];
+  const width = maxWidth ?? (layout === "register" ? 1400 : 760);
 
-  return (
-    <RecordTable
-      rows={entries}
-      columns={columns}
-      isLoading={isLoading}
-      emptyTitle={emptyTitle}
-      emptyBody={emptyBody}
-      emptyAction={emptyAction}
-      mobile={
-        <CostEntryList
-          entries={entries}
-          isLoading={isLoading}
-          showPerson={showPerson}
-          showProject={showProject}
-          showAgainst={showAgainst}
-          emptyTitle={emptyTitle}
-          emptyBody={emptyBody}
-          emptyAction={emptyAction}
-          onRemove={onRemove}
-          canRemove={canRemove}
-        />
-      }
-    />
-  );
-}
-
-/** The same lines on a phone: what, whose and when on the left, the money on the right. */
-function CostEntryList({
-  entries,
-  isLoading,
-  showPerson,
-  showProject,
-  showAgainst,
-  emptyTitle,
-  emptyBody,
-  emptyAction,
-  onRemove,
-  canRemove,
-}: {
-  entries: CostEntryRow[];
-  isLoading?: boolean;
-  showPerson: boolean;
-  showProject: boolean;
-  showAgainst: boolean;
-  emptyTitle: string;
-  emptyBody?: string;
-  emptyAction?: ReactNode;
-  onRemove?: (entry: CostEntryRow) => void;
-  canRemove: (entry: CostEntryRow) => boolean;
-}) {
   if (isLoading) {
     return (
-      <div className="space-y-1.5" aria-busy="true" aria-live="polite">
-        <Skeleton height={56} />
-        <Skeleton height={56} />
+      <div className="space-y-1.5" aria-busy="true" aria-live="polite" style={{ maxWidth: width }}>
+        <Skeleton height={38} />
+        <Skeleton height={38} />
+        <Skeleton height={38} />
       </div>
     );
   }
+
   if (entries.length === 0) {
-    return <EmptyState title={emptyTitle} body={emptyBody} action={emptyAction} />;
+    return (
+      <div className="space-y-3">
+        <ColumnList label={label} columns={[]} rows={[]} empty={empty} maxWidth={width} />
+        {emptyAction}
+      </div>
+    );
   }
 
+  const canRemove = (entry: CostEntryRow) => Boolean(onRemove) && (removable?.(entry) ?? true);
+  const anyRemovable = entries.some(canRemove);
+  const wide = layout === "register";
+  const hasIn = entries.some((entry) => entry.direction === "RECEIVED");
+  const hasOut = entries.some((entry) => entry.direction === "SPENT");
+  const split = hasIn && hasOut;
+
+  // In a section the facts that have no column of their own ride under the
+  // description, after the category.
+  const metaOf = (entry: CostEntryRow) =>
+    [
+      CATEGORY_LABELS[entry.category],
+      !wide && showPerson ? entry.log?.user.name : null,
+      !wide && showProject ? entry.project?.name : null,
+      !wide && showAgainst ? againstOf(entry) : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+  const columns: ColumnListColumn[] = [
+    { id: "what", label: "What" },
+    { id: "day", label: "Day" },
+    ...(wide && showPerson ? [{ id: "person", label: "Who" }] : []),
+    ...(wide && showProject ? [{ id: "project", label: "Project" }] : []),
+    ...(wide && showAgainst ? [{ id: "against", label: "Against" }] : []),
+    { id: "receipt", label: "Receipt" },
+    ...(split
+      ? [
+          { id: "in", label: "In", align: "end" as const },
+          { id: "out", label: "Out", align: "end" as const },
+        ]
+      : [{ id: "amount", label: "Amount", align: "end" as const }]),
+    ...(anyRemovable ? [{ id: "remove", label: "" }] : []),
+  ];
+
+  const figure = (entry: CostEntryRow) => (
+    <ColumnFigure>{formatMoney(entry.amount, entry.currency)}</ColumnFigure>
+  );
+
   return (
-    <ul className="border-t border-[var(--table-divider)]">
-      {entries.map((entry) => (
-        <li
-          key={entry.id}
-          className="flex items-start justify-between gap-3 border-b border-[var(--table-divider)] py-2.5"
-        >
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-[var(--text-strong)]">{entry.description}</p>
-            <p className="truncate text-sm text-[var(--text-muted)]">
-              {[
-                entry.log?.logDate.slice(0, 10),
-                showPerson ? entry.log?.user.name : null,
-                showProject ? entry.project?.name : null,
-                showAgainst ? againstOf(entry) : null,
-                CATEGORY_LABELS[entry.category],
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-          <div className="shrink-0 text-right">
-            <p
-              className={cn(
-                "font-mono text-sm font-medium tabular-nums",
-                entry.direction === "RECEIVED"
-                  ? "text-[var(--badge-ok-fg)]"
-                  : "text-[var(--text-strong)]",
-              )}
-            >
-              {signedAmount(entry)}
-            </p>
-            <ReceiptCell entry={entry} />
-          </div>
-          {onRemove && canRemove(entry) ? (
-            <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
-              <Trash2 />
-            </IconButton>
-          ) : null}
-        </li>
-      ))}
-    </ul>
+    <>
+      <div className="hidden md:block">
+        <ColumnList
+          label={label}
+          maxWidth={width}
+          columns={columns}
+          rows={entries.map((entry) => ({
+            id: entry.id,
+            cells: {
+              what: <ColumnName name={entry.description} meta={metaOf(entry)} />,
+              day: <ColumnFigure tone="muted">{dayOf(entry) ?? "—"}</ColumnFigure>,
+              person: entry.log ? (
+                <Link
+                  href={`/crm/reps/${entry.log.user.id}`}
+                  className="text-sm text-[var(--brand-strong)] underline decoration-transparent underline-offset-2 hover:decoration-current"
+                >
+                  {entry.log.user.name ?? "Unnamed"}
+                </Link>
+              ) : null,
+              project: entry.project ? (
+                <Link
+                  href={`/crm/projects/${entry.project.id}`}
+                  className="text-sm text-[var(--brand-strong)] underline decoration-transparent underline-offset-2 hover:decoration-current"
+                >
+                  {entry.project.name}
+                </Link>
+              ) : (
+                <ColumnFigure tone="muted">—</ColumnFigure>
+              ),
+              against: againstOf(entry) ? (
+                <ColumnFigure tone="muted">{againstOf(entry)}</ColumnFigure>
+              ) : (
+                <ColumnFigure tone="muted">—</ColumnFigure>
+              ),
+              receipt: <ReceiptState entry={entry} />,
+              in: entry.direction === "RECEIVED" ? figure(entry) : null,
+              out: entry.direction === "SPENT" ? figure(entry) : null,
+              amount: figure(entry),
+              remove:
+                onRemove && canRemove(entry) ? (
+                  <ColumnRowAction>
+                    <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
+                      <Trash2 />
+                    </IconButton>
+                  </ColumnRowAction>
+                ) : null,
+            },
+          }))}
+        />
+      </div>
+
+      {/* A phone: what, when and whose on the left, the money and its
+          receipt on the right. Four columns of figures do not fit 390px, and
+          a list that scrolls sideways hides the figure you came for. */}
+      <ul className="md:hidden">
+        {entries.map((entry) => (
+          <li
+            key={entry.id}
+            className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] py-3 last:border-b-0"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm text-[var(--text-strong)]">{entry.description}</p>
+              <p className="truncate text-sm text-[var(--text-muted)]">
+                {[
+                  dayOf(entry),
+                  showPerson ? entry.log?.user.name : null,
+                  showProject ? entry.project?.name : null,
+                  showAgainst ? againstOf(entry) : null,
+                  CATEGORY_LABELS[entry.category],
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <ColumnFigure>
+                {split && entry.direction === "RECEIVED" ? "+" : ""}
+                {formatMoney(entry.amount, entry.currency)}
+              </ColumnFigure>
+              <ReceiptState entry={entry} />
+            </div>
+            {onRemove && canRemove(entry) ? (
+              <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
+                <Trash2 />
+              </IconButton>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

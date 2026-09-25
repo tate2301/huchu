@@ -13,6 +13,11 @@
  *
  * Boards: `Main`, `Rail`, `Opening`, `States`, `Fields`, `Sections`,
  * `Classes`, `Audit`.
+ *
+ * The CRM's money pages — finance, the cost tracker, projects, requisitions
+ * and a team member's page — draw their sections, lists, facts and states
+ * with these same pieces, outside the surface and without its dialog, so the
+ * contract reads the same on both sides.
  */
 
 export { SettingsSurface, type SettingsSurfaceProps } from "./settings-surface";
@@ -55,6 +60,21 @@ export {
   type RecordListRow,
   type RecordListValue,
 } from "./record-list";
+
+export {
+  ColumnList,
+  ColumnName,
+  ColumnFigure,
+  ColumnText,
+  ColumnRowAction,
+  type ColumnListProps,
+  type ColumnListColumn,
+  type ColumnListRow,
+  type ColumnNameProps,
+  type ColumnFigureProps,
+} from "./column-list";
+
+export { FactList, type FactListProps, type FactListItem } from "./fact-list";
 
 export {
   StatusBadge,

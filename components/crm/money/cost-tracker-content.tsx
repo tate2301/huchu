@@ -22,12 +22,12 @@ import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Button, Skeleton } from "@corelithzw/react";
+import { FactList, FormField, SectionHeading, StatusBadge, StatusDot } from "@/components/management/ui";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { RecordListPager } from "@/components/records/record-list";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { useDebounced } from "@/hooks/use-debounced";
@@ -36,6 +36,10 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CostEntryForm } from "./cost-entry-form";
 import { CostEntryTable } from "./cost-entry-table";
 import { formatDay, formatMoney, todayKey, type CostEntryRow } from "./money";
+
+/** The form's measure, and the day's column beside it. */
+const FORM_WIDTH = 560;
+const DAY_WIDTH = 380;
 
 export function CostTrackerContent() {
   return (
@@ -118,67 +122,83 @@ function TheDay() {
   // the server's rule, so the button is only offered once it would work.
   const closable = Boolean(log && totals && (totals.entryCount > 0 || log.notes));
 
+  const sentAt = log?.submittedAt
+    ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(log.submittedAt))
+    : null;
+
   return (
-    <section aria-labelledby="cost-tracker-day" className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <h2 id="cost-tracker-day" className="text-lg font-semibold text-[var(--text-strong)]">
-            {day === today ? "Today" : formatDay(day)}
-          </h2>
-          {/* What the day has come to so far: the figure somebody counts the
-              cash in their pocket against. */}
-          {totals ? (
-            <p className="text-sm text-[var(--text-muted)]">
-              In hand{" "}
-              <span className="font-mono font-semibold text-[var(--text-strong)]">
-                {formatMoney(totals.balance)}
-              </span>
-              {" · "}received <span className="font-mono">{formatMoney(totals.received)}</span>
-              {" · "}spent <span className="font-mono">{formatMoney(totals.spent)}</span>
-            </p>
-          ) : (
-            <Skeleton height={20} width={280} />
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="cost-tracker-date" className="text-sm text-[var(--text-muted)]">
-            Day
-          </Label>
-          <Input
-            id="cost-tracker-date"
-            type="date"
-            className="w-auto font-mono"
-            value={day}
-            max={today}
-            onChange={(event) => {
-              if (event.target.value) setDay(event.target.value);
-            }}
-          />
-        </div>
+    <section
+      aria-labelledby="cost-tracker-day"
+      className="grid gap-x-12 lg:grid-cols-[minmax(0,560px)_minmax(0,380px)]"
+    >
+      <div className="min-w-0">
+        {/* The day is the section, so the control that picks it sits on the
+            section's heading, where rule 2 puts a section's own control. */}
+        <SectionHeading
+          maxWidth={FORM_WIDTH}
+          className="mt-0"
+          action={
+            <Input
+              id="cost-tracker-date"
+              aria-label="Day"
+              type="date"
+              className="h-8 w-auto font-mono"
+              value={day}
+              max={today}
+              onChange={(event) => {
+                if (event.target.value) setDay(event.target.value);
+              }}
+            />
+          }
+        >
+          <span id="cost-tracker-day">{day === today ? "Today" : formatDay(day)}</span>
+          {closed ? <StatusBadge tone="neutral">Closed</StatusBadge> : null}
+        </SectionHeading>
+
+        {dayQuery.error ? (
+          <Alert tone="danger" title="The day would not load" className="mb-4">
+            {getApiErrorMessage(dayQuery.error)}
+          </Alert>
+        ) : null}
+
+        {closed ? (
+          <p className="text-sm text-[var(--text-muted)]">
+            Sent to management{sentAt ? ` at ${sentAt}` : ""}.
+          </p>
+        ) : (
+          // Keyed on the day so a half-typed line does not follow the person
+          // to a different day.
+          <CostEntryForm key={day} day={day} primary onSaved={refresh} />
+        )}
       </div>
 
-      {dayQuery.error ? (
-        <Alert tone="danger" title="The day would not load">
-          {getApiErrorMessage(dayQuery.error)}
-        </Alert>
-      ) : null}
+      {/* What the day has come to: the figure somebody counts the cash in
+          their pocket against, then the note and the close. */}
+      <aside aria-label="The day so far" className="min-w-0">
+        <SectionHeading maxWidth={DAY_WIDTH} className="lg:mt-0">
+          In hand
+        </SectionHeading>
+        {totals ? (
+          <>
+            <p className="mb-2 font-mono text-[28px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-[var(--text-strong)]">
+              {formatMoney(totals.balance)}
+            </p>
+            <FactList
+              align="end"
+              maxWidth={DAY_WIDTH}
+              labelWidth={120}
+              items={[
+                { label: "Received", value: formatMoney(totals.received), mono: true },
+                { label: "Spent", value: formatMoney(totals.spent), mono: true },
+              ]}
+            />
+          </>
+        ) : (
+          <Skeleton height={120} />
+        )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,42rem)_minmax(16rem,22rem)]">
-        <div>
-          {closed ? (
-            <Alert tone="info" title="This day is closed">
-              Its report has gone to management, so nothing more can be added to it.
-            </Alert>
-          ) : (
-            // Keyed on the day so a half-typed line does not follow the person
-            // to a different day.
-            <CostEntryForm key={day} day={day} primary onSaved={refresh} />
-          )}
-        </div>
-
-        <aside aria-label="Closing the day" className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="cost-tracker-note">Anything worth saying about the day</Label>
+        <div className="mt-6" style={{ maxWidth: DAY_WIDTH }}>
+          <FormField label="Note" htmlFor="cost-tracker-note">
             <Textarea
               // Remounted per day and per log, so the note shown is the one
               // for the day on screen rather than the last day typed on.
@@ -191,17 +211,23 @@ function TheDay() {
                 if (event.target.value !== (log?.notes ?? "")) saveNote.mutate(event.target.value);
               }}
             />
-          </div>
+          </FormField>
 
           {closed || !totals ? null : (
-            <>
+            <div className="space-y-3">
               {totals.missingReceipts > 0 ? (
-                <p className="text-sm text-[var(--text-muted)]">
-                  {totals.missingReceipts === 1
-                    ? "One expense has no receipt photo. Management will see that."
-                    : `${totals.missingReceipts} expenses have no receipt photo. Management will see that.`}
-                </p>
+                <StatusDot
+                  tone="warn"
+                  label={
+                    totals.missingReceipts === 1
+                      ? "1 expense without a receipt"
+                      : `${totals.missingReceipts} expenses without a receipt`
+                  }
+                />
               ) : null}
+              {/* An empty day can still be closed, with a note saying why
+                  nothing moved — the server's rule, so the button is only
+                  offered once it would work (rule 9). */}
               {closable && log ? (
                 <Button
                   variant="secondary"
@@ -209,17 +235,13 @@ function TheDay() {
                   disabled={close.isPending}
                   onClick={() => close.mutate(log.id)}
                 >
-                  {close.isPending ? "Closing…" : "Close the day and send my report"}
+                  {close.isPending ? "Closing…" : "Close the day"}
                 </Button>
-              ) : (
-                <p className="text-sm text-[var(--text-muted)]">
-                  To close the day, add a line — or a note saying why no money moved.
-                </p>
-              )}
-            </>
+              ) : null}
+            </div>
           )}
-        </aside>
-      </div>
+        </div>
+      </aside>
     </section>
   );
 }
@@ -413,13 +435,10 @@ function Register() {
   const filtered = filterCount > 0;
 
   const empty = urlSearch
-    ? { title: "No lines match that search", body: "Nothing described that way in this range." }
+    ? "No lines match that search."
     : filtered
-      ? { title: "No lines match these filters", body: "Widen the dates, or take a filter off." }
-      : {
-          title: "No money logged yet",
-          body: "Add what you receive and spend above, as you go — each with a photo of its receipt.",
-        };
+      ? "No lines match these filters."
+      : "No money logged yet.";
 
   return (
     <RecordListShell
@@ -482,9 +501,10 @@ function Register() {
       <CostEntryTable
         entries={rows}
         isLoading={listQuery.isLoading}
+        layout="register"
+        label="Cost tracker"
         showPerson={showPerson}
-        emptyTitle={empty.title}
-        emptyBody={empty.body}
+        empty={empty}
         emptyAction={
           filtered || urlSearch ? (
             <Button

@@ -83,7 +83,9 @@ export function FieldCameraPanel() {
 
   return (
     <div className="min-w-0 max-w-2xl space-y-3">
-      <SetupPanel title="Camera app" hint="named on every site visit">
+      {/* Rule 1: the placeholders are the defaults, so an empty box needs no
+          sentence under it saying what it falls back to. */}
+      <SetupPanel title="Camera app">
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -96,7 +98,6 @@ export function FieldCameraPanel() {
             value={appName}
             onChange={(event) => edit({ appName: event.target.value })}
             placeholder={DEFAULT_FIELD_CAMERA_APP}
-            hint={`Leave blank for ${DEFAULT_FIELD_CAMERA_APP}.`}
             maxLength={80}
             disabled={!canEdit || save.isPending}
           />
@@ -107,7 +108,6 @@ export function FieldCameraPanel() {
             value={appUrl}
             onChange={(event) => edit({ appUrl: event.target.value })}
             placeholder={fieldCameraSearchUrl(appName.trim() || DEFAULT_FIELD_CAMERA_APP)}
-            hint="The app's store page. Leave blank and reps get a store search for the name."
             error={urlError}
             maxLength={500}
             disabled={!canEdit || save.isPending}

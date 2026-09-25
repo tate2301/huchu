@@ -21,7 +21,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, Button, Skeleton, Stack } from "@corelithzw/react";
+import { Alert, Button, Skeleton } from "@corelithzw/react";
+import { FactList, SectionAction, SectionHeading } from "@/components/management/ui";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -40,7 +41,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { StepProgress } from "@/components/ui/step-progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { EntityLink } from "@/components/records/entity-link";
@@ -54,18 +54,21 @@ import {
   Coins,
   FileText,
   Payments,
+  Plus,
   Receipt,
   Tag,
   User,
   Wallet,
   Work,
 } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 
 import { CostEntryForm } from "./cost-entry-form";
 import { CostEntryTable } from "./cost-entry-table";
 import {
   CATEGORY_LABELS,
   REQUISITION_STATUS_LABELS,
+  formatDate,
   formatMoney,
   payable,
   type Category,
@@ -128,10 +131,11 @@ const CURRENT_STEP: Partial<Record<RequisitionStatus, number>> = {
 };
 
 function readableDay(value: string | null): string | null {
-  return value
-    ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
-    : null;
+  return value ? formatDate(value) : null;
 }
+
+/** The section's measure, and the line its verb sits on. */
+const SECTION_WIDTH = 760;
 
 /** Spend only: a RECEIVED line is the float arriving, not something it bought. */
 function accountedFor(entries: CostEntryRow[]): number {
@@ -168,6 +172,7 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
   const { toast } = useToast();
   const [tab, setTab] = useState("report");
   const [dialog, setDialog] = useState<Exclude<Move, null> | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const queryKey = ["crm", "requisition", requisitionId];
   const query = useQuery({
@@ -244,9 +249,6 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
     (permissions.isRequester && (requisition.status === "DRAFT" || requisition.status === "SUBMITTED")) ||
     (permissions.mayApprove && (requisition.status === "SUBMITTED" || requisition.status === "APPROVED"));
 
-  const wasCut =
-    requisition.approvedAmount !== null && requisition.approvedAmount !== requisition.amount;
-
   const attributes: RecordAttribute[] = [
     {
       id: "requester",
@@ -281,21 +283,26 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
       ? [
           {
             id: "approved-amount",
-            label: wasCut ? "Approved, cut to" : "Approved",
+            label: "Approved for",
             icon: Coins,
             tone: "money" as const,
             value: formatMoney(requisition.approvedAmount, requisition.currency),
           },
         ]
       : []),
-    {
-      id: "needed",
-      label: "Needed by",
-      icon: Calendar,
-      tone: "code",
-      value: readableDay(requisition.neededBy),
-      placeholder: "No date",
-    },
+    // Nothing here is edited in place, so an empty row would be a blank to
+    // read past rather than a field to fill.
+    ...(requisition.neededBy
+      ? [
+          {
+            id: "needed",
+            label: "Needed by",
+            icon: Calendar,
+            tone: "code" as const,
+            value: readableDay(requisition.neededBy),
+          },
+        ]
+      : []),
     ...(requisition.approvedBy
       ? [
           {
@@ -345,22 +352,12 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
         backLabel="Requisitions"
         title={requisition.purpose}
         reference={requisition.requisitionNo}
-        status={{
-          status: REQUISITION_STATUS[requisition.status] ?? "inactive",
-          label: REQUISITION_STATUS_LABELS[requisition.status],
-        }}
-        subtitle={
-          <>
-            {requisition.requestedBy?.name ?? "Somebody"}
-            {" · "}
-            {requisition.project ? (
-              <EntityLink href={`/crm/projects/${requisition.project.id}`} muted>
-                {requisition.project.name}
-              </EntityLink>
-            ) : (
-              "not for a project"
-            )}
-          </>
+        // The steps say where it has got to; the band only carries the two
+        // states that leave the path (rule 5).
+        status={
+          requisition.status === "REJECTED" || requisition.status === "CANCELLED"
+            ? { status: REQUISITION_STATUS[requisition.status] ?? "inactive", label: REQUISITION_STATUS_LABELS[requisition.status] }
+            : null
         }
         bandValue={formatMoney(payable(requisition), requisition.currency)}
         primaryAction={
@@ -407,95 +404,131 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
             count: requisition.costEntries.length,
             attention: missingReceipts > 0,
             content: (
-              <Stack gap="lg">
+              <>
                 {requisition.status === "REJECTED" || requisition.status === "CANCELLED" ? (
-                  <Alert tone={requisition.status === "REJECTED" ? "warn" : "info"} title={REQUISITION_STATUS_LABELS[requisition.status]}>
-                    {requisition.decisionNote ?? "Nothing more will happen on this one."}
-                  </Alert>
+                  requisition.decisionNote ? (
+                    <Alert
+                      tone={requisition.status === "REJECTED" ? "warn" : "info"}
+                      title={REQUISITION_STATUS_LABELS[requisition.status]}
+                      className="mb-6"
+                    >
+                      {requisition.decisionNote}
+                    </Alert>
+                  ) : null
                 ) : (
-                  <StepProgress
-                    ariaLabel="Where this requisition has got to"
-                    steps={STEPS}
-                    currentStepIndex={CURRENT_STEP[requisition.status] ?? 0}
-                  />
+                  <RequisitionSteps current={CURRENT_STEP[requisition.status] ?? 0} />
                 )}
 
-                {/* Only once there is money to account for. Before approval there
-                    is nothing issued, and "to return: 400" on a request nobody
-                    has said yes to is a figure that is simply untrue. */}
+                {/* Only once there is money to account for. Before approval
+                    there is nothing issued, and "to return: 400" on a request
+                    nobody has said yes to is a figure that is simply untrue. */}
                 {moneyOut || requisition.status === "APPROVED" ? (
-                  <dl className="grid grid-cols-3 gap-3">
-                    <Figure
-                      label={moneyOut ? "Issued" : "Approved"}
-                      value={formatMoney(issued, requisition.currency)}
+                  <section aria-labelledby="requisition-money">
+                    <SectionHeading maxWidth={SECTION_WIDTH}>
+                      <span id="requisition-money">Money</span>
+                    </SectionHeading>
+                    <FactList
+                      align="end"
+                      maxWidth={SECTION_WIDTH}
+                      labelWidth={200}
+                      items={[
+                        {
+                          label: moneyOut ? "Issued" : "Approved",
+                          value: formatMoney(issued, requisition.currency),
+                          mono: true,
+                        },
+                        {
+                          label: "Accounted for",
+                          value: formatMoney(accounted, requisition.currency),
+                          mono: true,
+                        },
+                        ...(moneyOut
+                          ? [
+                              {
+                                label: issued - accounted < 0 ? "Owed to them" : "To return",
+                                value: formatMoney(Math.abs(issued - accounted), requisition.currency),
+                                mono: true,
+                              },
+                            ]
+                          : []),
+                      ]}
                     />
-                    <Figure label="Accounted for" value={formatMoney(accounted, requisition.currency)} />
-                    {moneyOut ? (
-                      <Figure
-                        label={issued - accounted < 0 ? "Owed to them" : "To return"}
-                        value={formatMoney(Math.abs(issued - accounted), requisition.currency)}
-                        strong
-                      />
-                    ) : null}
-                  </dl>
+                  </section>
                 ) : null}
 
                 {requisition.receiptWaiverNote ? (
-                  <Alert tone="warn" title={`Accepted without every receipt by ${requisition.receiptsWaivedBy?.name ?? "a manager"}`}>
+                  <Alert
+                    tone="warn"
+                    title={`Accepted without every receipt by ${requisition.receiptsWaivedBy?.name ?? "a manager"}`}
+                    className="mt-6"
+                  >
                     {requisition.receiptWaiverNote}
                   </Alert>
                 ) : null}
 
-                <CostEntryTable
-                  entries={requisition.costEntries}
-                  // A requisition's lines are its project's unless one says
-                  // otherwise, so the column earns its place only when the
-                  // requisition itself was for no project.
-                  showProject={!requisition.project}
-                  showAgainst={false}
-                  showPerson={false}
-                  emptyTitle="Nothing reported yet"
-                  emptyBody={
-                    reportOpen
-                      ? "Add what you spend as you go, each with a photo of its receipt."
-                      : "Spend reported against this requisition lands here, with its receipts."
-                  }
-                  onRemove={canRemoveLines ? (entry) => removeLine.mutate(entry.id) : undefined}
-                />
+                <section aria-labelledby="requisition-spend">
+                  <SectionHeading
+                    count={requisition.costEntries.length}
+                    maxWidth={SECTION_WIDTH}
+                    action={
+                      reportOpen && !adding ? (
+                        <SectionAction icon={Plus} onClick={() => setAdding(true)}>
+                          Add spend
+                        </SectionAction>
+                      ) : undefined
+                    }
+                  >
+                    <span id="requisition-spend">Spend</span>
+                  </SectionHeading>
 
-                {reportOpen ? (
-                  <section aria-labelledby="report-add" className="space-y-2 border-t border-[var(--border-subtle)] pt-4">
-                    <h2 id="report-add" className="text-base font-semibold text-[var(--text-strong)]">
-                      Add what you spent
-                    </h2>
-                    {requisition.status === "APPROVED" ? (
-                      <p className="text-sm text-[var(--text-muted)]">
-                        If you were handed the cash already, add what you spend as you go. It can
-                        be accounted for once it is marked paid.
-                      </p>
-                    ) : null}
-                    <CostEntryForm
-                      fixed={{
-                        direction: "SPENT",
-                        currency: requisition.currency,
-                        projectId: requisition.project?.id ?? null,
-                        requisitionId: requisition.id,
-                      }}
-                      defaultCategory={requisition.category}
-                      onSaved={refresh}
-                    />
-                  </section>
-                ) : null}
+                  {adding && reportOpen ? (
+                    <div className="mb-6 border-b border-[var(--border-subtle)] pb-6" style={{ maxWidth: 560 }}>
+                      <CostEntryForm
+                        fixed={{
+                          direction: "SPENT",
+                          currency: requisition.currency,
+                          projectId: requisition.project?.id ?? null,
+                          requisitionId: requisition.id,
+                        }}
+                        defaultCategory={requisition.category}
+                        submitLabel="Add spend"
+                        onSaved={() => {
+                          setAdding(false);
+                          refresh();
+                        }}
+                      />
+                      <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAdding(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  <CostEntryTable
+                    label="Spend"
+                    entries={requisition.costEntries}
+                    // A requisition's lines are its project's unless one says
+                    // otherwise, so the project earns its place only when the
+                    // requisition itself was for no project.
+                    showProject={!requisition.project}
+                    showAgainst={false}
+                    showPerson={false}
+                    empty="Nothing reported yet."
+                    maxWidth={SECTION_WIDTH}
+                    onRemove={canRemoveLines ? (entry) => removeLine.mutate(entry.id) : undefined}
+                  />
+                </section>
 
                 {requisition.notes ? (
-                  <section aria-labelledby="report-notes" className="space-y-1">
-                    <h2 id="report-notes" className="acct-rail-heading text-[var(--text-muted)]">
-                      Notes from {requisition.requestedBy?.name ?? "the requester"}
-                    </h2>
-                    <p className="whitespace-pre-line text-sm">{requisition.notes}</p>
+                  <section aria-labelledby="requisition-notes">
+                    <SectionHeading maxWidth={SECTION_WIDTH}>
+                      <span id="requisition-notes">Notes</span>
+                    </SectionHeading>
+                    <p className="whitespace-pre-line text-sm text-[var(--text-strong)]" style={{ maxWidth: SECTION_WIDTH }}>
+                      {requisition.notes}
+                    </p>
                   </section>
                 ) : null}
-              </Stack>
+              </>
             ),
           },
         ]}
@@ -534,20 +567,47 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
   );
 }
 
-function Figure({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+/**
+ * The four steps, all named, with the one it is waiting on marked.
+ *
+ * Every step is written out rather than only the current one: "Paid out" on
+ * its own does not say what comes after it, and the step after is the thing
+ * the requester is being asked to do. Done steps carry the healthy dot, the
+ * step being waited on the amber one — it is somebody's move — and the rest
+ * the grey.
+ */
+function RequisitionSteps({ current }: { current: number }) {
   return (
-    <div>
-      <dt className="text-sm text-[var(--text-muted)]">{label}</dt>
-      <dd
-        className={
-          strong
-            ? "font-mono text-base font-semibold tabular-nums text-[var(--text-strong)]"
-            : "font-mono text-base tabular-nums text-[var(--text-strong)]"
-        }
-      >
-        {value}
-      </dd>
-    </div>
+    <ol aria-label="Where this requisition has got to" className="flex flex-wrap items-center gap-x-6 gap-y-2">
+      {STEPS.map((step, index) => {
+        const state = index < current ? "done" : index === current ? "current" : "next";
+        return (
+          <li
+            key={step.id}
+            aria-current={state === "current" ? "step" : undefined}
+            className={cn(
+              "inline-flex items-center gap-2 text-sm",
+              state === "next" ? "text-[var(--text-muted)]" : "text-[var(--text-strong)]",
+              state === "current" && "font-medium",
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-1.5 rounded-full",
+                state === "done"
+                  ? "bg-[var(--tone-success)]"
+                  : state === "current"
+                    ? "bg-[var(--tone-warn)]"
+                    : "bg-[var(--border-strong)]",
+              )}
+            />
+            {step.label}
+            {state === "done" ? <span className="sr-only">(done)</span> : null}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

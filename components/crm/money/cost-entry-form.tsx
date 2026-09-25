@@ -3,9 +3,9 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+import { FormField } from "@/components/management/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
@@ -71,7 +71,7 @@ export function CostEntryForm({
   fixed = {},
   day: chosenDay,
   defaultCategory = "MATERIALS",
-  submitLabel = "Add the line",
+  submitLabel = "Add line",
   primary = false,
   onSaved,
 }: {
@@ -205,11 +205,9 @@ export function CostEntryForm({
   });
 
   const ready = Number(amount) > 0 && description.trim().length > 0;
-  const spending = direction === "SPENT";
 
   return (
     <form
-      className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
         if (ready) save.mutate();
@@ -222,12 +220,15 @@ export function CostEntryForm({
           onValueChange={setDirection}
           options={DIRECTIONS}
           variant="border"
+          className="mb-5"
         />
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor={`${id}-amount`}>How much</Label>
+      {/* Rule 1: a label over a control and nothing else. The labels are the
+          nouns on the receipt — amount, category, description — and the
+          control says the rest. */}
+      <div className="grid gap-x-4 sm:grid-cols-2">
+        <FormField label={`Amount, ${currency}`} htmlFor={`${id}-amount`}>
           <Input
             id={`${id}-amount`}
             type="number"
@@ -238,9 +239,8 @@ export function CostEntryForm({
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${id}-category`}>{spending ? "On what" : "What for"}</Label>
+        </FormField>
+        <FormField label="Category" htmlFor={`${id}-category`}>
           <Select value={category} onValueChange={(next) => setCategory(next as Category)}>
             <SelectTrigger id={`${id}-category`}>
               <SelectValue />
@@ -253,24 +253,19 @@ export function CostEntryForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FormField>
       </div>
 
-      <div className={chosenDay ? "space-y-1.5" : "grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]"}>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${id}-description`}>What it was</Label>
+      <div className={chosenDay ? undefined : "grid gap-x-4 sm:grid-cols-[minmax(0,1fr)_10rem]"}>
+        <FormField label="Description" htmlFor={`${id}-description`}>
           <Input
             id={`${id}-description`}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder={
-              spending ? "20 bags of screed, Builders Warehouse" : "Deposit from Mrs Moyo, cash"
-            }
           />
-        </div>
+        </FormField>
         {chosenDay ? null : (
-          <div className="space-y-1.5">
-            <Label htmlFor={`${id}-day`}>Which day</Label>
+          <FormField label="Day" htmlFor={`${id}-day`}>
             <Input
               id={`${id}-day`}
               type="date"
@@ -279,15 +274,14 @@ export function CostEntryForm({
               value={ownDay}
               onChange={(event) => setOwnDay(event.target.value)}
             />
-          </div>
+          </FormField>
         )}
       </div>
 
       {asksRequisition || asksInvoice || fixed.projectId === undefined ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           {asksRequisition ? (
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-requisition`}>Out of which requisition</Label>
+            <FormField label="Paid from" htmlFor={`${id}-requisition`}>
               <Select value={requisitionId} onValueChange={pickRequisition}>
                 <SelectTrigger id={`${id}-requisition`}>
                   <SelectValue />
@@ -301,18 +295,17 @@ export function CostEntryForm({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
           ) : null}
 
           {asksInvoice ? (
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-invoice`}>Paying which invoice</Label>
+            <FormField label="Invoice" htmlFor={`${id}-invoice`}>
               <Select value={invoiceId} onValueChange={setInvoiceId}>
                 <SelectTrigger id={`${id}-invoice`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE}>Not for an invoice</SelectItem>
+                  <SelectItem value={NONE}>No invoice</SelectItem>
                   {(invoices.data?.data ?? []).map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       {[
@@ -328,18 +321,17 @@ export function CostEntryForm({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
           ) : null}
 
           {fixed.projectId !== undefined ? null : asksProject ? (
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-project`}>Which project</Label>
+            <FormField label="Project" htmlFor={`${id}-project`}>
               <Select value={projectId} onValueChange={setProjectId}>
                 <SelectTrigger id={`${id}-project`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE}>Not for a project</SelectItem>
+                  <SelectItem value={NONE}>No project</SelectItem>
                   {(projects.data?.data ?? []).map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       {option.name}
@@ -347,27 +339,25 @@ export function CostEntryForm({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
           ) : (
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium text-[var(--text-strong)]">Which project</p>
-              <p className="text-sm text-[var(--text-muted)]">
-                {pickedRequisition?.project
-                  ? `${pickedRequisition.project.name}, the project the money was asked for`
-                  : "None — the requisition was not for a project"}
-              </p>
-            </div>
+            // The requisition decides the project, so it is said rather than
+            // asked — a control that cannot change anything is not offered.
+            <FormField label="Project" htmlFor={`${id}-project-fixed`}>
+              <output id={`${id}-project-fixed`} className="flex min-h-9 items-center text-sm text-[var(--text-strong)]">
+                {pickedRequisition?.project?.name ?? "No project"}
+              </output>
+            </FormField>
           )}
         </div>
       ) : null}
 
-      <div className="space-y-1.5">
-        <Label>Receipt</Label>
-        <ReceiptField value={receipt} onChange={setReceipt} />
-      </div>
+      <FormField label="Receipt" htmlFor={`${id}-receipt`}>
+        <ReceiptField id={`${id}-receipt`} value={receipt} onChange={setReceipt} />
+      </FormField>
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--status-error-text)]">
+        <p role="alert" className="mb-4 text-sm text-[var(--status-error-text)]">
           {error}
         </p>
       ) : null}

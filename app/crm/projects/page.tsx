@@ -13,7 +13,7 @@ export default async function CrmProjectsPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage title="Projects" description="what won deals turn into, and what they have cost">
+    <CrmPage title="Projects">
       <ProjectsContent />
     </CrmPage>
   );

@@ -19,18 +19,27 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { Alert, Button, Skeleton, Stack } from "@corelithzw/react";
+import { Alert, Button, Skeleton } from "@corelithzw/react";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  SectionAction,
+  SectionHeading,
+  StatusDot,
+} from "@/components/management/ui";
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
-import { StatusChip } from "@/components/ui/status-chip";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { FilesTab } from "@/components/crm/records/files-tab";
 import { FieldHistoryTab } from "@/components/crm/records/field-history-tab";
+import { jobHref } from "@/components/crm/work-orders/job-types";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { PROJECT_STATUS_LABELS, type ProjectStatus } from "@/lib/crm/project-status";
-import { PROJECT_STATUS } from "@/lib/crm/tones";
+import { JOB_TONE, PROJECT_STATUS, PROJECT_TONE, REQUISITION_TONE } from "@/lib/crm/tones";
+import { WORK_ORDER_STATUS_LABELS } from "@/lib/crm/work-orders";
 import {
   Building2,
   Calendar,
@@ -41,6 +50,7 @@ import {
   History,
   MapPin,
   Payments,
+  Plus,
   Receipt,
   Tag,
   User,
@@ -51,12 +61,24 @@ import {
 
 import { CostEntryForm } from "./cost-entry-form";
 import { CostEntryTable } from "./cost-entry-table";
-import { formatMoney, type CostEntryRow, type RequisitionRow } from "./money";
+import {
+  REQUISITION_STATUS_LABELS,
+  formatDate,
+  formatMoney,
+  payable,
+  type CostEntryRow,
+  type RequisitionRow,
+} from "./money";
 import { ProjectCostStrip, type ProjectCosts } from "./project-cost-strip";
 import { ProjectTeam, type ProjectMember } from "./project-team";
 import { ProjectTimelineView, type ProjectTimelineJob } from "./project-timeline-view";
 import { RaiseRequisitionSheet } from "./raise-requisition-sheet";
-import { RequisitionTable } from "./requisition-table";
+
+/**
+ * The measure a section's heading and its list share inside the record pane:
+ * the list's right edge is where the section's verb sits.
+ */
+const SECTION_WIDTH = 760;
 
 type ProjectDetail = {
   project: {
@@ -96,14 +118,7 @@ function day(value: string | null): string | null {
 }
 
 function readableDay(value: string | null): string | null {
-  return value
-    ? new Date(value).toLocaleDateString(undefined, {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      })
-    : null;
+  return value ? formatDate(value.slice(0, 10)) : null;
 }
 
 export function ProjectDetailContent({ projectId }: { projectId: string }) {
@@ -142,7 +157,12 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
       siteId: project?.site?.id ?? null,
       project: project ? { id: project.id, label: `${project.projectNo} — ${project.name}` } : null,
     },
-    onRaised: () => setTab("jobs"),
+    // The project's own list of jobs is read from the project, so a job
+    // raised here refreshes it as well as the section's count.
+    onRaised: () => {
+      setTab("jobs");
+      void query.refetch();
+    },
   });
 
   if (query.isLoading) {
@@ -181,10 +201,7 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
       // Only the moves the server will accept are offered: a cancelled project
       // shows its status and no way to change it.
       display: (
-        <StatusChip
-          status={PROJECT_STATUS[project.status] ?? "inactive"}
-          label={PROJECT_STATUS_LABELS[project.status]}
-        />
+        <StatusDot tone={PROJECT_TONE[project.status] ?? "neutral"} label={PROJECT_STATUS_LABELS[project.status]} />
       ),
       ...(canEdit && project.allowedTransitions.length > 0
         ? edit.choice("status", project.status, statusOptions)
@@ -330,28 +347,13 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
         title={project.name}
         onTitleCommit={canEdit ? edit.required("name", project.name).onCommit : undefined}
         reference={project.projectNo}
-        status={{
-          status: PROJECT_STATUS[project.status] ?? "inactive",
-          label: PROJECT_STATUS_LABELS[project.status],
-        }}
-        subtitle={
-          project.client || project.site ? (
-            <>
-              {project.client ? (
-                <EntityLink href={`/crm/companies/${project.client.id}`} muted>
-                  {project.client.name}
-                </EntityLink>
-              ) : null}
-              {project.client && project.site ? " · " : null}
-              {project.site ? (
-                <EntityLink href={`/crm/sites/${project.site.id}`} muted>
-                  {project.site.name}
-                </EntityLink>
-              ) : null}
-            </>
-          ) : (
-            "Not attached to a customer"
-          )
+        // Rule 5: the band carries a state only when it is the exception —
+        // a project parked or called off. Planning and under way are what a
+        // project is, and the Status property already says which.
+        status={
+          project.status === "ON_HOLD" || project.status === "CANCELLED"
+            ? { status: PROJECT_STATUS[project.status] ?? "inactive", label: PROJECT_STATUS_LABELS[project.status] }
+            : null
         }
         bandValue={
           costs.budget === null
@@ -387,76 +389,118 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
             label: "Overview",
             icon: Dashboard,
             content: (
-              <Stack gap="lg">
-                <section aria-labelledby="project-money" className="space-y-2">
-                  <h2 id="project-money" className="acct-rail-heading text-[var(--text-muted)]">
-                    What it has cost
-                  </h2>
-                  <ProjectCostStrip costs={costs} />
+              <>
+                <section aria-labelledby="project-costs">
+                  <SectionHeading maxWidth={SECTION_WIDTH} className="mt-0">
+                    <span id="project-costs">Costs</span>
+                  </SectionHeading>
+                  <ProjectCostStrip costs={costs} maxWidth={SECTION_WIDTH} />
                 </section>
-                <section aria-labelledby="project-timeline" className="space-y-2">
-                  <h2 id="project-timeline" className="acct-rail-heading text-[var(--text-muted)]">
-                    The work, by date
-                  </h2>
+                <section aria-labelledby="project-schedule">
+                  <SectionHeading maxWidth={SECTION_WIDTH}>
+                    <span id="project-schedule">Schedule</span>
+                  </SectionHeading>
                   <ProjectTimelineView
                     startDate={project.startDate}
                     targetEndDate={project.targetEndDate}
                     jobs={detail.jobs}
+                    maxWidth={SECTION_WIDTH}
                   />
                 </section>
-              </Stack>
+              </>
             ),
           },
-          jobs.tab,
+          {
+            // The hook's count, attention and sheet; the list drawn from the
+            // project's own jobs. "Raise a job" is the page's one verb in the
+            // bar, so the section does not draw it a second time (rule 2).
+            ...jobs.tab,
+            titled: true,
+            content: <ProjectJobs jobs={detail.jobs} />,
+          },
           {
             value: "requisitions",
             label: "Requisitions",
             icon: Wallet,
             count: requisitions.length,
             attention: openRequisitions > 0,
+            titled: true,
             content: (
-              <div className="space-y-3">
-                <RequisitionTable
-                  rows={requisitions}
-                  showProject={false}
-                  emptyTitle="Nobody has asked for money for this"
-                  emptyBody="Requisitions raised against this project land here, with where each one has got to."
+              <section aria-labelledby="project-requisitions">
+                <SectionHeading
+                  count={requisitions.length}
+                  maxWidth={SECTION_WIDTH}
+                  className="mt-0"
+                  action={
+                    <SectionAction icon={Plus} onClick={() => setAsking(true)}>
+                      Ask for money
+                    </SectionAction>
+                  }
+                >
+                  <span id="project-requisitions">Requisitions</span>
+                </SectionHeading>
+                <ColumnList
+                  label="Requisitions"
+                  maxWidth={SECTION_WIDTH}
+                  empty="Nobody has asked for money for it."
+                  columns={[
+                    { id: "requisition", label: "Requisition" },
+                    { id: "status", label: "Status", hideBelow: "sm" },
+                    { id: "amount", label: "Amount", align: "end" },
+                  ]}
+                  rows={requisitions.map((requisition) => ({
+                    id: requisition.id,
+                    cells: {
+                      requisition: (
+                        <ColumnName
+                          code={requisition.requisitionNo}
+                          name={requisition.purpose}
+                          meta={requisition.requestedBy?.name ?? "Unknown"}
+                          href={`/crm/requisitions/${requisition.id}`}
+                        />
+                      ),
+                      status: (
+                        <StatusDot
+                          tone={REQUISITION_TONE[requisition.status] ?? "neutral"}
+                          label={REQUISITION_STATUS_LABELS[requisition.status]}
+                        />
+                      ),
+                      amount: <ColumnFigure>{formatMoney(payable(requisition), requisition.currency)}</ColumnFigure>,
+                    },
+                  }))}
                 />
-                <Button variant="secondary" size="sm" onClick={() => setAsking(true)}>
-                  Ask for money for this project
-                </Button>
-              </div>
+              </section>
             ),
           },
           {
             value: "spend",
-            label: "Spend & receipts",
+            label: "Spend",
             icon: Receipt,
             count: entries.length,
             attention: entries.some((entry) => entry.direction === "SPENT" && !entry.receiptUrl),
+            titled: true,
             content: (
-              <div className="space-y-3">
-                <CostEntryTable
-                  entries={entries}
-                  showProject={false}
-                  emptyTitle="Nothing spent on it yet"
-                  emptyBody="Spend logged against this project lands here, with its receipt."
-                />
-                {/* Revealed on demand rather than standing open under the
-                    table: most people come here to read the spend, and a form
-                    they did not ask for pushes it off a phone's screen. */}
+              <section aria-labelledby="project-spend">
+                <SectionHeading
+                  count={entries.length}
+                  maxWidth={SECTION_WIDTH}
+                  className="mt-0"
+                  action={
+                    addingSpend ? undefined : (
+                      <SectionAction icon={Plus} onClick={() => setAddingSpend(true)}>
+                        Add spend
+                      </SectionAction>
+                    )
+                  }
+                >
+                  <span id="project-spend">Spend</span>
+                </SectionHeading>
+                {/* Opened from the heading rather than standing open over the
+                    list: most people come here to read the spend. Spend out
+                    of a requisition is reported on the requisition, so this
+                    is money the person put in themselves. */}
                 {addingSpend ? (
-                  <section
-                    aria-labelledby="project-add-spend"
-                    className="space-y-2 border-t border-[var(--border-subtle)] pt-4"
-                  >
-                    <h2 id="project-add-spend" className="text-base font-semibold text-[var(--text-strong)]">
-                      Add spend
-                    </h2>
-                    <p className="text-sm text-[var(--text-muted)]">
-                      Money you spent on this project yourself. Spend from a requisition is
-                      reported on the requisition.
-                    </p>
+                  <div className="mb-6 border-b border-[var(--border-subtle)] pb-6" style={{ maxWidth: 560 }}>
                     <CostEntryForm
                       fixed={{
                         direction: "SPENT",
@@ -464,18 +508,25 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
                         projectId: project.id,
                         requisitionId: null,
                       }}
+                      submitLabel="Add spend"
                       onSaved={() => {
                         setAddingSpend(false);
                         void query.refetch();
                       }}
                     />
-                  </section>
-                ) : (
-                  <Button variant="secondary" size="sm" onClick={() => setAddingSpend(true)}>
-                    Add spend
-                  </Button>
-                )}
-              </div>
+                    <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAddingSpend(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : null}
+                <CostEntryTable
+                  label="Spend"
+                  entries={entries}
+                  showProject={false}
+                  empty="Nothing spent on it yet."
+                  maxWidth={SECTION_WIDTH}
+                />
+              </section>
             ),
           },
           {
@@ -483,12 +534,14 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
             label: "Team",
             icon: Users,
             count: members.length + (project.manager ? 1 : 0),
+            titled: true,
             content: (
               <ProjectTeam
                 projectId={project.id}
                 owner={project.manager}
                 members={members}
                 canEdit={canEdit}
+                maxWidth={SECTION_WIDTH}
               />
             ),
           },
@@ -519,5 +572,48 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
         }}
       />
     </>
+  );
+}
+
+/** The project's jobs: the reference, the job, how far along, where it is. */
+function ProjectJobs({ jobs }: { jobs: ProjectTimelineJob[] }) {
+  return (
+    <section aria-labelledby="project-jobs">
+      <SectionHeading count={jobs.length} maxWidth={SECTION_WIDTH} className="mt-0">
+        <span id="project-jobs">Jobs</span>
+      </SectionHeading>
+      <ColumnList
+        label="Jobs"
+        maxWidth={SECTION_WIDTH}
+        empty="No jobs raised yet."
+        columns={[
+          { id: "job", label: "Job" },
+          { id: "done", label: "Done", align: "end", hideBelow: "sm" },
+          { id: "status", label: "Status" },
+        ]}
+        rows={jobs.map((job) => ({
+          id: job.id,
+          cells: {
+            job: (
+              <ColumnName
+                code={job.workOrderNo}
+                name={job.title}
+                meta={[
+                  job.scheduledStart ? formatDate(job.scheduledStart) : "Not booked",
+                  job.assignedTo?.name,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                href={jobHref(job.id)}
+              />
+            ),
+            done: <ColumnFigure tone="muted">{job.completionPercent}%</ColumnFigure>,
+            status: (
+              <StatusDot tone={JOB_TONE[job.status] ?? "neutral"} label={WORK_ORDER_STATUS_LABELS[job.status]} />
+            ),
+          },
+        }))}
+      />
+    </section>
   );
 }

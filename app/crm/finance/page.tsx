@@ -17,7 +17,7 @@ export default async function CrmFinancePage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage title="Finance" description="money in and out, and where it stands">
+    <CrmPage title="Finance">
       <FinanceContent />
     </CrmPage>
   );

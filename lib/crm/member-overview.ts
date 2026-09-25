@@ -56,6 +56,8 @@ export type OutstandingKind =
 export type OutstandingItem = {
   kind: OutstandingKind;
   id: string;
+  /** The item's own reference, where it has one — a requisition's number. */
+  reference: string | null;
   title: string;
   href: string;
   flagged: boolean;
@@ -224,6 +226,7 @@ export async function memberOutstanding(tx: Tx, scope: MemberScope): Promise<Out
     items.push({
       kind: "task",
       id: task.id,
+      reference: null,
       title: task.title,
       href: taskHref(task),
       flagged: true,
@@ -237,6 +240,7 @@ export async function memberOutstanding(tx: Tx, scope: MemberScope): Promise<Out
     items.push({
       kind: "follow-up",
       id: followUp.id,
+      reference: null,
       title: followUp.title,
       href: taskHref(followUp),
       flagged: true,
@@ -251,7 +255,8 @@ export async function memberOutstanding(tx: Tx, scope: MemberScope): Promise<Out
     items.push({
       kind: float ? "float" : "requisition",
       id: requisition.id,
-      title: `${requisition.requisitionNo} · ${requisition.purpose}`,
+      reference: requisition.requisitionNo,
+      title: requisition.purpose,
       href: `/crm/requisitions/${requisition.id}`,
       // Waiting for an answer, or for the cash, is waiting on somebody else.
       // A float out for more than a week is waiting on them.
@@ -268,6 +273,7 @@ export async function memberOutstanding(tx: Tx, scope: MemberScope): Promise<Out
     items.push({
       kind: "no-receipt",
       id: "no-receipt",
+      reference: null,
       title: "Spend without a receipt photo",
       href: `/crm/cost-tracker?person=${userId}&flag=no-receipt&${range}`,
       flagged: true,
@@ -307,6 +313,7 @@ export async function memberOutstanding(tx: Tx, scope: MemberScope): Promise<Out
       items.push({
         kind: "not-receipted",
         id: `not-receipted-${currency}`,
+        reference: null,
         title: "Cash collected and not receipted",
         href: `/crm/cost-tracker?person=${userId}&flag=not-receipted`,
         flagged: true,
@@ -322,6 +329,7 @@ export async function memberOutstanding(tx: Tx, scope: MemberScope): Promise<Out
     items.push({
       kind: "report",
       id: day.id,
+      reference: null,
       title: "Day not closed",
       href: `/crm/cost-tracker?person=${userId}&from=${dayKey(day.logDate)}&to=${dayKey(day.logDate)}`,
       flagged: true,

@@ -14,24 +14,21 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button } from "@corelithzw/react";
-import { EntityLink } from "@/components/records/entity-link";
-import { RecordList, RecordListPager, type RecordListRow } from "@/components/records/record-list";
+import { Button, Skeleton } from "@corelithzw/react";
 import {
-  RecordCell,
-  RecordTable,
-  RecordTableName,
-  type RecordTableColumn,
-} from "@/components/records/record-table";
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  StatusDot,
+} from "@/components/management/ui";
+import { RecordListPager } from "@/components/records/record-list";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { StatusChip } from "@/components/ui/status-chip";
 import { useDebounced } from "@/hooks/use-debounced";
 import { fetchJson } from "@/lib/api-client";
 import { fetchCrmCompanies } from "@/lib/crm/crm-v2";
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, type ProjectStatus } from "@/lib/crm/project-status";
-import { PROJECT_STATUS } from "@/lib/crm/tones";
-import { Building2, Coins, Tag, User, Work, Wrench } from "@/lib/icons";
+import { PROJECT_TONE } from "@/lib/crm/tones";
 
 import { formatMoney } from "./money";
 import type { ProjectCosts } from "./project-cost-strip";
@@ -64,6 +61,9 @@ const BUDGET_OPTIONS = new Map([
   ["within", "Within budget"],
 ]);
 
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 1080;
+
 /** What is left of the budget, or by how much it is over. Null when there is none. */
 function budgetLeft(costs: ProjectCosts): { text: string; over: boolean } | null {
   if (costs.budget === null || costs.remaining === null) return null;
@@ -71,15 +71,6 @@ function budgetLeft(costs: ProjectCosts): { text: string; over: boolean } | null
   return remaining < 0
     ? { text: `Over by ${formatMoney(Math.abs(remaining), costs.currency)}`, over: true }
     : { text: formatMoney(costs.remaining, costs.currency), over: false };
-}
-
-function statusChip(project: ProjectRow) {
-  return (
-    <StatusChip
-      status={PROJECT_STATUS[project.status] ?? "inactive"}
-      label={PROJECT_STATUS_LABELS[project.status]}
-    />
-  );
 }
 
 export function ProjectsContent() {
@@ -153,118 +144,7 @@ export function ProjectsContent() {
   const filterCount = [status, owner, client, budget].filter((value) => value !== FILTER_ANY).length;
   const narrowed = Boolean(debouncedSearch.trim()) || filterCount > 0;
 
-  const columns = useMemo<RecordTableColumn<ProjectRow>[]>(
-    () => [
-      {
-        id: "name",
-        label: "Project",
-        icon: Work,
-        cell: (project) => <RecordTableName title={project.name} subtitle={project.projectNo} />,
-      },
-      { id: "status", label: "Status", icon: Tag, width: "9rem", cell: statusChip },
-      {
-        id: "owner",
-        label: "Owner",
-        icon: User,
-        width: "10rem",
-        cell: (project) => (
-          <RecordCell
-            kind="relation"
-            value={project.manager?.name}
-            href={project.manager ? `/crm/reps/${project.manager.id}` : null}
-          />
-        ),
-      },
-      {
-        id: "customer",
-        label: "Customer",
-        icon: Building2,
-        width: "12rem",
-        cell: (project) =>
-          project.client ? (
-            <span className="block truncate">
-              <EntityLink href={`/crm/companies/${project.client.id}`}>{project.client.name}</EntityLink>
-            </span>
-          ) : (
-            <RecordCell value={null} />
-          ),
-      },
-      {
-        id: "jobs",
-        label: "Jobs",
-        icon: Wrench,
-        width: "5rem",
-        align: "end",
-        cell: (project) => <RecordCell kind="number" value={project._count.workOrders} />,
-      },
-      {
-        id: "spent",
-        label: "Spent",
-        icon: Coins,
-        width: "9rem",
-        align: "end",
-        cell: (project) => (
-          <RecordCell kind="money" value={formatMoney(project.costs.spent, project.costs.currency)} />
-        ),
-      },
-      {
-        id: "left",
-        label: "Budget left",
-        icon: Coins,
-        width: "10rem",
-        align: "end",
-        cell: (project) => {
-          const left = budgetLeft(project.costs);
-          if (!left) return <span className="text-[var(--text-subtle)]">No budget</span>;
-          return (
-            <RecordCell
-              kind="money"
-              value={left.text}
-              className={left.over ? "text-[var(--badge-bad-fg)]" : undefined}
-            />
-          );
-        },
-      },
-    ],
-    [],
-  );
-
-  const listRows = useMemo<RecordListRow[]>(
-    () =>
-      rows.map((project) => {
-        const left = budgetLeft(project.costs);
-        return {
-          id: project.id,
-          href: `/crm/projects/${project.id}`,
-          title: project.name,
-          subtitle: [project.projectNo, project.client?.name, project.manager?.name]
-            .filter(Boolean)
-            .join(" · "),
-          status: statusChip(project),
-          facts: [
-            { label: "Spent", value: formatMoney(project.costs.spent, project.costs.currency), kind: "money" },
-            { label: "Left", value: left?.text ?? "No budget", kind: left ? "money" : undefined },
-          ],
-        };
-      }),
-    [rows],
-  );
-
-  const empty = narrowed
-    ? {
-        title: "No projects match",
-        body: "Nothing fits those filters. Clear one and look again.",
-        action: undefined,
-      }
-    : {
-        title: "No projects yet",
-        body: "A project is what a won deal turns into — start one from the deal, or raise one here for work that never went through the pipeline.",
-        action: (
-          <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
-            New project
-          </Button>
-        ),
-      };
+  const empty = narrowed ? "No projects match." : "No projects yet.";
 
   const resetPage = <T,>(set: (value: T) => void) => (value: T) => {
     set(value);
@@ -316,24 +196,62 @@ export function ProjectsContent() {
         </>
       }
     >
-      <RecordTable
-        rows={rows}
-        columns={columns}
-        rowHref={(project) => `/crm/projects/${project.id}`}
-        isLoading={projectsQuery.isLoading}
-        emptyTitle={empty.title}
-        emptyBody={empty.body}
-        emptyAction={empty.action}
-        mobile={
-          <RecordList
-            rows={listRows}
-            isLoading={projectsQuery.isLoading}
-            emptyTitle={empty.title}
-            emptyBody={empty.body}
-            emptyAction={empty.action}
+      {projectsQuery.isLoading ? (
+        <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* The customer and owner ride under the name; the columns are the
+              ones scanned down — where it is, what it has cost, what is left.
+              A project's state is a dot and a word (rule 5). */}
+          <ColumnList
+            label="Projects"
+            maxWidth={WIDTH}
+            empty={empty}
+            columns={[
+              { id: "project", label: "Project" },
+              { id: "status", label: "Status", hideBelow: "sm" },
+              { id: "jobs", label: "Jobs", align: "end", hideBelow: "md" },
+              { id: "spent", label: "Spent", align: "end", hideBelow: "sm" },
+              { id: "left", label: "Budget left", align: "end" },
+            ]}
+            rows={rows.map((project) => {
+              const left = budgetLeft(project.costs);
+              return {
+                id: project.id,
+                cells: {
+                  project: (
+                    <ColumnName
+                      code={project.projectNo}
+                      name={project.name}
+                      meta={[project.client?.name, project.manager?.name ?? "No owner"].filter(Boolean).join(" · ")}
+                      href={`/crm/projects/${project.id}`}
+                    />
+                  ),
+                  status: (
+                    <StatusDot tone={PROJECT_TONE[project.status] ?? "neutral"} label={PROJECT_STATUS_LABELS[project.status]} />
+                  ),
+                  jobs: <ColumnFigure tone="muted">{project._count.workOrders}</ColumnFigure>,
+                  spent: <ColumnFigure>{formatMoney(project.costs.spent, project.costs.currency)}</ColumnFigure>,
+                  left: left ? (
+                    <ColumnFigure tone={left.over ? "danger" : "default"}>{left.text}</ColumnFigure>
+                  ) : (
+                    <ColumnFigure tone="muted">No budget</ColumnFigure>
+                  ),
+                },
+              };
+            })}
           />
-        }
-      />
+          {rows.length === 0 && !narrowed ? (
+            <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+              New project
+            </Button>
+          ) : null}
+        </div>
+      )}
 
       <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 

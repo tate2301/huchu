@@ -16,7 +16,7 @@ export default async function CrmCostTrackerPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage title="Cost tracker" description="what came in, what went out, and on what">
+    <CrmPage title="Cost tracker">
       <CostTrackerContent />
     </CrmPage>
   );

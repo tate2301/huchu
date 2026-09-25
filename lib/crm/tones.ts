@@ -392,6 +392,53 @@ export const REQUISITION_STATUS: Record<string, CanonicalUiStatus> = {
   CANCELLED: "inactive",
 };
 
+/**
+ * The management contract's four inks — `StatusTone` in
+ * `components/management/ui/status.tsx`, restated here because `lib` does not
+ * import from `components`. The money pages draw their states with that
+ * layer: a dot and the word in a list, a chip in a header only for an
+ * exception.
+ *
+ * Green is live and well, amber is somebody's move, red is a refusal or a
+ * block, grey is nothing to do — not started, finished, or switched off.
+ */
+export type StateTone = "neutral" | "success" | "warn" | "danger";
+
+/** A project: live is green, parked is amber, planned and closed are grey. */
+export const PROJECT_TONE: Record<string, StateTone> = {
+  PLANNING: "neutral",
+  ACTIVE: "success",
+  ON_HOLD: "warn",
+  COMPLETED: "neutral",
+  CANCELLED: "neutral",
+};
+
+/** A job: under way is green, blocked is red, everything else is grey. */
+export const JOB_TONE: Record<string, StateTone> = {
+  DRAFT: "neutral",
+  SCHEDULED: "neutral",
+  IN_PROGRESS: "success",
+  BLOCKED: "danger",
+  COMPLETED: "neutral",
+  CANCELLED: "neutral",
+};
+
+/**
+ * A requisition. Amber while it waits on an approver or on the money; paid
+ * out is grey, because a float with the team is the normal state of a
+ * requisition that is being used — the late ones are flagged where lateness
+ * is known. Settled is green, declined red.
+ */
+export const REQUISITION_TONE: Record<string, StateTone> = {
+  DRAFT: "neutral",
+  SUBMITTED: "warn",
+  APPROVED: "warn",
+  REJECTED: "danger",
+  DISBURSED: "neutral",
+  ACQUITTED: "success",
+  CANCELLED: "neutral",
+};
+
 /** A quote, invoice or receipt's standing. */
 export const DOCUMENT_STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   DRAFT: { label: "Draft", tone: "neutral" },

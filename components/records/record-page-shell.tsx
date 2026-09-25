@@ -42,6 +42,12 @@ export type RecordTab = {
    * says how much and this says whether it matters.
    */
   attention?: boolean;
+  /**
+   * The section opens with a heading of its own — its name, its count and
+   * its verb — so a phone, drilled into it, does not name it a second time
+   * above that heading.
+   */
+  titled?: boolean;
   content: ReactNode;
 };
 
@@ -643,7 +649,7 @@ export function RecordPageShell({
 
           {/* Drilled in on a phone, the section names itself — the bar is
               still carrying the record's name. */}
-          {openSection ? (
+          {openSection && !currentTab?.titled ? (
             <h2 className="text-base font-semibold text-[var(--text-strong)] md:hidden">
               {currentTab?.label}
             </h2>
