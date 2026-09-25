@@ -34,6 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         client: { select: { id: true, name: true } },
         site: { select: { id: true, name: true, addressLine: true, accessInstructions: true } },
         deal: { select: { id: true, dealNo: true, title: true } },
+        project: { select: { id: true, projectNo: true, name: true } },
       },
     });
     if (!order) return errorResponse("Work order not found", 404);
@@ -124,6 +125,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             error: "That deal belongs to a different customer",
             code: "DEAL_CUSTOMER_MISMATCH",
           },
+          { status: 409 },
+        );
+      }
+    }
+
+    // Moving a job into a project — a callout that turned out to be the first
+    // day of something bigger. The project has to be this company's, and it
+    // cannot pull the job away from the deal or the customer it is already
+    // billed against: the job's invoice would go one way and its costs the
+    // other. Null takes it back out of whatever project it was in.
+    let project: { id: string; dealId: string | null; clientId: string | null; siteId: string | null } | null = null;
+    if (data.projectId) {
+      project = await prisma.crmProject.findFirst({
+        where: { id: data.projectId, companyId },
+        select: { id: true, dealId: true, clientId: true, siteId: true },
+      });
+      if (!project) return errorResponse("Invalid project", 400);
+
+      const dealAfter = data.dealId === undefined ? existing.dealId : data.dealId;
+      if (project.dealId && dealAfter && project.dealId !== dealAfter) {
+        return NextResponse.json(
+          { error: "That project belongs to a different deal", code: "PROJECT_DEAL_MISMATCH" },
+          { status: 409 },
+        );
+      }
+      if (project.clientId && existing.clientId && project.clientId !== existing.clientId) {
+        return NextResponse.json(
+          { error: "That project is for a different customer", code: "PROJECT_CUSTOMER_MISMATCH" },
           { status: 409 },
         );
       }
@@ -222,12 +251,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           description: data.description,
           status: data.status,
           priority: data.priority,
-          dealId: data.dealId,
+          // A job joining a project with a deal takes that deal when it had
+          // none — it is the deal the project's work is billed against.
+          dealId:
+            data.dealId !== undefined
+              ? data.dealId
+              : existing.dealId
+                ? undefined
+                : (project?.dealId ?? undefined),
+          projectId: data.projectId,
           // Naming the deal answers "who is paying" too, so a job that never
-          // had a company takes the deal's rather than staying unattached. A
-          // job that already names one keeps it, which is safe because the
-          // check above has refused any deal that would disagree.
-          clientId: existing.clientId ? undefined : deal?.clientId,
+          // had a company takes the deal's — or its project's — rather than
+          // staying unattached. A job that already names one keeps it, which
+          // is safe because the checks above have refused any deal or project
+          // that would disagree.
+          clientId: existing.clientId ? undefined : (deal?.clientId ?? project?.clientId ?? undefined),
+          siteId: existing.siteId ? undefined : (project?.siteId ?? undefined),
           scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : undefined,
           scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : undefined,
           assignedToId: data.assignedToId,

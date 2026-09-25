@@ -41,6 +41,7 @@ const PRISMA_FIELD_ENTITIES = [
   "SUBJECT",
   "HOSTEL",
   "REP",
+  "PROJECT",
 ] as const;
 
 const PRISMA_FIELD_TYPES = [
@@ -74,10 +75,12 @@ describe("custom field enum parity", () => {
   it("excludes exactly the enum members that are not custom-field targets", () => {
     // REP is a `User`. Its fields belong to the platform, not to a tenant, so it
     // is in the discriminator and not in the list of things a tenant may add a
-    // field to. Anything else missing here is drift, not design.
+    // field to. PROJECT is in the discriminator so files can hang off a
+    // project; nothing yet offers a tenant a field on one. Anything else
+    // missing here is drift, not design.
     const covered = new Set<string>(CRM_FIELD_ENTITIES);
     const missing = PRISMA_FIELD_ENTITIES.filter((entity) => !covered.has(entity));
-    expect(missing).toEqual(["REP"]);
+    expect(missing).toEqual(["REP", "PROJECT"]);
   });
 
   it("CRM_FIELD_TYPES covers every CrmFieldType value", () => {

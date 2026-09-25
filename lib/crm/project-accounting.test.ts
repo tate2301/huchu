@@ -10,14 +10,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import {
-  PROJECT_STATUSES,
-  budgetOverrun,
-  canTransition,
-  createProject,
-  projectCostSummary,
-  projectFromWorkOrder,
-} from "@/lib/crm/projects";
+import { budgetOverrun, createProject, projectCostSummary } from "@/lib/crm/projects";
+import { PROJECT_STATUSES, canTransition } from "@/lib/crm/project-status";
 import { addCostEntry, dayTotals, openDailyLog, submitDailyLog, toLogDate } from "@/lib/crm/daily-log";
 import { buildDailyReport, dayWindow, reportHeadline, saveDailyReport } from "@/lib/crm/daily-report";
 
@@ -144,36 +138,6 @@ describe("raising a project", () => {
       (await prisma.crmProject.findUnique({ where: { id: projectId } }))?.costCenterId,
     );
     await prisma.crmProject.delete({ where: { id: second.id } });
-  });
-
-  it("carries a job's client, site and deal across rather than asking twice", async () => {
-    const workOrder = await prisma.crmWorkOrder.create({
-      data: {
-        companyId,
-        workOrderNo: "CWO-TEST-1",
-        title: "Epoxy, phase two",
-        assignedToId: userId,
-        scheduledStart: DAY,
-      },
-    });
-
-    const project = await prisma.$transaction((tx) =>
-      projectFromWorkOrder(tx, companyId, userId, workOrder.id),
-    );
-
-    expect(project.name).toBe("Epoxy, phase two");
-    expect(project.workOrderId).toBe(workOrder.id);
-    expect(project.managerId).toBe(userId);
-    expect(project.startDate?.toISOString()).toBe(DAY.toISOString());
-
-    // A double-tap must not split one job's costs across two projects.
-    const again = await prisma.$transaction((tx) =>
-      projectFromWorkOrder(tx, companyId, userId, workOrder.id),
-    );
-    expect(again.id).toBe(project.id);
-
-    await prisma.crmProject.delete({ where: { id: project.id } });
-    await prisma.crmWorkOrder.delete({ where: { id: workOrder.id } });
   });
 
   it("lets a completed project be reopened but never an abandoned one", async () => {

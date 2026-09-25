@@ -145,6 +145,11 @@ export const createWorkOrderSchema = z.object({
   siteId: z.string().uuid().nullable().optional(),
   /** Pull the checklist from this quote's lines instead of typing it out. */
   documentId: z.string().uuid().nullable().optional(),
+  /**
+   * The project this job is part of. Given one, the job takes the project's
+   * deal, client and site wherever the request left them blank.
+   */
+  projectId: z.string().uuid().nullable().optional(),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
   scheduledStart: z.string().datetime().nullable().optional(),
   scheduledEnd: z.string().datetime().nullable().optional(),

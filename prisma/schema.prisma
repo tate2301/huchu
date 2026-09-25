@@ -255,6 +255,7 @@ model Company {
   crmSiteVisitAnswers           CrmSiteVisitAnswer[]
   crmSiteVisitPhotos            CrmSiteVisitPhoto[]
   crmProjects                   CrmProject[]
+  crmProjectMembers             CrmProjectMember[]
   crmRequisitions               CrmRequisition[]
   crmDailyLogs                  CrmDailyLog[]
   crmDailyCostEntries           CrmDailyCostEntry[]
@@ -1246,6 +1247,7 @@ model User {
   crmSiteVisitPhotos                CrmSiteVisitPhoto[]            @relation("CrmSiteVisitPhotoBy")
   crmProjectsManaged                CrmProject[]                   @relation("CrmProjectManager")
   crmProjectsCreated                CrmProject[]                   @relation("CrmProjectCreatedBy")
+  crmProjectMemberships             CrmProjectMember[]             @relation("CrmProjectMemberUser")
   crmRequisitionsRequested          CrmRequisition[]               @relation("CrmRequisitionRequestedBy")
   crmRequisitionsApproved           CrmRequisition[]               @relation("CrmRequisitionApprovedBy")
   crmRequisitionsDisbursed          CrmRequisition[]               @relation("CrmRequisitionDisbursedBy")
@@ -12136,6 +12138,9 @@ enum CrmFieldEntity {
   /// had their own `CrmRecordFile.userId` column before S-4.2; a rep is a
   /// record with a page, so it is a subject type like any other.
   REP
+  /// A `CrmProject`. Drawings, permits and the signed scope of works hang off
+  /// the project rather than whichever job happened to be open at the time.
+  PROJECT
 }
 
 enum CrmFieldType {
@@ -12886,13 +12891,13 @@ enum CrmCashDirection {
   SPENT
 }
 
-/// A job that has become a piece of work with its own money.
+/// The work a won deal turns into, with its own money.
 ///
-/// The CRM's chain is lead, deal, quote, won, job. A job is a day's work with
-/// a checklist; a project is the thing a job belongs to when the work runs
-/// longer than that and has a budget somebody is answerable for. Requisitions
-/// and daily costs point here, which is what makes "what has this project cost
-/// us" answerable without a spreadsheet.
+/// The CRM's chain is lead, deal, quote, won, project, jobs. A job is a day's
+/// work with a checklist; a project is what the jobs belong to when the work
+/// runs longer than that and has a budget somebody is answerable for. Jobs,
+/// requisitions and daily costs point here, which is what makes "what has this
+/// project cost us" answerable without a spreadsheet.
 model CrmProject {
   id          String            @id @default(uuid())
   companyId   String
@@ -12902,13 +12907,13 @@ model CrmProject {
   status      CrmProjectStatus  @default(PLANNING)
 
   /// Where it came from. All optional: a project can be raised directly for
-  /// work that never went through the pipeline.
+  /// work that never went through the pipeline. At most one project per deal
+  /// — see the unique below.
   dealId      String?
   clientId    String?
   siteId      String?
-  workOrderId String?
 
-  /// Who is answerable for the budget.
+  /// Who is answerable for the budget. The rest of the team are members.
   managerId String?
 
   startDate     DateTime?
@@ -12936,17 +12941,47 @@ model CrmProject {
   deal        CrmDeal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
   client      CrmClient?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
   site        CrmSite?            @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  workOrder   CrmWorkOrder?       @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   manager     User?               @relation("CrmProjectManager", fields: [managerId], references: [id])
   createdBy   User?               @relation("CrmProjectCreatedBy", fields: [createdById], references: [id])
+  workOrders   CrmWorkOrder[]
+  members      CrmProjectMember[]
   requisitions CrmRequisition[]
   costEntries  CrmDailyCostEntry[]
 
   @@unique([companyId, projectNo])
+  /// One project per deal. Two would split the deal's costs between them and
+  /// neither figure would be true; a double-tap on "Start the project" hits
+  /// this rather than making a second one. NULLs are distinct, so any number
+  /// of projects can be raised with no deal behind them.
+  @@unique([companyId, dealId])
   @@index([companyId, costCenterId])
   @@index([companyId, status, updatedAt])
   @@index([companyId, managerId, status])
-  @@index([companyId, dealId])
+}
+
+/// Somebody working on a project who is not its owner.
+///
+/// `CrmProject.managerId` stays the one person answerable for the budget; this
+/// is everybody else — the crew leads, the estimator, whoever buys the
+/// materials. A standing team per project rather than `crewIds` on each job,
+/// because the question "who is on the Msasa warehouse" is asked of the
+/// project, not of any one day's work.
+model CrmProjectMember {
+  id        String   @id @default(uuid())
+  companyId String
+  projectId String
+  userId    String
+  /// What they do on this project, in the team's own words. Free text: a
+  /// fixed list of roles is a list somebody's job is never on.
+  role      String?
+  addedAt   DateTime @default(now())
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project CrmProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User       @relation("CrmProjectMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([companyId, userId])
 }
 
 /// An employee asking for money.
@@ -13114,6 +13149,9 @@ model CrmWorkOrder {
   siteId     String?
   /// The quote whose lines became this job's checklist.
   documentId String?
+  /// The project this job is part of. Optional: a callout is a job with no
+  /// project behind it, and that is a real thing that happens.
+  projectId  String?
 
   scheduledStart DateTime?
   scheduledEnd   DateTime?
@@ -13165,15 +13203,16 @@ model CrmWorkOrder {
   client     CrmClient?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
   site       CrmSite?           @relation(fields: [siteId], references: [id], onDelete: SetNull)
   document   CrmLeadDocument?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  project    CrmProject?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   assignedTo User?              @relation("CrmWorkOrderAssignedTo", fields: [assignedToId], references: [id])
   createdBy  User?              @relation("CrmWorkOrderCreatedBy", fields: [createdById], references: [id])
   items      CrmWorkOrderItem[]
-  projects   CrmProject[]
 
   @@unique([companyId, workOrderNo])
   @@index([companyId, status, scheduledStart])
   @@index([companyId, assignedToId, status])
   @@index([companyId, dealId])
+  @@index([companyId, projectId])
 }
 
 /// One thing to do or install, usually lifted from the quote that was won.

@@ -99,8 +99,12 @@ export type NextStepAction =
   | "chase"
   /** The work is done and the money is not in. */
   | "payment"
-  /** Won work that nobody has raised a job for. */
+  /** Get a job moving — start it, raise it. */
   | "job"
+  /** Won work that nobody has started a project for. */
+  | "project"
+  /** Won work that is running as a project — go to it. */
+  | "open-project"
   /** A lead that has earned a deal. */
   | "convert"
   /** An account with nothing being sold to it. */
@@ -143,6 +147,8 @@ export type NextStepFacts = {
   owed?: boolean;
   /** A lead that is already a deal — the lifecycle is over, not stalled. */
   converted?: boolean;
+  /** A deal whose project has been started. Deals only. */
+  hasProject?: boolean;
   /** How much business is open against an account. */
   openDeals?: number;
   /** Reach them in writing rather than by phone. */
@@ -257,12 +263,33 @@ export function resolveNextStep(facts: NextStepFacts): NextStep | null {
     }
   }
 
+  // A won deal becomes a project, and the jobs are raised inside it — so the
+  // step after winning is starting the project, not raising a job that would
+  // have nowhere to book its costs. Once it is running, the deal's work is the
+  // project's; the one thing still the deal's own is money owed on it.
   if (facts.kind === "deal" && stage === "WON") {
+    if (!facts.hasProject) {
+      return {
+        action: "project",
+        label: "Start the project",
+        reason:
+          "This is won. Nothing gets fitted until somebody starts the project and raises the jobs in it.",
+        urgent: true,
+      };
+    }
+    if (facts.owed) {
+      return {
+        action: "payment",
+        label: "Record the payment",
+        reason: "There is money invoiced and not collected against this.",
+        urgent: false,
+      };
+    }
     return {
-      action: "job",
-      label: "Raise the job",
-      reason: "This is won. Nothing gets fitted until somebody raises the job for it.",
-      urgent: true,
+      action: "open-project",
+      label: "Open the project",
+      reason: "The work is running as a project. Its jobs, its money and its team are there.",
+      urgent: false,
     };
   }
 
@@ -338,6 +365,30 @@ export const WORK_ORDER_STATUS: Record<string, CanonicalUiStatus> = {
   IN_PROGRESS: "in_progress",
   BLOCKED: "failing",
   COMPLETED: "passing",
+  CANCELLED: "inactive",
+};
+
+/** Where a project has got to. */
+export const PROJECT_STATUS: Record<string, CanonicalUiStatus> = {
+  PLANNING: "pending",
+  ACTIVE: "in_progress",
+  ON_HOLD: "need_changes",
+  COMPLETED: "passing",
+  CANCELLED: "inactive",
+};
+
+/**
+ * Where a requisition has got to. Waiting on somebody is `pending`; money out
+ * and not yet accounted for is `in_progress`, because it is — somebody is
+ * spending it.
+ */
+export const REQUISITION_STATUS: Record<string, CanonicalUiStatus> = {
+  DRAFT: "inactive",
+  SUBMITTED: "pending",
+  APPROVED: "in_review",
+  REJECTED: "failing",
+  DISBURSED: "in_progress",
+  ACQUITTED: "passing",
   CANCELLED: "inactive",
 };
 

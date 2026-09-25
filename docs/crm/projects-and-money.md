@@ -14,15 +14,42 @@ The pipeline ran lead → qualified → … → raise job, and stopped. A job
 morning's work and the wrong shape for a six-week floor, because cost attached
 to nothing.
 
-`CrmProject` is what a job belongs to when the work runs longer than a day.
-Every link it has — deal, client, site, work order — is optional, because work
-is sometimes raised directly and refusing to record it until the pipeline
-catches up helps nobody.
+`CrmProject` is what a won deal turns into, and what its jobs belong to. The
+chain is **deal → project → jobs**:
 
-A job's page (`components/crm/work-orders/job-project-card.tsx`) either links
-to its project or offers to raise one, carrying the client, site and deal
-across. Raising twice returns the same project: two projects for one job
-splits its costs in half and neither figure is true.
+- A won deal's next step is **Start the project** (`resolveNextStep` in
+  `lib/crm/tones.ts`). The sheet asks for a name, an owner, a budget and two
+  dates; `projectFromDeal` carries the deal's name, client, site and owner
+  across. The deal's value is not copied — the project reads it from the deal
+  as the reference its budget is set against ("Sold for").
+- **One project per deal**, enforced by a unique on `(companyId, dealId)`.
+  `projectFromDeal` hands back the existing project on a second request, and
+  the route turns a concurrent double-tap's unique violation into the same
+  answer.
+- **The job holds the link** (`CrmWorkOrder.projectId`), so a project holds
+  any number of jobs. A job raised with a `projectId` inherits the project's
+  deal, client and site wherever the request left them blank
+  (`jobLinksFromProject`); naming a different deal is refused.
+- **A job can still exist with no project.** A callout is a real thing that
+  happens. What is gone is raising a project *from* a job — the old
+  `CrmProject.workOrderId` link, which let a project hold exactly one job.
+  Migration `20260925090000_crm_project_spine` moved every existing link onto
+  the job before dropping the column, and where two projects named the same
+  deal it kept the deal on the oldest and left the others standing on their
+  own.
+- **The team** is `CrmProjectMember` (free-text role). `managerId` stays the one
+  owner answerable for the budget; the owner or a manager changes the team,
+  the budget and the status (`canEditRecord`).
+
+Direct projects — work that never went through the pipeline — are raised from
+the register's **New project**, with no deal behind them.
+
+The project page (`components/crm/money/project-detail-content.tsx`) is the
+standard record page: properties edited in place, sections in the rail with
+the open one in the URL, and one primary action, **Raise a job**. Overview is
+the cost strip and a timeline of the jobs by date between the start and the
+target end; then Jobs, Requisitions, Spend & receipts, Team, Files and
+History (field changes, written as names and days rather than ids).
 
 ### Statuses
 
@@ -170,7 +197,9 @@ one is money the business asks for, the other is money it hands out.
 
 | Module | Holds |
 | --- | --- |
-| `lib/crm/projects.ts` | Status machine, creation from a job, cost rollup |
+| `lib/crm/projects.ts` | Creation from a deal, a job's links, over-budget, cost rollup |
+| `lib/crm/project-status.ts` | Status machine — shared by the route and the page |
+| `lib/crm/project-timeline.ts` | Jobs laid out against a project's dates |
 | `lib/crm/requisitions.ts` | Lifecycle, categories, money helpers |
 | `lib/crm/daily-log.ts` | Day arithmetic, entry idempotency, submission |
 | `lib/crm/daily-report.ts` | Assembly and storage |

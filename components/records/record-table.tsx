@@ -233,8 +233,15 @@ export function RecordTable<T extends { id: string }>({
 }: {
   rows: T[];
   columns: RecordTableColumn<T>[];
-  /** Where the first cell points. The rest of the row is inert on purpose. */
-  rowHref: (row: T) => string;
+  /**
+   * Where the first cell points. The rest of the row is inert on purpose.
+   *
+   * Left off — or null for a row — when a row is a line rather than a record:
+   * a cost entry, a payment, a movement. Those have nothing of their own to
+   * open, and a chevron that goes nowhere is a promise the table cannot keep,
+   * so neither the link nor the chevron is drawn.
+   */
+  rowHref?: (row: T) => string | null;
   /**
    * What a phone gets instead.
    *
@@ -414,6 +421,7 @@ export function RecordTable<T extends { id: string }>({
           <tbody>
             {rows.map((row) => {
               const selected = selectedIds.includes(row.id);
+              const href = rowHref?.(row) ?? null;
               return (
                 <tr
                   key={row.id}
@@ -449,7 +457,7 @@ export function RecordTable<T extends { id: string }>({
                         column.align === "end" && "text-right",
                       )}
                     >
-                      {index === 0 ? (
+                      {index === 0 && href ? (
                         // Only the first cell navigates. A row where every cell
                         // is inside the link is a row where you cannot select
                         // the text in it, and where a chip in the third column
@@ -462,7 +470,7 @@ export function RecordTable<T extends { id: string }>({
                         // subtitle does nothing about it. `RecordTableName`
                         // underlines the title itself instead.
                         <Link
-                          href={rowHref(row)}
+                          href={href}
                           className="-mx-1 block min-w-0 rounded-[var(--radius-sm)] px-1"
                         >
                           {column.cell(row)}
@@ -483,14 +491,16 @@ export function RecordTable<T extends { id: string }>({
                       decoration, so a reader who has scanned across to the
                       last column does not have to scan back. */}
                   <td className="border-b border-[var(--table-divider)] px-2 py-1.5 align-middle">
-                    <Link
-                      href={rowHref(row)}
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      className="flex items-center justify-center"
-                    >
-                      <ChevronRight className="size-3.5 text-[var(--text-disabled)] group-hover/row:text-[var(--text-subtle)]" />
-                    </Link>
+                    {href ? (
+                      <Link
+                        href={href}
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        className="flex items-center justify-center"
+                      >
+                        <ChevronRight className="size-3.5 text-[var(--text-disabled)] group-hover/row:text-[var(--text-subtle)]" />
+                      </Link>
+                    ) : null}
                   </td>
                 </tr>
               );

@@ -69,6 +69,21 @@ export const TRACKED_FIELDS: Record<string, string[]> = {
     "parentClientId",
   ],
   SITE: ["name", "addressLine", "city", "country", "clientId", "primaryContactId"],
+  // Written as names, days and money by the project route rather than as ids
+  // and timestamps — see `readable` there.
+  PROJECT: [
+    "name",
+    "description",
+    "status",
+    "managerId",
+    "budget",
+    "currency",
+    "startDate",
+    "targetEndDate",
+    "actualEndDate",
+    "clientId",
+    "siteId",
+  ],
 };
 
 /** Field keys read as camelCase; people read words. */
@@ -94,6 +109,10 @@ export const FIELD_LABELS: Record<string, string> = {
   firstName: "First name",
   lastName: "Last name",
   jobTitle: "Job title",
+  managerId: "Owner",
+  startDate: "Start",
+  targetEndDate: "Target end",
+  actualEndDate: "Finished",
 };
 
 export function fieldLabel(field: string): string {

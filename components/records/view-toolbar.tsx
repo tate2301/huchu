@@ -4,6 +4,13 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -295,5 +302,54 @@ export function ViewToolbarChip({
       <span className="font-semibold text-[var(--text-strong)]">{value}</span>
       <ChevronDown className="size-3 flex-none text-[var(--text-subtle)]" aria-hidden="true" />
     </Button>
+  );
+}
+
+/** "No filter", as an option value — "" would be indistinguishable from unset. */
+export const FILTER_ANY = "__any";
+
+/**
+ * One filter on the options row: a chip that opens its choices.
+ *
+ * Every register asks the same question in the same shape — whose, which
+ * site, what state — so the chip is shared rather than redrawn per list. The
+ * "no filter" answer is named for what it means on this chip ("Anyone",
+ * "Anywhere") because "All" says nothing about which question it answers.
+ *
+ * Hidden when there is nothing to choose between and nothing chosen: a chip
+ * with one option is a label pretending to be a control.
+ */
+export function ViewToolbarFilter({
+  label,
+  value,
+  anyLabel,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  /** What "no filter" is called — "Anyone", "Anywhere". */
+  anyLabel: string;
+  options: Map<string, string>;
+  onChange: (next: string) => void;
+}) {
+  if (options.size < 2 && value === FILTER_ANY) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <ViewToolbarChip label={label} value={options.get(value) ?? anyLabel} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+        <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+          <DropdownMenuRadioItem value={FILTER_ANY}>{anyLabel}</DropdownMenuRadioItem>
+          {[...options.entries()].map(([id, name]) => (
+            <DropdownMenuRadioItem key={id} value={id}>
+              {name}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

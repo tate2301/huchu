@@ -66,6 +66,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         },
         followUps: { orderBy: { dueAt: "asc" } },
         appointments: { orderBy: { scheduledStart: "desc" } },
+        // At most one — the schema holds a deal to a single project — but
+        // Prisma cannot see that through a compound unique, so it is a list.
+        projects: { select: { id: true, projectNo: true, name: true, status: true }, take: 1 },
         documents: {
           orderBy: { createdAt: "desc" },
           include: {

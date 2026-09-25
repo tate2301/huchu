@@ -728,6 +728,11 @@ export const navSections: NavSection[] = [
       // from people and companies drew a line the data does not have.
       { id: "objects", label: "Objects" },
       { id: "work", label: "Work" },
+      // Delivery: what a won deal turns into, and the days of work inside it.
+      // Its own group rather than two lines under Work, because a project is
+      // a place people go to — its jobs, its money, its team — not another
+      // queue of things to do today.
+      { id: "projects", label: "Projects" },
       // Money the business hands out, as opposed to money it asks for. Quotes
       // and invoices are the documents group; this is the float a rep draws,
       // what they spent it on, and what a project has cost.
@@ -751,16 +756,14 @@ export const navSections: NavSection[] = [
 
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work" },
-      // Service delivery, not paperwork. A job sat under "Sales documents"
-      // beside quotes and invoices, which is where you look for something to
-      // send a customer — and it is the one entry here that is a crew going
-      // somewhere. Labelled "Jobs" because that is what the page, the button
-      // and everybody in the building already call it.
-      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "work" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
-      // A project is what a job belongs to when the work runs past a day and
-      // somebody is answerable for what it costs.
-      { href: "/crm/projects", icon: Work, label: "Projects", group: "work" },
+
+      // A project is what a won deal turns into, and somebody is answerable
+      // for what it costs. Jobs sit under it because that is where they are
+      // raised; a job is still labelled "Jobs" because that is what the page,
+      // the button and everybody in the building already call it.
+      { href: "/crm/projects", icon: Work, label: "Projects", group: "projects" },
+      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects" },
 
       { href: "/crm/my-day", icon: ClipboardList, label: "My day", group: "money" },
       { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money" },

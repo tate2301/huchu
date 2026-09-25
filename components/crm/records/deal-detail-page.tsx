@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
@@ -25,6 +26,7 @@ import {
   TrendingUp,
   UserRound,
   Users,
+  Work,
 } from "@/lib/icons";
 import { daysSince, dealStageStatus, resolveNextStep } from "@/lib/crm/tones";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
@@ -62,6 +64,7 @@ import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
 import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
+import { StartProjectSheet } from "@/components/crm/money/start-project-sheet";
 
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
@@ -127,6 +130,8 @@ type DealDetail = {
   followUps: LeadFollowUp[];
   appointments: LeadAppointment[];
   documents: LeadDocument[];
+  /** The project this deal became. At most one; empty until it is started. */
+  projects: Array<{ id: string; projectNo: string; name: string; status: string }>;
 };
 
 function draftsToLines(drafts: MeasurementDraft[]): CrmDocumentLineInput[] {
@@ -146,11 +151,13 @@ function draftsToLines(drafts: MeasurementDraft[]): CrmDocumentLineInput[] {
 
 export function DealDetailPage({ dealId }: { dealId: string }) {
   const { toast } = useToast();
+  const router = useRouter();
   const { data: session } = useSession();
   const currentUserId = session?.user?.id;
 
   const [tab, setTab] = useState("timeline");
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [startProjectOpen, setStartProjectOpen] = useState(false);
   const [reportFor, setReportFor] = useState<LeadAppointment | null>(null);
   const [quotationPrefill, setQuotationPrefill] = useState<CrmDocumentLineInput[] | undefined>();
 
@@ -176,6 +183,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   const comments = useRecordComments({ kind: "deal", id: dealId });
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
   const deal = dealQuery.data;
+  const project = deal?.projects?.[0] ?? null;
 
   // The work the deal has turned into. Raising one is the same act wherever it
   // is pressed from — the bar's next step, the actions menu, or the section
@@ -184,7 +192,12 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   const jobs = useJobsTab({
     ref: { kind: "deal", id: dealId },
     currentUserId,
-    links: { clientId: deal?.clientId, siteId: deal?.site?.id },
+    // Once the deal is a project, its jobs are raised inside that project.
+    links: {
+      clientId: deal?.clientId,
+      siteId: deal?.site?.id,
+      project: project ? { id: project.id, label: `${project.projectNo} — ${project.name}` } : null,
+    },
     defaultTitle: deal?.title,
     quotationDocuments: (deal?.documents ?? [])
       .filter((doc) => doc.type === "QUOTATION" && doc.quotation)
@@ -321,6 +334,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     quoteSent: Boolean(latestQuote),
     quoteAnswered: Boolean(latestQuote?.approval?.respondedAt),
     owed: totalOutstanding > 0,
+    hasProject: Boolean(project),
   });
 
   // Quoting needs somebody to bill. The button stays visible and says why it
@@ -331,6 +345,12 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     switch (nextStep?.action) {
       case "visit":
         setScheduleOpen(true);
+        return;
+      case "project":
+        setStartProjectOpen(true);
+        return;
+      case "open-project":
+        if (project) router.push(`/crm/projects/${project.id}`);
         return;
       case "job":
         jobs.raise();
@@ -376,8 +396,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         reference={deal.dealNo}
         related={
           <RecordRelated
-            items={
-              deal.clientId && deal.client
+            items={[
+              ...(deal.clientId && deal.client
                 ? [
                     {
                       href: `/crm/companies/${deal.clientId}`,
@@ -385,8 +405,17 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                       dot: "bg-[var(--brand)]",
                     },
                   ]
-                : []
-            }
+                : []),
+              ...(project
+                ? [
+                    {
+                      href: `/crm/projects/${project.id}`,
+                      label: project.name,
+                      dot: "bg-[var(--badge-ok-fg)]",
+                    },
+                  ]
+                : []),
+            ]}
           />
         }
         bandValue={deal.value == null ? undefined : formatMoney(deal.value, deal.currency)}
@@ -429,6 +458,11 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         primaryAction={primaryAction}
         actions={[
           { label: "Schedule a site visit", onSelect: () => setScheduleOpen(true) },
+          // Offered before the deal is won as well: a customer who has said
+          // yes on the phone is work somebody wants to start planning.
+          ...(project
+            ? []
+            : [{ label: "Start the project", onSelect: () => setStartProjectOpen(true) }]),
           { label: "Raise a job", onSelect: jobs.raise },
           { label: "Open documents", onSelect: () => setTab("documents") },
         ]}
@@ -534,6 +568,18 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                   { value: "COMMIT", label: "Commit" },
                   { value: "CLOSED", label: "Closed" },
                 ]),
+              },
+              {
+                id: "project",
+                label: "Project",
+                icon: Work,
+                // Not editable here: a deal has one project, started once, and
+                // its own page is where it is changed.
+                display: project ? (
+                  <EntityLink href={`/crm/projects/${project.id}`}>{project.name}</EntityLink>
+                ) : undefined,
+                value: project ? project.name : null,
+                placeholder: "Not started",
               },
               {
                 id: "site",
@@ -786,6 +832,18 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
       />
 
       {jobs.sheet}
+
+      <StartProjectSheet
+        open={startProjectOpen}
+        onOpenChange={setStartProjectOpen}
+        deal={{
+          id: deal.id,
+          title: deal.title,
+          value: deal.value,
+          currency: deal.currency,
+          ownerId: deal.assignedTo?.id ?? null,
+        }}
+      />
     </>
   );
 }

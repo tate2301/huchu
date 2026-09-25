@@ -44,6 +44,9 @@ export const SUBJECT_TYPES = [
   "CLASS",
   "SUBJECT",
   "HOSTEL",
+  // A project has no legacy column either: its files were never anywhere
+  // until it had a page to hang them off.
+  "PROJECT",
 ] as const satisfies readonly CrmFieldEntity[];
 
 export type SubjectType = (typeof SUBJECT_TYPES)[number];
@@ -209,6 +212,7 @@ const FILE_OWNER_TO_SUBJECT: Record<string, SubjectType> = {
   class: "CLASS",
   subject: "SUBJECT",
   hostel: "HOSTEL",
+  project: "PROJECT",
 };
 
 export function subjectFromFileOwner(owner: string, id: string): RecordSubject | null {
