@@ -489,6 +489,11 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
         invoiceNumber,
         invoiceDate,
         dueDate: input.dueDate ?? undefined,
+        // The quote it was converted from. Accounting's invoice list reads
+        // this to say where an invoice came from, and the document's own page
+        // reads it both ways — the invoice names its quote, the quote its
+        // invoice. Left off, a converted invoice looked raised from nothing.
+        quotationId: input.fromQuotationId ?? undefined,
         status: "ISSUED",
         currency,
         subTotal: totals.subTotal,

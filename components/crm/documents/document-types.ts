@@ -110,6 +110,12 @@ export function documentNumber(doc: LeadDocument): string {
   );
 }
 
+/** The document's own page: `/crm/quotes/<id>`, `/crm/invoices/<id>`, `/crm/receipts/<id>`. */
+export function documentHref(doc: { id: string; type: CrmDocumentKind | string }): string {
+  const list = doc.type === "QUOTATION" ? "quotes" : doc.type === "INVOICE" ? "invoices" : "receipts";
+  return `/crm/${list}/${doc.id}`;
+}
+
 export function documentRecordId(doc: LeadDocument): string | null {
   return doc.quotationId ?? doc.invoiceId ?? doc.receiptId;
 }

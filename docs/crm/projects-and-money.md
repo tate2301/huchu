@@ -313,6 +313,44 @@ The figures are `lib/crm/member-overview.ts`, which reuses the daily report's
 builder, `receiptGaps`/`shareOfGap` and `payableAmount` rather than restating
 any of them.
 
+## Quotes, invoices and receipts
+
+Each document has a page of its own — `/crm/quotes/[id]`, `/crm/invoices/[id]`,
+`/crm/receipts/[id]`, one `DocumentRecordContent` behind all three — read from
+`GET /api/v2/crm/documents/[id]`. The accounting row is the source of truth for
+the number, the status and the money; the CRM row carries the version chain
+and the record the document was raised against.
+
+- **A quote** is its lines and what the client did with it: sent, opened,
+  accepted or declined, and what they wrote. An old version says what replaced
+  it before anything else.
+- **An invoice** is its lines and what is still owed, the payments and credit
+  notes against it, and the chasing.
+- **A receipt** is what it paid and what that left owing on the invoice.
+
+The chain is linked both ways: the invoice a quote became, the quote an invoice
+was raised from (`SalesInvoice.quotationId`, set when a quote is converted),
+the invoice a receipt paid, and the versions either side.
+
+The verbs are the deal's verbs, from one hook (`useDocumentActions`): the
+deal's document list draws them as a menu, the page as its one button and its
+menu. The button is the move that matters for where the document stands —
+email a quote that is still out, convert an accepted one, record a payment on
+an invoice that is owed, open a receipt's PDF. Every document route hangs off
+its deal or lead (`basePath`), so a document raised against neither is read
+only.
+
+### Collections
+
+`/crm/collections` is every invoice with money still owed, ordered by how
+urgently it needs a call — a promise that came and went first, then age and
+size (`orderChaseList` in `lib/crm/collections.ts`). The ageing bands are its
+tabs, each with its count, and the band is in the URL (`?age=D61_90`). The
+total owed is the foot of the column it adds up, a line per currency.
+
+A chase is logged with `ChaseDialog` from the list or from the invoice's own
+page. A promise to pay needs its date, and books a task for that day.
+
 ## How the pages are drawn
 
 The money pages are drawn with the management surface's own layer
@@ -352,6 +390,8 @@ surface was rebuilt to:
 | `/crm/finance` | Money in and out, and where it stands — for `money.view_all` |
 | `/crm/reps/[id]` | One team member: done, outstanding, their days, their money |
 | `/crm/daily-reports` | Management's read |
+| `/crm/quotes/[id]`, `/crm/invoices/[id]`, `/crm/receipts/[id]` | One document: its lines, payments, chases and chain |
+| `/crm/collections` | Every invoice still owed, by how late, and the chasing |
 
 Navigation groups the money pages under **Finance**, distinct from Sales
 documents: one is the money moving through people's hands, the other is the
