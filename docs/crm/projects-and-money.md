@@ -360,6 +360,44 @@ total owed is the foot of the column it adds up, a line per currency.
 A chase is logged with `ChaseDialog` from the list or from the invoice's own
 page. A promise to pay needs its date, and books a task for that day.
 
+## Every record has a page
+
+Anything the CRM lists opens onto a page of its own, drawn with the same record
+shell (`RecordPageShell`): name and one move in the bar, properties in the
+pane, sections in the rail. Each reads one `GET` that answers only what the
+reader may see — somebody else's line of money or daily report is *not found*,
+not refused.
+
+| Page | Route | Read from |
+| --- | --- | --- |
+| A task | `/crm/tasks/[id]` | `GET /api/v2/crm/tasks/[id]` |
+| A lead reminder | `/crm/follow-ups/[id]` | `GET /api/v2/crm/follow-ups/[id]` |
+| A site visit | `/crm/appointments/[id]` | `GET /api/v2/crm/appointments/[id]` |
+| A daily report | `/crm/daily-reports/[id]` | `GET /api/v2/crm/daily-reports/[id]` |
+| A workflow run | `/crm/workflows/runs/[id]` | `GET /api/v2/crm/automations/runs/[id]` |
+| A line of money | `/crm/cost-tracker/[id]` | `GET /api/v2/crm/cost-entries/[id]` |
+
+Some are laid out for what they are:
+
+- **A task** keeps its fields in `useTaskFields`, the one set of editors behind
+  both the side panel on a record's task list and the task's page. *Complete*
+  goes through the same outcome dialog as the lists. A repeating task shows the
+  one before it and the one booked after.
+- **A site visit** is laid out for after the visit: the checklist and the
+  measurements, the answers to its questions, and the photos with where and
+  when each was taken. *Write it up* opens the report dialog the list uses.
+- **A daily report** is the stored report, not a recomputed one. Everything it
+  names links to its own page, and the day's lines are one link away in the
+  cost tracker, filtered to the person and the day. The close-the-day
+  notification opens it.
+- **A workflow run** is a row per action, in the order they ran, the failed
+  ones in red with what they said (`runOutcomes` in
+  `components/crm/workflows/run-result.ts`, shared with the activity list).
+- **A line of money** shows its receipt at a size somebody can check against
+  the figure. It may be taken back out only by its owner while its day and
+  its requisition are open — the same rule the delete enforces, worked out by
+  the server (`mayRemove`).
+
 ## How the pages are drawn
 
 The money pages are drawn with the management surface's own layer

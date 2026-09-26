@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@corelithzw/react";
@@ -10,9 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { EntityLink } from "@/components/records/entity-link";
-import { RecordAttributes } from "@/components/records/record-attributes";
+import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { formatDate } from "@/components/crm/money/money";
 import { deleteCrmTask, type CrmTaskRecord } from "@/lib/crm/crm-v2";
 import {
   CRM_TASK_OUTCOME_LABELS,
@@ -46,18 +48,19 @@ import { cn } from "@/lib/utils";
  * whose timeline it appears on) and it belongs in the form, not in a field you
  * can brush past.
  */
-export function TaskDetail({
-  task,
-  currentUserId,
-  onToggle,
-  onDeleted,
-}: {
-  task: CrmTaskRecord;
-  currentUserId?: string;
-  /** Ticking the box — the list owns it, because it may need the outcome dialog. */
-  onToggle: (task: CrmTaskRecord) => void;
-  onDeleted: () => void;
-}) {
+/**
+ * A task's fields, edited in place — the one set of editors behind both the
+ * panel beside a record's task list and the task's own page, so the six
+ * fields are maintained in one place however the task was opened.
+ *
+ * Returns the properties as rows, the two paragraphs (what needs doing, and
+ * once it is done, what happened) and the delete, which only the task's owner
+ * — or anybody, while nobody owns it — is offered.
+ */
+export function useTaskFields(
+  task: CrmTaskRecord,
+  { currentUserId, onDeleted }: { currentUserId?: string; onDeleted: () => void },
+) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const done = task.status === "COMPLETED";
@@ -88,7 +91,148 @@ export function TaskDetail({
     onError: (error) => toast({ title: getApiErrorMessage(error), variant: "destructive" }),
   });
 
+  const confirmRemove = async () => {
+    const confirmed = await dsConfirm({
+      title: "Delete this task?",
+      description: task.title,
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (confirmed) remove.mutate();
+  };
+
   const mine = task.assignedToId === currentUserId || !task.assignedToId;
+
+  const attributes: RecordAttribute[] = [
+    {
+      id: "due",
+      label: "Due",
+      icon: Calendar,
+      kind: "date",
+      tone: overdue && !done ? "alert" : undefined,
+      // The server wants a full instant and the field gives a day, so the
+      // day is anchored at 09:00 local — a task due "on Thursday" that
+      // lands at midnight reads as overdue for the whole of Thursday.
+      value: task.dueAt.slice(0, 10),
+      // Day first, the way every date in the CRM is written.
+      formatted: formatDate(task.dueAt),
+      onCommit: (next) => {
+        if (!next) return;
+        const at = new Date(`${next}T09:00:00`);
+        if (Number.isNaN(at.getTime())) return;
+        editor.save.mutate({ dueAt: at.toISOString(), hasDueTime: false });
+      },
+    },
+    {
+      id: "assignee",
+      label: "Assigned to",
+      icon: UserRound,
+      ...editor.choice(
+        "assignedToId",
+        task.assignedToId,
+        (team.data?.data ?? []).map((member) => ({
+          value: member.id,
+          label: member.name ?? "Unnamed",
+        })),
+        "Leave unassigned",
+      ),
+      placeholder: "Unassigned",
+    },
+    {
+      id: "priority",
+      label: "Priority",
+      icon: Zap,
+      ...editor.choice(
+        "priority",
+        task.priority,
+        Object.entries(CRM_TASK_PRIORITY_LABELS).map(([value, label]) => ({
+          value,
+          label,
+        })),
+      ),
+    },
+    {
+      id: "status",
+      label: "Status",
+      icon: Checklist,
+      display: (
+        <span
+          className={cn(
+            "block py-2 text-sm leading-5 sm:py-1",
+            overdue && !done ? "text-[var(--status-danger-fg)]" : "",
+          )}
+        >
+          {done ? "Completed" : overdue ? "Overdue" : "Open"}
+        </span>
+      ),
+    },
+    ...(record && recordLabel
+      ? [
+          {
+            id: "record",
+            label: "On",
+            icon: Checklist,
+            display: (
+              <span className="block py-2 text-sm leading-5 sm:py-1">
+                <EntityLink href={record.href}>{recordLabel}</EntityLink>
+              </span>
+            ),
+          },
+        ]
+      : []),
+    ...(task.outcome
+      ? [
+          {
+            id: "outcome",
+            label: "Outcome",
+            icon: Checklist,
+            display: (
+              <span className="block py-2 text-sm leading-5 sm:py-1">
+                {CRM_TASK_OUTCOME_LABELS[task.outcome]}
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  const notes = (
+    <>
+      <TaskNotes
+        label="Description"
+        value={task.description}
+        placeholder="What needs doing, and anything the next person would need to know."
+        onCommit={(next) => editor.save.mutate({ description: next || null })}
+      />
+
+      {done ? (
+        <TaskNotes
+          label="What happened"
+          value={task.outcomeNotes}
+          placeholder="Nothing written down."
+          onCommit={(next) => editor.save.mutate({ outcomeNotes: next || null })}
+        />
+      ) : null}
+    </>
+  );
+
+  return { attributes, notes, mine, confirmRemove, rename: (title: string) => editor.save.mutate({ title }) };
+}
+
+export function TaskDetail({
+  task,
+  currentUserId,
+  onToggle,
+  onDeleted,
+}: {
+  task: CrmTaskRecord;
+  currentUserId?: string;
+  /** Ticking the box — the list owns it, because it may need the outcome dialog. */
+  onToggle: (task: CrmTaskRecord) => void;
+  onDeleted: () => void;
+}) {
+  const done = task.status === "COMPLETED";
+  const fields = useTaskFields(task, { currentUserId, onDeleted });
 
   return (
     <div className="space-y-4">
@@ -100,11 +244,7 @@ export function TaskDetail({
           aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
         />
         <div className="min-w-0 flex-1">
-          <TaskTitle
-            title={task.title}
-            done={done}
-            onCommit={(next) => editor.save.mutate({ title: next })}
-          />
+          <TaskTitle title={task.title} done={done} onCommit={fields.rename} />
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge tone="neutral" size="sm">
               {CRM_TASK_TYPE_LABELS[task.type]}
@@ -124,140 +264,28 @@ export function TaskDetail({
               </span>
             ) : null}
           </div>
+          {/* The panel is a glance; the task's own page is where it lives. */}
+          <Link
+            href={`/crm/tasks/${task.id}`}
+            className="mt-1 inline-block text-sm text-[var(--text-muted)] underline decoration-[var(--border)] underline-offset-2 hover:decoration-current"
+          >
+            Open the task
+          </Link>
         </div>
       </div>
 
-      <RecordAttributes
-        visibleCount={6}
-        columns={1}
-        attributes={[
-          {
-            id: "due",
-            label: "Due",
-            icon: Calendar,
-            kind: "date",
-            // The server wants a full instant and the field gives a day, so the
-            // day is anchored at 09:00 local — a task due "on Thursday" that
-            // lands at midnight reads as overdue for the whole of Thursday.
-            value: task.dueAt.slice(0, 10),
-            formatted: new Date(task.dueAt).toLocaleDateString(undefined, {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            }),
-            onCommit: (next) => {
-              if (!next) return;
-              const at = new Date(`${next}T09:00:00`);
-              if (Number.isNaN(at.getTime())) return;
-              editor.save.mutate({ dueAt: at.toISOString(), hasDueTime: false });
-            },
-          },
-          {
-            id: "assignee",
-            label: "Assigned to",
-            icon: UserRound,
-            ...editor.choice(
-              "assignedToId",
-              task.assignedToId,
-              (team.data?.data ?? []).map((member) => ({
-                value: member.id,
-                label: member.name ?? "Unnamed",
-              })),
-              "Leave unassigned",
-            ),
-            placeholder: "Unassigned",
-          },
-          {
-            id: "priority",
-            label: "Priority",
-            icon: Zap,
-            ...editor.choice(
-              "priority",
-              task.priority,
-              Object.entries(CRM_TASK_PRIORITY_LABELS).map(([value, label]) => ({
-                value,
-                label,
-              })),
-            ),
-          },
-          {
-            id: "status",
-            label: "Status",
-            icon: Checklist,
-            display: (
-              <span
-                className={cn(
-                  "block py-2 text-sm leading-5 sm:py-1",
-                  overdue && !done ? "text-[var(--status-danger-fg)]" : "",
-                )}
-              >
-                {done ? "Completed" : overdue ? "Overdue" : "Open"}
-              </span>
-            ),
-          },
-          ...(record && recordLabel
-            ? [
-                {
-                  id: "record",
-                  label: "On",
-                  icon: Checklist,
-                  display: (
-                    <span className="block py-2 text-sm leading-5 sm:py-1">
-                      <EntityLink href={record.href}>{recordLabel}</EntityLink>
-                    </span>
-                  ),
-                },
-              ]
-            : []),
-          ...(task.outcome
-            ? [
-                {
-                  id: "outcome",
-                  label: "Outcome",
-                  icon: Checklist,
-                  display: (
-                    <span className="block py-2 text-sm leading-5 sm:py-1">
-                      {CRM_TASK_OUTCOME_LABELS[task.outcome]}
-                    </span>
-                  ),
-                },
-              ]
-            : []),
-        ]}
-      />
+      <RecordAttributes visibleCount={6} columns={1} attributes={fields.attributes} />
 
-      <TaskNotes
-        label="Description"
-        value={task.description}
-        placeholder="What needs doing, and anything the next person would need to know."
-        onCommit={(next) => editor.save.mutate({ description: next || null })}
-      />
+      {fields.notes}
 
-      {done ? (
-        <TaskNotes
-          label="What happened"
-          value={task.outcomeNotes}
-          placeholder="Nothing written down."
-          onCommit={(next) => editor.save.mutate({ outcomeNotes: next || null })}
-        />
-      ) : null}
-
-      {mine ? (
+      {fields.mine ? (
         <div className="border-t border-[var(--border-subtle)] pt-3">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="text-[var(--status-error-text)]"
-            onClick={async () => {
-              const confirmed = await dsConfirm({
-                title: "Delete this task?",
-                description: task.title,
-                confirmLabel: "Delete",
-                variant: "danger",
-              });
-              if (confirmed) remove.mutate();
-            }}
+            onClick={fields.confirmRemove}
           >
             <Trash2 className="mr-1.5 size-4" aria-hidden="true" />
             Delete task

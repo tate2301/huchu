@@ -237,11 +237,18 @@ describe("their days", () => {
     const day = (await memberActivity(prisma, scope())).find((entry) => entry.date === "2026-09-13");
     expect(day?.submitted).toBe(true);
     expect(day?.summary.notes).toBe("As it was sent");
+    // And opens onto that report's own page.
+    const stored = await prisma.crmDailyReport.findFirst({
+      where: { userId: tendai, reportDate: new Date("2026-09-13T00:00:00.000Z") },
+      select: { id: true },
+    });
+    expect(day?.reportId).toBe(stored?.id);
   });
 
   it("builds an open day from what is on it", async () => {
     const day = (await memberActivity(prisma, scope())).find((entry) => entry.date === "2026-09-12");
     expect(day?.submitted).toBe(false);
+    expect(day?.reportId).toBeNull();
     expect(day?.summary.jobs).toHaveLength(1);
     expect(day?.summary.tasks.completed).toHaveLength(1);
     expect(day?.summary.money.spent).toBe("100.00");

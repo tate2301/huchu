@@ -122,7 +122,8 @@ export function CrmAppointmentsContent() {
       const status = VISIT_STATUS[visit.status];
       return {
         id: visit.id,
-        href: visitSubject(visit)?.href ?? "/crm/appointments",
+        // The visit's own page: what was booked, and what came back.
+        href: `/crm/appointments/${visit.id}`,
         leading: (
           <span className="flex size-9 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--text-muted)]">
             <CalendarCheck className="size-4" />

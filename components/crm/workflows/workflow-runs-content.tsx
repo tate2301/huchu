@@ -14,6 +14,7 @@ import { TRIGGER_LABELS } from "@/lib/crm/automation";
 import { REPORT_RANGES, REPORT_RANGE_LABELS, type ReportRange } from "@/lib/crm/reports";
 import { Rule } from "@/lib/icons";
 
+import { ENTITY_HREF, failureMessage } from "./run-result";
 import { RunInsightsPanel } from "./run-insights-panel";
 import { TRIGGER_ICON } from "./workflow-marks";
 
@@ -26,51 +27,6 @@ type RunRow = {
   createdAt: string;
   automation: { id: string; name: string; trigger: string } | null;
 };
-
-/** Where a run's record lives, so a run is one click from what it changed. */
-const ENTITY_HREF: Record<string, (id: string) => string> = {
-  LEAD: (id) => `/crm/leads/${id}`,
-  DEAL: (id) => `/crm/deals/${id}`,
-  PERSON: (id) => `/crm/people/${id}`,
-  CLIENT: (id) => `/crm/companies/${id}`,
-  SITE: (id) => `/crm/sites/${id}`,
-};
-
-/**
- * Why a run did not do what it was meant to.
- *
- * The runner stores its result as a bare array of `{ type, ok, detail }` — one
- * entry per action. This looked for `result.actions[].error`, which is a shape
- * nothing writes, so every failed run rendered with no reason at all: the one
- * thing somebody opens this screen to find out.
- *
- * Named by action, because "Record not found" from three different actions in
- * one rule is three different problems.
- */
-function failureMessage(result: unknown): string | null {
-  if (!Array.isArray(result)) return null;
-
-  const failures = result
-    .filter(
-      (outcome): outcome is { type?: unknown; ok?: unknown; detail?: unknown } =>
-        Boolean(outcome) && typeof outcome === "object" && outcome.ok === false,
-    )
-    .map((outcome) => {
-      const detail = typeof outcome.detail === "string" ? outcome.detail : "Action failed";
-      const type = typeof outcome.type === "string" ? outcome.type : null;
-      return type ? `${actionLabel(type)}: ${detail}` : detail;
-    });
-
-  return failures.length > 0 ? failures.join(" · ") : null;
-}
-
-/** `ADD_TAG` is a database value; "Add tag" is what somebody reads. */
-function actionLabel(type: string): string {
-  return type
-    .toLowerCase()
-    .replace(/_/g, " ")
-    .replace(/^./, (character) => character.toUpperCase());
-}
 
 /**
  * What the workflows have actually been doing.
@@ -176,9 +132,13 @@ export function WorkflowRunsContent() {
                     <Badge tone={run.status === "SUCCEEDED" ? "success" : "danger"}>
                       {run.status === "SUCCEEDED" ? "Ran" : "Had a problem"}
                     </Badge>
-                    <span className="text-sm text-[var(--text-subtle)]">
+                    {/* The run's own page: what each of its actions did. */}
+                    <Link
+                      href={`/crm/workflows/runs/${run.id}`}
+                      className="text-sm text-[var(--text-subtle)] underline decoration-[var(--border)] underline-offset-2 hover:decoration-[var(--text)]"
+                    >
                       <ClientDate value={run.createdAt} mode="datetime" />
-                    </span>
+                    </Link>
                   </div>
 
                   <p className="text-sm text-[var(--text-muted)]">
