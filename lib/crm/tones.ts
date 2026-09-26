@@ -99,8 +99,12 @@ export type NextStepAction =
   | "chase"
   /** The work is done and the money is not in. */
   | "payment"
-  /** Won work that nobody has raised a job for. */
+  /** Get a job moving — start it, raise it. */
   | "job"
+  /** Won work that nobody has started a project for. */
+  | "project"
+  /** Won work that is running as a project — go to it. */
+  | "open-project"
   /** A lead that has earned a deal. */
   | "convert"
   /** An account with nothing being sold to it. */
@@ -143,6 +147,8 @@ export type NextStepFacts = {
   owed?: boolean;
   /** A lead that is already a deal — the lifecycle is over, not stalled. */
   converted?: boolean;
+  /** A deal whose project has been started. Deals only. */
+  hasProject?: boolean;
   /** How much business is open against an account. */
   openDeals?: number;
   /** Reach them in writing rather than by phone. */
@@ -257,12 +263,33 @@ export function resolveNextStep(facts: NextStepFacts): NextStep | null {
     }
   }
 
+  // A won deal becomes a project, and the jobs are raised inside it — so the
+  // step after winning is starting the project, not raising a job that would
+  // have nowhere to book its costs. Once it is running, the deal's work is the
+  // project's; the one thing still the deal's own is money owed on it.
   if (facts.kind === "deal" && stage === "WON") {
+    if (!facts.hasProject) {
+      return {
+        action: "project",
+        label: "Start the project",
+        reason:
+          "This is won. Nothing gets fitted until somebody starts the project and raises the jobs in it.",
+        urgent: true,
+      };
+    }
+    if (facts.owed) {
+      return {
+        action: "payment",
+        label: "Record the payment",
+        reason: "There is money invoiced and not collected against this.",
+        urgent: false,
+      };
+    }
     return {
-      action: "job",
-      label: "Raise the job",
-      reason: "This is won. Nothing gets fitted until somebody raises the job for it.",
-      urgent: true,
+      action: "open-project",
+      label: "Open the project",
+      reason: "The work is running as a project. Its jobs, its money and its team are there.",
+      urgent: false,
     };
   }
 
@@ -339,6 +366,77 @@ export const WORK_ORDER_STATUS: Record<string, CanonicalUiStatus> = {
   BLOCKED: "failing",
   COMPLETED: "passing",
   CANCELLED: "inactive",
+};
+
+/** Where a project has got to. */
+export const PROJECT_STATUS: Record<string, CanonicalUiStatus> = {
+  PLANNING: "pending",
+  ACTIVE: "in_progress",
+  ON_HOLD: "need_changes",
+  COMPLETED: "passing",
+  CANCELLED: "inactive",
+};
+
+/**
+ * Where a requisition has got to. Waiting on somebody is `pending`; money out
+ * and not yet accounted for is `in_progress`, because it is — somebody is
+ * spending it.
+ */
+export const REQUISITION_STATUS: Record<string, CanonicalUiStatus> = {
+  DRAFT: "inactive",
+  SUBMITTED: "pending",
+  APPROVED: "in_review",
+  REJECTED: "failing",
+  DISBURSED: "in_progress",
+  ACQUITTED: "passing",
+  CANCELLED: "inactive",
+};
+
+/**
+ * The management contract's four inks — `StatusTone` in
+ * `components/management/ui/status.tsx`, restated here because `lib` does not
+ * import from `components`. The money pages draw their states with that
+ * layer: a dot and the word in a list, a chip in a header only for an
+ * exception.
+ *
+ * Green is live and well, amber is somebody's move, red is a refusal or a
+ * block, grey is nothing to do — not started, finished, or switched off.
+ */
+export type StateTone = "neutral" | "success" | "warn" | "danger";
+
+/** A project: live is green, parked is amber, planned and closed are grey. */
+export const PROJECT_TONE: Record<string, StateTone> = {
+  PLANNING: "neutral",
+  ACTIVE: "success",
+  ON_HOLD: "warn",
+  COMPLETED: "neutral",
+  CANCELLED: "neutral",
+};
+
+/** A job: under way is green, blocked is red, everything else is grey. */
+export const JOB_TONE: Record<string, StateTone> = {
+  DRAFT: "neutral",
+  SCHEDULED: "neutral",
+  IN_PROGRESS: "success",
+  BLOCKED: "danger",
+  COMPLETED: "neutral",
+  CANCELLED: "neutral",
+};
+
+/**
+ * A requisition. Amber while it waits on an approver or on the money; paid
+ * out is grey, because a float with the team is the normal state of a
+ * requisition that is being used — the late ones are flagged where lateness
+ * is known. Settled is green, declined red.
+ */
+export const REQUISITION_TONE: Record<string, StateTone> = {
+  DRAFT: "neutral",
+  SUBMITTED: "warn",
+  APPROVED: "warn",
+  REJECTED: "danger",
+  DISBURSED: "neutral",
+  ACQUITTED: "success",
+  CANCELLED: "neutral",
 };
 
 /** A quote, invoice or receipt's standing. */

@@ -1,0 +1,13 @@
+-- An issued invoice can be edited, so its posting needs a name per edit.
+--
+-- Editing an invoice nobody has paid reverses the journal it posted and posts
+-- the new figures. The second posting cannot reuse the first one's source:
+-- `JournalEntry` is unique on (companyId, sourceType, sourceId), the reversed
+-- entry keeps its claim on the invoice's id for good, and the posting engine
+-- treats an existing entry under that source as "already posted" and quietly
+-- skips. So each edit bumps this counter and posts under a key of its own.
+--
+-- 0 posts as the invoice's id itself, which is exactly what every invoice
+-- already on the books posted as -- nothing existing is re-keyed, and nothing
+-- here needs a backfill.
+ALTER TABLE "SalesInvoice" ADD COLUMN "revision" INTEGER NOT NULL DEFAULT 0;

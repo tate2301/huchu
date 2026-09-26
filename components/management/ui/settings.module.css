@@ -46,6 +46,13 @@
     because Next compiles `*.module.css` in css-modules `pure` mode, which
     rejects any selector built only out of `:global(...)` parts. The class is
     hashed per module, so the scope cannot collide with anything either.
+
+    Every component root that can be drawn outside the surface — the CRM's
+    money pages draw headings, lists, facts and states with these same
+    components — carries the ink itself, so a status dot on a CRM page is the
+    same ink as one in a register rather than whatever colour it inherits.
+    That includes a figure or a muted value drawn without its list round it,
+    as a phone's stacked rows draw them.
   */
   .scope,
   .surface,
@@ -55,6 +62,14 @@
   .recordHeader,
   .sectionHeading,
   .recordList,
+  .recordListColumns,
+  .columnList,
+  .columnFigure,
+  .columnText,
+  .factList,
+  .statusDot,
+  .statusBadge,
+  .field,
   .activity,
   .formPage {
     /* Ink */
@@ -1129,6 +1144,320 @@
   .statusBadge[data-tone="danger"] {
     background: var(--s-bad-bg);
     color: var(--s-bad-fg);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * ColumnList — RecordList with more than one value column
+   *
+   * The same rows as RecordList: 13px names on a #EEF0F4 hairline, the
+   * column header line in 11px meta above a #E5E8EE rule. A real table,
+   * because a row of four figures has to line up with the header over each
+   * of them and with the row above it, and a table is the one layout that
+   * does that without every caller agreeing on widths.
+   * ------------------------------------------------------------------ */
+
+  .columnList {
+    max-width: 470px;
+  }
+
+  .columnTable {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .columnHead {
+    padding: 6px 16px 7px 0;
+    border-bottom: 1px solid var(--s-rule);
+    font: 500 11px/1.5 var(--font-sans);
+    color: var(--s-meta);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .columnCell {
+    padding: 9px 16px 9px 0;
+    border-bottom: 1px solid var(--s-rule-soft);
+    font: 400 13px/1.45 var(--font-sans);
+    color: var(--s-body);
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  /* The first column is the row's name and takes the slack; every other
+     column is as wide as what it holds. */
+  .columnHead:first-child,
+  .columnCell:first-child {
+    width: 100%;
+    max-width: 0;
+    white-space: normal;
+  }
+
+  .columnHead:last-child,
+  .columnCell:last-child {
+    padding-right: 0;
+  }
+
+  .columnHead[data-align="end"],
+  .columnCell[data-align="end"] {
+    text-align: right;
+  }
+
+  /* A thumb needs the extra height; a mouse does not. */
+  @media (pointer: coarse) {
+    .columnCell {
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+  }
+
+  .columnRow:last-child > .columnCell,
+  .columnRow[data-expanded="true"] > .columnCell {
+    border-bottom-color: transparent;
+  }
+
+  @media (max-width: 639px) {
+    .columnHead[data-hide="sm"],
+    .columnCell[data-hide="sm"] {
+      display: none;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .columnHead[data-hide="md"],
+    .columnCell[data-hide="md"] {
+      display: none;
+    }
+  }
+
+  .columnName {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .columnMark {
+    align-self: center;
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .columnNameBody {
+    display: block;
+    min-width: 0;
+  }
+
+  .columnNameText {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--s-ink);
+  }
+
+  .columnNameMeta {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--s-meta);
+  }
+
+  .columnNameLink {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .columnNameLink:hover .columnNameText {
+    text-decoration: underline;
+    text-decoration-color: var(--s-control-border);
+    text-underline-offset: 3px;
+  }
+
+  .columnNameLink:focus-visible {
+    outline: none;
+    border-radius: 4px;
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  /* The row that opens: the name is the button, the chevron its mark. */
+  .columnToggle {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .columnToggle svg {
+    align-self: center;
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    color: var(--s-meta);
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+
+  .columnToggle[aria-expanded="true"] svg {
+    transform: rotate(90deg);
+  }
+
+  .columnToggle:focus-visible {
+    outline: none;
+    border-radius: 4px;
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .columnDetail {
+    padding: 0 0 14px 20px;
+    border-bottom: 1px solid var(--s-rule-soft);
+  }
+
+  /* Money is what these rows are about, so it is body size and full ink —
+     unlike RecordList's 11px count, which is a fact about the row. */
+  .columnFigure {
+    font: 500 13px/1.45 var(--s-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--s-ink);
+    white-space: nowrap;
+  }
+
+  .columnFigure[data-tone="muted"] {
+    font-weight: 400;
+    color: var(--s-meta);
+  }
+
+  .columnFigure[data-tone="warn"] {
+    color: var(--s-warn-fg);
+  }
+
+  .columnFigure[data-tone="danger"] {
+    color: var(--s-bad-fg);
+  }
+
+  .columnText {
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--s-label);
+  }
+
+  .columnTotal > .columnCell {
+    border-top: 1px solid var(--s-rule);
+    border-bottom: 0;
+    font-weight: 600;
+    color: var(--s-ink);
+  }
+
+  /* A row's own verb — Remove on a line — shown on the row a pointer is
+     over, and always on a device with no hover to find it by. */
+  .columnRowAction {
+    display: inline-flex;
+    /* A 28px button in a 38px row: pulled out of the row's height, so a row
+       with its verb is the same height as one without. */
+    margin-block: -6px;
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+
+  .columnRow:hover .columnRowAction,
+  .columnRowAction:focus-within {
+    opacity: 1;
+  }
+
+  @media (hover: none) {
+    .columnRowAction {
+      opacity: 1;
+    }
+  }
+
+  .columnEmpty {
+    margin: 0;
+    padding: 2px 0;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--s-meta);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * FactList — the 44px fact row
+   *
+   * The Workspace rows on Profile: a 150px label in 12px meta, the value in
+   * 13px ink, a #EEF0F4 hairline under each. A figure list sets its values
+   * mono and against the right edge, so a column of money lines up digit
+   * under digit.
+   * ------------------------------------------------------------------ */
+
+  .factList {
+    margin: 0;
+    max-width: 470px;
+  }
+
+  .factRow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 44px;
+    border-bottom: 1px solid var(--s-rule-soft);
+  }
+
+  .factLabel {
+    width: var(--fact-label-width, 150px);
+    flex-shrink: 0;
+    font: 400 12px/1.45 var(--font-sans);
+    color: var(--s-meta);
+  }
+
+  .factValue {
+    flex-grow: 1;
+    min-width: 0;
+    margin: 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--s-ink);
+  }
+
+  .factList[data-align="end"] .factValue {
+    text-align: right;
+  }
+
+  .factValue[data-mono="true"] {
+    font-family: var(--s-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .factValue[data-tone="muted"] {
+    font-weight: 400;
+    color: var(--s-meta);
+  }
+
+  .factValue[data-tone="warn"] {
+    color: var(--s-warn-fg);
+  }
+
+  .factValue[data-tone="danger"] {
+    color: var(--s-bad-fg);
+  }
+
+  .factLink {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--s-control-border);
+    text-underline-offset: 3px;
+  }
+
+  .factLink:hover {
+    text-decoration-color: currentcolor;
   }
 
   /* ------------------------------------------------------------------ *

@@ -2541,6 +2541,8 @@ export type JournalEntryRecord = {
   entryDate: string;
   description: string;
   status: "DRAFT" | "POSTED";
+  /** Set when a mirror entry has cancelled this one; the entry itself stays POSTED. */
+  reversedAt?: string | null;
   totalDebit?: number;
   totalCredit?: number;
   amount?: number;

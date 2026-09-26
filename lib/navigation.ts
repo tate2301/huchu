@@ -33,6 +33,7 @@ import {
   PackageCheck,
   Payments,
   Phone,
+  Receipt,
   ReceiptLong,
   ReportProblem,
   Scale,
@@ -728,10 +729,16 @@ export const navSections: NavSection[] = [
       // from people and companies drew a line the data does not have.
       { id: "objects", label: "Objects" },
       { id: "work", label: "Work" },
-      // Money the business hands out, as opposed to money it asks for. Quotes
-      // and invoices are the documents group; this is the float a rep draws,
-      // what they spent it on, and what a project has cost.
-      { id: "money", label: "Money out" },
+      // Delivery: what a won deal turns into, and the days of work inside it.
+      // Its own group rather than two lines under Work, because a project is
+      // a place people go to — its jobs, its money, its team — not another
+      // queue of things to do today.
+      { id: "projects", label: "Projects" },
+      // The money that moves through people's hands, as opposed to the
+      // paperwork that asks for it: the float a rep draws, what they spent it
+      // on, what they collected, and each day's report. Quotes and invoices
+      // are the documents group.
+      { id: "money", label: "Finance" },
       { id: "documents", label: "Sales documents" },
       { id: "learn", label: "Insights" },
       { id: "workflows", label: "Workflows" },
@@ -747,22 +754,29 @@ export const navSections: NavSection[] = [
       { href: "/crm/people", icon: Users, label: "People", group: "objects" },
       { href: "/crm/companies", icon: Building2, label: "Companies", group: "objects" },
       { href: "/crm/sites", icon: MapPin, label: "Sites", group: "objects" },
-      { href: "/crm/reps", icon: UserRound, label: "Sales reps", group: "objects" },
+      { href: "/crm/reps", icon: UserRound, label: "Team", group: "objects" },
 
+      // Whoever is signed in: `/crm/reps/me` redirects to their own page.
+      { href: "/crm/reps/me", icon: UserCheck, label: "My overview", group: "work" },
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work" },
-      // Service delivery, not paperwork. A job sat under "Sales documents"
-      // beside quotes and invoices, which is where you look for something to
-      // send a customer — and it is the one entry here that is a crew going
-      // somewhere. Labelled "Jobs" because that is what the page, the button
-      // and everybody in the building already call it.
-      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "work" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
-      // A project is what a job belongs to when the work runs past a day and
-      // somebody is answerable for what it costs.
-      { href: "/crm/projects", icon: Work, label: "Projects", group: "work" },
 
-      { href: "/crm/my-day", icon: ClipboardList, label: "My day", group: "money" },
+      // A project is what a won deal turns into, and somebody is answerable
+      // for what it costs. Jobs sit under it because that is where they are
+      // raised; a job is still labelled "Jobs" because that is what the page,
+      // the button and everybody in the building already call it.
+      { href: "/crm/projects", icon: Work, label: "Projects", group: "projects" },
+      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects" },
+
+      {
+        href: "/crm/finance",
+        icon: Dashboard,
+        label: "Overview",
+        roles: ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"],
+        group: "money",
+      },
+      { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money" },
       { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money" },
       {
         href: "/crm/daily-reports",

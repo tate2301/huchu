@@ -14,15 +14,44 @@ The pipeline ran lead → qualified → … → raise job, and stopped. A job
 morning's work and the wrong shape for a six-week floor, because cost attached
 to nothing.
 
-`CrmProject` is what a job belongs to when the work runs longer than a day.
-Every link it has — deal, client, site, work order — is optional, because work
-is sometimes raised directly and refusing to record it until the pipeline
-catches up helps nobody.
+`CrmProject` is what a won deal turns into, and what its jobs belong to. The
+chain is **deal → project → jobs**:
 
-A job's page (`components/crm/work-orders/job-project-card.tsx`) either links
-to its project or offers to raise one, carrying the client, site and deal
-across. Raising twice returns the same project: two projects for one job
-splits its costs in half and neither figure is true.
+- A won deal's next step is **Start the project** (`resolveNextStep` in
+  `lib/crm/tones.ts`). The sheet asks for a name, an owner, a budget and two
+  dates; `projectFromDeal` carries the deal's name, client, site and owner
+  across. The deal's value is not copied — the project reads it from the deal
+  as the reference its budget is set against ("Sold for").
+- **One project per deal**, enforced by a unique on `(companyId, dealId)`.
+  `projectFromDeal` hands back the existing project on a second request, and
+  the route turns a concurrent double-tap's unique violation into the same
+  answer.
+- **The job holds the link** (`CrmWorkOrder.projectId`), so a project holds
+  any number of jobs. A job raised with a `projectId` inherits the project's
+  deal, client and site wherever the request left them blank
+  (`jobLinksFromProject`); naming a different deal is refused.
+- **A job can still exist with no project.** A callout is a real thing that
+  happens. What is gone is raising a project *from* a job — the old
+  `CrmProject.workOrderId` link, which let a project hold exactly one job.
+  Migration `20260925090000_crm_project_spine` moved every existing link onto
+  the job before dropping the column, and where two projects named the same
+  deal it kept the deal on the oldest and left the others standing on their
+  own.
+- **The team** is `CrmProjectMember` (free-text role). `managerId` stays the one
+  owner answerable for the budget; the owner or a manager changes the team,
+  the budget and the status (`canEditRecord`).
+
+Direct projects — work that never went through the pipeline — are raised from
+the register's **New project**, with no deal behind them.
+
+The project page (`components/crm/money/project-detail-content.tsx`) is the
+standard record page: properties edited in place, sections in the rail with
+the open one in the URL, and one primary action, **Raise a job**. Overview is
+the costs and a schedule of the jobs by date between the start and the target
+end; then Jobs, Requisitions, Spend, Team, Files and History (field changes,
+written as names and days rather than ids). Each section's own verb — *Ask
+for money*, *Add spend*, *Add someone* — sits on that section's heading; *Raise
+a job* is the page's, so the Jobs section does not draw it a second time.
 
 ### Statuses
 
@@ -92,11 +121,39 @@ back from a disbursement is an acquittal.
 `outstandingFloat` goes negative when somebody spent their own money. That is
 real and worth saying out loud rather than rounding away.
 
+### Reporting and accounting for it
+
+The requisition's own page (`/crm/requisitions/[id]`, which the approval and
+payment notifications link to) names its four steps with the one it is
+waiting on marked, and offers **one** move — the one this viewer may make next: *Send for approval*,
+*Approve or decline*, *Mark paid*, or *Account for it*.
+
+Once the money is approved or paid out, the requester **reports what they
+spent**, a line at a time, each with a photo of its receipt. The lines go
+through the same door as every other line of field money (see *One ledger*
+below), carrying the requisition and its project. Reporting opens at
+`APPROVED` as well as `DISBURSED`, because cash handed over on the spot is
+spent before anybody presses *Mark paid*; accounting for it still waits for the
+payment to be recorded.
+
+**The acquittal is the report.** *Account for it* sets `acquittedAmount` to
+the sum of the spend lines (`decideAcquittal` in `lib/crm/requisitions.ts`);
+there is no typed figure. It is **refused while any line has no receipt**. A
+manager — someone with `money.approve`, and never the requester — can accept
+them anyway, and must say why; `receiptsWaivedById` and `receiptWaiverNote`
+keep who and why. The page shows what was issued, what has been accounted for,
+and the balance to return (or owed to them).
+
 ### Permissions
 
 `money.approve` and `money.disburse` are **separate capabilities**, because
 saying yes and handing over cash should be two people wherever a business is
 big enough for it to be. Both default to managers.
+
+`money.view_all` is reading everybody's money without deciding on any of it —
+every requisition, every line in the cost tracker. It defaults on for
+managers and for the finance officer role, who reads the books and approves
+nothing.
 
 Nobody approves their own request. That is refused in
 `app/api/v2/crm/requisitions/[id]/route.ts`, not by hiding a button.
@@ -118,14 +175,47 @@ today's log" an upsert rather than a find-or-create race. `logDate` is a
 `DATE`, not a timestamp: a rep writes Tuesday up on Wednesday morning, and the
 entry belongs to Tuesday whatever time zone the phone was in.
 
-`/crm/my-day` is built for somebody standing at a fuel pump — four fields and
-a button, the running balance at the top where a thumb-scroll starts, one
-press to close the day. The date can be moved back and not forward: a log for
-Friday written on Wednesday is a guess, and a guess in the cost figures is
-worse than a gap.
+`/crm/cost-tracker` is built for somebody standing at a fuel pump. The top of
+the page is the day being written up: the form on the page rather than in a
+modal (expense or income, the amount, the category, the project, and then the
+requisition an expense was paid from or the invoice income was paying, with
+its receipt — a photo straight from the camera on a phone, or a file), what the
+day has come to so far, and one press to close it.
+The day can be moved back and not forward: a log for Friday written on
+Wednesday is a guess, and a guess in the cost figures is worse than a gap.
+
+Under it is the register of every line, filtered from the toolbar and kept in
+the URL — day range, person (for somebody with `money.view_all`), project,
+requisition, expense or income, and the two things a manager scans it for:
+**no receipt photo**, and **not receipted**.
+
+### Not receipted
+
+Cash a rep collects on site is logged in their tracker against the invoice
+(`CrmDailyCostEntry.invoiceDocumentId`), and the office records the receipt
+that settles it. Until the second happens the first is cash in somebody's hand
+that the business holds no receipt for. `lib/crm/finance.ts` compares, per
+invoice, what the field logged with the invoice's `amountPaid`; every income
+line on an invoice with a gap is flagged, because which of three collections
+is the unreceipted one is a question for the people who logged them. The rule
+only reads accounting — nothing is matched or written.
 
 Entries carry a device-generated `clientEntryId`, unique per tenant, so an
 entry replayed on reconnect lands once instead of doubling the day's spend.
+
+### One ledger
+
+`addCostEntry(tx, { companyId, userId, date, direction, … })` in
+`lib/crm/daily-log.ts` is **the only way a line of money is written**, and
+`POST /api/v2/crm/cost-entries` is the only route that calls it. The day
+tracker, a requisition's report and a project's *Add spend* all post there, so
+a line lands on its author's log for the day it names whichever screen it was
+typed on. It opens the day's log on the first line, refuses a day in the
+future, and refuses a day already submitted.
+
+Receipts upload through `/api/v2/crm/uploads` with `context=crm-receipt`
+(images and PDF, 10 MB), into a folder of their own: the evidence behind the
+money figures should be findable as such.
 
 **Submitting an empty log is refused unless there is a note.** "No movement
 today" is a real answer, but a quiet day and a day the person forgot about
@@ -156,23 +246,122 @@ still out, overdue tasks, nothing recorded at all — because the question being
 asked of fifteen of these is *"is there anything here I need to deal with"*,
 not *"what did everybody do"*.
 
+## The finance overview
+
+> "a finance dashboard for non-accountants, requisitions split by project and
+> by person"
+
+`/crm/finance` is read-only and needs `money.view_all`. Its figures come from
+`financeOverview` in `lib/crm/finance.ts`, which reads the requisitions, the
+cost tracker and the CRM's invoices and receipts, and writes nothing.
+
+Two kinds of figure:
+
+- **Flows, for the period.** *Money in* is customer payments receipted on the
+  CRM's invoices. *Money out* is requisitions paid out plus spend that came out
+  of nobody's float. Spend out of a float is inside the requisition's payment
+  already, so it is never added a second time — that is the whole reason the
+  cost tracker records which requisition a line came out of.
+- **Positions, as they stand now.** *Owed to us* (open invoices), *floats not
+  accounted for* (paid out, not yet acquitted) and *approved, not yet paid*. The period does not move them: "the floats we
+  had out last March" is not a question anybody asks.
+
+The filters head the page, above every figure they move, and a phone keeps
+the period on screen. The project and person filters narrow both kinds. A
+person's money is what they asked for and spent; money in belongs to whoever
+owns the deal it came from. Cash not receipted on an invoice two people
+collected against is shared between them in proportion to what each logged
+(`shareOfGap`), so the people add back up to the invoice.
+
+Money is added up one currency at a time — a total of dollars and ZiG is not a
+figure — defaulting to the currency most of the money is in, with a Currency
+filter when there is more than one.
+
+The *Needs action* strip holds at most four things — requisitions waiting for
+approval (not counting the viewer's own, which are waiting on somebody else),
+cash not receipted, spend without a receipt photo, projects over budget — each
+linking to the list that holds them. *By project* is each project's standing to
+date (`projectCostSummary`); *By person* is the period's asking and spending
+beside what each person holds now. Rows open onto their requisitions.
+
+## A team member's page
+
+`/crm/reps/[id]` — "Team" in the navigation, and "My overview" for whoever is
+signed in (`/crm/reps/me` redirects to their own). A member opens their own
+page; a manager, or anybody with `money.view_all`, opens anybody's
+(`mayOpenMember`). The team list stays visible to everybody — you cannot hand a
+lead to somebody you cannot see — but only the rows a viewer may open are links.
+
+One period, chosen at the top, governs every section:
+
+- **Overview** — deals won and their value, jobs completed, visits done, and
+  the money spent and received, then what they are carrying.
+- **Outstanding** — overdue tasks and follow-ups, requisitions waiting, floats
+  not accounted for, spend without a receipt photo, cash not receipted, and days
+  not closed. Late things come first, oldest first; a float counts as late after
+  a week out; a requisition waiting on an approver is waiting, not late.
+- **Activity** — their days, newest first, each the daily report's own card: the
+  report management got for a closed day, built fresh for an open one.
+- **Money** — their cost tracker lines for the period.
+- **Files** and **Settings**, as before.
+
+The figures are `lib/crm/member-overview.ts`, which reuses the daily report's
+builder, `receiptGaps`/`shareOfGap` and `payableAmount` rather than restating
+any of them.
+
+## How the pages are drawn
+
+The money pages are drawn with the management surface's own layer
+(`components/management/ui`) — outside its full-screen dialog, inside the CRM's
+app bar, record rails and properties pane — so they follow the contract that
+surface was rebuilt to:
+
+- **No sentence explaining a control or a figure.** No lede under a page's
+  name, no helper line under a field, no paragraph over a table. A label that
+  needed one was renamed: the cost tracker asks *Amount*, *Category*,
+  *Description*, *Paid from*, *Project*, not "How much" and "Out of which
+  requisition".
+- **A section's verb is on its heading**, beside its count (`SectionHeading`,
+  `SectionAction`), never under the list and never twice.
+- **Every list names its columns once** (`ColumnList`): the reference and the
+  name, one line under it, then the figures mono against the right edge. Money
+  in and money out are two columns, not one column of signs. Facts about a
+  record are 44px rows (`FactList`).
+- **A state is a dot and a word in a list** (`StatusDot`); a chip in a record's
+  band only for the exception — a project on hold or cancelled, a requisition
+  declined or withdrawn. The inks are `PROJECT_TONE`, `JOB_TONE` and
+  `REQUISITION_TONE` in `lib/crm/tones.ts`: green live, amber somebody's move,
+  red refused or late, grey nothing to do.
+- **Dates are written one way**, day first — "25 Sept 2026" — and in UTC, the
+  terms a log day is keyed in (`formatDate` in `components/crm/money/money.ts`).
+- **What cannot be done is not offered.** "Close the day" appears once the day
+  can be closed; a requisition's project is said, not asked, once the
+  requisition decides it.
+
 ## Where to find it
 
 | Route | For |
 | --- | --- |
 | `/crm/projects`, `/crm/projects/[id]` | The work and what it cost |
 | `/crm/requisitions` | Asking for money, and answering |
-| `/crm/my-day` | A rep's own day |
+| `/crm/cost-tracker` | A day's money written up, and every line read back |
+| `/crm/finance` | Money in and out, and where it stands — for `money.view_all` |
+| `/crm/reps/[id]` | One team member: done, outstanding, their days, their money |
 | `/crm/daily-reports` | Management's read |
 
-Navigation groups them under **Money out**, distinct from Sales documents:
-one is money the business asks for, the other is money it hands out.
+Navigation groups the money pages under **Finance**, distinct from Sales
+documents: one is the money moving through people's hands, the other is the
+paperwork the business sends its customers.
 
 | Module | Holds |
 | --- | --- |
-| `lib/crm/projects.ts` | Status machine, creation from a job, cost rollup |
+| `lib/crm/projects.ts` | Creation from a deal, a job's links, over-budget, cost rollup |
+| `lib/crm/project-status.ts` | Status machine — shared by the route and the page |
+| `lib/crm/project-timeline.ts` | Jobs laid out against a project's dates |
 | `lib/crm/requisitions.ts` | Lifecycle, categories, money helpers |
 | `lib/crm/daily-log.ts` | Day arithmetic, entry idempotency, submission |
+| `lib/crm/finance.ts` | The not-receipted rule and the finance overview — reads, never writes |
+| `lib/crm/member-overview.ts` | One member's achievements, outstanding items and days |
 | `lib/crm/daily-report.ts` | Assembly and storage |
 
 ## Conventions worth not breaking

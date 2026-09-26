@@ -46,6 +46,7 @@ import {
   Tag,
   User,
   Users,
+  Work,
   Wrench,
   XCircle,
 } from "@/lib/icons";
@@ -60,7 +61,6 @@ import { JobChecklist } from "./job-checklist";
 import { jobNextStep, type JobAct } from "./job-next-step";
 import { JobStageRail } from "./job-stage-rail";
 import { jobWindow, type JobInvoicePreview, type JobRecord, type JobStatus } from "./job-types";
-import { JobProjectCard } from "./job-project-card";
 import { useJobActions, type InvoiceLineInput } from "./use-job-actions";
 
 /** The stored enum, in the words somebody would say. */
@@ -225,6 +225,14 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
 
   const subtitle = (
     <>
+      {/* The project first: it is what this day's work is part of, and the
+          customer and site are the project's too. */}
+      {job.project ? (
+        <EntityLink href={`/crm/projects/${job.project.id}`} muted>
+          {job.project.name}
+        </EntityLink>
+      ) : null}
+      {job.project && (job.client || job.site) ? " · " : null}
       {job.client ? (
         <EntityLink href={`/crm/companies/${job.client.id}`} muted>
           {job.client.name}
@@ -308,10 +316,6 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
           </div>
         </RailSection>
       ) : null}
-
-      <RailSection title="Project">
-        <JobProjectCard jobId={jobId} />
-      </RailSection>
 
       {job.invoice ? (
         <RailSection title="Billed">
@@ -464,6 +468,15 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
         related={
           <RecordRelated
             items={[
+              ...(job.project
+                ? [
+                    {
+                      href: `/crm/projects/${job.project.id}`,
+                      label: job.project.name,
+                      dot: "bg-[var(--badge-ok-fg)]",
+                    },
+                  ]
+                : []),
               ...(job.deal
                 ? [
                     {
@@ -566,6 +579,20 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
                 ) : undefined,
                 value: job.client ? job.client.name : null,
                 placeholder: "Not attached",
+              },
+              {
+                id: "project",
+                label: "Project",
+                icon: Work,
+                // A job with no project is a one-off, which is fine — so the
+                // blank is quiet rather than flagged.
+                display: job.project ? (
+                  <EntityLink href={`/crm/projects/${job.project.id}`}>
+                    {job.project.name}
+                  </EntityLink>
+                ) : undefined,
+                value: job.project ? job.project.name : null,
+                placeholder: "A one-off job",
               },
               {
                 id: "deal",

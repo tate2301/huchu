@@ -48,6 +48,7 @@ const base: ApprovalDoc = {
     paymentTerms: null,
     footerText: null,
   },
+  resources: [],
   linkState: "ACTIVE",
 };
 
@@ -107,5 +108,34 @@ describe("a link that no longer works", () => {
     const html = render({ linkState: "REVOKED", lines: [] });
     expect(html).toContain("Floorcode Zimbabwe");
     expect(html).toContain("+263 77 000 0000");
+  });
+});
+
+describe("what the client is asked to review", () => {
+  const brochure = {
+    title: "Floorcode brochure",
+    description: "Finishes, colours and where they have been laid",
+    url: "https://example.invalid/floorcode-brochure.pdf",
+  };
+
+  it("lists the resources on a quote under 'Review before you accept'", () => {
+    const html = render({ documentType: "QUOTATION", resources: [brochure] });
+    expect(html).toContain("Review before you accept");
+    expect(html).toContain("Floorcode brochure");
+    expect(html).toContain("Finishes, colours and where they have been laid");
+    expect(html).toContain('href="https://example.invalid/floorcode-brochure.pdf"');
+    // Opens beside the document rather than replacing it.
+    expect(html).toContain('target="_blank"');
+  });
+
+  it("offers the same list on an invoice for reference, not for acceptance", () => {
+    const html = render({ resources: [brochure] });
+    expect(html).toContain("For your reference");
+    expect(html).not.toContain("Review before you accept");
+  });
+
+  it("draws nothing when the rep offered nothing", () => {
+    const html = render({ documentType: "QUOTATION" });
+    expect(html).not.toContain("Review before you accept");
   });
 });

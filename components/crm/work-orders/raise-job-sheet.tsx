@@ -30,6 +30,8 @@ type TeamResponse = { data: { id: string; name: string | null; email: string }[]
 
 type DealsResponse = { data: { id: string; dealNo: string | null; title: string }[] };
 
+type ProjectsResponse = { data: { id: string; projectNo: string; name: string }[] };
+
 /**
  * "No quote behind this one."
  *
@@ -40,6 +42,9 @@ const NO_CHECKLIST = "none";
 
 /** The same trick for "this job bills against nothing yet". */
 const NO_DEAL = "none";
+
+/** And for "a one-off job, not part of any project". */
+const NO_PROJECT = "none";
 
 /** Book it for tomorrow morning, which is when a job realistically starts. */
 function defaultStart(): string {
@@ -63,6 +68,12 @@ function defaultStart(): string {
  * company is accepted too — a callout that turns up in the day's work with no
  * paperwork behind it is a real thing that happens, and refusing to record it
  * is how it ends up on a WhatsApp thread instead.
+ *
+ * The project is fixed when the opener knows it — a project's own page, or a
+ * deal that has been started as one, since a deal has at most one project and
+ * its jobs belong in it. Anywhere else it is a choice among the projects still
+ * taking work, and picking one is enough on its own: the server fills the
+ * job's deal, customer and site from the project.
  */
 export function RaiseJobSheet({
   open,
@@ -70,6 +81,7 @@ export function RaiseJobSheet({
   dealId,
   clientId,
   siteId,
+  project,
   defaultTitle,
   quotationDocuments = [],
   currentUserId,
@@ -81,6 +93,8 @@ export function RaiseJobSheet({
   dealId?: string | null;
   clientId?: string | null;
   siteId?: string | null;
+  /** The project the job goes into, when the opener already knows it. */
+  project?: { id: string; label: string } | null;
   defaultTitle?: string;
   /** Accepted quotes whose lines can seed the checklist. */
   quotationDocuments?: { id: string; label: string }[];
@@ -100,6 +114,7 @@ export function RaiseJobSheet({
   const [subject, setSubject] = useState<PickedRecord | null>(null);
   const [documentId, setDocumentId] = useState("");
   const [billTo, setBillTo] = useState("");
+  const [pickedProject, setPickedProject] = useState("");
   const [scheduledStart, setScheduledStart] = useState(defaultStart);
   const [assignedToId, setAssignedToId] = useState(currentUserId ?? "");
   const [addressLine, setAddressLine] = useState("");
@@ -107,7 +122,7 @@ export function RaiseJobSheet({
   const [errors, setErrors] = useState<string[]>([]);
 
   /** The record is fixed when a page handed one over, and asked for otherwise. */
-  const given = Boolean(dealId || clientId || siteId);
+  const given = Boolean(dealId || clientId || siteId || project);
 
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
@@ -117,6 +132,7 @@ export function RaiseJobSheet({
       setSubject(null);
       setDocumentId("");
       setBillTo("");
+      setPickedProject("");
       setScheduledStart(defaultStart());
       setAssignedToId(currentUserId ?? "");
       setAddressLine("");
@@ -151,6 +167,24 @@ export function RaiseJobSheet({
   });
   const billable = deals?.data ?? [];
 
+  /**
+   * Projects this job could go into, when nobody has said which.
+   *
+   * Only those still taking work, and narrowed to the customer when there is
+   * one — a job for Plumtree Freight belongs in one of Plumtree's projects,
+   * not in whichever project happens to be at the top of the register.
+   */
+  const projectScope = clientId ? `&clientId=${clientId}` : "";
+  const { data: projects } = useQuery({
+    queryKey: ["crm", "projects", "for-job", projectScope],
+    queryFn: () =>
+      fetchJson<ProjectsResponse>(`/api/v2/crm/projects?open=true&costs=false&limit=100${projectScope}`),
+    enabled: open && !project,
+    staleTime: 60_000,
+  });
+  const openProjects = projects?.data ?? [];
+  const projectId = project?.id ?? (pickedProject && pickedProject !== NO_PROJECT ? pickedProject : null);
+
   const create = useMutation({
     mutationFn: () => {
       const picked = recordRefFor(subject);
@@ -161,6 +195,7 @@ export function RaiseJobSheet({
           dealId: dealId ?? picked.dealId ?? (billTo || null),
           clientId: clientId ?? picked.clientId ?? null,
           siteId: siteId ?? picked.siteId ?? null,
+          projectId,
           documentId: documentId && documentId !== NO_CHECKLIST ? documentId : null,
           scheduledStart: scheduledStart ? new Date(scheduledStart).toISOString() : null,
           assignedToId: assignedToId || null,
@@ -173,6 +208,7 @@ export function RaiseJobSheet({
       toast({ title: "Job raised", description: "It's on the crew's list." });
       queryClient.invalidateQueries({ queryKey: ["crm", "jobs"] });
       if (dealId) queryClient.invalidateQueries({ queryKey: ["crm", "deal", dealId] });
+      if (projectId) queryClient.invalidateQueries({ queryKey: ["crm", "project", projectId] });
       onOpenChange(false);
       // A dialog that closes onto a page looking exactly as it did before is
       // the shape of "nothing happened". A record page says where to go — its
@@ -219,7 +255,42 @@ export function RaiseJobSheet({
         />
       </div>
 
-      {given ? null : (
+      {project ? (
+        <div className="space-y-1.5">
+          <Label>Project</Label>
+          <p className="text-sm font-medium text-[var(--text-strong)]">{project.label}</p>
+        </div>
+      ) : openProjects.length > 0 ? (
+        <div className="space-y-1.5">
+          <Label>Project</Label>
+          <Select
+            value={pickedProject || NO_PROJECT}
+            onValueChange={(next) => {
+              setPickedProject(next === NO_PROJECT ? "" : next);
+              // The project answers "what is it for", so an earlier answer to
+              // that question goes rather than being sent alongside it.
+              if (next !== NO_PROJECT) setSubject(null);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_PROJECT}>None — a one-off job</SelectItem>
+              {openProjects.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {`${option.projectNo} — ${option.name}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-sm text-[var(--text-muted)]">
+            A job in a project books its costs to it, and takes its customer and site.
+          </p>
+        </div>
+      ) : null}
+
+      {given || projectId ? null : (
         <div className="space-y-1.5">
           <Label htmlFor="job-subject">What is it for</Label>
           <RecordPicker

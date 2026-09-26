@@ -19,6 +19,12 @@ model Company {
   /// changing it afterwards does nothing, because the tenant's own rows are
   /// the source of truth once seeded.
   siteVisitTemplateKey          String?
+  /// The camera app reps are told to take site photos with, so every photo
+  /// carries a location stamp. Null means the default, "GPS Map Camera".
+  fieldCameraAppName            String?
+  /// Where to get that app. Null means a store search for its name, which
+  /// cannot rot the way a copied listing link can.
+  fieldCameraAppUrl             String?
   tenantStatus                  TenantStatus       @default(PROVISIONING)
   workspaceProfile              WorkspaceProfile   @default(GENERAL)
   isProvisioned                 Boolean            @default(false)
@@ -255,6 +261,7 @@ model Company {
   crmSiteVisitAnswers           CrmSiteVisitAnswer[]
   crmSiteVisitPhotos            CrmSiteVisitPhoto[]
   crmProjects                   CrmProject[]
+  crmProjectMembers             CrmProjectMember[]
   crmRequisitions               CrmRequisition[]
   crmDailyLogs                  CrmDailyLog[]
   crmDailyCostEntries           CrmDailyCostEntry[]
@@ -283,6 +290,8 @@ model Company {
   crmTasks                      CrmTask[]
   crmComments                   CrmComment[]
   crmRecordFiles                CrmRecordFile[]
+  crmResources                  CrmResource[]
+  crmDocumentResources          CrmDocumentResource[]
   crmMentions                   CrmMention[]
   crmFollowers                  CrmFollower[]
   crmAutomations                CrmAutomation[]
@@ -1259,9 +1268,11 @@ model User {
   crmSiteVisitPhotos                CrmSiteVisitPhoto[]            @relation("CrmSiteVisitPhotoBy")
   crmProjectsManaged                CrmProject[]                   @relation("CrmProjectManager")
   crmProjectsCreated                CrmProject[]                   @relation("CrmProjectCreatedBy")
+  crmProjectMemberships             CrmProjectMember[]             @relation("CrmProjectMemberUser")
   crmRequisitionsRequested          CrmRequisition[]               @relation("CrmRequisitionRequestedBy")
   crmRequisitionsApproved           CrmRequisition[]               @relation("CrmRequisitionApprovedBy")
   crmRequisitionsDisbursed          CrmRequisition[]               @relation("CrmRequisitionDisbursedBy")
+  crmRequisitionsReceiptsWaived     CrmRequisition[]               @relation("CrmRequisitionReceiptsWaivedBy")
   crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
@@ -5688,6 +5699,12 @@ model SalesInvoice {
   /// The quotation this invoice was raised from, when it was. The CRM reads
   /// this to recognise its own work coming back from Accounting.
   quotationId   String?
+  /// How many times the issued invoice has been edited. Each edit reverses the
+  /// posted journal and posts the new figures under a source id of their own
+  /// (`salesInvoicePostingKey`), because a journal's source is unique and the
+  /// reversed entry keeps its claim on the invoice's id. 0 posts as the id
+  /// itself, which is what every invoice before editing existed did.
+  revision      Int                  @default(0)
   createdById   String?
   issuedById    String?
   issuedAt      DateTime?
@@ -10928,6 +10945,9 @@ model CrmLeadDocument {
   discountApprovals CrmDiscountApproval[]
   collectionNotes   CrmCollectionNote[]
   workOrders        CrmWorkOrder[]
+  costEntries       CrmDailyCostEntry[]
+  /// What the client is asked to look at alongside this document.
+  resources         CrmDocumentResource[]
 
   @@unique([companyId, quotationId])
   @@unique([companyId, invoiceId])
@@ -10935,6 +10955,60 @@ model CrmLeadDocument {
   @@index([companyId, leadId, type])
   @@index([companyId, dealId, type])
   @@index([companyId, supersedesId])
+}
+
+enum CrmResourceKind {
+  /// A page somewhere else — the brochure on the website, a video, a catalogue.
+  LINK
+  /// A file uploaded to our own storage.
+  FILE
+}
+
+/// Something the client should look at alongside a quote or an invoice: the
+/// brand's brochure, a product's data sheet, the terms of the guarantee.
+///
+/// The tenant's own library, kept as data. What Floorcode sends with a quote
+/// is rows here, entered on the settings screen — never a branch in the code.
+model CrmResource {
+  id          String          @id @default(uuid())
+  companyId   String
+  title       String
+  /// One line on why the client should open it.
+  description String?
+  kind        CrmResourceKind
+  url         String
+  /// The storage key, for a FILE.
+  pathname    String?
+  contentType String?
+  /// Ticked by default on every new quote and invoice.
+  isDefault   Boolean         @default(false)
+  /// Retired from new documents. Never deleted: a document already sent still
+  /// points at it, and its link has to keep working.
+  archivedAt  DateTime?
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  documents CrmDocumentResource[]
+
+  @@index([companyId, archivedAt, sortOrder])
+}
+
+/// A resource offered to the client on one document.
+model CrmDocumentResource {
+  id         String   @id @default(uuid())
+  companyId  String
+  documentId String
+  resourceId String
+  createdAt  DateTime @default(now())
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  document CrmLeadDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  resource CrmResource     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, resourceId])
+  @@index([companyId, resourceId])
 }
 
 model CrmDocumentApproval {
@@ -11034,10 +11108,9 @@ model CrmAppointment {
   updatedAt      DateTime             @updatedAt
 
   // Site-visit report captured on site. `checklist` is an array of
-  // { key, label, checked, notes? }; `photos` an array of
-  // { url, fileName, contentType, size, kind, caption? }.
+  // { key, label, checked, notes? }. The photographs are rows of their own —
+  // `visitPhotos` — because each one carries where and when it was taken.
   checklist         Json?
-  photos            Json?
   siteConditions    String?
   reportNotes       String?
   reportCompletedAt DateTime?
@@ -11251,6 +11324,10 @@ model CrmSiteVisitAnswer {
 /// Always belongs to the visit; optionally to a section and an answer. The
 /// bank asks for both — "site/area overview photographs" belong to no question,
 /// while "photograph cracks, joints, contamination" belongs to one.
+///
+/// The visit report's own attachments live here too, and that list has always
+/// taken the odd PDF — a drawing the client handed over. `contentType` is what
+/// tells the two apart; a PDF simply has no location to carry.
 model CrmSiteVisitPhoto {
   id            String  @id @default(uuid())
   companyId     String
@@ -11269,6 +11346,9 @@ model CrmSiteVisitPhoto {
   width        Int?
   height       Int?
   caption      String?
+  /// The name the file had on the phone, for a list that would otherwise read
+  /// "Photo, Photo, Photo".
+  fileName     String?
   /// From the device, not the server clock — a visit may sync days later.
   capturedAt   DateTime?
   latitude     Float?
@@ -12193,6 +12273,9 @@ enum CrmFieldEntity {
   /// had their own `CrmRecordFile.userId` column before S-4.2; a rep is a
   /// record with a page, so it is a subject type like any other.
   REP
+  /// A `CrmProject`. Drawings, permits and the signed scope of works hang off
+  /// the project rather than whichever job happened to be open at the time.
+  PROJECT
 }
 
 enum CrmFieldType {
@@ -12943,13 +13026,13 @@ enum CrmCashDirection {
   SPENT
 }
 
-/// A job that has become a piece of work with its own money.
+/// The work a won deal turns into, with its own money.
 ///
-/// The CRM's chain is lead, deal, quote, won, job. A job is a day's work with
-/// a checklist; a project is the thing a job belongs to when the work runs
-/// longer than that and has a budget somebody is answerable for. Requisitions
-/// and daily costs point here, which is what makes "what has this project cost
-/// us" answerable without a spreadsheet.
+/// The CRM's chain is lead, deal, quote, won, project, jobs. A job is a day's
+/// work with a checklist; a project is what the jobs belong to when the work
+/// runs longer than that and has a budget somebody is answerable for. Jobs,
+/// requisitions and daily costs point here, which is what makes "what has this
+/// project cost us" answerable without a spreadsheet.
 model CrmProject {
   id          String            @id @default(uuid())
   companyId   String
@@ -12959,13 +13042,13 @@ model CrmProject {
   status      CrmProjectStatus  @default(PLANNING)
 
   /// Where it came from. All optional: a project can be raised directly for
-  /// work that never went through the pipeline.
+  /// work that never went through the pipeline. At most one project per deal
+  /// — see the unique below.
   dealId      String?
   clientId    String?
   siteId      String?
-  workOrderId String?
 
-  /// Who is answerable for the budget.
+  /// Who is answerable for the budget. The rest of the team are members.
   managerId String?
 
   startDate     DateTime?
@@ -12993,17 +13076,47 @@ model CrmProject {
   deal        CrmDeal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
   client      CrmClient?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
   site        CrmSite?            @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  workOrder   CrmWorkOrder?       @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   manager     User?               @relation("CrmProjectManager", fields: [managerId], references: [id])
   createdBy   User?               @relation("CrmProjectCreatedBy", fields: [createdById], references: [id])
+  workOrders   CrmWorkOrder[]
+  members      CrmProjectMember[]
   requisitions CrmRequisition[]
   costEntries  CrmDailyCostEntry[]
 
   @@unique([companyId, projectNo])
+  /// One project per deal. Two would split the deal's costs between them and
+  /// neither figure would be true; a double-tap on "Start the project" hits
+  /// this rather than making a second one. NULLs are distinct, so any number
+  /// of projects can be raised with no deal behind them.
+  @@unique([companyId, dealId])
   @@index([companyId, costCenterId])
   @@index([companyId, status, updatedAt])
   @@index([companyId, managerId, status])
-  @@index([companyId, dealId])
+}
+
+/// Somebody working on a project who is not its owner.
+///
+/// `CrmProject.managerId` stays the one person answerable for the budget; this
+/// is everybody else — the crew leads, the estimator, whoever buys the
+/// materials. A standing team per project rather than `crewIds` on each job,
+/// because the question "who is on the Msasa warehouse" is asked of the
+/// project, not of any one day's work.
+model CrmProjectMember {
+  id        String   @id @default(uuid())
+  companyId String
+  projectId String
+  userId    String
+  /// What they do on this project, in the team's own words. Free text: a
+  /// fixed list of roles is a list somebody's job is never on.
+  role      String?
+  addedAt   DateTime @default(now())
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project CrmProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User       @relation("CrmProjectMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([companyId, userId])
 }
 
 /// An employee asking for money.
@@ -13045,8 +13158,15 @@ model CrmRequisition {
 
   /// What it actually went on, once spent. A requisition is not finished when
   /// the money is handed over; it is finished when somebody accounts for it.
+  /// Set from the spend lines reported against it, never typed.
   acquittedAt     DateTime?
   acquittedAmount Decimal?  @db.Decimal(14, 2)
+
+  /// A spend line with no receipt blocks the acquittal. A manager — never the
+  /// requester — can let it through, and has to say why; both are kept, so
+  /// "who accepted a receipt-less 90 for diesel" has an answer.
+  receiptsWaivedById String?
+  receiptWaiverNote  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -13056,6 +13176,7 @@ model CrmRequisition {
   requestedBy User                @relation("CrmRequisitionRequestedBy", fields: [requestedById], references: [id])
   approvedBy  User?               @relation("CrmRequisitionApprovedBy", fields: [approvedById], references: [id])
   disbursedBy User?               @relation("CrmRequisitionDisbursedBy", fields: [disbursedById], references: [id])
+  receiptsWaivedBy User?          @relation("CrmRequisitionReceiptsWaivedBy", fields: [receiptsWaivedById], references: [id], onDelete: SetNull)
   bankAccount BankAccount?        @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   costEntries CrmDailyCostEntry[]
 
@@ -13109,6 +13230,10 @@ model CrmDailyCostEntry {
   /// Where the money came from, when it came from a requisition. Lets a
   /// disbursement be reconciled against what was actually spent.
   requisitionId String?
+  /// The invoice money received is paying, when it is a customer's. The
+  /// document rather than the `SalesInvoice`, because it is the CRM's own
+  /// handle on the bill; what accounting has receipted is read through it.
+  invoiceDocumentId String?
 
   /// A photograph of the receipt. Key, not blob, like every other upload here.
   receiptUrl      String?
@@ -13124,11 +13249,13 @@ model CrmDailyCostEntry {
   log         CrmDailyLog     @relation(fields: [logId], references: [id], onDelete: Cascade)
   project     CrmProject?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   requisition CrmRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  invoiceDocument CrmLeadDocument? @relation(fields: [invoiceDocumentId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, clientEntryId])
   @@index([companyId, logId])
   @@index([companyId, projectId, createdAt])
   @@index([companyId, requisitionId])
+  @@index([companyId, invoiceDocumentId])
 }
 
 /// What one person did in one day, assembled and kept.
@@ -13171,6 +13298,9 @@ model CrmWorkOrder {
   siteId     String?
   /// The quote whose lines became this job's checklist.
   documentId String?
+  /// The project this job is part of. Optional: a callout is a job with no
+  /// project behind it, and that is a real thing that happens.
+  projectId  String?
 
   scheduledStart DateTime?
   scheduledEnd   DateTime?
@@ -13222,15 +13352,16 @@ model CrmWorkOrder {
   client     CrmClient?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
   site       CrmSite?           @relation(fields: [siteId], references: [id], onDelete: SetNull)
   document   CrmLeadDocument?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  project    CrmProject?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   assignedTo User?              @relation("CrmWorkOrderAssignedTo", fields: [assignedToId], references: [id])
   createdBy  User?              @relation("CrmWorkOrderCreatedBy", fields: [createdById], references: [id])
   items      CrmWorkOrderItem[]
-  projects   CrmProject[]
 
   @@unique([companyId, workOrderNo])
   @@index([companyId, status, scheduledStart])
   @@index([companyId, assignedToId, status])
   @@index([companyId, dealId])
+  @@index([companyId, projectId])
 }
 
 /// One thing to do or install, usually lifted from the quote that was won.

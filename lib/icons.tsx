@@ -207,6 +207,8 @@ export const CalendarIcon = createPhosphorIcon(
   "CalendarIcon",
 );
 export const Camera = createPhosphorIcon("VideoCamera", "Camera");
+/** A still camera — taking a photo, as opposed to `Camera`'s video feed. */
+export const PhotoCamera = createPhosphorIcon("Camera", "PhotoCamera");
 export const ChartLine = createPhosphorIcon("ChartLineUp", "ChartLine");
 export const Check = createPhosphorIcon("Check", "Check");
 export const CheckCircle = createPhosphorIcon("CheckCircle", "CheckCircle");

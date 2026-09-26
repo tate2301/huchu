@@ -22,6 +22,7 @@ import {
   type WorkOrderCounts,
   type WorkOrderQueue,
 } from "@/lib/crm/work-orders";
+import { ProjectLinkError, jobLinksFromProject } from "@/lib/crm/projects";
 import { isCompanyUser } from "../_helpers";
 import { jobRecordRefs, recordJobActivity } from "./_shared";
 
@@ -88,7 +89,8 @@ export async function GET(request: NextRequest) {
     const dealId = searchParams.get("dealId");
     const siteId = searchParams.get("siteId");
     const clientId = searchParams.get("clientId");
-    const scoped = Boolean(dealId || siteId || clientId);
+    const projectId = searchParams.get("projectId");
+    const scoped = Boolean(dealId || siteId || clientId || projectId);
 
     // Asked for one record's jobs, answer with all of them. The queues are for
     // browsing the day's work; applying TODAY by default to a deal's Jobs tab
@@ -97,6 +99,7 @@ export async function GET(request: NextRequest) {
       ...(dealId ? { dealId } : {}),
       ...(siteId ? { siteId } : {}),
       ...(clientId ? { clientId } : {}),
+      ...(projectId ? { projectId } : {}),
     };
 
     // The register's own narrowing, done here rather than over whatever one
@@ -148,6 +151,7 @@ export async function GET(request: NextRequest) {
           client: { select: { id: true, name: true } },
           site: { select: { id: true, name: true, addressLine: true } },
           deal: { select: { id: true, dealNo: true, title: true } },
+          project: { select: { id: true, projectNo: true, name: true } },
           items: { orderBy: { position: "asc" } },
         },
         orderBy: [{ scheduledStart: "asc" }, { createdAt: "desc" }],
@@ -215,7 +219,21 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult;
     const companyId = session.user.companyId;
 
-    const data = createWorkOrderSchema.parse(await request.json());
+    const parsed = createWorkOrderSchema.parse(await request.json());
+
+    // Raised inside a project, the job is for that project's deal, customer
+    // and site. Filled here, before anything below checks them, so a job
+    // raised from a project's page — which sends only the project — is
+    // validated and stored exactly like one that named all three itself.
+    let data = parsed;
+    if (parsed.projectId) {
+      try {
+        data = { ...parsed, ...(await jobLinksFromProject(prisma, companyId, parsed.projectId, parsed)) };
+      } catch (error) {
+        if (error instanceof ProjectLinkError) return errorResponse(error.message, 400);
+        throw error;
+      }
+    }
 
     if (!(await isCompanyUser(companyId, data.assignedToId))) {
       return errorResponse("Invalid assignee", 400);
@@ -290,6 +308,7 @@ export async function POST(request: NextRequest) {
         clientId: data.clientId ?? deal?.clientId ?? site?.clientId ?? undefined,
         siteId: data.siteId ?? undefined,
         documentId: data.documentId ?? undefined,
+        projectId: data.projectId ?? undefined,
         scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : undefined,
         scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : undefined,
         assignedToId: data.assignedToId ?? undefined,

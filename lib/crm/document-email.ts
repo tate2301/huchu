@@ -17,6 +17,12 @@ import { prisma } from "@/lib/prisma";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { renderDocumentSync } from "@/lib/documents/service";
 import { getOrCreateApproval } from "@/lib/crm/approvals";
+import {
+  DOCUMENT_RESOURCES_SELECT,
+  documentResourceLinks,
+  resourcesHeading,
+  type ResourceLink,
+} from "@/lib/crm/resources";
 import { sendEmail } from "@/lib/email/send";
 import { absoluteUrl } from "@/lib/site-url";
 
@@ -81,6 +87,10 @@ export type DocumentEmailBody = { subject: string; text: string; html: string };
  * The covering note. Deliberately plain: it is a business letter, not a
  * newsletter, and an HTML mail that renders as a marketing blast is the one a
  * finance department deletes.
+ *
+ * The resources the rep ticked — the brochure, the data sheet — follow the
+ * link, as a plain list with their addresses written out, so a client whose
+ * mail client strips links can still copy one.
  */
 export function buildDocumentEmail(input: {
   kind: DocumentKind;
@@ -88,10 +98,13 @@ export function buildDocumentEmail(input: {
   companyName: string;
   amount: string;
   approvalUrl: string;
+  resources?: ResourceLink[];
 }): DocumentEmailBody {
   const label = LABELS[input.kind];
   const noun = label.toLowerCase();
   const subject = `${label} ${input.number} from ${input.companyName}`;
+  const resources = input.resources ?? [];
+  const heading = resourcesHeading(input.kind);
 
   const lines = [
     `Please find our ${noun} ${input.number} for ${input.amount} attached.`,
@@ -100,12 +113,36 @@ export function buildDocumentEmail(input: {
       ? `You can view it here: ${input.approvalUrl}`
       : `You can review and respond to it here: ${input.approvalUrl}`,
     "",
+    ...(resources.length > 0
+      ? [
+          `${heading}:`,
+          ...resources.flatMap((resource) => [
+            `- ${resource.title}: ${resource.url}`,
+            ...(resource.description ? [`  ${resource.description}`] : []),
+          ]),
+          "",
+        ]
+      : []),
     input.companyName,
   ];
 
+  const resourceHtml =
+    resources.length > 0
+      ? `
+  <p style="margin-bottom:4px">${escapeHtml(heading)}:</p>
+  <ul style="margin-top:0;padding-left:20px">${resources
+    .map(
+      (resource) =>
+        `<li><a href="${escapeHtml(resource.url)}">${escapeHtml(resource.title)}</a>${
+          resource.description ? ` — ${escapeHtml(resource.description)}` : ""
+        }</li>`,
+    )
+    .join("")}</ul>`
+      : "";
+
   const html = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#18181b">
   <p>Please find our ${escapeHtml(noun)} <strong>${escapeHtml(input.number)}</strong> for ${escapeHtml(input.amount)} attached.</p>
-  <p><a href="${escapeHtml(input.approvalUrl)}">${input.kind === "RECEIPT" ? "View the " + escapeHtml(noun) : "Review and respond to the " + escapeHtml(noun)}</a></p>
+  <p><a href="${escapeHtml(input.approvalUrl)}">${input.kind === "RECEIPT" ? "View the " + escapeHtml(noun) : "Review and respond to the " + escapeHtml(noun)}</a></p>${resourceHtml}
   <p>${escapeHtml(input.companyName)}</p>
 </div>`;
 
@@ -146,6 +183,7 @@ export async function emailDocumentToClient(params: {
       receipt: { select: { receiptNumber: true } },
       lead: { select: { id: true, contactEmail: true, client: { select: { email: true } } } },
       deal: { select: { id: true, client: { select: { email: true } } } },
+      resources: DOCUMENT_RESOURCES_SELECT,
     },
   });
   if (!doc) throw new Error("Document not found");
@@ -192,6 +230,7 @@ export async function emailDocumentToClient(params: {
     // Absolute, from the configured site URL: mail is read long after the
     // request that sent it, on a device that never saw it.
     approvalUrl: absoluteUrl(`/a/${token}`),
+    resources: documentResourceLinks(doc.resources),
   });
 
   await sendEmail({

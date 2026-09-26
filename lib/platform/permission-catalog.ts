@@ -122,6 +122,7 @@ const CAPABILITY_GROUP: Record<CrmCapability, string> = {
   "commissions.manage": "crm-money",
   "money.approve": "crm-money",
   "money.disburse": "crm-money",
+  "money.view_all": "crm-money",
   "settings.manage": "crm-config",
 };
 
@@ -144,7 +145,7 @@ const CAPABILITY_GROUP_META: Record<string, { label: string; description: string
   },
   "crm-money": {
     label: "CRM · Money",
-    description: "Commission rules, and who may approve or pay out a requisition.",
+    description: "Commission rules, who may approve or pay out a requisition, and who sees everybody's money.",
   },
   "crm-config": {
     label: "CRM · Configuration",

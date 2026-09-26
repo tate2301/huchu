@@ -35,6 +35,9 @@ export const FILE_OWNERS = [
   "class",
   "subject",
   "hostel",
+  // The drawings, the permit, the signed scope of works — the project's, not
+  // whichever job happened to be open when they arrived.
+  "project",
 ] as const;
 export type FileOwnerKind = (typeof FILE_OWNERS)[number];
 

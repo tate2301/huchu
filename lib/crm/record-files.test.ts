@@ -47,14 +47,29 @@ describe("ownerColumn", () => {
     expect(new Set(columns).size).toBe(columns.length);
   });
 
+  it("names no column for a project, which arrived after the columns stopped being added", () => {
+    expect(ownerColumn("project")).toBeNull();
+  });
+
   it("still accounts for every accepted owner one way or the other", () => {
-    // A kind that is neither in the legacy list nor a school type would fall
-    // through `ownerColumn`'s default and silently get no column — which for a
-    // CRM kind would mean files that vanish from the page they were filed on.
-    const schoolKinds = new Set(["student", "guardian", "teacher", "class", "subject", "hostel"]);
+    // A kind that is neither in the legacy list nor a known pair-only kind
+    // would fall through `ownerColumn`'s default and silently get no column —
+    // which for a CRM kind would mean files that vanish from the page they
+    // were filed on. The pair-only kinds are the school records and the
+    // project: none of them ever had a column, and their files are found by
+    // `(subjectType, subjectId)` alone.
+    const pairOnlyKinds = new Set([
+      "student",
+      "guardian",
+      "teacher",
+      "class",
+      "subject",
+      "hostel",
+      "project",
+    ]);
     const legacy = new Set<string>(KINDS_WITH_A_LEGACY_COLUMN);
     for (const owner of FILE_OWNERS) {
-      expect(legacy.has(owner) || schoolKinds.has(owner), `${owner} is unaccounted for`).toBe(true);
+      expect(legacy.has(owner) || pairOnlyKinds.has(owner), `${owner} is unaccounted for`).toBe(true);
     }
   });
 });

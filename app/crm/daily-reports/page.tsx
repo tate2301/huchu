@@ -16,7 +16,7 @@ export default async function CrmDailyReportsPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage title="Daily reports" description="what the team did, and what it cost">
+    <CrmPage title="Daily reports">
       <DailyReportsContent />
     </CrmPage>
   );

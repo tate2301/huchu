@@ -15,6 +15,11 @@ import { prisma } from "@/lib/prisma";
 import { emitCrmNotification } from "@/lib/notifications";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { buildPaymentRows, type PaymentRow } from "@/lib/documents/payment-details";
+import {
+  DOCUMENT_RESOURCES_SELECT,
+  documentResourceLinks,
+  type ResourceLink,
+} from "@/lib/crm/resources";
 
 type Tx = Prisma.TransactionClient;
 
@@ -134,6 +139,12 @@ export type PublicApprovalView = {
     footerText: string | null;
   };
   /**
+   * What the rep asked the client to look at before answering — the
+   * brochure, the data sheet. Withheld with the pricing when the link no
+   * longer works: a proposal PDF can carry prices of its own.
+   */
+  resources: ResourceLink[];
+  /**
    * Why the link no longer works, when it does not. A customer who is told
    * "document not found" about a quote they were sent an hour ago concludes
    * the business has lost it; "this link was replaced" tells them what to ask
@@ -187,6 +198,7 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
               customer: { select: { name: true } },
             },
           },
+          resources: DOCUMENT_RESOURCES_SELECT,
         },
       },
     },
@@ -252,6 +264,7 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
       paymentTerms: branding.paymentTerms ?? null,
       footerText: branding.defaultFooterText ?? null,
     },
+    resources: withheld ? [] : documentResourceLinks(doc.resources),
     linkState: revoked ? "REVOKED" : expired ? "EXPIRED" : "ACTIVE",
   };
 }

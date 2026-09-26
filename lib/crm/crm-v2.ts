@@ -21,7 +21,11 @@ import type { ImportEntity, ImportPlan } from "@/lib/crm/import";
 import type { FieldChoice, MergeFieldPlan } from "@/lib/crm/merge";
 import type { RecordSort } from "@/lib/crm/records";
 import type { LeadSort, LeadViewFilters } from "@/lib/crm/views";
-import type { SiteVisitItemInput, SiteVisitReportInput } from "@/lib/crm/site-visits";
+import type {
+  SiteVisitItemInput,
+  SiteVisitPhotoInput,
+  SiteVisitReportInput,
+} from "@/lib/crm/site-visits";
 
 export type CrmClientRecord = {
   id: string;
@@ -146,18 +150,12 @@ export type CrmVisitChecklistItem = {
   notes?: string | null;
 };
 
-export type CrmVisitPhoto = {
-  url: string;
-  fileName?: string | null;
-  contentType?: string | null;
-  size?: number | null;
-  kind: "PHOTO" | "FILE";
-  caption?: string | null;
-};
+/** A photo on the visit report — the same shape it is saved back in. */
+export type CrmVisitPhoto = SiteVisitPhotoInput;
 
 export type CrmVisitReportRecord = CrmAppointmentRecord & {
   checklist: CrmVisitChecklistItem[] | null;
-  photos: CrmVisitPhoto[] | null;
+  photos: CrmVisitPhoto[];
   siteConditions: string | null;
   reportNotes: string | null;
   outcomeNotes: string | null;
@@ -971,7 +969,7 @@ export function fetchCrmDocuments(
 }
 
 // ---------------------------------------------------------------------------
-// Sales reps.
+// The team.
 // ---------------------------------------------------------------------------
 
 export type CrmRepPerformance = {
@@ -1003,10 +1001,29 @@ export type CrmRepSummary = {
 };
 
 export function fetchCrmReps(params: { range?: string } = {}) {
-  return fetchJson<{ data: CrmRepSummary[]; range: string; canSeeEveryone: boolean }>(
+  return fetchJson<{
+    data: CrmRepSummary[];
+    range: string;
+    canSeeEveryone: boolean;
+    mayOpenEveryone: boolean;
+  }>(
     `/api/v2/crm/reps${qs(params)}`,
   );
 }
+
+/** Something outstanding against a team member — see `lib/crm/member-overview.ts`. */
+export type CrmOutstandingItem = {
+  kind: "task" | "follow-up" | "requisition" | "float" | "no-receipt" | "not-receipted" | "report";
+  id: string;
+  reference: string | null;
+  title: string;
+  href: string;
+  flagged: boolean;
+  at: string | null;
+  amount: string | null;
+  currency: string | null;
+  count: number | null;
+};
 
 export type CrmRepDetail = {
   rep: {
@@ -1018,10 +1035,19 @@ export type CrmRepDetail = {
     isActive: boolean;
     createdAt: string;
   };
-  canSeeNumbers: boolean;
-  range: string;
-  performance: CrmRepPerformance | null;
-  closed: { won: number; lost: number };
+  period: { from: string; to: string };
+  achieved: {
+    dealsWon: number;
+    wonValue: string;
+    wonCurrency: string;
+    jobsCompleted: number;
+    visitsDone: number;
+    spent: string;
+    received: string;
+    moneyCurrency: string;
+  };
+  outstanding: CrmOutstandingItem[];
+  openTasks: number;
   leads: Array<{
     id: string;
     leadNo: string;
@@ -1043,29 +1069,8 @@ export type CrmRepDetail = {
     stage: { id: string; name: string };
     client: { id: string; name: string } | null;
   }>;
-  tasks: Array<{
-    id: string;
-    title: string;
-    type: string;
-    priority: string;
-    dueAt: string;
-    leadId: string | null;
-    dealId: string | null;
-    clientId: string | null;
-  }>;
-  activities: Array<{
-    id: string;
-    type: string;
-    subject: string;
-    body: string | null;
-    occurredAt: string;
-    lead: { id: string; title: string } | null;
-    deal: { id: string; title: string } | null;
-    client: { id: string; name: string } | null;
-  }>;
-  documents: Array<{ type: string; amount: number; currency: string; createdAt: string }>;
 };
 
-export function fetchCrmRep(repId: string, params: { range?: string } = {}) {
+export function fetchCrmRep(repId: string, params: { from?: string; to?: string } = {}) {
   return fetchJson<CrmRepDetail>(`/api/v2/crm/reps/${repId}${qs(params)}`);
 }

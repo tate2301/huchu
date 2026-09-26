@@ -12,7 +12,13 @@
  *   disburse         `money.disburse` — deliberately a separate permission,
  *                    because saying yes and handing over cash should be two
  *                    people wherever a business is big enough for it to be
- *   acquit           the requester, accounting for what they spent
+ *   acquit           the requester, accounting for what they spent — at the
+ *                    figure their reported spend lines come to, never a
+ *                    typed one
+ *
+ * Reading one is the requester's business, the business of whoever approves,
+ * pays out or oversees money, and the project owner's: somebody's float is in
+ * these figures, and a colleague is not owed a look at it.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -23,6 +29,7 @@ import {
   RequisitionTransitionError,
   acquitSchema,
   assertTransition,
+  decideAcquittal,
   decisionSchema,
   disburseSchema,
   payableAmount,
@@ -47,20 +54,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const requisition = await prisma.crmRequisition.findFirst({
       where: { id, companyId },
       include: {
-        project: { select: { id: true, name: true, projectNo: true } },
+        project: { select: { id: true, name: true, projectNo: true, managerId: true } },
         requestedBy: { select: { id: true, name: true } },
         approvedBy: { select: { id: true, name: true } },
         disbursedBy: { select: { id: true, name: true } },
+        receiptsWaivedBy: { select: { id: true, name: true } },
         bankAccount: { select: { id: true, name: true } },
         costEntries: {
-          orderBy: { createdAt: "asc" },
-          include: { log: { select: { logDate: true } } },
+          orderBy: [{ log: { logDate: "asc" } }, { createdAt: "asc" }],
+          include: {
+            log: { select: { logDate: true, user: { select: { id: true, name: true } } } },
+            project: { select: { id: true, name: true, projectNo: true } },
+          },
         },
       },
     });
     if (!requisition) return errorResponse("Requisition not found", 404);
 
-    return successResponse({ requisition });
+    const isRequester = requisition.requestedById === session.user.id;
+    const [mayApprove, mayDisburse, mayViewAll] = await Promise.all([
+      requireCrmCapability(session, "money.approve"),
+      requireCrmCapability(session, "money.disburse"),
+      requireCrmCapability(session, "money.view_all"),
+    ]);
+    const ownsProject = requisition.project?.managerId === session.user.id;
+    if (!isRequester && !mayApprove && !mayDisburse && !mayViewAll && !ownsProject) {
+      return errorResponse("Requisition not found", 404);
+    }
+
+    // What the page may offer is decided here, from the same rules the PATCH
+    // enforces, so a button is never drawn for a move the server refuses.
+    return successResponse({
+      requisition,
+      permissions: { isRequester, mayApprove, mayDisburse },
+    });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/requisitions/[id] error:", error);
     return errorResponse("Failed to load the requisition");
@@ -204,7 +231,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           recipientIds: [existing.requestedById],
           type: "CRM_REQUISITION_DECIDED",
           title: `${existing.requisitionNo} paid out`,
-          summary: `${requisition.currency} ${payableAmount(requisition).toFixed(2)}. Account for it on your daily log.`,
+          summary: `${requisition.currency} ${payableAmount(requisition).toFixed(2)}. Report what you spend on it, with the receipts.`,
           entityType: "CRM_REQUISITION",
           entityId: id,
           viewPath: `/crm/requisitions/${id}`,
@@ -217,13 +244,40 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           return errorResponse("Only the requester can account for this money", 403);
         }
         assertTransition(from, "ACQUITTED");
+
+        // The figure is what the report adds up to, read now rather than sent
+        // by the page — a total computed in a browser is a total somebody can
+        // edit on the way to the server.
+        const lines = await prisma.crmDailyCostEntry.findMany({
+          where: { companyId, requisitionId: id },
+          select: { direction: true, amount: true, receiptUrl: true },
+        });
+        const decision = decideAcquittal({
+          lines,
+          actor: {
+            id: session.user.id,
+            isRequester,
+            mayWaive: body.waiveMissingReceipts
+              ? await requireCrmCapability(session, "money.approve")
+              : false,
+          },
+          waiveMissingReceipts: body.waiveMissingReceipts,
+          waiverNote: body.waiverNote,
+        });
+        if (!decision.ok) {
+          return NextResponse.json(
+            { error: decision.message, code: decision.code },
+            { status: decision.status },
+          );
+        }
+
         const requisition = await prisma.crmRequisition.update({
           where: { id },
           data: {
             status: "ACQUITTED",
             acquittedAt: now,
-            acquittedAmount: body.acquittedAmount,
-            ...(body.notes ? { notes: body.notes } : {}),
+            acquittedAmount: decision.acquittedAmount,
+            ...(decision.waiver ?? {}),
           },
         });
 

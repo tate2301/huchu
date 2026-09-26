@@ -30,6 +30,9 @@ export type JobInvoiceLink = {
   invoicedAt: string;
 };
 
+/** The project a job is part of, as much of it as a job's page shows. */
+export type JobProjectLink = { id: string; projectNo: string; name: string };
+
 /** A job as the collection route draws it — a row, with its figures precomputed. */
 export type JobRow = {
   id: string;
@@ -44,6 +47,7 @@ export type JobRow = {
   client: { id: string; name: string } | null;
   site: { id: string; name: string; addressLine: string | null } | null;
   deal: { id: string; dealNo: string; title: string } | null;
+  project: JobProjectLink | null;
   items: JobItem[];
   completionPercent: number;
   itemsDone: number;
@@ -108,6 +112,8 @@ export type JobRecord = {
     accessInstructions?: string | null;
   } | null;
   deal: { id: string; dealNo: string; title: string } | null;
+  projectId: string | null;
+  project: JobProjectLink | null;
   allowedTransitions: JobStatus[];
   completionPercent: number;
   completionBlockers: string[];
@@ -142,7 +148,8 @@ export type JobInvoicePreview = {
 export type JobsRef =
   | { kind: "deal"; id: string }
   | { kind: "company"; id: string }
-  | { kind: "site"; id: string };
+  | { kind: "site"; id: string }
+  | { kind: "project"; id: string };
 
 export function jobsRefParam(ref: JobsRef): string {
   switch (ref.kind) {
@@ -152,6 +159,8 @@ export function jobsRefParam(ref: JobsRef): string {
       return `clientId=${ref.id}`;
     case "site":
       return `siteId=${ref.id}`;
+    case "project":
+      return `projectId=${ref.id}`;
   }
 }
 

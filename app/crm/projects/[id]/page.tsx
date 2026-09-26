@@ -15,7 +15,7 @@ export default async function CrmProjectPage({
   const { id } = await params;
 
   return (
-    <CrmPage>
+    <CrmPage width="detail">
       <ProjectDetailContent projectId={id} />
     </CrmPage>
   );

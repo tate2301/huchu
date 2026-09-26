@@ -8,13 +8,6 @@ import { Button } from "@corelithzw/react";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatusChip } from "@/components/ui/status-chip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { RecordMark } from "@/components/records/record-mark";
 import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
 import {
@@ -29,7 +22,7 @@ import {
   RecordTableName,
   type RecordTableColumn,
 } from "@/components/records/record-table";
-import { ViewToolbarChip } from "@/components/records/view-toolbar";
+import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { fetchJson } from "@/lib/api-client";
 import { fetchCrmSites } from "@/lib/crm/crm-v2";
 import { useDebounced } from "@/hooks/use-debounced";
@@ -107,8 +100,7 @@ const JOB_COLUMNS: ColumnOption[] = [
 
 const PAGE_SIZE = 50;
 
-/** Everything, as an option value — "" would be indistinguishable from unset. */
-const ANY = "__any";
+const ANY = FILTER_ANY;
 
 /** The server's own word for "nobody has it", on the crew filter. */
 const UNASSIGNED = "none";
@@ -456,7 +448,7 @@ export function WorkOrdersContent() {
             ariaLabel="Job queue"
             options={QUEUES.map((value) => ({ value, label: QUEUE_LABELS[value] }))}
           />
-          <JobFilterChip
+          <ViewToolbarFilter
             label="Status"
             value={status}
             anyLabel="Any"
@@ -466,7 +458,7 @@ export function WorkOrdersContent() {
               setPage(1);
             }}
           />
-          <JobFilterChip
+          <ViewToolbarFilter
             label="Crew"
             value={assignee}
             anyLabel="Anyone"
@@ -476,7 +468,7 @@ export function WorkOrdersContent() {
               setPage(1);
             }}
           />
-          <JobFilterChip
+          <ViewToolbarFilter
             label="Site"
             value={site}
             anyLabel="Anywhere"
@@ -515,46 +507,3 @@ export function WorkOrdersContent() {
   );
 }
 
-/**
- * One of the toolbar's chips, over a set that does not depend on the rows.
- *
- * A chip with nothing to choose between is a control that can only be set back
- * to where it already is, so it does not draw until there are two answers to
- * the question it asks — unless it is already narrowing the list, in which case
- * it draws whatever its options say. A filter you cannot see is a filter you
- * cannot clear, and it empties the list from off screen.
- */
-function JobFilterChip({
-  label,
-  value,
-  anyLabel,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  /** What "no filter" is called — "Anyone", "Anywhere". */
-  anyLabel: string;
-  options: Map<string, string>;
-  onChange: (next: string) => void;
-}) {
-  if (options.size < 2 && value === ANY) return null;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <ViewToolbarChip label={label} value={options.get(value) ?? anyLabel} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-        <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
-          <DropdownMenuRadioItem value={ANY}>{anyLabel}</DropdownMenuRadioItem>
-          {[...options.entries()].map(([id, name]) => (
-            <DropdownMenuRadioItem key={id} value={id}>
-              {name}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}

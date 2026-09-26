@@ -1,15 +1,16 @@
 /**
- * Projects: what a job belongs to when the work runs longer than a day.
+ * Projects: what a won deal turns into, and what its jobs belong to.
  *
- * The pipeline already runs lead -> qualified -> ... -> raise job, and then
- * stops. A job (`CrmWorkOrder`) is a crew, a date and a checklist. That is the
- * right shape for a morning's work and the wrong shape for a six-week floor:
- * nobody can say what the floor has cost so far, because cost attaches to
- * nothing.
+ * The chain is deal -> project -> jobs. A job (`CrmWorkOrder`) is a crew, a
+ * date and a checklist. That is the right shape for a morning's work and the
+ * wrong shape for a six-week floor: nobody can say what the floor has cost so
+ * far, because cost attaches to nothing. A project is that missing thing, and
+ * the jobs are raised inside it.
  *
- * A project is that missing thing. Every link it has — deal, client, site,
- * work order — is optional, because work is sometimes raised directly and
- * refusing to record it until the pipeline catches up helps nobody.
+ * Every link it has — deal, client, site — is optional, because work is
+ * sometimes raised directly and refusing to record it until the pipeline
+ * catches up helps nobody. A deal has at most one project; a job has at most
+ * one project, and can have none.
  *
  * The rollup here is the question people actually ask: what has this cost, and
  * how much of it is still out in somebody's pocket. It reads two sources and
@@ -26,76 +27,12 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { reserveIdentifier } from "@/lib/id-generator";
+import { PROJECT_STATUSES } from "@/lib/crm/project-status";
 import { payableAmount } from "@/lib/crm/requisitions";
 
 type Tx = Prisma.TransactionClient;
 
-export const PROJECT_STATUSES = [
-  "PLANNING",
-  "ACTIVE",
-  "ON_HOLD",
-  "COMPLETED",
-  "CANCELLED",
-] as const;
-
-export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
-
-export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
-  PLANNING: "Planning",
-  ACTIVE: "Active",
-  ON_HOLD: "On hold",
-  COMPLETED: "Completed",
-  CANCELLED: "Cancelled",
-};
-
-/**
- * Which moves are allowed.
- *
- * A completed project can be reopened — unlike a completed job, which carries
- * a signature against work that was done on a particular day. A project is a
- * container, and a snag list arriving a fortnight later is the same project,
- * not a new one. Cancelled is final: cancelling is a decision, and undoing it
- * quietly would lose the fact that it was ever made.
- */
-const TRANSITIONS: Record<ProjectStatus, readonly ProjectStatus[]> = {
-  PLANNING: ["ACTIVE", "ON_HOLD", "CANCELLED"],
-  ACTIVE: ["ON_HOLD", "COMPLETED", "CANCELLED"],
-  ON_HOLD: ["ACTIVE", "COMPLETED", "CANCELLED"],
-  COMPLETED: ["ACTIVE"],
-  CANCELLED: [],
-};
-
-export function canTransition(from: ProjectStatus, to: ProjectStatus): boolean {
-  return TRANSITIONS[from].includes(to);
-}
-
-export function allowedTransitions(from: ProjectStatus): readonly ProjectStatus[] {
-  return TRANSITIONS[from];
-}
-
-export class ProjectTransitionError extends Error {
-  constructor(from: ProjectStatus, to: ProjectStatus) {
-    super(
-      TRANSITIONS[from].length === 0
-        ? `A ${PROJECT_STATUS_LABELS[from].toLowerCase()} project cannot be changed.`
-        : `A ${PROJECT_STATUS_LABELS[from].toLowerCase()} project can only move to ${TRANSITIONS[
-            from
-          ]
-            .map((status) => PROJECT_STATUS_LABELS[status].toLowerCase())
-            .join(" or ")}, not ${PROJECT_STATUS_LABELS[to].toLowerCase()}.`,
-    );
-    this.name = "ProjectTransitionError";
-  }
-}
-
-export function assertTransition(from: ProjectStatus, to: ProjectStatus): void {
-  if (!canTransition(from, to)) throw new ProjectTransitionError(from, to);
-}
-
-/** A project is done taking new cost once it is closed one way or the other. */
-export function isClosed(status: ProjectStatus): boolean {
-  return status === "COMPLETED" || status === "CANCELLED";
-}
+const ZERO = new Prisma.Decimal(0);
 
 export const createProjectSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -104,13 +41,17 @@ export const createProjectSchema = z.object({
   dealId: z.string().uuid().nullable().optional(),
   clientId: z.string().uuid().nullable().optional(),
   siteId: z.string().uuid().nullable().optional(),
-  workOrderId: z.string().uuid().nullable().optional(),
   managerId: z.string().uuid().nullable().optional(),
   startDate: z.coerce.date().nullable().optional(),
   targetEndDate: z.coerce.date().nullable().optional(),
   /** Null means nobody has set one, which is not the same as zero. */
   budget: z.number().finite().nonnegative().nullable().optional(),
-  currency: z.string().trim().min(1).max(10).default("USD"),
+  /**
+   * Optional rather than defaulted: a project started from a deal takes the
+   * deal's currency, and a default filled in by the parser would overwrite it
+   * with USD before anything got the chance to ask the deal.
+   */
+  currency: z.string().trim().min(1).max(10).optional(),
   customFields: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
@@ -120,12 +61,6 @@ export const updateProjectSchema = createProjectSchema
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
-/**
- * Raise a project, numbering it from the tenant's own sequence.
- *
- * Takes a transaction because the caller usually has other work to do in the
- * same breath — attaching the job that prompted it, most often.
- */
 /**
  * The cost centre a project's spend is tagged with in the ledger.
  *
@@ -161,6 +96,13 @@ async function ensureProjectCostCentre(
   }
 }
 
+/**
+ * Raise a project, numbering it from the tenant's own sequence.
+ *
+ * Takes a transaction because the number, the cost centre and the project have
+ * to land together or not at all — a reserved number with no project behind it
+ * is a gap in the sequence somebody will ask about.
+ */
 export async function createProject(
   tx: Tx,
   companyId: string,
@@ -181,62 +123,151 @@ export async function createProject(
       dealId: input.dealId ?? null,
       clientId: input.clientId ?? null,
       siteId: input.siteId ?? null,
-      workOrderId: input.workOrderId ?? null,
       managerId: input.managerId ?? null,
       startDate: input.startDate ?? null,
       targetEndDate: input.targetEndDate ?? null,
       budget: input.budget === null || input.budget === undefined ? null : new Prisma.Decimal(input.budget),
-      currency: input.currency,
+      currency: input.currency ?? "USD",
       customFields: (input.customFields ?? undefined) as Prisma.InputJsonValue | undefined,
       createdById,
     },
   });
 }
 
+/** A deal, job or project the caller named that is not in this tenant. */
+export class ProjectLinkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProjectLinkError";
+  }
+}
+
 /**
- * Raise a project from a job that has outgrown being a job.
+ * Start the project a won deal turns into.
  *
- * Carries the job's client, site and deal across rather than asking the user
- * to retype what the system already knows, and names the project after the
- * job so the two are recognisable as the same piece of work.
+ * Carries across what the deal already knows — its name, its client and site,
+ * and its owner as the person answerable for the budget — rather than asking
+ * anybody to retype it. The deal's value is not copied: it stays on the deal
+ * and the project reads it from there as the reference its budget is set
+ * against, so a value corrected on the deal is corrected everywhere.
+ *
+ * Idempotent on the deal. One project per deal is the rule the schema
+ * enforces; a second request — a double-tap on a bad connection, a colleague
+ * who got there first — is handed the project that exists rather than an
+ * error, because from where they stand that is what they asked for.
  */
-export async function projectFromWorkOrder(
+export async function projectFromDeal(
   tx: Tx,
   companyId: string,
   createdById: string | null,
-  workOrderId: string,
+  dealId: string,
   overrides: Partial<CreateProjectInput> = {},
 ) {
-  const workOrder = await tx.crmWorkOrder.findFirst({
-    where: { id: workOrderId, companyId },
+  const existing = await tx.crmProject.findFirst({ where: { companyId, dealId } });
+  if (existing) return existing;
+
+  const deal = await tx.crmDeal.findFirst({
+    where: { id: dealId, companyId },
     select: {
       id: true,
       title: true,
       clientId: true,
       siteId: true,
-      dealId: true,
       assignedToId: true,
-      scheduledStart: true,
+      currency: true,
     },
   });
-  if (!workOrder) throw new Error("Job not found");
-
-  // One project per job. Raising it twice from a double-tap should hand back
-  // the same project rather than splitting the costs across two.
-  const existing = await tx.crmProject.findFirst({ where: { companyId, workOrderId } });
-  if (existing) return existing;
+  if (!deal) throw new ProjectLinkError("Deal not found");
 
   return createProject(tx, companyId, createdById, {
-    name: workOrder.title,
-    clientId: workOrder.clientId,
-    siteId: workOrder.siteId,
-    dealId: workOrder.dealId,
-    workOrderId: workOrder.id,
-    managerId: workOrder.assignedToId,
-    startDate: workOrder.scheduledStart,
-    currency: "USD",
-    ...overrides,
+    name: deal.title,
+    clientId: deal.clientId,
+    siteId: deal.siteId,
+    managerId: deal.assignedToId,
+    currency: deal.currency,
+    ...definedOnly(overrides),
+    // Whatever else was overridden, this is the deal's project.
+    dealId: deal.id,
   });
+}
+
+/**
+ * The keys somebody actually sent.
+ *
+ * An override of `undefined` means "not mentioned", and spreading it over the
+ * deal's own values would blank the client because a form left a field out.
+ * `null` is kept: that is somebody saying "no owner", which is an answer.
+ */
+function definedOnly<T extends Record<string, unknown>>(values: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+}
+
+/**
+ * What a job raised inside a project hangs off.
+ *
+ * A job in a project is for that project's deal, client and site, so those
+ * are filled from the project wherever the request left them blank — the
+ * sheet opened from a project sends nothing but the project, and the job still
+ * lands on the deal it will be invoiced against and on the customer's record.
+ *
+ * A request that names a *different* deal is refused rather than quietly
+ * corrected: a job billed against one deal and costed against another's
+ * project is two records that each tell half the story.
+ */
+export async function jobLinksFromProject(
+  tx: Tx,
+  companyId: string,
+  projectId: string,
+  given: { dealId?: string | null; clientId?: string | null; siteId?: string | null },
+): Promise<{ projectId: string; dealId: string | null; clientId: string | null; siteId: string | null }> {
+  const project = await tx.crmProject.findFirst({
+    where: { id: projectId, companyId },
+    select: { id: true, dealId: true, clientId: true, siteId: true },
+  });
+  if (!project) throw new ProjectLinkError("Project not found");
+
+  if (given.dealId && project.dealId && given.dealId !== project.dealId) {
+    throw new ProjectLinkError("That project belongs to a different deal");
+  }
+
+  return {
+    projectId: project.id,
+    dealId: given.dealId ?? project.dealId,
+    clientId: given.clientId ?? project.clientId,
+    siteId: given.siteId ?? project.siteId,
+  };
+}
+
+/**
+ * Projects whose spend has gone past their budget.
+ *
+ * Asked of the database in one grouped sum rather than by running the full
+ * rollup per project: this is a filter over the whole register, and the
+ * register filters before it pages. Spend is plain cost entries — no cut
+ * approvals to resolve — so the SQL sum and `projectCostSummary` are the
+ * same arithmetic, and a project with no budget is never over it.
+ */
+export async function overBudgetProjectIds(tx: Tx, companyId: string): Promise<string[]> {
+  const spend = await tx.crmDailyCostEntry.groupBy({
+    by: ["projectId"],
+    where: { companyId, direction: "SPENT", projectId: { not: null } },
+    _sum: { amount: true },
+  });
+  const spentByProject = new Map(
+    spend.map((row) => [row.projectId as string, row._sum.amount ?? ZERO]),
+  );
+  if (spentByProject.size === 0) return [];
+
+  const budgeted = await tx.crmProject.findMany({
+    where: { companyId, id: { in: [...spentByProject.keys()] }, budget: { not: null } },
+    select: { id: true, budget: true },
+  });
+
+  return budgeted
+    .filter((project) => spentByProject.get(project.id)!.greaterThan(project.budget!))
+    .map((project) => project.id);
 }
 
 /** The money side of one project, in the shape the header strip reads. */
@@ -256,8 +287,6 @@ export type ProjectCostSummary = {
   remaining: Prisma.Decimal | null;
   currency: string;
 };
-
-const ZERO = new Prisma.Decimal(0);
 
 function sum(values: Array<Prisma.Decimal | null>): Prisma.Decimal {
   return values.reduce<Prisma.Decimal>(

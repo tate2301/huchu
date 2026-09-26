@@ -106,3 +106,61 @@ describe("buildDocumentEmail", () => {
     expect(mail.html).toContain("&lt;script&gt;");
   });
 });
+
+describe("buildDocumentEmail with resources to review", () => {
+  const base = {
+    number: "QUO-2026-0088",
+    companyName: "Floorcode Zimbabwe",
+    amount: "USD 9,717.50",
+    approvalUrl: "https://app.test/a/tok",
+  };
+  const resources = [
+    {
+      title: "Floorcode brochure",
+      description: "Finishes, colours and where they have been laid",
+      url: "https://example.invalid/brochure.pdf",
+    },
+    { title: "Resin data sheet", description: null, url: "https://example.invalid/resin" },
+  ];
+
+  it("lists each one after the link, with its address written out", () => {
+    const mail = buildDocumentEmail({ ...base, kind: "QUOTATION", resources });
+    expect(mail.text).toContain("Review before you accept:");
+    expect(mail.text).toContain("- Floorcode brochure: https://example.invalid/brochure.pdf");
+    expect(mail.text).toContain("  Finishes, colours and where they have been laid");
+    expect(mail.text).toContain("- Resin data sheet: https://example.invalid/resin");
+    // After the approval link, before the sign-off.
+    expect(mail.text.indexOf("Review before you accept")).toBeGreaterThan(
+      mail.text.indexOf("https://app.test/a/tok"),
+    );
+    expect(mail.text.trimEnd().endsWith("Floorcode Zimbabwe")).toBe(true);
+  });
+
+  it("links each one in the HTML part", () => {
+    const mail = buildDocumentEmail({ ...base, kind: "QUOTATION", resources });
+    expect(mail.html).toContain('<a href="https://example.invalid/brochure.pdf">Floorcode brochure</a>');
+    expect(mail.html).toContain('<a href="https://example.invalid/resin">Resin data sheet</a>');
+  });
+
+  it("offers them on an invoice for reference", () => {
+    const mail = buildDocumentEmail({ ...base, kind: "INVOICE", resources });
+    expect(mail.text).toContain("For your reference:");
+    expect(mail.text).not.toContain("before you accept");
+  });
+
+  it("escapes what a tenant typed into a title", () => {
+    const mail = buildDocumentEmail({
+      ...base,
+      kind: "QUOTATION",
+      resources: [{ title: "<b>Brochure</b>", description: null, url: "https://example.invalid/x" }],
+    });
+    expect(mail.html).not.toContain("<b>Brochure</b>");
+    expect(mail.html).toContain("&lt;b&gt;Brochure&lt;/b&gt;");
+  });
+
+  it("says nothing about resources when none were offered", () => {
+    const mail = buildDocumentEmail({ ...base, kind: "QUOTATION", resources: [] });
+    expect(mail.text).not.toContain("Review before you accept");
+    expect(mail.html).not.toContain("<ul");
+  });
+});

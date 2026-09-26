@@ -13,6 +13,8 @@ export default async function CrmRepPage({
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
   const { id } = await params;
+  // "My overview" in the navigation is a link to whoever is signed in.
+  if (id === "me") redirect(`/crm/reps/${session.user.id}`);
 
   return (
     <CrmPage width="detail">

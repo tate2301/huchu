@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DateRangeFilter, dayEndIso, dayStartIso, isoToDay } from "@/components/ui/date-range-filter";
 import { ChevronDown, Funnel, SortAscending, X } from "@/lib/icons";
 import { LEAD_STAGE_DOT } from "@/lib/crm/tones";
 import { ToneSelect } from "@/components/crm/records/tone-select";
@@ -160,74 +161,6 @@ function ValueRangeFilter({
             size="sm"
             className="w-full justify-center"
             onClick={() => onChange({ valueMin: undefined, valueMax: undefined })}
-          >
-            Clear
-          </Button>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function DateRangeFilter({
-  createdFrom,
-  createdTo,
-  onChange,
-}: {
-  createdFrom?: string;
-  createdTo?: string;
-  onChange: (next: { createdFrom?: string; createdTo?: string }) => void;
-}) {
-  const active = Boolean(createdFrom || createdTo);
-  const toIso = (raw: string, endOfDay: boolean) => {
-    if (!raw) return undefined;
-    const date = new Date(`${raw}T${endOfDay ? "23:59:59" : "00:00:00"}`);
-    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
-  };
-  const toInputValue = (iso?: string) => (iso ? iso.slice(0, 10) : "");
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          Created
-          {active ? <Badge tone="info" size="sm">1</Badge> : null}
-          <ChevronDown className="size-3 text-[var(--text-muted)]" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 space-y-3 p-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="created-from" className="text-sm">
-            From
-          </Label>
-          <Input
-            id="created-from"
-            type="date"
-            value={toInputValue(createdFrom)}
-            onChange={(event) =>
-              onChange({ createdFrom: toIso(event.target.value, false), createdTo })
-            }
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="created-to" className="text-sm">
-            To
-          </Label>
-          <Input
-            id="created-to"
-            type="date"
-            value={toInputValue(createdTo)}
-            onChange={(event) =>
-              onChange({ createdFrom, createdTo: toIso(event.target.value, true) })
-            }
-          />
-        </div>
-        {active ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-center"
-            onClick={() => onChange({ createdFrom: undefined, createdTo: undefined })}
           >
             Clear
           </Button>
@@ -411,10 +344,16 @@ export function LeadsFilters({
             onChange={(next) => patch(next)}
           />
 
+          {/* The filter speaks in calendar days; a lead's `createdAt` is an
+              instant, so the day is widened to its first and last moment in
+              the reader's own time zone on the way out, and narrowed back on
+              the way in. */}
           <DateRangeFilter
-            createdFrom={filters.createdFrom}
-            createdTo={filters.createdTo}
-            onChange={(next) => patch(next)}
+            label="Created"
+            value={{ from: isoToDay(filters.createdFrom), to: isoToDay(filters.createdTo) }}
+            onChange={(next) =>
+              patch({ createdFrom: dayStartIso(next.from), createdTo: dayEndIso(next.to) })
+            }
           />
 
           <Button

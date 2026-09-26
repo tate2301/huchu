@@ -23,6 +23,7 @@ const { validateSessionMock, capabilityMock, prismaMock, notifyMock, emitMock } 
     capabilityMock: vi.fn(),
     prismaMock: {
       crmRequisition: { findFirst: vi.fn(), update: vi.fn() },
+      crmDailyCostEntry: { findMany: vi.fn() },
       bankAccount: { findFirst: vi.fn() },
     },
     notifyMock: vi.fn(),
@@ -81,7 +82,17 @@ beforeEach(() => {
     ...row(),
     ...data,
   }));
+  prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([]);
 });
+
+/** A reported line, as the acquittal reads it. */
+function line(amount: string, receipt: boolean, direction: "SPENT" | "RECEIVED" = "SPENT") {
+  return {
+    direction,
+    amount: new Prisma.Decimal(amount),
+    receiptUrl: receipt ? "https://example.invalid/receipt.jpg" : null,
+  };
+}
 
 describe("approving", () => {
   it("refuses somebody approving their own request", async () => {
@@ -228,7 +239,7 @@ describe("accounting for the money", () => {
     capabilityMock.mockResolvedValue(false);
     prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
 
-    const response = await PATCH(patch({ action: "acquit", acquittedAmount: 380 }), { params });
+    const response = await PATCH(patch({ action: "acquit" }), { params });
 
     expect(response.status).toBe(403);
   });
@@ -237,10 +248,71 @@ describe("accounting for the money", () => {
     validateSessionMock.mockResolvedValue(session(REQUESTER));
     prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
 
-    const response = await PATCH(patch({ action: "acquit", acquittedAmount: 0 }), { params });
+    const response = await PATCH(patch({ action: "acquit" }), { params });
 
     expect(response.status).toBe(200);
     const update = prismaMock.crmRequisition.update.mock.calls[0][0];
-    expect(update.data.acquittedAmount).toBe(0);
+    expect(update.data.acquittedAmount.toString()).toBe("0");
+  });
+
+  it("settles at what the reported spend comes to, not at a typed figure", async () => {
+    validateSessionMock.mockResolvedValue(session(REQUESTER));
+    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
+    prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([
+      line("250.50", true),
+      line("60.00", true),
+      // The float arriving is not something it was spent on.
+      line("400.00", true, "RECEIVED"),
+    ]);
+
+    const response = await PATCH(patch({ action: "acquit", acquittedAmount: 1 }), { params });
+
+    expect(response.status).toBe(200);
+    const update = prismaMock.crmRequisition.update.mock.calls[0][0];
+    expect(update.data.acquittedAmount.toString()).toBe("310.5");
+    expect(update.data.status).toBe("ACQUITTED");
+  });
+
+  it("refuses while a spend line has no receipt", async () => {
+    validateSessionMock.mockResolvedValue(session(REQUESTER));
+    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
+    prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([line("90.00", false)]);
+
+    const response = await PATCH(patch({ action: "acquit" }), { params });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe("RECEIPTS_MISSING");
+    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
+  });
+
+  it("will not let the requester waive their own receipts", async () => {
+    validateSessionMock.mockResolvedValue(session(REQUESTER));
+    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
+    prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([line("90.00", false)]);
+
+    const response = await PATCH(
+      patch({ action: "acquit", waiveMissingReceipts: true, waiverNote: "Lost it" }),
+      { params },
+    );
+
+    expect(response.status).toBe(403);
+    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
+  });
+
+  it("lets a manager accept them without, and keeps who and why", async () => {
+    validateSessionMock.mockResolvedValue(session(APPROVER));
+    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
+    prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([line("90.00", false), line("30.00", true)]);
+
+    const response = await PATCH(
+      patch({ action: "acquit", waiveMissingReceipts: true, waiverNote: "Pump till was down" }),
+      { params },
+    );
+
+    expect(response.status).toBe(200);
+    const update = prismaMock.crmRequisition.update.mock.calls[0][0];
+    expect(update.data.acquittedAmount.toString()).toBe("120");
+    expect(update.data.receiptsWaivedById).toBe(APPROVER);
+    expect(update.data.receiptWaiverNote).toBe("Pump till was down");
   });
 });

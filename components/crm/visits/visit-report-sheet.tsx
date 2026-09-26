@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { AttachmentCenter, Stack } from "@corelithzw/react";
+import { AttachmentCenter, Badge, Stack } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ClientDate } from "@/components/ui/client-date";
 import { Input } from "@/components/ui/input";
 import { CataloguePicker } from "@/components/crm/documents/catalogue-picker";
 import { Label } from "@/components/ui/label";
@@ -14,15 +15,52 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Camera, Plus, Trash2 } from "@/lib/icons";
+import { FileText, MapPin, Plus, Trash2 } from "@/lib/icons";
 import {
   fetchCrmVisitReport,
   saveCrmVisitReport,
   type CrmVisitChecklistItem,
   type CrmVisitPhoto,
 } from "@/lib/crm/crm-v2";
-import { buildDefaultChecklist } from "@/lib/crm/site-visits";
+import { buildDefaultChecklist, isPhoto, newClientPhotoId } from "@/lib/crm/site-visits";
+import { DEFAULT_FIELD_CAMERA_APP, hasLocation, readPhotoGeotag } from "@/lib/crm/geotag";
+import { GeotagNotice, useFieldCamera } from "@/components/crm/visits/geotag-notice";
 import { VisitQuestionSections } from "@/components/crm/visits/visit-question-sections";
+
+/**
+ * What the row under a photo says about where it came from.
+ *
+ * The coordinates are drawn, not hidden behind a map link: whoever checks the
+ * report is comparing them with an address, and five decimals is about a
+ * metre — enough to tell this house from the one next door. A picture with no
+ * location says so in words, in the warning tone, because a photo that cannot
+ * prove where it was taken is the one somebody will ask about.
+ */
+function PhotoProvenance({ photo }: { photo: CrmVisitPhoto }) {
+  if (!isPhoto(photo)) return <>{photo.contentType === "application/pdf" ? "PDF" : photo.contentType}</>;
+
+  const latitude = photo.latitude ?? null;
+  const longitude = photo.longitude ?? null;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      {latitude !== null && longitude !== null ? (
+        <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+          <MapPin aria-hidden="true" className="size-3.5" />
+          {latitude.toFixed(5)}, {longitude.toFixed(5)}
+        </span>
+      ) : (
+        <Badge tone="warn" size="sm">
+          No location
+        </Badge>
+      )}
+      {photo.capturedAt ? (
+        <span className="font-mono tabular-nums">
+          <ClientDate value={photo.capturedAt} />
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 export type MeasurementDraft = {
   category: string;
@@ -92,10 +130,14 @@ export function VisitReportSheet({
 
   const report = reportQuery.data;
 
+  // Named in the no-location warning. The notice below fetches the same key.
+  const fieldCamera = useFieldCamera({ enabled: open });
+  const cameraApp = fieldCamera.data?.data.appName ?? DEFAULT_FIELD_CAMERA_APP;
+
   useEffect(() => {
     if (!report) return;
     setChecklist(report.checklist ?? buildDefaultChecklist());
-    setPhotos(report.photos ?? []);
+    setPhotos(report.photos);
     setSiteConditions(report.siteConditions ?? "");
     setReportNotes(report.reportNotes ?? "");
     setItems(
@@ -159,24 +201,34 @@ export function VisitReportSheet({
 
   const uploadFiles = async (files: File[]) => {
     setUploading(true);
+    const uploaded: CrmVisitPhoto[] = [];
     try {
-      const uploaded: CrmVisitPhoto[] = [];
       for (const file of files) {
+        // Read here, on the phone, before the file leaves it: the photo's own
+        // metadata is the only witness to where and when it was taken.
+        const geotag = await readPhotoGeotag(file);
         const body = new FormData();
         body.append("file", file);
-        const result = await fetchJson<{
-          data: { url: string; contentType: string; size: number };
+        // The upload answers with the stored file itself — no `data` envelope.
+        // This sheet used to read `result.data.url`, which threw on every
+        // upload and surfaced as "Upload failed" for a file that had arrived.
+        const stored = await fetchJson<{
+          url: string;
+          pathname: string;
+          contentType: string;
+          size: number;
         }>("/api/v2/crm/uploads", { method: "POST", body });
         uploaded.push({
-          url: result.data.url,
+          clientPhotoId: newClientPhotoId(),
+          url: stored.url,
+          pathname: stored.pathname,
           fileName: file.name,
-          contentType: result.data.contentType,
-          size: result.data.size,
-          kind: file.type.startsWith("image/") ? "PHOTO" : "FILE",
+          contentType: stored.contentType,
+          size: stored.size,
           caption: null,
+          ...geotag,
         });
       }
-      setPhotos((current) => [...current, ...uploaded]);
     } catch (error) {
       toast({
         title: "Upload failed",
@@ -184,7 +236,25 @@ export function VisitReportSheet({
         variant: "destructive",
       });
     } finally {
+      // Whatever reached storage is kept, even when a later file failed —
+      // the rep should not have to upload the first five photos again.
+      if (uploaded.length > 0) setPhotos((current) => [...current, ...uploaded]);
       setUploading(false);
+    }
+
+    // Accepted, and said out loud. Refusing the photo would lose the picture
+    // of the damage over the camera app, which is the worse of the two.
+    const unlocated = uploaded.filter(
+      (photo) =>
+        isPhoto(photo) &&
+        !hasLocation({ latitude: photo.latitude ?? null, longitude: photo.longitude ?? null }),
+    ).length;
+    if (unlocated > 0) {
+      toast({
+        title: `${unlocated} photo${unlocated === 1 ? " has" : "s have"} no location`,
+        description: `Added anyway. Retake ${unlocated === 1 ? "it" : "them"} with ${cameraApp} if you can, so the report shows where ${unlocated === 1 ? "it was" : "they were"} taken.`,
+        variant: "warning",
+      });
     }
   };
 
@@ -477,28 +547,32 @@ export function VisitReportSheet({
             </div>
           </section>
 
+          {/* Said again where the photos go in: the list page says it before
+              the visit, this says it at the moment of choosing the files. */}
+          <GeotagNotice />
+
           {/* The DS attachment pattern: one dropzone, one list, remove per
               row. The caption rides in each row's description slot — it's
-              the one field a site photo needs that a generic file doesn't. */}
+              the one field a site photo needs that a generic file doesn't —
+              and the meta line says where and when the camera says it was. */}
           <AttachmentCenter
             title="Photos & files"
             files={[
               ...photos.map((photo, index) => ({
-                id: photo.url,
-                name: photo.fileName ?? (photo.kind === "PHOTO" ? "Photo" : "File"),
+                id: photo.clientPhotoId,
+                name: photo.fileName ?? (isPhoto(photo) ? "Photo" : "File"),
                 href: photo.url,
-                icon:
-                  photo.kind === "PHOTO" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={photo.url}
-                      alt={photo.caption ?? photo.fileName ?? "Site photo"}
-                      className="h-10 w-10 rounded object-cover"
-                    />
-                  ) : (
-                    <Camera className="h-4 w-4" />
-                  ),
-                meta: photo.contentType ?? undefined,
+                icon: isPhoto(photo) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photo.url}
+                    alt={photo.caption ?? photo.fileName ?? "Site photo"}
+                    className="h-10 w-10 rounded object-cover"
+                  />
+                ) : (
+                  <FileText aria-hidden="true" className="h-4 w-4" />
+                ),
+                meta: <PhotoProvenance photo={photo} />,
                 description: (
                   <Input
                     value={photo.caption ?? ""}
@@ -524,7 +598,7 @@ export function VisitReportSheet({
               if (files.length > 0) void uploadFiles(files);
             }}
             onRemove={(id) =>
-              setPhotos((current) => current.filter((photo) => photo.url !== id))
+              setPhotos((current) => current.filter((photo) => photo.clientPhotoId !== id))
             }
             accept="image/*,application/pdf"
             multiple
