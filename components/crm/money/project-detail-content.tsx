@@ -94,13 +94,14 @@ type ProjectDetail = {
     actualEndDate: string | null;
     client: { id: string; name: string } | null;
     site: { id: string; name: string } | null;
+    /** The deal it delivers. Every project has one. */
     deal: {
       id: string;
       dealNo: string;
       title: string;
       value: number | null;
       currency: string;
-    } | null;
+    };
     manager: { id: string; name: string | null } | null;
     allowedTransitions: ProjectStatus[];
   };
@@ -152,7 +153,7 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
     currentUserId: session?.user?.id,
     defaultTitle: project?.name,
     links: {
-      dealId: project?.deal?.id ?? null,
+      dealId: project?.deal.id ?? null,
       clientId: project?.client?.id ?? null,
       siteId: project?.site?.id ?? null,
       project: project ? { id: project.id, label: `${project.projectNo} — ${project.name}` } : null,
@@ -194,6 +195,16 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
   }));
 
   const attributes: RecordAttribute[] = [
+    // The deal first: it is what the project delivers, and where its price,
+    // its quote and its invoices live.
+    {
+      id: "deal",
+      label: "Deal",
+      icon: FileText,
+      tone: "link",
+      display: <EntityLink href={`/crm/deals/${project.deal.id}`}>{project.deal.title}</EntityLink>,
+      value: project.deal.title,
+    },
     {
       id: "status",
       label: "Status",
@@ -246,9 +257,8 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
       // The deal's value, read from the deal: the reference the budget is set
       // against. Not editable here — the deal is where a price is changed.
       tone: "money",
-      value:
-        project.deal?.value == null ? null : formatMoney(project.deal.value, project.deal.currency),
-      placeholder: project.deal ? "No value on the deal" : "No deal",
+      value: project.deal.value == null ? null : formatMoney(project.deal.value, project.deal.currency),
+      placeholder: "No value on the deal",
     },
     {
       id: "start",
@@ -321,17 +331,6 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
       value: project.site?.name ?? null,
       placeholder: "No site",
     },
-    {
-      id: "deal",
-      label: "Deal",
-      icon: FileText,
-      tone: project.deal ? "link" : undefined,
-      display: project.deal ? (
-        <EntityLink href={`/crm/deals/${project.deal.id}`}>{project.deal.title}</EntityLink>
-      ) : undefined,
-      value: project.deal?.title ?? null,
-      placeholder: "Raised directly",
-    },
   ];
 
   const openRequisitions = requisitions.filter(
@@ -368,9 +367,7 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
         related={
           <RecordRelated
             items={[
-              ...(project.deal
-                ? [{ href: `/crm/deals/${project.deal.id}`, label: project.deal.title, dot: "bg-[var(--brand)]" }]
-                : []),
+              { href: `/crm/deals/${project.deal.id}`, label: project.deal.title, dot: "bg-[var(--brand)]" },
               ...(project.client
                 ? [{ href: `/crm/companies/${project.client.id}`, label: project.client.name, dot: "bg-[var(--brand)]" }]
                 : []),

@@ -40,12 +40,6 @@ type ProjectsResponse = { data: { id: string; projectNo: string; name: string }[
  */
 const NO_CHECKLIST = "none";
 
-/** The same trick for "this job bills against nothing yet". */
-const NO_DEAL = "none";
-
-/** And for "a one-off job, not part of any project". */
-const NO_PROJECT = "none";
-
 /** Book it for tomorrow morning, which is when a job realistically starts. */
 function defaultStart(): string {
   const tomorrow = new Date();
@@ -56,24 +50,21 @@ function defaultStart(): string {
 }
 
 /**
- * Raise the job that delivers a won deal.
+ * Raise a job, against the deal it delivers.
+ *
+ * Every job belongs to a deal: the deal is what it is invoiced against when
+ * the work is signed off, and a job with nothing behind it could never be
+ * billed. Opened from a deal or a project, the deal is known. Opened from a
+ * company or a site, it is one of that customer's deals. Opened from the
+ * register, it is asked for first.
+ *
+ * The project is never a second question. A deal has at most one project and
+ * its jobs belong in it, so the server puts the job there, and the dialog says
+ * where it is going once the deal is chosen.
  *
  * The checklist comes from the quote rather than being retyped, which is where
  * transcription errors come from — a crew installing four panels because
  * somebody typed 4 instead of 14 is a whole second visit.
- *
- * Opened from a deal it already knows what the job is for. Opened from the
- * jobs register it does not, and asks: a deal is the honest answer, because a
- * job with nothing to bill against cannot be invoiced later, but a site or a
- * company is accepted too — a callout that turns up in the day's work with no
- * paperwork behind it is a real thing that happens, and refusing to record it
- * is how it ends up on a WhatsApp thread instead.
- *
- * The project is fixed when the opener knows it — a project's own page, or a
- * deal that has been started as one, since a deal has at most one project and
- * its jobs belong in it. Anywhere else it is a choice among the projects still
- * taking work, and picking one is enough on its own: the server fills the
- * job's deal, customer and site from the project.
  */
 export function RaiseJobSheet({
   open,
@@ -114,15 +105,11 @@ export function RaiseJobSheet({
   const [subject, setSubject] = useState<PickedRecord | null>(null);
   const [documentId, setDocumentId] = useState("");
   const [billTo, setBillTo] = useState("");
-  const [pickedProject, setPickedProject] = useState("");
   const [scheduledStart, setScheduledStart] = useState(defaultStart);
   const [assignedToId, setAssignedToId] = useState(currentUserId ?? "");
   const [addressLine, setAddressLine] = useState("");
   const [accessNotes, setAccessNotes] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
-
-  /** The record is fixed when a page handed one over, and asked for otherwise. */
-  const given = Boolean(dealId || clientId || siteId || project);
 
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
@@ -132,7 +119,6 @@ export function RaiseJobSheet({
       setSubject(null);
       setDocumentId("");
       setBillTo("");
-      setPickedProject("");
       setScheduledStart(defaultStart());
       setAssignedToId(currentUserId ?? "");
       setAddressLine("");
@@ -149,53 +135,49 @@ export function RaiseJobSheet({
   });
 
   /**
-   * The deals this customer has, for a job that is being raised against them
-   * rather than against one of those deals.
-   *
-   * Without this a job raised from a company or a site could never be
-   * invoiced: the invoice route bills against a deal, the record page's Deal
-   * row was read-only, and there was no way to name one at any point. Asked
-   * for the customer's own deals rather than searched across the tenant,
-   * because the answer is nearly always one of two or three.
+   * The deals this customer has, for a job raised from their company or site.
+   * Asked for the customer's own deals rather than searched across the
+   * tenant, because the answer is nearly always one of two or three.
    */
   const scope = clientId ? `clientIds=${clientId}` : siteId ? `siteIds=${siteId}` : null;
-  const { data: deals } = useQuery({
+  const { data: deals, isLoading: dealsLoading } = useQuery({
     queryKey: ["crm", "deals", "for-job", scope],
     queryFn: () => fetchJson<DealsResponse>(`/api/v2/crm/deals?${scope}&limit=50`),
-    enabled: open && Boolean(scope) && !dealId,
+    enabled: open && Boolean(scope) && !dealId && !project,
     staleTime: 60_000,
   });
   const billable = deals?.data ?? [];
+  const asksCustomerDeal = Boolean(scope) && !dealId && !project;
+  const noCustomerDeal = asksCustomerDeal && !dealsLoading && billable.length === 0;
 
-  /**
-   * Projects this job could go into, when nobody has said which.
-   *
-   * Only those still taking work, and narrowed to the customer when there is
-   * one — a job for Plumtree Freight belongs in one of Plumtree's projects,
-   * not in whichever project happens to be at the top of the register.
-   */
-  const projectScope = clientId ? `&clientId=${clientId}` : "";
-  const { data: projects } = useQuery({
-    queryKey: ["crm", "projects", "for-job", projectScope],
+  // The deal the job delivers: given by the page, or chosen here. A project
+  // given by the page names its own deal on the server.
+  const chosenDealId = dealId ?? (project ? null : (recordRefFor(subject).dealId ?? (billTo || null)));
+
+  /** Where a job for the chosen deal goes: the deal's project, if it has one. */
+  const { data: dealProjects } = useQuery({
+    queryKey: ["crm", "projects", "of-deal", chosenDealId],
     queryFn: () =>
-      fetchJson<ProjectsResponse>(`/api/v2/crm/projects?open=true&costs=false&limit=100${projectScope}`),
-    enabled: open && !project,
+      fetchJson<ProjectsResponse>(`/api/v2/crm/projects?dealId=${chosenDealId}&costs=false&limit=1`),
+    enabled: open && Boolean(chosenDealId) && !project,
     staleTime: 60_000,
   });
-  const openProjects = projects?.data ?? [];
-  const projectId = project?.id ?? (pickedProject && pickedProject !== NO_PROJECT ? pickedProject : null);
+  const destination = project
+    ? project.label
+    : dealProjects?.data[0]
+      ? `${dealProjects.data[0].projectNo} — ${dealProjects.data[0].name}`
+      : null;
 
   const create = useMutation({
     mutationFn: () => {
-      const picked = recordRefFor(subject);
-      return fetchJson<{ id: string }>("/api/v2/crm/work-orders", {
+      return fetchJson<{ id: string; projectId: string | null }>("/api/v2/crm/work-orders", {
         method: "POST",
         body: JSON.stringify({
           title: title.trim(),
-          dealId: dealId ?? picked.dealId ?? (billTo || null),
-          clientId: clientId ?? picked.clientId ?? null,
-          siteId: siteId ?? picked.siteId ?? null,
-          projectId,
+          dealId: chosenDealId,
+          clientId: clientId ?? null,
+          siteId: siteId ?? null,
+          projectId: project?.id ?? null,
           documentId: documentId && documentId !== NO_CHECKLIST ? documentId : null,
           scheduledStart: scheduledStart ? new Date(scheduledStart).toISOString() : null,
           assignedToId: assignedToId || null,
@@ -207,8 +189,8 @@ export function RaiseJobSheet({
     onSuccess: (job) => {
       toast({ title: "Job raised", description: "It's on the crew's list." });
       queryClient.invalidateQueries({ queryKey: ["crm", "jobs"] });
-      if (dealId) queryClient.invalidateQueries({ queryKey: ["crm", "deal", dealId] });
-      if (projectId) queryClient.invalidateQueries({ queryKey: ["crm", "project", projectId] });
+      if (chosenDealId) queryClient.invalidateQueries({ queryKey: ["crm", "deal", chosenDealId] });
+      if (job.projectId) queryClient.invalidateQueries({ queryKey: ["crm", "project", job.projectId] });
       onOpenChange(false);
       // A dialog that closes onto a page looking exactly as it did before is
       // the shape of "nothing happened". A record page says where to go — its
@@ -229,22 +211,64 @@ export function RaiseJobSheet({
       errors={errors}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!title.trim()) {
-          setErrors(["Give the job a title the crew will recognise"]);
-          return;
-        }
-        setErrors([]);
-        create.mutate();
+        const problems: string[] = [];
+        if (!project && !chosenDealId) problems.push("Choose the deal this job delivers");
+        if (!title.trim()) problems.push("Give the job a title the crew will recognise");
+        setErrors(problems);
+        if (problems.length === 0) create.mutate();
       }}
       footer={<>
         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button type="submit" disabled={create.isPending}>
+        <Button type="submit" disabled={create.isPending || noCustomerDeal}>
           {create.isPending ? "Raising…" : "Raise job"}
         </Button>
       </>}
     >
+      {/* The deal first: it is what the job is for. */}
+      {dealId || project ? null : asksCustomerDeal ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="job-deal">Deal</Label>
+          {noCustomerDeal ? (
+            <p id="job-deal" className="text-sm text-[var(--text-muted)]">
+              This customer has no deal yet. A job delivers a deal, so add the deal first.
+            </p>
+          ) : (
+            <Select value={billTo} onValueChange={setBillTo}>
+              <SelectTrigger id="job-deal">
+                <SelectValue placeholder={dealsLoading ? "Loading deals…" : "Choose a deal"} />
+              </SelectTrigger>
+              <SelectContent>
+                {billable.map((deal) => (
+                  <SelectItem key={deal.id} value={deal.id}>
+                    {deal.dealNo ? `${deal.dealNo} — ${deal.title}` : deal.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label htmlFor="job-subject">Deal</Label>
+          <RecordPicker
+            id="job-subject"
+            value={subject}
+            onChange={setSubject}
+            types={["DEAL"]}
+            placeholder="Search deals"
+          />
+        </div>
+      )}
+
+      {destination ? (
+        <div className="space-y-1.5">
+          <Label>Project</Label>
+          <p className="text-sm font-medium text-[var(--text-strong)]">{destination}</p>
+        </div>
+      ) : null}
+
       <div className="space-y-1.5">
         <Label htmlFor="job-title">Title *</Label>
         <Input
@@ -254,85 +278,6 @@ export function RaiseJobSheet({
           placeholder="Install 14 panels — Msasa depot"
         />
       </div>
-
-      {project ? (
-        <div className="space-y-1.5">
-          <Label>Project</Label>
-          <p className="text-sm font-medium text-[var(--text-strong)]">{project.label}</p>
-        </div>
-      ) : openProjects.length > 0 ? (
-        <div className="space-y-1.5">
-          <Label>Project</Label>
-          <Select
-            value={pickedProject || NO_PROJECT}
-            onValueChange={(next) => {
-              setPickedProject(next === NO_PROJECT ? "" : next);
-              // The project answers "what is it for", so an earlier answer to
-              // that question goes rather than being sent alongside it.
-              if (next !== NO_PROJECT) setSubject(null);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_PROJECT}>None — a one-off job</SelectItem>
-              {openProjects.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {`${option.projectNo} — ${option.name}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-[var(--text-muted)]">
-            A job in a project books its costs to it, and takes its customer and site.
-          </p>
-        </div>
-      ) : null}
-
-      {given || projectId ? null : (
-        <div className="space-y-1.5">
-          <Label htmlFor="job-subject">What is it for</Label>
-          <RecordPicker
-            id="job-subject"
-            value={subject}
-            onChange={setSubject}
-            types={["DEAL", "COMPANY", "SITE"]}
-            placeholder="Search deals, companies and sites"
-          />
-          <p className="text-sm text-[var(--text-muted)]">
-            A deal is what lets this be invoiced when it is done.
-          </p>
-        </div>
-      )}
-
-      {/* Raised from a company or a site, so nothing has said what it bills
-          against. A job with no deal behind it cannot be invoiced when it is
-          done — it can be attached later on the job's own record, but the
-          moment somebody is already looking at this customer is the cheapest
-          moment to ask. Left blank on purpose is a real answer: a callout with
-          no paperwork behind it is a real thing that happens. */}
-      {given && !dealId && billable.length > 0 ? (
-        <div className="space-y-1.5">
-          <Label>Bill it against</Label>
-          <Select value={billTo || NO_DEAL} onValueChange={(next) => setBillTo(next === NO_DEAL ? "" : next)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_DEAL}>Nothing yet</SelectItem>
-              {billable.map((deal) => (
-                <SelectItem key={deal.id} value={deal.id}>
-                  {deal.dealNo ? `${deal.dealNo} — ${deal.title}` : deal.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-[var(--text-muted)]">
-            This is what the invoice is raised against once the job is signed off.
-          </p>
-        </div>
-      ) : null}
 
       {quotationDocuments.length ? (
         <div className="space-y-1.5">

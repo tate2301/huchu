@@ -17,32 +17,41 @@ to nothing.
 `CrmProject` is what a won deal turns into, and what its jobs belong to. The
 chain is **deal → project → jobs**:
 
+- **Every project belongs to a deal.** `CrmProject.dealId` is required
+  (migration `20260926090000_crm_project_requires_deal`, which stops and names
+  any project without one rather than inventing a deal for it), and deleting
+  a deal that has a project is refused (`RESTRICT`). The deal is the first of
+  a project's properties.
 - A won deal's next step is **Start the project** (`resolveNextStep` in
-  `lib/crm/tones.ts`). The sheet asks for a name, an owner, a budget and two
+  `lib/crm/tones.ts`). The dialog asks for a name, an owner, a budget and two
   dates; `projectFromDeal` carries the deal's name, client, site and owner
   across. The deal's value is not copied — the project reads it from the deal
   as the reference its budget is set against ("Sold for").
 - **One project per deal**, enforced by a unique on `(companyId, dealId)`.
-  `projectFromDeal` hands back the existing project on a second request, and
-  the route turns a concurrent double-tap's unique violation into the same
-  answer.
+  A second start is answered with the project the deal already has
+  (`created: false`), including a concurrent double-tap's unique violation,
+  and the dialog says so and goes there.
 - **The job holds the link** (`CrmWorkOrder.projectId`), so a project holds
   any number of jobs. A job raised with a `projectId` inherits the project's
   deal, client and site wherever the request left them blank
   (`jobLinksFromProject`); naming a different deal is refused.
-- **A job can still exist with no project.** A callout is a real thing that
-  happens. What is gone is raising a project *from* a job — the old
-  `CrmProject.workOrderId` link, which let a project hold exactly one job.
-  Migration `20260925090000_crm_project_spine` moved every existing link onto
-  the job before dropping the column, and where two projects named the same
-  deal it kept the deal on the oldest and left the others standing on their
-  own.
+- **Every new job names its deal** — the deal is what the job is invoiced
+  against. The route refuses one without a deal or a project, and a job
+  raised against a deal that has a project goes into that project, taking
+  the deal's customer and site (`projectOfDeal`). The raise-a-job dialog asks
+  for the deal first and says which project the job will land in; the
+  project is never a second question. A job's deal can be changed but not
+  cleared. Jobs raised before this rule may still have no deal: the Deal
+  property is first on the job's page, in red, until one is picked.
+- A job whose deal has no project stands alone. What is gone is raising a
+  project *from* a job — the old `CrmProject.workOrderId` link, which let a
+  project hold exactly one job.
 - **The team** is `CrmProjectMember` (free-text role). `managerId` stays the one
   owner answerable for the budget; the owner or a manager changes the team,
   the budget and the status (`canEditRecord`).
 
-Direct projects — work that never went through the pipeline — are raised from
-the register's **New project**, with no deal behind them.
+The register's **New project** asks which deal first, offering the open and
+won deals that have no project yet, won ones first.
 
 The project page (`components/crm/money/project-detail-content.tsx`) is the
 standard record page: properties edited in place, sections in the rail with

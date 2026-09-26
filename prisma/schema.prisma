@@ -13041,10 +13041,11 @@ model CrmProject {
   description String?
   status      CrmProjectStatus  @default(PLANNING)
 
-  /// Where it came from. All optional: a project can be raised directly for
-  /// work that never went through the pipeline. At most one project per deal
-  /// — see the unique below.
-  dealId      String?
+  /// The deal this project delivers. Required: a project is what a deal
+  /// turns into once it is sold, and work with no deal behind it is work
+  /// nobody sold. At most one project per deal — see the unique below. The
+  /// customer and site are carried across from the deal and stay optional.
+  dealId      String
   clientId    String?
   siteId      String?
 
@@ -13073,7 +13074,9 @@ model CrmProject {
 
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   costCenter  CostCenter?         @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
-  deal        CrmDeal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  /// RESTRICT: a deal with a project behind it is not deleted out from
+  /// under the project's jobs, requisitions and costs.
+  deal        CrmDeal             @relation(fields: [dealId], references: [id], onDelete: Restrict)
   client      CrmClient?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
   site        CrmSite?            @relation(fields: [siteId], references: [id], onDelete: SetNull)
   manager     User?               @relation("CrmProjectManager", fields: [managerId], references: [id])
@@ -13086,8 +13089,7 @@ model CrmProject {
   @@unique([companyId, projectNo])
   /// One project per deal. Two would split the deal's costs between them and
   /// neither figure would be true; a double-tap on "Start the project" hits
-  /// this rather than making a second one. NULLs are distinct, so any number
-  /// of projects can be raised with no deal behind them.
+  /// this rather than making a second one.
   @@unique([companyId, dealId])
   @@index([companyId, costCenterId])
   @@index([companyId, status, updatedAt])

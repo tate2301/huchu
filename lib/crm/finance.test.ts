@@ -367,9 +367,21 @@ describe("the finance overview", () => {
         data: { companyId: company, projectNo: "PRJ-FIN-A", name: "Warehouse floor", status: "ACTIVE", dealId: deal.id, budget: 1000 },
       })
     ).id;
+    // Every project delivers a deal, so the showroom has one of its own.
+    const showroom = await prisma.crmDeal.create({
+      data: {
+        companyId: company,
+        dealNo: "DEAL-FIN-2",
+        title: "Showroom",
+        pipelineId: pipeline.id,
+        stageId: stage.id,
+        status: "WON",
+        assignedToId: rudo,
+      },
+    });
     projectB = (
       await prisma.crmProject.create({
-        data: { companyId: company, projectNo: "PRJ-FIN-B", name: "Showroom", status: "ACTIVE", budget: 100, managerId: rudo },
+        data: { companyId: company, projectNo: "PRJ-FIN-B", name: "Showroom", status: "ACTIVE", dealId: showroom.id, budget: 100, managerId: rudo },
       })
     ).id;
 

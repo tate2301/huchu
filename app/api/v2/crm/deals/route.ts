@@ -91,7 +91,14 @@ export async function GET(request: NextRequest) {
           listId: filters.listId,
         })
       : null;
-    const where = { ...baseWhere, ...(listIdFilter(listIds) ?? {}) };
+    // "Which deals could a project be started from?" — a deal has one
+    // project, so a deal that already has it is not an answer.
+    const withoutProject = searchParams.get("withoutProject") === "true";
+    const where = {
+      ...baseWhere,
+      ...(listIdFilter(listIds) ?? {}),
+      ...(withoutProject ? { projects: { none: {} } } : {}),
+    };
     const sort = recordSortSchema.safeParse({
       field: searchParams.get("sortField"),
       direction: searchParams.get("sortDir"),
