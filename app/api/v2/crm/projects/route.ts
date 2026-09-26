@@ -7,9 +7,9 @@
  * about the rule it applies — see `projectCostSummary` on why a single SQL
  * aggregate would have to repeat the cut-approval rule.
  *
- * A project is started from the deal that was won (`fromDealId`) or raised
- * directly. It is never raised from a job any more: the job is raised inside
- * the project, not the other way round.
+ * A project is always started from a deal (`dealId`): it is what the deal
+ * turns into once it is sold. It is never raised from a job: the job is
+ * raised inside the project, not the other way round.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -25,7 +25,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import {
   ProjectLinkError,
-  createProject,
   createProjectSchema,
   overBudgetProjectIds,
   projectCostSummary,
@@ -36,14 +35,13 @@ import { isCompanyUser } from "../_helpers";
 
 const OPEN_STATUSES = PROJECT_STATUSES.filter((status) => !isClosed(status));
 
+/**
+ * Start a deal's project, carrying the deal's name, client, site and owner
+ * across. The name is optional because the deal names the project after
+ * itself; anything else sent overrides what the deal would have given it.
+ */
 const bodySchema = createProjectSchema.extend({
-  /** Optional when starting from a deal, which names the project after itself. */
   name: createProjectSchema.shape.name.optional(),
-  /**
-   * Start it from a won deal, carrying the deal's name, client, site and owner
-   * across. Handed back the existing project if the deal already has one.
-   */
-  fromDealId: z.string().uuid().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -150,37 +148,38 @@ export async function POST(request: NextRequest) {
       return errorResponse("Site not found", 404);
     }
 
-    // Naming a deal, either way it is spelled, is starting that deal's
-    // project — which checks the deal is this company's and hands back the
-    // existing project rather than raising a second one.
-    const dealId = data.fromDealId ?? data.dealId ?? null;
-    const name = data.name;
-    const start = dealId
-      ? (tx: Prisma.TransactionClient) => projectFromDeal(tx, companyId, session.user.id, dealId, data)
-      : name
-        ? (tx: Prisma.TransactionClient) => createProject(tx, companyId, session.user.id, { ...data, name })
-        : null;
-    // A deal names the project after itself; anything else has to be named.
-    if (!start) return errorResponse("Give the project a name the team will recognise", 400);
+    // A deal has one project. Asked for a second, the answer is the one it
+    // has — from where the asker stands that is what they wanted — and the
+    // page says so rather than announcing a project that was not started.
+    const { dealId } = data;
+    const existing = await prisma.crmProject.findFirst({ where: { companyId, dealId } });
+    if (existing) return successResponse({ project: existing, created: false });
 
     let project;
     try {
-      project = await prisma.$transaction(start);
+      project = await prisma.$transaction((tx) =>
+        projectFromDeal(tx, companyId, session.user.id, dealId, data),
+      );
     } catch (error) {
       // Two people — or one person twice — starting the same deal's project at
       // the same moment: both saw no project, one insert won, and the unique
       // on the deal refused the other. The loser gets the winner's project,
       // which is what they were asking for. Read outside the failed
       // transaction, because Postgres will not answer inside an aborted one.
-      if (dealId && isUniqueViolation(error)) {
-        project = await prisma.crmProject.findFirst({ where: { companyId, dealId } });
+      if (isUniqueViolation(error)) {
+        const winner = await prisma.crmProject.findFirst({ where: { companyId, dealId } });
+        if (winner) return successResponse({ project: winner, created: false });
       }
-      if (!project) throw error;
+      throw error;
     }
 
-    return successResponse({ project }, 201);
+    return successResponse({ project, created: true }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
+      // The one refusal somebody can act on without reading the issues.
+      if (error.issues.some((issue) => issue.path[0] === "dealId")) {
+        return errorResponse("Choose the deal this project delivers", 400, error.issues);
+      }
       return errorResponse("Validation failed", 400, error.issues);
     }
     if (error instanceof ProjectLinkError) {

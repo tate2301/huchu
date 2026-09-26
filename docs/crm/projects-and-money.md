@@ -17,32 +17,41 @@ to nothing.
 `CrmProject` is what a won deal turns into, and what its jobs belong to. The
 chain is **deal → project → jobs**:
 
+- **Every project belongs to a deal.** `CrmProject.dealId` is required
+  (migration `20260926090000_crm_project_requires_deal`, which stops and names
+  any project without one rather than inventing a deal for it), and deleting
+  a deal that has a project is refused (`RESTRICT`). The deal is the first of
+  a project's properties.
 - A won deal's next step is **Start the project** (`resolveNextStep` in
-  `lib/crm/tones.ts`). The sheet asks for a name, an owner, a budget and two
+  `lib/crm/tones.ts`). The dialog asks for a name, an owner, a budget and two
   dates; `projectFromDeal` carries the deal's name, client, site and owner
   across. The deal's value is not copied — the project reads it from the deal
   as the reference its budget is set against ("Sold for").
 - **One project per deal**, enforced by a unique on `(companyId, dealId)`.
-  `projectFromDeal` hands back the existing project on a second request, and
-  the route turns a concurrent double-tap's unique violation into the same
-  answer.
+  A second start is answered with the project the deal already has
+  (`created: false`), including a concurrent double-tap's unique violation,
+  and the dialog says so and goes there.
 - **The job holds the link** (`CrmWorkOrder.projectId`), so a project holds
   any number of jobs. A job raised with a `projectId` inherits the project's
   deal, client and site wherever the request left them blank
   (`jobLinksFromProject`); naming a different deal is refused.
-- **A job can still exist with no project.** A callout is a real thing that
-  happens. What is gone is raising a project *from* a job — the old
-  `CrmProject.workOrderId` link, which let a project hold exactly one job.
-  Migration `20260925090000_crm_project_spine` moved every existing link onto
-  the job before dropping the column, and where two projects named the same
-  deal it kept the deal on the oldest and left the others standing on their
-  own.
+- **Every new job names its deal** — the deal is what the job is invoiced
+  against. The route refuses one without a deal or a project, and a job
+  raised against a deal that has a project goes into that project, taking
+  the deal's customer and site (`projectOfDeal`). The raise-a-job dialog asks
+  for the deal first and says which project the job will land in; the
+  project is never a second question. A job's deal can be changed but not
+  cleared. Jobs raised before this rule may still have no deal: the Deal
+  property is first on the job's page, in red, until one is picked.
+- A job whose deal has no project stands alone. What is gone is raising a
+  project *from* a job — the old `CrmProject.workOrderId` link, which let a
+  project hold exactly one job.
 - **The team** is `CrmProjectMember` (free-text role). `managerId` stays the one
   owner answerable for the budget; the owner or a manager changes the team,
   the budget and the status (`canEditRecord`).
 
-Direct projects — work that never went through the pipeline — are raised from
-the register's **New project**, with no deal behind them.
+The register's **New project** asks which deal first, offering the open and
+won deals that have no project yet, won ones first.
 
 The project page (`components/crm/money/project-detail-content.tsx`) is the
 standard record page: properties edited in place, sections in the rail with
@@ -50,8 +59,9 @@ the open one in the URL, and one primary action, **Raise a job**. Overview is
 the costs and a schedule of the jobs by date between the start and the target
 end; then Jobs, Requisitions, Spend, Team, Files and History (field changes,
 written as names and days rather than ids). Each section's own verb — *Ask
-for money*, *Add spend*, *Add someone* — sits on that section's heading; *Raise
-a job* is the page's, so the Jobs section does not draw it a second time.
+for money*, *Add spend*, *Add someone* — sits on that section's heading and
+opens a dialog (`RecordDialog`); *Raise a job* is the page's, so the Jobs
+section does not draw it a second time.
 
 ### Statuses
 
@@ -175,12 +185,15 @@ today's log" an upsert rather than a find-or-create race. `logDate` is a
 `DATE`, not a timestamp: a rep writes Tuesday up on Wednesday morning, and the
 entry belongs to Tuesday whatever time zone the phone was in.
 
-`/crm/cost-tracker` is built for somebody standing at a fuel pump. The top of
-the page is the day being written up: the form on the page rather than in a
-modal (expense or income, the amount, the category, the project, and then the
+`/crm/cost-tracker` is built for somebody standing at a fuel pump. The page
+shows state and the dialogs change it. The top of the page is the day: what
+is in hand, what it is made of, and **Close the day**, which opens a dialog
+carrying the day's note — the note travels with the report, and an empty day
+cannot close without one. **New entry** in the app bar opens the line itself
+(expense or income, the amount, the category, the project, and then the
 requisition an expense was paid from or the invoice income was paying, with
-its receipt — a photo straight from the camera on a phone, or a file), what the
-day has come to so far, and one press to close it.
+its receipt — a photo straight from the camera on a phone, or a file), on
+whichever day is on screen. A closed day is not offered the verb.
 The day can be moved back and not forward: a log for Friday written on
 Wednesday is a guess, and a guess in the cost figures is worse than a gap.
 
@@ -309,6 +322,82 @@ The figures are `lib/crm/member-overview.ts`, which reuses the daily report's
 builder, `receiptGaps`/`shareOfGap` and `payableAmount` rather than restating
 any of them.
 
+## Quotes, invoices and receipts
+
+Each document has a page of its own — `/crm/quotes/[id]`, `/crm/invoices/[id]`,
+`/crm/receipts/[id]`, one `DocumentRecordContent` behind all three — read from
+`GET /api/v2/crm/documents/[id]`. The accounting row is the source of truth for
+the number, the status and the money; the CRM row carries the version chain
+and the record the document was raised against.
+
+- **A quote** is its lines and what the client did with it: sent, opened,
+  accepted or declined, and what they wrote. An old version says what replaced
+  it before anything else.
+- **An invoice** is its lines and what is still owed, the payments and credit
+  notes against it, and the chasing.
+- **A receipt** is what it paid and what that left owing on the invoice.
+
+The chain is linked both ways: the invoice a quote became, the quote an invoice
+was raised from (`SalesInvoice.quotationId`, set when a quote is converted),
+the invoice a receipt paid, and the versions either side.
+
+The verbs are the deal's verbs, from one hook (`useDocumentActions`): the
+deal's document list draws them as a menu, the page as its one button and its
+menu. The button is the move that matters for where the document stands —
+email a quote that is still out, convert an accepted one, record a payment on
+an invoice that is owed, open a receipt's PDF. Every document route hangs off
+its deal or lead (`basePath`), so a document raised against neither is read
+only.
+
+### Collections
+
+`/crm/collections` is every invoice with money still owed, ordered by how
+urgently it needs a call — a promise that came and went first, then age and
+size (`orderChaseList` in `lib/crm/collections.ts`). The ageing bands are its
+tabs, each with its count, and the band is in the URL (`?age=D61_90`). The
+total owed is the foot of the column it adds up, a line per currency.
+
+A chase is logged with `ChaseDialog` from the list or from the invoice's own
+page. A promise to pay needs its date, and books a task for that day.
+
+## Every record has a page
+
+Anything the CRM lists opens onto a page of its own, drawn with the same record
+shell (`RecordPageShell`): name and one move in the bar, properties in the
+pane, sections in the rail. Each reads one `GET` that answers only what the
+reader may see — somebody else's line of money or daily report is *not found*,
+not refused.
+
+| Page | Route | Read from |
+| --- | --- | --- |
+| A task | `/crm/tasks/[id]` | `GET /api/v2/crm/tasks/[id]` |
+| A lead reminder | `/crm/follow-ups/[id]` | `GET /api/v2/crm/follow-ups/[id]` |
+| A site visit | `/crm/appointments/[id]` | `GET /api/v2/crm/appointments/[id]` |
+| A daily report | `/crm/daily-reports/[id]` | `GET /api/v2/crm/daily-reports/[id]` |
+| A workflow run | `/crm/workflows/runs/[id]` | `GET /api/v2/crm/automations/runs/[id]` |
+| A line of money | `/crm/cost-tracker/[id]` | `GET /api/v2/crm/cost-entries/[id]` |
+
+Some are laid out for what they are:
+
+- **A task** keeps its fields in `useTaskFields`, the one set of editors behind
+  both the side panel on a record's task list and the task's page. *Complete*
+  goes through the same outcome dialog as the lists. A repeating task shows the
+  one before it and the one booked after.
+- **A site visit** is laid out for after the visit: the checklist and the
+  measurements, the answers to its questions, and the photos with where and
+  when each was taken. *Write it up* opens the report dialog the list uses.
+- **A daily report** is the stored report, not a recomputed one. Everything it
+  names links to its own page, and the day's lines are one link away in the
+  cost tracker, filtered to the person and the day. The close-the-day
+  notification opens it.
+- **A workflow run** is a row per action, in the order they ran, the failed
+  ones in red with what they said (`runOutcomes` in
+  `components/crm/workflows/run-result.ts`, shared with the activity list).
+- **A line of money** shows its receipt at a size somebody can check against
+  the figure. It may be taken back out only by its owner while its day and
+  its requisition are open — the same rule the delete enforces, worked out by
+  the server (`mayRemove`).
+
 ## How the pages are drawn
 
 The money pages are drawn with the management surface's own layer
@@ -348,6 +437,8 @@ surface was rebuilt to:
 | `/crm/finance` | Money in and out, and where it stands — for `money.view_all` |
 | `/crm/reps/[id]` | One team member: done, outstanding, their days, their money |
 | `/crm/daily-reports` | Management's read |
+| `/crm/quotes/[id]`, `/crm/invoices/[id]`, `/crm/receipts/[id]` | One document: its lines, payments, chases and chain |
+| `/crm/collections` | Every invoice still owed, by how late, and the chasing |
 
 Navigation groups the money pages under **Finance**, distinct from Sales
 documents: one is the money moving through people's hands, the other is the

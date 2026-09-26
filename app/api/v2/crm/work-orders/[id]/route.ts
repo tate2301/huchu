@@ -93,10 +93,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return errorResponse("Invalid assignee", 400);
     }
 
-    // The deal is what a finished job is billed against, so it can be attached
-    // after the fact — a callout logged against a site alone was otherwise
-    // unbillable forever. Checked for this tenant the way the create route
-    // checks it, and its company is taken on where the job names none.
+    // The deal is what a finished job is billed against. A job raised before
+    // every job had to name one can be given its deal here; a job's deal can
+    // be changed but never taken away (`updateWorkOrderSchema` refuses null).
+    // Checked for this tenant the way the create route checks it, and its
+    // company is taken on where the job names none.
     let deal: { id: string; clientId: string | null } | null = null;
     if (data.dealId) {
       deal = await prisma.crmDeal.findFirst({
@@ -135,7 +136,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // cannot pull the job away from the deal or the customer it is already
     // billed against: the job's invoice would go one way and its costs the
     // other. Null takes it back out of whatever project it was in.
-    let project: { id: string; dealId: string | null; clientId: string | null; siteId: string | null } | null = null;
+    let project: { id: string; dealId: string; clientId: string | null; siteId: string | null } | null = null;
     if (data.projectId) {
       project = await prisma.crmProject.findFirst({
         where: { id: data.projectId, companyId },
@@ -144,7 +145,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!project) return errorResponse("Invalid project", 400);
 
       const dealAfter = data.dealId === undefined ? existing.dealId : data.dealId;
-      if (project.dealId && dealAfter && project.dealId !== dealAfter) {
+      if (dealAfter && project.dealId !== dealAfter) {
         return NextResponse.json(
           { error: "That project belongs to a different deal", code: "PROJECT_DEAL_MISMATCH" },
           { status: 409 },
@@ -253,12 +254,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           priority: data.priority,
           // A job joining a project with a deal takes that deal when it had
           // none — it is the deal the project's work is billed against.
-          dealId:
-            data.dealId !== undefined
-              ? data.dealId
-              : existing.dealId
-                ? undefined
-                : (project?.dealId ?? undefined),
+          dealId: data.dealId ?? (existing.dealId ? undefined : project?.dealId),
           projectId: data.projectId,
           // Naming the deal answers "who is paying" too, so a job that never
           // had a company takes the deal's — or its project's — rather than

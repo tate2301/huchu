@@ -10,6 +10,7 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { SectionHeading } from "@/components/management/ui";
@@ -70,7 +71,15 @@ export function DailyReportsContent() {
 
       <div>
         {(data?.data ?? []).map((report) => (
-          <DailyReportCard key={report.id} heading={report.user.name ?? "Somebody"} summary={report.summary} />
+          <DailyReportCard
+            key={report.id}
+            heading={
+              <Link href={`/crm/daily-reports/${report.id}`} className="hover:underline">
+                {report.user.name ?? "Somebody"}
+              </Link>
+            }
+            summary={report.summary}
+          />
         ))}
       </div>
     </section>

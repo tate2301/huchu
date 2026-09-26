@@ -510,6 +510,38 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
         attributes={
           <RecordAttributes
             attributes={[
+              // The deal first: every job delivers one, and it is what the job
+              // is invoiced against. It can be changed here — a job raised
+              // before every job named its deal can be given one — but never
+              // taken away. A job raised before that rule with none is the
+              // row somebody opened it to fix, so the blank is red.
+              {
+                id: "deal",
+                label: "Deal",
+                icon: Coins,
+                tone: job.deal ? "link" : "alert",
+                display: (
+                  <RelationAttribute
+                    value={job.deal?.title ?? null}
+                    href={job.deal ? `/crm/deals/${job.deal.id}` : null}
+                    types={["DEAL"]}
+                    placeholder="No deal to invoice against"
+                    searchPlaceholder="Search deals"
+                    onPick={(record) => edit.save.mutate({ dealId: record.id })}
+                  />
+                ),
+              },
+              // Then the project it is part of, when its deal has one.
+              {
+                id: "project",
+                label: "Project",
+                icon: Work,
+                display: job.project ? (
+                  <EntityLink href={`/crm/projects/${job.project.id}`}>{job.project.name}</EntityLink>
+                ) : undefined,
+                value: job.project ? job.project.name : null,
+                placeholder: "Its deal has no project",
+              },
               {
                 id: "status",
                 label: "Status",
@@ -579,42 +611,6 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
                 ) : undefined,
                 value: job.client ? job.client.name : null,
                 placeholder: "Not attached",
-              },
-              {
-                id: "project",
-                label: "Project",
-                icon: Work,
-                // A job with no project is a one-off, which is fine — so the
-                // blank is quiet rather than flagged.
-                display: job.project ? (
-                  <EntityLink href={`/crm/projects/${job.project.id}`}>
-                    {job.project.name}
-                  </EntityLink>
-                ) : undefined,
-                value: job.project ? job.project.name : null,
-                placeholder: "A one-off job",
-              },
-              {
-                id: "deal",
-                label: "Deal",
-                icon: Coins,
-                // A job with no deal cannot be invoiced, which makes this
-                // blank a problem rather than an omission — and, until it
-                // could be set here, a permanent one: a callout logged against
-                // a site alone had no way of ever acquiring the deal the
-                // invoice route insists on.
-                tone: job.deal ? "link" : "alert",
-                display: (
-                  <RelationAttribute
-                    value={job.deal?.title ?? null}
-                    href={job.deal ? `/crm/deals/${job.deal.id}` : null}
-                    types={["DEAL"]}
-                    placeholder="Nothing to bill against"
-                    searchPlaceholder="Search deals"
-                    onPick={(record) => edit.save.mutate({ dealId: record.id })}
-                    onClear={() => edit.save.mutate({ dealId: null })}
-                  />
-                ),
               },
               {
                 id: "contact",

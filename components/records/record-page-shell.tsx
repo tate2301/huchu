@@ -581,7 +581,11 @@ export function RecordPageShell({
           ) : null}
           {subtitle ? (
             <>
-              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-[var(--border)]" />
+              {/* A rule only between two things: with nothing before it, it
+                  was a stray stroke at the start of the band. */}
+              {status || reference ? (
+                <span aria-hidden="true" className="h-4 w-px shrink-0 bg-[var(--border)]" />
+              ) : null}
               <span className="min-w-0 truncate text-sm text-[var(--text-muted)]">{subtitle}</span>
             </>
           ) : null}

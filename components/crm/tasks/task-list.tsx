@@ -209,10 +209,9 @@ export function TaskList({
                     />
 
                     {onSelect ? (
-                      // The row opens the task beside the list. A button rather
-                      // than a link: there is nowhere to navigate to — the task
-                      // has no page of its own, and giving it one would be a
-                      // third place the same six fields are maintained.
+                      // The row opens the task beside the list, where it is
+                      // edited without leaving the record; the panel links on
+                      // to the task's own page.
                       <button
                         type="button"
                         onClick={() => onSelect(task)}
@@ -224,7 +223,10 @@ export function TaskList({
                       </button>
                     ) : (
                       <div className="min-w-0 flex-1">
-                        {heading}
+                        {/* The title opens the task's own page. */}
+                        <Link href={`/crm/tasks/${task.id}`} className="block hover:underline">
+                          {heading}
+                        </Link>
                         {facts}
                         {task.outcomeNotes ? (
                           <p className="mt-1 text-sm text-[var(--text-muted)]">

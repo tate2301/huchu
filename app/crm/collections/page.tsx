@@ -1,8 +1,7 @@
 import { getServerSession } from "next-auth";
-import { CrmPage } from "@/components/crm/crm-page";
 import { redirect } from "next/navigation";
 
-import { PageChrome } from "@/components/layout/page-chrome";
+import { CrmPage } from "@/components/crm/crm-page";
 import { CollectionsContent } from "@/components/crm/collections/collections-content";
 import { authOptions } from "@/lib/auth";
 
@@ -11,7 +10,6 @@ export default async function CrmCollectionsPage() {
   if (!session?.user) redirect("/login");
   return (
     <CrmPage>
-      <PageChrome title="Collections" />
       <CollectionsContent />
     </CrmPage>
   );

@@ -64,7 +64,7 @@ import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
 import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
-import { StartProjectSheet } from "@/components/crm/money/start-project-sheet";
+import { StartProjectDialog } from "@/components/crm/money/start-project-dialog";
 
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
@@ -833,7 +833,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
 
       {jobs.sheet}
 
-      <StartProjectSheet
+      <StartProjectDialog
         open={startProjectOpen}
         onOpenChange={setStartProjectOpen}
         deal={{

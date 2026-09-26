@@ -32,7 +32,7 @@ import { PROJECT_TONE } from "@/lib/crm/tones";
 
 import { formatMoney } from "./money";
 import type { ProjectCosts } from "./project-cost-strip";
-import { StartProjectSheet } from "./start-project-sheet";
+import { StartProjectDialog } from "./start-project-dialog";
 
 type ProjectRow = {
   id: string;
@@ -41,7 +41,7 @@ type ProjectRow = {
   status: ProjectStatus;
   currency: string;
   client: { id: string; name: string } | null;
-  deal: { id: string; dealNo: string; title: string } | null;
+  deal: { id: string; dealNo: string; title: string };
   manager: { id: string; name: string | null } | null;
   _count: { workOrders: number };
   costs: ProjectCosts;
@@ -227,7 +227,11 @@ export function ProjectsContent() {
                     <ColumnName
                       code={project.projectNo}
                       name={project.name}
-                      meta={[project.client?.name, project.manager?.name ?? "No owner"].filter(Boolean).join(" · ")}
+                      // The deal it delivers, by number: the project is
+                      // usually named after it, so its title would repeat.
+                      meta={[project.deal.dealNo, project.client?.name, project.manager?.name ?? "No owner"]
+                        .filter(Boolean)
+                        .join(" · ")}
                       href={`/crm/projects/${project.id}`}
                     />
                   ),
@@ -255,7 +259,7 @@ export function ProjectsContent() {
 
       <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 
-      <StartProjectSheet open={creating} onOpenChange={setCreating} />
+      <StartProjectDialog open={creating} onOpenChange={setCreating} />
     </RecordListShell>
   );
 }

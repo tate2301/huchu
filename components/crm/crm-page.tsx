@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -69,7 +69,17 @@ export function CrmPage({
           ) : null}
         </div>
       ) : null}
-      <div className="band-stack-content space-y-6">{children}</div>
+      {/* `band-stack-content` starts the sticky stack under a 44px band. With
+          no band drawn that offset is empty space: the toolbar pinned 44px
+          down, left a gap above itself, and the table header pinned 44px
+          lower still — on top of the first row. The stack starts at zero
+          when there is nothing above it. */}
+      <div
+        className="band-stack-content space-y-6"
+        style={title ? undefined : ({ "--stack-top": "0px" } as CSSProperties)}
+      >
+        {children}
+      </div>
     </div>
   );
 }
