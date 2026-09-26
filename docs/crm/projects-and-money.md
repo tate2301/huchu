@@ -50,8 +50,9 @@ the open one in the URL, and one primary action, **Raise a job**. Overview is
 the costs and a schedule of the jobs by date between the start and the target
 end; then Jobs, Requisitions, Spend, Team, Files and History (field changes,
 written as names and days rather than ids). Each section's own verb — *Ask
-for money*, *Add spend*, *Add someone* — sits on that section's heading; *Raise
-a job* is the page's, so the Jobs section does not draw it a second time.
+for money*, *Add spend*, *Add someone* — sits on that section's heading and
+opens a dialog (`RecordDialog`); *Raise a job* is the page's, so the Jobs
+section does not draw it a second time.
 
 ### Statuses
 
@@ -175,12 +176,15 @@ today's log" an upsert rather than a find-or-create race. `logDate` is a
 `DATE`, not a timestamp: a rep writes Tuesday up on Wednesday morning, and the
 entry belongs to Tuesday whatever time zone the phone was in.
 
-`/crm/cost-tracker` is built for somebody standing at a fuel pump. The top of
-the page is the day being written up: the form on the page rather than in a
-modal (expense or income, the amount, the category, the project, and then the
+`/crm/cost-tracker` is built for somebody standing at a fuel pump. The page
+shows state and the dialogs change it. The top of the page is the day: what
+is in hand, what it is made of, and **Close the day**, which opens a dialog
+carrying the day's note — the note travels with the report, and an empty day
+cannot close without one. **New entry** in the app bar opens the line itself
+(expense or income, the amount, the category, the project, and then the
 requisition an expense was paid from or the invoice income was paying, with
-its receipt — a photo straight from the camera on a phone, or a file), what the
-day has come to so far, and one press to close it.
+its receipt — a photo straight from the camera on a phone, or a file), on
+whichever day is on screen. A closed day is not offered the verb.
 The day can be moved back and not forward: a log for Friday written on
 Wednesday is a guess, and a guess in the cost figures is worse than a gap.
 

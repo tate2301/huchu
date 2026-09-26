@@ -3,9 +3,10 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { FormField } from "@/components/management/ui";
-import { Button } from "@/components/ui/button";
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { Button } from "@corelithzw/react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
@@ -14,9 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
-import { CATEGORIES, CATEGORY_LABELS, formatMoney, todayKey, type Category } from "./money";
+import { CATEGORIES, CATEGORY_LABELS, formatDay, formatMoney, todayKey, type Category } from "./money";
 import { ReceiptField, type UploadedReceipt } from "./receipt-field";
 
 type Direction = "SPENT" | "RECEIVED";
@@ -49,9 +51,14 @@ const DIRECTIONS = [
 ] as const;
 
 /**
- * One line of money, written where it happened — the cost tracker, a
- * requisition's report, a project's spend — through the one door every money
- * line uses (`/api/v2/crm/cost-entries`, `addCostEntry` behind it).
+ * One line of money, in a dialog — the cost tracker's, a requisition's
+ * report, a project's spend — written through the one door every money line
+ * uses (`/api/v2/crm/cost-entries`, `addCostEntry` behind it).
+ *
+ * A dialog rather than a form on the page: the page shows what the day, the
+ * requisition or the project has come to, and adding to it is a short
+ * question that wants the whole of somebody's attention and then gets out of
+ * the way.
  *
  * What the page already knows is fixed rather than asked: a line on a
  * requisition's report is against that requisition and its project, and one
@@ -64,18 +71,23 @@ const DIRECTIONS = [
  * Wednesday, and a line for Friday written on Wednesday is a guess.
  *
  * Each attempt carries a `clientEntryId`, kept across a failed retry and
- * replaced once a line lands, so a double press on a bad connection records
+ * replaced for the next line, so a double press on a bad connection records
  * the money once.
  */
-export function CostEntryForm({
+export function CostEntryFormDialog({
+  open,
+  onOpenChange,
+  title,
   fixed = {},
   day: chosenDay,
   defaultCategory = "MATERIALS",
-  submitLabel = "Add line",
-  primary = false,
+  submitLabel = "Add",
   onSaved,
 }: {
-  /** What the page already knows. Anything left out, the form asks. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  /** What the page already knows. Anything left out, the dialog asks. */
   fixed?: {
     direction?: Direction;
     currency?: string;
@@ -84,17 +96,16 @@ export function CostEntryForm({
   };
   /**
    * The day the line goes on, as `YYYY-MM-DD`, when the page has chosen it —
-   * the cost tracker picks the day above the form, because its balance and
-   * its closing are that day's too. Without it the form asks.
+   * the cost tracker's day is picked on the page, because its balance and its
+   * closing are that day's too. Without it the dialog asks.
    */
   day?: string;
   defaultCategory?: Category;
   submitLabel?: string;
-  /** Whether adding the line is the page's main action, or one among others. */
-  primary?: boolean;
   onSaved: () => void;
 }) {
   const id = useId();
+  const { toast } = useToast();
   const [chosenDirection, setDirection] = useState<Direction>("SPENT");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<Category>(defaultCategory);
@@ -105,7 +116,27 @@ export function CostEntryForm({
   const [invoiceId, setInvoiceId] = useState(NONE);
   const [receipt, setReceipt] = useState<UploadedReceipt | null>(null);
   const [clientEntryId, setClientEntryId] = useState(() => crypto.randomUUID());
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  // Every opening is a new line: nothing half-typed follows somebody from the
+  // last one.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setDirection("SPENT");
+      setAmount("");
+      setCategory(defaultCategory);
+      setDescription("");
+      setOwnDay(todayKey());
+      setProjectId(NONE);
+      setRequisitionId(NONE);
+      setInvoiceId(NONE);
+      setReceipt(null);
+      setClientEntryId(crypto.randomUUID());
+      setErrors([]);
+    }
+  }
 
   const direction = fixed.direction ?? chosenDirection;
   const day = chosenDay ?? ownDay;
@@ -118,7 +149,7 @@ export function CostEntryForm({
       fetchJson<{ data: RequisitionOption[] }>(
         "/api/v2/crm/requisitions?queue=MINE&reportable=true&limit=100",
       ),
-    enabled: asksRequisition,
+    enabled: open && asksRequisition,
   });
   const pickedRequisition = asksRequisition
     ? requisitions.data?.data.find((option) => option.id === requisitionId)
@@ -132,7 +163,7 @@ export function CostEntryForm({
     queryKey: ["crm", "projects", "open-picker"],
     queryFn: () =>
       fetchJson<{ data: ProjectOption[] }>("/api/v2/crm/projects?open=true&costs=false&limit=100"),
-    enabled: fixed.projectId === undefined,
+    enabled: open && fixed.projectId === undefined,
     staleTime: 5 * 60_000,
   });
   const pickedProject = asksProject
@@ -145,7 +176,7 @@ export function CostEntryForm({
       fetchJson<{ data: InvoiceOption[] }>(
         "/api/v2/crm/documents?type=INVOICE&outstanding=true&limit=100",
       ),
-    enabled: asksInvoice,
+    enabled: open && asksInvoice,
     staleTime: 60_000,
   });
   const pickedInvoice = asksInvoice
@@ -194,24 +225,41 @@ export function CostEntryForm({
         }),
       }),
     onSuccess: () => {
-      setAmount("");
-      setDescription("");
-      setReceipt(null);
-      setError(null);
-      setClientEntryId(crypto.randomUUID());
+      toast({
+        title: `${formatMoney(amount, currency)} ${direction === "SPENT" ? "spent" : "received"}`,
+        description: `${description.trim()}, ${day === todayKey() ? "today" : formatDay(day)}.`,
+      });
+      onOpenChange(false);
       onSaved();
     },
-    onError: (failure) => setError(getApiErrorMessage(failure)),
+    onError: (failure) => setErrors([getApiErrorMessage(failure)]),
   });
 
-  const ready = Number(amount) > 0 && description.trim().length > 0;
-
   return (
-    <form
+    <RecordDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      size="md"
+      errors={errors}
       onSubmit={(event) => {
         event.preventDefault();
-        if (ready) save.mutate();
+        const problems: string[] = [];
+        if (!(Number(amount) > 0)) problems.push("Say how much.");
+        if (!description.trim()) problems.push("Say what it was.");
+        setErrors(problems);
+        if (problems.length === 0) save.mutate();
       }}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={save.isPending}>
+            {save.isPending ? "Saving…" : submitLabel}
+          </Button>
+        </>
+      }
     >
       {fixed.direction ? null : (
         <SegmentedControl
@@ -220,15 +268,15 @@ export function CostEntryForm({
           onValueChange={setDirection}
           options={DIRECTIONS}
           variant="border"
-          className="mb-5"
         />
       )}
 
-      {/* Rule 1: a label over a control and nothing else. The labels are the
-          nouns on the receipt — amount, category, description — and the
-          control says the rest. */}
-      <div className="grid gap-x-4 sm:grid-cols-2">
-        <FormField label={`Amount, ${currency}`} htmlFor={`${id}-amount`}>
+      {/* A label over a control and nothing else. The labels are the nouns on
+          the receipt — amount, category, description — and the control says
+          the rest. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-amount`}>Amount, {currency}</Label>
           <Input
             id={`${id}-amount`}
             type="number"
@@ -236,11 +284,13 @@ export function CostEntryForm({
             step="0.01"
             min="0"
             className="font-mono"
+            autoFocus
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
           />
-        </FormField>
-        <FormField label="Category" htmlFor={`${id}-category`}>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-category`}>Category</Label>
           <Select value={category} onValueChange={(next) => setCategory(next as Category)}>
             <SelectTrigger id={`${id}-category`}>
               <SelectValue />
@@ -253,19 +303,21 @@ export function CostEntryForm({
               ))}
             </SelectContent>
           </Select>
-        </FormField>
+        </div>
       </div>
 
-      <div className={chosenDay ? undefined : "grid gap-x-4 sm:grid-cols-[minmax(0,1fr)_10rem]"}>
-        <FormField label="Description" htmlFor={`${id}-description`}>
+      <div className={chosenDay ? "space-y-1.5" : "grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]"}>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-description`}>Description</Label>
           <Input
             id={`${id}-description`}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
           />
-        </FormField>
+        </div>
         {chosenDay ? null : (
-          <FormField label="Day" htmlFor={`${id}-day`}>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-day`}>Day</Label>
             <Input
               id={`${id}-day`}
               type="date"
@@ -274,14 +326,15 @@ export function CostEntryForm({
               value={ownDay}
               onChange={(event) => setOwnDay(event.target.value)}
             />
-          </FormField>
+          </div>
         )}
       </div>
 
       {asksRequisition || asksInvoice || fixed.projectId === undefined ? (
-        <div className="grid gap-x-4 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {asksRequisition ? (
-            <FormField label="Paid from" htmlFor={`${id}-requisition`}>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-requisition`}>Paid from</Label>
               <Select value={requisitionId} onValueChange={pickRequisition}>
                 <SelectTrigger id={`${id}-requisition`}>
                   <SelectValue />
@@ -295,11 +348,12 @@ export function CostEntryForm({
                   ))}
                 </SelectContent>
               </Select>
-            </FormField>
+            </div>
           ) : null}
 
           {asksInvoice ? (
-            <FormField label="Invoice" htmlFor={`${id}-invoice`}>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-invoice`}>Invoice</Label>
               <Select value={invoiceId} onValueChange={setInvoiceId}>
                 <SelectTrigger id={`${id}-invoice`}>
                   <SelectValue />
@@ -321,11 +375,12 @@ export function CostEntryForm({
                   ))}
                 </SelectContent>
               </Select>
-            </FormField>
+            </div>
           ) : null}
 
           {fixed.projectId !== undefined ? null : asksProject ? (
-            <FormField label="Project" htmlFor={`${id}-project`}>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-project`}>Project</Label>
               <Select value={projectId} onValueChange={setProjectId}>
                 <SelectTrigger id={`${id}-project`}>
                   <SelectValue />
@@ -339,32 +394,27 @@ export function CostEntryForm({
                   ))}
                 </SelectContent>
               </Select>
-            </FormField>
+            </div>
           ) : (
             // The requisition decides the project, so it is said rather than
             // asked — a control that cannot change anything is not offered.
-            <FormField label="Project" htmlFor={`${id}-project-fixed`}>
-              <output id={`${id}-project-fixed`} className="flex min-h-9 items-center text-sm text-[var(--text-strong)]">
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-project-fixed`}>Project</Label>
+              <output
+                id={`${id}-project-fixed`}
+                className="flex min-h-9 items-center text-sm text-[var(--text-strong)]"
+              >
                 {pickedRequisition?.project?.name ?? "No project"}
               </output>
-            </FormField>
+            </div>
           )}
         </div>
       ) : null}
 
-      <FormField label="Receipt" htmlFor={`${id}-receipt`}>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${id}-receipt`}>Receipt</Label>
         <ReceiptField id={`${id}-receipt`} value={receipt} onChange={setReceipt} />
-      </FormField>
-
-      {error ? (
-        <p role="alert" className="mb-4 text-sm text-[var(--status-error-text)]">
-          {error}
-        </p>
-      ) : null}
-
-      <Button type="submit" variant={primary ? "primary" : "outline"} disabled={!ready || save.isPending}>
-        {save.isPending ? "Saving…" : submitLabel}
-      </Button>
-    </form>
+      </div>
+    </RecordDialog>
   );
 }

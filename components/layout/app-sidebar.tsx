@@ -82,10 +82,26 @@ export function AppSidebar({ brand }: { brand?: WorkspaceBrand | null }) {
     [activeStockLocationSiteIds, enabledFeatures, role, workspaceProfile],
   );
 
-  const sidebarModel = React.useMemo(
+  const chosenModel = React.useMemo(
     () => getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId }),
     [activeWorkspaceId, modelArgs],
   );
+
+  // The rail follows the page. The workspace you chose last is kept, but a
+  // page from another one — a notification, a link somebody sent, a search
+  // result — used to open inside it: the CRM's finance page under the back
+  // office's rail, with no row for where you were and nothing near it. When
+  // the chosen workspace has no row for this page, the one that does is drawn
+  // instead. The choice itself is left alone; it is still yours.
+  const sidebarModel = React.useMemo(() => {
+    if (getActiveNavHref(chosenModel.sections, pathname, view)) return chosenModel;
+    for (const workspace of chosenModel.workspaces) {
+      if (workspace.id === chosenModel.activeWorkspaceId) continue;
+      const owner = getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId: workspace.id });
+      if (getActiveNavHref(owner.sections, pathname, view)) return owner;
+    }
+    return chosenModel;
+  }, [chosenModel, modelArgs, pathname, view]);
 
   // Switching lands you at the new workspace's front door. Staying put would
   // leave the rail describing one business while the page shows another, and

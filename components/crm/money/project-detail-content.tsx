@@ -59,7 +59,7 @@ import {
   Work,
 } from "@/lib/icons";
 
-import { CostEntryForm } from "./cost-entry-form";
+import { CostEntryFormDialog } from "./cost-entry-form-dialog";
 import { CostEntryTable } from "./cost-entry-table";
 import {
   REQUISITION_STATUS_LABELS,
@@ -486,39 +486,28 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
                   maxWidth={SECTION_WIDTH}
                   className="mt-0"
                   action={
-                    addingSpend ? undefined : (
-                      <SectionAction icon={Plus} onClick={() => setAddingSpend(true)}>
-                        Add spend
-                      </SectionAction>
-                    )
+                    <SectionAction icon={Plus} onClick={() => setAddingSpend(true)}>
+                      Add spend
+                    </SectionAction>
                   }
                 >
                   <span id="project-spend">Spend</span>
                 </SectionHeading>
-                {/* Opened from the heading rather than standing open over the
-                    list: most people come here to read the spend. Spend out
-                    of a requisition is reported on the requisition, so this
-                    is money the person put in themselves. */}
-                {addingSpend ? (
-                  <div className="mb-6 border-b border-[var(--border-subtle)] pb-6" style={{ maxWidth: 560 }}>
-                    <CostEntryForm
-                      fixed={{
-                        direction: "SPENT",
-                        currency: project.currency,
-                        projectId: project.id,
-                        requisitionId: null,
-                      }}
-                      submitLabel="Add spend"
-                      onSaved={() => {
-                        setAddingSpend(false);
-                        void query.refetch();
-                      }}
-                    />
-                    <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAddingSpend(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : null}
+                {/* Spend out of a requisition is reported on the requisition,
+                    so this is money somebody put in themselves. */}
+                <CostEntryFormDialog
+                  open={addingSpend}
+                  onOpenChange={setAddingSpend}
+                  title={`Add spend to ${project.name}`}
+                  fixed={{
+                    direction: "SPENT",
+                    currency: project.currency,
+                    projectId: project.id,
+                    requisitionId: null,
+                  }}
+                  submitLabel="Add spend"
+                  onSaved={() => void query.refetch()}
+                />
                 <CostEntryTable
                   label="Spend"
                   entries={entries}

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { CrmPage } from "@/components/crm/crm-page";
 import { FinanceContent } from "@/components/crm/money/finance-content";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { authOptions } from "@/lib/auth";
 
 /**
@@ -17,7 +18,11 @@ export default async function CrmFinancePage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage title="Finance">
+    <CrmPage>
+      {/* Named in the bar, once. Left to itself the bar title-cases the path
+          and says "Finance" — the area, not the page, and not the word the
+          sidebar uses for it. */}
+      <PageChrome title="Finance overview" />
       <FinanceContent />
     </CrmPage>
   );

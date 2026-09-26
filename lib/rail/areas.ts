@@ -1,5 +1,6 @@
 import type { LucideIcon } from "@/lib/icons";
 import {
+  AddressBook,
   Bed,
   CashRegister,
   ChartLineUp,
@@ -76,13 +77,17 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   "retail-control": ChartLineUp,
   pos: CashRegister,
   // CRM
-  objects: Funnel,
+  pipeline: Funnel,
+  contacts: AddressBook,
   work: ClipboardText,
   // Two marks for money, because the CRM has two: what passes through
   // people's hands (floats, spend, the day's report) and what the business
   // bills its customers.
   money: Wallet,
   documents: Money,
+  // The people inside the business. UsersThree is Pupils in a school, but a
+  // workspace is one business, so the two never sit in one column.
+  team: UsersThree,
   learn: ChartLineUp,
   workflows: Lightning,
   setup: MedusaCogSixToothIcon,
@@ -130,7 +135,6 @@ const AREA_LABELS: Record<string, string> = {
   stock: "Stock",
   "retail-buy": "Buying",
   "retail-control": "Insights",
-  objects: "Pipeline",
   // Not "Money": the Finance area beside it is money too, and two areas that
   // both sound like money is a coin toss. Quotes, invoices, receipts and
   // collections are what the business bills.

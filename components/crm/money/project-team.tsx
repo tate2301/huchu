@@ -9,13 +9,14 @@ import {
   ColumnName,
   ColumnRowAction,
   ColumnText,
-  FormField,
   SectionAction,
   SectionHeading,
 } from "@/components/management/ui";
-import { Button } from "@/components/ui/button";
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { Button } from "@corelithzw/react";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -36,9 +37,6 @@ export type ProjectMember = {
 
 type TeamResponse = { data: { id: string; name: string | null; email: string }[] };
 
-/** The add row's measure: two fields, not the whole pane. */
-const FORM_WIDTH = 560;
-
 /**
  * Who is on the project.
  *
@@ -47,9 +45,9 @@ const FORM_WIDTH = 560;
  * Everybody else can be added with a word about what they do, and taken off
  * again.
  *
- * "Add someone" is the list's verb, so it sits on the list's heading (rule 2)
- * and opens the add row under it; the row is not left standing open with a
- * disabled Add in it for somebody who came to read the team.
+ * "Add someone" is the list's verb, so it sits on the list's heading and
+ * opens a dialog: the page shows the team, and adding to it is a question of
+ * its own.
  */
 export function ProjectTeam({
   projectId,
@@ -70,6 +68,17 @@ export function ProjectTeam({
   const [adding, setAdding] = useState(false);
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
+
+  const [wasAdding, setWasAdding] = useState(adding);
+  if (adding !== wasAdding) {
+    setWasAdding(adding);
+    if (adding) {
+      setUserId("");
+      setRole("");
+      setErrors([]);
+    }
+  }
 
   const { data: team } = useQuery({
     queryKey: ["crm", "team"],
@@ -87,13 +96,10 @@ export function ProjectTeam({
         body: JSON.stringify({ userId, role: role.trim() || null }),
       }),
     onSuccess: () => {
-      setUserId("");
-      setRole("");
       setAdding(false);
       refresh();
     },
-    onError: (error) =>
-      toast({ title: "Could not add them", description: getApiErrorMessage(error), variant: "destructive" }),
+    onError: (error) => setErrors([getApiErrorMessage(error)]),
   });
 
   const remove = useMutation({
@@ -163,7 +169,7 @@ export function ProjectTeam({
         maxWidth={maxWidth}
         className="mt-0"
         action={
-          canEdit && !adding && candidates.length > 0 ? (
+          canEdit && candidates.length > 0 ? (
             <SectionAction icon={Plus} onClick={() => setAdding(true)}>
               Add someone
             </SectionAction>
@@ -173,42 +179,52 @@ export function ProjectTeam({
         <span id="project-team">Team</span>
       </SectionHeading>
 
-      {adding ? (
-        <form
-          className="mb-4 grid gap-x-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-          style={{ maxWidth: FORM_WIDTH }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (userId) add.mutate();
-          }}
-        >
-          <FormField label="Person" htmlFor="member-person">
-            <Select value={userId} onValueChange={setUserId}>
-              <SelectTrigger id="member-person">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {candidates.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {person.name ?? person.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FormField label="Role" htmlFor="member-role">
-            <Input id="member-role" value={role} onChange={(event) => setRole(event.target.value)} />
-          </FormField>
-          <div className="flex gap-2 sm:col-span-2">
-            <Button type="submit" size="sm" disabled={!userId || add.isPending}>
-              {add.isPending ? "Adding…" : "Add"}
-            </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
+      <RecordDialog
+        open={adding}
+        onOpenChange={setAdding}
+        title="Add someone to the project"
+        size="sm"
+        errors={errors}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!userId) {
+            setErrors(["Choose who to add."]);
+            return;
+          }
+          setErrors([]);
+          add.mutate();
+        }}
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setAdding(false)}>
               Cancel
             </Button>
-          </div>
-        </form>
-      ) : null}
+            <Button type="submit" variant="primary" disabled={add.isPending}>
+              {add.isPending ? "Adding…" : "Add"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="member-person">Person</Label>
+          <Select value={userId} onValueChange={setUserId}>
+            <SelectTrigger id="member-person">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {candidates.map((person) => (
+                <SelectItem key={person.id} value={person.id}>
+                  {person.name ?? person.email}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="member-role">Role</Label>
+          <Input id="member-role" value={role} onChange={(event) => setRole(event.target.value)} />
+        </div>
+      </RecordDialog>
 
       <ColumnList
         label="Team"
