@@ -883,6 +883,7 @@ function buildModuleSection(
     // root entries or as bands, and it can only do that if the flag survives
     // the trip through the module layer.
     ...(declaredSection(moduleId)?.flattenGroups ? { flattenGroups: true } : {}),
+    ...(declaredSection(moduleId)?.ranked ? { ranked: true } : {}),
     items,
     workspaceGroup,
   };
