@@ -64,7 +64,10 @@
 
 ## Commit & Pull Request Guidelines
 - Recent history favors Conventional Commits (e.g., `feat: add shift report filters`). Follow that style for new commits.
-- PRs should include: a concise summary, linked issue (if any), and UI screenshots when behavior or layout changes.
+- Every PR uses `.github/pull_request_template.md`. Keep every heading; write "None" under one that does not apply. When opening a PR with `gh pr create`, pass the filled-in template as the body.
+- Every PR links its direct preview signed in to the `hurudza-creative` tenant: `<vercel-preview-url>/login?__tenant=hurudza-creative`. The `preview-link` workflow fills the `**Hurudza Creative:**` line once Vercel deploys; if you open the PR before that, take the Preview URL from the Vercel bot comment and fill it in yourself. Never leave it as `_pending_` when handing over for review.
+- Under **Screens to open**, list the routes the reviewer should visit on that preview, in order, with one line on what to look for.
+- For a refactor, **Behaviour change** says "None intended." and **What moved where** maps every move and deletion. Anything observable that is not listed under Behaviour change is a bug.
 - Call out database changes explicitly and note whether `pnpm db:push` or migrations are required.
 
 ## Security & Configuration Tips
