@@ -44,7 +44,7 @@ import { expectHealthyPage } from "./_support/assert";
  * about breadth, and these are back-office screens somebody works through at a
  * desk. The portals, which are the mobile ones, have their own spec.
  *
- * Journeys land in `docs/screenshots/schools/<journey>/`.
+ * Journeys land in `docs/screenshots/schools/<journey>-*`.
  */
 
 test.describe.configure({ timeout: 900_000 });
@@ -81,7 +81,7 @@ function journey(title: string, slug: string, shots: readonly Shot[]): void {
       await shot(page, name);
     }
 
-    console.log(`[shots] ${title} -> ${shot.dir}`);
+    console.log(`[shots] ${title} -> ${shot.file("*")}`);
   });
 }
 

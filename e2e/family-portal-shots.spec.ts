@@ -10,7 +10,7 @@ import { expectHealthyPage } from "./_support/assert";
  * this follows. The other two portals had no such spec: `marketing-shots.spec.ts`
  * photographs one screen of each — the home screen, on a phone — and that is
  * the whole coverage. The nine and six images sitting in
- * `docs/screenshots/schools/student-portal-phone` and `…/parent-portal-phone`
+ * `docs/screenshots/schools/student-portal-phone-*` and `…/parent-portal-phone-*`
  * came from pre-harness specs that have since been retired, so they cannot be
  * regenerated and nothing checks whether the screens still look like that.
  *

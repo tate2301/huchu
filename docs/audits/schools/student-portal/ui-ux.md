@@ -1,6 +1,6 @@
 # Student portal: UI/UX audit
 
-Surface: `app/portal/student/**`, shell `components/schools/portal/student/student-portal-shell.tsx` (composed from the design system's `MobileShell`, `MobileShellHeader`, `BottomTabs`), screens under `components/schools/portal/student/`, styles `student-portal.css`. Audited from source and from `docs/screenshots/schools/student-portal/01-student-home.png`, `student-portal-phone/*`, `student-portal-tablet/*`. Workflow companion: `workflows.md` in this folder.
+Surface: `app/portal/student/**`, shell `components/schools/portal/student/student-portal-shell.tsx` (composed from the design system's `MobileShell`, `MobileShellHeader`, `BottomTabs`), screens under `components/schools/portal/student/`, styles `student-portal.css`. Audited from source and from `docs/screenshots/schools/student-portal-01-student-home.png`, `student-portal-phone-*`, `student-portal-tablet-*`. Workflow companion: `workflows.md` in this folder.
 
 Rules applied: the portal build contract and `student.html`, the platform UX playbook phone rules, `11-campus-states-and-motion.md`, `.impeccable.md`, `SPEC.md`.
 

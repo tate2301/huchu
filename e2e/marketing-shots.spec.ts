@@ -26,7 +26,7 @@ import { expectHealthyPage } from "./_support/assert";
  *
  * ## Output
  *
- * `docs/screenshots/<vertical>/<journey>/NN-name.png`, numbered in the order
+ * `docs/screenshots/<vertical>/<journey>-NN-name.png`, numbered in the order
  * taken so the directory reads as the journey. Override the root with
  * `SHOT_DIR`.
  *
@@ -69,7 +69,7 @@ function journey(
       await shot(page, name);
     }
 
-    console.log(`[shots] ${title} -> ${shot.dir}`);
+    console.log(`[shots] ${title} -> ${shot.file("*")}`);
   });
 }
 

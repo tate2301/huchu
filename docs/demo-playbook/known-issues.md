@@ -64,7 +64,7 @@ not produce.
 the amount column and the row buttons overflow `div.mobile-list`, which clips
 rather than scrolls, so the right edge of every row is lost. Do not open it on
 a phone on stage, and do not use
-`docs/screenshots/schools/visual-pass-phone/01-class-fees.png` in a deck.
+`docs/screenshots/schools/visual-pass-phone-01-class-fees.png` in a deck.
 
 ## Not bugs, though they look like them
 
