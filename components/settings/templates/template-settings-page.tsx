@@ -860,16 +860,24 @@ export default function TemplateSettingsPage() {
               <div className={styles.renderBody}>
                 <div className={styles.stage}>
                   {previewQuery.data ? (
-                    <iframe
-                      title={`${selected.name} preview`}
-                      sandbox=""
-                      srcDoc={previewQuery.data}
+                    <div
                       className={
                         parsedSchema?.page.orientation === "landscape"
                           ? `${styles.page} ${styles.pageLandscape}`
                           : styles.page
                       }
-                    />
+                    >
+                      <iframe
+                        title={`${selected.name} preview`}
+                        sandbox=""
+                        srcDoc={previewQuery.data}
+                        className={
+                          parsedSchema?.page.orientation === "landscape"
+                            ? `${styles.paper} ${styles.paperLandscape}`
+                            : styles.paper
+                        }
+                      />
+                    </div>
                   ) : (
                     <div className={`${styles.page} ${styles.pageFallback}`}>
                       {previewQuery.isError
