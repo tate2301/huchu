@@ -94,6 +94,23 @@ function splitItemText(value: unknown): { name: string; detail: string } {
   };
 }
 
+const FIGURE_KINDS = new Set(["number", "money", "percent"]);
+const MONO_KINDS = new Set(["code", "phone", "date", "datetime", "number", "money", "percent"]);
+
+/** A list cell as printed: figures grouped, money to the cent, yes or no for a flag. */
+function cellText(kind: string | undefined, value: unknown): unknown {
+  if (value === null || value === undefined) return "";
+  if (kind === "money" && Number.isFinite(Number(value))) {
+    return Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (kind === "number" && Number.isFinite(Number(value))) {
+    return Number(value).toLocaleString("en-US", { maximumFractionDigits: 3 });
+  }
+  if (kind === "percent" && Number.isFinite(Number(value))) return `${Number(value)}%`;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return value;
+}
+
 function buildTable(payload: UniversalDocumentPayload, schema: DocumentTemplateSchema): string {
   const list = payload.list;
   const lineRows = payload.record?.lines;
@@ -137,13 +154,22 @@ function buildTable(payload: UniversalDocumentPayload, schema: DocumentTemplateS
     "subTotal",
   ]);
 
+  // What a list's own columns say they hold, where they say it. A template's
+  // explicit alignment still wins; this only replaces the guess from the key.
+  const kinds = new Map((list?.columns ?? []).map((column) => [column.key, column.kind]));
+  const alignFor = (key: string) =>
+    alignMap[key] ??
+    (FIGURE_KINDS.has(kinds.get(key) ?? "") || numericDefaults.has(key) ? "right" : "left");
+  const monoFor = (key: string) =>
+    monoMap[key] || MONO_KINDS.has(kinds.get(key) ?? "") || numericDefaults.has(key);
+
   // The item column carries a name over a description only on a document whose
   // lines are a bill. A report table's first column is just a cell.
   const itemKey = !list && lineRows?.length ? keys[0] : null;
 
   const header = keys
     .map((key) => {
-      const align = alignMap[key] ?? (numericDefaults.has(key) ? "right" : "left");
+      const align = alignFor(key);
       return `<th class="align-${esc(align)}">${esc(labels[key] ?? key)}</th>`;
     })
     .join("");
@@ -152,15 +178,15 @@ function buildTable(payload: UniversalDocumentPayload, schema: DocumentTemplateS
     .map((row, rowIndex) => {
       const cells = keys
         .map((key) => {
-          const align = alignMap[key] ?? (numericDefaults.has(key) ? "right" : "left");
-          const mono = monoMap[key] || numericDefaults.has(key);
+          const align = alignFor(key);
+          const mono = monoFor(key);
           if (key === itemKey) {
             const { name, detail } = splitItemText(row[key]);
             return `<td class="align-${esc(align)} item-cell"><div class="item-name">${esc(name)}</div>${
               detail ? `<div class="item-detail">${esc(detail)}</div>` : ""
             }</td>`;
           }
-          return `<td class="align-${esc(align)}${mono ? " mono" : ""}">${esc(row[key])}</td>`;
+          return `<td class="align-${esc(align)}${mono ? " mono" : ""}">${esc(cellText(kinds.get(key), row[key]))}</td>`;
         })
         .join("");
       const zebraClass = schema.table.zebra && rowIndex % 2 === 1 ? " zebra" : "";

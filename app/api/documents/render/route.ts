@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import {
+  attachmentDisposition,
   enqueueDocumentRenderJob,
+  ExportTooLargeError,
   processDocumentRenderJobsBatch,
   renderDocumentSync,
 } from "@/lib/documents/service";
@@ -71,10 +73,13 @@ function resolveFeatureKeys(sourceKey: string): string[] {
 const requestSchema = z.object({
   target: z.enum(["LIST", "RECORD", "DASHBOARD"]),
   sourceKey: z.string().min(1),
-  format: z.enum(["pdf", "csv"]).default("pdf"),
+  format: z.enum(["pdf", "csv", "xlsx"]).default("pdf"),
   mode: z.enum(["SYNC", "ASYNC"]).optional(),
   recordId: z.string().uuid().optional(),
   filters: z.record(z.string(), z.string()).optional(),
+  ids: z.array(z.string().uuid()).min(1).max(500).optional(),
+  columns: z.array(z.string().trim().min(1).max(80)).min(1).max(80).optional(),
+  title: z.string().trim().min(1).max(200).optional(),
   payload: z.unknown().optional(),
   templateId: z.string().uuid().optional(),
   templateVersionId: z.string().uuid().optional(),
@@ -176,19 +181,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const rendered = await renderDocumentSync(session.user.companyId, typedInput);
+    const rendered = await renderDocumentSync(session.user.companyId, typedInput, {
+      actorId: session.user.id,
+    });
 
     const bodyBuffer = new Uint8Array(rendered.data);
     return new Response(bodyBuffer, {
       headers: {
         "Content-Type": rendered.contentType,
-        "Content-Disposition": `attachment; filename="${rendered.fileName}"`,
+        "Content-Disposition": attachmentDisposition(rendered.fileName),
         "Cache-Control": "no-store",
       },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
+    }
+    if (error instanceof ExportTooLargeError) {
+      return errorResponse(error.message, error.status);
     }
 
     console.error("[API] POST /api/documents/render error:", error);

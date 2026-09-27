@@ -19,11 +19,32 @@ import {
   resolveHrDocumentSource,
 } from "@/lib/documents/hr-sources";
 
+const LIST_COLUMN_KINDS = [
+  "text",
+  "code",
+  "email",
+  "phone",
+  "relation",
+  "date",
+  "datetime",
+  "number",
+  "money",
+  "percent",
+  "status",
+  "boolean",
+] as const;
+
 const sourceInputSchema = z.object({
   target: z.enum(["LIST", "RECORD", "DASHBOARD"]),
   sourceKey: z.string().min(1),
   recordId: z.string().uuid().optional(),
   filters: z.record(z.string(), z.string()).optional(),
+  /** A list export narrowed to these records — the rows somebody ticked. */
+  ids: z.array(z.string().uuid()).min(1).max(500).optional(),
+  /** A list export's columns, in order. Absent: the list's own choice. */
+  columns: z.array(z.string().trim().min(1).max(80)).min(1).max(80).optional(),
+  /** What the export is called — the view it was taken from. */
+  title: z.string().trim().min(1).max(200).optional(),
   payload: z
     .object({
       title: z.string().min(1),
@@ -32,7 +53,15 @@ const sourceInputSchema = z.object({
       meta: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
       list: z
         .object({
-          columns: z.array(z.object({ key: z.string(), label: z.string() })).optional(),
+          columns: z
+            .array(
+              z.object({
+                key: z.string(),
+                label: z.string(),
+                kind: z.enum(LIST_COLUMN_KINDS).optional(),
+              }),
+            )
+            .optional(),
           rows: z.array(z.record(z.string(), z.unknown())),
         })
         .optional(),
@@ -65,6 +94,19 @@ const sourceInputSchema = z.object({
 });
 
 export type SourceResolutionInput = z.infer<typeof sourceInputSchema>;
+
+/**
+ * Who the document is being made for. A record's own paper — an invoice, a
+ * payslip — does not depend on it; a list export does, because a list is
+ * whatever its reader is allowed to see.
+ */
+export type SourceContext = { actorId: string | null };
+
+export type SourceSummary = Pick<SourceResolution, "targetType" | "documentType" | "sourceKey"> & {
+  rowCount: number;
+  /** What the rows are, for the sentence that refuses an export too big to make. */
+  noun?: { one: string; many: string };
+};
 
 export type SourceResolution = {
   targetType: ExportTargetType;
@@ -610,9 +652,31 @@ async function resolveDashboardSummary(companyId: string): Promise<SourceResolut
   };
 }
 
+/**
+ * What a source will produce and how many rows, without building it where
+ * that can be avoided. Used to decide whether an export is made now or by a
+ * job, and whether it is made at all.
+ */
+export async function summarizeSource(
+  companyId: string,
+  rawInput: SourceResolutionInput,
+  context: SourceContext = { actorId: null },
+): Promise<SourceSummary> {
+  const source = await resolveSourcePayload(companyId, rawInput, context);
+  return {
+    targetType: source.targetType,
+    documentType: source.documentType,
+    sourceKey: source.sourceKey,
+    rowCount: source.rowsForCsv?.length ?? source.payload.list?.rows?.length ?? 0,
+  };
+}
+
 export async function resolveSourcePayload(
   companyId: string,
   rawInput: SourceResolutionInput,
+  // Read by the list sources as they arrive; a record's paper ignores it.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  context: SourceContext = { actorId: null },
 ): Promise<SourceResolution> {
   const input = sourceInputSchema.parse(rawInput);
 
