@@ -3,28 +3,18 @@ import { z } from "zod";
 
 import {
   errorResponse,
-  getPaginationParams,
-  paginationResponse,
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { registerGet } from "@/lib/crm/registers/server/route";
+import { peopleRegister } from "@/lib/crm/registers/server/people";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
 import { buildFullName } from "@/lib/crm/conversion";
 import { findPersonDuplicates } from "@/lib/crm/duplicates";
-import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
 import { buildCustomFieldValues, type FieldDefinition } from "@/lib/crm/custom-fields";
 import { recordMarkFields } from "@/lib/crm/record-mark";
-import {
-  boolParam,
-  buildPersonWhere,
-  buildRecordOrderBy,
-  customFieldParams,
-  listParam,
-  personFiltersSchema,
-  recordSortSchema,
-} from "@/lib/crm/records";
 import { isCompanyUser } from "../_helpers";
 
 const createPersonSchema = z.object({
@@ -60,66 +50,9 @@ const createPersonSchema = z.object({
   force: z.boolean().optional(),
 });
 
+/** The list: see `registerGet` — the page's own query string, paged. */
 export async function GET(request: NextRequest) {
-  try {
-    const sessionResult = await validateSession(request);
-    if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-
-    const { searchParams } = new URL(request.url);
-    const { page, limit, skip } = getPaginationParams(request);
-
-    const parsed = personFiltersSchema.safeParse({
-      q: searchParams.get("q") || undefined,
-      listId: searchParams.get("listId") || undefined,
-      clientId: searchParams.get("clientId") || undefined,
-      assignedToIds: listParam(searchParams, "assignedToIds"),
-      contactTypes: listParam(searchParams, "contactTypes"),
-      tags: listParam(searchParams, "tags"),
-      mineOnly: boolParam(searchParams, "mineOnly"),
-      unassigned: boolParam(searchParams, "unassigned"),
-      includeArchived: boolParam(searchParams, "includeArchived"),
-      customFields: customFieldParams(searchParams),
-    });
-    const filters = parsed.success ? parsed.data : {};
-
-    const baseWhere = buildPersonWhere(session.user.companyId, filters, session.user.id);
-    // A filter on an empty list must return nothing — ignoring it would show
-    // the whole table, which reads as though the filter had failed.
-    const listIds = filters.listId
-      ? await listRecordIds(prisma, {
-          companyId: session.user.companyId,
-          userId: session.user.id,
-          listId: filters.listId,
-        })
-      : null;
-    const where = { ...baseWhere, ...(listIdFilter(listIds) ?? {}) };
-    const sort = recordSortSchema.safeParse({
-      field: searchParams.get("sortField"),
-      direction: searchParams.get("sortDir"),
-    });
-    const orderBy = buildRecordOrderBy("PERSON", sort.success ? sort.data : undefined);
-
-    const [people, total] = await Promise.all([
-      prisma.crmPerson.findMany({
-        where,
-        include: {
-          client: { select: { id: true, name: true } },
-          assignedTo: { select: { id: true, name: true } },
-          _count: { select: { dealContacts: true } },
-        },
-        orderBy,
-        skip,
-        take: limit,
-      }),
-      prisma.crmPerson.count({ where }),
-    ]);
-
-    return successResponse(paginationResponse(people, total, page, limit));
-  } catch (error) {
-    console.error("[API] GET /api/v2/crm/people error:", error);
-    return errorResponse("Failed to fetch people");
-  }
+  return registerGet(request, peopleRegister);
 }
 
 export async function POST(request: NextRequest) {

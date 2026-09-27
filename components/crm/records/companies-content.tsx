@@ -76,10 +76,10 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
     queryKey: ["crm", "companies", debouncedSearch, page],
     queryFn: () =>
       fetchCrmCompanies({
-        filters: { q: debouncedSearch },
-        // By name: the list below groups by first letter, and grouping a list
-        // ordered by `updatedAt` produces headings in no order at all.
-        sort: { field: "name", direction: "asc" },
+        // By name — the list's first sort — because the list below groups by
+        // first letter, and grouping a list ordered by `updatedAt` produces
+        // headings in no order at all.
+        state: { q: debouncedSearch },
         page,
         limit: PAGE_SIZE,
       }),

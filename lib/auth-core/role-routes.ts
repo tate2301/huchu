@@ -13,6 +13,10 @@ const SHARED_ALLOWED_PREFIXES = [
   "/api/auth",
   "/api/notifications",
   "/api/uploads",
+  // An export started from anywhere a role may work is fetched through these.
+  // Both answer only to the person who asked for the export.
+  "/api/documents/render-jobs",
+  "/api/documents/artifacts",
   "/help",
   "/access-blocked",
   "/notifications",

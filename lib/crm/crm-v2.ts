@@ -20,6 +20,11 @@ import type { TaskQueue } from "@/lib/crm/tasks";
 import type { ImportEntity, ImportPlan } from "@/lib/crm/import";
 import type { FieldChoice, MergeFieldPlan } from "@/lib/crm/merge";
 import type { RecordSort } from "@/lib/crm/records";
+import { writeState } from "@/lib/crm/registers/codec";
+import { COMPANY_REGISTER } from "@/lib/crm/registers/defs/company";
+import { PERSON_REGISTER } from "@/lib/crm/registers/defs/person";
+import { SITE_REGISTER } from "@/lib/crm/registers/defs/site";
+import type { RegisterDef, ViewState } from "@/lib/crm/registers/types";
 import type { LeadSort, LeadViewFilters } from "@/lib/crm/views";
 import type {
   SiteVisitItemInput,
@@ -630,32 +635,45 @@ export function recordFiltersToParams(
   return params;
 }
 
-export function fetchCrmPeople(
-  params: { filters?: Record<string, unknown>; sort?: RecordSort; page?: number; limit?: number } = {},
-) {
-  return fetchJson<ListResponse<CrmPersonRecord>>(
-    `/api/v2/crm/people${qs({
-      ...recordFiltersToParams(params.filters ?? {}),
-      sortField: params.sort?.field,
-      sortDir: params.sort?.direction,
-      page: params.page,
-      limit: params.limit,
-    })}`,
-  );
+/**
+ * A register query: part of a list's state, a page and a page size. Missing
+ * state is the list's default — no filters, the list's first sort.
+ */
+export type RegisterQuery = {
+  state?: Partial<ViewState>;
+  page?: number;
+  limit?: number;
+};
+
+/** The reader's time zone, which the server needs to know what "today" means. */
+function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
 }
 
-export function fetchCrmCompanies(
-  params: { filters?: Record<string, unknown>; sort?: RecordSort; page?: number; limit?: number } = {},
-) {
-  return fetchJson<ListResponse<CrmCompanyRecord>>(
-    `/api/v2/crm/companies${qs({
-      ...recordFiltersToParams(params.filters ?? {}),
-      sortField: params.sort?.field,
-      sortDir: params.sort?.direction,
-      page: params.page,
-      limit: params.limit,
-    })}`,
-  );
+/**
+ * One page of a list, asked exactly the way the list's own page asks: the
+ * codec's query string, so a picker searching people and the People screen
+ * narrowed to the same search get the same rows.
+ */
+export function fetchRegisterPage<Row>(def: RegisterDef, query: RegisterQuery = {}) {
+  const state: ViewState = { ...query.state, filters: query.state?.filters ?? {} };
+  const params = new URLSearchParams(writeState(def, state, { page: query.page }));
+  if (query.limit) params.set("limit", String(query.limit));
+  const tz = browserTimeZone();
+  if (tz) params.set("tz", tz);
+  return fetchJson<ListResponse<Row>>(`${def.endpoint}?${params}`);
+}
+
+export function fetchCrmPeople(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmPersonRecord>(PERSON_REGISTER, query);
+}
+
+export function fetchCrmCompanies(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmCompanyRecord>(COMPANY_REGISTER, query);
 }
 
 export function fetchCrmDeals(
@@ -672,18 +690,8 @@ export function fetchCrmDeals(
   );
 }
 
-export function fetchCrmSites(
-  params: { filters?: Record<string, unknown>; sort?: RecordSort; page?: number; limit?: number } = {},
-) {
-  return fetchJson<ListResponse<CrmSiteRecord>>(
-    `/api/v2/crm/sites${qs({
-      ...recordFiltersToParams(params.filters ?? {}),
-      sortField: params.sort?.field,
-      sortDir: params.sort?.direction,
-      page: params.page,
-      limit: params.limit,
-    })}`,
-  );
+export function fetchCrmSites(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmSiteRecord>(SITE_REGISTER, query);
 }
 
 export function fetchCrmPipelines() {

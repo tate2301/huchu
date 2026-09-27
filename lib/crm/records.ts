@@ -5,7 +5,7 @@
  * the archived/merged exclusions can never be forgotten on one route and
  * remembered on another.
  */
-import type { CrmAccountStatus, CrmCompanyType, CrmContactType, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { customFieldWhere } from "@/lib/crm/custom-fields";
@@ -19,10 +19,7 @@ export type RecordSort = z.infer<typeof recordSortSchema>;
 
 /** Sortable columns per record type. Anything not listed falls back to updatedAt. */
 const SORTABLE: Record<string, string[]> = {
-  PERSON: ["fullName", "personNo", "createdAt", "updatedAt", "lastContactedAt"],
-  COMPANY: ["name", "clientNo", "createdAt", "updatedAt", "lastContactedAt"],
   DEAL: ["title", "dealNo", "value", "expectedCloseDate", "createdAt", "updatedAt", "stageEnteredAt"],
-  SITE: ["name", "siteNo", "createdAt", "updatedAt"],
 };
 
 export function buildRecordOrderBy(entity: string, sort: RecordSort | undefined) {
@@ -32,35 +29,6 @@ export function buildRecordOrderBy(entity: string, sort: RecordSort | undefined)
   }
   return { updatedAt: "desc" as const };
 }
-
-export const personFiltersSchema = z.object({
-  q: z.string().trim().max(200).optional(),
-  /** Narrow to the members of a static list. */
-  listId: z.string().uuid().optional(),
-  clientId: z.string().uuid().optional(),
-  assignedToIds: z.array(z.string().uuid()).max(50).optional(),
-  contactTypes: z.array(z.string().trim().max(40)).max(10).optional(),
-  tags: z.array(z.string().trim().max(60)).max(20).optional(),
-  mineOnly: z.boolean().optional(),
-  unassigned: z.boolean().optional(),
-  includeArchived: z.boolean().optional(),
-  customFields: z.record(z.string(), z.unknown()).optional(),
-});
-
-export const companyFiltersSchema = z.object({
-  q: z.string().trim().max(200).optional(),
-  /** Narrow to the members of a static list. */
-  listId: z.string().uuid().optional(),
-  companyTypes: z.array(z.string().trim().max(40)).max(10).optional(),
-  accountStatuses: z.array(z.string().trim().max(40)).max(10).optional(),
-  assignedToIds: z.array(z.string().uuid()).max(50).optional(),
-  tags: z.array(z.string().trim().max(60)).max(20).optional(),
-  parentClientId: z.string().uuid().optional(),
-  mineOnly: z.boolean().optional(),
-  unassigned: z.boolean().optional(),
-  includeArchived: z.boolean().optional(),
-  customFields: z.record(z.string(), z.unknown()).optional(),
-});
 
 export const dealFiltersSchema = z.object({
   q: z.string().trim().max(200).optional(),
@@ -91,20 +59,7 @@ export const dealFiltersSchema = z.object({
   customFields: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const siteFiltersSchema = z.object({
-  q: z.string().trim().max(200).optional(),
-  /** Narrow to the members of a static list. */
-  listId: z.string().uuid().optional(),
-  clientIds: z.array(z.string().uuid()).max(50).optional(),
-  cities: z.array(z.string().trim().max(80)).max(30).optional(),
-  includeArchived: z.boolean().optional(),
-  customFields: z.record(z.string(), z.unknown()).optional(),
-});
-
-export type PersonFilters = z.infer<typeof personFiltersSchema>;
-export type CompanyFilters = z.infer<typeof companyFiltersSchema>;
 export type DealFilters = z.infer<typeof dealFiltersSchema>;
-export type SiteFilters = z.infer<typeof siteFiltersSchema>;
 
 /** Fold a customFields filter map into AND clauses on the JSON column. */
 function customFieldClauses(customFields: Record<string, unknown> | undefined) {
@@ -129,80 +84,6 @@ function ownerClauses(
   else if (alternatives.length > 1) and.push({ OR: alternatives });
   if (filters.mineOnly) and.push({ assignedToId: userId });
   return and;
-}
-
-export function buildPersonWhere(
-  companyId: string,
-  filters: PersonFilters,
-  userId: string,
-): Prisma.CrmPersonWhereInput {
-  const and: Prisma.CrmPersonWhereInput[] = [
-    ...(ownerClauses(filters, userId) as Prisma.CrmPersonWhereInput[]),
-    ...(customFieldClauses(filters.customFields) as Prisma.CrmPersonWhereInput[]),
-  ];
-
-  if (filters.clientId) and.push({ clientId: filters.clientId });
-  if (filters.contactTypes?.length) {
-    and.push({ contactType: { in: filters.contactTypes as CrmContactType[] } });
-  }
-  if (filters.tags?.length) and.push({ tags: { hasSome: filters.tags } });
-  if (filters.q) {
-    and.push({
-      OR: [
-        { fullName: { contains: filters.q, mode: "insensitive" } },
-        { email: { contains: filters.q, mode: "insensitive" } },
-        { phone: { contains: filters.q, mode: "insensitive" } },
-        { personNo: { contains: filters.q, mode: "insensitive" } },
-        { client: { name: { contains: filters.q, mode: "insensitive" } } },
-      ],
-    });
-  }
-
-  return {
-    companyId,
-    mergedIntoId: null,
-    ...(filters.includeArchived ? {} : { archivedAt: null }),
-    ...(and.length > 0 ? { AND: and } : {}),
-  };
-}
-
-export function buildCompanyWhere(
-  companyId: string,
-  filters: CompanyFilters,
-  userId: string,
-): Prisma.CrmClientWhereInput {
-  const and: Prisma.CrmClientWhereInput[] = [
-    ...(ownerClauses(filters, userId) as Prisma.CrmClientWhereInput[]),
-    ...(customFieldClauses(filters.customFields) as Prisma.CrmClientWhereInput[]),
-  ];
-
-  if (filters.companyTypes?.length) {
-    and.push({ companyType: { in: filters.companyTypes as CrmCompanyType[] } });
-  }
-  if (filters.accountStatuses?.length) {
-    and.push({ accountStatus: { in: filters.accountStatuses as CrmAccountStatus[] } });
-  }
-  if (filters.parentClientId) and.push({ parentClientId: filters.parentClientId });
-  if (filters.tags?.length) and.push({ tags: { hasSome: filters.tags } });
-  if (filters.q) {
-    and.push({
-      OR: [
-        { name: { contains: filters.q, mode: "insensitive" } },
-        { tradingName: { contains: filters.q, mode: "insensitive" } },
-        { clientNo: { contains: filters.q, mode: "insensitive" } },
-        { email: { contains: filters.q, mode: "insensitive" } },
-        { phone: { contains: filters.q, mode: "insensitive" } },
-        { city: { contains: filters.q, mode: "insensitive" } },
-      ],
-    });
-  }
-
-  return {
-    companyId,
-    mergedIntoId: null,
-    ...(filters.includeArchived ? {} : { archivedAt: null }),
-    ...(and.length > 0 ? { AND: and } : {}),
-  };
 }
 
 export function buildDealWhere(
@@ -257,35 +138,6 @@ export function buildDealWhere(
         { dealNo: { contains: filters.q, mode: "insensitive" } },
         { client: { name: { contains: filters.q, mode: "insensitive" } } },
         { primaryContact: { fullName: { contains: filters.q, mode: "insensitive" } } },
-      ],
-    });
-  }
-
-  return {
-    companyId,
-    ...(filters.includeArchived ? {} : { archivedAt: null }),
-    ...(and.length > 0 ? { AND: and } : {}),
-  };
-}
-
-export function buildSiteWhere(
-  companyId: string,
-  filters: SiteFilters,
-): Prisma.CrmSiteWhereInput {
-  const and: Prisma.CrmSiteWhereInput[] = [
-    ...(customFieldClauses(filters.customFields) as Prisma.CrmSiteWhereInput[]),
-  ];
-
-  if (filters.clientIds?.length) and.push({ clientId: { in: filters.clientIds } });
-  if (filters.cities?.length) and.push({ city: { in: filters.cities } });
-  if (filters.q) {
-    and.push({
-      OR: [
-        { name: { contains: filters.q, mode: "insensitive" } },
-        { siteNo: { contains: filters.q, mode: "insensitive" } },
-        { addressLine: { contains: filters.q, mode: "insensitive" } },
-        { city: { contains: filters.q, mode: "insensitive" } },
-        { client: { name: { contains: filters.q, mode: "insensitive" } } },
       ],
     });
   }

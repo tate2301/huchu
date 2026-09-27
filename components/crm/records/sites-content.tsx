@@ -27,7 +27,7 @@ export function SitesContent({ openCreate = false }: { openCreate?: boolean }) {
 
   const sitesQuery = useQuery({
     queryKey: ["crm", "sites", debouncedSearch, page],
-    queryFn: () => fetchCrmSites({ filters: { q: debouncedSearch }, page, limit: PAGE_SIZE }),
+    queryFn: () => fetchCrmSites({ state: { q: debouncedSearch }, page, limit: PAGE_SIZE }),
     placeholderData: (previous) => previous,
   });
 

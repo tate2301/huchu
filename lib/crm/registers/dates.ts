@@ -74,6 +74,13 @@ export function dayIn(instant: Date, tz: string): string {
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
+/** An instant as the wall-clock minute it was in a zone, as `YYYY-MM-DD HH:mm`. */
+export function minuteIn(instant: Date, tz: string): string {
+  const p = zoneParts(instant, tz);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${p.year}-${pad(p.month)}-${pad(p.day)} ${pad(p.hour)}:${pad(p.minute)}`;
+}
+
 /** A calendar day moved by whole days. */
 export function addDays(day: string, days: number): string {
   const [year, month, date] = day.split("-").map(Number);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderCsv } from "./csv-renderer";
 
-const BOM = "﻿";
+const BOM = "\uFEFF";
 
 describe("renderCsv", () => {
   it("heads each column with its label, not its key", () => {

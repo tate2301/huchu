@@ -101,8 +101,8 @@ export function MergeDialog({
     // it renders matter here.
     queryFn: async (): Promise<{ data: MergeCandidate[] }> =>
       entity === "PERSON"
-        ? await fetchCrmPeople({ filters: { q: debounced }, limit: 8 })
-        : await fetchCrmCompanies({ filters: { q: debounced }, limit: 8 }),
+        ? await fetchCrmPeople({ state: { q: debounced }, limit: 8 })
+        : await fetchCrmCompanies({ state: { q: debounced }, limit: 8 }),
   });
 
   const preview = useMutation({

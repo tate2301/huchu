@@ -46,5 +46,5 @@ export function renderCsv(
     heads.map((column) => escapeCsvValue(guardFormula(column.label))).join(","),
     ...rows.map((row) => heads.map((column) => escapeCsvValue(cellText(row[column.key]))).join(",")),
   ];
-  return `﻿${lines.join("\r\n")}\r\n`;
+  return `\uFEFF${lines.join("\r\n")}\r\n`;
 }

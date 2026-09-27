@@ -118,7 +118,7 @@ export function ProjectsContent() {
   // A picker over the directory, not a tally of the customers on this page.
   const companiesQuery = useQuery({
     queryKey: ["crm", "companies", "project-filter"],
-    queryFn: () => fetchCrmCompanies({ sort: { field: "name", direction: "asc" }, limit: 100 }),
+    queryFn: () => fetchCrmCompanies({ limit: 100 }),
     staleTime: 5 * 60_000,
   });
 

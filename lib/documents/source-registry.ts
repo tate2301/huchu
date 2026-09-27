@@ -18,6 +18,11 @@ import {
   isHrDocumentSourceKey,
   resolveHrDocumentSource,
 } from "@/lib/documents/hr-sources";
+import {
+  isCrmRegisterSourceKey,
+  resolveCrmRegisterSource,
+  summarizeCrmRegisterSource,
+} from "@/lib/documents/crm-register-sources";
 
 const LIST_COLUMN_KINDS = [
   "text",
@@ -662,6 +667,11 @@ export async function summarizeSource(
   rawInput: SourceResolutionInput,
   context: SourceContext = { actorId: null },
 ): Promise<SourceSummary> {
+  // A CRM list counts its rows with one query rather than building them all.
+  if (isCrmRegisterSourceKey(rawInput.sourceKey)) {
+    const input = sourceInputSchema.parse(rawInput);
+    return summarizeCrmRegisterSource(companyId, input, context.actorId);
+  }
   const source = await resolveSourcePayload(companyId, rawInput, context);
   return {
     targetType: source.targetType,
@@ -674,11 +684,15 @@ export async function summarizeSource(
 export async function resolveSourcePayload(
   companyId: string,
   rawInput: SourceResolutionInput,
-  // Read by the list sources as they arrive; a record's paper ignores it.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   context: SourceContext = { actorId: null },
 ): Promise<SourceResolution> {
   const input = sourceInputSchema.parse(rawInput);
+
+  // A CRM list is only ever built here, from the reader's own filters: a
+  // payload handed in with the request is not an export of the list.
+  if (isCrmRegisterSourceKey(input.sourceKey)) {
+    return resolveCrmRegisterSource(companyId, input, context.actorId);
+  }
 
   if (input.payload) {
     return {

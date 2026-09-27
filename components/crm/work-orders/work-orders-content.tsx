@@ -188,7 +188,7 @@ export function WorkOrdersContent() {
   // still reachable through its own record page, which lists its jobs.
   const sitesQuery = useQuery({
     queryKey: ["crm", "sites", "job-filter"],
-    queryFn: () => fetchCrmSites({ sort: { field: "name", direction: "asc" }, limit: 100 }),
+    queryFn: () => fetchCrmSites({ limit: 100 }),
     staleTime: 5 * 60_000,
   });
 

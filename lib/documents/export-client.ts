@@ -11,6 +11,12 @@ type AsyncRenderResponse = {
 };
 
 type RenderRequest = {
+  /**
+   * Where the request goes. The general render route by default; a CRM list
+   * exports through its own, `/api/v2/crm/registers/<list>/export`, which
+   * takes the same body.
+   */
+  endpoint?: string;
   sourceKey: string;
   format: DocumentExportFormat;
   /**
@@ -135,7 +141,7 @@ export async function runDocumentExport(
 
   onStatus?.("requesting");
 
-  const response = await fetch("/api/documents/render", {
+  const response = await fetch(request.endpoint ?? "/api/documents/render", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

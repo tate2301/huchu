@@ -154,15 +154,27 @@ export async function canUserAll(
   session: AuthenticatedSession,
   capabilities: readonly CrmCapability[],
 ): Promise<(capability: CrmCapability) => boolean> {
+  return capabilityCheckFor(session.user, capabilities);
+}
+
+/**
+ * `canUserAll` for a person rather than a session — an export job running
+ * after its requester has gone, which still has to answer as them.
+ */
+export async function capabilityCheckFor(
+  user: { id: string; role: string | null | undefined },
+  capabilities: readonly CrmCapability[],
+): Promise<(capability: CrmCapability) => boolean> {
   const overrides = await prisma.userPermissionOverride.findMany({
-    where: { userId: session.user.id, permissionKey: { in: [...capabilities] } },
+    where: { userId: user.id, permissionKey: { in: [...capabilities] } },
     select: { permissionKey: true, isAllowed: true },
   });
   const decided = new Map(overrides.map((row) => [row.permissionKey, row.isAllowed]));
+  const roleAllows = capabilitiesForRole(user.role);
 
   return (capability) => {
     const override = decided.get(capability);
-    return override === undefined ? can(session, capability) : override;
+    return override === undefined ? roleAllows.has(capability) : override;
   };
 }
 

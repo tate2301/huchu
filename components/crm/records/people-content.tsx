@@ -81,18 +81,19 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
     queryKey: ["crm", "people", debouncedSearch, contactType, ownerFilter, page],
     queryFn: () =>
       fetchCrmPeople({
-        filters: {
+        // By name — the list's first sort — because the page below groups by
+        // first letter. On `updatedAt` order the headings came out A, S, C,
+        // N, F — an alphabet applied to a list that was not in alphabetical
+        // order, which is worse than no headings at all.
+        state: {
           q: debouncedSearch,
-          contactTypes: contactType === "ALL" ? undefined : [contactType],
-          assignedToIds:
-            ownerFilter === "ALL" || ownerFilter === "UNASSIGNED" ? undefined : [ownerFilter],
-          unassigned: ownerFilter === "UNASSIGNED",
+          filters: {
+            ...(contactType === "ALL" ? {} : { type: [contactType] }),
+            ...(ownerFilter === "ALL"
+              ? {}
+              : { owner: [ownerFilter === "UNASSIGNED" ? "none" : ownerFilter] }),
+          },
         },
-        // By name, because the page below groups by first letter. On the
-        // default `updatedAt` order the headings came out A, S, C, N, F — an
-        // alphabet applied to a list that was not in alphabetical order, which
-        // is worse than no headings at all. Sort first, then group.
-        sort: { field: "fullName", direction: "asc" },
         page,
         limit: PAGE_SIZE,
       }),

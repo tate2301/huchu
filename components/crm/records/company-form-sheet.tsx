@@ -158,7 +158,7 @@ export function CompanyFormSheet({
 
   const companiesQuery = useQuery({
     queryKey: ["crm", "companies", "options"],
-    queryFn: () => fetchCrmCompanies({ limit: 200 }),
+    queryFn: () => fetchCrmCompanies({ limit: 100 }),
     enabled: open,
   });
 

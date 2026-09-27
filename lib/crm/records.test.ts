@@ -2,11 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   boolParam,
-  buildCompanyWhere,
   buildDealWhere,
-  buildPersonWhere,
   buildRecordOrderBy,
-  buildSiteWhere,
   customFieldParams,
   listParam,
   numberParam,
@@ -14,63 +11,6 @@ import {
 
 const COMPANY = "company-1";
 const USER = "user-1";
-
-describe("buildPersonWhere", () => {
-  it("always scopes to the tenant and hides archived and merged records", () => {
-    expect(buildPersonWhere(COMPANY, {}, USER)).toEqual({
-      companyId: COMPANY,
-      mergedIntoId: null,
-      archivedAt: null,
-    });
-  });
-
-  it("shows archived records only when asked", () => {
-    const where = buildPersonWhere(COMPANY, { includeArchived: true }, USER);
-    expect(where).not.toHaveProperty("archivedAt");
-    // A merged-away record is never listed — it redirects to its survivor.
-    expect(where.mergedIntoId).toBeNull();
-  });
-
-  it("resolves mineOnly against the calling user", () => {
-    const where = buildPersonWhere(COMPANY, { mineOnly: true }, USER);
-    expect(where.AND).toContainEqual({ assignedToId: USER });
-  });
-
-  it("treats explicit owners and unassigned as alternatives", () => {
-    const where = buildPersonWhere(COMPANY, { assignedToIds: ["u2"], unassigned: true }, USER);
-    expect(where.AND).toContainEqual({
-      OR: [{ assignedToId: { in: ["u2"] } }, { assignedToId: null }],
-    });
-  });
-
-  it("filters on contact type", () => {
-    const where = buildPersonWhere(COMPANY, { contactTypes: ["DECISION_MAKER"] }, USER);
-    expect(where.AND).toContainEqual({ contactType: { in: ["DECISION_MAKER"] } });
-  });
-
-  it("searches name, email, phone, number and company", () => {
-    const where = buildPersonWhere(COMPANY, { q: "dube" }, USER);
-    const clause = (where.AND as Array<{ OR?: unknown[] }>).find((entry) => entry.OR);
-    expect(clause?.OR).toHaveLength(5);
-  });
-});
-
-describe("buildCompanyWhere", () => {
-  it("filters on company type and account status", () => {
-    const where = buildCompanyWhere(
-      COMPANY,
-      { companyTypes: ["SUPPLIER"], accountStatuses: ["ON_HOLD"] },
-      USER,
-    );
-    expect(where.AND).toContainEqual({ companyType: { in: ["SUPPLIER"] } });
-    expect(where.AND).toContainEqual({ accountStatus: { in: ["ON_HOLD"] } });
-  });
-
-  it("narrows to the children of one parent", () => {
-    const where = buildCompanyWhere(COMPANY, { parentClientId: "parent-1" }, USER);
-    expect(where.AND).toContainEqual({ parentClientId: "parent-1" });
-  });
-});
 
 describe("buildDealWhere", () => {
   it("scopes to the tenant and hides archived deals", () => {
@@ -99,14 +39,6 @@ describe("buildDealWhere", () => {
     const where = buildDealWhere(COMPANY, { q: "roof" }, USER);
     const clause = (where.AND as Array<{ OR?: unknown[] }>).find((entry) => entry.OR);
     expect(clause?.OR).toHaveLength(4);
-  });
-});
-
-describe("buildSiteWhere", () => {
-  it("filters by company and city", () => {
-    const where = buildSiteWhere(COMPANY, { clientIds: ["c1"], cities: ["Harare"] });
-    expect(where.AND).toContainEqual({ clientId: { in: ["c1"] } });
-    expect(where.AND).toContainEqual({ city: { in: ["Harare"] } });
   });
 });
 

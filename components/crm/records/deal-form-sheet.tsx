@@ -97,19 +97,25 @@ export function DealFormSheet({
   });
   const companiesQuery = useQuery({
     queryKey: ["crm", "companies", "options"],
-    queryFn: () => fetchCrmCompanies({ limit: 200 }),
+    queryFn: () => fetchCrmCompanies({ limit: 100 }),
     enabled: open,
   });
   const peopleQuery = useQuery({
     queryKey: ["crm", "people", "options", form.clientId],
     queryFn: () =>
-      fetchCrmPeople({ filters: form.clientId ? { clientId: form.clientId } : {}, limit: 200 }),
+      fetchCrmPeople({
+        state: { filters: form.clientId ? { company: [form.clientId] } : {} },
+        limit: 100,
+      }),
     enabled: open,
   });
   const sitesQuery = useQuery({
     queryKey: ["crm", "sites", "options", form.clientId],
     queryFn: () =>
-      fetchCrmSites({ filters: form.clientId ? { clientIds: [form.clientId] } : {}, limit: 200 }),
+      fetchCrmSites({
+        state: { filters: form.clientId ? { company: [form.clientId] } : {} },
+        limit: 100,
+      }),
     enabled: open,
   });
   const teamQuery = useQuery({

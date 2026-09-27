@@ -56,7 +56,7 @@ export function ListDetailPage({ listId }: { listId: string }) {
     queryFn: async () => {
       switch (list!.entity) {
         case "PERSON":
-          return (await fetchCrmPeople({ limit: 500 })).data.map((person) => ({
+          return (await fetchCrmPeople({ limit: 100 })).data.map((person) => ({
             id: person.id,
             title: person.fullName,
             subtitle: [person.jobTitle, person.client?.name].filter(Boolean).join(" · "),
@@ -64,7 +64,7 @@ export function ListDetailPage({ listId }: { listId: string }) {
             avatarUrl: person.avatarUrl,
           }));
         case "COMPANY":
-          return (await fetchCrmCompanies({ limit: 500 })).data.map((company) => ({
+          return (await fetchCrmCompanies({ limit: 100 })).data.map((company) => ({
             id: company.id,
             title: company.name,
             subtitle: [company.clientNo, company.city].filter(Boolean).join(" · "),
@@ -72,7 +72,7 @@ export function ListDetailPage({ listId }: { listId: string }) {
             avatarUrl: company.avatarUrl,
           }));
         case "SITE":
-          return (await fetchCrmSites({ limit: 500 })).data.map((site) => ({
+          return (await fetchCrmSites({ limit: 100 })).data.map((site) => ({
             id: site.id,
             title: site.name,
             subtitle: [site.siteNo, site.city].filter(Boolean).join(" · "),
