@@ -264,7 +264,15 @@ back.
 
 `RecordList` and `RecordTable` both take the same `selection` shape
 (`selectedIds`, `onChange`, `actions`), and a screen declares it once and passes
-the same object to every arrangement (`people-content.tsx`).
+the same object to every arrangement.
+
+On a CRM list the selection's actions live in the toolbar, not in a floating
+bar: ticking a row turns the options row into `[✕ 12 selected] │ [Assign ▾]
+[Status ▾] [Add to group ▾] [Archive] ··· │ [Export]` — the same row, the same
+height, not a second one. Such screens pass no `actions`, and `RecordTable` and
+`RecordList` draw no bar without them. Shift-click ticks a range, as a
+spreadsheet does. On a phone rows carry no checkboxes; the list is exported
+whole.
 
 *The failures:* "a column of checkboxes nobody uses is a column of noise" when
 selection is on by default; and "two copies of a bulk action are two chances for
@@ -699,13 +707,21 @@ and the filter block in `people-content.tsx`.
 One options row, read left to right:
 
 ```
-[ layout ] │ [ search ] [ filter ] [ filter ] ···· 8 of 8 │ [ columns ] [ export ]
+[ view ▾ · layout ] │ [ search ] [+ Filter] [ filter ] [ filter ] ···· 8 of 8 · Clear │ [ sort ] [ columns ] [ export ]
 ```
 
 Search leads the narrowing controls because it is the shortest route to one
 record. The filters follow, "because they are the same question asked more
-slowly". Everything after the spacer is about the table rather than about which
-records are in it, so it is pushed right behind a hairline.
+slowly". "+ Filter" comes first among them, so the control that adds a question
+is never the one scrolled out of reach when the chips outgrow the row. The count
+answers whatever the filters just asked, and "Clear" sits beside it. Everything
+after the spacer is about how the records are shown rather than which records are
+in the list — their order, their columns, the file they go out as — so it is
+pushed right behind a hairline.
+
+On a list engine page (`components/crm/registers/register-shell.tsx`) this row
+is built for you from the list's definition: pinned filters are always on it,
+the rest wait behind "+ Filter" until they narrow anything.
 
 *The failure:* the filters used to sit on a row of their own above this one, "so
 'narrow it down' was answered in two places a band apart".
@@ -758,6 +774,30 @@ They must not move when the filters do: "filtering to Form 2 must not make it
 look as though the school lost 700 children."
 
 ---
+
+### FILT-10 — A list's state lives in the address bar, and a view is all of it
+
+The search, every filter, the sort and the layout are the query string —
+`?q=roof&type=CUSTOMER&owner=me,none&created=this-month&sort=-updated` — read
+and written by one codec (`lib/crm/registers/codec.ts`). A link is the list as
+somebody saw it; a reload keeps it; the back button returns to it after a record
+is opened. A lone `?view=` means "that view, as saved"; any other key makes the
+address the whole state, so a filter cleared on a view stays cleared.
+
+A view is the whole state — search included. The failure this replaces: saved
+views that kept the filters and dropped the search box, so "my Harare roofing
+leads" came back as every lead.
+
+When the list has wandered from its view, the views menu says so (a dot, and
+"modified" for a screen reader) and offers the way back.
+
+### FILT-11 — Every list exports, and the export is the list
+
+Export sits at the end of the toolbar on every list: the rows ticked, or every
+row the filters select; Excel, CSV or PDF; the columns as on screen, in their
+order, or every column. The file is built on the server from the same query the
+rows came from, so what was on screen is what arrives. The button says what it
+will do — "Export 340 people".
 
 ## Part 8 — Empty, loading, error, saving
 

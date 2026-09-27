@@ -1,13 +1,23 @@
 "use client";
 
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { Kanban, ListBullets } from "@/lib/icons";
 import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/collections-client";
+import { groupHref } from "@/lib/crm/groups";
 import { cn } from "@/lib/utils";
 
 import { SidebarCollection, type SidebarCollectionEntry } from "./sidebar-collection";
+
+// Loaded when somebody asks for it: the sidebar is on every page, and a
+// dialog nobody has opened should not be in every page's bundle.
+const NewGroupDialog = dynamic(
+  () => import("@/components/crm/registers/group-dialog").then((module) => module.NewGroupDialog),
+  { ssr: false },
+);
 
 const ENTITY_EMOJI: Record<string, string> = {
   LEAD: "✨",
@@ -15,6 +25,7 @@ const ENTITY_EMOJI: Record<string, string> = {
   PERSON: "🧑",
   COMPANY: "🏢",
   SITE: "📍",
+  WORK_ORDER: "🛠️",
 };
 
 /** The list's home page, chosen by what kind of record it holds. */
@@ -47,7 +58,7 @@ function LayoutMark({ layout }: { layout: "TABLE" | "BOARD" }) {
  *
  * These sit below the product's own navigation rather than inside it, because
  * they are not part of the app's structure — they are what this particular
- * person keeps to hand. Both bands hide themselves when empty; a "Lists"
+ * person keeps to hand. Both bands hide themselves when empty; a "Groups"
  * heading over nothing is a promise the sidebar cannot keep.
  *
  * Only rendered inside the CRM, where saved views and lists exist.
@@ -58,6 +69,7 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
   const router = useRouter();
 
   const inCrm = pathname === "/crm" || pathname.startsWith("/crm/");
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
   const viewsQuery = useQuery({
     queryKey: ["crm", "saved-views"],
@@ -84,13 +96,21 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
     meta: view.isShared ? "shared" : undefined,
   }));
 
-  const lists: SidebarCollectionEntry[] = (listsQuery.data?.data ?? []).map((list) => ({
-    id: list.id,
-    href: `/crm/lists/${list.id}`,
-    label: list.name,
-    mark: <span aria-hidden="true">{ENTITY_EMOJI[list.entity] ?? "📋"}</span>,
-    meta: list._count?.members ? String(list._count.members) : undefined,
+  const groups = listsQuery.data?.data ?? [];
+  const lists: SidebarCollectionEntry[] = groups.map((group) => ({
+    id: group.id,
+    href: groupHref(group.entity, group.id),
+    label: group.name,
+    mark: <span aria-hidden="true">{ENTITY_EMOJI[group.entity] ?? "📋"}</span>,
+    meta: group._count?.members ? String(group._count.members) : undefined,
   }));
+  // A group opens as its record type's list narrowed to it, so it is the one
+  // being looked at when that list is narrowed to it.
+  const activeGroup = groups.find((group) => {
+    const href = groupHref(group.entity, group.id);
+    const [path] = href.split("?");
+    return path === pathname && (href.includes("?") ? searchParams.get("group") === group.id : true);
+  });
 
   return (
     <>
@@ -105,13 +125,21 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
       />
 
       <SidebarCollection
-        label="Lists"
+        label="Groups"
         entries={lists}
         isCollapsed={isCollapsed}
-        activeHref={pathname}
-        createLabel="New list"
-        onCreate={() => router.push("/crm/lists?new=1")}
+        activeHref={activeGroup ? groupHref(activeGroup.entity, activeGroup.id) : null}
+        createLabel="New group"
+        onCreate={() => setCreatingGroup(true)}
       />
+
+      {creatingGroup ? (
+        <NewGroupDialog
+          open={creatingGroup}
+          onOpenChange={setCreatingGroup}
+          onCreated={(group) => router.push(groupHref(group.entity, group.id))}
+        />
+      ) : null}
     </>
   );
 }

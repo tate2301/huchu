@@ -416,6 +416,8 @@ export const Storefront = createPhosphorIcon("Storefront", "Storefront");
 export const Kanban = createPhosphorIcon("Kanban", "Kanban");
 export const ListBullets = createPhosphorIcon("ListBullets", "ListBullets");
 export const SortAscending = createPhosphorIcon("ArrowsDownUp", "SortAscending");
+export const GripVertical = createPhosphorIcon("DotsSixVertical", "GripVertical");
+export const Columns = createPhosphorIcon("Columns", "Columns");
 export const TableRows = createPhosphorIcon("Rows", "TableRows");
 /* Where an enquiry came from, on a record's "Source" property. */
 export const Tag = createPhosphorIcon("Tag", "Tag");

@@ -21,6 +21,8 @@ export type CrmListRecord = {
   createdAt: string;
   updatedAt: string;
   _count?: { members: number };
+  /** Whether the reader may add to, rename or delete it. */
+  canEdit?: boolean;
 };
 
 export type CrmSavedViewRecord = {

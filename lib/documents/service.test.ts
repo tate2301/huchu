@@ -75,3 +75,21 @@ describe("deciding how an export is made", () => {
     expect(createJob).not.toHaveBeenCalled();
   });
 });
+
+describe("normalizeFileName", async () => {
+  const { normalizeFileName } = await import("./service");
+
+  it("keeps letters in any script, digits and plain punctuation", () => {
+    expect(normalizeFileName("Café clients (Harare) 2026-09-28", "csv")).toBe("Café clients (Harare) 2026-09-28.csv");
+  });
+
+  it("turns what a browser would refuse into a hyphen", () => {
+    expect(normalizeFileName("People · Everyone 2026-09-28", "xlsx")).toBe("People - Everyone 2026-09-28.xlsx");
+    expect(normalizeFileName('a/b\\c:"d"', "pdf")).toBe("a - b - c - d.pdf");
+  });
+
+  it("replaces an extension rather than doubling it", () => {
+    expect(normalizeFileName("report.pdf", "xlsx")).toBe("report.xlsx");
+    expect(normalizeFileName("   ", "csv")).toBe("document.csv");
+  });
+});

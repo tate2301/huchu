@@ -99,7 +99,9 @@ function triggerBlobDownload(blob: Blob, fileName: string) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  // Not revoked in the same tick as the click: a browser that has not read
+  // the URL yet saves the file as "download", without the name given above.
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 async function sleep(ms: number) {

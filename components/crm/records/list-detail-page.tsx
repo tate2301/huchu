@@ -8,13 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { ListBullets } from "@/lib/icons";
-import {
-  fetchCrmCompanies,
-  fetchCrmDeals,
-  fetchCrmList,
-  fetchCrmPeople,
-  fetchCrmSites,
-} from "@/lib/crm/crm-v2";
+import { fetchCrmDeals, fetchCrmList } from "@/lib/crm/crm-v2";
 
 import { RecordList, type RecordListRow } from "@/components/records/record-list";
 import { RecordMark, type RecordKind } from "@/components/records/record-mark";
@@ -30,10 +24,7 @@ const ENTITY: Record<
   string,
   { label: string; kind: RecordKind; href: (id: string) => string }
 > = {
-  PERSON: { label: "People", kind: "person", href: (id) => `/crm/people/${id}` },
-  COMPANY: { label: "Companies", kind: "company", href: (id) => `/crm/companies/${id}` },
   DEAL: { label: "Deals", kind: "deal", href: (id) => `/crm/deals/${id}` },
-  SITE: { label: "Sites", kind: "site", href: (id) => `/crm/sites/${id}` },
   LEAD: { label: "Leads", kind: "lead", href: (id) => `/crm/leads/${id}` },
 };
 
@@ -53,42 +44,14 @@ export function ListDetailPage({ listId }: { listId: string }) {
   const recordsQuery = useQuery({
     queryKey: ["crm", "list-records", list?.entity, listId],
     enabled: Boolean(list),
-    queryFn: async () => {
-      switch (list!.entity) {
-        case "PERSON":
-          return (await fetchCrmPeople({ limit: 100 })).data.map((person) => ({
-            id: person.id,
-            title: person.fullName,
-            subtitle: [person.jobTitle, person.client?.name].filter(Boolean).join(" · "),
-            emoji: person.emoji,
-            avatarUrl: person.avatarUrl,
-          }));
-        case "COMPANY":
-          return (await fetchCrmCompanies({ limit: 100 })).data.map((company) => ({
-            id: company.id,
-            title: company.name,
-            subtitle: [company.clientNo, company.city].filter(Boolean).join(" · "),
-            emoji: company.emoji,
-            avatarUrl: company.avatarUrl,
-          }));
-        case "SITE":
-          return (await fetchCrmSites({ limit: 100 })).data.map((site) => ({
-            id: site.id,
-            title: site.name,
-            subtitle: [site.siteNo, site.city].filter(Boolean).join(" · "),
-            emoji: site.emoji,
-            avatarUrl: site.avatarUrl,
-          }));
-        default:
-          return (await fetchCrmDeals({ page: 1, limit: 500 })).data.map((deal) => ({
-            id: deal.id,
-            title: deal.title,
-            subtitle: [deal.dealNo, deal.client?.name].filter(Boolean).join(" · "),
-            emoji: null as string | null,
-            avatarUrl: null as string | null,
-          }));
-      }
-    },
+    queryFn: async () =>
+      (await fetchCrmDeals({ page: 1, limit: 500 })).data.map((deal) => ({
+        id: deal.id,
+        title: deal.title,
+        subtitle: [deal.dealNo, deal.client?.name].filter(Boolean).join(" · "),
+        emoji: null as string | null,
+        avatarUrl: null as string | null,
+      })),
   });
 
   const rows = useMemo<RecordListRow[]>(() => {

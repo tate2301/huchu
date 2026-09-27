@@ -1,12 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import Link from "next/link";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
-import { ChevronRight, type LucideIcon } from "@/lib/icons";
+import { ArrowDownward, ArrowUpward, ChevronRight, type LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -56,7 +56,20 @@ export type RecordTableColumn<T> = {
   width?: string;
   /** Numbers and money hang off the right edge so their digits line up. */
   align?: "start" | "end";
+  /**
+   * The sort this column's header sorts by, when it sorts. Clicking the
+   * header sorts by it; clicking again turns the order round — the way a
+   * spreadsheet's column head works.
+   */
+  sortKey?: string;
   cell: (row: T) => ReactNode;
+};
+
+/** The table's current order, and what to do when a sortable header is clicked. */
+export type RecordTableSort = {
+  key: string;
+  dir: "asc" | "desc";
+  onSort: (key: string) => void;
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -228,11 +241,14 @@ export function RecordTable<T extends { id: string }>({
   emptyBody,
   emptyAction,
   selection,
+  sort,
   mobile,
   className,
 }: {
   rows: T[];
   columns: RecordTableColumn<T>[];
+  /** Makes headers with a `sortKey` sort the list. */
+  sort?: RecordTableSort;
   /**
    * Where the first cell points. The rest of the row is inert on purpose.
    *
@@ -257,13 +273,23 @@ export function RecordTable<T extends { id: string }>({
   emptyBody?: string;
   emptyAction?: ReactNode;
   className?: string;
-  /** Turns on the leading checkbox column and the floating action bar. */
+  /**
+   * Turns on the leading checkbox column. With `actions`, a floating bar
+   * carries them; without, the page's own toolbar does (the CRM lists, whose
+   * toolbar turns into the selection's actions rather than growing a bar).
+   */
   selection?: {
     selectedIds: string[];
     onChange: (next: string[]) => void;
     actions?: (context: { ids: string[]; clear: () => void }) => ReactNode;
   };
 }) {
+  // Shift-click ticks everything between the last row ticked and this one, as
+  // a spreadsheet selects a range. Kept across renders, reset by nothing: a
+  // stale anchor just makes the next shift-click a single tick.
+  const anchor = useRef<number | null>(null);
+  const shift = useRef(false);
+
   // Before the loading and empty branches, so a phone gets the row list's own
   // skeleton and empty state rather than the table's.
   if (mobile) {
@@ -279,6 +305,7 @@ export function RecordTable<T extends { id: string }>({
             emptyBody={emptyBody}
             emptyAction={emptyAction}
             selection={selection}
+            sort={sort}
             className={className}
           />
         </div>
@@ -312,12 +339,20 @@ export function RecordTable<T extends { id: string }>({
         : [...new Set([...selectedIds, ...rows.map((row) => row.id)])],
     );
 
-  const toggle = (id: string) =>
-    selection?.onChange(
-      selectedIds.includes(id)
-        ? selectedIds.filter((entry) => entry !== id)
-        : [...selectedIds, id],
-    );
+  const toggle = (id: string, index: number) => {
+    if (!selection) return;
+    const on = !selectedIds.includes(id);
+    if (shift.current && anchor.current !== null && anchor.current !== index) {
+      const [from, to] = anchor.current < index ? [anchor.current, index] : [index, anchor.current];
+      const range = rows.slice(from, to + 1).map((row) => row.id);
+      selection.onChange(
+        on ? [...new Set([...selectedIds, ...range])] : selectedIds.filter((entry) => !range.includes(entry)),
+      );
+    } else {
+      selection.onChange(on ? [...selectedIds, id] : selectedIds.filter((entry) => entry !== id));
+    }
+    anchor.current = index;
+  };
 
   return (
     <>
@@ -366,10 +401,13 @@ export function RecordTable<T extends { id: string }>({
 
               {columns.map((column) => {
                 const Icon = column.icon;
+                const sorted = sort && column.sortKey && sort.key === column.sortKey ? sort.dir : null;
+                const SortArrow = sorted === "desc" ? ArrowDownward : ArrowUpward;
                 return (
                   <th
                     key={column.id}
                     scope="col"
+                    aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                     style={column.width ? { width: column.width } : undefined}
                     className={cn(
                       // Pinned at whatever offset the band stack has reached
@@ -392,15 +430,37 @@ export function RecordTable<T extends { id: string }>({
                       column.align === "end" && "text-right",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "flex items-center gap-1.5",
-                        column.align === "end" && "justify-end",
-                      )}
-                    >
-                      {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-                      {column.label}
-                    </span>
+                    {sort && column.sortKey ? (
+                      <button
+                        type="button"
+                        onClick={() => sort.onSort(column.sortKey!)}
+                        className={cn(
+                          "group/sort -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-1.5 rounded-[var(--radius-sm)] px-1 uppercase hover:text-[var(--text-strong)]",
+                          column.align === "end" && "justify-end",
+                          sorted && "text-[var(--text-strong)]",
+                        )}
+                      >
+                        {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                        {column.label}
+                        <SortArrow
+                          className={cn(
+                            "size-3 shrink-0",
+                            sorted ? "opacity-100" : "opacity-0 group-hover/sort:opacity-50",
+                          )}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    ) : (
+                      <span
+                        className={cn(
+                          "flex items-center gap-1.5",
+                          column.align === "end" && "justify-end",
+                        )}
+                      >
+                        {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                        {column.label}
+                      </span>
+                    )}
                   </th>
                 );
               })}
@@ -419,7 +479,7 @@ export function RecordTable<T extends { id: string }>({
           </thead>
 
           <tbody>
-            {rows.map((row) => {
+            {rows.map((row, rowIndex) => {
               const selected = selectedIds.includes(row.id);
               const href = rowHref?.(row) ?? null;
               return (
@@ -434,7 +494,10 @@ export function RecordTable<T extends { id: string }>({
                     <td className="border-b border-[var(--table-divider)] px-2">
                       <Checkbox
                         checked={selected}
-                        onCheckedChange={() => toggle(row.id)}
+                        onClick={(event) => {
+                          shift.current = event.shiftKey;
+                        }}
+                        onCheckedChange={() => toggle(row.id, rowIndex)}
                         aria-label="Select this row"
                       />
                     </td>
@@ -510,7 +573,7 @@ export function RecordTable<T extends { id: string }>({
         </div>
       </div>
 
-      {selection && selectedIds.length > 0 ? (
+      {selection?.actions && selectedIds.length > 0 ? (
         <DataTableFloatingActions
           count={selectedIds.length}
           onClear={() => selection.onChange([])}

@@ -52,3 +52,42 @@ export async function countListOverlap(
     where: { listId: params.listId, recordId: { in: params.recordIds } },
   });
 }
+
+/**
+ * Of the given ids, the ones that are records of this type in this company.
+ *
+ * Membership is a bare id, so nothing in the schema stops a person's id
+ * landing in a group of deals, or another tenant's record landing in this
+ * one's. Every write of a member goes through this first.
+ */
+export async function existingRecordIds(
+  db: Tx,
+  params: { companyId: string; entity: string; ids: string[] },
+): Promise<string[]> {
+  const where = { id: { in: [...new Set(params.ids)] }, companyId: params.companyId };
+  const select = { id: true } as const;
+  let rows: Array<{ id: string }>;
+  switch (params.entity) {
+    case "PERSON":
+      rows = await db.crmPerson.findMany({ where: { ...where, mergedIntoId: null }, select });
+      break;
+    case "COMPANY":
+      rows = await db.crmClient.findMany({ where: { ...where, mergedIntoId: null }, select });
+      break;
+    case "SITE":
+      rows = await db.crmSite.findMany({ where, select });
+      break;
+    case "LEAD":
+      rows = await db.crmLead.findMany({ where, select });
+      break;
+    case "DEAL":
+      rows = await db.crmDeal.findMany({ where, select });
+      break;
+    case "WORK_ORDER":
+      rows = await db.crmWorkOrder.findMany({ where, select });
+      break;
+    default:
+      rows = [];
+  }
+  return rows.map((row) => row.id);
+}

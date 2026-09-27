@@ -13,7 +13,7 @@ export const COMPANY_REGISTER = {
   search: { placeholder: "Search companies by name, number or town" },
   filters: [
     { key: "status", label: "Status", kind: "enum", options: ACCOUNT_STATUS_OPTIONS, anyLabel: "Any", pinned: true },
-    { key: "type", label: "Type", kind: "enum", options: COMPANY_TYPE_OPTIONS, anyLabel: "All", pinned: true },
+    { key: "type", label: "Type", kind: "enum", options: COMPANY_TYPE_OPTIONS, anyLabel: "All" },
     { key: "owner", label: "Owner", kind: "person", anyLabel: "Anyone", pinned: true },
     { key: "city", label: "City", kind: "enum", facet: true, anyLabel: "Anywhere" },
     { key: "tag", label: "Tag", kind: "enum", facet: true, anyLabel: "Any tag" },

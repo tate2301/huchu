@@ -4,6 +4,8 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { VIEW_ENTITY_KEYS } from "@/lib/crm/views-registry";
+import { existingRecordIds } from "@/lib/crm/lists";
+import { hasCrmFullAccess } from "@/lib/crm/scope";
 
 const createListSchema = z.object({
   entity: z.enum(VIEW_ENTITY_KEYS),
@@ -42,7 +44,12 @@ export async function GET(request: NextRequest) {
       orderBy: [{ isShared: "desc" }, { name: "asc" }],
     });
 
-    return successResponse({ data: lists });
+    // Whether this reader may add to (or rename, or delete) each group: its
+    // author, or a CRM manager — the rule `PATCH /lists/:id` enforces.
+    const manager = hasCrmFullAccess(session.user.role);
+    return successResponse({
+      data: lists.map((list) => ({ ...list, canEdit: manager || list.createdById === session.user.id })),
+    });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/lists error:", error);
     return errorResponse("Failed to fetch lists");
@@ -64,6 +71,10 @@ export async function POST(request: NextRequest) {
     });
     if (clash) return errorResponse("A list with that name already exists here", 409);
 
+    const recordIds = data.recordIds?.length
+      ? await existingRecordIds(prisma, { companyId, entity: data.entity, ids: data.recordIds })
+      : [];
+
     const list = await prisma.crmList.create({
       data: {
         companyId,
@@ -72,10 +83,10 @@ export async function POST(request: NextRequest) {
         description: data.description ?? undefined,
         isShared: data.isShared ?? false,
         createdById: session.user.id,
-        ...(data.recordIds && data.recordIds.length > 0
+        ...(recordIds.length > 0
           ? {
               members: {
-                create: data.recordIds.map((recordId) => ({
+                create: recordIds.map((recordId) => ({
                   companyId,
                   recordId,
                   addedById: session.user.id,

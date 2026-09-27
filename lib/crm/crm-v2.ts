@@ -467,6 +467,7 @@ export type CrmPersonRecord = {
   contactType: string;
   preferredChannel: string | null;
   city: string | null;
+  country: string | null;
   tags: string[];
   clientId: string | null;
   client: { id: string; name: string } | null;
@@ -505,6 +506,7 @@ export type CrmCompanyRecord = {
   tags: string[];
   assignedTo: CrmLeadOwner | null;
   customFields: Record<string, unknown> | null;
+  lastContactedAt: string | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;

@@ -55,10 +55,22 @@ export type SyncRenderResult = {
   contentType: string;
 };
 
-function normalizeFileName(fileName: string, format: RenderFormat): string {
+/**
+ * A file name every browser will keep: letters and digits in any script,
+ * spaces and `- _ . ( )`. Anything else becomes a hyphen — Chromium quietly
+ * saves "People · Everyone.csv" as "download".
+ */
+export function normalizeFileName(fileName: string, format: RenderFormat): string {
   const trimmed = fileName.trim() || "document";
   const withoutExt = trimmed.replace(/\.(pdf|csv|xlsx)$/i, "");
-  return `${withoutExt}.${format}`;
+  const safe = withoutExt
+    // A run of refused characters becomes one spaced hyphen.
+    .replace(/\s*[^\p{L}\p{N} ._()-]+\s*/gu, " - ")
+    .replace(/( - )+/g, " - ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^- | -$/g, "");
+  return `${safe || "document"}.${format}`;
 }
 
 function shouldQueueJob(input: DocumentRenderRequest, rowCount: number): boolean {
