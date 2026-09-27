@@ -1,6 +1,6 @@
 # Head dashboard: UI/UX audit
 
-Surface: the head's oversight screens under `app/schools/**`: overview (`schools-dashboard-content.tsx`), admissions, students and roll-up, guardians, record pages, attendance and follow-up, results (overview, sheets, moderation, publishing, class), homework, lessons and resources, goals, meetings, boarding (bed board, allocations, leave, welfare), messages, notices, reports. Audited from source and from `docs/screenshots/schools/the-roll/*`, `teaching/*`, `visual-pass-*/*`, `welfare-*`, `year-rollup-*`, `admissions-*`, `search-*`. Workflow companion: `workflows.md` in this folder.
+Surface: the head's oversight screens under `app/schools/**`: overview (`schools-dashboard-content.tsx`), admissions, students and roll-up, guardians, record pages, attendance and follow-up, results (overview, sheets, moderation, publishing, class), homework, lessons and resources, goals, meetings, boarding (bed board, allocations, leave, welfare), messages, notices, reports. Audited from source and from `docs/screenshots/schools/the-roll-*`, `teaching-*`, `visual-pass-*`, `welfare-*`, `year-rollup-*`, `admissions-*`, `search-*`. Workflow companion: `workflows.md` in this folder.
 
 Rules applied: the platform UX playbook, the design-system rules, the campus canvas law, screen contract and states doc, `.impeccable.md`, `SPEC.md`. Full rule digest and per-screen evidence in `../reference/backoffice-ui-ux-evidence.md`.
 

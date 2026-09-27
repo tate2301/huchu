@@ -48,6 +48,33 @@ function firstClosure(events: CalendarEvent[]): CalendarEvent | null {
   return events.find((event) => event.isTeachingDay === false) ?? null;
 }
 
+/**
+ * A locator matching any one of the calendar's own titles.
+ *
+ * Asserting on `events[0]` specifically is what this used to do, and it was an
+ * assumption about ordering rather than about the product. The API returns the
+ * calendar by date, and the seed's earliest two entries are public holidays in
+ * August — before the current term opens on 8 September — so the first event is
+ * one the term's view has no reason to draw. The page is not wrong to leave it
+ * out, and the test has no business naming which entry it wants.
+ *
+ * What the test is actually for is that the view lists the calendar at all, so
+ * it asserts exactly that: one of the titles the calendar knows about is on the
+ * screen.
+ *
+ * The `.first()` at the end is the whole point of the shape and not a tidy-up.
+ * `or` is a union, so on the calendar page — where every event is drawn — the
+ * chain resolves to one element per event and `toBeVisible` fails strict mode
+ * with "resolved to 10 elements". A `.first()` on each branch does not prevent
+ * that, because it is the union that is ambiguous, not the branches.
+ */
+function anyEventTitle(page: Page, events: CalendarEvent[]) {
+  return events
+    .map((event) => page.getByText(event.title).filter({ visible: true }).first())
+    .reduce((locator, next) => locator.or(next))
+    .first();
+}
+
 for (const viewport of [
   { name: "phone", width: 390, height: 844 },
   { name: "desktop", width: 1440, height: 900 },
@@ -64,26 +91,32 @@ for (const viewport of [
 
       const shot = shooter("schools", `calendar-${viewport.name}`);
 
-      await page.goto("/schools/academics");
+      // The calendar is a page now, not a tab. It used to be reached by going
+      // to the academic ladder under Master Data and clicking a
+      // "Holidays and events" view beside Academic years and Terms; that ladder
+      // has since been rebuilt as a master-detail settings surface with no such
+      // view on it, so the click had nothing to hit and the shot was of a year
+      // record rather than of a calendar.
+      //
+      // `/schools/calendar` renders the same `SchoolDaysContent` the tab did,
+      // with an app bar of its own. Its own docstring gives the reason there
+      // are two ways in: setting next year's terms up wants the calendar
+      // alongside, and asking whether the school is open on Monday should not
+      // go through Master Data to find out. That second reading is this test's,
+      // so it asks for the page.
+      await page.goto("/schools/calendar");
       await expect(
-        page.getByRole("heading", { name: "Academics Setup", exact: true }).first(),
+        page.getByRole("heading", { name: "Calendar" }).first(),
       ).toBeVisible({ timeout: 30_000 });
 
-      // Retry the click rather than click once and wait. A click landing
-      // before React has hydrated is swallowed — the rail is server-rendered,
-      // so the button exists and is clickable well before it does anything —
-      // and waiting thirty seconds afterwards only waits for a click that never
-      // happened. `toPass` re-clicks until the view actually changes.
+      // Still retried rather than asserted once: the content fetches its events
+      // after hydration, so the page answers before the calendar is on it.
       //
       // The title comes from the calendar rather than being typed here: it used
       // to be the literal "Africa Day", which was a public holiday on the tenant
-      // this spec was written against and is not one here.
-      await expect(async () => {
-        await page.getByRole("button", { name: /Holidays & Events/ }).first().click();
-        await expect(page.getByText(events[0].title).first()).toBeVisible({
-          timeout: 2_000,
-        });
-      }).toPass({ timeout: 30_000 });
+      // this spec was written against and is not one here. It is now any of the
+      // calendar's titles rather than its first — see `anyEventTitle`.
+      await expect(anyEventTitle(page, events)).toBeVisible({ timeout: 30_000 });
       await shot(page, "school-calendar");
     });
 
