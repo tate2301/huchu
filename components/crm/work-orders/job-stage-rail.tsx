@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import type { JobStatus } from "./job-types";
 
 /**
- * Where the job has got to, in the band, drawn the way a deal's stages are.
+ * Where the job has got to, opened from the record's toolbar, drawn the way a
+ * deal's stages are.
  *
  * The lifecycle is a state machine and not a free-text status, so this is the
  * one control that says so: five states named inline, the current one filled

@@ -142,6 +142,11 @@ export function Navbar() {
                     })
                   : null}
                 <h1 className="truncate text-[15px] font-semibold text-foreground">{title}</h1>
+                {identity?.reference ? (
+                  <span className="shrink-0 font-mono text-sm text-[var(--text-muted)]">
+                    {identity.reference}
+                  </span>
+                ) : null}
               </div>
             </div>
 

@@ -21,7 +21,7 @@ import { ChevronDown, SlidersHorizontal } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * The options row — the band between the page band and the records.
+ * The options row — the strip between the app bar and the records.
  *
  * Module-neutral, and in `components/records` for it: HR's directory wants the
  * same band over the same table, and a toolbar owned by the CRM is one HR has

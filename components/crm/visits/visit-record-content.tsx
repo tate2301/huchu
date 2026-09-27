@@ -250,7 +250,7 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
       title={visit.title}
       reference={visit.appointmentNo}
       subtitle={about?.label}
-      // Rule 5: booked and done are what a visit is; the band speaks for the
+      // Rule 5: booked and done are what a visit is; the toolbar speaks for the
       // rest — a visit that did not happen, and one that happened unwritten.
       status={
         visit.status === "CANCELLED"
@@ -261,7 +261,7 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
               ? { status: "need_changes", label: "Not written up" }
               : null
       }
-      bandValue={when(visit.scheduledStart)}
+      figure={when(visit.scheduledStart)}
       primaryAction={
         mayEdit && visit.status !== "CANCELLED" ? (
           <Button variant={writtenUp ? "secondary" : "primary"} onClick={() => setWriting(true)}>

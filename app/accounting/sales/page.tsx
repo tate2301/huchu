@@ -7,7 +7,6 @@ import { format } from "date-fns";
 import { useSession } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +58,7 @@ import { useHasFeature } from "@/hooks/use-entitlement";
 const today = format(new Date(), "yyyy-MM-dd");
 
 /**
- * Money in the band: grouped, two decimals, no currency symbol.
+ * Money in a column of figures: grouped, two decimals, no currency symbol.
  *
  * The chip's label already says what the figure is, and a symbol in front of a
  * mono value pushes the digits out of alignment with the chip beside it.
@@ -281,24 +280,6 @@ export default function AccountingSalesPage() {
   const writeOffs = writeOffsData?.data ?? [];
   const agingRows = agingReport?.rows ?? [];
 
-  /**
-   * Open and overdue, for the band.
-   *
-   * Both come from the ageing report rather than from the invoice list,
-   * because "overdue" is a date comparison the server already does once, with
-   * the tenant's own as-at date. Recomputing it here from due dates in the
-   * browser would give a second answer that disagrees with the AR report on
-   * the next page along.
-   */
-  const arTotals = useMemo(() => {
-    let open = 0;
-    let overdue = 0;
-    for (const row of agingRows) {
-      open += row.total;
-      overdue += row.days30 + row.days60 + row.days90 + row.days90Plus;
-    }
-    return { open, overdue };
-  }, [agingRows]);
   const statementLines = statementReport?.lines ?? [];
 
   /**
@@ -1203,17 +1184,6 @@ export default function AccountingSalesPage() {
     <AccountingShell
       activeTab="receivables"
       title="Receivables"
-      description="customers, invoices and the money coming in"
-      bandSlot={
-        <>
-          <BandChip label="Open" value={formatMoney(arTotals.open)} tone="mute" />
-          <BandChip
-            label="Overdue"
-            value={formatMoney(arTotals.overdue)}
-            tone={arTotals.overdue > 0 ? "bad" : "ok"}
-          />
-        </>
-      }
       actions={
         <AccountingNewButton
           items={[

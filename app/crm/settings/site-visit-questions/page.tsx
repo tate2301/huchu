@@ -17,8 +17,6 @@ export default async function CrmSiteVisitQuestionsPage() {
 
   return (
     <CrmPage
-      title="Site visit questions"
-      description="what a rep is asked on site, per product"
     >
       <QuestionSetsContent />
     </CrmPage>

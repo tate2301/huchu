@@ -346,7 +346,7 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
         title={project.name}
         onTitleCommit={canEdit ? edit.required("name", project.name).onCommit : undefined}
         reference={project.projectNo}
-        // Rule 5: the band carries a state only when it is the exception —
+        // Rule 5: the toolbar carries a state only when it is the exception —
         // a project parked or called off. Planning and under way are what a
         // project is, and the Status property already says which.
         status={
@@ -354,7 +354,7 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
             ? { status: PROJECT_STATUS[project.status] ?? "inactive", label: PROJECT_STATUS_LABELS[project.status] }
             : null
         }
-        bandValue={
+        figure={
           costs.budget === null
             ? `${formatMoney(costs.spent, costs.currency)} spent`
             : `${formatMoney(costs.spent, costs.currency)} of ${formatMoney(costs.budget, costs.currency)}`

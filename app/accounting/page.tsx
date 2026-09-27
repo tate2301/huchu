@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { ReportPanel } from "@/components/ui/breakdown-panel";
-import { BandChip } from "@/components/accounting/band-chip";
 import {
   ReportTable,
   amt,
@@ -708,35 +707,7 @@ export default function AccountingOverviewPage() {
   return (
     <AccountingShell
       activeTab="overview"
-      // "Overview", not "Accounting Overview" — the app bar directly above
-      // already says Accounting, and the band repeating it costs the width the
-      // lede needs.
-      title="Overview"
-      description="where the books stand today"
-      bandSlot={
-        <>
-          {/*
-            The chip gets the short form — "Aug 2026" — not the panel note's
-            fuller "FY2026 · August". It sits in a band that also has to hold
-            the title, the lede and the actions, and a chip is read at a
-            glance rather than parsed. Absent a period there is nothing to
-            pin, and an em dash in a chip is a chip that has to be read to
-            learn it says nothing.
-          */}
-          {currentPeriod ? (
-            <BandChip
-              label="Period"
-              value={formatPeriodMonth(currentPeriod.endDate)}
-              tone={currentPeriod.status === "OPEN" ? "ok" : "mute"}
-            />
-          ) : null}
-          <BandChip
-            label="Balanced"
-            value={balanced ? "Yes" : "No"}
-            tone={balanced ? "ok" : "bad"}
-          />
-        </>
-      }
+      title="Accounting overview"
       actions={
         /*
           One verb plus a menu, not three competing buttons.

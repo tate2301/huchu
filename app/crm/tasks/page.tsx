@@ -19,8 +19,6 @@ export default async function CrmTasksPage() {
 
   return (
     <CrmPage
-      title="Tasks"
-      description="what the team owes, and when it is due"
     >
       <TasksRegisterContent />
     </CrmPage>

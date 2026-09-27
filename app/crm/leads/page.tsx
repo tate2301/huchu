@@ -24,8 +24,6 @@ export default async function CrmLeadsPage({ searchParams }: { searchParams: Sea
 
   return (
     <CrmPage
-      title="Leads"
-      description="enquiries that have not become deals yet"
     >
       {/* One workspace: the pipeline menu inside it crosses to the deal
           pipelines without leaving the page. */}

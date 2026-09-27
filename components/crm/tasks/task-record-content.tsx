@@ -123,7 +123,7 @@ function TaskRecord({ task }: { task: TaskRecord }) {
       ]
         .filter(Boolean)
         .join(" · ")}
-      // Rule 5: the band carries the exception — late, or called off.
+      // Rule 5: the toolbar carries the exception — late, or called off.
       status={
         task.status === "CANCELLED"
           ? { status: "inactive", label: "Cancelled" }
@@ -131,7 +131,7 @@ function TaskRecord({ task }: { task: TaskRecord }) {
             ? { status: "failing", label: "Overdue" }
             : null
       }
-      bandValue={
+      figure={
         done && task.completedAt ? `Done ${formatDate(task.completedAt)}` : `Due ${formatDate(task.dueAt)}`
       }
       primaryAction={

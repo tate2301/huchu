@@ -140,9 +140,9 @@ export function AppSidebar({ brand }: { brand?: WorkspaceBrand | null }) {
   return (
     <Sidebar
       collapsible="icon"
-      // 280, split 56 and 224. The rail draws its own grounds and its own
+      // 56 for the rail plus the panel (`--sidebar-panel-w`). The rail draws its own grounds and its own
       // hairlines, so the frame around it carries none of its own.
-      className="sticky top-0 m-0 h-[100dvh] rounded-none border-none bg-transparent p-0 shadow-none [--sidebar-width:280px] [--sidebar-width-icon:56px]"
+      className="sticky top-0 m-0 h-[100dvh] rounded-none border-none bg-transparent p-0 shadow-none [--sidebar-width:calc(56px_+_var(--sidebar-panel-w))] [--sidebar-width-icon:56px]"
     >
       <WorkspaceRail
         sections={sidebarModel.sections}

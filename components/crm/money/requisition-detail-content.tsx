@@ -352,14 +352,14 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
         backLabel="Requisitions"
         title={requisition.purpose}
         reference={requisition.requisitionNo}
-        // The steps say where it has got to; the band only carries the two
+        // The steps say where it has got to; the toolbar only carries the two
         // states that leave the path (rule 5).
         status={
           requisition.status === "REJECTED" || requisition.status === "CANCELLED"
             ? { status: REQUISITION_STATUS[requisition.status] ?? "inactive", label: REQUISITION_STATUS_LABELS[requisition.status] }
             : null
         }
-        bandValue={formatMoney(payable(requisition), requisition.currency)}
+        figure={formatMoney(payable(requisition), requisition.currency)}
         primaryAction={
           move ? (
             <Button variant="primary" onClick={() => (move === "submit" ? act.mutate({ action: "submit" }) : setDialog(move))}>

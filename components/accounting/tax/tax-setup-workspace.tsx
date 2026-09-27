@@ -13,7 +13,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Switch } from "@corelithzw/react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -512,7 +511,7 @@ function DestructiveButton({
 /**
  * The note over a list.
  *
- * Not a title: the band already says Tax and the pill already says which view
+ * Not a title: the app bar already says Tax and the pill already says which view
  * this is, so a heading here would name the page twice. What is left is the
  * one line that states a rule the table itself cannot show — which of two
  * competing rules wins, what a template actually is.
@@ -1204,7 +1203,7 @@ export function TaxSetupWorkspace() {
 
   /*
     The pills say what the cut is, not what the module is. "Tax codes" under a
-    band already titled Tax says Tax twice; "Codes" says it once.
+    app bar already titled Tax says Tax twice; "Codes" says it once.
   */
   const viewItems = useMemo(
     () => [
@@ -1729,20 +1728,6 @@ export function TaxSetupWorkspace() {
     <AccountingShell
       activeTab="tax"
       title="Tax"
-      description="codes, categories, templates and the rules that pick between them"
-      bandSlot={
-        /*
-          Net VAT — output less input, which is what actually gets paid to (or
-          reclaimed from) ZIMRA. Amber when there is a liability, green when
-          the position is a refund or nil, because the two mean opposite things
-          to whoever is about to file.
-        */
-        <BandChip
-          label="Net VAT"
-          value={formatHeadline(vatTotals.netTax)}
-          tone={vatTotals.netTax > 0 ? "warn" : "ok"}
-        />
-      }
       actions={
         activeCreateLabel ? (
           <Button size="sm" onClick={openCreateForActiveView} disabled={createDisabled}>

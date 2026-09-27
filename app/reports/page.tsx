@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, BarChart3, CheckCircle2, Clock, Factory, FileCheck, Fuel, Gem, History, Package, Shield, Users, Wrench } from "@/lib/icons";
 
@@ -84,7 +84,7 @@ const reportCards = [
 export default function ReportsDashboardPage() {
   return (
     <div className="w-full space-y-6">
-      <PageHeading
+      <PageChrome
         title="Reports"
       />
 

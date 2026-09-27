@@ -165,7 +165,7 @@ export function CostEntryRecordContent({ entryId }: { entryId: string }) {
       backLabel="Cost tracker"
       title={entry.description}
       subtitle={`${spent ? "Expense" : "Income"} · ${person}`}
-      // Rule 5: the band speaks only for what is missing.
+      // Rule 5: the toolbar speaks only for what is missing.
       status={
         entry.notReceipted
           ? { status: "failing", label: "Not receipted" }
@@ -173,7 +173,7 @@ export function CostEntryRecordContent({ entryId }: { entryId: string }) {
             ? { status: "need_changes", label: "No receipt" }
             : null
       }
-      bandValue={formatMoney(entry.amount, entry.currency)}
+      figure={formatMoney(entry.amount, entry.currency)}
       actions={
         mayRemove
           ? [

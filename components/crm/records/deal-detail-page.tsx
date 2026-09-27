@@ -418,8 +418,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
             ]}
           />
         }
-        bandValue={deal.value == null ? undefined : formatMoney(deal.value, deal.currency)}
-        beforeTabs={
+        figure={deal.value == null ? undefined : formatMoney(deal.value, deal.currency)}
+        stage={
           <DealStageBar
             compact
             dealId={dealId}
@@ -695,9 +695,9 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               </RailSection>
             ) : null}
 
-            {/* The stage control itself is in the band now — see `beforeTabs`.
-                What stays here is the stage's checklist, which is a stack and
-                has nowhere to go in a 44px row. */}
+            {/* The stage control itself opens from the record's toolbar — see
+                `stage`. What stays here is the stage's checklist, which is a
+                stack and has nowhere to go in a 44px row. */}
             {deal.stage.checklist && deal.stage.checklist.length > 0 ? (
               <RailSection title="At this stage">
                 <StageChecklist checklist={deal.stage.checklist} />

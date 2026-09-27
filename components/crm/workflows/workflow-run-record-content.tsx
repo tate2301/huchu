@@ -125,11 +125,11 @@ export function WorkflowRunRecordContent({ runId }: { runId: string }) {
       backLabel="Workflow activity"
       title={run.automation?.name ?? "A deleted workflow"}
       subtitle={`${formatDate(run.createdAt)}, ${time} UTC`}
-      // Rule 5: a clean run is what a run is; the band speaks up otherwise.
+      // Rule 5: a clean run is what a run is; the toolbar speaks up otherwise.
       status={
         run.status === "SUCCEEDED" ? null : { status: "failing", label: STATUS_WORDS[run.status] }
       }
-      bandValue={`${run.actionCount} ${run.actionCount === 1 ? "action" : "actions"}`}
+      figure={`${run.actionCount} ${run.actionCount === 1 ? "action" : "actions"}`}
       related={
         <RecordRelated
           items={[

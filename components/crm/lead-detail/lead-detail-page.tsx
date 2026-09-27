@@ -386,7 +386,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           )}
         </>
       }
-      bandValue={formatLeadValue(lead.estimatedValue, lead.currency)}
+      figure={formatLeadValue(lead.estimatedValue, lead.currency)}
       related={
         <RecordRelated
           items={[
@@ -556,7 +556,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           ]}
         />
       }
-      beforeTabs={
+      stage={
         <StageProgress
           compact
           stage={lead.stage}
@@ -655,10 +655,10 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
         <>
           {/* No "Worth" panel here any more.
 
-              The figure is in the band, where it stays in view while the
-              conversation scrolls — see `bandValue` below. A copy at the top of
-              this column was the same number twice on one screen, and it was
-              the copy that scrolled away.
+              The figure is at the end of the record's toolbar, where it stays
+              in view while the conversation scrolls — see `figure` below. A
+              copy at the top of this column was the same number twice on one
+              screen, and it was the copy that scrolled away.
 
               What is left is the score, which is not a headline but a
               breakdown: a number, a band, and the reasons for both. */}

@@ -133,7 +133,7 @@ function paperworkRows(job: JobRecord): PaperworkRow[] {
  * to the invoice it earned.
  *
  * Held to the same template as every other record, so the shape is already
- * learned: identity in the band with the lifecycle rail beside it, sections
+ * learned: identity in the app bar, the lifecycle rail in the toolbar, sections
  * down the left, and the rail on the right carrying the properties, the
  * progress and the single next move.
  */
@@ -426,7 +426,7 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
           label: WORK_ORDER_STATUS_LABELS[job.status],
         }}
         subtitle={subtitle}
-        bandValue={job.items.length > 0 ? `${job.completionPercent}%` : undefined}
+        figure={job.items.length > 0 ? `${job.completionPercent}%` : undefined}
         actions={[
           // Asking the customer to sign is not a stage — the job is still on
           // site while it waits — so it lives here rather than on the rail.
@@ -457,7 +457,7 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
               ]
             : []),
         ]}
-        beforeTabs={
+        stage={
           <JobStageRail
             status={job.status}
             allowed={job.allowedTransitions}

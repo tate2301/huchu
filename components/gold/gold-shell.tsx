@@ -3,8 +3,7 @@
 import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
-import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageActions, PageChrome } from "@/components/layout/page-chrome";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 import { type GoldTab, GOLD_TABS } from "@/lib/gold/tab-config";
 import { filterGoldTabsByFeatures } from "@/lib/gold/visibility";
@@ -14,8 +13,11 @@ type GoldShellProps = {
   activeTab: GoldTab;
   actions?: ReactNode;
   children: ReactNode;
+  /**
+   * The page's own name, for the app bar. Left off, the bar keeps the name
+   * the route table gives this screen.
+   */
   title?: string;
-  description?: string;
 };
 
 // Hydration gate: returns false during SSR and on the first client paint
@@ -31,7 +33,6 @@ export function GoldShell({
   actions,
   children,
   title,
-  description,
 }: GoldShellProps) {
   // useSession() returns different values on the server (no session
   // context → null) vs. the first client render (session resolved by
@@ -70,12 +71,13 @@ export function GoldShell({
 
   return (
     <div className="w-full space-y-6">
-      {actions ? <PageActions>{actions}</PageActions> : null}
-
-      <PageHeading
-        title={title ?? modulePresentation.title}
-        className="mb-4"
-      />
+      {/* The page names itself once, in the app bar — no heading block under
+          it repeating the name. */}
+      {title ? (
+        <PageChrome title={title}>{actions}</PageChrome>
+      ) : actions ? (
+        <PageActions>{actions}</PageActions>
+      ) : null}
 
       <SectionTabs label="Gold navigation">
         {visibleTabs.map((tab) => (

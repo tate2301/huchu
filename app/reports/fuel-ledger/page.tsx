@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +76,7 @@ export default function FuelLedgerReportPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading title="Fuel Ledger" />
+      <PageChrome title="Fuel Ledger" />
 
       {pageError ? (
         <Alert variant="destructive">

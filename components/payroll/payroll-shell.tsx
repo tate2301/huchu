@@ -20,7 +20,6 @@ export function PayrollShell({
 }) {
   return (
     <ModuleShell
-      moduleId="payroll"
       navSectionId="payroll"
       categories={PAYROLL_CATEGORIES}
       tabs={PAYROLL_TABS}

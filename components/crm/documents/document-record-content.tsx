@@ -167,7 +167,7 @@ const TONE: Record<CanonicalUiStatus, StatusTone> = {
   inactive: "neutral",
 };
 
-/** The states that leave the path, and so earn a chip in the band (rule 5). */
+/** The states that leave the path, and so earn a chip in the toolbar (rule 5). */
 const BAND_EXCEPTIONS = new Set(["Declined", "Voided", "Expired", "Overdue"]);
 
 const money = (amount: number, currency: string) => formatMoney(amount, currency);
@@ -796,7 +796,7 @@ function DocumentRecord({ data }: { data: DocumentResponse }) {
     },
   ];
 
-  const bandValue =
+  const figure =
     doc.type === "INVOICE" && outstanding > 0
       ? `${money(outstanding, doc.currency)} owed`
       : money(detail.total, doc.currency);
@@ -810,7 +810,7 @@ function DocumentRecord({ data }: { data: DocumentResponse }) {
       reference={doc.version > 1 ? `v${doc.version}` : null}
       subtitle={owedBy ?? undefined}
       status={BAND_EXCEPTIONS.has(status.label) ? status : null}
-      bandValue={bandValue}
+      figure={figure}
       primaryAction={
         primary ? (
           <Button

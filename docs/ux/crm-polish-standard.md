@@ -594,27 +594,29 @@ side-by-side panes: "on a 1920 screen with the sidebar open it left ~180px of
 dead margin on each side". A page that genuinely needs a reading measure asks
 for `narrow`, "which is the only width here that still means anything".
 
-### PAGE-3 — The app bar names the record; the band names the view
+### PAGE-3 — The app bar names the page; nothing under it repeats the name
 
-The bar carries the page or record identity and the page's primary actions, via
-`PageChrome`. A page does not repeat its own name in its body.
+The bar carries the page or record identity — a record's reference in mono
+beside its name — and the page's primary actions, via `PageChrome`. A page
+does not repeat its own name in its body, and there is no heading band between
+the bar and the content on any page, in any module: `CrmPage`, `ModuleShell`,
+`AccountingShell` and the Gold, Retail and Maintenance shells all register
+their title with the bar and draw nothing. A settings area names its *section*
+in the bar ("Pipelines"), with that section's action beside it.
 
 *The failure:* "a page that repeats its own name below a bar that already says
 it is spending a band of vertical space on nothing, and the rule that band drew
-was the seam between the bar and the content."
+was the seam between the bar and the content." Ledes and count chips went with
+the bands: a working page has no summary band.
 
-So `RecordListShell` draws **no** band: the bar already names the list. `CrmPage`
-draws one only where there is a second name to state — the *section* of a setup
-area — or state to pin.
+### PAGE-4 — Under the bar is a toolbar of controls, not a heading
 
-### PAGE-4 — The band carries what never scrolls, and nothing else
-
-`bandSlot` is "context the page needs permanently in view — a count, a total, a
-period". The schools module states the same law correctly in
-`components/schools/common/page-band.tsx`: "the band under it carries STATE …
-not a second copy of the name, and not a caption explaining a word nobody
-misread. Every chip here is a number that changes; anything that never changes
-belongs in the heading or nowhere."
+A list's first row is its toolbar (FILT-1). A record's first row is its
+toolbar (`components/records/record-toolbar.tsx`): the lifecycle as a button
+that opens the stage control, the controls the page adds, and the record's
+headline figure at the far end — the same place a list keeps its count. It is
+flush under the app bar. The one band still drawn anywhere is the schools state
+band, on overview dashboards only, and it carries numbers, never a name.
 
 ### PAGE-5 — The sticky stack is a published variable, not a guessed offset
 

@@ -143,7 +143,7 @@ export function FollowUpRecordContent({ followUpId }: { followUpId: string }) {
             ? { status: "failing", label: "Overdue" }
             : null
       }
-      bandValue={`Due ${formatDate(followUp.dueAt)}`}
+      figure={`Due ${formatDate(followUp.dueAt)}`}
       primaryAction={
         mayEdit && followUp.status !== "CANCELLED" ? (
           <Button

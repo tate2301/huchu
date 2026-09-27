@@ -127,7 +127,7 @@ export function DailyReportRecordContent({ reportId }: { reportId: string }) {
           ? { status: "need_changes", label: `${summary.flags.length} to look at` }
           : null
       }
-      bandValue={`${formatMoney(money.spent)} spent`}
+      figure={`${formatMoney(money.spent)} spent`}
       related={
         <RecordRelated items={[{ href: `/crm/reps/${report.user.id}`, label: person }]} />
       }

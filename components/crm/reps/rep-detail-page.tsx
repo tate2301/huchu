@@ -300,7 +300,7 @@ export function RepDetailPage({ repId }: { repId: string }) {
       }
       // One period for every section: what they did, what they spent, which
       // days — all of it this month unless somebody chooses otherwise.
-      beforeTabs={
+      toolbar={
         <DateRangeFilter
           label="Period"
           anyLabel="This month"
