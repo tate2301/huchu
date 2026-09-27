@@ -77,28 +77,23 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
     },
     manifest: buildWorkspaceManifestHref(identity),
-    // The workspace's branding logo is its favicon. Without one, the generated
-    // mark: the workspace's initial on its primary colour.
-    icons: identity.logoUrl
-      ? {
-          icon: [{ url: identity.logoUrl }],
-          apple: [{ url: identity.logoUrl }],
-        }
-      : {
-          icon: [
-            {
-              url: buildWorkspaceIconHref(identity, { size: 192 }),
-              sizes: "192x192",
-              type: "image/svg+xml",
-            },
-            {
-              url: buildWorkspaceIconHref(identity, { size: 512 }),
-              sizes: "512x512",
-              type: "image/svg+xml",
-            },
-          ],
-          apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    // The workspace's own icon: its logo contained on a square, or its initial
+    // on its colour when it has no logo. Never the logo file itself — most
+    // logos are wordmarks, and a tab crops a wordmark to a smear.
+    icons: {
+      icon: [32, 192, 512].map((size) => ({
+        url: buildWorkspaceIconHref(identity, { size }),
+        sizes: `${size}x${size}`,
+        type: "image/png",
+      })),
+      apple: [
+        {
+          url: buildWorkspaceIconHref(identity, { size: 180, purpose: "apple" }),
+          sizes: "180x180",
+          type: "image/png",
         },
+      ],
+    },
     appleWebApp: {
       capable: true,
       statusBarStyle: "default",
