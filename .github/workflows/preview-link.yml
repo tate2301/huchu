@@ -1,0 +1,71 @@
+# Puts the branch's Vercel preview into the PR body, signed in to the
+# hurudza-creative tenant, as soon as the deployment is ready.
+#
+# Vercel's GitHub integration creates a GitHub Deployment per commit and marks
+# it `success` with the deployment's `environment_url`. That URL is unique per
+# commit, so this runs on every push and keeps the link current. The link is
+# written into the `**Hurudza Creative:**` line of the PR template; a PR that
+# was opened without the template gets a Preview section prepended instead.
+name: Preview link
+
+on:
+  deployment_status:
+
+permissions:
+  pull-requests: write
+
+jobs:
+  update-pr-body:
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Preview' &&
+      github.event.deployment_status.environment_url != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
+          TENANT: hurudza-creative
+        with:
+          script: |
+            const previewUrl = (process.env.PREVIEW_URL ?? "").replace(/\/$/, "");
+            if (!previewUrl) {
+              core.info("Deployment has no environment_url; nothing to link.");
+              return;
+            }
+            const tenant = process.env.TENANT;
+            const link = `${previewUrl}/login?__tenant=${tenant}`;
+            const line = `**Hurudza Creative:** ${link} · [preview-host](${previewUrl}/preview-host)`;
+
+            const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.payload.deployment.sha,
+            });
+            const open = prs.filter((pr) => pr.state === "open");
+            if (open.length === 0) {
+              core.info(`No open PR for ${context.payload.deployment.sha}; nothing to update.`);
+              return;
+            }
+
+            const lineRe = /^\*\*Hurudza Creative:\*\*.*$/m;
+            for (const pr of open) {
+              const body = pr.body ?? "";
+              let next;
+              if (lineRe.test(body)) {
+                next = body.replace(lineRe, line);
+              } else {
+                next = `## Preview\n\n${line}\n\n${body}`;
+              }
+              if (next === body) {
+                core.info(`#${pr.number} already points at ${link}`);
+                continue;
+              }
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                body: next,
+              });
+              core.info(`#${pr.number}: preview link set to ${link}`);
+            }

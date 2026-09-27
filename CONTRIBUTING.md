@@ -214,14 +214,39 @@ Use README for developer workflow, `docs/system-reference` for product/system in
 
 ## Pull Requests
 
-PRs should include:
+Every PR starts from `.github/pull_request_template.md`. Keep every heading and
+write "None" under one that does not apply, so the reviewer knows it was
+considered. The headings, and what the reviewer reads them for:
 
-- concise summary
-- linked issue or ticket when available
-- schema/database notes, including whether migrations/backfills are required
-- test commands run and results
-- screenshots or short recordings for UI changes
-- rollout notes for feature flags, tenant templates, or production operations
+| Heading | What it answers |
+| --- | --- |
+| Preview | A link to this branch's Vercel preview, signed in to the `hurudza-creative` tenant, plus the screens to open in order. |
+| Summary | What changed and why, in two or three sentences. |
+| Behaviour change | Everything a user, operator or other module can observe differently. "None intended." for a refactor. |
+| What moved where | For refactors: old location → new location, one line per move or deletion. |
+| Where to look first | The two or three files that carry the decision. |
+| Database | Schema, migration and backfill notes, and whether `pnpm db:push` or a migration run is needed. |
+| Verification | Which checks ran (`pnpm typecheck`, eslint, tests, e2e, the preview). |
+| Screenshots | Before/after for UI changes. |
+| Out of scope | What you saw and deliberately left alone. |
+
+### The preview link
+
+Every branch gets a Vercel preview. The platform chooses a tenant from the
+hostname, and a preview hostname matches none, so the link in the PR nominates
+one:
+
+```
+https://<preview-host>.vercel.app/login?__tenant=hurudza-creative
+```
+
+`.github/workflows/preview-link.yml` writes that link into the
+`**Hurudza Creative:**` line of the PR body when Vercel reports the deployment
+ready, and rewrites it on every push. If you open the PR before the first
+deployment finishes, take the Preview URL from the Vercel bot comment and add
+`/login?__tenant=hurudza-creative`. `docs/_start-here/STAGING_PREVIEW.md`
+explains the nomination mechanism; `docs/demo-playbook/tenants.md` has the
+tenant's credentials.
 
 Reviewers should prioritize bugs, regressions, missing tests, data safety, tenant isolation, workflow correctness, and operator impact.
 
