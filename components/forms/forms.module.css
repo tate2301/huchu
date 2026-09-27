@@ -1,0 +1,177 @@
+/*
+  A question as a respondent meets it. The type ladder and inks are the
+  management contract's: a question is the heading its answer sits under, so
+  it takes the section rung, 15/600 — and the form builder draws it at exactly
+  that, so what an author arranges is what a respondent reads.
+*/
+@layer components {
+  .field {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .label,
+  .checkLabel {
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.35;
+    color: #16181d;
+  }
+
+  .required {
+    color: #b83a2a;
+  }
+
+  .help {
+    margin: 0;
+    font-weight: 400;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #5e6573;
+  }
+
+  .error {
+    margin: 0;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #7a2419;
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mono::placeholder {
+    font-family: var(--font-sans);
+  }
+
+  .choices {
+    display: grid;
+    gap: 8px;
+  }
+
+  .choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #262a33;
+    cursor: pointer;
+  }
+
+  .rating {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .ratingStep {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #d2d7e0;
+    border-radius: 8px;
+    background: #ffffff;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: #262a33;
+    cursor: pointer;
+  }
+
+  .ratingStep:hover {
+    border-color: #bfb9a8;
+  }
+
+  .ratingStep:focus-visible {
+    outline: none;
+    border-color: #0b5df0;
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .ratingStep[aria-checked="true"] {
+    border-color: #0b5df0;
+    background: #0b5df0;
+    color: #ffffff;
+  }
+
+  .file {
+    display: grid;
+    gap: 7px;
+  }
+
+  .fileRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .fileLink {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #0944c2;
+    text-decoration: underline;
+  }
+
+  .fileRemove {
+    flex-shrink: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #565c69;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .fileDrop {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px;
+    border: 1px dashed #d2d7e0;
+    border-radius: 8px;
+    background: #f7f8fa;
+    font-size: 13px;
+    color: #565c69;
+  }
+
+  .fact {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .factLabel {
+    margin: 0;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #565c69;
+  }
+
+  .factValue {
+    margin: 0;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #262a33;
+    overflow-wrap: anywhere;
+  }
+
+  .factValue[data-empty="true"] {
+    color: #5e6573;
+  }
+}
