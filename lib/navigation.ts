@@ -88,7 +88,17 @@ export type NavItem = {
    * what stops a band being split in two to say one true thing about one line.
    */
   grant?: SchoolNavGrant;
+  /** Where this row sits in a `ranked` section. See `NavRank`. */
+  rank?: NavRank;
 };
+
+/**
+ * Where a destination sits in a ranked section's list, after anything the
+ * person pinned: the business's own work first, in the order that work moves
+ * (a lead, then a deal, then a project), then the person's own pages, then
+ * everything else A to Z.
+ */
+export type NavRank = "flow" | "own";
 
 /** A campus resource and the verb asked of it. `view` unless stated. */
 export type SchoolNavGrant = {
@@ -106,6 +116,8 @@ export type SchoolNavGrant = {
 export type NavGroup = {
   id: string;
   label: string;
+  /** Where this group sits among its section's groups when it is `ranked`. */
+  rank?: NavRank;
 };
 
 export type NavSection = {
@@ -121,6 +133,12 @@ export type NavSection = {
    * destination, the groups are the places people are actually going.
    */
   flattenGroups?: boolean;
+  /**
+   * Order the rail by `NavRank` rather than by declaration: pinned, then flow
+   * in declared order, then own, then the rest A to Z. Applies to the groups
+   * and to the rows inside each.
+   */
+  ranked?: boolean;
   items: NavItem[];
 };
 
@@ -722,24 +740,25 @@ export const navSections: NavSection[] = [
     // "the paperwork", and burying six of those behind one word cost a click
     // each and told you nothing on the way past.
     flattenGroups: true,
+    ranked: true,
     groups: [
       // Attio's word, and the right one: these are the kinds of thing the CRM
       // keeps, and somebody looking for People is looking for an object, not
       // for "records" as opposed to "pipeline". Splitting leads and deals away
       // from people and companies drew a line the data does not have.
-      { id: "objects", label: "Objects" },
-      { id: "work", label: "Work" },
+      { id: "objects", label: "Objects", rank: "flow" },
+      { id: "work", label: "Work", rank: "own" },
       // Delivery: what a won deal turns into, and the days of work inside it.
       // Its own group rather than two lines under Work, because a project is
       // a place people go to — its jobs, its money, its team — not another
       // queue of things to do today.
-      { id: "projects", label: "Projects" },
+      { id: "projects", label: "Projects", rank: "flow" },
       // The money that moves through people's hands, as opposed to the
       // paperwork that asks for it: the float a rep draws, what they spent it
       // on, what they collected, and each day's report. Quotes and invoices
       // are the documents group.
-      { id: "money", label: "Finance" },
-      { id: "documents", label: "Sales documents" },
+      { id: "money", label: "Finance", rank: "flow" },
+      { id: "documents", label: "Sales documents", rank: "flow" },
       { id: "learn", label: "Insights" },
       { id: "workflows", label: "Workflows" },
       { id: "setup", label: "CRM setup" },
@@ -747,8 +766,8 @@ export const navSections: NavSection[] = [
     items: [
       { href: "/crm", icon: Dashboard, label: "Overview" },
 
-      { href: "/crm/leads", icon: Funnel, label: "Leads", group: "objects" },
-      { href: "/crm/deals", icon: Funnel, label: "Deals", group: "objects" },
+      { href: "/crm/leads", icon: Funnel, label: "Leads", group: "objects", rank: "flow" },
+      { href: "/crm/deals", icon: Funnel, label: "Deals", group: "objects", rank: "flow" },
       { href: "/crm/forms", icon: NoteAdd, label: "Intake forms", group: "work" },
 
       { href: "/crm/people", icon: Users, label: "People", group: "objects" },
@@ -757,17 +776,17 @@ export const navSections: NavSection[] = [
       { href: "/crm/reps", icon: UserRound, label: "Team", group: "objects" },
 
       // Whoever is signed in: `/crm/reps/me` redirects to their own page.
-      { href: "/crm/reps/me", icon: UserCheck, label: "My overview", group: "work" },
+      { href: "/crm/reps/me", icon: UserCheck, label: "My overview", group: "work", rank: "own" },
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
-      { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work" },
+      { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
 
       // A project is what a won deal turns into, and somebody is answerable
       // for what it costs. Jobs sit under it because that is where they are
       // raised; a job is still labelled "Jobs" because that is what the page,
       // the button and everybody in the building already call it.
-      { href: "/crm/projects", icon: Work, label: "Projects", group: "projects" },
-      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects" },
+      { href: "/crm/projects", icon: Work, label: "Projects", group: "projects", rank: "flow" },
+      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects", rank: "flow" },
 
       {
         href: "/crm/finance",
@@ -775,21 +794,24 @@ export const navSections: NavSection[] = [
         label: "Overview",
         roles: ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"],
         group: "money",
+        rank: "flow",
       },
-      { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money" },
-      { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money" },
+      // In the order the money moves: asked for, spent, reported.
+      { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money", rank: "flow" },
+      { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money", rank: "flow" },
       {
         href: "/crm/daily-reports",
         icon: Coins,
         label: "Daily reports",
         roles: ["SUPERADMIN", "MANAGER"],
         group: "money",
+        rank: "flow",
       },
 
-      { href: "/crm/quotes", icon: FileText, label: "Quotes", group: "documents" },
-      { href: "/crm/invoices", icon: ReceiptLong, label: "Invoices", group: "documents" },
-      { href: "/crm/receipts", icon: Payments, label: "Receipts", group: "documents" },
-      { href: "/crm/collections", icon: Scale, label: "Collections", group: "documents" },
+      { href: "/crm/quotes", icon: FileText, label: "Quotes", group: "documents", rank: "flow" },
+      { href: "/crm/invoices", icon: ReceiptLong, label: "Invoices", group: "documents", rank: "flow" },
+      { href: "/crm/receipts", icon: Payments, label: "Receipts", group: "documents", rank: "flow" },
+      { href: "/crm/collections", icon: Scale, label: "Collections", group: "documents", rank: "flow" },
 
       { href: "/crm/insights", icon: BarChart3, label: "Insights", group: "learn" },
       { href: "/crm/reports", icon: ChartLine, label: "Sales reports", group: "learn" },

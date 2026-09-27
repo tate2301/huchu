@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Kanban, ListBullets } from "@/lib/icons";
 import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/collections-client";
+import { orderRows } from "@/lib/rail/order";
 import { cn } from "@/lib/utils";
 
 import { SidebarCollection, type SidebarCollectionEntry } from "./sidebar-collection";
@@ -76,7 +77,9 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
   if (!inCrm) return null;
 
   const activeViewId = searchParams.get("savedView");
-  const views: SidebarCollectionEntry[] = (viewsQuery.data?.data ?? []).map((view) => ({
+  const views: SidebarCollectionEntry[] = orderRows(viewsQuery.data?.data ?? [], {
+    label: (view) => view.name,
+  }).map((view) => ({
     id: view.id,
     href: `/crm/leads?savedView=${view.id}`,
     label: view.name,
@@ -84,7 +87,9 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
     meta: view.isShared ? "shared" : undefined,
   }));
 
-  const lists: SidebarCollectionEntry[] = (listsQuery.data?.data ?? []).map((list) => ({
+  const lists: SidebarCollectionEntry[] = orderRows(listsQuery.data?.data ?? [], {
+    label: (list) => list.name,
+  }).map((list) => ({
     id: list.id,
     href: `/crm/lists/${list.id}`,
     label: list.name,

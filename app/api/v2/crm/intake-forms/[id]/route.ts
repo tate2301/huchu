@@ -68,9 +68,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data: {
         name: data.name,
         isActive: data.isActive,
-        headline: data.headline ?? undefined,
-        description: data.description ?? undefined,
-        successMessage: data.successMessage ?? undefined,
+        // `null` clears; only a missing key means "leave it". `?? undefined`
+        // turned a cleared headline into no change, so it came back on reload.
+        headline: data.headline,
+        description: data.description,
+        successMessage: data.successMessage,
         allowPhotos: data.allowPhotos,
         maxPhotos: data.maxPhotos,
         defaultAssigneeId: data.defaultAssigneeId ?? undefined,

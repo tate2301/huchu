@@ -41,6 +41,15 @@ export const uploadPolicies = {
     maxBytes: 8 * MB,
     folder: "crm-intake-photos",
   },
+  // A file a stranger gives in answer to an intake form's Upload question — a
+  // site plan, a quote from someone else. Not a photo, so not the photo
+  // policy, and kept in its own folder for the same reason template answers
+  // are: anything a stranger uploaded should be identifiable as such.
+  "crm-intake-answer": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+    maxBytes: 10 * MB,
+    folder: "crm-intake-answers",
+  },
   "crm-attachment": {
     allowedTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
     maxBytes: 10 * MB,

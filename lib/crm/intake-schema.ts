@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { answerSchemaFor, fieldListSchema, type FieldDefinition } from "@/lib/forms/fields";
+
 /**
  * CRM intake form-builder schema.
  *
@@ -11,50 +13,13 @@ import { z } from "zod";
  * separately from the custom fields.
  */
 
-export const CRM_INTAKE_FIELD_TYPES = [
-  "text",
-  "textarea",
-  "select",
-  "multiselect",
-  "checkbox",
-  "number",
-  "date",
-] as const;
-
-export type CrmIntakeFieldType = (typeof CRM_INTAKE_FIELD_TYPES)[number];
-
-const fieldKeySchema = z
-  .string()
-  .min(1)
-  .max(64)
-  .regex(/^[a-z][a-z0-9_]*$/, "Field key must be snake_case and start with a letter");
-
-const optionSchema = z.object({
-  value: z.string().min(1).max(120),
-  label: z.string().min(1).max(160),
-});
-
-export const crmIntakeFieldDefSchema = z
-  .object({
-    key: fieldKeySchema,
-    label: z.string().min(1).max(160),
-    type: z.enum(CRM_INTAKE_FIELD_TYPES),
-    required: z.boolean().default(false),
-    placeholder: z.string().max(200).optional(),
-    helpText: z.string().max(300).optional(),
-    options: z.array(optionSchema).max(50).optional(),
-  })
-  .superRefine((field, ctx) => {
-    if ((field.type === "select" || field.type === "multiselect") && (!field.options || field.options.length === 0)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Field "${field.key}" of type ${field.type} needs at least one option`,
-        path: ["options"],
-      });
-    }
-  });
-
-export type CrmIntakeFieldDef = z.infer<typeof crmIntakeFieldDefSchema>;
+/**
+ * An intake form's questions are the app's one field definition — the same
+ * one a template's questions use and the form builder edits. This file owns
+ * only what is intake's alone: the list of services and the submission
+ * envelope around the answers.
+ */
+export type CrmIntakeFieldDef = FieldDefinition;
 
 export const crmIntakeServiceSchema = z.object({
   id: z.string().min(1).max(64),
@@ -64,7 +29,10 @@ export const crmIntakeServiceSchema = z.object({
 
 export type CrmIntakeService = z.infer<typeof crmIntakeServiceSchema>;
 
-export const crmIntakeFieldsSchema = z.array(crmIntakeFieldDefSchema).max(40);
+export const crmIntakeFieldsSchema = fieldListSchema.refine(
+  (fields) => fields.length <= 40,
+  "An intake form holds up to 40 questions",
+);
 export const crmIntakeServicesSchema = z.array(crmIntakeServiceSchema).max(60);
 
 export const crmIntakeFormConfigSchema = z
@@ -73,19 +41,7 @@ export const crmIntakeFormConfigSchema = z
     services: crmIntakeServicesSchema,
   })
   .superRefine((config, ctx) => {
-    // Duplicate keys would collide in the compiled submission schema (and in
-    // stored answers), so reject them at save time.
-    const fieldKeys = new Set<string>();
-    for (const field of config.fields) {
-      if (fieldKeys.has(field.key)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Duplicate field key "${field.key}"`,
-          path: ["fields"],
-        });
-      }
-      fieldKeys.add(field.key);
-    }
+    // Duplicate question keys are already refused by the field list itself.
     const serviceIds = new Set<string>();
     for (const service of config.services) {
       if (serviceIds.has(service.id)) {
@@ -112,40 +68,6 @@ export function parseIntakeFormConfig(fields: unknown, services: unknown): CrmIn
   });
 }
 
-function customAnswerSchema(field: CrmIntakeFieldDef): z.ZodTypeAny {
-  switch (field.type) {
-    case "number": {
-      const base = z.number();
-      return field.required ? base : base.optional();
-    }
-    case "checkbox": {
-      const base = z.boolean();
-      return field.required ? base.refine((v) => v === true, "Required") : base.optional();
-    }
-    case "date": {
-      const base = z.string().min(1);
-      return field.required ? base : base.optional();
-    }
-    case "select": {
-      const values = (field.options ?? []).map((o) => o.value);
-      const base = values.length > 0 ? z.enum(values as [string, ...string[]]) : z.string();
-      return field.required ? base : base.optional();
-    }
-    case "multiselect": {
-      const values = (field.options ?? []).map((o) => o.value);
-      const item = values.length > 0 ? z.enum(values as [string, ...string[]]) : z.string();
-      const base = z.array(item);
-      return field.required ? base.min(1, "Required") : base.optional();
-    }
-    case "text":
-    case "textarea":
-    default: {
-      const base = z.string().min(field.required ? 1 : 0).max(2000);
-      return field.required ? base : base.optional();
-    }
-  }
-}
-
 /**
  * Compile a stored form definition into a zod schema that validates a public
  * submission body. Built-in fields (contactName, email, phone, phoneCountry,
@@ -156,7 +78,7 @@ function customAnswerSchema(field: CrmIntakeFieldDef): z.ZodTypeAny {
 export function buildSubmissionSchema(config: CrmIntakeFormConfig) {
   const answerShape: Record<string, z.ZodTypeAny> = {};
   for (const field of config.fields) {
-    answerShape[field.key] = customAnswerSchema(field);
+    answerShape[field.key] = answerSchemaFor(field);
   }
 
   const serviceIds = config.services.map((s) => s.id);

@@ -1,0 +1,296 @@
+/*
+  The intake form editor: the public form, top to bottom, with its own words
+  editable in place. The fixed parts (contact questions, message, submit) are
+  drawn exactly as a client meets them, on the same 12px/14px inset the
+  builder's questions use, so the whole page lines up as one form.
+*/
+@layer components {
+  .state {
+    margin: 0;
+    padding: 24px var(--content-gutter-x, 16px);
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #5e6573;
+  }
+
+  /* The builder is the page: it takes the height under the app bar. */
+  .frame {
+    box-sizing: border-box;
+    height: calc(100dvh - 3.5rem - var(--content-lede, 16px) - 24px);
+    min-height: 560px;
+    margin: 0 var(--content-gutter-x, 16px);
+    border: 1px solid #e5e8ee;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #ffffff;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid #e5e8ee;
+    border-radius: 8px;
+    background: #ffffff;
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #16181d;
+    cursor: pointer;
+  }
+
+  .primary {
+    border-color: #0b5df0;
+    background: #0b5df0;
+    color: #ffffff;
+  }
+
+  .iconButton {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #565c69;
+    cursor: pointer;
+  }
+
+  .iconButton svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .iconButton:hover {
+    background: #f1f3f6;
+  }
+
+  .button:focus-visible,
+  .iconButton:focus-visible,
+  .pillRemove:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /* The top of the form */
+
+  .formHead {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 28px;
+    padding: 0 15px;
+  }
+
+  .titleInput,
+  .descriptionInput {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    outline: none;
+    resize: none;
+  }
+
+  .titleInput {
+    font-weight: 600;
+    font-size: 24px;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    color: #16181d;
+  }
+
+  .descriptionInput {
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #5e6573;
+  }
+
+  .titleInput::placeholder,
+  .descriptionInput::placeholder,
+  .pillInput::placeholder,
+  .pillDraft::placeholder {
+    color: #8a91a0;
+    opacity: 1;
+  }
+
+  /* What every intake form asks, drawn in the builder's rhythm */
+
+  .fixed {
+    display: grid;
+    gap: 20px;
+    margin: 20px 0;
+  }
+
+  .fixedBlock {
+    padding: 12px 15px 14px;
+  }
+
+  .fixedLabel {
+    margin: 0;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.35;
+    color: #16181d;
+  }
+
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    box-sizing: border-box;
+    height: 34px;
+    padding: 0 4px 0 12px;
+    border: 1px solid #d2d7e0;
+    border-radius: 9999px;
+    background: #ffffff;
+  }
+
+  .pillInput {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #262a33;
+    outline: none;
+  }
+
+  .pillRemove {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    color: #8a91a0;
+    cursor: pointer;
+    opacity: 0;
+  }
+
+  .pillRemove svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .pill:hover .pillRemove,
+  .pill:focus-within .pillRemove {
+    opacity: 1;
+  }
+
+  .pillRemove:hover {
+    background: #eef0f4;
+    color: #565c69;
+  }
+
+  .pillDraft {
+    padding: 0 14px;
+    border-style: dashed;
+    font-family: inherit;
+    font-size: 14px;
+    color: #262a33;
+    outline: none;
+  }
+
+  .pillDraft:focus {
+    border-style: solid;
+    border-color: #0b5df0;
+  }
+
+  .photosHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .photosToggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+  }
+
+  .photosLimit {
+    width: auto;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .fakeDrop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 64px;
+    margin-top: 10px;
+    border: 1px dashed #d2d7e0;
+    border-radius: 8px;
+    background: #f7f8fa;
+    font-weight: 500;
+    font-size: 13px;
+    color: #5e6573;
+  }
+
+  .fakeDrop svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .fakeSubmit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 46px;
+    border-radius: 10px;
+    background: #16181d;
+    font-weight: 500;
+    font-size: 14px;
+    color: #ffffff;
+  }
+
+  /* What a client reads once it is sent — not part of the form, so set apart */
+
+  .thanks {
+    display: grid;
+    gap: 7px;
+    margin: 16px 0 0;
+    padding: 18px 15px 0;
+    border-top: 1px dashed #e5e8ee;
+  }
+
+  .thanksTitle {
+    margin: 0;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #565c69;
+  }
+
+  .dialogBody {
+    padding: 8px 0 16px;
+  }
+}

@@ -3,10 +3,11 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { blockSchema, fieldBlocks, validateAnswers } from "@/lib/crm/blocks";
+import { blockFields, blockSchema } from "@/lib/crm/blocks";
+import { validateAnswers } from "@/lib/forms/fields";
 
 const submitSchema = z.object({
-  answers: z.record(z.string().max(60), z.unknown()),
+  answers: z.record(z.string().max(64), z.unknown()),
 });
 
 /**
@@ -48,8 +49,7 @@ export async function POST(
   // is a number, a select is one of its own options, a date parses. Checking
   // only that a required answer is non-empty let "banana" through as a
   // quantity, and these answers are read back as record values.
-  const questions = fieldBlocks(blocks.data);
-  const { values: answers, problems } = validateAnswers(questions, body.answers);
+  const { values: answers, problems } = validateAnswers(blockFields(blocks.data), body.answers);
 
   if (problems.length > 0) {
     return NextResponse.json(

@@ -277,6 +277,7 @@
   /* The board's page is 540 × 764 — A4's ratio at the size the stage gives it.
      `--shadow-popover` is the DS's own and is the board's value exactly. */
   .page {
+    position: relative;
     box-sizing: border-box;
     width: 540px;
     height: 764px;
@@ -284,11 +285,33 @@
     border: 0;
     background: var(--t-page);
     box-shadow: var(--shadow-popover);
+    overflow: hidden;
   }
 
   .pageLandscape {
     width: 764px;
     height: 540px;
+  }
+
+  /* The frame is laid out at the paper's real size and shrunk to the page
+     above. Laying it out at 540px instead would reflow the document into a
+     narrower column than A4, so the preview could wrap where the print does
+     not. 0.6803 is 540px over 210mm (793.7px): the same factor both ways. */
+  .paper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 210mm;
+    height: 297mm;
+    border: 0;
+    background: var(--t-page);
+    transform: scale(0.6803);
+    transform-origin: 0 0;
+  }
+
+  .paperLandscape {
+    width: 297mm;
+    height: 210mm;
   }
 
   .pageFallback {
@@ -320,10 +343,10 @@
       border-top: 1px solid var(--t-rule);
     }
 
-    .page {
-      width: 100%;
-      max-width: 540px;
-      height: 70vh;
+    /* The sheet keeps its size — a fluid box would break the scale that makes
+       it the paper — and the stage scrolls on a narrow screen instead. */
+    .stage {
+      place-items: start center;
     }
   }
 

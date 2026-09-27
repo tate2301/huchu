@@ -312,73 +312,6 @@
    * The three columns
    * ------------------------------------------------------------------ */
 
-  .body {
-    display: flex;
-    flex-grow: 1;
-    min-height: 0;
-  }
-
-  .palette {
-    width: 192px;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    padding: 14px 10px;
-    border-right: 1px solid var(--b-rule);
-    background: var(--b-ground);
-    overflow-y: auto;
-  }
-
-  .paletteTitle {
-    margin: 0 0 8px;
-    padding: 0 8px;
-    font: 600 13px/1.4 var(--font-sans);
-    color: var(--b-ink);
-  }
-
-  .paletteItem {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    width: 100%;
-    height: 32px;
-    padding: 0 8px;
-    border: none;
-    border-radius: 7px;
-    background: transparent;
-    font: 500 13px/1.4 var(--font-sans);
-    color: var(--b-body);
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .paletteItem svg {
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-    color: var(--b-label);
-  }
-
-  .paletteItem:hover {
-    background: var(--b-tile);
-  }
-
-  .paletteItem:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
-  }
-
-  .paletteFoot {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 18px 8px 0;
-    padding-top: 14px;
-    border-top: 1px solid var(--b-rule);
-    font: 500 11px/1.5 var(--b-mono);
-    font-variant-numeric: tabular-nums;
-    color: var(--b-meta);
-  }
-
   /* The board's `{}` before the constant's name, in the same ink as the name:
      the board draws the whole line at one weight, and `--b-control` is a line
      colour — on the palette's own ground it is barely a mark at all. */
@@ -408,13 +341,6 @@
   }
 
   @media (max-width: 1099px) {
-    .palette {
-      width: 160px;
-    }
-
-    .inspector {
-      width: 264px;
-    }
 
     .canvas {
       padding-left: 26px;
@@ -422,16 +348,8 @@
   }
 
   @media (max-width: 899px) {
-    .body {
-      flex-direction: column;
-    }
 
     .palette,
-    .inspector {
-      width: auto;
-      border: 0;
-      border-bottom: 1px solid var(--b-rule);
-    }
 
     .canvas {
       padding: 20px 16px;
@@ -442,183 +360,15 @@
    * A block on the canvas
    * ------------------------------------------------------------------ */
 
-  .block {
-    position: relative;
-    display: block;
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .block:hover {
-    border-color: var(--b-rule);
-  }
-
-  .block[aria-current="true"] {
-    border-color: var(--b-primary);
-    background: var(--b-page);
-    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.16);
-  }
-
-  .block:focus-visible {
-    outline: none;
-    border-color: var(--b-primary);
-    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
-  }
-
   /* The block's kind, named only while it is the one being edited — an
      always-on label on every block turns the page into a diagram of itself. */
-  .blockTag {
-    position: absolute;
-    top: -9px;
-    left: 10px;
-    height: 18px;
-    padding: 0 7px;
-    border-radius: 9999px;
-    background: var(--b-primary);
-    font: 500 11px/18px var(--font-sans);
-    color: #ffffff;
-  }
-
-  .grip {
-    position: absolute;
-    left: -22px;
-    top: 12px;
-    display: grid;
-    place-items: center;
-    color: var(--b-control);
-  }
-
-  .blockLabel {
-    display: block;
-    font: 500 13px/1.4 var(--font-sans);
-    color: var(--b-ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .required {
-    color: var(--b-danger);
-  }
-
-  .blockHeading {
-    display: block;
-    font: 600 15px/1.3 var(--font-sans);
-    letter-spacing: -0.012em;
-    color: var(--b-ink);
-  }
-
-  .blockText {
-    display: block;
-    font: 400 13px/1.5 var(--font-sans);
-    color: var(--b-body);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .blockPlaceholder {
-    color: var(--b-meta);
-  }
-
-  .token {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    height: 20px;
-    padding: 0 7px;
-    border-radius: 6px;
-    background: var(--b-tint);
-    font: 500 12px/1 var(--b-mono);
-    color: var(--b-on-tint);
-  }
-
-  .control {
-    display: block;
-    margin-top: 6px;
-  }
 
   /* A drawing of the control, not the control: the canvas is a picture of the
      document and a live input here would collect answers nobody asked for. */
-  .controlBox {
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    width: 100%;
-    height: 36px;
-    padding: 0 12px;
-    border: 1px solid var(--b-control);
-    border-radius: 8px;
-    background: var(--b-page);
-    font: 400 13px/1.5 var(--font-sans);
-    color: var(--b-body);
-  }
-
-  .controlMono {
-    font-family: var(--b-mono);
-  }
-
-  .controlArea {
-    box-sizing: border-box;
-    display: block;
-    height: 64px;
-    padding: 9px 12px;
-    border: 1px solid var(--b-control);
-    border-radius: 8px;
-    background: var(--b-page);
-    font: 400 13px/1.5 var(--font-sans);
-    color: var(--b-meta);
-  }
-
-  .controlChevron {
-    margin-left: auto;
-    width: 12px;
-    height: 12px;
-    flex-shrink: 0;
-    color: var(--b-label);
-  }
-
-  .controlSign {
-    display: block;
-    margin-top: 8px;
-    height: 52px;
-    border: 1px dashed var(--b-control);
-    border-radius: 8px;
-    background: var(--b-ground);
-  }
-
-  .controlRule {
-    display: block;
-    height: 1px;
-    background: var(--b-rule);
-  }
-
-  .hint {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 7px;
-    font: 500 11px/1.5 var(--b-mono);
-    font-variant-numeric: tabular-nums;
-    color: var(--b-meta);
-  }
 
   /* ------------------------------------------------------------------ *
    * Between two blocks
    * ------------------------------------------------------------------ */
-
-  .insert {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 16px;
-  }
 
   /* The affordance for inserting above the first block sits inside the page's
      own top padding rather than adding a row to it — the board draws the first
@@ -628,133 +378,12 @@
     margin-top: -16px;
   }
 
-  .insertLine {
-    position: absolute;
-    inset-inline: 0;
-    height: 1px;
-    background: var(--b-rule-soft);
-    opacity: 0;
-    transition: opacity var(--dur-fast, 0.14s);
-  }
-
-  .insertButton {
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    border: 1px dashed var(--b-control);
-    border-radius: 9999px;
-    background: var(--b-page);
-    color: var(--b-faint);
-    opacity: 0;
-    transition: opacity var(--dur-fast, 0.14s);
-    cursor: pointer;
-  }
-
-  .insertButton svg {
-    width: 12px;
-    height: 12px;
-  }
-
   .insert:hover .insertLine,
   .insert:hover .insertButton,
-  .insertButton:focus-visible {
-    opacity: 1;
-  }
-
-  .insertButton:hover {
-    border-color: var(--b-primary);
-    color: var(--b-primary);
-  }
-
-  .insertButton:focus-visible {
-    outline: none;
-    border-style: solid;
-    border-color: var(--b-primary);
-    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
-  }
-
-  @media (pointer: coarse) {
-    .insertLine,
-    .insertButton {
-      opacity: 1;
-    }
-  }
 
   /* ------------------------------------------------------------------ *
    * The inspector
    * ------------------------------------------------------------------ */
-
-  .inspector {
-    width: 308px;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    padding: 18px 18px 24px;
-    border-left: 1px solid var(--b-rule);
-    overflow-y: auto;
-  }
-
-  .inspectorHead {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 18px;
-  }
-
-  .inspectorTile {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
-    border-radius: 7px;
-    background: var(--b-tint);
-    color: var(--b-on-tint);
-  }
-
-  .inspectorTile svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .inspectorTitle {
-    margin: 0;
-    flex-grow: 1;
-    min-width: 0;
-    font: 600 13px/1.4 var(--font-sans);
-    color: var(--b-ink);
-  }
-
-  .inspectorDelete {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    border: 1px solid transparent;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--b-label);
-    cursor: pointer;
-  }
-
-  .inspectorDelete svg {
-    width: 15px;
-    height: 15px;
-  }
-
-  .inspectorDelete:hover {
-    background: var(--tone-danger-bg, #f6e2dd);
-    color: var(--tone-danger-strong, #7a2419);
-  }
-
-  .inspectorDelete:focus-visible {
-    outline: none;
-    border-color: var(--b-primary);
-    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
-  }
 
   .field {
     display: grid;
@@ -795,58 +424,6 @@
     color: var(--b-ink);
   }
 
-  .group {
-    margin: 20px 0 10px;
-    font: 600 15px/1.35 var(--font-sans);
-    color: var(--b-ink);
-  }
-
-  .choices {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 0 0 12px;
-    padding: 0;
-    list-style: none;
-  }
-
-  .choiceRow {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .choiceGrip {
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    color: var(--b-control);
-  }
-
-  .choiceRemove {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    border: 1px solid transparent;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--b-faint);
-    cursor: pointer;
-  }
-
-  .choiceRemove svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .choiceRemove:hover {
-    background: var(--b-tile);
-    color: var(--b-label);
-  }
-
   .empty {
     margin: 0;
     font: 400 13px/1.5 var(--font-sans);
@@ -856,20 +433,6 @@
   /* ------------------------------------------------------------------ *
    * Problems — what stops a template being published
    * ------------------------------------------------------------------ */
-
-  .problems {
-    margin: 0 0 14px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    background: var(--b-warn-bg);
-    color: var(--b-warn-fg);
-    font: 400 12px/1.45 var(--font-sans);
-    list-style: none;
-  }
-
-  .problems li + li {
-    margin-top: 4px;
-  }
 
   /* ------------------------------------------------------------------ *
    * The preview — the same renderer the reader gets
@@ -1117,53 +680,15 @@
 
   /* The public link, as a button that copies it. It has to truncate: a
      token is long and the inspector is 308px. */
-  .linkBtn {
-    max-width: 100%;
-    overflow: hidden;
-  }
-
-  .linkBtnText {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--b-mono);
-  }
 
   /* A checkbox is drawn as its box alone — there is no value to show. */
-  .controlCheck {
-    width: 36px;
-    padding: 0;
-  }
-
-  .paletteLabel {
-    flex-grow: 1;
-  }
 
   /* The problems banner sits over the page, so it shares the page's width
      rather than the canvas's. */
-  .bannerWrap {
-    max-width: 560px;
-    margin: 0 auto;
-  }
 
   /* Rule 6 of the list rules does not apply to a blank page: there is no
      column to name, so the panel is the verb and nothing else. */
-  .blank {
-    padding: 24px 0;
-    text-align: center;
-  }
-
-  .starters {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 14px;
-  }
 
   /* A rule under a block's own label, rather than between two blocks. */
-  .ruleGap {
-    margin-top: 8px;
-  }
+
 }

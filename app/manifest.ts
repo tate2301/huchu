@@ -28,23 +28,23 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
       {
         src: buildWorkspaceIconHref(identity, { size: 192 }),
         sizes: "192x192",
-        type: "image/svg+xml",
+        type: "image/png",
       },
       {
         src: buildWorkspaceIconHref(identity, { size: 512 }),
         sizes: "512x512",
-        type: "image/svg+xml",
+        type: "image/png",
       },
       {
         src: buildWorkspaceIconHref(identity, { size: 192, purpose: "maskable" }),
         sizes: "192x192",
-        type: "image/svg+xml",
+        type: "image/png",
         purpose: "maskable",
       },
       {
         src: buildWorkspaceIconHref(identity, { size: 512, purpose: "maskable" }),
         sizes: "512x512",
-        type: "image/svg+xml",
+        type: "image/png",
         purpose: "maskable",
       },
     ],

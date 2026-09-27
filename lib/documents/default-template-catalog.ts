@@ -56,7 +56,7 @@ function reportTemplate(documentTitle: string): DocumentTemplateSchema {
   return mergeSchema({
     page: {
       orientation: "landscape",
-      marginMm: 8,
+      marginMm: 15,
     },
     table: {
       compact: true,
@@ -78,7 +78,7 @@ function recordTemplate(documentTitle: string): DocumentTemplateSchema {
   return mergeSchema({
     page: {
       orientation: "portrait",
-      marginMm: 10,
+      marginMm: 20,
     },
     table: {
       compact: false,
@@ -110,7 +110,7 @@ function letterTemplate(documentTitle: string): DocumentTemplateSchema {
   return mergeSchema({
     page: {
       orientation: "portrait",
-      marginMm: 10,
+      marginMm: 20,
     },
     table: {
       compact: false,
@@ -165,7 +165,7 @@ export const DEFAULT_TEMPLATE_CATALOG: DefaultTemplateCatalogEntry[] = [
     schema: mergeSchema({
       page: {
         orientation: "portrait",
-        marginMm: 10,
+        marginMm: 20,
       },
       table: {
         compact: true,

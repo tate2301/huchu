@@ -13,19 +13,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClientDate } from "@/components/ui/client-date";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
-  BLOCKS_FOR_KIND,
   TEMPLATE_KINDS,
   TEMPLATE_KIND_LABELS,
+  blockFields,
   templateProblems,
   type Block,
   type TemplateKind,
 } from "@/lib/crm/blocks";
 import { sampleValues, unknownVariables } from "@/lib/crm/template-variables";
-import { ArrowLeft, Check, DotsThree, Eye, Info, Pencil } from "@/lib/icons";
+import { ArrowLeft, Check, DotsThree, Eye, Info, Pencil, SlidersHorizontal } from "@/lib/icons";
 
 import { BlockEditor } from "./block-editor";
 import { BlockRenderer } from "./block-renderer";
@@ -102,6 +103,12 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
   }
 
   const kind = loaded?.kind ?? "FORM";
+
+  // Questions already published keep their keys: answers are stored under them.
+  const savedKeys = useMemo(
+    () => new Set(blockFields(loaded?.blocks ?? []).map((field) => field.key)),
+    [loaded?.blocks],
+  );
 
   const problems = useMemo(() => templateProblems(kind, blocks), [kind, blocks]);
   const typos = useMemo(() => {
@@ -266,14 +273,51 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
           {view === "preview" ? "Edit blocks" : "Preview"}
         </button>
 
-        <button
-          type="button"
-          className={`${styles.btn} ${styles.btnPrimary}`}
-          disabled={save.isPending || problems.length > 0}
-          onClick={() => save.mutate()}
-        >
-          {save.isPending ? "Saving…" : "Publish"}
-        </button>
+        {/* Hidden rather than disabled while something is wrong: the page
+            lists what, in amber, under the last block. */}
+        {problems.length === 0 ? (
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            disabled={save.isPending}
+            onClick={() => save.mutate()}
+          >
+            {save.isPending ? "Saving…" : "Publish"}
+          </button>
+        ) : null}
+
+        {/* The template's own properties — who can use it, whether it is in
+            use — had the inspector's empty state to themselves. There is no
+            inspector now; they sit one click away from the title instead. */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" aria-label="Settings" className={styles.iconBtn}>
+              <SlidersHorizontal aria-hidden="true" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 p-3">
+            <div className={styles.field}>
+              <span className={styles.propLabel}>Used for</span>
+              <span className={styles.propValue}>{TEMPLATE_KIND_LABELS[kind]}</span>
+            </div>
+            <div className={styles.switchRow}>
+              <span className={styles.switchLabel}>The whole team can use it</span>
+              <Switch
+                checked={isShared}
+                onChange={(event) => setIsShared(event.target.checked)}
+                aria-label="The whole team can use it"
+              />
+            </div>
+            <div className={styles.switchRow}>
+              <span className={styles.switchLabel}>In use</span>
+              <Switch
+                checked={isActive}
+                onChange={(event) => setIsActive(event.target.checked)}
+                aria-label="In use"
+              />
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -387,67 +431,13 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
           kind={kind}
           blocks={blocks}
           onChange={setBlocks}
-          banner={
-            problems.length > 0 || typos.length > 0 ? (
-              <ul className={styles.problems}>
-                {problems.map((problem) => (
-                  <li key={problem}>{problem}</li>
-                ))}
-                {typos.length > 0 ? (
-                  <li>
-                    {`${typos.map((entry) => `{{${entry}}}`).join(", ")} — nothing fills these`}
-                  </li>
-                ) : null}
-              </ul>
-            ) : null
-          }
-          properties={
-            <>
-              {/* Rule 4: the kind is a fact about the record, not a chip on
-                  its title — so it is stated once, here, where the rest of
-                  the record's properties are. */}
-              <div className={styles.field}>
-                <span className={styles.propLabel}>Used for</span>
-                <span className={styles.propValue}>
-                  {`${TEMPLATE_KIND_LABELS[kind]} · ${BLOCKS_FOR_KIND[kind].length} blocks`}
-                </span>
-              </div>
-
-              <div className={styles.switchRow}>
-                <span className={styles.switchLabel}>The whole team can use it</span>
-                <Switch
-                  checked={isShared}
-                  onChange={(event) => setIsShared(event.target.checked)}
-                  aria-label="The whole team can use it"
-                />
-              </div>
-
-              <div className={styles.switchRow}>
-                <span className={styles.switchLabel}>In use</span>
-                <Switch
-                  checked={isActive}
-                  onChange={(event) => setIsActive(event.target.checked)}
-                  aria-label="In use"
-                />
-              </div>
-
-              {publicUrl ? (
-                <>
-                  <h3 className={styles.group}>Public link</h3>
-                  <button
-                    type="button"
-                    className={`${styles.btn} ${styles.linkBtn}`}
-                    onClick={() => {
-                      void navigator.clipboard?.writeText(publicUrl);
-                      toast({ title: "Link copied" });
-                    }}
-                  >
-                    <span className={styles.linkBtnText}>{publicUrl}</span>
-                  </button>
-                </>
-              ) : null}
-            </>
-          }
+          lockedKeys={savedKeys}
+          problems={[
+            ...problems,
+            ...(typos.length > 0
+              ? [`${typos.map((entry) => `{{${entry}}}`).join(", ")} — nothing fills these`]
+              : []),
+          ]}
         />
       )}
     </div>

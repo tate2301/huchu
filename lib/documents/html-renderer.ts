@@ -541,6 +541,10 @@ export function renderDocumentHtml(input: {
       --rule: #e4e4e7;
     }
     body { margin: 0; color: var(--ink); font-family: ${fontFamily}; font-size: 11px; line-height: 1.55; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-feature-settings: "kern", "liga"; }
+    /* @page only takes effect when printing, so a preview on screen ran the
+       text to the sheet's edge. The same margin as padding on screen makes the
+       preview the page that prints; in print @page supplies it instead. */
+    @media screen { body { padding: ${margin}mm; } }
     .mono { font-family: ${monoFontFamily}; font-size: 0.95em; font-variant-numeric: tabular-nums; }
     .muted { color: var(--ink-muted); }
 
