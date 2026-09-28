@@ -23,6 +23,7 @@
  */
 
 import type { AuthSessionClaims } from "@/lib/auth-core/types";
+import { registerServiceWorker } from "@/lib/offline/service-worker-registration";
 import {
   checkOfflineEligibility,
   canEnableOffline,
@@ -192,69 +193,67 @@ export async function initOffline(
     // ── Phase 2: Register Service Worker ─────────────────────────────
     reportProgress(onProgress, "registering_sw", "Registering offline service worker...");
 
-    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-      try {
-        const registration = await navigator.serviceWorker.register("/sw.js", {
-          scope: "/",
-          updateViaCache: "imports",
-        });
+    const registration = await registerServiceWorker({
+      updateViaCache: "imports",
+    }).catch((swError) => {
+      console.warn("[initOffline] Service Worker registration failed:", swError);
+      // Continue without SW — app will still work with degraded sync
+      return null;
+    });
 
-        // Handle updates
-        registration.addEventListener("updatefound", () => {
-          const newWorker = registration.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener("statechange", () => {
-            if (
-              newWorker.state === "installed" &&
-              navigator.serviceWorker.controller
-            ) {
-              window.dispatchEvent(
-                new CustomEvent("huchu:sw-update-available"),
-              );
-            }
-          });
-        });
-
-        // Listen for SW messages
-        navigator.serviceWorker.addEventListener("message", (event) => {
-          switch (event.data?.type) {
-            case "BACKGROUND_SYNC_TRIGGERED":
-              window.dispatchEvent(
-                new CustomEvent("huchu:bg-sync-ready"),
-              );
-              break;
-            case "PROACTIVE_SYNC_TRIGGERED":
-              window.dispatchEvent(
-                new CustomEvent("huchu:proactive-sync-ready"),
-              );
-              break;
-            case "CATALOG_REFRESHED":
-              window.dispatchEvent(
-                new CustomEvent("huchu:invalidate-query", {
-                  detail: { url: event.data.url },
-                }),
-              );
-              break;
+    if (registration) {
+      // Handle updates
+      registration.addEventListener("updatefound", () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          if (
+            newWorker.state === "installed" &&
+            navigator.serviceWorker.controller
+          ) {
+            window.dispatchEvent(
+              new CustomEvent("huchu:sw-update-available"),
+            );
           }
         });
+      });
 
-        // Request background sync registration
-        if ("sync" in registration) {
-          try {
-            // Background Sync is not in `lib.dom`, so the shape is declared
-            // rather than cast away — `sync.register` is all this needs and
-            // all it should be able to reach.
-            const { sync } = registration as unknown as {
-              sync: { register(tag: string): Promise<void> };
-            };
-            await sync.register("huchu-outbox-sync");
-          } catch {
-            // Graceful degradation — will use online event fallback
-          }
+      // Listen for SW messages
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        switch (event.data?.type) {
+          case "BACKGROUND_SYNC_TRIGGERED":
+            window.dispatchEvent(
+              new CustomEvent("huchu:bg-sync-ready"),
+            );
+            break;
+          case "PROACTIVE_SYNC_TRIGGERED":
+            window.dispatchEvent(
+              new CustomEvent("huchu:proactive-sync-ready"),
+            );
+            break;
+          case "CATALOG_REFRESHED":
+            window.dispatchEvent(
+              new CustomEvent("huchu:invalidate-query", {
+                detail: { url: event.data.url },
+              }),
+            );
+            break;
         }
-      } catch (swError) {
-        console.warn("[initOffline] Service Worker registration failed:", swError);
-        // Continue without SW — app will still work with degraded sync
+      });
+
+      // Request background sync registration
+      if ("sync" in registration) {
+        try {
+          // Background Sync is not in `lib.dom`, so the shape is declared
+          // rather than cast away — `sync.register` is all this needs and
+          // all it should be able to reach.
+          const { sync } = registration as unknown as {
+            sync: { register(tag: string): Promise<void> };
+          };
+          await sync.register("huchu-outbox-sync");
+        } catch {
+          // Graceful degradation — will use online event fallback
+        }
       }
     }
 

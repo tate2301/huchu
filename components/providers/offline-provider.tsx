@@ -63,6 +63,10 @@ import {
   getRouteOfflineMutationPolicy,
 } from "@/lib/offline/workflow-catalog";
 import { hasOfflineFeature, setOfflineEntitlements } from "@/lib/offline/entitlement";
+import {
+  getReadyServiceWorker,
+  registerServiceWorker,
+} from "@/lib/offline/service-worker-registration";
 import type {
   OfflineBootstrapProgress,
   OfflineLifecycleState,
@@ -380,14 +384,8 @@ function needsBootstrapWork(
   return !progress.preparedRoutes.some((candidate) => routeMatches(pathname, candidate));
 }
 
-async function registerServiceWorker() {
-  if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
-  return navigator.serviceWorker.register("/sw.js", { scope: "/" });
-}
-
 async function requestBackgroundSync() {
-  if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-  const registration = await navigator.serviceWorker.ready.catch(() => null);
+  const registration = await getReadyServiceWorker();
   const syncRegistration = registration as
     | (ServiceWorkerRegistration & {
         sync?: { register: (tag: string) => Promise<void> };
@@ -402,8 +400,7 @@ async function requestBackgroundSync() {
 }
 
 async function postServiceWorkerMessage(message: Record<string, unknown>) {
-  if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-  const registration = await navigator.serviceWorker.ready.catch(() => null);
+  const registration = await getReadyServiceWorker();
   const worker =
     registration?.active ?? registration?.waiting ?? registration?.installing ?? null;
   worker?.postMessage(message);
