@@ -99,20 +99,50 @@ export function isUnkeptPathname(pathname: string) {
   );
 }
 
+/*
+  Best effort, both ways. `idb-keyval` throws synchronously where IndexedDB
+  does not exist at all, which a `.catch()` on its promise never sees, and a
+  browser with storage blocked rejects instead. Neither may break the runtime:
+  losing "last synced" is a worse display, not a broken till.
+*/
 async function readMeta(): Promise<OfflineMeta> {
-  const stored = await get<OfflineMeta>(META_KEY).catch(() => undefined);
+  let stored: OfflineMeta | undefined;
+  try {
+    stored = await get<OfflineMeta>(META_KEY);
+  } catch {
+    stored = undefined;
+  }
   return { lastOnlineAt: stored?.lastOnlineAt ?? null, lastSyncedAt: stored?.lastSyncedAt ?? {} };
 }
 
 async function writeMeta(patch: (current: OfflineMeta) => OfflineMeta) {
   const next = patch(await readMeta());
-  await set(META_KEY, next).catch(() => undefined);
+  try {
+    await set(META_KEY, next);
+  } catch {
+    // See above.
+  }
   return next;
 }
 
-function markOnlineNow() {
+/** How often a stream of successful requests rewrites "last online". */
+const SERVER_CONTACT_WRITE_INTERVAL_MS = 30_000;
+let lastContactWrite = 0;
+
+/**
+ * The server just answered.
+ *
+ * "Last online" means exactly that, not `navigator.onLine`: a browser on a
+ * network whose server is down reports itself online, and the offline
+ * fallback page used to say "last connected" a few seconds ago on the very
+ * screen that exists because the connection failed.
+ */
+function markServerContact() {
   const at = nowIso();
-  updateOfflineSnapshot({ online: true, lastOnlineAt: at });
+  updateOfflineSnapshot({ lastOnlineAt: at });
+  const now = Date.now();
+  if (now - lastContactWrite < SERVER_CONTACT_WRITE_INTERVAL_MS) return;
+  lastContactWrite = now;
   void writeMeta((meta) => ({ ...meta, lastOnlineAt: at }));
 }
 
@@ -168,10 +198,11 @@ export function syncOfflineQueue(options?: { force?: boolean }): Promise<void> {
       }
       const at = nowIso();
       await writeMeta((meta) => ({
-        lastOnlineAt: at,
+        ...meta,
         lastSyncedAt: { ...meta.lastSyncedAt, [tenantKey]: at },
       }));
-      updateOfflineSnapshot({ lastSyncedAt: at, lastOnlineAt: at, lastSyncError: null });
+      markServerContact();
+      updateOfflineSnapshot({ lastSyncedAt: at, lastSyncError: null });
     } catch (error) {
       updateOfflineSnapshot({ lastSyncError: errorMessage(error) });
     } finally {
@@ -443,16 +474,15 @@ async function registerWorker() {
  * Start listening. Returns the cleanup; safe to call once per page load.
  */
 export function startOfflineRuntime() {
-  const online = navigator.onLine !== false;
-  updateOfflineSnapshot({ online });
+  updateOfflineSnapshot({ online: navigator.onLine !== false });
   void readMeta().then((meta) => {
-    if (online) markOnlineNow();
-    else updateOfflineSnapshot({ lastOnlineAt: meta.lastOnlineAt });
+    // Only if nothing newer has landed while IndexedDB was being read.
+    if (!getOfflineSnapshot().lastOnlineAt) updateOfflineSnapshot({ lastOnlineAt: meta.lastOnlineAt });
   });
   void registerWorker();
 
   const onOnline = () => {
-    markOnlineNow();
+    updateOfflineSnapshot({ online: true });
     void syncOfflineQueue({ force: true });
     void warmOfflineScope();
     void refreshOfflineBundleStatus();
@@ -506,10 +536,18 @@ export function startOfflineRuntime() {
   };
 }
 
-/** Keep the data count in the panel honest as queries land. */
+/**
+ * Keep the data count in the panel honest as queries land, and note each
+ * time the server answers one.
+ */
 export function watchPersistedQueries(queryClient: QueryClient) {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+  const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+    // A fetch that succeeded is the server answering. Restoring persisted
+    // results is a `setState`, not a `success`, so it does not count.
+    if (event.type === "updated" && event.action.type === "success" && !event.action.manual) {
+      markServerContact();
+    }
     if (timer) return;
     timer = setTimeout(() => {
       timer = null;
