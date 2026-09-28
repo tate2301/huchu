@@ -33,12 +33,13 @@ export type RegisterGroup = { id: string; label: string; count: number; ids: str
 export type BoardLane = { id: string; name: string; status: string; position: number; colorToken: string | null };
 
 /**
- * One pipeline as a board: a column per stage, each with the first cards in
- * the list's order and the count and value of every card it holds — not only
- * the ones drawn — so a column's header stays honest past its last card.
+ * A list as a board: a column per stage, each with the first cards in the
+ * list's order and the count and value of every card it holds — not only the
+ * ones drawn — so a column's header stays honest past its last card. Deals
+ * are one pipeline's stages; leads have one fixed set, and no pipeline.
  */
 export type RegisterBoard<Row> = {
-  pipeline: { id: string; name: string };
+  pipeline: { id: string; name: string } | null;
   columns: Array<{ stage: BoardLane; count: number; totalValue: number; hasMore: boolean; cards: Row[] }>;
   cardsPerColumn: number;
 };

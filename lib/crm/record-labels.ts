@@ -46,6 +46,29 @@ export const FORECAST_OPTIONS = [
   { value: "CLOSED", label: "Closed" },
 ] as const satisfies readonly FilterOption[];
 
+/** A lead's stages, in the order the work runs. */
+export const LEAD_STAGE_OPTIONS = [
+  { value: "NEW", label: "New" },
+  { value: "CONTACTED", label: "Contacted" },
+  { value: "QUALIFIED", label: "Qualified" },
+  { value: "SITE_VISIT", label: "Site Visit" },
+  { value: "QUOTED", label: "Quoted" },
+  { value: "INVOICED", label: "Invoiced" },
+  { value: "WON", label: "Won" },
+  { value: "LOST", label: "Lost" },
+] as const satisfies readonly FilterOption[];
+
+/** How a lead arrived. The same words as lead sources and insights. */
+export const LEAD_CHANNEL_OPTIONS = [
+  { value: "MANUAL", label: "Rep entered" },
+  { value: "WEB_FORM", label: "Web form" },
+  { value: "WEBHOOK", label: "Integration" },
+  { value: "SOCIAL", label: "Social media" },
+  { value: "ADS", label: "Paid ads" },
+  { value: "REFERRAL", label: "Referral" },
+  { value: "OTHER", label: "Other" },
+] as const satisfies readonly FilterOption[];
+
 export const PREFERRED_CHANNEL_OPTIONS = [
   { value: "PHONE", label: "Phone" },
   { value: "EMAIL", label: "Email" },

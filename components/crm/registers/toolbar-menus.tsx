@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -31,80 +30,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  ArrowDownward,
-  ArrowUpward,
-  ChevronDown,
-  Columns,
-  GripVertical,
-  Layers,
-  RotateCcw,
-  Rows,
-  SortAscending,
-} from "@/lib/icons";
+import { ArrowDownward, ArrowUpward, Columns, GripVertical, Rows, SortAscending } from "@/lib/icons";
 import type { ColumnDef } from "@/lib/crm/registers/types";
 import { cn } from "@/lib/utils";
 
 import type { RegisterHandle } from "./use-register";
-
-/**
- * Which view the list is showing, and the others it could show.
- *
- * The trigger names the view and says when the list has wandered from it —
- * "Modified" — because a list that quietly differs from what its name says
- * is how somebody exports the wrong records.
- */
-export function ViewsMenu({ register }: { register: RegisterHandle }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="max-w-[14rem] shrink-0 gap-1.5 max-sm:w-full max-sm:max-w-none max-sm:justify-start"
-        >
-          <Layers className="size-4 shrink-0" aria-hidden="true" />
-          <span className="truncate font-semibold text-[var(--text-strong)]">{register.view.name}</span>
-          {register.dirty ? (
-            // A dot, and the word for a screen reader: the list has wandered
-            // from the view its name promises.
-            <span className="flex shrink-0 items-center" title="Changed from the saved view">
-              <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--tone-warn)]" />
-              <span className="sr-only">, modified</span>
-            </span>
-          ) : null}
-          <ChevronDown className="size-3 shrink-0 text-[var(--text-subtle)] max-sm:ml-auto" aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuLabel>Views</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={register.dirty ? "" : register.view.key}
-          onValueChange={(key) => {
-            const view = register.views.find((candidate) => candidate.key === key);
-            if (view) register.applyView(view);
-          }}
-        >
-          {register.views.map((view) => (
-            <DropdownMenuRadioItem key={view.key} value={view.key}>
-              {view.name}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        {register.dirty ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => register.resetView()}>
-              <RotateCcw className="size-4" aria-hidden="true" />
-              Back to “{register.view.name}”
-            </DropdownMenuItem>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 /** How the rows are ordered: one key, one direction. */
 export function SortMenu({ register }: { register: RegisterHandle }) {

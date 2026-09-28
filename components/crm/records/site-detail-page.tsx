@@ -24,7 +24,7 @@ import {
   User,
 } from "@/lib/icons";
 import { resolveNextStep } from "@/lib/crm/tones";
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
@@ -118,7 +118,7 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
   // so opening the sheet costs nothing the page has not already paid.
   const teamQuery = useQuery({
     queryKey: ["crm", "team"],
-    queryFn: () => fetchJson<{ data: LeadFilterOwner[] }>("/api/v2/crm/team"),
+    queryFn: () => fetchJson<{ data: CrmLeadOwner[] }>("/api/v2/crm/team"),
   });
 
   const owners = teamQuery.data?.data ?? [];

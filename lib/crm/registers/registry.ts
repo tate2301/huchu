@@ -6,11 +6,13 @@
  */
 import { COMPANY_REGISTER } from "./defs/company";
 import { DEAL_REGISTER } from "./defs/deal";
+import { LEAD_REGISTER } from "./defs/lead";
 import { PERSON_REGISTER } from "./defs/person";
 import { SITE_REGISTER } from "./defs/site";
 import type { RegisterDef, RegisterKey } from "./types";
 
 export const REGISTERS = {
+  LEAD: LEAD_REGISTER,
   DEAL: DEAL_REGISTER,
   PERSON: PERSON_REGISTER,
   COMPANY: COMPANY_REGISTER,

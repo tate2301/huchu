@@ -250,6 +250,10 @@ export type RegisterDef = {
   bulk: readonly BulkActionKey[];
   /** `status` bulk action: the answers, when the register has one. */
   statusOptions?: readonly FilterOption[];
+  /** What the `status` action is called on this list — a lead's is its stage. */
+  statusLabel?: string;
+  /** `status` answers that ask why before they are given — a lead marked lost. */
+  statusNeedsReason?: readonly string[];
   /**
    * Which kind of record this list holds, when its records can be put in
    * groups (a `CrmList` holds one kind) and carry the company's custom fields.

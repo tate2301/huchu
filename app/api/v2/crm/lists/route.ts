@@ -3,12 +3,12 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { VIEW_ENTITY_KEYS } from "@/lib/crm/views-registry";
+import { GROUP_ENTITIES } from "@/lib/crm/groups";
 import { existingRecordIds } from "@/lib/crm/lists";
 import { hasCrmFullAccess } from "@/lib/crm/scope";
 
 const createListSchema = z.object({
-  entity: z.enum(VIEW_ENTITY_KEYS),
+  entity: z.enum(GROUP_ENTITIES),
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500).nullable().optional(),
   isShared: z.boolean().optional(),
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const requested = searchParams.get("entity");
-    const entity = VIEW_ENTITY_KEYS.find((value) => value === requested);
+    const entity = GROUP_ENTITIES.find((value) => value === requested);
     // Asked from a record's page: which of these groups already hold it.
     const recordId = z.string().uuid().safeParse(searchParams.get("recordId")).data ?? null;
 

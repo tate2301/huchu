@@ -5,11 +5,12 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { Kanban, ListBullets, Plus } from "@/lib/icons";
+import { Plus } from "@/lib/icons";
 import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/collections-client";
 import { groupHref } from "@/lib/crm/groups";
+import { registerHref } from "@/lib/crm/registers/href";
+import { isEngineRegisterKey } from "@/lib/crm/registers/registry";
 import { orderRows } from "@/lib/rail/order";
-import { cn } from "@/lib/utils";
 
 import { SidebarCollection, type SidebarCollectionEntry } from "./sidebar-collection";
 
@@ -20,6 +21,7 @@ const NewGroupDialog = dynamic(
   { ssr: false },
 );
 
+/** What kind of record a group holds, or a saved view lists. */
 const ENTITY_EMOJI: Record<string, string> = {
   LEAD: "✨",
   DEAL: "📈",
@@ -29,37 +31,14 @@ const ENTITY_EMOJI: Record<string, string> = {
   WORK_ORDER: "🛠️",
 };
 
-/** The list's home page, chosen by what kind of record it holds. */
-const ENTITY_HOME: Record<string, string> = {
-  LEAD: "/crm/leads",
-  DEAL: "/crm/deals",
-  PERSON: "/crm/people",
-  COMPANY: "/crm/companies",
-  SITE: "/crm/sites",
-};
-
-function LayoutMark({ layout }: { layout: "TABLE" | "BOARD" }) {
-  const Icon = layout === "BOARD" ? Kanban : ListBullets;
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "inline-flex size-4 items-center justify-center rounded-[var(--radius-sm)] text-white",
-        layout === "BOARD" ? "bg-[var(--tone-danger)]" : "bg-[var(--tone-success)]",
-      )}
-    >
-      <Icon className="size-3" />
-    </span>
-  );
-}
-
 /**
  * The user's own shelves in the sidebar: the views they have saved and the
  * groups they have built.
  *
  * These sit below the product's own navigation rather than inside it, because
  * they are not part of the app's structure — they are what this particular
- * person keeps to hand. Pinned views hide themselves when there are none.
+ * person keeps to hand. Saved views hide themselves when there are none: one
+ * is made from a list's Views menu, where the list it keeps is on screen.
  * Groups do not: with none yet the band is where a first one is made, and a
  * feature that only appears once it has been used is one nobody finds.
  *
@@ -89,16 +68,21 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
 
   if (!inCrm) return null;
 
-  const activeViewId = searchParams.get("savedView");
-  const views: SidebarCollectionEntry[] = orderRows(viewsQuery.data?.data ?? [], {
-    label: (view) => view.name,
-  }).map((view) => ({
+  // Each view opens on its own list, as it was saved.
+  const saved = orderRows(viewsQuery.data?.data ?? [], { label: (view) => view.name }).flatMap((view) =>
+    isEngineRegisterKey(view.register) ? [{ ...view, href: registerHref(view.register, {}, { view: view.id }) }] : [],
+  );
+  const views: SidebarCollectionEntry[] = saved.map((view) => ({
     id: view.id,
-    href: `/crm/leads?savedView=${view.id}`,
+    href: view.href,
     label: view.name,
-    mark: <LayoutMark layout={view.viewType} />,
+    mark: <span aria-hidden="true">{ENTITY_EMOJI[view.register] ?? "📋"}</span>,
     meta: view.isShared ? "shared" : undefined,
   }));
+  // The view being looked at: its list, naming it — changed since or not.
+  const activeView = saved.find(
+    (view) => view.href.split("?")[0] === pathname && searchParams.get("view") === view.id,
+  );
 
   const groups = orderRows(listsQuery.data?.data ?? [], { label: (group) => group.name });
   const lists: SidebarCollectionEntry[] = groups.map((group) => ({
@@ -119,13 +103,10 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
   return (
     <>
       <SidebarCollection
-        label="Pinned views"
+        label="Saved views"
         entries={views}
         isCollapsed={isCollapsed}
-        // A view is identified by its id in the query string, not by the path
-        // — every one of them lives at /crm/leads. `savedView`, not `view`,
-        // because `view` already says table or board.
-        activeHref={activeViewId ? `/crm/leads?savedView=${activeViewId}` : null}
+        activeHref={activeView?.href ?? null}
       />
 
       <SidebarCollection
@@ -159,5 +140,3 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
     </>
   );
 }
-
-export { ENTITY_HOME };

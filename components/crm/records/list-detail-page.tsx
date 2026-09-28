@@ -1,32 +1,26 @@
 "use client";
 
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ListBullets } from "@/lib/icons";
-import { fetchCrmLeads, fetchCrmList } from "@/lib/crm/crm-v2";
+import { fetchCrmList } from "@/lib/crm/crm-v2";
 
 import { RecordList, type RecordListRow } from "@/components/records/record-list";
-import { RecordMark, type RecordKind } from "@/components/records/record-mark";
+import { RecordMark } from "@/components/records/record-mark";
+import { jobHref, type JobRow } from "@/components/crm/work-orders/job-types";
 
 /**
- * What each entity's list rows look like, and where a row goes.
+ * A group of jobs.
  *
- * One page serves every kind of list because a list is the same idea whatever
- * it holds — a set of records somebody put together by hand. Only the row
- * differs, so only the row is per-entity.
+ * Every other kind of group opens as its own list narrowed to the group
+ * (`groupHref`), where it can be searched, sorted and exported. Jobs are not
+ * on the list engine yet, so their groups are drawn here, from the jobs
+ * endpoint's own `group` narrowing.
  */
-const ENTITY: Record<
-  string,
-  { label: string; kind: RecordKind; href: (id: string) => string }
-> = {
-  LEAD: { label: "Leads", kind: "lead", href: (id) => `/crm/leads/${id}` },
-};
-
 export function ListDetailPage({ listId }: { listId: string }) {
   const listQuery = useQuery({
     queryKey: ["crm", "list", listId],
@@ -34,49 +28,21 @@ export function ListDetailPage({ listId }: { listId: string }) {
   });
 
   const list = listQuery.data;
-  const entity = list ? ENTITY[list.entity] : undefined;
 
-  // The group stores plain record ids, so the records themselves come from
-  // the leads they are. Fetched once and filtered here rather than one
-  // request per member, which for a group of two hundred would be two hundred
-  // round trips.
-  const recordsQuery = useQuery({
-    queryKey: ["crm", "list-records", list?.entity, listId],
-    enabled: list?.entity === "LEAD",
-    queryFn: async () =>
-      (await fetchCrmLeads({ page: 1, limit: 100 })).data.map((lead) => ({
-        id: lead.id,
-        title: lead.title ?? lead.contactName ?? lead.leadNo,
-        subtitle: [lead.leadNo, lead.client?.name].filter(Boolean).join(" · "),
-        emoji: null as string | null,
-        avatarUrl: null as string | null,
-      })),
+  const jobsQuery = useQuery({
+    queryKey: ["crm", "jobs", "group", listId],
+    enabled: list?.entity === "WORK_ORDER",
+    queryFn: () =>
+      fetchJson<{ data: JobRow[] }>(`/api/v2/crm/work-orders?group=${listId}&limit=100`),
   });
 
-  const rows = useMemo<RecordListRow[]>(() => {
-    if (!list || !entity || !recordsQuery.data) return [];
-    const byId = new Map(recordsQuery.data.map((record) => [record.id, record]));
-    // Membership order is the list's own order — most recently added first —
-    // and a record that has since been deleted simply drops out.
-    return list.recordIds
-      .map((id) => byId.get(id))
-      .filter((record): record is NonNullable<typeof record> => Boolean(record))
-      .map((record) => ({
-        id: record.id,
-        href: entity.href(record.id),
-        title: record.title,
-        subtitle: record.subtitle || undefined,
-        leading: (
-          <RecordMark
-            kind={entity.kind}
-            name={record.title}
-            emoji={record.emoji}
-            avatarUrl={record.avatarUrl}
-            size="md"
-          />
-        ),
-      }));
-  }, [list, entity, recordsQuery.data]);
+  const rows: RecordListRow[] = (jobsQuery.data?.data ?? []).map((job) => ({
+    id: job.id,
+    href: jobHref(job.id),
+    title: job.title,
+    subtitle: [job.workOrderNo, job.client?.name].filter(Boolean).join(" · "),
+    leading: <RecordMark kind="work-order" name={job.title} size="md" />,
+  }));
 
   if (listQuery.isLoading) {
     return (
@@ -90,7 +56,7 @@ export function ListDetailPage({ listId }: { listId: string }) {
   if (listQuery.error || !list) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>List not found</AlertTitle>
+        <AlertTitle>Group not found</AlertTitle>
         <AlertDescription>
           {listQuery.error
             ? getApiErrorMessage(listQuery.error)
@@ -106,7 +72,7 @@ export function ListDetailPage({ listId }: { listId: string }) {
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="text-sm text-[var(--text-muted)]">
-          {entity?.label ?? list.entity} · {list.recordIds.length} in this list
+          Jobs · {list.recordIds.length} in this group
         </span>
         {list.isShared ? (
           <span className="text-sm text-[var(--text-muted)]">Shared with the team</span>
@@ -119,9 +85,9 @@ export function ListDetailPage({ listId }: { listId: string }) {
 
       <RecordList
         rows={rows}
-        isLoading={recordsQuery.isLoading}
-        emptyTitle="Nothing in this list yet"
-        emptyBody="Select records anywhere in the CRM and add them to this list."
+        isLoading={jobsQuery.isLoading}
+        emptyTitle="Nothing in this group yet"
+        emptyBody="Open a job and add it to this group from its Groups menu."
       />
     </div>
   );

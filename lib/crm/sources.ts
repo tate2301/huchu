@@ -8,6 +8,17 @@
  * (rep-entered, hosted intake form, or webhook).
  */
 import type { CrmLeadChannel } from "@prisma/client";
+import { z } from "zod";
+
+export const crmLeadChannelSchema = z.enum([
+  "MANUAL",
+  "WEB_FORM",
+  "WEBHOOK",
+  "SOCIAL",
+  "ADS",
+  "REFERRAL",
+  "OTHER",
+]);
 
 export const CRM_LEAD_CHANNELS: CrmLeadChannel[] = [
   "MANUAL",

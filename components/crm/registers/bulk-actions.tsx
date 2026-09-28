@@ -26,7 +26,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { GroupEntity } from "@/lib/crm/groups";
+import type { FilterOption } from "@/lib/crm/registers/types";
 import { Archive, ChevronDown, Plus, RotateCcw, Tag, UserPlus } from "@/lib/icons";
+import { LostReasonDialog } from "@/components/crm/leads/lost-reason-dialog";
 
 import { NewGroupDialog } from "./group-dialog";
 import { useGroups, useTeamMembers } from "./register-data";
@@ -41,7 +43,13 @@ export type BulkResult = {
   skippedReason?: string;
 };
 
-type BulkBody = { action: "assign" | "status" | "archive" | "restore"; ids: string[]; value?: string | null };
+type BulkBody = {
+  action: "assign" | "status" | "archive" | "restore";
+  ids: string[];
+  value?: string | null;
+  /** `status`: why, for an answer that asks — a lead marked lost. */
+  reason?: string;
+};
 
 function plural(count: number, noun: { one: string; many: string }) {
   return `${count.toLocaleString("en-US")} ${count === 1 ? noun.one : noun.many}`;
@@ -109,34 +117,58 @@ function AssignAction({ register }: { register: RegisterHandle }) {
   );
 }
 
+/**
+ * Set every selected record's status — a lead's stage. An answer the list
+ * says needs a reason (Lost) asks for it first, once for the whole batch.
+ */
 function StatusAction({ register }: { register: RegisterHandle }) {
   const bulk = useBulk(register);
-  const options = register.def.statusOptions ?? [];
+  const { def } = register;
+  const options = def.statusOptions ?? [];
+  const label = def.statusLabel ?? "Status";
+  const [asking, setAsking] = useState<FilterOption | null>(null);
+
+  const run = (option: FilterOption, reason?: string) =>
+    bulk.mutate(
+      {
+        body: { action: "status", ids: register.selection.ids, value: option.value, ...(reason ? { reason } : {}) },
+        verb: `set to ${option.label.toLowerCase()}`,
+      },
+      { onSettled: () => setAsking(null) },
+    );
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" disabled={bulk.isPending}>
-          Status
-          <ChevronDown className="size-3 text-[var(--text-subtle)]" aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48">
-        <DropdownMenuLabel>Set status to</DropdownMenuLabel>
-        {options.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onSelect={() =>
-              bulk.mutate({
-                body: { action: "status", ids: register.selection.ids, value: option.value },
-                verb: `set to ${option.label.toLowerCase()}`,
-              })
-            }
-          >
-            {option.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" disabled={bulk.isPending}>
+            {label}
+            <ChevronDown className="size-3 text-[var(--text-subtle)]" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuLabel>Set {label.toLowerCase()} to</DropdownMenuLabel>
+          {options.map((option) => (
+            <DropdownMenuItem
+              key={option.value}
+              onSelect={() => (def.statusNeedsReason?.includes(option.value) ? setAsking(option) : run(option))}
+            >
+              {option.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <LostReasonDialog
+        open={Boolean(asking)}
+        count={register.selection.ids.length}
+        noun={def.noun}
+        isPending={bulk.isPending}
+        onCancel={() => setAsking(null)}
+        onConfirm={(reason) => {
+          if (asking) run(asking, reason);
+        }}
+      />
+    </>
   );
 }
 

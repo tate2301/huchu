@@ -23,7 +23,7 @@ vi.mock("@/lib/api-utils", async (importOriginal) => {
   return { ...actual, validateSession: validateSessionMock };
 });
 
-const { POST } = await import("./route");
+const { GET, POST } = await import("./route");
 
 const SLUG = "crm-job-route-test";
 const EMAIL = "crm-job-route-test@example.invalid";
@@ -60,7 +60,13 @@ async function raise(body: Record<string, unknown>) {
   return { status: response.status, body: await response.json() };
 }
 
+async function list(query: string) {
+  const response = await GET(new NextRequest(`http://crm.test/api/v2/crm/work-orders?${query}`));
+  return { status: response.status, body: await response.json() };
+}
+
 async function wipe() {
+  await prisma.crmList.deleteMany({ where: { companyId } });
   await prisma.crmActivity.deleteMany({ where: { companyId } });
   await prisma.crmWorkOrder.deleteMany({ where: { companyId } });
   await prisma.crmProject.deleteMany({ where: { companyId } });
@@ -144,5 +150,32 @@ describe("raising a job", () => {
     const { status, body } = await raise({ title: "Screed", projectId: project.id });
     expect(status).toBe(201);
     expect(body).toMatchObject({ dealId: won.id, projectId: project.id });
+  });
+});
+
+describe("a group of jobs", () => {
+  it("lists the group's jobs, whatever state they are in, and nothing else", async () => {
+    const won = await deal("Depot refit");
+    // Neither has a slot, so neither is in today's queue the list opens on.
+    const kept = await raise({ title: "Strip out", dealId: won.id });
+    await raise({ title: "Paint", dealId: won.id });
+    const group = await prisma.crmList.create({
+      data: {
+        companyId,
+        entity: "WORK_ORDER",
+        name: "Depot jobs",
+        createdById: userId,
+        members: { create: [{ companyId, recordId: kept.body.id, addedById: userId }] },
+      },
+    });
+
+    const { status, body } = await list(`group=${group.id}`);
+    expect(status).toBe(200);
+    expect(body.data.map((job: { id: string }) => job.id)).toEqual([kept.body.id]);
+  });
+
+  it("answers a group it cannot see as not found", async () => {
+    expect((await list("group=00000000-0000-4000-8000-000000000000")).status).toBe(404);
+    expect((await list("group=nonsense")).status).toBe(404);
   });
 });

@@ -22,7 +22,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { X } from "@/lib/icons";
 import { CRM_STAGE_DEFAULT_PROBABILITY } from "@/lib/crm/pipeline";
 
-import type { LeadFilterOwner } from "./leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import { CRM_CHANNEL_LABELS, CRM_LEAD_CHANNELS, CRM_LEAD_STAGES, CRM_STAGE_LABELS } from "./stage-config";
 
 const CURRENCIES = ["USD", "ZWL", "ZAR", "GBP", "EUR"];
@@ -143,7 +143,7 @@ export function LeadFormSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial?: Partial<LeadFormValues> & { id?: string };
-  owners: LeadFilterOwner[];
+  owners: CrmLeadOwner[];
   onSaved?: (leadId: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -239,7 +239,6 @@ export function LeadFormSheet({
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["crm-lead", initial?.id] });
       toast({ title: isEdit ? "Lead updated" : "Lead created" });
       onOpenChange(false);

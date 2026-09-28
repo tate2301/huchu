@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useToast } from "@/components/ui/use-toast";
 import { useDebounced } from "@/hooks/use-debounced";
+import { fetchCrmSavedViews, type CrmSavedViewRecord } from "@/lib/crm/collections-client";
 import { fetchRegisterBoard, fetchRegisterPage } from "@/lib/crm/crm-v2";
 import { narrowingKey, readState, sameState, writeState } from "@/lib/crm/registers/codec";
 import type {
@@ -18,6 +20,32 @@ import type {
 } from "@/lib/crm/registers/types";
 
 import { rememberListQuery } from "./list-href";
+
+/** A view the list can open: one it comes with, or one somebody saved. */
+export type RegisterView = BuiltInView & {
+  /** Present on a view somebody saved; its key is the saved view's id. */
+  saved?: {
+    id: string;
+    isShared: boolean;
+    /** Whether the reader may change or delete it: whoever made it, or a manager. */
+    canEdit: boolean;
+    author: string | null;
+  };
+};
+
+/** Where one list's saved views are cached. Under the prefix every saved view is refreshed by. */
+export function savedViewsKey(def: RegisterDef) {
+  return ["crm", "saved-views", def.key] as const;
+}
+
+function toRegisterView(view: CrmSavedViewRecord): RegisterView {
+  return {
+    key: view.id,
+    name: view.name,
+    state: view.state,
+    saved: { id: view.id, isShared: view.isShared, canEdit: view.canEdit, author: view.createdBy?.name ?? null },
+  };
+}
 
 /** Rows per page on every list the engine draws. */
 export const REGISTER_PAGE_SIZE = 50;
@@ -119,23 +147,32 @@ export type RegisterSelection = {
  * the router, which would re-run the page's server component on every
  * keystroke in the search box.
  *
- * `views` are the lists' own built-in views; the one the URL names (or the
- * first, when it names none) is what an empty address means, and `dirty`
- * says whether the state has wandered from it.
+ * `views` are the list's own views and the ones saved of it; the one the URL
+ * names (or the first, when it names none) is what an empty address means,
+ * and `modified` says whether the list has wandered from it.
  */
-export function useRegister<Row extends { id: string }>(
-  def: RegisterDef,
-  options: { views?: readonly BuiltInView[] } = {},
-) {
+export function useRegister<Row extends { id: string }>(def: RegisterDef) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const views = options.views ?? def.views;
+  const queryClient = useQueryClient();
+
+  const saved = useQuery({
+    queryKey: savedViewsKey(def),
+    queryFn: () => fetchCrmSavedViews(def.key),
+    staleTime: 60_000,
+  });
+  const views = useMemo<RegisterView[]>(
+    () => [...def.views, ...(saved.data?.data ?? []).map(toRegisterView)],
+    [def.views, saved.data],
+  );
 
   const url = useMemo(() => readState(def, searchParams), [def, searchParams]);
-  const activeView = useMemo(
-    () => views.find((view) => view.key === url.view) ?? views[0] ?? def.views[0],
-    [def, url.view, views],
-  );
+  // A saved view's id in the address means nothing until the saved views
+  // are in: the list waits for them rather than drawing its first view and
+  // then swapping, which is a list that shows the wrong records first.
+  const viewPending = url.view !== null && saved.isPending && !def.views.some((view) => view.key === url.view);
+  const named = views.find((view) => view.key === url.view);
+  const activeView: RegisterView = named ?? def.views[0];
 
   // The address says "the view, as saved" when it carries nothing but a view
   // — or nothing at all, which is the list's first view.
@@ -159,6 +196,16 @@ export function useRegister<Row extends { id: string }>(
     },
     [def, pathname, url.view],
   );
+
+  // A saved view that has since been deleted, or is no longer shared: the
+  // address stops naming it, and the list opens as it would with none named.
+  const { toast } = useToast();
+  const missing = url.view !== null && !named && saved.isSuccess;
+  useEffect(() => {
+    if (!missing) return;
+    toast({ title: "That view is no longer there", description: "It was deleted, or is no longer shared with you." });
+    write(url.state, { view: null, page, asSaved: url.asSaved });
+  }, [missing, page, toast, url.asSaved, url.state, write]);
 
   /** Change the state. Anything that narrows the list goes back to page 1. */
   const set = useCallback(
@@ -204,8 +251,51 @@ export function useRegister<Row extends { id: string }>(
     [def, pathname],
   );
 
-  /** Put the current view back the way it was saved. */
-  const resetView = useCallback(() => applyView(activeView), [activeView, applyView]);
+  /** Put the current view back the way it was saved, its columns too. */
+  const resetView = useCallback(() => {
+    storeColumns(columnsKey(def, activeView.key), null);
+    applyView(activeView);
+  }, [activeView, applyView, def]);
+
+  // ── Saved views: what the Views menu changes, kept in step here. ──
+  type SavedViews = Awaited<ReturnType<typeof fetchCrmSavedViews>>;
+  /** A saved view changed — renamed, shared, made private: the menus hear it now, the sidebar next. */
+  const updateSaved = useCallback(
+    (record: CrmSavedViewRecord) => {
+      queryClient.setQueryData<SavedViews>(savedViewsKey(def), (previous) =>
+        previous ? { ...previous, data: [...previous.data.filter((view) => view.id !== record.id), record] } : previous,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["crm", "saved-views"] });
+    },
+    [def, queryClient],
+  );
+  /**
+   * A view was saved — this one, or a new one — and opens as saved. When what
+   * was on screen went into it (`carried`), the working columns it came from
+   * are in the view now, so they go from the view they were made on.
+   */
+  const openSaved = useCallback(
+    (record: CrmSavedViewRecord, { carried }: { carried: boolean }) => {
+      updateSaved(record);
+      if (carried) storeColumns(columnsKey(def, activeView.key), null);
+      storeColumns(columnsKey(def, record.id), null);
+      applyView(toRegisterView(record));
+    },
+    [activeView.key, applyView, def, updateSaved],
+  );
+  /**
+   * A saved view was deleted: the list goes back to its first view, if that
+   * was the one open. The address moves before the view leaves the menus, so
+   * the list never names a view that is gone.
+   */
+  const dropSaved = useCallback(
+    (id: string) => {
+      storeColumns(columnsKey(def, id), null);
+      if (activeView.key === id) applyView(def.views[0]);
+      void queryClient.invalidateQueries({ queryKey: ["crm", "saved-views"] });
+    },
+    [activeView.key, applyView, def, queryClient],
+  );
 
   // ── Search: typed text waits 300ms; everything else applies at once. ──
   const urlQ = state.q ?? "";
@@ -275,6 +365,15 @@ export function useRegister<Row extends { id: string }>(
     changed: visibleColumns.join(",") !== viewColumns.join(","),
   };
 
+  /** Anything on screen differs from the view as it was saved — its columns included. */
+  const modified = dirty || columns.changed;
+
+  /** The list as it is now, columns included: what Save and Save as write. */
+  const snapshot = useCallback((): ViewState => {
+    const own = visibleColumns.join(",") !== defaultColumns(def).join(",");
+    return { ...state, columns: own ? visibleColumns : undefined };
+  }, [def, state, visibleColumns]);
+
   // ── Selection: kept across pages and sorts, dropped when the list changes. ──
   const narrowing = narrowingKey(def, state);
   const [picked, setPicked] = useState<{ narrowing: string; ids: string[] }>({ narrowing, ids: [] });
@@ -293,18 +392,21 @@ export function useRegister<Row extends { id: string }>(
   const by = layout === "BOARD" ? undefined : state.by;
   const apiState: ViewState = { q: state.q, filters: state.filters, sort: state.sort, by };
   const apiKey = writeState(def, apiState);
+  // Nothing is read while the view the address names is still on its way:
+  // until then the list does not know which records it is.
+  const waiting = viewPending && url.asSaved;
   const query = useQuery({
     queryKey: [...def.queryKey, "register", apiKey, page],
     queryFn: () => fetchRegisterPage<Row>(def, { state: apiState, page, limit: REGISTER_PAGE_SIZE }),
     placeholderData: (previous) => previous,
-    enabled: !onBoard,
+    enabled: !onBoard && !waiting,
   });
   const boardKey = [...def.queryKey, "board", apiKey];
   const board = useQuery({
     queryKey: boardKey,
     queryFn: () => fetchRegisterBoard<Row>(def, apiState),
     placeholderData: (previous) => previous,
-    enabled: onBoard,
+    enabled: onBoard && !waiting,
   });
 
   const rows = useMemo(() => query.data?.data ?? [], [query.data]);
@@ -328,7 +430,7 @@ export function useRegister<Row extends { id: string }>(
    * even while the pipeline filter is left to the default, and exports that one.
    */
   const pipelineFilter = def.filters.find((filter) => filter.source === "pipelines")?.key;
-  const boardPipeline = onBoard ? board.data?.pipeline.id : undefined;
+  const boardPipeline = onBoard ? board.data?.pipeline?.id : undefined;
   const exportQuery =
     pipelineFilter && boardPipeline && !state.filters[pipelineFilter]
       ? writeState(def, { ...apiState, filters: { ...apiState.filters, [pipelineFilter]: [boardPipeline] } })
@@ -345,7 +447,7 @@ export function useRegister<Row extends { id: string }>(
     page,
     view: activeView,
     views,
-    dirty,
+    modified,
     set,
     setFilter,
     clearFilters,
@@ -355,6 +457,14 @@ export function useRegister<Row extends { id: string }>(
     setPage,
     applyView,
     resetView,
+    saved: {
+      /** Whether the reader may share a view with the team. */
+      canShare: saved.data?.canShare ?? false,
+      snapshot,
+      update: updateSaved,
+      open: openSaved,
+      drop: dropSaved,
+    },
     search: { draft, setDraft },
     columns,
     selection,
@@ -367,7 +477,7 @@ export function useRegister<Row extends { id: string }>(
     board: { query: board, queryKey: boardKey },
     /** What went wrong loading whichever the layout reads. */
     error: onBoard ? board.error : query.error,
-    isLoading: onBoard ? board.isLoading : query.isLoading,
+    isLoading: waiting || (onBoard ? board.isLoading : query.isLoading),
     exportFilters,
   };
 }

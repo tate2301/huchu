@@ -821,8 +821,28 @@ A view is the whole state — search included. The failure this replaces: saved
 views that kept the filters and dropped the search box, so "my Harare roofing
 leads" came back as every lead.
 
-When the list has wandered from its view, the views menu says so (a dot, and
-"modified" for a screen reader) and offers the way back.
+When the list has wandered from its view — its columns included — the views
+menu says so (a dot, and "modified" for a screen reader) and offers the way
+back.
+
+A saved view is stored the same way: the list it belongs to and its state
+(`CrmSavedView.register`, `state`), checked against that list's definition
+whenever it is written, so a view cannot hold a filter the list does not have.
+The Views menu lists the list's own views, then those **Shared with the team**,
+then those **Only you** can see, and does what a spreadsheet's file menu does:
+
+- **Save changes to "…"** — on a view the reader may change (its author, or a
+  manager; a shared one only while they may still share);
+- **Save as a new view…** — the state on screen, columns included, under a
+  name; shared with the team if they may share;
+- **Rename…**, **Share with the team** / **Make it only yours**,
+  **Duplicate…**, **Delete…** (confirmed). Anybody may duplicate a view the
+  team shares; only its author or a manager changes it.
+
+`?view=<id>` waits for the saved views to arrive before it reads any rows, so a
+view's link never shows the list's first view and then swaps. A view that has
+been deleted, or is no longer shared, says so in a toast and the list opens on
+its first view.
 
 A record's back link returns to the same slice. Each list remembers its last
 canonical address for the tab (`useListHref`), so "Deals" on a deal page goes

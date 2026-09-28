@@ -171,7 +171,11 @@ export function DealsBoard({ register, className }: { register: RegisterHandle<D
               set((previous) => ({
                 ...previous,
                 layout: "TABLE",
-                filters: { ...previous.filters, pipeline: [board!.pipeline.id], stage: [column.stage.id] },
+                filters: {
+                  ...previous.filters,
+                  ...(board?.pipeline ? { pipeline: [board.pipeline.id] } : {}),
+                  stage: [column.stage.id],
+                },
               }))
             }
           >

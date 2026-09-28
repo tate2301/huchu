@@ -5,8 +5,6 @@
  * companies and deals, and a list that wrote its own copy is a list where
  * "Nobody" quietly means something else.
  */
-import type { CrmFieldEntity } from "@prisma/client";
-
 import { listRecordIds } from "@/lib/crm/lists";
 import { prisma } from "@/lib/prisma";
 
@@ -104,6 +102,3 @@ export function searchClause(
 }
 
 export const contains = (text: string) => ({ contains: text, mode: "insensitive" as const });
-
-/** Which kind of record a group of this list holds. */
-export type GroupEntity = Extract<CrmFieldEntity, "PERSON" | "COMPANY" | "SITE" | "LEAD" | "DEAL" | "WORK_ORDER">;

@@ -14,7 +14,7 @@ export const POST = recordBulkHandler({
       where: { id: { in: ids }, companyId },
       select: { id: true, assignedToId: true, archivedAt: true },
     }),
-  update: async (ids, data) => {
-    await prisma.crmDeal.updateMany({ where: { id: { in: ids } }, data });
+  update: async (rows, { data }) => {
+    await prisma.crmDeal.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data });
   },
 });

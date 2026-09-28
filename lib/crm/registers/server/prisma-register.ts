@@ -32,17 +32,18 @@ export type GroupBySpec<Row> = {
   counts(where: Where): Promise<Map<string, number>>;
 };
 
-/** How a list is drawn as one pipeline's board. */
+/** How a list is drawn as a board, a column per stage. */
 export type BoardSpec = {
   /**
-   * The pipeline a state's board shows and the stages drawn as its columns,
-   * with the state the cards are read with — the pipeline filled in when the
-   * state left it to the default. Null when the pipeline asked for is gone.
+   * The stages a state's board draws as its columns — for deals, one
+   * pipeline's — with the state the cards are read with: the pipeline filled
+   * in when the state left it to the default. Null when the pipeline asked
+   * for is gone.
    */
   lanes(
     ctx: RegisterContext,
     state: ViewState,
-  ): Promise<{ pipeline: { id: string; name: string }; lanes: BoardLane[]; state: ViewState } | null>;
+  ): Promise<{ pipeline: { id: string; name: string } | null; lanes: BoardLane[]; state: ViewState } | null>;
   /** The records of one column. */
   inLane(where: Where, laneId: string): Where;
   /** Cards and their value per column, across every card the state selects. */

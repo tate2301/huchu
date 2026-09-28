@@ -345,7 +345,7 @@ describe("the deals board", () => {
 
   it("draws the default pipeline when none is chosen, a column per stage", async () => {
     const drawn = await board("");
-    expect(drawn?.pipeline.name).toBe("Sales");
+    expect(drawn?.pipeline?.name).toBe("Sales");
     expect(drawn?.columns.map((column) => [column.stage.name, column.count, column.totalValue])).toEqual([
       ["New", 1, 1000],
       ["Quoted", 1, 5000],

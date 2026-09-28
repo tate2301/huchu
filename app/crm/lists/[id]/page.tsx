@@ -8,9 +8,9 @@ import { groupHref } from "@/lib/crm/groups";
 import { prisma } from "@/lib/prisma";
 
 /**
- * A group. A group of people, companies or sites opens as that list narrowed
- * to the group — searchable, sortable and exportable like any other slice —
- * so this page only draws the record types not on the list engine yet.
+ * A group. A group opens as its record type's list narrowed to the group —
+ * searchable, sortable and exportable like any other slice — so this page
+ * only draws groups of jobs, which are not on the list engine yet.
  */
 export default async function CrmListPage({
   params,

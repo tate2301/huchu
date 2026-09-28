@@ -11,6 +11,7 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { reserveIdentifier } from "@/lib/id-generator";
+import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
 import {
   completionPercent,
   createWorkOrderSchema,
@@ -90,7 +91,15 @@ export async function GET(request: NextRequest) {
     const siteId = searchParams.get("siteId");
     const clientId = searchParams.get("clientId");
     const projectId = searchParams.get("projectId");
-    const scoped = Boolean(dealId || siteId || clientId || projectId);
+    // A group of jobs somebody put together by hand, the same `group` a list
+    // narrows by.
+    const groupId = searchParams.get("group");
+    const groupIds =
+      groupId && z.string().uuid().safeParse(groupId).success
+        ? await listRecordIds(prisma, { companyId, userId: session.user.id, listId: groupId })
+        : null;
+    if (groupId && groupIds === null) return errorResponse("Group not found", 404);
+    const scoped = Boolean(dealId || siteId || clientId || projectId || groupId);
 
     // Asked for one record's jobs, answer with all of them. The queues are for
     // browsing the day's work; applying TODAY by default to a deal's Jobs tab
@@ -100,6 +109,7 @@ export async function GET(request: NextRequest) {
       ...(siteId ? { siteId } : {}),
       ...(clientId ? { clientId } : {}),
       ...(projectId ? { projectId } : {}),
+      ...listIdFilter(groupIds),
     };
 
     // The register's own narrowing, done here rather than over whatever one

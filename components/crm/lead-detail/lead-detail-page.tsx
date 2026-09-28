@@ -41,7 +41,7 @@ import { DocumentList } from "@/components/crm/documents/document-list";
 import { EntityLink } from "@/components/records/entity-link";
 import { formatMoney, invoiceOutstanding } from "@/components/crm/documents/document-types";
 import { LeadFormSheet } from "@/components/crm/leads/lead-form-sheet";
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import { LostReasonDialog } from "@/components/crm/leads/lost-reason-dialog";
 import {
   CRM_STAGE_LABELS,
@@ -135,7 +135,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
 
   const teamQuery = useQuery({
     queryKey: ["crm", "team"],
-    queryFn: () => fetchJson<{ data: LeadFilterOwner[] }>("/api/v2/crm/team"),
+    queryFn: () => fetchJson<{ data: CrmLeadOwner[] }>("/api/v2/crm/team"),
   });
 
   const owners = useMemo(() => teamQuery.data?.data ?? [], [teamQuery.data]);
@@ -153,7 +153,6 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     onSuccess: (_result, archived) => {
       queryClient.invalidateQueries({ queryKey: ["crm-lead", leadId] });
       queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
       toast({
         title: archived ? "Archived" : "Back in the pipeline",
         description: archived
@@ -173,7 +172,6 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     mutationFn: () => fetchJson(`/api/v2/crm/leads/${leadId}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
       toast({ title: "Deleted" });
       // Nothing left to look at — the record this page is about is gone.
       router.push("/crm/leads");
@@ -205,7 +203,6 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     onSuccess: (_result, { stage }) => {
       queryClient.invalidateQueries({ queryKey: ["crm-lead", leadId] });
       queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
       toast({ title: `Moved to ${CRM_STAGE_LABELS[stage]}` });
     },
     onError: (error) =>

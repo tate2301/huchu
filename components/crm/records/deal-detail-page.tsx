@@ -60,7 +60,7 @@ import { RecordStory } from "@/components/crm/records/record-story";
 import { buildStory } from "@/lib/crm/story";
 import { VisitsTab } from "@/components/crm/lead-detail/visits-tab";
 import type { LeadActivity, LeadAppointment, LeadFollowUp } from "@/components/crm/lead-detail/lead-types";
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
@@ -174,7 +174,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   });
   const teamQuery = useQuery({
     queryKey: ["crm", "team"],
-    queryFn: () => fetchJson<{ data: LeadFilterOwner[] }>("/api/v2/crm/team"),
+    queryFn: () => fetchJson<{ data: CrmLeadOwner[] }>("/api/v2/crm/team"),
   });
   const fieldsQuery = useQuery({
     queryKey: ["crm", "field-definitions", "DEAL"],

@@ -16,8 +16,9 @@ import { BulkActions } from "./bulk-actions";
 import { useCustomFieldFilters, usePipelines } from "./register-data";
 import { RegisterExport } from "./export-control";
 import { AddFilterMenu, FilterChip } from "./filter-controls";
-import { ColumnsMenu, GroupByMenu, SortMenu, ViewsMenu } from "./toolbar-menus";
+import { ColumnsMenu, GroupByMenu, SortMenu } from "./toolbar-menus";
 import type { RegisterHandle } from "./use-register";
+import { ViewsMenu } from "./views-menu";
 
 /** The list's search box, for `/` to find. */
 function searchInputId(def: RegisterDef): string {

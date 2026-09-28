@@ -14,7 +14,7 @@ export const POST = recordBulkHandler({
         select: { id: true, assignedToId: true, archivedAt: true, accountStatus: true },
       })
     ).map(({ accountStatus, ...row }) => ({ ...row, status: accountStatus })),
-  update: async (ids, data) => {
-    await prisma.crmClient.updateMany({ where: { id: { in: ids } }, data });
+  update: async (rows, { data }) => {
+    await prisma.crmClient.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data });
   },
 });

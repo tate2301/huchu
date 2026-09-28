@@ -180,8 +180,7 @@ export function CrmOverview() {
     queryKey: ["crm-leads", "awaiting-first-call"],
     queryFn: () =>
       fetchCrmLeads({
-        filters: { stages: ["NEW"] },
-        sort: { field: "createdAt", direction: "asc" },
+        state: { filters: { stage: ["NEW"] }, sort: { key: "created", dir: "asc" } },
         limit: 8,
       }),
   });
