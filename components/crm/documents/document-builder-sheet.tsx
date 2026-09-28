@@ -74,6 +74,7 @@ export function DocumentBuilderSheet({
   fromQuotationId,
   isDeposit,
   editing,
+  revising,
   onCreated,
 }: {
   open: boolean;
@@ -87,11 +88,16 @@ export function DocumentBuilderSheet({
   /** This invoice is money down against the quote — stored on the document. */
   isDeposit?: boolean;
   /**
-   * An existing quote or invoice to open, prefilled. A quote saves as its
-   * next version, voiding this one and moving the client's approval link; an
-   * invoice is corrected in place and its journal reposted.
+   * An existing quote or invoice to change in place, prefilled. Both keep
+   * their number; a quote keeps its approval link, and an invoice has its
+   * journal reposted.
    */
-  editing?: { documentId: string; number: string; version: number };
+  editing?: { documentId: string; number: string };
+  /**
+   * A declined quote to revise, prefilled: saving issues its next version,
+   * voids this one, and the client's link asks about the new one.
+   */
+  revising?: { documentId: string; number: string; version: number };
   onCreated?: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -111,24 +117,27 @@ export function DocumentBuilderSheet({
   // effect, so a slow library cannot overwrite a tick made meanwhile.
   const [resourceIds, setResourceIds] = useState<string[] | null>(null);
 
+  // The document an edit or a revision starts from.
+  const source = editing ?? revising;
+
   // The document as it stands now — not as it stood when the list loaded,
-  // because somebody may have paid it in the meantime.
+  // because somebody may have paid it, or the client answered it, meanwhile.
   const editQuery = useQuery({
-    queryKey: ["crm", "document-edit", basePath, editing?.documentId],
-    enabled: open && Boolean(editing),
+    queryKey: ["crm", "document-edit", basePath, source?.documentId],
+    enabled: open && Boolean(source),
     queryFn: () =>
-      fetchJson<EditableDocument>(`${basePath}/documents/${editing!.documentId}`),
+      fetchJson<EditableDocument>(`${basePath}/documents/${source!.documentId}`),
     staleTime: 0,
   });
-  const editDoc = editing ? editQuery.data : undefined;
+  const editDoc = source ? editQuery.data : undefined;
 
   const libraryQuery = useResourceLibrary(open);
   const library = useMemo(() => libraryQuery.data?.data ?? [], [libraryQuery.data]);
-  // An edit starts from what the document already offers; a new one from
-  // the library's defaults.
+  // An edit or a revision starts from what the document already offers; a
+  // new one from the library's defaults.
   const preselected = useMemo(
-    () => preselectedResourceIds(library, editing ? (editDoc?.resourceIds ?? []) : null),
-    [library, editing, editDoc],
+    () => preselectedResourceIds(library, source ? (editDoc?.resourceIds ?? []) : null),
+    [library, source, editDoc],
   );
   const chosenResourceIds = resourceIds ?? preselected;
   const toggleResource = (id: string, checked: boolean) =>
@@ -242,8 +251,8 @@ export function DocumentBuilderSheet({
         noteParts.push(`A ${docDiscount}% discount has been applied across all lines.`);
       }
 
-      // An invoice is corrected in place: same number, journal reposted.
-      if (editing && mode === "invoice") {
+      // Changed in place: the same number, and for a quote the same link.
+      if (editing) {
         return fetchJson<{ total?: number; quotationNumber?: string }>(
           `${basePath}/documents/${editing.documentId}`,
           {
@@ -251,7 +260,9 @@ export function DocumentBuilderSheet({
             body: JSON.stringify({
               lines: payload,
               notes: noteParts.join(" ") || null,
-              dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+              ...(mode === "quotation"
+                ? { validUntil: validUntil ? new Date(validUntil).toISOString() : null }
+                : { dueDate: dueDate ? new Date(dueDate).toISOString() : null }),
               renderTemplateId: renderTemplateId || null,
               resourceIds: chosenResourceIds,
             }),
@@ -259,7 +270,7 @@ export function DocumentBuilderSheet({
         );
       }
 
-      // A quote — new, or the next version of one being edited.
+      // A new document — or a declined quote's next version.
       const endpoint = mode === "quotation" ? "quotation" : "invoice";
       return fetchJson<{ total?: number; quotationNumber?: string }>(
         `${basePath}/${endpoint}`,
@@ -276,9 +287,9 @@ export function DocumentBuilderSheet({
               ? {
                   validUntil: validUntil ? new Date(validUntil).toISOString() : undefined,
                   sendApproval,
-                  ...(editing
+                  ...(revising
                     ? {
-                        supersedesId: editing.documentId,
+                        supersedesId: revising.documentId,
                         revisionNote: revisionNote.trim() || undefined,
                       }
                     : {}),
@@ -294,22 +305,22 @@ export function DocumentBuilderSheet({
       // put the two a cent apart, and money should never look uncertain.
       const money = typeof result.total === "number" ? formatMoney(result.total, currency) : null;
       toast(
-        editing
-          ? mode === "quotation"
-            ? {
-                title: `Version ${editing.version + 1} issued`,
-                description: [
-                  result.quotationNumber ? `${result.quotationNumber} replaces ${editing.number}` : null,
-                  money,
-                ]
-                  .filter(Boolean)
-                  .join(" · "),
-              }
-            : { title: `${editing.number} updated`, description: money ?? undefined }
-          : {
-              title: mode === "quotation" ? "Quotation created" : "Invoice issued",
-              description: money ?? undefined,
-            },
+        revising
+          ? {
+              title: `Version ${revising.version + 1} issued`,
+              description: [
+                result.quotationNumber ? `${result.quotationNumber} replaces ${revising.number}` : null,
+                money,
+              ]
+                .filter(Boolean)
+                .join(" · "),
+            }
+          : editing
+            ? { title: `${editing.number} updated`, description: money ?? undefined }
+            : {
+                title: mode === "quotation" ? "Quotation created" : "Invoice issued",
+                description: money ?? undefined,
+              },
       );
       onOpenChange(false);
       onCreated?.();
@@ -334,35 +345,42 @@ export function DocumentBuilderSheet({
   };
 
   const isQuotation = mode === "quotation";
+  // Why the document it starts from can no longer be changed this way, once
+  // it has loaded: the client may have answered it since the list was drawn.
+  const lock = editDoc ? (revising ? editDoc.reviseLock : editDoc.editLock) : null;
   // Nothing to save until the document has loaded, and nothing at all once
-  // it has turned out to be locked since the list was drawn.
-  const editBlocked = Boolean(editing) && (!editDoc || Boolean(editDoc.editLock));
+  // it has turned out to be locked.
+  const editBlocked = Boolean(source) && (!editDoc || Boolean(lock));
 
-  const title = editing
-    ? `Edit ${isQuotation ? "quotation" : "invoice"} ${editing.number}`
-    : isQuotation
-      ? "New quotation"
-      : "New invoice";
-  const description = editing
-    ? isQuotation
-      ? `Saving issues version ${editing.version + 1} and withdraws ${editing.number}. The client's approval link moves to the new version.`
-      : `${editing.number} keeps its number. Its journal is reversed and the new figures are posted.`
-    : fromQuotationId
-      ? "Converting the accepted quotation — the lines carry over exactly as quoted."
+  const title = revising
+    ? `Revise quotation ${revising.number}`
+    : editing
+      ? `Edit ${isQuotation ? "quotation" : "invoice"} ${editing.number}`
       : isQuotation
-        ? "Price up the work. The client can approve it from a link without signing in."
-        : "Bill the work. Payments recorded against this invoice produce receipts.";
-  const submitLabel = create.isPending
-    ? "Saving…"
+        ? "New quotation"
+        : "New invoice";
+  const description = revising
+    ? `The client declined ${revising.number}. Saving issues version ${revising.version + 1} and withdraws ${revising.number}; the client's link opens the new version and asks for a fresh answer.`
     : editing
       ? isQuotation
-        ? `Issue version ${editing.version + 1}`
-        : "Save changes"
-      : isQuotation
-        ? sendApproval
-          ? "Create & share"
-          : "Create quotation"
-        : "Issue invoice";
+        ? `${editing.number} keeps its number and its approval link. The client sees the new figures the next time they open it; a PDF you already emailed keeps the old ones.`
+        : `${editing.number} keeps its number. Its journal is reversed and the new figures are posted.`
+      : fromQuotationId
+        ? "Converting the accepted quotation — the lines carry over exactly as quoted."
+        : isQuotation
+          ? "Price up the work. The client can approve it from a link without signing in."
+          : "Bill the work. Payments recorded against this invoice produce receipts.";
+  const submitLabel = create.isPending
+    ? "Saving…"
+    : revising
+      ? `Issue version ${revising.version + 1}`
+      : editing
+        ? "Save changes"
+        : isQuotation
+          ? sendApproval
+            ? "Create & share"
+            : "Create quotation"
+          : "Issue invoice";
 
   return (
     <RecordDialog
@@ -388,22 +406,26 @@ export function DocumentBuilderSheet({
         </Button>
       </>}
     >
-      {editing && editQuery.isLoading ? (
+      {source && editQuery.isLoading ? (
         <div className="space-y-3" aria-busy="true">
           {Array.from({ length: 3 }).map((_, index) => (
             <Skeleton key={index} className="h-16 w-full" />
           ))}
         </div>
-      ) : editing && !editDoc ? (
-        <Alert tone="danger" title={`${editing.number} would not open for editing`}>
+      ) : source && !editDoc ? (
+        <Alert tone="danger" title={`${source.number} would not open`}>
           {getApiErrorMessage(editQuery.error)}
         </Alert>
       ) : (
       <>
-      {editDoc?.editLock ? (
-        <Alert tone="warn" title={`${editDoc.number} can no longer be edited`}>
-          {editDoc.editLock}.
+      {editDoc && lock ? (
+        <Alert tone="warn" title={`${editDoc.number} can no longer be ${revising ? "revised" : "edited"}`}>
+          {lock}.
         </Alert>
+      ) : source ? (
+        // The dialog's description is for a screen reader; what saving does
+        // to a document somebody may already hold is for everybody.
+        <p className="text-sm text-[var(--text-muted)]">{description}</p>
       ) : null}
 
       {fromQuotationId ? (
@@ -651,7 +673,7 @@ export function DocumentBuilderSheet({
 
       {/* Kept on the version and shown beside it in the list and the story,
           so "why is there a v3" has an answer that is not somebody's memory. */}
-      {editing && isQuotation ? (
+      {revising ? (
         <div className="space-y-1.5">
           <Label htmlFor="doc-revision-note">What changed</Label>
           <Input
@@ -690,7 +712,9 @@ export function DocumentBuilderSheet({
         onToggle={toggleResource}
       />
 
-      {isQuotation ? (
+      {/* A new quote only: an edited one keeps the link it has, and a
+          revision takes over the declined one's. */}
+      {isQuotation && !source ? (
         <label className="flex cursor-pointer items-start gap-2.5">
           <Checkbox
             checked={sendApproval}

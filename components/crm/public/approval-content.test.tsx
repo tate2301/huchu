@@ -50,6 +50,7 @@ const base: ApprovalDoc = {
   },
   resources: [],
   linkState: "ACTIVE",
+  stamp: "2026-09-19T08:00:00.000Z",
 };
 
 function render(doc: Partial<ApprovalDoc> = {}) {

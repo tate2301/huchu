@@ -26,6 +26,7 @@ import {
 import { DepositDialog } from "./deposit-dialog";
 import { DocumentBuilderSheet } from "./document-builder-sheet";
 import {
+  canReviseQuote,
   documentEditLock,
   documentNumber,
   documentStatus,
@@ -60,6 +61,7 @@ export type DocumentVerb = {
     | "view"
     | "download"
     | "edit"
+    | "revise"
     | "share"
     | "replace-link"
     | "email"
@@ -84,8 +86,10 @@ type BuilderState = {
   mode: "quotation" | "invoice";
   fromQuotationId?: string;
   deposit?: boolean;
-  /** Opens the builder on an existing quote or invoice, prefilled. */
-  editing?: { documentId: string; number: string; version: number };
+  /** Opens the builder on an existing quote or invoice, to change it in place. */
+  editing?: { documentId: string; number: string };
+  /** Opens the builder on a declined quote, to issue its next version. */
+  revising?: { documentId: string; number: string; version: number };
 } | null;
 
 /**
@@ -207,7 +211,7 @@ export function useDocumentActions({
     const openEditor = () =>
       setBuilder({
         mode: doc.type === "INVOICE" ? "invoice" : "quotation",
-        editing: { documentId: doc.id, number: documentNumber(doc), version: doc.version },
+        editing: { documentId: doc.id, number: documentNumber(doc) },
       });
     const verbs: DocumentVerb[] = [
       {
@@ -227,12 +231,27 @@ export function useDocumentActions({
       },
     ];
 
-    // A quote that can no longer change is simply not offered the verb: an
-    // accepted quote is an agreement, and a new quote is the next step. An
-    // invoice keeps the verb and says why it is locked, because what to do
-    // instead — a credit note in Accounting — is not obvious from here.
+    // A quote is edited in place until the client answers it. Once they have
+    // declined it the verb is Revise — its next version, which the same link
+    // asks about afresh — and once accepted it is an agreement, and a new
+    // quote is the next step, so it is offered neither. An invoice keeps the
+    // verb and says why it is locked, because what to do instead — a credit
+    // note in Accounting — is not obvious from here.
     if (doc.type === "QUOTATION" && !editLock) {
       verbs.push({ id: "edit", label: "Edit", icon: Pencil, group: "change", onSelect: openEditor });
+    }
+    if (canReviseQuote(doc)) {
+      verbs.push({
+        id: "revise",
+        label: "Revise",
+        icon: Pencil,
+        group: "change",
+        onSelect: () =>
+          setBuilder({
+            mode: "quotation",
+            revising: { documentId: doc.id, number: documentNumber(doc), version: doc.version },
+          }),
+      });
     }
     if (doc.type === "INVOICE") {
       verbs.push(
@@ -340,8 +359,10 @@ export function useDocumentActions({
         fromQuotationId={builder?.fromQuotationId}
         isDeposit={builder?.deposit}
         editing={builder?.editing}
+        revising={builder?.revising}
         prefillLines={
-          depositLine ?? (builder?.fromQuotationId || builder?.editing ? undefined : prefillLines)
+          depositLine ??
+          (builder?.fromQuotationId || builder?.editing || builder?.revising ? undefined : prefillLines)
         }
       />
 

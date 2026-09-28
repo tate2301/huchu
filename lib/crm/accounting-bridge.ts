@@ -13,7 +13,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { settleCrmRecordIfPaid } from "./accounting-hooks";
-import { invoiceEditLock, quoteEditLock } from "./document-edit";
+import { invoiceEditLock, quoteEditLock, quoteReviseLock } from "./document-edit";
 import { setDocumentResources } from "./resources";
 import { prisma } from "@/lib/prisma";
 import { reverseJournalEntry, salesInvoicePostingKey } from "@/lib/accounting/journals";
@@ -264,7 +264,11 @@ export type CreateQuotationInput = DocumentOwnerRef & {
   currency?: string;
   validUntil?: Date | null;
   notes?: string | null;
-  /** The quote this one replaces, when it's a revision rather than a first go. */
+  /**
+   * The quote this one replaces, when it's a revision rather than a first go.
+   * Only a declined quote is revised; one nobody has answered is edited in
+   * place (`updateQuotationForDocument`).
+   */
   supersedesId?: string | null;
   /** Why the revision exists — "customer asked for the cheaper panel". */
   revisionNote?: string | null;
@@ -282,8 +286,9 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
     // A revision continues the chain rather than starting a new one, so
     // "what did we actually agree" stays answerable. The quote it replaces
     // has to be this record's own — a bare tenant check would let any quote
-    // in the company be voided from here — and still open: an accepted quote
-    // is an agreement, and changing it is a new quote, not a new version.
+    // in the company be voided from here — and declined: until the client
+    // answers, a quote is edited in place, and an accepted quote is an
+    // agreement, so changing it is a new quote, not a new version.
     let previous: { id: string; version: number; quotationId: string | null } | null = null;
     if (input.supersedesId) {
       const found = await tx.crmLeadDocument.findFirst({
@@ -301,8 +306,9 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
         },
       });
       if (!found) throw new Error("The quote being revised doesn't exist");
-      const lock = found.quotation ? quoteEditLock(found.quotation) : null;
-      if (lock) throw new Error(`${found.quotation?.quotationNumber} cannot be revised. ${lock}.`);
+      const approvalStatus = await lockApproval(tx, found.id);
+      const lock = found.quotation ? quoteReviseLock({ status: found.quotation.status, approvalStatus }) : null;
+      if (lock) throw new DocumentLockedError(`${found.quotation?.quotationNumber} cannot be revised. ${lock}.`);
       previous = found;
     }
 
@@ -600,7 +606,7 @@ const INVOICE_EDIT_STATE_SELECT = {
 
 type InvoiceEditFacts = Prisma.SalesInvoiceGetPayload<{ select: typeof INVOICE_EDIT_STATE_SELECT }>;
 
-function invoiceLockOf(invoice: InvoiceEditFacts): string | null {
+function invoiceLockOf(invoice: InvoiceEditFacts, approvalStatus: string | null): string | null {
   return invoiceEditLock({
     status: invoice.status,
     amountPaid: invoice.amountPaid,
@@ -610,7 +616,26 @@ function invoiceLockOf(invoice: InvoiceEditFacts): string | null {
     creditNoteCount: invoice._count.creditNotes,
     writeOffCount: invoice._count.writeOffs,
     fiscalised: Boolean(invoice.fiscalReceipt) || invoice.fiscalStatus === "SUCCESS",
+    approvalStatus,
   });
+}
+
+/**
+ * Hold the client's answer still while a document is changed.
+ *
+ * Locks the document's approval row and returns its status — null when it
+ * was never sent for approval. An answer arriving in the same instant waits
+ * on the lock: either it lands first, and the edit sees it and is refused, or
+ * it lands after, and `respondToApproval` sees that the figures changed under
+ * the page the client was reading, and is refused.
+ */
+async function lockApproval(tx: Tx, leadDocumentId: string): Promise<string | null> {
+  const rows = await tx.$queryRaw<Array<{ status: string }>>`
+    SELECT "status"::text AS "status" FROM "CrmDocumentApproval"
+    WHERE "leadDocumentId" = ${leadDocumentId}
+    FOR UPDATE
+  `;
+  return rows[0]?.status ?? null;
 }
 
 /** A document, as the builder needs it to open prefilled for an edit. */
@@ -626,13 +651,16 @@ export type EditableDocument = {
   dueDate: string | null;
   renderTemplateId: string | null;
   resourceIds: string[];
-  /** Why it cannot be edited, or null when it can. */
+  /** Why it cannot be edited in place, or null when it can. */
   editLock: string | null;
+  /** Why it cannot be revised as its next version, or null when it can. Quotes only. */
+  reviseLock: string | null;
 };
 
 /**
- * What the document builder opens with when a quote or an invoice is edited:
- * the lines and terms as they stand, and whether the edit is allowed at all.
+ * What the document builder opens with when a quote or an invoice is edited
+ * or revised: the lines and terms as they stand, and whether either is
+ * allowed at all.
  */
 export async function loadEditableDocument(input: DocumentOwnerRef & {
   companyId: string;
@@ -651,6 +679,7 @@ export async function loadEditableDocument(input: DocumentOwnerRef & {
       currency: true,
       version: true,
       renderTemplateId: true,
+      approval: { select: { status: true } },
       resources: { select: { resourceId: true } },
       quotation: {
         select: {
@@ -679,6 +708,7 @@ export async function loadEditableDocument(input: DocumentOwnerRef & {
 
   const source = doc.quotation ?? doc.invoice;
   if (!source) return null;
+  const approvalStatus = doc.approval?.status ?? null;
 
   return {
     id: doc.id,
@@ -697,7 +727,14 @@ export async function loadEditableDocument(input: DocumentOwnerRef & {
     dueDate: doc.invoice?.dueDate?.toISOString() ?? null,
     renderTemplateId: doc.renderTemplateId,
     resourceIds: doc.resources.map((row) => row.resourceId),
-    editLock: doc.quotation ? quoteEditLock(doc.quotation) : doc.invoice ? invoiceLockOf(doc.invoice) : null,
+    editLock: doc.quotation
+      ? quoteEditLock({ status: doc.quotation.status, approvalStatus })
+      : doc.invoice
+        ? invoiceLockOf(doc.invoice, approvalStatus)
+        : null,
+    reviseLock: doc.quotation
+      ? quoteReviseLock({ status: doc.quotation.status, approvalStatus })
+      : "An invoice is edited, not revised",
   };
 }
 
@@ -707,6 +744,110 @@ export class DocumentLockedError extends Error {
     super(message);
     this.name = "DocumentLockedError";
   }
+}
+
+export type UpdateQuotationInput = DocumentOwnerRef & {
+  companyId: string;
+  userId: string;
+  leadDocumentId: string;
+  lines: CrmDocumentLineInput[];
+  notes?: string | null;
+  validUntil?: Date | null;
+  renderTemplateId?: string | null;
+  /** When given, replaces what the quote offers the client to review. */
+  resourceIds?: string[];
+};
+
+/**
+ * Change a quote the client has not answered yet.
+ *
+ * It stays the same quote: the same number, the same version, and the same
+ * approval link, which shows the new figures the next time it is opened. A
+ * quote is not on the books, so nothing is reversed or posted — the lines and
+ * terms are replaced in one transaction, and the record's story says so.
+ *
+ * Refused once the client has approved or declined it, or it is accepted,
+ * void or expired (`quoteEditLock`). A declined quote is revised as its next
+ * version instead: `createQuotationForLead` with `supersedesId`.
+ */
+export async function updateQuotationForDocument(input: UpdateQuotationInput) {
+  if (input.lines.length === 0) throw new Error("Quotation needs at least one line");
+
+  return prisma.$transaction(async (tx) => {
+    const owner = await requireDocumentOwner(tx, input.companyId, input as DocumentOwnerRef);
+    const doc = await tx.crmLeadDocument.findFirst({
+      where: {
+        id: input.leadDocumentId,
+        companyId: input.companyId,
+        ...ownerKey(owner),
+        type: "QUOTATION",
+      },
+      select: { id: true, quotationId: true },
+    });
+    if (!doc?.quotationId) throw new Error("Quotation document not found for this record");
+
+    // The answer first, then the quote: the order `respondToApproval` takes
+    // them in, so the two never wait on each other.
+    const approvalStatus = await lockApproval(tx, doc.id);
+    await tx.$queryRaw`
+      SELECT "id" FROM "SalesQuotation"
+      WHERE "companyId" = ${input.companyId} AND "id" = ${doc.quotationId}
+      FOR UPDATE
+    `;
+    const quotation = await tx.salesQuotation.findFirst({
+      where: { id: doc.quotationId, companyId: input.companyId },
+      select: { id: true, quotationNumber: true, status: true },
+    });
+    if (!quotation) throw new Error("Quotation not found");
+    const lock = quoteEditLock({ status: quotation.status, approvalStatus });
+    if (lock) throw new DocumentLockedError(`${quotation.quotationNumber} cannot be edited. ${lock}.`);
+
+    const totals = computeTotals(input.lines);
+    await tx.salesQuotation.update({
+      where: { id: quotation.id },
+      data: {
+        subTotal: totals.subTotal,
+        taxTotal: totals.taxTotal,
+        total: totals.total,
+        notes: input.notes ?? null,
+        validUntil: input.validUntil ?? null,
+        lines: { deleteMany: {}, create: totals.lines },
+      },
+    });
+    await tx.crmLeadDocument.update({
+      where: { id: doc.id },
+      data: {
+        amount: totals.total,
+        renderTemplateId: input.renderTemplateId ?? null,
+      },
+    });
+    if (input.resourceIds) {
+      await setDocumentResources(tx, {
+        companyId: input.companyId,
+        documentId: doc.id,
+        resourceIds: input.resourceIds,
+      });
+    }
+
+    await tx.crmActivity.create({
+      data: {
+        companyId: input.companyId,
+        type: "DOCUMENT_CREATED",
+        ...ownerKey(owner),
+        clientId: owner.clientId,
+        subject: `Quotation ${quotation.quotationNumber} edited`,
+        metadata: { documentId: doc.id, quotationId: quotation.id },
+        createdById: input.userId,
+      },
+    });
+
+    return {
+      leadDocumentId: doc.id,
+      quotationId: quotation.id,
+      quotationNumber: quotation.quotationNumber,
+      total: totals.total,
+    };
+  });
 }
 
 export type UpdateInvoiceInput = DocumentOwnerRef & {
@@ -735,9 +876,11 @@ export type UpdateInvoiceInput = DocumentOwnerRef & {
  * and the reversed entry keeps its claim on the previous key.
  *
  * Only allowed while `invoiceEditLock` says so — issued, nothing paid, no
- * receipt, credit note or write-off, and never sent to ZIMRA. The invoice row
- * is locked first, so a payment recorded in the same instant lands either
- * before the check, and is refused, or after the edit, against the new total.
+ * receipt, credit note or write-off, never sent to ZIMRA, and not yet
+ * answered by the client. The approval row and then the invoice row are
+ * locked first, so an answer or a payment recorded in the same instant lands
+ * either before the check, and the edit is refused, or after the edit, against
+ * the new total.
  *
  * Both entries are dated when the edit is made. A correction is booked when
  * it happens: posting back into the invoice's own period would fail the day
@@ -772,6 +915,7 @@ export async function updateInvoiceForDocument(input: UpdateInvoiceInput) {
       });
       if (!doc?.invoiceId) throw new Error("Invoice document not found for this record");
 
+      const approvalStatus = await lockApproval(tx, doc.id);
       await tx.$queryRaw`
         SELECT "id" FROM "SalesInvoice"
         WHERE "companyId" = ${input.companyId} AND "id" = ${doc.invoiceId}
@@ -788,7 +932,7 @@ export async function updateInvoiceForDocument(input: UpdateInvoiceInput) {
         },
       });
       if (!invoice) throw new Error("Invoice not found");
-      const lock = invoiceLockOf(invoice);
+      const lock = invoiceLockOf(invoice, approvalStatus);
       if (lock) throw new DocumentLockedError(`${invoice.invoiceNumber} cannot be edited. ${lock}.`);
 
       const editedAt = new Date();

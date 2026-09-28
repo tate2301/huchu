@@ -6,12 +6,20 @@
  * saw the button yesterday should be told why it is greyed out today, and
  * what to do instead.
  *
+ * ── The client's answer ────────────────────────────────────────────────────
+ *
+ * A document sent to the client is changed in place until they answer: the
+ * same number and the same approval link, which shows the new figures the
+ * next time it is opened. Once they have approved or declined, what they
+ * answered is on record, and it is not rewritten underneath them.
+ *
  * ── A quote ────────────────────────────────────────────────────────────────
  *
- * Editing a quote issues a new version and voids the old one; the client's
- * approval link moves to the new version. So it is open until the quote has
- * been accepted — at which point it is an agreement, and a change is a new
- * quote — or is already void or expired.
+ * Edited in place while nobody has answered it. A declined quote is revised
+ * instead: the next version, under a new number, which the same link asks
+ * about afresh — the declined figures stay on record as what was declined.
+ * An accepted quote is an agreement, and a change is a new quote; a void or
+ * expired one is finished.
  *
  * ── An invoice ─────────────────────────────────────────────────────────────
  *
@@ -19,17 +27,20 @@
  * new figures are posted. That is only honest while nothing else hangs off
  * the old figures. Money received, a credit note or a write-off is booked
  * against the total as it stood, and a fiscal receipt has told ZIMRA what it
- * was; after any of those, the correction is a credit note in Accounting.
+ * was; after any of those, or once the client has answered it, the
+ * correction is a credit note in Accounting.
  */
 
 export type QuoteEditState = {
   /** `SalesQuotation.status`. */
   status: string;
+  /** `CrmDocumentApproval.status`, when it was sent for approval. */
+  approvalStatus?: string | null;
 };
 
-/** Why a quote can no longer be edited, or null when it can. */
-export function quoteEditLock(quote: QuoteEditState): string | null {
-  switch (quote.status) {
+/** The quote's own end states, which no edit or revision gets past. */
+function quoteClosed(status: string): string | null {
+  switch (status) {
     case "ACCEPTED":
       return "Accepted — raise a new quote for any change";
     case "VOIDED":
@@ -39,6 +50,27 @@ export function quoteEditLock(quote: QuoteEditState): string | null {
     default:
       return null;
   }
+}
+
+/** Why a quote can no longer be edited in place, or null when it can. */
+export function quoteEditLock(quote: QuoteEditState): string | null {
+  const closed = quoteClosed(quote.status);
+  if (closed) return closed;
+  if (quote.approvalStatus === "APPROVED") return "Approved by the client — raise a new quote for any change";
+  if (quote.approvalStatus === "DECLINED") return "Declined by the client — revise it as a new version";
+  return null;
+}
+
+/**
+ * Why a quote cannot be revised as its next version, or null when it can:
+ * only once the client has declined it. Until they answer it is edited in
+ * place, and there is nothing to keep a record of.
+ */
+export function quoteReviseLock(quote: QuoteEditState): string | null {
+  const closed = quoteClosed(quote.status);
+  if (closed) return closed;
+  if (quote.approvalStatus !== "DECLINED") return "Not declined — edit it instead";
+  return null;
 }
 
 export type InvoiceEditState = {
@@ -59,6 +91,8 @@ export type InvoiceEditState = {
    * the question is whether a fiscal receipt exists.
    */
   fiscalised?: boolean;
+  /** `CrmDocumentApproval.status`, when it was sent for approval. */
+  approvalStatus?: string | null;
 };
 
 /** Why an invoice can no longer be edited, or null when it can. */
@@ -74,6 +108,12 @@ export function invoiceEditLock(invoice: InvoiceEditState): string | null {
   }
   if ((invoice.writeOffTotal ?? 0) > 0 || (invoice.writeOffCount ?? 0) > 0) {
     return "Written off — adjust it in Accounting";
+  }
+  if (invoice.approvalStatus === "APPROVED") {
+    return "Approved by the client — adjust it with a credit note in Accounting";
+  }
+  if (invoice.approvalStatus === "DECLINED") {
+    return "Declined by the client — credit it in Accounting and raise a new one";
   }
   if (invoice.status !== "ISSUED") return "Not issued — finish it in Accounting";
   return null;

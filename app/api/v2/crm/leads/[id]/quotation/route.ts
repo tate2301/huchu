@@ -3,7 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
-import { createQuotationForLead } from "@/lib/crm/accounting-bridge";
+import { createQuotationForLead, DocumentLockedError } from "@/lib/crm/accounting-bridge";
 import { getOrCreateApproval } from "@/lib/crm/approvals";
 import { documentResourceIdsSchema } from "@/lib/crm/resources";
 import { crmDocumentLineSchema } from "../../../_helpers";
@@ -71,6 +71,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return successResponse({ ...result, approvalToken }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
+    // A revision refused — the quote was not declined, or is already over.
+    if (error instanceof DocumentLockedError) return errorResponse(error.message, 409);
     console.error("[API] POST /api/v2/crm/leads/[id]/quotation error:", error);
     return errorResponse(error instanceof Error ? error.message : "Failed to create quotation", 400);
   }
