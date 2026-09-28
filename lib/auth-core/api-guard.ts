@@ -25,7 +25,7 @@ import {
   isTenantStatusActive,
 } from "@/lib/platform/tenant";
 import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
-import { isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
+import { isAdminPortalHost, isPlatformSuperuser } from "@/lib/admin-portal";
 import type {
   AuthenticatedSession,
   AuthFailureReason,
@@ -128,7 +128,7 @@ export async function requireApiAuthLean(
       });
     }
 
-    if (!isSuperuserRole(session.user.role)) {
+    if (!isPlatformSuperuser(session.user)) {
       return deny(session, pathname, hostHeader, {
         reason: "SUPERUSER_REQUIRED",
         status: 403,

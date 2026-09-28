@@ -1,3 +1,5 @@
+import { getAuthRuntimeConfig } from "@/lib/auth-core/config";
+
 const DEFAULT_ADMIN_ROOT_DOMAIN = "admin.pagka.dev";
 const DEFAULT_ADMIN_PORTAL_HOST = "portal.admin.pagka.dev";
 
@@ -78,8 +80,27 @@ export function isAdminPortalHost(host: string | null | undefined): boolean {
   return false;
 }
 
-export function isSuperuserRole(role: string | null | undefined): boolean {
-  if (!role) return false;
-  const normalized = role.trim().toUpperCase();
-  return normalized === "SUPERADMIN";
+/**
+ * The platform superuser is an identity, not a role.
+ *
+ * SUPERADMIN is also the role every tenant's owner holds —
+ * `provisionTenant` creates the first admin with it, and self-serve signup
+ * hands it to whoever signs up. Only the host kept those owners out of the
+ * admin portal, and in development `isAdminPortalHost` is true for localhost,
+ * so a signed-up workspace owner on localhost opened /admin/dashboard and
+ * read every tenant's companies, commercials and metrics.
+ *
+ * So the role alone proves nothing. The session's email has to be on the same
+ * allow-list the admin magic-link provider signs in against
+ * (ADMIN_PORTAL_ALLOWED_EMAILS / ADMIN_PORTAL_EMAIL), read on every request so
+ * taking an address off the list takes effect without waiting for its token to
+ * expire.
+ */
+export function isPlatformSuperuser(
+  identity: { role?: string | null; email?: string | null } | null | undefined,
+): boolean {
+  const role = identity?.role?.trim().toUpperCase();
+  const email = identity?.email?.trim().toLowerCase();
+  if (role !== "SUPERADMIN" || !email) return false;
+  return getAuthRuntimeConfig().adminPortalAllowedEmails.includes(email);
 }

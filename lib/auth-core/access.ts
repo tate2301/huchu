@@ -8,7 +8,7 @@ import {
   isAllowedHost,
   isTenantStatusActive,
 } from "@/lib/platform/tenant";
-import { isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
+import { isAdminPortalHost, isPlatformSuperuser } from "@/lib/admin-portal";
 import { isAuthExpired } from "@/lib/auth-core/session-policy";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import type { AuthGuardResult, AuthenticatedSession } from "@/lib/auth-core/types";
@@ -65,7 +65,7 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
       };
     }
 
-    if (!isSuperuserRole(session.user.role)) {
+    if (!isPlatformSuperuser(session.user)) {
       return {
         ok: false,
         reason: "SUPERUSER_REQUIRED",
