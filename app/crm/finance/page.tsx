@@ -7,7 +7,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { authOptions } from "@/lib/auth";
 
 /**
- * The finance overview: money in and out, and where it stands.
+ * Money in and out, and where it stands.
  *
  * Read-only. Everything on it is somebody else's list added up — the
  * requisitions, the cost tracker, the invoices — and every figure links back
@@ -19,10 +19,10 @@ export default async function CrmFinancePage() {
 
   return (
     <CrmPage>
-      {/* Named in the bar, once. Left to itself the bar title-cases the path
-          and says "Finance" — the area, not the page, and not the word the
-          sidebar uses for it. */}
-      <PageChrome title="Finance overview" />
+      {/* Named in the bar, once, with the sidebar's word for it. Left to
+          itself the bar title-cases the path and says "Finance" — the area,
+          not the page. */}
+      <PageChrome title="Money in and out" />
       <FinanceContent />
     </CrmPage>
   );

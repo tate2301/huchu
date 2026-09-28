@@ -259,7 +259,7 @@ still out, overdue tasks, nothing recorded at all — because the question being
 asked of fifteen of these is *"is there anything here I need to deal with"*,
 not *"what did everybody do"*.
 
-## The finance overview
+## Money in and out
 
 > "a finance dashboard for non-accountants, requisitions split by project and
 > by person"
@@ -299,7 +299,7 @@ beside what each person holds now. Rows open onto their requisitions.
 
 ## A team member's page
 
-`/crm/reps/[id]` — "Team" in the navigation, and "My overview" for whoever is
+`/crm/reps/[id]` — "Team" in the navigation, and "My performance" for whoever is
 signed in (`/crm/reps/me` redirects to their own). A member opens their own
 page; a manager, or anybody with `money.view_all`, opens anybody's
 (`mayOpenMember`). The team list stays visible to everybody — you cannot hand a
@@ -451,7 +451,7 @@ paperwork the business sends its customers.
 | `lib/crm/project-timeline.ts` | Jobs laid out against a project's dates |
 | `lib/crm/requisitions.ts` | Lifecycle, categories, money helpers |
 | `lib/crm/daily-log.ts` | Day arithmetic, entry idempotency, submission |
-| `lib/crm/finance.ts` | The not-receipted rule and the finance overview — reads, never writes |
+| `lib/crm/finance.ts` | The not-receipted rule and Money in and out (`financeOverview`) — reads, never writes |
 | `lib/crm/member-overview.ts` | One member's achievements, outstanding items and days |
 | `lib/crm/daily-report.ts` | Assembly and storage |
 

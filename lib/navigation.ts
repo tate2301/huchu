@@ -755,7 +755,9 @@ export const navSections: NavSection[] = [
       { id: "setup", label: "Setup" },
     ],
     items: [
-      { href: "/crm", icon: Dashboard, label: "Overview" },
+      // "Home", not "Overview": it is where the day starts, and the CRM's one
+      // page with no subject of its own — every other row names what it holds.
+      { href: "/crm", icon: Home, label: "Home" },
 
       { href: "/crm/leads", icon: Funnel, label: "Leads", group: "pipeline" },
       { href: "/crm/deals", icon: Funnel, label: "Deals", group: "pipeline" },
@@ -766,8 +768,9 @@ export const navSections: NavSection[] = [
       { href: "/crm/sites", icon: MapPin, label: "Sites", group: "contacts" },
 
       { href: "/crm/reps", icon: UserRound, label: "Team", group: "team" },
-      // Whoever is signed in: `/crm/reps/me` redirects to their own page.
-      { href: "/crm/reps/me", icon: UserCheck, label: "My overview", group: "team" },
+      // Whoever is signed in: `/crm/reps/me` redirects to their own page,
+      // which is how they are doing — what they won, finished and collected.
+      { href: "/crm/reps/me", icon: UserCheck, label: "My performance", group: "team" },
 
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work" },
@@ -783,9 +786,9 @@ export const navSections: NavSection[] = [
       {
         href: "/crm/finance",
         icon: Dashboard,
-        // Not "Overview": the CRM has one of those already, and two rows with
-        // the same word a group apart read as the same place.
-        label: "Finance overview",
+        // What the page answers, not what kind of page it is: "overview" on
+        // three rows said nothing about any of them.
+        label: "Money in and out",
         roles: ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"],
         group: "money",
       },

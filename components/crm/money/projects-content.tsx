@@ -79,7 +79,7 @@ export function ProjectsContent() {
   const [status, setStatus] = useState<string>(FILTER_ANY);
   const [owner, setOwner] = useState<string>(FILTER_ANY);
   const [client, setClient] = useState<string>(FILTER_ANY);
-  // The finance overview links here as "projects over budget", so the budget
+  // Money in and out links here as "projects over budget", so the budget
   // filter can arrive already set.
   const [budget, setBudget] = useState<string>(() =>
     BUDGET_OPTIONS.has(searchParams.get("budget") ?? "") ? searchParams.get("budget")! : FILTER_ANY,

@@ -80,7 +80,7 @@ export const CRM_CAPABILITY_NOTES: Record<CrmCapability, string> = {
   "money.approve": "Says yes to somebody's request for money. Not the same as handing it over.",
   "money.disburse": "Records that the money actually left. Usually a different person, and it should be.",
   "money.view_all":
-    "The finance overview, and anybody's cost tracker and floats — not only their own. Reading, not changing.",
+    "Money in and out, and anybody's cost tracker and floats — not only their own. Reading, not changing.",
   "settings.manage": "Everything on the CRM settings screen.",
 };
 

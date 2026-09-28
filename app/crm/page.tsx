@@ -12,7 +12,7 @@ export default async function CrmDashboardPage() {
   return (
     <CrmPage
     >
-      <PageChrome title="CRM" />
+      <PageChrome title="Home" />
       <CrmOverview />
     </CrmPage>
   );
