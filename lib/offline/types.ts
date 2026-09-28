@@ -107,7 +107,8 @@ export type OfflinePreloadQuery = {
    * Skipped when the session does not hold it. Without this the preloader
    * fetched everything it listed for everybody: a gold clerk took 403s on
    * `/api/sites`, a cashier on `/api/v2/retail/promotions`, on pages that do
-   * not mention either. See `lib/offline/entitlement.ts`.
+   * not mention either. Checked against the session's features by
+   * `prefetchOfflineModuleQueries` in `lib/offline/module-registry.ts`.
    *
    * Only needed where `lib/platform/gating/route-registry.ts` gates the route
    * the fetcher calls. An ungated endpoint needs nothing here.

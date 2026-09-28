@@ -86,9 +86,9 @@ async function syncRetailSale(
      * "manager approval is required", which is approval no queue can obtain, and
      * money the shop already took is lost from the books.
      *
-     * The payload's own stamp wins when it has one (`lib/retail/offline-sale.ts`
-     * writes it); otherwise the outbox row's `createdAt` is the moment the sale
-     * was queued, which is the moment it was rung.
+     * The payload's own stamp wins when it has one; otherwise the outbox row's
+     * `createdAt` is the moment the sale was queued, which is the moment it was
+     * rung.
      */
     const offlineCreatedAt =
       typeof payload.offlineCreatedAt === "string" ? payload.offlineCreatedAt : operation.createdAt;
@@ -214,11 +214,10 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
 
     The entry is gone because nothing needs it. Nothing reads the
     `["retail-pos-tender-policy"]` cache key, and the two rules it carried now
-    reach the till by two correctly-scoped paths: live through
-    `pos-portal-state.tsx`, which reads them off `pos/context`, and offline
-    through `lib/retail/offline-bootstrap.ts`, which caches them under its own
-    key. A third copy warmed for every session in the product was buying
-    nothing.
+    reach the till live through `pos-portal-state.tsx`, which reads them off
+    `pos/context` — and that query is persisted with the rest of the tenant's
+    cache, so the till has them offline too. A second copy warmed for every
+    session in the product was buying nothing.
 
     The general lesson is worth keeping: a preload in a *module* runs for
     anybody whose session warms that module, and feature keys cannot express
