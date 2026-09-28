@@ -91,7 +91,9 @@ export async function POST(
     const denied = schoolPermissionDenial(session, "schools.exams", "edit");
     if (denied) return errorResponse(denied, 403);
 
-    await context.params;
+    // The series from the URL, which this handler used to throw away — which is
+    // why nothing it wrote was scoped to the series it was posted under.
+    const { seriesId } = await context.params;
     const body = postSchema.parse(await request.json());
     const companyId = session.user.companyId;
 
@@ -102,6 +104,42 @@ export async function POST(
         candidateIds: body.candidateIds,
       });
       return successResponse(result, 201);
+    }
+
+    /*
+      Both ids come from the request body, and `@@unique([sessionId, roomId])`
+      is global — so an unchecked upsert reaches straight across the tenant
+      boundary. A caller who guessed another school's `sessionId` could write an
+      allocation into that school's seating plan, complete with an invigilator's
+      name; the `create` branch would stamp it with THIS company's `companyId`,
+      leaving a row the victim school can see on its own screen and cannot
+      explain.
+
+      So both are resolved against the caller's company first, and the session
+      against this series as well — a session belonging to a different series of
+      the same school is still the wrong hall.
+    */
+    const [session_, room] = await Promise.all([
+      prisma.schoolExamSession.findFirst({
+        where: { id: body.sessionId, companyId, seriesId },
+        select: { id: true },
+      }),
+      prisma.schoolRoom.findFirst({
+        where: { id: body.roomId, companyId },
+        select: { id: true },
+      }),
+    ]);
+    if (!session_) return errorResponse("That sitting is not on this series.", 404);
+    if (!room) return errorResponse("That room is not this school's.", 404);
+
+    if (body.invigilatorTeacherProfileId) {
+      const invigilator = await prisma.schoolTeacherProfile.findFirst({
+        where: { id: body.invigilatorTeacherProfileId, companyId },
+        select: { id: true },
+      });
+      if (!invigilator) {
+        return errorResponse("That invigilator is not on this school's staff.", 404);
+      }
     }
 
     const allocation = await prisma.schoolExamRoomAllocation.upsert({

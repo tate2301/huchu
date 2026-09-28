@@ -118,7 +118,7 @@ export async function POST(
     }
     if (error instanceof ExamError) return errorResponse(error.message, 422);
     console.error("[API] POST /api/v2/schools/exams/series/[id]/candidates error:", error);
-    return errorResponse("Failed to register the year group");
+    return errorResponse("Failed to register the cohort");
   }
 }
 

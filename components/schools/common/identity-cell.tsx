@@ -81,7 +81,7 @@ export function PersonCell({
    * number, an employee code. It leads the supporting line.
    */
   reference?: ReactNode;
-  /** The word of context after it — a year group, a job title, a hostel. */
+  /** The word of context after it — a class, a job title, a hostel. */
   context?: ReactNode;
   /**
    * Set when the supporting line holds names or sentences rather than
@@ -140,7 +140,7 @@ export function PersonCell({
 
 /**
  * The same cell for the things a school is made of — a class, a subject, a
- * hostel, a year group.
+ * hostel, a class.
  *
  * Split from `PersonCell` only by what the mark is: a person gets initials,
  * because the reader is looking for a *who* and a repeated person glyph tells

@@ -479,7 +479,7 @@ export const navSections: NavSection[] = [
       { href: "/schools/attendance", icon: UserCheck, label: "Registers", group: "school-day" },
       // Oversight, not a register. An administrator arrives at the whole school
       // and narrows to a class; the class-by-class rail belongs to the page,
-      // which is the only thing that knows tonight's year groups.
+      // which is the only thing that knows tonight's classes.
       {
         href: "/schools/attendance/follow-up",
         icon: ReportProblem,
@@ -544,11 +544,30 @@ export const navSections: NavSection[] = [
         label: "Merits and demerits",
         group: "conduct",
       },
+      // The module does not start without this. An incident is logged against
+      // a category and a merit is given for a reason; both lists begin empty
+      // and the endpoints that fill them had no caller, so every conduct
+      // screen opened onto a list nothing could add to.
+      {
+        href: "/schools/conduct/setup",
+        icon: Scale,
+        label: "Conduct setup",
+        group: "conduct",
+      },
 
       { href: "/schools/results", icon: FileCheck, label: "Results", group: "results" },
       // S-13.1. Public exams fold into Results rather than taking a group of
       // their own: "a head looking for November's grades does not first decide
       // whether they are internal or public."
+      // Nothing in the module works without a board: a series is sat with one,
+      // and the POST that creates one had no caller, so the whole of public
+      // exams was unreachable from an empty tenant.
+      {
+        href: "/schools/exams/reference",
+        icon: Scale,
+        label: "Exam boards",
+        group: "results",
+      },
       {
         href: "/schools/exams",
         icon: Certificate,
@@ -568,14 +587,25 @@ export const navSections: NavSection[] = [
       { href: "/schools/boarding", icon: Home, label: "Bed board", group: "boarding" },
       { href: "/schools/boarding/allocations", icon: Checklist, label: "Allocations", group: "boarding" },
       { href: "/schools/boarding/roll-call", icon: UserCheck, label: "Roll call", group: "boarding" },
-      { href: "/schools/boarding/hostels", icon: Building2, label: "Hostels", group: "boarding" },
+      // Houses is where boarding work starts — you pick a house, then read its
+      // plan. It shipped with a record page, a 386-line list component and a
+      // back link pointing at it, and no route file, so the list 404'd and the
+      // component was orphaned. "Rooms and beds" is the same building from the
+      // other end: where a dormitory is added and its beds are numbered.
+      { href: "/schools/boarding/houses", icon: Home, label: "Houses", group: "boarding" },
+      {
+        href: "/schools/boarding/hostels",
+        icon: Building2,
+        label: "Rooms and beds",
+        group: "boarding",
+      },
       { href: "/schools/boarding/sick-bay", icon: MedusaIdBadgeIcon, label: "Sick bay", group: "boarding" },
       { href: "/schools/boarding/leave", icon: CalendarCheck, label: "Leave and outings", group: "boarding" },
 
       // Money owed to the school. Three entries where there were eight: five of
       // the eight were `?view=` links onto the ledger's own segmented control,
       // so the rail was four rows deep into a screen it had already named.
-      { href: "/schools/finance", icon: ReceiptLong, label: "Fees by year group", group: "fees" },
+      { href: "/schools/finance", icon: ReceiptLong, label: "Fees by class", group: "fees" },
       { href: "/schools/finance/ledger", icon: Payments, label: "Fee ledger", group: "fees" },
       // Not a ledger segment. "Who owes, and for how long" is a different
       // question from "show me the invoices", with its own ageing strip and its

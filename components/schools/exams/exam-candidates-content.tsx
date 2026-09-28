@@ -59,7 +59,7 @@ const STATUS_OPTIONS = [
   { value: "registered", label: "Registered" },
 ];
 
-type Segment = "all" | "blocked" | "registered";
+type Segment = "all" | "ready" | "blocked" | "registered";
 
 export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
   const queryClient = useQueryClient();
@@ -226,11 +226,11 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
           resource="schools.exams"
           verbs={[
             {
-              label: "Register the year group",
+              label: "Register the class",
               action: "enter",
               loading: register.isPending,
               confirm: {
-                title: "Register the year group as candidates",
+                title: "Register the class as candidates",
                 description:
                   "Every pupil on the roll for this cohort becomes a candidate with a number, in surname order. Nobody is entered for a subject yet, and a pupil with a missing birth certificate is still created — that is work the office has to see, not work to hide.",
                 confirmLabel: "Register them",
@@ -245,6 +245,15 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
         <PageCaption>
           {series.board.name} {series.name} · {EXAM_LEVEL_LABELS[series.level]}
           {series.centre ? ` · centre ${series.centre.number}` : ""}
+          {/* The deadline rides on the caption because it is a fact about the
+              series rather than about any row, and it is the thing that makes
+              the blockers below urgent: nine to fix is a morning in March and a
+              crisis in the last week. */}
+          {tallies?.daysLeft == null
+            ? ""
+            : tallies.daysLeft > 0
+              ? ` · entries close in ${spellCount(tallies.daysLeft)} ${tallies.daysLeft === 1 ? "day" : "days"}`
+              : " · entries have closed"}
         </PageCaption>
       ) : null}
 
@@ -344,11 +353,18 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
             <TableControls
               sticky
               tabs={
+                /* The four tabs carry the series tallies, so the counts a
+                   registrar wants — how many candidates, how many ready, how
+                   many blocked — are read off the cut they belong to. Blocked
+                   is the same number the blockers table above totals as
+                   `N to fix`; it is said once here and once there, and there is
+                   where the work is. */
                 <PopulationTabs<Segment>
                   value={segment}
                   onChange={setSegment}
                   tabs={[
                     { id: "all", label: "The whole roll", count: tallies?.candidates },
+                    { id: "ready", label: "Ready to register", count: tallies?.readyToRegister },
                     { id: "blocked", label: "Blocked", count: tallies?.cannotBeRegistered },
                     {
                       id: "registered",
@@ -366,6 +382,16 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
                 />
               }
               filterCount={activeFilterCount(classValue.classId, statusFilter)}
+              /* The unpaid total sits beside the row count because it is the
+                 sum of the Entry fees column underneath it — the same reading,
+                 at the foot of the same table, for a roll too long to add up by
+                 eye. It is the series total, not the total of what the filters
+                 left showing. */
+              count={
+                rollQuery.isPending || !tallies
+                  ? null
+                  : `${rows.length} of ${tallies.candidates} · ${formatSchoolMoney(tallies.entryFeesUnpaid)} unpaid`
+              }
               filters={
                 <>
                   <ClassFilter
@@ -447,7 +473,13 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
                     what="candidates"
                     filters={[
                       STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label,
-                      segment === "blocked" ? "Blocked" : segment === "registered" ? "Registered" : null,
+                      segment === "all"
+                        ? null
+                        : segment === "ready"
+                          ? "Ready to register"
+                          : segment === "blocked"
+                            ? "Blocked"
+                            : "Registered",
                     ].filter((entry): entry is string => Boolean(entry))}
                     search={search}
                     onClear={() => {
@@ -460,7 +492,7 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
                 ) : (
                   <NothingYet
                     title="Nobody has been registered for this series"
-                    body="Register the year group and every pupil on the roll becomes a candidate with a number."
+                    body="Register the class and every pupil on the roll becomes a candidate with a number."
                   />
                 )
               }

@@ -145,7 +145,7 @@ export function TeacherAssignmentsContent() {
               reference={row.original.term?.name ?? "No term"}
             />
           ) : (
-            <span className="text-[color:var(--text-muted)]">No year group</span>
+            <span className="text-[color:var(--text-muted)]">No class</span>
           ),
       },
       {

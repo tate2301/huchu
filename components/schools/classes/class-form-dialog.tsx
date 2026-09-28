@@ -1,15 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  CLASS_LADDER,
+  FORM_MAX,
+  GRADE_MAX,
+  classStage,
+  levelFor,
+  stageOrdinal,
+  type ClassStage,
+} from "@/lib/schools/class-stage";
 
 export type ClassFormValues = {
   code: string;
   name: string;
+  /** The rung on the school-wide ladder, as a string for the form. */
   level: string;
   capacity: string;
 };
@@ -17,32 +34,45 @@ export type ClassFormValues = {
 const EMPTY: ClassFormValues = { code: "", name: "", level: "", capacity: "" };
 
 /**
- * The secondary ladder as it is actually named here.
+ * A class, created or corrected — and the stage it is on.
  *
- * Not specimen data: Form 1 through Form 4 then Lower Sixth and Upper Sixth is
- * the Zimbabwean secondary school, and the level numbers behind those names are
- * the thing everybody gets wrong by hand — the two sixths are levels 5 and 6
- * and sort after Form 4, which typing "Lower Sixth" into a free-text box does
- * not tell anyone. Pressing one fills the code, the name and the level
- * together; the places count stays the school’s own.
+ * ## What was wrong here
+ *
+ * This dialog asked for "Year group" as a bare number with the helper text
+ * "where it sits on the ladder", and shipped six quick presets that put **Form 1
+ * at level 1**. `provisionSchool` puts Form 1 at level 8, above the seven
+ * Grades, so that one ladder is continuous and `orderBy: { level: "asc" }` — the
+ * ordering behind the classes list, the register board, report cards and every
+ * fee run — reads top to bottom.
+ *
+ * Two writers, two incompatible ladders. A combined school that was provisioned
+ * and then added a class from this dialog got Form 1 sorting above Grade 1, and
+ * no screen it appeared on could say why. The preset codes diverged too — `L5`
+ * and `U6` here against `F5` and `F6` there — so the "already on the ladder"
+ * guard did not fire and pressing Lower Sixth on a provisioned school created a
+ * *second* Form 5 at the wrong rung.
+ *
+ * ## What it asks now
+ *
+ * The stage and the year, which is how a school says it — "Form 2", not "rung
+ * 9". The level is computed from the pair and still stored in the same column,
+ * so nothing downstream changes and no existing tenant moves. The rung number
+ * is shown rather than typed, because it is an ordering the school never says
+ * out loud and should not have to know.
  */
-const LADDER = [
-  { code: "F1", name: "Form 1", level: "1" },
-  { code: "F2", name: "Form 2", level: "2" },
-  { code: "F3", name: "Form 3", level: "3" },
-  { code: "F4", name: "Form 4", level: "4" },
-  { code: "L5", name: "Lower Sixth", level: "5" },
-  { code: "U6", name: "Upper Sixth", level: "6" },
-];
+const STAGE_LABELS: Record<ClassStage, string> = {
+  ECD: "ECD",
+  GRADE: "Grade",
+  FORM: "Form",
+};
 
-/**
- * A year group, created or corrected.
- *
- * `level` is the ladder's ordering rather than the name, and it is asked for
- * separately because the two genuinely differ: a school running ECD, seven
- * Grades and four Forms has "Form 1" at level 8, and sorting the list by the
- * name would put Form 10 between Form 1 and Form 2.
- */
+/** How many years each ladder runs. ECD is a pair sharing one rung. */
+const STAGE_YEARS: Record<ClassStage, number> = {
+  ECD: 0,
+  GRADE: GRADE_MAX,
+  FORM: FORM_MAX - GRADE_MAX,
+};
+
 export function ClassFormDialog({
   open,
   onOpenChange,
@@ -71,14 +101,72 @@ export function ClassFormDialog({
     if (open) setValues(initial ?? EMPTY);
   }
 
+  /*
+   * Stage and year are derived from the stored level rather than held beside
+   * it. Two pieces of state for one fact drift the moment a preset writes the
+   * level directly, and the level is what the form submits.
+   */
+  const level = values.level === "" ? null : Number(values.level);
+  const stage = classStage(level);
+  const ordinal = level == null || stage === "ECD" ? null : stageOrdinal(level);
+
+  const setLevel = (next: number | null) =>
+    setValues((current) => ({ ...current, level: next == null ? "" : String(next) }));
+
+  const takenSet = useMemo(
+    () => new Set(takenCodes.map((code) => code.toLowerCase())),
+    [takenCodes],
+  );
+
+  const rungs = useMemo(
+    () => ({
+      primary: CLASS_LADDER.filter((rung) => rung.stage !== "FORM"),
+      secondary: CLASS_LADDER.filter((rung) => rung.stage === "FORM"),
+    }),
+    [],
+  );
+
   const canSubmit = values.code.trim().length > 0 && values.name.trim().length > 0;
+
+  const presetRow = (label: string, hint: string, list: typeof CLASS_LADDER) => (
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">
+        {label} <span className="text-[color:var(--text-muted)]">— {hint}</span>
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {list.map((rung) => {
+          const taken = takenSet.has(rung.code.toLowerCase());
+          return (
+            <Button
+              key={rung.code}
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={taken}
+              title={taken ? `${rung.name} is already on the ladder.` : undefined}
+              onClick={() =>
+                setValues((current) => ({
+                  ...current,
+                  code: rung.code,
+                  name: rung.name,
+                  level: String(rung.level),
+                }))
+              }
+            >
+              {rung.name}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
       title={editing ? `Edit ${initial?.name || "class"}` : "New class"}
-      description="A year group. Pupils, registers, mark sheets and fee structures all hang off one."
+      description="Pupils, registers, mark sheets and fee structures all hang off one."
       size="md"
       errors={error ? [error] : undefined}
       onSubmit={(event) => {
@@ -105,37 +193,14 @@ export function ClassFormDialog({
         {/* Only when creating. Pressing "Form 3" over an existing class would
             rename the wrong row and move it up the ladder with its pupils. */}
         {editing ? null : (
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-3 sm:col-span-2">
             <Label>Start from</Label>
-            <div className="flex flex-wrap gap-2">
-              {LADDER.map((rung) => {
-                const taken = takenCodes.some(
-                  (code) => code.toLowerCase() === rung.code.toLowerCase(),
-                );
-                return (
-                  <Button
-                    key={rung.code}
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={taken}
-                    title={taken ? `${rung.name} is already on the ladder.` : undefined}
-                    onClick={() =>
-                      setValues((current) => ({
-                        ...current,
-                        code: rung.code,
-                        name: rung.name,
-                        level: rung.level,
-                      }))
-                    }
-                  >
-                    {rung.name}
-                  </Button>
-                );
-              })}
-            </div>
+            {presetRow("Primary", "ECD and the Grades", rungs.primary)}
+            {presetRow("Secondary", "the Forms", rungs.secondary)}
             <p className="text-sm text-muted-foreground">
-              Fills the code, the name and where it sits on the ladder.
+              Fills the code, the name and the stage together. A school that calls
+              Form 5 and Form 6 the Lower and Upper Sixth can rename them here —
+              the rung underneath stays the same, so they still sort last.
             </p>
           </div>
         )}
@@ -163,23 +228,70 @@ export function ClassFormDialog({
             }
           />
         </div>
+
         <div className="space-y-2">
-          <Label htmlFor="class-level">Year group</Label>
-          <Input
-            id="class-level"
-            type="number"
-            min={0}
-            value={values.level}
-            placeholder="2"
-            onChange={(event) =>
-              setValues((current) => ({ ...current, level: event.target.value }))
-            }
-          />
+          <Label htmlFor="class-stage">Stage</Label>
+          <Select
+            value={stage ?? ""}
+            onValueChange={(next) => {
+              const chosen = next as ClassStage;
+              // Keep the year where the new ladder has one to keep it at, so
+              // switching Grade 4 to a Form lands on Form 4 rather than blank.
+              const keep = Math.min(ordinal ?? 1, STAGE_YEARS[chosen] || 1);
+              setLevel(levelFor(chosen, chosen === "ECD" ? 0 : keep));
+            }}
+          >
+            <SelectTrigger id="class-stage">
+              <SelectValue placeholder="Which ladder" />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(STAGE_LABELS) as ClassStage[]).map((value) => (
+                <SelectItem key={value} value={value}>
+                  {STAGE_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <p className="text-sm text-muted-foreground">
-            Where it sits on the ladder. Lists and report cards are ordered by it.
+            A primary runs Grades, a secondary runs Forms, and a combined school
+            runs both.
           </p>
         </div>
+
         <div className="space-y-2">
+          <Label htmlFor="class-year">Year</Label>
+          <Input
+            id="class-year"
+            type="number"
+            min={1}
+            max={stage ? STAGE_YEARS[stage] || undefined : undefined}
+            // ECD A and ECD B are a pair on one rung, so there is no year to
+            // ask for; the two are told apart by their names.
+            disabled={stage == null || stage === "ECD"}
+            value={ordinal == null ? "" : String(ordinal)}
+            placeholder="2"
+            onChange={(event) => {
+              if (stage == null || stage === "ECD") return;
+              const typed = Number(event.target.value);
+              if (!Number.isFinite(typed) || typed < 1) {
+                setLevel(null);
+                return;
+              }
+              setLevel(levelFor(stage, Math.min(typed, STAGE_YEARS[stage])));
+            }}
+          />
+          <p className="text-sm text-muted-foreground">
+            {stage == null
+              ? "Pick a stage first."
+              : stage === "ECD"
+                ? "ECD A and ECD B share a rung and sort above Grade 1."
+                : `${STAGE_LABELS[stage]} ${ordinal ?? "—"} sits at rung ${
+                    level ?? "—"
+                  } of ${FORM_MAX}. Lists and report cards are ordered by it.`}
+          </p>
+        </div>
+
+        <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="class-capacity">Places</Label>
           <Input
             id="class-capacity"

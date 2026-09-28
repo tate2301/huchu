@@ -35,6 +35,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { recordType } from "@/lib/records/registry";
+import { rungName } from "@/lib/schools/class-stage";
 import {
   facts,
   pluralise,
@@ -368,7 +369,8 @@ export async function searchSchools(
       subtitle: context.length > 0 ? context.join(" · ") : null,
       facts: facts([
         ["Term", klass.term?.name],
-        ["Year group", klass.level],
+        // The rung is internal ordering — "8" means nothing to anybody.
+        ["Stage", rungName(klass.level)],
         ["On the roll", onRoll],
         ["Places", klass.capacity],
       ]),

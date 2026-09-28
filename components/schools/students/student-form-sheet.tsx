@@ -24,6 +24,7 @@ import {
 } from "@/lib/schools/admin-v2";
 import type { StudentRollRecord } from "@/lib/schools/students-v2";
 import { formatSchoolDate } from "@/lib/schools/format";
+import { classVocabularyOf } from "@/components/schools/common/use-class-vocabulary";
 
 export type StudentFormValues = {
   firstName: string;
@@ -155,6 +156,7 @@ export function StudentFormSheet({
   });
 
   const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
+  const words = classVocabularyOf(classes);
   const guardians = useMemo(() => guardiansQuery.data?.data ?? [], [guardiansQuery.data]);
   const streams = useMemo(
     () => classes.find((row) => row.id === values.currentClassId)?.streams ?? [],
@@ -251,7 +253,7 @@ export function StudentFormSheet({
               date field draws its value in whatever order the reader's browser
               was set up with, so 06/03 is the third of June at one desk and the
               sixth of March at the next — and a date of birth read the wrong way
-              round puts a child in the wrong year group. */}
+              round puts a child in the wrong class. */}
           <Label htmlFor="student-dob">
             Date of birth
             {values.dateOfBirth ? (
@@ -287,7 +289,7 @@ export function StudentFormSheet({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="student-year-group">Year group</Label>
+          <Label htmlFor="student-year-group">{words.One}</Label>
           <Select
             value={values.currentClassId || "__none__"}
             onValueChange={(next) => {
@@ -295,7 +297,7 @@ export function StudentFormSheet({
               setValues((current) => ({
                 ...current,
                 currentClassId: chosen,
-                // A stream belongs to one year group; keeping the old one
+                // A stream belongs to one class; keeping the old one
                 // across a change is how a pupil lands in Form 2 Blue while
                 // sitting in Form 3.
                 currentStreamId: "",
@@ -303,10 +305,10 @@ export function StudentFormSheet({
             }}
           >
             <SelectTrigger id="student-year-group">
-              <SelectValue placeholder="Not in a year group" />
+              <SelectValue placeholder={`Not in a ${words.one}`} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Not in a year group</SelectItem>
+              <SelectItem value="__none__">{`Not in a ${words.one}`}</SelectItem>
               {classes.map((row) => (
                 <SelectItem key={row.id} value={row.id}>
                   {row.name}
@@ -316,7 +318,7 @@ export function StudentFormSheet({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="student-stream">Class</Label>
+          <Label htmlFor="student-stream">Stream</Label>
           <Select
             value={values.currentStreamId || "__none__"}
             onValueChange={(next) =>
@@ -329,9 +331,9 @@ export function StudentFormSheet({
                 placeholder={
                   values.currentClassId
                     ? streams.length === 0
-                      ? "This year group has no classes"
-                      : "Not in a class"
-                    : "Choose a year group first"
+                      ? `This ${words.one} has no streams`
+                      : "Not in a stream"
+                    : `Choose a ${words.one} first`
                 }
               />
             </SelectTrigger>

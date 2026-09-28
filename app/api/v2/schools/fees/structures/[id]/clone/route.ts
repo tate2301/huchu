@@ -89,7 +89,7 @@ export async function POST(
       }),
     ]);
     if (!term) return errorResponse("Term not found", 404);
-    if (classes.length === 0) return errorResponse("No matching year groups", 404);
+    if (classes.length === 0) return errorResponse("No matching classes", 404);
 
     // What is already there. Only a live structure blocks: a DRAFT the bursar
     // abandoned should not stop them copying a corrected one over the top.

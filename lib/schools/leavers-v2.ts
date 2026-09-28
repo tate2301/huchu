@@ -126,6 +126,24 @@ export function markClearance(
   });
 }
 
+/**
+ * Put a closed record back in the queue.
+ *
+ * A pupil gets one leaving record — `SchoolLeaver.studentId` is unique — so a
+ * pupil who was withdrawn, came back and is now leaving properly is recorded on
+ * the first record rather than on a second one. Reopening derives the five
+ * marks again, because the fees, the books and the bed have all moved on.
+ */
+export function reopenLeaver(
+  leaverId: string,
+  input: { lastDay?: string; reason?: LeavingReason; note?: string | null } = {},
+) {
+  return fetchJson<{ id: string }>(`/api/v2/schools/leavers/${leaverId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ reopen: true, ...input }),
+  });
+}
+
 export function closeLeaver(leaverId: string) {
   return fetchJson<{ id: string }>(`/api/v2/schools/leavers/${leaverId}`, {
     method: "PATCH",
@@ -267,7 +285,7 @@ export type AlumnusRecord = {
     examSubject: { name: string; level: string };
     series: { name: string; level: string };
   }>;
-  honours: Array<{ id: string; kind: string; year: number; title: string }>;
+  honours: Array<{ id: string; kind: string; year: number; title: string; detail: string | null }>;
   conduct: { incidents: number; merits: number; summary: string };
 };
 
@@ -301,3 +319,66 @@ export function addAlumniUpdate(
     body: JSON.stringify(input),
   });
 }
+
+export type HonourKind = "PRIZE" | "COLOURS" | "POST" | "OTHER";
+
+export const HONOUR_KIND_LABELS: Record<HonourKind, string> = {
+  POST: "Post of responsibility",
+  COLOURS: "Colours",
+  PRIZE: "Prize",
+  OTHER: "Other",
+};
+
+/**
+ * Record something a pupil won while they were here.
+ *
+ * `SchoolStudentHonour` shipped, is read by the alumnus record, and was written
+ * by nothing — so the Honours section was empty on every alumnus and no school
+ * could put anything in it. Head girl, head of house, full colours, the
+ * accounting prize: it is what a school reads out at prize giving and writes
+ * into a leaving reference years later.
+ *
+ * Hung off the pupil, not the alumnus: an honour is won in Form 3 and the
+ * alumnus row does not exist until they leave.
+ */
+export function addHonour(
+  studentId: string,
+  input: { kind: HonourKind; year: number; title: string; detail?: string | null },
+) {
+  return fetchJson<{ id: string }>(`/api/v2/schools/students/${studentId}/honours`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Correct one — a prize list is transcribed from a handwritten sheet. */
+export function updateHonour(
+  studentId: string,
+  input: {
+    honourId: string;
+    kind?: HonourKind;
+    year?: number;
+    title?: string;
+    detail?: string | null;
+  },
+) {
+  return fetchJson<{ id: string }>(`/api/v2/schools/students/${studentId}/honours`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Take one off the record.
+ *
+ * A real delete, which the module's setup tables deliberately are not: nothing
+ * points at an honour, so one recorded against the wrong pupil is a slip rather
+ * than history, and leaving it on their reference is worse than removing it.
+ */
+export function removeHonour(studentId: string, honourId: string) {
+  return fetchJson<{ honourId: string }>(
+    `/api/v2/schools/students/${studentId}/honours?honourId=${encodeURIComponent(honourId)}`,
+    { method: "DELETE" },
+  );
+}
+

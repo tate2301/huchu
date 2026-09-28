@@ -20,7 +20,7 @@ import { formatSchoolMoney } from "@/lib/schools/format";
 import type { SchoolFeeStructureRecord } from "@/lib/schools/fees-v2";
 
 /**
- * Copy one year group's fee sheet to the others.
+ * Copy one class's fee sheet to the others.
  *
  * The gap this closes is not a bug anybody would file: `provisionSchool` leaves a
  * starter structure on the first rung of the ladder, and a combined school has
@@ -131,7 +131,7 @@ export function CopyStructureDialog({
             <AlertTitle>
               {result.created === 0
                 ? "Nothing to copy"
-                : `Copied to ${result.created} year group${result.created === 1 ? "" : "s"}`}
+                : `Copied to ${result.created} class${result.created === 1 ? "" : "s"}`}
             </AlertTitle>
             <AlertDescription>
               {/* The skipped ones are named. A bursar who asked for fifteen and
@@ -150,13 +150,13 @@ export function CopyStructureDialog({
           <Skeleton className="h-40 w-full" />
         ) : (
           <div className="space-y-2">
-            {/* The canvas heads the list "Year groups" and hangs Select all off
+            {/* The canvas heads the list "Classes" and hangs Select all off
                 the same line. It matters on a sixteen-rung ladder: without a
                 heading the checkbox column reads as the dialog's whole subject
                 rather than as the choice inside it. */}
             <div className="flex items-center gap-2">
               <h3 className="text-[length:var(--type-caption)] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
-                Year groups
+                Classes
               </h3>
               <div className="flex-1" />
               <Button
@@ -215,7 +215,7 @@ export function CopyStructureDialog({
           >
             {copy.isPending
               ? "Copying…"
-              : `Copy to ${selected.length || "no"} year group${selected.length === 1 ? "" : "s"}`}
+              : `Copy to ${selected.length || "no"} class${selected.length === 1 ? "" : "s"}`}
           </Button>
         </DialogFooter>
       </DialogContent>

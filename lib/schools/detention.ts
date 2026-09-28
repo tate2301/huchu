@@ -27,6 +27,22 @@ export class DetentionError extends Error {
   }
 }
 
+/**
+ * The tenant boundary, thrown where an id that arrived in a request is not this
+ * school's.
+ *
+ * A subclass rather than a class of its own, so the routes that already answer
+ * `DetentionError` with a 422 keep catching it untouched, and a route that
+ * needs the distinction can make it: "there is no such sitting here" is a 404
+ * and is not the same answer as "you cannot do that to this one".
+ */
+export class DetentionNotFoundError extends DetentionError {
+  constructor(message: string) {
+    super(message);
+    this.name = "DetentionNotFoundError";
+  }
+}
+
 export type SessionSummary = {
   id: string;
   startsAt: Date;
@@ -295,7 +311,13 @@ export async function sessionRegister(args: {
       session: { index: Math.min(indexByAward.get(row.award.id) ?? 1, owed), owed },
       getsHome: getsHome.get(row.student.id) ?? { kind: "day", label: "Day" },
       stillToServe: {
-        sessions: Math.max(0, owed - served - (row.state === "HERE" ? 0 : 0)),
+        // `served` is every HERE mark against this award, today's included once
+        // it is marked, so the subtraction already accounts for this session and
+        // needs no correction term. There was one here — `- (state === "HERE" ?
+        // 0 : 0)` — which subtracted nothing down either branch and read as if a
+        // correction were being applied. Making it `? 1 : 0` would have counted
+        // today twice.
+        sessions: Math.max(0, owed - served),
         nextAt: nextByStudent.get(row.student.id) ?? null,
       },
       movedTo: row.movedTo,
@@ -352,11 +374,21 @@ export async function sessionRegister(args: {
 export async function markAttendance(args: {
   companyId: string;
   actorId: string;
+  /**
+   * The session being marked, from the URL.
+   *
+   * Required, and it is the whole point. The route proves the caller supervises
+   * THIS session and then used to pass an `attendanceId` scoped only to the
+   * company — so a teacher supervising Friday's detention could mark a row on
+   * Saturday's register, or on any other session in the school, by sending its
+   * id. The gate and the write have to be about the same sitting.
+   */
+  sessionId: string;
   attendanceId: string;
   state: "HERE" | "DID_NOT_TURN_UP" | "NOT_MARKED";
 }) {
   const row = await prisma.schoolDetentionAttendance.findFirst({
-    where: { id: args.attendanceId, companyId: args.companyId },
+    where: { id: args.attendanceId, companyId: args.companyId, sessionId: args.sessionId },
     select: { id: true, state: true },
   });
   if (!row) throw new DetentionError("That name is not on this register.");
@@ -417,12 +449,14 @@ export async function markEveryoneHere(args: {
 export async function moveToSession(args: {
   companyId: string;
   actorId: string;
+  /** The session being marked, from the URL. See `markAttendance`. */
+  sessionId: string;
   attendanceId: string;
   toSessionId: string;
 }) {
   const [row, target] = await Promise.all([
     prisma.schoolDetentionAttendance.findFirst({
-      where: { id: args.attendanceId, companyId: args.companyId },
+      where: { id: args.attendanceId, companyId: args.companyId, sessionId: args.sessionId },
       select: { id: true, state: true, awardId: true, studentId: true, sessionId: true },
     }),
     prisma.schoolDetentionSession.findFirst({
@@ -491,6 +525,125 @@ export async function createSession(args: {
 }
 
 /**
+ * Move a sitting, or change who is standing at the front of it.
+ *
+ * A school books Friday detention into the hall in week two. In week five the
+ * hall is wanted for prize-giving, the teacher supervising it is away, and the
+ * whole thing has to become Monday. None of that was possible: the date, the
+ * room and the supervisor were settled at the moment the sitting was created
+ * and nothing in the product could reach them again, so a school's only way out
+ * was to schedule a second sitting beside the first and leave everybody named
+ * on a register that would never be taken.
+ *
+ * The room and the supervisor arrive as ids in a request body, so both are
+ * resolved against the caller's own company before either is written —
+ * otherwise a school could book another school's room, and the register would
+ * print a stranger as the person in charge of its pupils.
+ */
+export async function updateSession(args: {
+  companyId: string;
+  sessionId: string;
+  startsAt?: Date;
+  endsAt?: Date;
+  roomId?: string | null;
+  supervisorTeacherProfileId?: string | null;
+  label?: string | null;
+}) {
+  const existing = await prisma.schoolDetentionSession.findFirst({
+    where: { id: args.sessionId, companyId: args.companyId },
+    select: { id: true, startsAt: true, endsAt: true },
+  });
+  if (!existing) throw new DetentionNotFoundError("That detention session is not this school's.");
+
+  // Measured against what the sitting will be, not against what was sent. A
+  // correction that moves only the end time has to be checked against the start
+  // time already stored, or 14:00–15:00 could be given an end of 13:30 by a
+  // request that never mentioned the start.
+  const startsAt = args.startsAt ?? existing.startsAt;
+  const endsAt = args.endsAt ?? existing.endsAt;
+  if (endsAt <= startsAt) throw new DetentionError("A session has to end after it starts.");
+
+  const [room, supervisor] = await Promise.all([
+    args.roomId
+      ? prisma.schoolRoom.findFirst({
+          where: { id: args.roomId, companyId: args.companyId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    args.supervisorTeacherProfileId
+      ? prisma.schoolTeacherProfile.findFirst({
+          where: { id: args.supervisorTeacherProfileId, companyId: args.companyId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  if (args.roomId && !room) throw new DetentionError("That room is not this school's.");
+  if (args.supervisorTeacherProfileId && !supervisor) {
+    throw new DetentionError("That teacher is not on this school's staff.");
+  }
+
+  return prisma.schoolDetentionSession.update({
+    where: { id: existing.id },
+    data: {
+      ...(args.startsAt !== undefined ? { startsAt: args.startsAt } : {}),
+      ...(args.endsAt !== undefined ? { endsAt: args.endsAt } : {}),
+      // An explicit `null` gives the room back and takes the supervisor's name
+      // off; a field nobody mentioned is left where it was. Collapsing the two
+      // would mean a school could name a supervisor and never unname one, and
+      // would rub out the room every time somebody corrected the label.
+      ...(args.roomId !== undefined ? { roomId: args.roomId } : {}),
+      ...(args.supervisorTeacherProfileId !== undefined
+        ? { supervisorTeacherProfileId: args.supervisorTeacherProfileId }
+        : {}),
+      ...(args.label !== undefined ? { label: args.label?.trim() || null } : {}),
+    },
+    select: { id: true },
+  });
+}
+
+/**
+ * Call a sitting off.
+ *
+ * `SchoolDetentionSession` carries no cancelled state, and this does not invent
+ * one in a column that does not exist. So the rule is the one the rows
+ * themselves decide:
+ *
+ *   - **nobody named: it goes.** A sitting in the diary that no pupil owes is a
+ *     booking, not a record. Nothing points at it and deleting it takes no
+ *     meaning away from anything.
+ *   - **anybody named: it stays, and the refusal says how many.** Those pupils
+ *     were told to attend, their awards count this sitting towards what they
+ *     owe, and `Moved to Saturday` on another register is a pointer at this row
+ *     that `onDelete: SetNull` would quietly blank — the badge would degrade to
+ *     `Moved elsewhere` and a supervisor would have no register to go and look
+ *     at. Move the awards to another sitting first; once the last one is off
+ *     it, this becomes the empty case above.
+ *
+ * A session people were moved *into* always holds rows of its own, because
+ * `moveToSession` names the pupil on the sitting they are actually serving. So
+ * the one count below covers the moved-in pointers too.
+ */
+export async function cancelSession(args: { companyId: string; sessionId: string }) {
+  const session = await prisma.schoolDetentionSession.findFirst({
+    where: { id: args.sessionId, companyId: args.companyId },
+    select: { id: true, _count: { select: { attendance: true } } },
+  });
+  if (!session) throw new DetentionNotFoundError("That detention session is not this school's.");
+
+  const named = session._count.attendance;
+  if (named > 0) {
+    throw new DetentionError(
+      named === 1
+        ? "One pupil is named on this session and was told to attend it. Move them to another session first, then this one can be called off."
+        : `${named} pupils are named on this session and were told to attend it. Move them to another session first, then this one can be called off.`,
+    );
+  }
+
+  await prisma.schoolDetentionSession.delete({ where: { id: session.id } });
+  return { id: session.id };
+}
+
+/**
  * Award detention, and name the pupil on the sessions they will serve.
  *
  * The award carries how many; the register rows are what a supervisor reads.
@@ -511,12 +664,38 @@ export async function awardDetention(args: {
   if (args.sessionIds.length === 0) {
     throw new DetentionError("Name the session they are serving, or the register has nobody on it.");
   }
-  const sessions = await prisma.schoolDetentionSession.findMany({
-    where: { companyId: args.companyId, id: { in: args.sessionIds } },
-    select: { id: true },
-  });
+  /*
+    The sittings were checked and the pupil was not.
+
+    `studentId` and `incidentId` both arrive in a request body. Unchecked, a
+    caller could put another school's pupil on this school's detention
+    register — and because the register is read back with the incident summary
+    attached, that also hands over a line of another school's behaviour log.
+  */
+  const [sessions, student, incident] = await Promise.all([
+    prisma.schoolDetentionSession.findMany({
+      where: { companyId: args.companyId, id: { in: args.sessionIds } },
+      select: { id: true },
+    }),
+    prisma.schoolStudent.findFirst({
+      where: { id: args.studentId, companyId: args.companyId },
+      select: { id: true },
+    }),
+    args.incidentId
+      ? prisma.schoolConductIncident.findFirst({
+          where: { id: args.incidentId, companyId: args.companyId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
   if (sessions.length !== args.sessionIds.length) {
     throw new DetentionError("One of those sessions is not this school's.");
+  }
+  if (!student) {
+    throw new DetentionError("That pupil is not on this school's roll.");
+  }
+  if (args.incidentId && !incident) {
+    throw new DetentionError("That incident is not on this school's log.");
   }
 
   return prisma.$transaction(async (tx) => {

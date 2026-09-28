@@ -147,8 +147,8 @@ export function AutoFillSheet({
         </Alert>
 
         <FilterSelect
-          label="Year group"
-          allLabel="Every year group"
+          label="Class"
+          allLabel="Every class"
           value={values.classId}
           options={classes.map((schoolClass) => ({
             value: schoolClass.id,

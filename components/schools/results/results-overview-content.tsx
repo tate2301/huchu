@@ -39,6 +39,7 @@ import {
   SHEET_STATE_ORDER,
 } from "@/components/schools/results/sheet-state";
 import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The state of the term, in one screen.
@@ -57,7 +58,7 @@ import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-w
  * was already naming, so the rail and the table disagreed about what a sheet
  * was called at the moment the reader was comparing them.
  *
- * The class name in each row is still the way into a year group, so nothing was
+ * The class name in each row is still the way into a class, so nothing was
  * lost by dropping the picker.
  */
 
@@ -177,6 +178,7 @@ export function ResultsOverviewContent() {
     setFormOpen(true);
   };
 
+  const words = useClassVocabulary();
   const columns = useMemo(
     () => [
       sheetColumn(),
@@ -214,7 +216,7 @@ export function ResultsOverviewContent() {
     // No band. The four chips that used to sit up here — Sheets, Approved,
     // Sent back, Published — were state above filters that did not govern
     // them, so they stared back unchanged while the table below was narrowed
-    // to one year group. The rail already counts every state, and the row
+    // to one class. The rail already counts every state, and the row
     // count on the filter row answers whatever the filters just asked.
     <SchoolsPage>
       <PageChrome title="Results">
@@ -276,8 +278,8 @@ export function ResultsOverviewContent() {
             filters={
               <>
                 <FilterSelect
-                  label="Year group"
-                  allLabel="Every year group"
+                  label={words.One}
+                  allLabel={`Every ${words.one}`}
                   value={classFilter}
                   options={classes.map((row) => ({ value: row.id, label: row.name }))}
                   onChange={(next) => {

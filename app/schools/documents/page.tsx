@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/auth";
  * The paperwork a school office prints.
  *
  * The heading lives in the client component: the state band under it reports
- * the year group and the size of the roll in view, and both change with the
+ * the class and the size of the roll in view, and both change with the
  * filters this file cannot see.
  */
 export default async function SchoolDocumentsPage() {

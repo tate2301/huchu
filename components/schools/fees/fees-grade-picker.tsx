@@ -26,9 +26,9 @@ import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { formatSchoolMoney } from "@/lib/schools/format";
 
 /**
- * Fees, starting from "which year group?".
+ * Fees, starting from "which class?".
  *
- * S-4.6. The year group is a route in this module, not a filter. What was here
+ * S-4.6. The class is a route in this module, not a filter. What was here
  * was the shared `GradePicker` with a money line under each card, and it could
  * not carry what a bursar actually reads down this page: how much of what was
  * billed has come in, form by form, and which of the four is behind.
@@ -110,7 +110,7 @@ export function FeesGradePicker() {
   });
 
   // A "class" in the band's sense is a stream — Form 2A, not Form 2 — and the
-  // fee endpoint groups by year group, so the stream count comes from the class
+  // fee endpoint groups by class, so the stream count comes from the class
   // ladder itself. The term is what the collection table is a collection *of*.
   const classesQuery = useQuery({
     queryKey: ["schools", "grades"],
@@ -149,7 +149,7 @@ export function FeesGradePicker() {
   const allRows = feesQuery.data?.data ?? [];
 
   // The canvas band counts the school, not the filtered view: a bursar who has
-  // typed "Form 3" into the search still wants to know how many year groups,
+  // typed "Form 3" into the search still wants to know how many classes,
   // classes and pupils the school has behind it.
   const yearGroups = allRows.length;
   const students = allRows.reduce((sum, row) => sum + row.students, 0);
@@ -224,7 +224,7 @@ export function FeesGradePicker() {
             value: feesPending ? "—" : formatSchoolMoney(totals?.outstanding ?? 0, currency),
             tone: "danger",
           },
-          { label: "Year groups", value: feesPending ? "—" : yearGroups },
+          { label: "Classes", value: feesPending ? "—" : yearGroups },
           { label: "Classes", value: classesQuery.isPending ? "—" : classes },
           { label: "Pupils", value: feesPending ? "—" : students },
           {
@@ -238,7 +238,7 @@ export function FeesGradePicker() {
           <>
             {/* Both are secondary verbs on somebody else's numbers, so they sit
                 in the band rather than the app bar — the law keeps one primary
-                action per page and this page's is opening a year group. */}
+                action per page and this page's is opening a class. */}
             <DsButton
               size="sm"
               variant="secondary"
@@ -288,18 +288,18 @@ export function FeesGradePicker() {
 
       <div className="min-w-0 sm:max-w-[320px]">
         <Label htmlFor="fees-grade-search" className="text-sm text-muted-foreground">
-          Find a year group
+          Find a class
         </Label>
         <Input
           id="fees-grade-search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search year group or class"
+          placeholder="Search a class or its code"
         />
       </div>
 
       <Card
-        title={`${activeTerm ? `${activeTerm.name} ` : ""}collection by year group`}
+        title={`${activeTerm ? `${activeTerm.name} ` : ""}collection by class`}
         actions={
           <span className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
             {currency} · excludes waivers and refunds
@@ -315,13 +315,13 @@ export function FeesGradePicker() {
           <div className="p-4">
             {search ? (
               <NothingMatched
-                what="year groups"
+                what="classes"
                 filters={[search]}
                 onClear={() => setSearch("")}
               />
             ) : (
               <NothingYet
-                title="No year groups yet"
+                title="No classes yet"
                 body="Fees are billed against a class. Set the class ladder up under Academics first."
               />
             )}
@@ -331,7 +331,7 @@ export function FeesGradePicker() {
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-[color:var(--border)] text-left text-[length:var(--type-caption)] uppercase tracking-wide text-[color:var(--text-muted)]">
-                  <th className="px-3 py-2 font-semibold">Year group</th>
+                  <th className="px-3 py-2 font-semibold">Class</th>
                   <th className="px-3 py-2 text-right font-semibold">Students</th>
                   <th className="px-3 py-2 text-right font-semibold">Billed</th>
                   <th className="px-3 py-2 text-right font-semibold">Collected</th>
@@ -342,7 +342,7 @@ export function FeesGradePicker() {
               <tbody>
                 {rows.map((row) => {
                   // Nothing billed is not nought per cent collected — it is a
-                  // year group that has not been invoiced yet, and colouring it
+                  // class that has not been invoiced yet, and colouring it
                   // red would send a bursar chasing money nobody asked for.
                   const percent =
                     row.billed > 0 ? Math.round((row.collected / row.billed) * 100) : null;
@@ -352,7 +352,7 @@ export function FeesGradePicker() {
                       className="cursor-pointer border-b border-[color:var(--border-subtle)] hover:bg-[color:var(--surface-muted)]"
                       onClick={() => router.push(`/schools/finance/class/${row.id}`)}
                     >
-                      {/* The same identity cell a year group gets everywhere
+                      {/* The same identity cell a class gets everywhere
                           else in the module — its tile, its name, its code
                           underneath — rather than a bare link that happens to
                           be bold. It points at this page's own fee view rather
@@ -480,7 +480,7 @@ export function FeesGradePicker() {
                       href={`/schools/students/${person.id}`}
                       firstName={person.firstName}
                       lastName={person.lastName}
-                      reference={person.streamName ?? person.className ?? "No year group"}
+                      reference={person.streamName ?? person.className ?? "No class"}
                     />
                   </span>
                   <span className="font-[family-name:var(--font-mono)] text-sm font-semibold tabular-nums">

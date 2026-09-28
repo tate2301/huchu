@@ -6,16 +6,23 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * The four screens under one series.
+ * The five screens under one series.
  *
- * All four declare the same sidebar row — `Exam series` — so none of them adds
+ * All five declare the same sidebar row — `Exam series` — so none of them adds
  * a destination of its own, and this is how a reader moves between them. It is
  * not a second navigation column: it belongs to the series, sits above its
  * content, and disappears when you leave.
+ *
+ * The order is the order the year runs: register the candidates, enter their
+ * subjects, write down when the papers sit, seat the hall, take the results
+ * back. Timetable sits before Seating because seating hangs off it — there was
+ * no timetable screen at all until recently, which is why Seating opened onto
+ * an empty table nothing in the product could fill.
  */
 const TABS = [
   { segment: "candidates", label: "Candidates" },
   { segment: "entries", label: "Subject entries" },
+  { segment: "timetable", label: "Timetable" },
   { segment: "seating", label: "Seating" },
   { segment: "results", label: "Results" },
 ] as const;

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 import {
   createResultSheet,
   updateResultSheet,
@@ -87,6 +88,7 @@ export function SheetFormDialog({
 
   const editingScope = !sheet || sheet.status === "DRAFT";
 
+  const words = useClassVocabulary();
   const mutation = useMutation({
     mutationFn: () => {
       const trimmed = title.trim();
@@ -114,7 +116,7 @@ export function SheetFormDialog({
 
   const missing: string[] = [];
   if (!chosenTermId) missing.push("Choose the term the sheet belongs to.");
-  if (!classId) missing.push("Choose the year group.");
+  if (!classId) missing.push("Choose the class.");
   if (!title.trim()) missing.push("Give the sheet a name.");
 
   return (
@@ -163,9 +165,9 @@ export function SheetFormDialog({
       />
 
       <SearchableSelect
-        label="Year group"
+        label={words.One}
         value={classId}
-        placeholder={classesQuery.isLoading ? "Loading year groups…" : "Which year group?"}
+        placeholder={classesQuery.isLoading ? "Loading classes…" : "Which class?"}
         options={classes.map((row) => ({
           value: row.id,
           label: row.name,
@@ -183,7 +185,7 @@ export function SheetFormDialog({
         <SearchableSelect
           label="Class"
           value={streamId}
-          placeholder="The whole year group"
+          placeholder="The whole class"
           options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
           onValueChange={setStreamId}
           disabled={!editingScope}
@@ -218,7 +220,7 @@ export function SheetFormDialog({
 
       {!editingScope ? (
         <p className="text-xs text-muted-foreground">
-          Term, year group and class are fixed once a sheet leaves draft — moving
+          Term, class and class are fixed once a sheet leaves draft — moving
           it would rewrite what the head of department signed off.
         </p>
       ) : null}

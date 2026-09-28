@@ -44,6 +44,7 @@ import {
 } from "@/lib/schools/admissions-v2";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { SchoolsAdmissionsContent } from "./schools-admissions-content";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 import {
   ApplicationFormSheet,
   type ApplicationFormValues,
@@ -134,7 +135,7 @@ export function AdmissionsBoardContent() {
   );
   const counts = applicationsQuery.data?.counts ?? {};
   /**
-   * Every application the board could show for the year group in view. It comes
+   * Every application the board could show for the class in view. It comes
    * back beside the rows from its own grouped query rather than being counted
    * off them, so the figure the count is read against does not move when a
    * stage filter or the search box does.
@@ -270,6 +271,7 @@ export function AdmissionsBoardContent() {
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
+  const words = useClassVocabulary();
   const enrolMutation = useMutation({
     mutationFn: (id: string) => enrolSchoolApplicant(id),
     onSuccess: (result) => {
@@ -359,8 +361,8 @@ export function AdmissionsBoardContent() {
         filters={
           <>
             <FilterSelect
-              label="Year group"
-              allLabel="Any year group"
+              label={words.One}
+              allLabel={`Every ${words.one}`}
               value={classFilter}
               options={classes.map((row) => ({ value: row.id, label: row.name }))}
               onChange={setClassFilter}

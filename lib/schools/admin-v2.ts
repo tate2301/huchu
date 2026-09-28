@@ -282,6 +282,46 @@ export async function fetchSchoolsEnrollments(params: {
   return response;
 }
 
+/**
+ * Put an enrolment right.
+ *
+ * An enrolment is stamped with whichever term was open when the office wrote
+ * it, so a January intake taken in September lands in last year's third term —
+ * on the class list, and in the year roll-up, which is what moves a child up.
+ * Nothing could touch it afterwards.
+ *
+ * `streamId: null` takes the pupil out of their stream; leaving the field out
+ * leaves the stream they are in alone.
+ */
+export async function updateSchoolsEnrollment(input: {
+  id: string;
+  termId?: string;
+  classId?: string;
+  streamId?: string | null;
+  status?: string;
+}) {
+  return fetchJson<SchoolsEnrollmentRecord>("/api/v2/schools/enrollments", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Take an enrolment off the roll altogether.
+ *
+ * For the row that should never have existed, not for a pupil who left — a
+ * leaver is a status. One pupil may hold only one enrolment per term, so the
+ * wrong row has to go before the right one can be written. The endpoint refuses
+ * once the term carries a register mark or a result for that pupil, and says
+ * which it found.
+ */
+export async function deleteSchoolsEnrollment(id: string) {
+  return fetchJson<{ id: string }>(
+    `/api/v2/schools/enrollments?id=${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
+
 export async function fetchSchoolsAttendanceRoster(params: {
   page?: number;
   limit?: number;

@@ -32,7 +32,7 @@ export type PublishWindowFormValues = {
  * Windows could only be created with a REST client, so in practice results
  * either never reached parents or a developer opened the window by hand. The
  * term is required and the class and stream are not: a school usually opens
- * the whole term at once and narrows only when one year group is behind.
+ * the whole term at once and narrows only when one class is behind.
  *
  * `datetime-local` rather than a date: whether a parent can see a report card
  * at four o'clock on the day the head signs it off is exactly the question
