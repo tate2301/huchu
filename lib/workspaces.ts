@@ -29,6 +29,8 @@ import {
   type LucideIcon,
 } from "@/lib/icons";
 import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
+import { reportCatalog } from "@/lib/reports/catalog";
+import { REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 
 export { WORKSPACE_PROFILES };
@@ -424,12 +426,25 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     sectionId: "maintenance",
     homeHref: "/maintenance",
   }),
-  reporting: createSectionModule({
+  reporting: {
     id: "reporting",
     label: "Reports",
-    sectionId: "reporting",
     homeHref: "/reports",
-  }),
+    /**
+     * One entry, and only when there is something behind it. Which reports a
+     * person can read is decided per report by the page it is about, so the
+     * entry asks the catalogue rather than a feature of its own.
+     */
+    getItems(context) {
+      const items = context.navSectionById.get("reporting")?.items ?? [];
+      const readable = reportCatalog(
+        REPORT_DEFINITIONS,
+        { role: context.role ?? "", enabledFeatures: context.enabledFeatures },
+        null,
+      );
+      return readable.length > 0 ? items : [];
+    },
+  },
   accounting: {
     id: "accounting",
     label: "Accounting",
@@ -546,8 +561,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         id: "gold-control",
         title: "Insights",
         refs: [
-          { moduleId: "reporting", href: "/reports/gold-chain" },
-          { moduleId: "reporting", href: "/reports/gold-receipts" },
+          { moduleId: "reporting", href: "/reports" },
         ],
       },
     ],
@@ -642,6 +656,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         title: "Controls & Growth",
         refs: [
           { moduleId: "retail", href: "/retail/reports" },
+          { moduleId: "reporting", href: "/reports" },
           { moduleId: "retail", href: "/retail/setup" },
           { moduleId: "retail", href: "/retail/setup/operations" },
           { moduleId: "retail", href: "/retail/setup/pos-policy" },

@@ -246,7 +246,9 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/reports/attendance", featureKey: "reports.attendance" },
   { scope: "page", prefix: "/reports/shift", featureKey: "reports.shift" },
   { scope: "page", prefix: "/reports/plant", featureKey: "reports.plant" },
-  { scope: "page", prefix: "/reports", featureKey: "reports.dashboard" },
+  // No blanket `/reports` entry: the catalogue lists only the reports whose
+  // own page this workspace can open, and every report's API checks it again.
+  // The entries above keep the grants the mining reports have always had.
 ];
 
 export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
