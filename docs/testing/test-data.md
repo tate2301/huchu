@@ -56,11 +56,11 @@ sat at `POSTED`.
 `stock` (STOCK_CLERK). The two cashiers matter: a till test that needs an
 override needs a second person to approve it.
 
-### `stmarys` — a 120-pupil secondary school
+### `stmarys` — a 120-pupil boarding secondary school
 
 | | |
 |---|---|
-| Students | **120** |
+| Students | **120** (40 boarders) |
 | Guardians | **119** |
 | Fee invoices | **120** |
 | Timetable slots | **180** |

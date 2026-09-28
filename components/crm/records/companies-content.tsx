@@ -21,6 +21,7 @@ import { RecordListPager, type RecordListRow } from "@/components/records/record
 import { RecordCell, RecordTable, RecordTableName, recordCellTone } from "@/components/records/record-table";
 import { DirectoryCell } from "@/components/records/people-directory";
 import { RecordMark } from "@/components/records/record-mark";
+import { BoardCardFace } from "./board-card-face";
 import { RecordBoard } from "./record-board";
 import { GroupedRecordList, bucketByLetter, type RecordListSection } from "@/components/records/record-list-groups";
 import { RegisterShell } from "@/components/crm/registers/register-shell";
@@ -208,7 +209,7 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
       ACCOUNT_STATUS_OPTIONS.map(({ value, label }) => ({
         id: value,
         name: label,
-        color: ACCOUNT_STATUS_COLOR[value] ?? stageColor(null),
+        dot: (ACCOUNT_STATUS_COLOR[value] ?? stageColor(null)).dot,
       })),
     [],
   );
@@ -219,19 +220,20 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
         columnId: company.accountStatus,
         href: `/crm/companies/${company.id}`,
         row: rows.find((row) => row.id === company.id),
+        label: company.name,
         content: (
-          <div className="flex items-start gap-2">
-            <RecordMark kind="company" name={company.name} emoji={company.emoji} avatarUrl={company.avatarUrl} size="sm" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{company.name}</p>
-              <p className="truncate text-sm text-[var(--text-muted)]">
-                {[company.city, company.country].filter(Boolean).join(", ") || company.clientNo}
-              </p>
-              <p className="mt-1 text-sm text-[var(--text-subtle)]">
-                {company._count?.people ?? 0} people · {company._count?.deals ?? 0} deals
-              </p>
-            </div>
-          </div>
+          <BoardCardFace
+            leading={
+              <RecordMark kind="company" name={company.name} emoji={company.emoji} avatarUrl={company.avatarUrl} size="sm" />
+            }
+            title={company.name}
+            subtitle={[company.city, company.country].filter(Boolean).join(", ") || company.clientNo}
+            owner={company.assignedTo?.name ?? null}
+          >
+            <p className="text-sm text-[var(--text-subtle)]">
+              {company._count?.people ?? 0} people · {company._count?.deals ?? 0} deals
+            </p>
+          </BoardCardFace>
         ),
       })),
     [companies, rows],
@@ -277,8 +279,7 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
           isLoading={register.query.isLoading}
           noun={{ one: "company", many: "companies" }}
           emptyLabel="None in this state"
-          onMove={(id, accountStatus) => moveAccountStatus.mutate({ id, accountStatus })}
-          className="min-h-[24rem]"
+          onMove={(id, accountStatus) => moveAccountStatus.mutateAsync({ id, accountStatus })}
         />
       ) : layout === "TABLE" ? (
         <RecordTable

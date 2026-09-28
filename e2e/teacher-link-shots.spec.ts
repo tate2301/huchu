@@ -38,10 +38,27 @@ for (const viewport of [
     test("the staff list says which teachers have no HR record", async ({ page }) => {
       const shot = shooter("schools", `teacher-hr-${viewport.name}`);
 
-      await page.goto("/schools/teachers");
-      await expect(
-        page.getByRole("heading", { name: "Teachers", exact: true }).first(),
-      ).toBeVisible({ timeout: 30_000 });
+      // Reload rather than wait harder, as `teacher-portal-shots.spec.ts` does
+      // and for the reason recorded there: the app-wide hydration mismatch can
+      // leave React with a rebuilt tree and no query in flight, and waiting
+      // longer cannot fix a page that is not waiting for anything.
+      //
+      // Seen here on 2026-09-22 in a full-suite run — thirty seconds spent not
+      // finding `<h1>Teachers</h1>`, which the server had sent, while the same
+      // test passed in six seconds run on its own. Two attempts, so a page that
+      // is genuinely broken still fails.
+      //
+      // `visible: true` for the same reason as the assertion below it: the
+      // header renders a heading per breakpoint variant.
+      await expect(async () => {
+        await page.goto("/schools/teachers");
+        await expect(
+          page
+            .getByRole("heading", { name: "Teachers", exact: true })
+            .filter({ visible: true })
+            .first(),
+        ).toBeVisible({ timeout: 20_000 });
+      }).toPass({ timeout: 90_000, intervals: [2_000] });
 
       // `visible: true`: the DataTable renders both a desktop table and a
       // mobile list, so `.first()` alone picks whichever is hidden at this
@@ -90,10 +107,27 @@ for (const viewport of [
 
       const shot = shooter("schools", `teacher-hr-${viewport.name}`);
 
-      await page.goto("/schools/teachers");
-      await expect(
-        page.getByRole("heading", { name: "Teachers", exact: true }).first(),
-      ).toBeVisible({ timeout: 30_000 });
+      // Reload rather than wait harder, as `teacher-portal-shots.spec.ts` does
+      // and for the reason recorded there: the app-wide hydration mismatch can
+      // leave React with a rebuilt tree and no query in flight, and waiting
+      // longer cannot fix a page that is not waiting for anything.
+      //
+      // Seen here on 2026-09-22 in a full-suite run — thirty seconds spent not
+      // finding `<h1>Teachers</h1>`, which the server had sent, while the same
+      // test passed in six seconds run on its own. Two attempts, so a page that
+      // is genuinely broken still fails.
+      //
+      // `visible: true` for the same reason as the assertion below it: the
+      // header renders a heading per breakpoint variant.
+      await expect(async () => {
+        await page.goto("/schools/teachers");
+        await expect(
+          page
+            .getByRole("heading", { name: "Teachers", exact: true })
+            .filter({ visible: true })
+            .first(),
+        ).toBeVisible({ timeout: 20_000 });
+      }).toPass({ timeout: 90_000, intervals: [2_000] });
 
       // Scoped to one row, and the click retried only while the trigger is
       // still there — the dialog opens over the page, so an unconditional

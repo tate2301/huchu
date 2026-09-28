@@ -571,3 +571,10 @@ export const MagnifyingGlass = createPhosphorIcon(
 );
 export const SidebarSimple = createPhosphorIcon("SidebarSimple", "SidebarSimple");
 export const CaretLeft = createPhosphorIcon("CaretLeft", "CaretLeft");
+
+// The form builder's question types and its row controls.
+export const TextT = createPhosphorIcon("TextT", "TextT");
+export const TextAlignLeft = createPhosphorIcon("TextAlignLeft", "TextAlignLeft");
+export const Hash = createPhosphorIcon("Hash", "Hash");
+export const CopySimple = createPhosphorIcon("CopySimple", "CopySimple");
+export const DotsSixVertical = createPhosphorIcon("DotsSixVertical", "DotsSixVertical");

@@ -2,6 +2,15 @@
 
 import * as React from "react";
 
+import { FieldInput } from "@/components/forms/field-input";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { CrmIntakeFieldDef, CrmIntakeService } from "@/lib/crm/intake-schema";
 
 type FormConfig = {
@@ -102,6 +111,10 @@ export function IntakeFormContent({ token }: { token: string }) {
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!config) return;
+    if (!contactName.trim() || !phone.trim()) {
+      setError(!contactName.trim() ? "Your name is needed" : "A phone number is needed");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const utm = readUtm();
@@ -164,34 +177,42 @@ export function IntakeFormContent({ token }: { token: string }) {
         {config.description ? <p className="mt-2 text-neutral-600">{config.description}</p> : null}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-          <Field label="Your name" required>
-            <input
-              className={inputClass}
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              required
-            />
-          </Field>
+          <FieldInput
+            field={{ key: "contact_name", label: "Your name", type: "text", required: true }}
+            idPrefix="intake"
+            value={contactName}
+            onChange={(value) => setContactName(String(value ?? ""))}
+          />
 
-          <Field label="Email">
-            <input type="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} />
-          </Field>
+          <FieldInput
+            field={{ key: "email", label: "Email", type: "email", required: false }}
+            idPrefix="intake"
+            value={email}
+            onChange={(value) => setEmail(String(value ?? ""))}
+          />
 
-          <Field label="Phone" required>
+          <Field label="Phone" required htmlFor="intake-phone">
             <div className="flex gap-2">
-              <select className={`${inputClass} w-32`} value={dialCode} onChange={(e) => setDialCode(e.target.value)}>
-                {DIAL_CODES.map((d) => (
-                  <option key={d.code} value={d.code}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                className={inputClass}
+              <Select value={dialCode} onValueChange={setDialCode}>
+                <SelectTrigger className="w-32 shrink-0" aria-label="Country code">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIAL_CODES.map((d) => (
+                    <SelectItem key={d.code} value={d.code}>
+                      {d.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                id="intake-phone"
+                type="tel"
+                autoComplete="tel-national"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="77 123 4567"
-                required
+                aria-required
               />
             </div>
           </Field>
@@ -206,10 +227,11 @@ export function IntakeFormContent({ token }: { token: string }) {
                       type="button"
                       key={service.id}
                       onClick={() => toggleService(service.id)}
-                      className={`rounded-full border px-3 py-1.5 text-sm ${
+                      aria-pressed={active}
+                      className={`h-[34px] rounded-full border px-3 text-sm ${
                         active
-                          ? "border-neutral-900 bg-neutral-900 text-white"
-                          : "border-neutral-300 bg-white text-neutral-700"
+                          ? "border-[#16181D] bg-[#16181D] text-white"
+                          : "border-[#D2D7E0] bg-white text-[#262A33]"
                       }`}
                     >
                       {service.label}
@@ -221,9 +243,14 @@ export function IntakeFormContent({ token }: { token: string }) {
           ) : null}
 
           {config.fields.map((field) => (
-            <Field key={field.key} label={field.label} required={field.required} help={field.helpText}>
-              <CustomField field={field} value={answers[field.key]} onChange={(v) => setAnswer(field.key, v)} />
-            </Field>
+            <FieldInput
+              key={field.key}
+              field={field}
+              idPrefix="intake"
+              value={answers[field.key]}
+              onChange={(value) => setAnswer(field.key, value)}
+              uploadUrl={`/api/public/crm/intake/${token}/upload?question=${encodeURIComponent(field.key)}`}
+            />
           ))}
 
           {config.allowPhotos ? (
@@ -236,16 +263,19 @@ export function IntakeFormContent({ token }: { token: string }) {
             </Field>
           ) : null}
 
-          <Field label="Anything else?">
-            <textarea className={inputClass} rows={3} value={message} onChange={(e) => setMessage(e.target.value)} />
-          </Field>
+          <FieldInput
+            field={{ key: "message", label: "Anything else?", type: "longText", required: false }}
+            idPrefix="intake"
+            value={message}
+            onChange={(value) => setMessage(String(value ?? ""))}
+          />
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-[10px] bg-neutral-900 px-4 py-3 font-medium text-white disabled:opacity-60"
+            className="h-[46px] w-full rounded-[10px] bg-[#16181D] px-4 text-sm font-medium text-white disabled:opacity-60"
           >
             {submitting ? "Submitting…" : "Submit"}
           </button>
@@ -256,9 +286,6 @@ export function IntakeFormContent({ token }: { token: string }) {
     </div>
   );
 }
-
-const inputClass =
-  "w-full rounded-[var(--radius-md)] border border-neutral-300 bg-white px-3 py-2 text-neutral-900 outline-none focus:border-neutral-900";
 
 function CenteredCard({ children }: { children: React.ReactNode }) {
   return (
@@ -271,139 +298,27 @@ function CenteredCard({ children }: { children: React.ReactNode }) {
 function Field({
   label,
   required,
-  help,
+  htmlFor,
   children,
 }: {
   label: string;
   required?: boolean;
-  help?: string;
+  /** The control the label names; without one the label wraps its control. */
+  htmlFor?: string;
   children: React.ReactNode;
 }) {
+  const Label = htmlFor ? "label" : "span";
   return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-neutral-800">
+    <div className="grid gap-[7px]">
+      <Label htmlFor={htmlFor} className="text-[15px] font-semibold leading-[1.35] text-[#16181D]">
         {label}
-        {required ? <span className="text-red-500"> *</span> : null}
-      </span>
+        {required ? <span className="text-[#B83A2A]" aria-hidden="true"> *</span> : null}
+      </Label>
       {children}
-      {help ? <span className="mt-1 block text-sm text-neutral-500">{help}</span> : null}
-    </label>
+    </div>
   );
 }
 
-function CustomField({
-  field,
-  value,
-  onChange,
-}: {
-  field: CrmIntakeFieldDef;
-  value: unknown;
-  onChange: (value: unknown) => void;
-}) {
-  switch (field.type) {
-    case "textarea":
-      return (
-        <textarea
-          className={inputClass}
-          rows={3}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          required={field.required}
-        />
-      );
-    case "number":
-      return (
-        <input
-          type="number"
-          className={inputClass}
-          value={(value as number | undefined) ?? ""}
-          onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-          required={field.required}
-        />
-      );
-    case "date":
-      return (
-        <input
-          type="date"
-          className={inputClass}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          required={field.required}
-        />
-      );
-    case "checkbox":
-      return (
-        <input
-          type="checkbox"
-          checked={Boolean(value)}
-          onChange={(e) => onChange(e.target.checked)}
-          required={field.required}
-        />
-      );
-    case "select":
-      return (
-        <select
-          className={inputClass}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value || undefined)}
-          required={field.required}
-        >
-          <option value="">Select…</option>
-          {(field.options ?? []).map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      );
-    case "multiselect":
-      return (
-        <div className="flex flex-wrap gap-2">
-          {(field.options ?? []).map((opt) => {
-            const selected = Array.isArray(value) && (value as string[]).includes(opt.value);
-            return (
-              <button
-                type="button"
-                key={opt.value}
-                onClick={() => {
-                  const arr = Array.isArray(value) ? (value as string[]) : [];
-                  onChange(selected ? arr.filter((v) => v !== opt.value) : [...arr, opt.value]);
-                }}
-                className={`rounded-full border px-3 py-1.5 text-sm ${
-                  selected ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white text-neutral-700"
-                }`}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      );
-    case "text":
-    default:
-      return (
-        <input
-          className={inputClass}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
-          required={field.required}
-        />
-      );
-  }
-}
-
-/**
- * What happens to what the form just collected.
- *
- * This form takes a name, a phone number, an email address and photographs of
- * somebody's property, so it has to say where the policies are. The wording is
- * not repeated here -- these point at the pages the company publishes, which
- * are the versions that count.
- *
- * Renders nothing until a tenant has said where its policies live, because a
- * dead link is worse than no link.
- */
 function PolicyLinks({ config }: { config: FormConfig }) {
   const links = [
     config.privacyPolicyUrl ? { href: config.privacyPolicyUrl, label: "Privacy Policy" } : null,

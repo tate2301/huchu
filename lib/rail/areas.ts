@@ -25,8 +25,10 @@ import {
   UsersThree,
   Wallet,
 } from "@/lib/icons";
-import type { NavItem } from "@/lib/navigation";
+import type { NavItem, NavRank } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
+
+import { orderRows } from "./order";
 
 /**
  * An area: one mark in tier one, one panel of destinations in tier two.
@@ -42,6 +44,10 @@ export type RailArea = {
   label: string;
   icon: LucideIcon;
   items: NavItem[];
+  /** Where the area sits among its section's areas. See `NavRank`. */
+  rank?: NavRank;
+  /** Its section is `ranked`: its rows read pinned, flow, own, then A to Z. */
+  ranked?: boolean;
 };
 
 /**
@@ -196,7 +202,12 @@ export function areasFromSections(
   const areas: RailArea[] = [];
   const byId = new Map<string, RailArea>();
 
-  const push = (rawId: string, label: string, items: NavItem[]) => {
+  const push = (
+    rawId: string,
+    label: string,
+    items: NavItem[],
+    { rank, ranked }: Pick<RailArea, "rank" | "ranked"> = {},
+  ) => {
     if (items.length === 0) return;
     const id = keyFor(rawId, items);
     const targetId = AREA_MERGES[id] ?? id;
@@ -210,12 +221,16 @@ export function areasFromSections(
       label: AREA_LABELS[targetId] ?? label,
       icon: iconFor(targetId, items),
       items,
+      ...(rank ? { rank } : {}),
+      ...(ranked ? { ranked } : {}),
     };
     byId.set(targetId, area);
     areas.push(area);
   };
 
   for (const section of sections) {
+    const start = areas.length;
+    const ranked = section.ranked === true;
     const groups = section.groups ?? [];
     const populated = groups.filter((group) =>
       section.items.some((item) => item.group === group.id),
@@ -227,18 +242,26 @@ export function areasFromSections(
     if (flatten && (section.flattenGroups || populated.length > 1)) {
       const ungrouped = section.items.filter((item) => !item.group);
       if (ungrouped.length > 0) {
-        push(section.id, AREA_LABELS[section.id] ?? section.title, ungrouped);
+        push(section.id, AREA_LABELS[section.id] ?? section.title, ungrouped, { ranked });
       }
       for (const group of populated) {
         push(
           group.id,
           AREA_LABELS[group.id] ?? group.label,
           section.items.filter((item) => item.group === group.id),
+          { rank: group.rank, ranked },
         );
       }
-      continue;
+    } else {
+      push(section.id, AREA_LABELS[section.id] ?? section.title, section.items, { ranked });
     }
-    push(section.id, AREA_LABELS[section.id] ?? section.title, section.items);
+    if (ranked) {
+      areas.splice(
+        start,
+        areas.length - start,
+        ...orderRows(areas.slice(start), { label: (area) => area.label, rank: (area) => area.rank }),
+      );
+    }
   }
 
   return areas;

@@ -12,6 +12,7 @@ import type { NavItem } from "@/lib/navigation";
 import type { WorkspaceNavSection, WorkspaceOption } from "@/lib/workspaces";
 import { areaForHref, getRailModel } from "@/lib/rail/model";
 import type { RailArea } from "@/lib/rail/areas";
+import { orderRows } from "@/lib/rail/order";
 import {
   Popover,
   PopoverContent,
@@ -111,11 +112,14 @@ export function WorkspaceRail({
 
   const pinnedItems = React.useMemo(
     () =>
-      pins
-        .map((href) => byHref.get(href))
-        .filter((entry): entry is { item: NavItem; area: RailArea } =>
-          Boolean(entry),
-        ),
+      orderRows(
+        pins
+          .map((href) => byHref.get(href))
+          .filter((entry): entry is { item: NavItem; area: RailArea } =>
+            Boolean(entry),
+          ),
+        { label: (entry) => entry.item.label },
+      ),
     [byHref, pins],
   );
 
@@ -182,18 +186,26 @@ export function WorkspaceRail({
     />
   );
 
+  const rowsFor = (area: RailArea) =>
+    orderRows(area.items, {
+      label: (item) => item.label,
+      rank: (item) => item.rank,
+      isPinned: (item) => isPinned(item.href),
+      alphabetical: area.ranked === true,
+    }).map(rowFor);
+
   const body =
     shape === "flat" ? (
       <>
         {areas.map((area) => (
           <React.Fragment key={area.id}>
             <RailHeading>{area.label}</RailHeading>
-            <RailRows>{area.items.map(rowFor)}</RailRows>
+            <RailRows>{rowsFor(area)}</RailRows>
           </React.Fragment>
         ))}
       </>
     ) : shownArea ? (
-      <RailRows>{shownArea.items.map(rowFor)}</RailRows>
+      <RailRows>{rowsFor(shownArea)}</RailRows>
     ) : (
       <RailRows>
         {areas.map((area) => (

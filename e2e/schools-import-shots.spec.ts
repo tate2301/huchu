@@ -113,7 +113,7 @@ for (const viewport of [
       // screen. Shot as an element instead.
       await report.scrollIntoViewIfNeeded();
       await report.screenshot({
-        path: `${shot.dir}/04-rejections.png`,
+        path: shot.file("04-rejections"),
       });
     });
   });

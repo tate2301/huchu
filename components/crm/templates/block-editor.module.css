@@ -1,0 +1,413 @@
+/*
+  A template's blocks, edited where they sit. Sizes are the rendered
+  document's own (document.module.css) — a heading is typed at the size it
+  prints — so the page is what the reader will get. The row around each block
+  is the page editor's.
+*/
+@layer components {
+  .heading,
+  .prose,
+  .signatureLabel,
+  .headerInput {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    color: #16181d;
+    outline: none;
+  }
+
+  .heading::placeholder,
+  .prose::placeholder,
+  .signatureLabel::placeholder,
+  .headerInput::placeholder,
+  .headerDraft::placeholder {
+    color: #8a91a0;
+    opacity: 1;
+  }
+
+  .heading {
+    font-weight: 600;
+    letter-spacing: -0.012em;
+  }
+
+  .h1 {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  .h2 {
+    font-size: 15px;
+    line-height: 1.35;
+    letter-spacing: normal;
+  }
+
+  .h3 {
+    font-size: 13px;
+    line-height: 1.4;
+    letter-spacing: normal;
+  }
+
+  .proseSizer {
+    display: grid;
+  }
+
+  .proseSizer::after {
+    content: attr(data-value) " ";
+    grid-area: 1 / 1;
+    visibility: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .prose {
+    grid-area: 1 / 1;
+    display: block;
+    overflow: hidden;
+    resize: none;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #262a33;
+  }
+
+  .proseTools {
+    display: flex;
+    margin-top: 8px;
+  }
+
+  .rule {
+    height: 0;
+    margin: 8px 0;
+    border: 0;
+    border-top: 1px solid #e5e8ee;
+  }
+
+  /* Space is drawn in the editor (it is otherwise invisible) and not in print. */
+  .spacer {
+    border: 1px dashed #eef0f4;
+    border-radius: 6px;
+  }
+
+  .spacer[data-size="sm"] {
+    height: 8px;
+  }
+
+  .spacer[data-size="md"] {
+    height: 20px;
+  }
+
+  .spacer[data-size="lg"] {
+    height: 32px;
+  }
+
+  .image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 52px;
+    padding: 0 16px;
+    border: 1px dashed #d2d7e0;
+    border-radius: 10px;
+    background: #f7f8fa;
+    font-weight: 500;
+    font-size: 13px;
+    color: #5e6573;
+  }
+
+  .logo svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .signature {
+    display: grid;
+    gap: 10px;
+    max-width: 320px;
+  }
+
+  .signatureLabel {
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .signLine {
+    height: 44px;
+    border-bottom: 1px solid #262a33;
+  }
+
+  /* A table's header row, typed in place */
+
+  .headerRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e8ee;
+  }
+
+  .headerCell {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    box-sizing: border-box;
+    height: 30px;
+    padding: 0 2px 0 10px;
+    border: 1px solid #e5e8ee;
+    border-radius: 7px;
+    background: #f7f8fa;
+  }
+
+  .headerInput {
+    width: auto;
+    font-weight: 500;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #5e6573;
+  }
+
+  .headerDraft {
+    padding: 0 10px;
+    border-style: dashed;
+    background: transparent;
+    font-family: inherit;
+    font-size: 11px;
+    color: #262a33;
+    outline: none;
+  }
+
+  .headerDraft:focus {
+    border-style: solid;
+    border-color: #0b5df0;
+  }
+
+  .cellRemove {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #8a91a0;
+    cursor: pointer;
+    opacity: 0;
+  }
+
+  .cellRemove svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .headerCell:hover .cellRemove,
+  .headerCell:focus-within .cellRemove,
+  .columnItem:hover .cellRemove,
+  .columnItem:focus-within .cellRemove {
+    opacity: 1;
+  }
+
+  .cellRemove:hover {
+    background: #eef0f4;
+    color: #565c69;
+  }
+
+  .cellRemove:focus-visible {
+    outline: none;
+    opacity: 1;
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /* Blocks that are filled from the record, drawn as they will print */
+
+  .drawnTable {
+    display: flex;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid #e5e8ee;
+    font-weight: 500;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #5e6573;
+  }
+
+  .drawnTable span:first-child {
+    flex: 1 1 auto;
+  }
+
+  .ladder {
+    display: grid;
+    grid-template-columns: auto 96px;
+    gap: 6px 24px;
+    justify-content: end;
+    margin: 0;
+    font-size: 13px;
+    color: #262a33;
+  }
+
+  .ladder dt {
+    color: #5e6573;
+  }
+
+  .ladder dd {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .ladder .ladderTotal {
+    font-weight: 600;
+    color: #16181d;
+  }
+
+  /* Side by side */
+
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .column {
+    display: grid;
+    align-content: start;
+    gap: 14px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px dashed #eef0f4;
+    border-radius: 8px;
+  }
+
+  .columnItem {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 22px;
+    align-items: start;
+    gap: 6px;
+  }
+
+  .cellBody {
+    min-width: 0;
+  }
+
+  .columnAdd {
+    width: auto;
+    height: 28px;
+    justify-self: start;
+    gap: 6px;
+    border-style: dashed;
+    font-size: 12px;
+  }
+
+  .columnAdd > svg:first-child {
+    width: 13px;
+    height: 13px;
+    color: #565c69;
+  }
+
+  /* An empty page's starting points */
+
+  .starters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding: 0 15px;
+  }
+
+  .startersLabel {
+    margin: 0 4px 0 0;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #565c69;
+  }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid #e5e8ee;
+    border-radius: 8px;
+    background: #ffffff;
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #16181d;
+    cursor: pointer;
+  }
+
+  .button:hover {
+    border-color: #d2d7e0;
+  }
+
+  .button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /* Toolbar controls */
+
+  .toolbarSelect {
+    width: auto;
+    height: 26px;
+    padding: 0 26px 0 8px;
+    border-color: transparent;
+    font-weight: 500;
+    font-size: 12px;
+  }
+
+  .toolbarSelect:hover {
+    background: #f1f3f6;
+  }
+
+  .toolbarToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #262a33;
+    cursor: pointer;
+  }
+
+  .settings {
+    display: grid;
+    gap: 14px;
+  }
+
+  .control {
+    display: grid;
+    gap: 7px;
+  }
+
+  .control > label {
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #565c69;
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}

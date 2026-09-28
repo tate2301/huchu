@@ -112,7 +112,7 @@ Shell: `components/schools/portal/parent/parent-portal-shell.tsx` (bespoke chrom
 
 ### 1.2 Screenshot observations
 
-`docs/screenshots/schools/parent-portal-phone/` and `parent-portal-tablet/` (same build at 390 and 768 px).
+`docs/screenshots/schools/parent-portal-phone-*` and `parent-portal-tablet-*` (same build at 390 and 768 px).
 
 - **01-home.png** — Strengths: greeting block, tokens and hierarchy look like the prototype; tiles are two-up; the fee hero uses the shared `.b-stat-hero`. Problems: the hero's 36px lead is **"$ 0.00"**; the prototype's positive framing ("fully paid · See receipt") is only in the sub-line. Secondary button "From the school" is an unexplained destination beside a fee action. "Today" card says "No lessons are timetabled…" yet "See full day" still shows (and points at Attendance). "Marks: Not yet" is a word in a numeric tile. The School-news `NothingYet` is cut off at the fold on the phone — only a bell icon is visible above the tab bar, reading as a broken widget. The mono face renders **slashed/dotted zeros**: "Paid · $ 49Ø.ØØ" — wrong register for money on a consumer surface.
 - **01-fees.png** — Strengths: line-by-line statement with right-aligned mono amounts; "Download this bill" per invoice; "Already paid" in green with a leading minus. Problems: the **"Nothing owing"** empty-state block sits between the "Fee statement" heading and the statement itself, pushing the first line to y≈550 on a phone; the pinned bar reads "What you still owe $ 0.00 · Statement" — a paid family gets a permanent zero. The child header (RC · Rumbidzai Chirwa · Form 1) restates the app-bar chip.
@@ -166,7 +166,7 @@ Shell: `components/schools/portal/student/student-portal-shell.tsx` (uses `Mobil
 
 ### 2.2 Screenshot observations
 
-`docs/screenshots/schools/student-portal/01-student-home.png`, `student-portal-phone/*`, `student-portal-tablet/*`.
+`docs/screenshots/schools/student-portal-01-student-home.png`, `student-portal-phone-*`, `student-portal-tablet-*`.
 
 - **01-student-home.png** — Strengths: clean bar (bell + avatar), section eyebrows, tiles two-up, `NothingLeftToDo`-style copy for "Nothing left today". Problems: five of six tiles carry text values ("See all", "Books out", "Your targets", "From school", "—"); "Lessons today 0" uses a slashed zero; the "Right now" tile is solid near-black on an otherwise light page (`.brand` in the student theme = ink) — visually it reads as a disabled/error block. No school-context line other than "Form 1 · Term 3".
 - **01-timetable.png** — Two empty states one above the other; a "Clear the filters" button whose filter is the day picker; "Sat" chip that can never have content. Term/Form header is centred and mono ("Form 1" in mono is a code, not a name).
@@ -226,7 +226,7 @@ Shell: `components/schools/portal/teacher/teacher-portal-shell.tsx` wraps the **
 
 ### 3.2 Screenshot observations
 
-`docs/screenshots/schools/teacher-portal-desktop/*` (1440×900) and `teacher-portal-tablet/*` (1024×768).
+`docs/screenshots/schools/teacher-portal-desktop-*` (1440×900) and `teacher-portal-tablet-*` (1024×768).
 
 - **01-today.png** — Strengths: rail with subject swatches and counts; two-line bar; tab strip; greeting; card grid. Problems: "20" is displayed on the bell, the Marks tab, the rail's "Enter marks" and the "Papers to mark" tile simultaneously; "0 lessons today", "0 periods", "REGISTERS UNMARKED 0", "HOMEWORK OPEN 0" — four zeros, all slashed; the "No periods are set up" empty card is 280px tall inside a card that already has a title. On tablet the three "This week" tiles wrap 2+1.
 - **01-attendance.png** — Strengths: colour-toned counters, quick-mark row, search + view segment, one row per pupil with avatar and mono id. Problems: 20 rows each carrying a "Not marked" badge **and** an empty segmented control (the state is stated twice per row); the date field shows `09/07/2026` (US order in a `type=date` input on an en-GB surface — browser-locale dependent, but the screenshot shows M/D/Y); no period/time context (prototype "Thu 22 May · Period 3 · 09:20"); no sticky save bar visible in the first screen on desktop (it is at the bottom of a 20-row list).

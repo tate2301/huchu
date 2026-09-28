@@ -49,7 +49,7 @@ Use them.
 
 ## The screenshots
 
-`docs/screenshots/<vertical>/<journey>/NN-name.png` — 68 of them, covering all
+`docs/screenshots/<vertical>/<journey>-NN-name.png` — 68 of them, covering all
 five verticals and both phone portals. Produced by `e2e/marketing-shots.spec.ts`
 and reproducible:
 

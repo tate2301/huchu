@@ -153,8 +153,12 @@ export function ViewToolbar({
         // fails the whole stylesheet, so *every* page 500s rather than this
         // one looking wrong. The horizontal bleed below is written as an
         // explicit `calc()` for the same reason.
-        "sticky z-20 flex h-[var(--list-toolbar-h)] items-center gap-[7px] border-b border-[var(--border)] bg-[var(--surface-base)]",
-        "before:absolute before:inset-x-0 before:bottom-full before:h-[var(--content-gutter-y)] before:bg-[var(--surface-base)] before:content-['']",
+        //
+        // The page's colour, not white. The band above it and the records
+        // below it both sit on the canvas, and a white bar between them read
+        // as a stray strip with square ends rather than as part of the page.
+        "sticky z-20 flex h-[var(--list-toolbar-h)] items-center gap-[7px] border-b border-[var(--border)] bg-[var(--canvas)]",
+        "before:absolute before:inset-x-0 before:bottom-full before:h-[var(--content-gutter-y)] before:bg-[var(--canvas)] before:content-['']",
         // The bleed is what makes the hairline a seam across the page rather
         // than a rule floating inside the gutter — the same edge the app bar
         // above it draws.

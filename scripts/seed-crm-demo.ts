@@ -321,13 +321,15 @@ async function main() {
       publicToken: "demo-crm-intake-request-a-quote",
       headline: "Tell us what you need",
       description: "We answer within one working day.",
-      fields: [
-        { key: "name", label: "Your name", fieldType: "text", required: true },
-        { key: "email", label: "Email", fieldType: "email", required: true },
-        { key: "phone", label: "Phone", fieldType: "phone", required: false },
-        { key: "brief", label: "What do you need done?", fieldType: "longText", required: true },
+      // Name, email and phone are asked by every intake form already; asking
+      // them here too drew each of them twice.
+      fields: [{ key: "brief", label: "What do you need done?", type: "longText", required: true }],
+      services: [
+        { id: "branding", label: "Branding" },
+        { id: "print", label: "Print" },
+        { id: "signage", label: "Signage" },
+        { id: "web", label: "Web" },
       ],
-      services: ["Branding", "Print", "Signage", "Web"],
       successMessage: "Thank you — we will come back to you within a day.",
       defaultAssigneeId: assignedToId,
       createdById: assignedToId,

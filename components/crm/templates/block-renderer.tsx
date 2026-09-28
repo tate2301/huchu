@@ -1,18 +1,8 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import { FieldInput } from "@/components/forms/field-input";
 import { resolveVariables, type VariableValues } from "@/lib/crm/template-variables";
 import type { Block, LeafBlock } from "@/lib/crm/blocks";
 import { cn } from "@/lib/utils";
@@ -82,111 +72,7 @@ function Fill({ text, context }: { text: string; context: BlockRendererContext }
  * question collected a made-up string and never a file. The real shape is:
  * post the file, keep the URL it landed at, show what was attached.
  */
-function FileAnswer({
-  id,
-  value,
-  readOnly,
-  uploadUrl,
-  onChange,
-}: {
-  id: string;
-  value: string | null;
-  readOnly: boolean;
-  uploadUrl?: string;
-  onChange: (next: string | null) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (readOnly || !uploadUrl) {
-    return value ? (
-      <a
-        href={value}
-        target="_blank"
-        rel="noreferrer"
-        className={styles.fileLink}
-      >
-        {fileNameFrom(value)}
-      </a>
-    ) : (
-      <p className={styles.muted}>No file</p>
-    );
-  }
-
-  return (
-    <div className={styles.file}>
-      {value ? (
-        <div className={styles.fileRow}>
-          <a
-            href={value}
-            target="_blank"
-            rel="noreferrer"
-            className={styles.fileLink}
-          >
-            {fileNameFrom(value)}
-          </a>
-          <button
-            type="button"
-            className={`${styles.fileLink} ${styles.fileRemove}`}
-            onClick={() => onChange(null)}
-          >
-            Remove
-          </button>
-        </div>
-      ) : null}
-
-      <input
-        id={id}
-        type="file"
-        disabled={busy}
-        className={styles.fileDrop}
-        onChange={async (event) => {
-          const file = event.target.files?.[0];
-          // The input is cleared either way: what it holds is a picking
-          // gesture, not the answer, and leaving it filled makes a failed
-          // upload look like a successful one.
-          event.target.value = "";
-          if (!file) return;
-
-          setBusy(true);
-          setError(null);
-          try {
-            const body = new FormData();
-            body.append("file", file);
-            const response = await fetch(uploadUrl, { method: "POST", body });
-            const payload = (await response.json()) as {
-              ok?: boolean;
-              url?: string;
-              data?: { url?: string };
-              error?: string;
-            };
-            const url = payload.url ?? payload.data?.url;
-            if (!response.ok || !url) throw new Error(payload.error ?? "Upload failed");
-            onChange(url);
-          } catch (uploadError) {
-            setError(uploadError instanceof Error ? uploadError.message : "Upload failed");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-
-      {busy ? <p className={styles.help}>Uploading…</p> : null}
-      {error ? <p className={styles.fileError}>{error}</p> : null}
-    </div>
-  );
-}
-
-/** The last path segment, which is as close to a filename as a blob URL gets. */
-function fileNameFrom(url: string): string {
-  try {
-    const path = new URL(url).pathname;
-    return decodeURIComponent(path.slice(path.lastIndexOf("/") + 1)) || "Attached file";
-  } catch {
-    return "Attached file";
-  }
-}
-
+/** A question, drawn by the one input every form in the app uses. */
 function FieldBlock({
   block,
   context,
@@ -194,132 +80,16 @@ function FieldBlock({
   block: Extract<Block, { type: "field" }>;
   context: BlockRendererContext;
 }) {
-  const value = context.answers?.[block.key];
-  const readOnly = context.mode !== "fill";
-
-  const label = (
-    <Label htmlFor={`field-${block.id}`} className={styles.fieldLabel}>
-      {block.label || "Untitled question"}
-      {block.required ? <span className={styles.required}> *</span> : null}
-    </Label>
-  );
-
-  // In read mode a question is a fact, not a disabled control. A greyed-out
-  // input is a promise the reader can edit it once they find the right button.
-  if (context.mode === "read") {
-    const blank = value === undefined || value === null || value === "";
-    return (
-      <div className={styles.fact}>
-        <p className={styles.factLabel}>{block.label}</p>
-        <p className={styles.factValue} data-empty={blank ? "true" : undefined}>
-          {blank ? "—" : Array.isArray(value) ? value.join(", ") : String(value)}
-        </p>
-      </div>
-    );
-  }
-
-  const help = block.help ? <p className={styles.help}>{block.help}</p> : null;
-
-  function set(next: unknown) {
-    context.onAnswer?.(block.key, next);
-  }
-
+  const { field } = block;
   return (
-    <div className={styles.field}>
-      {label}
-      {block.fieldType === "longText" ? (
-        <Textarea
-          id={`field-${block.id}`}
-          rows={4}
-          disabled={readOnly}
-          placeholder={block.placeholder}
-          value={typeof value === "string" ? value : ""}
-          onChange={(event) => set(event.target.value)}
-        />
-      ) : block.fieldType === "select" ? (
-        <Select
-          value={typeof value === "string" ? value : ""}
-          onValueChange={(next) => set(next)}
-        >
-          <SelectTrigger id={`field-${block.id}`} disabled={readOnly}>
-            <SelectValue placeholder={block.placeholder ?? "Pick one"} />
-          </SelectTrigger>
-          <SelectContent>
-            {(block.options ?? []).map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : block.fieldType === "multiSelect" ? (
-        <div className={styles.choices}>
-          {(block.options ?? []).map((option) => {
-            const selected = Array.isArray(value) && value.includes(option);
-            return (
-              <label key={option} className={styles.choice}>
-                <Checkbox
-                  checked={selected}
-                  disabled={readOnly}
-                  onCheckedChange={() => {
-                    const current = Array.isArray(value) ? (value as string[]) : [];
-                    set(
-                      selected
-                        ? current.filter((entry) => entry !== option)
-                        : [...current, option],
-                    );
-                  }}
-                />
-                {option}
-              </label>
-            );
-          })}
-        </div>
-      ) : block.fieldType === "checkbox" ? (
-        <label className={styles.choice}>
-          <Checkbox
-            checked={value === true}
-            disabled={readOnly}
-            onCheckedChange={(next) => set(next === true)}
-          />
-          {block.placeholder ?? "Yes"}
-        </label>
-      ) : block.fieldType === "file" ? (
-        <FileAnswer
-          id={`field-${block.id}`}
-          value={typeof value === "string" ? value : null}
-          readOnly={readOnly}
-          uploadUrl={context.uploadUrl}
-          onChange={set}
-        />
-      ) : (
-        <Input
-          id={`field-${block.id}`}
-          type={
-            block.fieldType === "number"
-              ? "number"
-              : block.fieldType === "email"
-                ? "email"
-                : block.fieldType === "phone"
-                  ? "tel"
-                  : block.fieldType === "date"
-                    ? "date"
-                    : "text"
-          }
-          disabled={readOnly}
-          placeholder={block.placeholder}
-          value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
-          onChange={(event) =>
-            set(
-              block.fieldType === "number"
-                ? Number(event.target.value) || 0
-                : event.target.value,
-            )
-          }
-        />
-      )}
-      {help}
-    </div>
+    <FieldInput
+      field={field}
+      mode={context.mode}
+      idPrefix={`field-${block.id}`}
+      value={context.answers?.[field.key]}
+      onChange={(value) => context.onAnswer?.(field.key, value)}
+      uploadUrl={context.uploadUrl}
+    />
   );
 }
 

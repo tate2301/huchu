@@ -1,6 +1,6 @@
 # Staff (teacher) portal: UI/UX audit
 
-Surface: `app/portal/teacher/**`, shell `components/schools/portal/teacher/teacher-portal-shell.tsx` (wraps the back-office `AppShell` with a bespoke class rail, two-line bar and tab strip), screens under `components/schools/portal/teacher/`, styles `teacher-portal.css`. Audited from source and from `docs/screenshots/schools/teacher-portal-desktop/*` (1440×900) and `teacher-portal-tablet/*` (1024×768). Workflow companion: `workflows.md` in this folder.
+Surface: `app/portal/teacher/**`, shell `components/schools/portal/teacher/teacher-portal-shell.tsx` (wraps the back-office `AppShell` with a bespoke class rail, two-line bar and tab strip), screens under `components/schools/portal/teacher/`, styles `teacher-portal.css`. Audited from source and from `docs/screenshots/schools/teacher-portal-desktop-*` (1440×900) and `teacher-portal-tablet-*` (1024×768). Workflow companion: `workflows.md` in this folder.
 
 Rules applied: the portal build contract and `teacher.html` (SHL·07 rail), the platform UX playbook, `11-campus-states-and-motion.md`, `.impeccable.md`, `SPEC.md`.
 

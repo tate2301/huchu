@@ -534,7 +534,7 @@ export default function ChartOfAccountsPage() {
         }
       >
         <div
-          className="band-shell sticky z-20 flex min-h-[var(--list-toolbar-h)] flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-base)] py-1.5"
+          className="band-shell sticky z-20 flex min-h-[var(--list-toolbar-h)] flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--canvas)] py-1.5"
           style={{ top: "var(--stack-top, 0px)" }}
         >
           <SegmentedControl<TypeFilter>

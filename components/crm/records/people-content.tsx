@@ -19,6 +19,7 @@ import { RecordListPager, type RecordListRow } from "@/components/records/record
 import { RecordCell, RecordTable, recordCellTone } from "@/components/records/record-table";
 import { RecordMark } from "@/components/records/record-mark";
 import { DirectoryCell, DirectoryName } from "@/components/records/people-directory";
+import { BoardCardFace } from "./board-card-face";
 import { RecordBoard } from "./record-board";
 import { GroupedRecordList, bucketByLetter, type RecordListSection } from "@/components/records/record-list-groups";
 import { RegisterShell } from "@/components/crm/registers/register-shell";
@@ -207,7 +208,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
       CONTACT_TYPE_OPTIONS.map(({ value, label }) => ({
         id: value,
         name: label,
-        color: CONTACT_TYPE_COLOR[value] ?? stageColor(null),
+        dot: (CONTACT_TYPE_COLOR[value] ?? stageColor(null)).dot,
       })),
     [],
   );
@@ -218,17 +219,20 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
         columnId: person.contactType,
         href: `/crm/people/${person.id}`,
         row: rows.find((row) => row.id === person.id),
+        label: person.fullName,
         content: (
-          <div className="flex items-start gap-2">
-            <RecordMark kind="person" name={person.fullName} emoji={person.emoji} avatarUrl={person.avatarUrl} size="sm" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{person.fullName}</p>
-              <p className="truncate text-sm text-[var(--text-muted)]">
-                {[person.jobTitle, person.client?.name].filter(Boolean).join(" · ") || person.personNo}
-              </p>
-              <p className="mt-1 truncate text-sm text-[var(--text-subtle)]">{person.assignedTo?.name ?? "Unassigned"}</p>
-            </div>
-          </div>
+          <BoardCardFace
+            leading={
+              <RecordMark kind="person" name={person.fullName} emoji={person.emoji} avatarUrl={person.avatarUrl} size="sm" />
+            }
+            title={person.fullName}
+            subtitle={[person.jobTitle, person.client?.name].filter(Boolean).join(" · ") || person.personNo}
+            owner={person.assignedTo?.name ?? null}
+          >
+            {person.email || person.phone ? (
+              <p className="truncate text-sm text-[var(--text-subtle)]">{person.email ?? person.phone}</p>
+            ) : null}
+          </BoardCardFace>
         ),
       })),
     [people, rows],
@@ -274,8 +278,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
           isLoading={register.query.isLoading}
           noun={{ one: "person", many: "people" }}
           emptyLabel="No one of this kind"
-          onMove={(id, type) => moveContactType.mutate({ id, contactType: type })}
-          className="min-h-[24rem]"
+          onMove={(id, type) => moveContactType.mutateAsync({ id, contactType: type })}
         />
       ) : layout === "TABLE" ? (
         <RecordTable

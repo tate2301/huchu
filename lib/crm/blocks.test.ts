@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
 
+import { validateAnswers, type FieldDefinition } from "@/lib/forms/fields";
+
 import {
+  blockFields,
   emptyBlock,
   fieldBlocks,
   templateProblems,
-  validateAnswers,
   type Block,
   type FieldBlock,
-  type LeafBlock,
 } from "./blocks";
 import {
   resolveVariables,
@@ -16,15 +17,10 @@ import {
   usedVariables,
 } from "./template-variables";
 
-function field(
-  id: string,
-  over: Partial<Extract<Block, { type: "field" }>> = {},
-): Extract<LeafBlock, { type: "field" }> {
-  return {
-    ...(emptyBlock("field", id) as Extract<Block, { type: "field" }>),
-    label: "Question",
-    ...over,
-  };
+/** A question block; `over` sets the question's own definition. */
+function field(id: string, over: Partial<FieldDefinition> = {}): FieldBlock {
+  const block = emptyBlock("field", id, new Set()) as FieldBlock;
+  return { ...block, field: { ...block.field, key: id, label: "Question", ...over } };
 }
 
 describe("fieldBlocks", () => {
@@ -42,7 +38,7 @@ describe("templateProblems", () => {
     // one people stop trusting to tell them when they are done.
     const blocks: Block[] = [
       field("a", { label: "", key: "same" }),
-      field("b", { label: "Pick", key: "same", fieldType: "select", options: [] }),
+      field("b", { label: "Pick", key: "same", type: "select", options: [] }),
     ];
     const problems = templateProblems("FORM", blocks);
     expect(problems.length).toBeGreaterThan(1);
@@ -109,22 +105,18 @@ describe("variables", () => {
   });
 });
 
-describe("validateAnswers", () => {
-  const field = (over: Partial<FieldBlock> & { key: string }): FieldBlock => ({
-    id: over.key,
-    type: "field",
-    key: over.key,
-    label: over.label ?? over.key,
-    fieldType: over.fieldType ?? "text",
-    required: over.required ?? false,
-    options: over.options,
-  }) as FieldBlock;
+describe("validateAnswers, as a template asks", () => {
+  // A template's questions are checked by the one validator every form uses;
+  // these go through `blockFields` so the wiring is what is under test.
+  const ask = (...blocks: FieldBlock[]) => blockFields(blocks);
+  const question = (over: Partial<FieldDefinition> & { key: string }) =>
+    field(over.key, { label: over.key, ...over });
 
   it("refuses a number question answered with words", () => {
     // The whole point: "banana" satisfied a required check, and the answer is
     // read back as a record value.
     const { problems } = validateAnswers(
-      [field({ key: "units", fieldType: "number", required: true })],
+      ask(question({ key: "units", type: "number", required: true })),
       { units: "banana" },
     );
     expect(problems).toHaveLength(1);
@@ -133,7 +125,7 @@ describe("validateAnswers", () => {
 
   it("takes a number that arrived as a string", () => {
     const { values } = validateAnswers(
-      [field({ key: "units", fieldType: "number" })],
+      ask(question({ key: "units", type: "number" })),
       { units: "12" },
     );
     expect(values.units).toBe(12);
@@ -141,7 +133,7 @@ describe("validateAnswers", () => {
 
   it("refuses a select option that was never offered", () => {
     const { problems } = validateAnswers(
-      [field({ key: "size", fieldType: "select", options: ["S", "M"] })],
+      ask(question({ key: "size", type: "select", options: [{ value: "S", label: "S" }, { value: "M", label: "M" }] })),
       { size: "XXL" },
     );
     expect(problems).toHaveLength(1);
@@ -149,10 +141,10 @@ describe("validateAnswers", () => {
 
   it("reports every problem, not just the first", () => {
     const { problems } = validateAnswers(
-      [
-        field({ key: "email", fieldType: "email", required: true }),
-        field({ key: "units", fieldType: "number", required: true }),
-      ],
+      ask(
+        question({ key: "email", type: "email", required: true }),
+        question({ key: "units", type: "number", required: true }),
+      ),
       { email: "not-an-email", units: "nope" },
     );
     expect(problems.map((problem) => problem.key)).toEqual(["email", "units"]);
@@ -160,7 +152,7 @@ describe("validateAnswers", () => {
 
   it("treats an empty optional answer as absent rather than invalid", () => {
     const { values, problems } = validateAnswers(
-      [field({ key: "notes", fieldType: "longText" })],
+      ask(question({ key: "notes", type: "longText" })),
       { notes: "" },
     );
     expect(problems).toHaveLength(0);
@@ -169,14 +161,15 @@ describe("validateAnswers", () => {
 
   it("is not satisfied by whitespace in a required question", () => {
     const { problems } = validateAnswers(
-      [field({ key: "name", required: true })],
+      ask(question({ key: "name", required: true })),
       { name: "   " },
     );
     expect(problems).toHaveLength(1);
   });
 
   it("drops keys the form never asked about", () => {
-    const { values } = validateAnswers([field({ key: "name" })], {
+    const { values } = validateAnswers(
+      ask(question({ key: "name" })), {
       name: "Rudo",
       isAdmin: true,
     });
@@ -185,7 +178,7 @@ describe("validateAnswers", () => {
 
   it("stores a file answer as the URL it landed at", () => {
     const { values, problems } = validateAnswers(
-      [field({ key: "plan", fieldType: "file" })],
+      ask(question({ key: "plan", type: "file" })),
       { plan: "https://blob.example/companies/x/plan.pdf" },
     );
     expect(problems).toHaveLength(0);
@@ -194,7 +187,7 @@ describe("validateAnswers", () => {
 
   it("refuses a file answer that is not somewhere a file went", () => {
     const { problems } = validateAnswers(
-      [field({ key: "plan", fieldType: "file", required: true })],
+      ask(question({ key: "plan", type: "file", required: true })),
       { plan: "C:\\fakepath\\plan.pdf" },
     );
     expect(problems).toHaveLength(1);

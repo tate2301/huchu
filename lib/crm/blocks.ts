@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  emptyField,
+  fieldDefinitionSchema,
+  fieldProblems,
+  type FieldDefinition,
+} from "@/lib/forms/fields";
+
 /**
  * The blocks every document in this system is built out of.
  *
@@ -108,35 +115,6 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   columns: "Side by side",
 };
 
-export const FIELD_TYPES = [
-  "text",
-  "longText",
-  "number",
-  "email",
-  "phone",
-  "date",
-  "select",
-  "multiSelect",
-  "checkbox",
-  "file",
-  "rating",
-] as const;
-export type FieldType = (typeof FIELD_TYPES)[number];
-
-export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
-  text: "Short answer",
-  longText: "Long answer",
-  number: "Number",
-  email: "Email",
-  phone: "Phone",
-  date: "Date",
-  select: "Pick one",
-  multiSelect: "Pick several",
-  checkbox: "Yes or no",
-  file: "Upload",
-  rating: "Rating",
-};
-
 const baseBlock = {
   id: z.string().min(1).max(60),
 };
@@ -163,16 +141,12 @@ const leafVariants = [
   z.object({
     ...baseBlock,
     type: z.literal("field"),
-    /** The key an answer is stored under. Stable across renames of the label. */
-    key: z.string().min(1).max(60),
-    label: z.string().max(200).default(""),
-    fieldType: z.enum(FIELD_TYPES).default("text"),
-    placeholder: z.string().max(200).optional(),
-    help: z.string().max(300).optional(),
-    required: z.boolean().default(false),
-    options: z.array(z.string().max(120)).max(50).optional(),
-    /** Prefill from a variable when the form is opened against a record. */
-    prefill: z.string().max(80).optional(),
+    /**
+     * The question, as the app defines one everywhere — the same definition an
+     * intake form stores and the form builder edits. Wrapped rather than
+     * spread because a block's own `type` is already taken by "field".
+     */
+    field: fieldDefinitionSchema,
   }),
   z.object({ ...baseBlock, type: z.literal("divider") }),
   z.object({
@@ -269,21 +243,19 @@ export const templateSchema = z.object({
 });
 
 /** A fresh block of the requested type, with an id the caller supplies. */
-export function emptyBlock(type: BlockType, id: string): Block {
+export function emptyBlock(
+  type: BlockType,
+  id: string,
+  /** Keys the template's other questions already use. */
+  takenKeys: ReadonlySet<string> = new Set(),
+): Block {
   switch (type) {
     case "heading":
       return { id, type: "heading", text: "", level: 2 };
     case "text":
       return { id, type: "text", text: "" };
     case "field":
-      return {
-        id,
-        type: "field",
-        key: id,
-        label: "",
-        fieldType: "text",
-        required: false,
-      };
+      return { id, type: "field", field: emptyField("text", takenKeys) };
     case "divider":
       return { id, type: "divider" };
     case "spacer":
@@ -324,6 +296,11 @@ export function fieldBlocks(blocks: Block[]): Extract<Block, { type: "field" }>[
   return found;
 }
 
+/** The questions a template asks, in reading order — what answers are checked against. */
+export function blockFields(blocks: Block[]): FieldDefinition[] {
+  return fieldBlocks(blocks).map((block) => block.field);
+}
+
 /**
  * What is wrong with this template, in the words somebody can act on.
  *
@@ -341,29 +318,8 @@ export function templateProblems(kind: TemplateKind, blocks: Block[]): string[] 
     }
   }
 
-  const fields = fieldBlocks(blocks);
-  const keys = new Set<string>();
-  for (const field of fields) {
-    if (!field.label.trim()) {
-      problems.push("Every question needs something to ask.");
-      break;
-    }
-  }
-  for (const field of fields) {
-    if (keys.has(field.key)) {
-      problems.push(`Two questions are saving to "${field.key}" — the second would overwrite the first.`);
-      break;
-    }
-    keys.add(field.key);
-  }
-  for (const field of fields) {
-    if (
-      (field.fieldType === "select" || field.fieldType === "multiSelect") &&
-      (field.options ?? []).length === 0
-    ) {
-      problems.push(`"${field.label || field.key}" asks somebody to pick, but offers nothing to pick from.`);
-    }
-  }
+  const fields = blockFields(blocks);
+  problems.push(...fieldProblems(fields));
 
   if (kind === "FORM" && fields.length === 0) {
     problems.push("A form with no questions collects nothing.");
@@ -373,118 +329,3 @@ export function templateProblems(kind: TemplateKind, blocks: Block[]): string[] 
 }
 
 export type FieldBlock = Extract<Block, { type: "field" }>;
-
-/**
- * What a single answer is allowed to be.
- *
- * The form builder already declares this — a question is a number, or a date,
- * or a pick from six options — and until now the public endpoint read none of
- * it. Anything non-empty satisfied a required question, so "banana" was a
- * valid answer to "How many units?" and a select could come back with an
- * option that was never offered. That is not a cosmetic gap: these answers are
- * read back as record values.
- *
- * Optional questions accept `undefined`, `null` and `""` alike and normalise
- * them all to absent, because three ways of saying "they didn't answer" is
- * three branches at every reader.
- */
-export function answerSchemaFor(field: FieldBlock): z.ZodTypeAny {
-  const options = field.options ?? [];
-
-  const base = (): z.ZodTypeAny => {
-    switch (field.fieldType) {
-      case "longText":
-        return z.string().max(5000);
-      case "number":
-      case "rating":
-        // Numbers arrive as strings from a plain form post as often as not.
-        return z.coerce.number().finite();
-      case "email":
-        return z.string().trim().email().max(200);
-      case "phone":
-        return z.string().trim().min(3).max(40);
-      case "date":
-        return z.string().trim().refine(
-          (value) => !Number.isNaN(new Date(value).getTime()),
-          "Not a date",
-        );
-      case "checkbox":
-        return z.coerce.boolean();
-      case "select":
-        // An option that was never offered is not an answer to this question.
-        return options.length > 0 ? z.enum(options as [string, ...string[]]) : z.string().max(200);
-      case "multiSelect":
-        return z
-          .array(options.length > 0 ? z.enum(options as [string, ...string[]]) : z.string().max(200))
-          .max(50);
-      case "file":
-        // What is stored is where the upload landed, not the file itself.
-        // `C:\fakepath\plan.pdf` — what a browser puts in a file input's value
-        // — parses as a URL with scheme "c:", so the scheme has to be named.
-        return z
-          .string()
-          .trim()
-          .max(2000)
-          .refine((value) => /^https?:\/\//i.test(value), "Not an uploaded file");
-      case "text":
-      default:
-        return z.string().max(1000);
-    }
-  };
-
-  const schema = base();
-  if (field.required) {
-    // A required text question is not satisfied by whitespace, so the trim has
-    // to happen before the length is counted.
-    return field.fieldType === "multiSelect"
-      ? (schema as z.ZodArray<z.ZodTypeAny>).min(1, "Pick at least one")
-      : schema instanceof z.ZodString
-        ? schema.trim().min(1, "Required")
-        : schema;
-  }
-  return z.preprocess(
-    (value) => (value === "" || value === null ? undefined : value),
-    schema.optional(),
-  );
-}
-
-export type AnswerProblem = { key: string; label: string; message: string };
-
-/**
- * Check a submission against the form that produced it.
- *
- * Returns every problem rather than the first, because a person who fixes one
- * field, resubmits and is told about the next one gives up around the third.
- * Unknown keys are dropped: a stale cached form or somebody poking at the
- * endpoint is not a reason to write columns nobody asked for.
- */
-export function validateAnswers(
-  fields: FieldBlock[],
-  answers: Record<string, unknown>,
-): { values: Record<string, unknown>; problems: AnswerProblem[] } {
-  const values: Record<string, unknown> = {};
-  const problems: AnswerProblem[] = [];
-
-  for (const field of fields) {
-    const raw = answers[field.key];
-
-    if (!field.required && (raw === undefined || raw === null || raw === "")) continue;
-    if (field.required && (raw === undefined || raw === null || raw === "")) {
-      problems.push({ key: field.key, label: field.label || field.key, message: "Required" });
-      continue;
-    }
-
-    const parsed = answerSchemaFor(field).safeParse(raw);
-    if (!parsed.success) {
-      problems.push({
-        key: field.key,
-        label: field.label || field.key,
-        message: parsed.error.issues[0]?.message ?? "Not valid",
-      });
-      continue;
-    }
-    if (parsed.data !== undefined) values[field.key] = parsed.data;
-  }
-
-  return { values, problems };
-}

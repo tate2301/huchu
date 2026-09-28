@@ -32,6 +32,28 @@ const useExternalBaseUrl = Boolean(process.env.E2E_BASE_URL);
  */
 const channel = process.env.E2E_BROWSER_CHANNEL;
 
+/**
+ * Drive a Chromium that is on the machine but is not the pinned build.
+ *
+ * `E2E_BROWSER_CHANNEL` covers a machine with Chrome or Edge installed. It does
+ * not cover a container that ships Playwright's own Chromium at a *different*
+ * revision from the one this version pins — there the launch fails with
+ * "Executable doesn't exist at .../chromium_headless_shell-1217", and the
+ * remedy the message gives (`npx playwright install`) is the download that is
+ * unavailable or unwanted.
+ *
+ * `E2E_BROWSER_EXECUTABLE=/opt/pw-browsers/chromium` points the run at that
+ * binary instead. Same escape hatch as the channel above, same caveat: a
+ * rendering difference is only worth trusting on the pinned build.
+ */
+const executablePath = process.env.E2E_BROWSER_EXECUTABLE;
+
+/** What the two escape hatches above add to a project's `use`, if anything. */
+const browserOverrides = {
+  ...(channel ? { channel } : {}),
+  ...(executablePath ? { launchOptions: { executablePath } } : {}),
+};
+
 export default defineConfig({
   testDir: "./e2e",
   testIgnore: ["**/.worktrees/**"],
@@ -137,12 +159,12 @@ export default defineConfig({
     {
       name: "setup",
       testMatch: /.*\.setup\.ts/,
-      use: { ...devices["Desktop Chrome"], ...(channel ? { channel } : {}) },
+      use: { ...devices["Desktop Chrome"], ...browserOverrides },
     },
     {
       name: "chromium",
       dependencies: ["setup"],
-      use: { ...devices["Desktop Chrome"], ...(channel ? { channel } : {}) },
+      use: { ...devices["Desktop Chrome"], ...browserOverrides },
     },
   ],
 

@@ -15,9 +15,11 @@ export const templateSchema = z.object({
     .object({
       size: z.enum(["A4", "LETTER"]).default("A4"),
       orientation: z.enum(["portrait", "landscape"]).default("portrait"),
-      marginMm: z.number().min(5).max(40).default(10),
+      // 20mm is an ordinary A4 margin: room for a printer's unprintable edge, a
+      // hole punch and a thumb. 10mm read as a page printed to its edge.
+      marginMm: z.number().min(5).max(40).default(20),
     })
-    .default({ size: "A4", orientation: "portrait", marginMm: 10 }),
+    .default({ size: "A4", orientation: "portrait", marginMm: 20 }),
   header: z
     .object({
       showLogo: z.boolean().default(true),
