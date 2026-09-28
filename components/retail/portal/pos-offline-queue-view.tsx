@@ -40,7 +40,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { fetchJson } from "@/lib/api-client";
 import {
   AlertTriangle,

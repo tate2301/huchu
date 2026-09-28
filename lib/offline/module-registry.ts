@@ -6,6 +6,8 @@ import {
   fetchShiftGroupSchedules,
   fetchSites,
 } from "@/lib/api";
+import type { QueryClient } from "@tanstack/react-query";
+
 import { fetchJson } from "@/lib/api-client";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@/lib/offline/entity-store";
 import { getOfflineWarmupModuleIds } from "@/lib/offline/workflow-catalog";
@@ -15,12 +17,13 @@ import {
   markOfflineOperationStatus,
   markOfflineOperationSynced,
 } from "@/lib/offline/outbox";
+import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import type {
   OfflineModuleDefinition,
-  OfflineMutationPolicy,
   OfflineMutationAdapter,
   OfflineOutboxOperation,
   OfflinePreloadQuery,
+  OfflineRouteDefinition,
   OfflineSyncOutcome,
 } from "@/lib/offline/types";
 
@@ -346,9 +349,7 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
   {
     moduleId: "hr-workforce-core",
     syncPriority: 16,
-    bootstrapPriority: 16,
     primaryFlowLabel: "HR workforce support",
-    warmupBudget: "standard",
     criticalRoutes: hrWorkforceCoreRoutes,
     routes: createWarmupRoutes(hrWorkforceCoreRoutes),
     preloadQueries: hrWorkforceCorePreloadQueries,
@@ -358,9 +359,7 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
   {
     moduleId: "retail-pos",
     syncPriority: 20,
-    bootstrapPriority: 20,
     primaryFlowLabel: "POS checkout",
-    warmupBudget: "aggressive",
     criticalRoutes: [
       "/portal/pos",
       "/portal/pos/overview",
@@ -417,7 +416,6 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
         warmupUrls: ["/portal/pos/login", "/login"],
       },
     ],
-    shellAssets: ["/icon-192.svg", "/icon-512.svg"],
     preloadQueries: retailPreloadQueries,
     entityAdapters: [
       {
@@ -442,21 +440,61 @@ export function getEnabledOfflineModules(enabledFeatures?: string[]) {
   );
 }
 
-export function getOfflineMutationPolicy(
-  moduleId: string,
-  operation: string,
-): OfflineMutationPolicy {
-  const moduleDefinition = getOfflineModule(moduleId);
-  if (!moduleDefinition) {
-    return "excluded";
+/**
+ * The pages a module needs offline. A route with no explicit definitions
+ * warms its critical and warm-up paths as they are written.
+ */
+export function getOfflineRouteDefinitions(
+  moduleDefinition: OfflineModuleDefinition,
+): OfflineRouteDefinition[] {
+  if (moduleDefinition.routes && moduleDefinition.routes.length > 0) {
+    return moduleDefinition.routes;
   }
-  const adapter = moduleDefinition.mutationAdapters.find(
-    (candidate) => candidate.operation === operation,
-  );
-  if (adapter) {
-    return "offline-safe";
+  return [
+    ...new Set([...moduleDefinition.criticalRoutes, ...(moduleDefinition.warmupRoutes ?? [])]),
+  ].map((route) => ({
+    canonicalRoute: route,
+    matchPaths: [route],
+    warmupUrls: [route],
+    critical: moduleDefinition.criticalRoutes.includes(route),
+  }));
+}
+
+/**
+ * Fetch the data each module's pages open on, so they have it offline.
+ *
+ * Gated by the session's features, not just by the module being on: a module
+ * being enabled is not the same as every endpoint in it being reachable, and
+ * a preload the session cannot reach is a 403 on every warm-up. Failures are
+ * swallowed — a warm-up is best effort, and the page fetches for itself.
+ */
+export async function prefetchOfflineModuleQueries(
+  modules: OfflineModuleDefinition[],
+  queryClient: QueryClient,
+  enabledFeatures: string[],
+) {
+  for (const moduleDefinition of modules) {
+    for (const preloadQuery of moduleDefinition.preloadQueries) {
+      if (preloadQuery.enabled && !preloadQuery.enabled()) continue;
+      if (preloadQuery.featureKey && !hasTokenFeature(enabledFeatures, preloadQuery.featureKey)) {
+        continue;
+      }
+      try {
+        const queryKey =
+          typeof preloadQuery.queryKey === "function"
+            ? await preloadQuery.queryKey()
+            : preloadQuery.queryKey;
+        if (!queryKey) continue;
+        await queryClient.prefetchQuery({
+          queryKey,
+          queryFn: () => preloadQuery.fetcher(queryKey),
+          staleTime: preloadQuery.maxAgeMs ?? 5 * 60_000,
+        });
+      } catch {
+        // Best effort; see above.
+      }
+    }
   }
-  return "online-only";
 }
 
 function defaultRetryAt(retryCount: number) {

@@ -34,7 +34,7 @@ import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { OfflineRuntimePanel } from "@/components/layout/offline-runtime-panel";
 import { getOfflineStatusTone } from "@/components/layout/offline-status-tone";
-import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { cn } from "@/lib/utils";
 
 export function OfflineStatusButton({ className }: { className?: string }) {
@@ -47,7 +47,7 @@ export function OfflineStatusButton({ className }: { className?: string }) {
   /**
    * Whether this is worth a colour.
    *
-   * `SYNCING` and `RECONNECTING` are deliberately absent: they resolve on their
+   * `SYNCING` and `PREPARING` are deliberately absent: they resolve on their
    * own in seconds and a badge that blinks on every background sync is one
    * people learn to stop seeing. What earns attention is a state that persists
    * until somebody acts — the line is down, something will not sync, an update
