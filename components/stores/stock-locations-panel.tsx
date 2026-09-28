@@ -108,7 +108,7 @@ export function StockLocationsPanel() {
           <section key={site.id} aria-labelledby={`site-${site.id}`} className="space-y-2">
             <h3
               id={`site-${site.id}`}
-              className="sticky top-14 z-10 flex items-baseline gap-2 bg-[var(--surface-base)] py-1.5 text-sm font-medium uppercase tracking-wide text-[var(--text-subtle)]"
+              className="sticky top-14 z-10 flex items-baseline gap-2 bg-[var(--canvas)] py-1.5 text-sm font-medium uppercase tracking-wide text-[var(--text-subtle)]"
             >
               <span>{site.name}</span>
               <span className="font-mono normal-case tracking-normal">

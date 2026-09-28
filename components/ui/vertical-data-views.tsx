@@ -76,7 +76,7 @@ export function VerticalDataViews({
         band above it, the page band's height inside the accounting shell.
       */}
       <div
-        className="band-shell sticky z-20 flex min-h-[var(--list-toolbar-h)] items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-base)]"
+        className="band-shell sticky z-20 flex min-h-[var(--list-toolbar-h)] items-center gap-2 border-b border-[var(--border)] bg-[var(--canvas)]"
         style={{ top: "var(--stack-top, 0px)" }}
       >
         <div
