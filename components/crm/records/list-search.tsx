@@ -31,8 +31,11 @@ export function ListSearch({
    */
   noun,
   narrow = false,
+  id,
   className,
 }: {
+  /** The input's id — what a keyboard shortcut focuses. */
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   /** The full hint, used on wider screens and as the accessible name. */
@@ -62,6 +65,7 @@ export function ListSearch({
           `--border-strong`: a toolbar control sits on the page rather than in
           a form, and the heavier rule made it the loudest thing in the band. */}
       <Input
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={compact ? (noun ? `Search ${noun}` : "Search") : placeholder}

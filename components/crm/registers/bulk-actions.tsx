@@ -273,14 +273,14 @@ function ArchiveAction({ register }: { register: RegisterHandle }) {
 
 /** The actions a selection offers on this list, in the order the list declares them. */
 export function BulkActions({ register }: { register: RegisterHandle }) {
-  const { bulk, groupEntity } = register.def;
+  const { bulk, entity } = register.def;
   const restoring = register.state.filters.archived === true;
   return (
     <>
       {bulk.includes("assign") && !restoring ? <AssignAction register={register} /> : null}
       {bulk.includes("status") && !restoring ? <StatusAction register={register} /> : null}
-      {bulk.includes("group") && groupEntity && !restoring ? (
-        <GroupAction register={register} entity={groupEntity as GroupEntity} />
+      {bulk.includes("group") && entity && !restoring ? (
+        <GroupAction register={register} entity={entity as GroupEntity} />
       ) : null}
       {bulk.includes(restoring ? "restore" : "archive") ? <ArchiveAction register={register} /> : null}
     </>

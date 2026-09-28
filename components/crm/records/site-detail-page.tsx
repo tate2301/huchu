@@ -52,6 +52,7 @@ import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 
 import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
+import { useListHref } from "@/components/crm/registers/list-href";
 
 const VISIT_STATUS: Record<string, { label: string; status: CanonicalUiStatus }> = {
   SCHEDULED: { label: "Scheduled", status: "pending" },
@@ -95,6 +96,7 @@ type SiteDetail = {
 
 export function SiteDetailPage({ siteId }: { siteId: string }) {
   const { data: session } = useSession();
+  const listHref = useListHref("SITE");
   const [tab, setTab] = useState("visits");
   const [editOpen, setEditOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -230,7 +232,7 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
       icon={MapPin}
       // Which groups it is in, from the record itself.
       toolbar={<RecordGroupsControl entity="SITE" recordId={site.id} />}
-      backHref="/crm/sites"
+      backHref={listHref}
       primaryAction={
         // A site is a place somebody has to go to. Every other verb on this
         // record — edit the address, repoint the company — is maintenance;
@@ -245,7 +247,7 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
         { label: "Edit", onSelect: () => setEditOpen(true) },
         { label: "Raise a job", onSelect: jobs.raise },
       ]}
-      backLabel="All sites"
+      backLabel="Sites"
       leading={
         <RecordMark
           kind="site"

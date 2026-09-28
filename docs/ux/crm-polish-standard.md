@@ -824,6 +824,12 @@ leads" came back as every lead.
 When the list has wandered from its view, the views menu says so (a dot, and
 "modified" for a screen reader) and offers the way back.
 
+A record's back link returns to the same slice. Each list remembers its last
+canonical address for the tab (`useListHref`), so "Deals" on a deal page goes
+back to Deals narrowed to mine, grouped by stage, on page 2 — not to its front
+door. A record opened from a link, with no list behind it, goes to the front
+door.
+
 ### FILT-11 — Every list exports, and the export is the list
 
 Export sits at the end of the toolbar on every list: the rows ticked, or every
@@ -831,6 +837,36 @@ row the filters select; Excel, CSV or PDF; the columns as on screen, in their
 order, or every column. The file is built on the server from the same query the
 rows came from, so what was on screen is what arrives. The button says what it
 will do — "Export 340 people".
+
+### FILT-12 — A column's header is its own menu
+
+Clicking a header's name sorts by it, as it always has. The caret at the end of
+the header opens its menu, the way a spreadsheet's column filter does:
+
+- the column's two orders, in the words its contents use — "A to Z", "Largest
+  first", "Earliest first";
+- its filter's answers, to tick right there — the same editor as the toolbar
+  chip, so a filter works one way wherever it is opened;
+- **Group by** when the list groups by that column;
+- **Hide column**, except on the one column a table cannot lose (IDENT-6).
+
+A column is linked to its filter in the list's definition (`ColumnDef.filter`).
+The caret appears on hover or focus. A filtered column shows a funnel in its
+place without being hovered, so a narrowed column reads as narrowed at a glance.
+
+### FILT-13 — A list answers the keyboard
+
+`/` goes to the search box and Esc lets go of the ticked rows. Neither fires
+while something is being typed. Esc leaves the selection alone when it has just
+closed a popover or dialog.
+
+### FILT-14 — The company's own fields filter like the list's own
+
+"+ Filter" lists the record type's custom choice fields under **Your fields**
+(`cf.<key>` in the address). Ticking several answers means any of them.
+Fields without a list of answers — text, numbers, dates — are not offered yet.
+A field filter whose field has gone stays on the row under its key, so it can
+still be seen and cleared.
 
 ## Part 8 — Empty, loading, error, saving
 

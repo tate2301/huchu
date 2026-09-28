@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import { Alert, Button } from "@corelithzw/react";
 import { PageChrome } from "@/components/layout/page-chrome";
@@ -9,15 +9,20 @@ import { ViewToolbar } from "@/components/records/view-toolbar";
 import { ListSearch } from "@/components/crm/records/list-search";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { activeFilterCount } from "@/lib/crm/registers/codec";
-import type { FilterDef } from "@/lib/crm/registers/types";
+import { CUSTOM_FIELD_PREFIX, isCustomFieldKey, type FilterDef, type RegisterDef } from "@/lib/crm/registers/types";
 import { Plus, X } from "@/lib/icons";
 
 import { BulkActions } from "./bulk-actions";
-import { usePipelines } from "./register-data";
+import { useCustomFieldFilters, usePipelines } from "./register-data";
 import { RegisterExport } from "./export-control";
 import { AddFilterMenu, FilterChip } from "./filter-controls";
 import { ColumnsMenu, GroupByMenu, SortMenu, ViewsMenu } from "./toolbar-menus";
 import type { RegisterHandle } from "./use-register";
+
+/** The list's search box, for `/` to find. */
+function searchInputId(def: RegisterDef): string {
+  return `${def.key.toLowerCase()}-search`;
+}
 
 /**
  * A list's toolbar, the one row under the app bar (PAGE-4):
@@ -41,16 +46,28 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
   const pipelines = usePipelines(def.filters.some((filter) => filter.source === "pipelines"));
   const pipelineCount = pipelines.data?.filter((pipeline) => pipeline.isActive).length ?? 0;
 
+  // Every question the list can be asked: its own, the company's own fields,
+  // and a field filter in the address whose field is gone — kept on the row,
+  // named by its key, so it can still be seen and cleared.
+  const custom = useCustomFieldFilters(def);
+  const filters = useMemo<FilterDef[]>(() => {
+    const known = new Set(custom.map((filter) => filter.key));
+    const orphans = Object.keys(state.filters)
+      .filter((key) => isCustomFieldKey(key) && !known.has(key))
+      .map((key) => ({ key, label: key.slice(CUSTOM_FIELD_PREFIX.length), kind: "enum" as const, offer: false as const }));
+    return [...def.filters, ...custom, ...orphans];
+  }, [custom, def.filters, state.filters]);
+
   // The chips that narrow the list come first, then the pinned questions not
   // yet answered: when the row runs out of room it is an unanswered chip that
   // scrolls out of sight, never one that is hiding records.
   const shown = useMemo<FilterDef[]>(() => {
-    const on = def.filters.filter((filter) => state.filters[filter.key] !== undefined || filter.key === pending);
-    const waiting = def.filters.filter(
+    const on = filters.filter((filter) => state.filters[filter.key] !== undefined || filter.key === pending);
+    const waiting = filters.filter(
       (filter) => filter.pinned && !on.includes(filter) && (filter.source !== "pipelines" || pipelineCount > 1),
     );
     return [...on, ...waiting];
-  }, [def.filters, pending, pipelineCount, state.filters]);
+  }, [filters, pending, pipelineCount, state.filters]);
   const shownKeys = useMemo(() => new Set(shown.map((filter) => filter.key)), [shown]);
   const narrowing = activeFilterCount(state);
   const count = register.count
@@ -97,6 +114,7 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
       }
       search={
         <ListSearch
+          id={searchInputId(def)}
           value={register.search.draft}
           onChange={register.search.setDraft}
           placeholder={def.search.placeholder}
@@ -109,7 +127,7 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
           {/* First, so it is never the control scrolled out of reach when
               the chips outgrow the row. */}
           <AddFilterMenu
-            register={register}
+            filters={filters}
             hidden={shownKeys}
             onPick={(filter) => {
               if (filter.kind === "boolean") register.setFilter(filter.key, true);
@@ -195,6 +213,31 @@ export function RegisterShell({
       ) : null,
     [createLabel, onCreate],
   );
+
+  // A spreadsheet's two reflexes: `/` goes to the search box, Esc lets go of
+  // the ticked rows. Neither fires while something is being typed, and Esc
+  // leaves the selection alone when it has just closed a popover or dialog —
+  // they claim the key first and mark it handled.
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    // A row's checkbox is an input too, and Esc from one should let go of the rows.
+    const typing = "input:not([type='checkbox']):not([type='radio']), textarea, select, [role='dialog']";
+    if (target && (target.isContentEditable || target.closest(typing))) return;
+    if (event.key === "/") {
+      const search = document.getElementById(searchInputId(register.def));
+      if (!search) return;
+      event.preventDefault();
+      search.focus();
+    } else if (event.key === "Escape" && register.selection.ids.length > 0) {
+      register.selection.clear();
+    }
+  });
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => onKeyDown(event);
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, []);
 
   return (
     <div

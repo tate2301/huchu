@@ -17,6 +17,8 @@ import type {
   ViewState,
 } from "@/lib/crm/registers/types";
 
+import { rememberListQuery } from "./list-href";
+
 /** Rows per page on every list the engine draws. */
 export const REGISTER_PAGE_SIZE = 50;
 
@@ -140,6 +142,11 @@ export function useRegister<Row extends { id: string }>(
   const state: ViewState = url.asSaved ? activeView.state : url.state;
   const page = url.page;
   const dirty = !sameState(def, { ...state, columns: undefined }, { ...activeView.state, columns: undefined });
+
+  // The list as it is now, in its canonical form, for its records' back links
+  // — only the keys the list reads, so a `?new=1` does not come back with it.
+  const remembered = writeState(def, url.state, { view: url.view, page, asSaved: url.asSaved });
+  useEffect(() => rememberListQuery(def.key, remembered), [def.key, remembered]);
 
   const write = useCallback(
     (next: ViewState, opts: { page?: number; view?: string | null; asSaved?: boolean } = {}) => {

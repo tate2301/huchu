@@ -56,6 +56,7 @@ import { MergeDialog } from "./merge-dialog";
 
 import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
+import { useListHref } from "@/components/crm/registers/list-href";
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -129,6 +130,7 @@ type PersonDetail = {
 export function PersonDetailPage({ personId }: { personId: string }) {
   const router = useRouter();
   const { data: session } = useSession();
+  const listHref = useListHref("PERSON");
   const [mergeOpen, setMergeOpen] = useState(false);
   // `editOpen` had no way of ever becoming true: the sheet was mounted and the
   // state was declared, but no action set it, so a person's edit form was
@@ -295,8 +297,8 @@ export function PersonDetailPage({ personId }: { personId: string }) {
       icon={Users}
       // Which groups it is in, from the record itself.
       toolbar={<RecordGroupsControl entity="PERSON" recordId={person.id} />}
-      backHref="/crm/people"
-      backLabel="All people"
+      backHref={listHref}
+      backLabel="People"
       primaryAction={
         // The same verb as a company, because a person is who you sell
         // through — and the deal opens already attached to whichever company

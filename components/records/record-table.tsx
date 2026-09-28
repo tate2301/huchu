@@ -62,6 +62,11 @@ export type RecordTableColumn<T> = {
    * spreadsheet's column head works.
    */
   sortKey?: string;
+  /**
+   * The column's own menu — sort, filter, hide — hung off a caret at the end
+   * of its header. The caller builds it; the table only gives it a place.
+   */
+  menu?: ReactNode;
   cell: (row: T) => ReactNode;
 };
 
@@ -551,41 +556,44 @@ export function RecordTable<T extends { id: string }>({
                       // prose: small, heavy, uppercase and letterspaced, so it
                       // reads as the table's chrome rather than as its first
                       // line of data.
-                      "acct-col-head",
+                      "acct-col-head group/head",
                       column.align === "end" && "text-right",
                     )}
                   >
-                    {sort && column.sortKey ? (
-                      <button
-                        type="button"
-                        onClick={() => sort.onSort(column.sortKey!)}
-                        className={cn(
-                          "group/sort -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-1.5 rounded-[var(--radius-sm)] px-1 uppercase hover:text-[var(--text-strong)]",
-                          column.align === "end" && "justify-end",
-                          sorted && "text-[var(--text-strong)]",
-                        )}
-                      >
-                        {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-                        {column.label}
-                        <SortArrow
+                    <div className="flex items-center gap-1">
+                      {sort && column.sortKey ? (
+                        <button
+                          type="button"
+                          onClick={() => sort.onSort(column.sortKey!)}
                           className={cn(
-                            "size-3 shrink-0",
-                            sorted ? "opacity-100" : "opacity-0 group-hover/sort:opacity-50",
+                            "group/sort -mx-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-[var(--radius-sm)] px-1 uppercase hover:text-[var(--text-strong)]",
+                            column.align === "end" && "justify-end",
+                            sorted && "text-[var(--text-strong)]",
                           )}
-                          aria-hidden="true"
-                        />
-                      </button>
-                    ) : (
-                      <span
-                        className={cn(
-                          "flex items-center gap-1.5",
-                          column.align === "end" && "justify-end",
-                        )}
-                      >
-                        {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-                        {column.label}
-                      </span>
-                    )}
+                        >
+                          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                          {column.label}
+                          <SortArrow
+                            className={cn(
+                              "size-3 shrink-0",
+                              sorted ? "opacity-100" : "opacity-0 group-hover/sort:opacity-50",
+                            )}
+                            aria-hidden="true"
+                          />
+                        </button>
+                      ) : (
+                        <span
+                          className={cn(
+                            "flex min-w-0 flex-1 items-center gap-1.5",
+                            column.align === "end" && "justify-end",
+                          )}
+                        >
+                          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                          {column.label}
+                        </span>
+                      )}
+                      {column.menu}
+                    </div>
                   </th>
                 );
               })}

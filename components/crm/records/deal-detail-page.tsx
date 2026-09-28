@@ -79,6 +79,7 @@ import { RailSection, RecordPageShell, RecordRelated } from "@/components/record
 
 import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
+import { useListHref } from "@/components/crm/registers/list-href";
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -154,6 +155,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const { data: session } = useSession();
+  const listHref = useListHref("DEAL");
   const currentUserId = session?.user?.id;
 
   const [tab, setTab] = useState("timeline");
@@ -383,8 +385,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
       icon={Funnel}
       // Which groups it is in, from the record itself.
       toolbar={<RecordGroupsControl entity="DEAL" recordId={deal.id} />}
-        backHref="/crm/deals"
-        backLabel="All deals"
+        backHref={listHref}
+        backLabel="Deals"
         leading={
           <RecordMark
             kind="deal"

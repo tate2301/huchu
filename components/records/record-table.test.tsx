@@ -48,3 +48,14 @@ describe("a grouped table", () => {
     expect(html.match(/<tbody/g)).toHaveLength(1);
   });
 });
+
+describe("a column's menu", () => {
+  it("is drawn in the column's own header", () => {
+    const html = renderToStaticMarkup(
+      <RecordTable rows={ROWS} columns={[{ ...COLUMNS[0], menu: <button type="button" aria-label="Name menu" /> }]} />,
+    );
+    const header = /<th scope="col"[^>]*>(.*?)<\/th>/g;
+    const cells = [...html.matchAll(header)].map((match) => match[1]);
+    expect(cells.some((cell) => cell.includes("Name") && cell.includes('aria-label="Name menu"'))).toBe(true);
+  });
+});

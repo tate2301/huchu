@@ -1,18 +1,26 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import { fetchCrmLists } from "@/lib/crm/collections-client";
 import {
   fetchCrmCompanies,
+  fetchCrmFieldDefinitions,
   fetchCrmPeople,
   fetchCrmPipelines,
   fetchCrmSites,
   type CrmPipelineRecord,
 } from "@/lib/crm/crm-v2";
 import { writeState } from "@/lib/crm/registers/codec";
-import type { FilterDef, FilterOption, RegisterDef, ViewState } from "@/lib/crm/registers/types";
+import {
+  CUSTOM_FIELD_PREFIX,
+  type FilterDef,
+  type FilterOption,
+  type RegisterDef,
+  type ViewState,
+} from "@/lib/crm/registers/types";
 
 export type TeamMember = { id: string; name: string | null };
 
@@ -36,6 +44,37 @@ export function useGroups(entity: string | undefined, enabled = true) {
     enabled: Boolean(entity) && enabled,
     select: (response) => response.data,
   });
+}
+
+/** The kinds of custom field whose answers are a list to tick. */
+const LISTED_FIELD_TYPES = new Set(["SINGLE_SELECT", "MULTI_SELECT"]);
+
+/**
+ * The company's own fields on this kind of record, as filters (`cf.<key>`):
+ * each choice field lists its choices to tick, several meaning any of them.
+ * Shared cache with the field settings, which refresh it when a field changes.
+ */
+export function useCustomFieldFilters(def: RegisterDef): FilterDef[] {
+  const fields = useQuery({
+    queryKey: ["crm", "field-definitions", def.entity],
+    queryFn: () => fetchCrmFieldDefinitions(def.entity),
+    enabled: Boolean(def.entity),
+    staleTime: 5 * 60_000,
+    select: (response) => response.data,
+  });
+  return useMemo(
+    () =>
+      (fields.data ?? [])
+        .filter((field) => LISTED_FIELD_TYPES.has(field.type) && (field.options?.length ?? 0) > 0)
+        .map((field) => ({
+          key: `${CUSTOM_FIELD_PREFIX}${field.key}`,
+          label: field.label,
+          kind: "enum" as const,
+          options: (field.options ?? []).map(({ value, label }) => ({ value, label })),
+          anyLabel: "Any",
+        })),
+    [fields.data],
+  );
 }
 
 /** The company's deal pipelines, with their stages. Shared cache with every pipeline picker. */

@@ -6,6 +6,7 @@ import type { RecordTableColumn, RecordTableSort } from "@/components/records/re
 import type { RegisterPageGroup } from "@/lib/crm/crm-v2";
 import { activeFilterCount } from "@/lib/crm/registers/codec";
 
+import { ColumnMenu } from "./column-menu";
 import type { RegisterHandle } from "./use-register";
 
 /**
@@ -23,13 +24,16 @@ export function groupSections(groups: readonly RegisterPageGroup[], rows: readon
   }));
 }
 
-/** How a list draws one of its columns: everything but its name and its sort, which the list's definition owns. */
-export type ColumnRenderer<T> = Omit<RecordTableColumn<T>, "id" | "label" | "sortKey">;
+/**
+ * How a list draws one of its columns: everything but its name, its sort and
+ * its header menu, which the list's definition owns.
+ */
+export type ColumnRenderer<T> = Omit<RecordTableColumn<T>, "id" | "label" | "sortKey" | "menu">;
 
 /**
- * The table's columns, in the reader's order, named and made sortable by the
- * list's definition. A column the screen has no way to draw is left out
- * rather than drawn blank.
+ * The table's columns, in the reader's order, named, made sortable and given
+ * their header menus by the list's definition. A column the screen has no way
+ * to draw is left out rather than drawn blank.
  */
 export function registerColumns<T>(
   register: RegisterHandle,
@@ -40,7 +44,15 @@ export function registerColumns<T>(
     const def = defs.get(id);
     const renderer = renderers[id];
     if (!def || !renderer) return [];
-    return [{ ...renderer, id, label: def.label, sortKey: def.sort }];
+    return [
+      {
+        ...renderer,
+        id,
+        label: def.label,
+        sortKey: def.sort,
+        menu: <ColumnMenu register={register} column={def} />,
+      },
+    ];
   });
 }
 

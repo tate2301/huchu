@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import { Check, Plus, X } from "@/lib/icons";
 import {
   DATE_PRESETS,
   DATE_PRESET_LABELS,
+  isCustomFieldKey,
   type DatePreset,
   type FilterDef,
   type FilterOption,
@@ -58,7 +59,7 @@ function useFilterOptions(
   query: string,
 ): { options: FilterOption[]; loading: boolean } {
   const team = useTeamMembers(filter.kind === "person");
-  const groups = useGroups(register.def.groupEntity, filter.kind === "group");
+  const groups = useGroups(register.def.entity, filter.kind === "group");
   const facet = useFacetOptions(register.def, filter, register.state, open);
   const search = useRelationSearch(filter.relation, query, open && filter.kind === "relation");
   const pipelines = usePipelines(Boolean(filter.source));
@@ -99,7 +100,7 @@ function useFilterOptions(
 /** The names a chip shows for the values it holds. */
 function useValueLabels(register: RegisterHandle, filter: FilterDef, values: readonly string[]) {
   const team = useTeamMembers(filter.kind === "person" && values.length > 0);
-  const groups = useGroups(register.def.groupEntity, filter.kind === "group" && values.length > 0);
+  const groups = useGroups(register.def.entity, filter.kind === "group" && values.length > 0);
   const names = useRecordNames(filter.kind === "relation" ? filter.relation : undefined, values);
   const pipelines = usePipelines(Boolean(filter.source) && values.length > 0);
 
@@ -346,6 +347,28 @@ function NumberEditor({ register, filter }: { register: RegisterHandle; filter: 
 }
 
 /**
+ * What a filter can be narrowed to: its answers to tick, its presets and
+ * days, or its low and high. The same editor behind a toolbar chip and a
+ * column's header menu, so a filter works one way wherever it is opened.
+ * An on/off filter has none — it is its own chip.
+ */
+export function FilterEditor({
+  register,
+  filter,
+  open,
+}: {
+  register: RegisterHandle;
+  filter: FilterDef;
+  /** Whether the surface holding it is open — answers read from the records load then. */
+  open: boolean;
+}) {
+  if (filter.kind === "boolean") return null;
+  if (filter.kind === "date") return <DateEditor register={register} filter={filter} />;
+  if (filter.kind === "number") return <NumberEditor register={register} filter={filter} />;
+  return <OptionsEditor register={register} filter={filter} open={open} />;
+}
+
+/**
  * One filter on the toolbar: a chip that says what it is filtered to, and
  * opens what it can be filtered to. Every change applies at once — there is
  * no Apply button to forget.
@@ -387,11 +410,6 @@ export function FilterChip({
     );
   }
 
-  let editor: ReactNode;
-  if (filter.kind === "date") editor = <DateEditor register={register} filter={filter} />;
-  else if (filter.kind === "number") editor = <NumberEditor register={register} filter={filter} />;
-  else editor = <OptionsEditor register={register} filter={filter} open={open} />;
-
   return (
     <ResponsivePopover
       open={open}
@@ -403,7 +421,7 @@ export function FilterChip({
       className="w-72 p-0"
       trigger={<ViewToolbarChip label={filter.label} value={summarize(filter, value, label, fallback?.label)} />}
     >
-      {editor}
+      <FilterEditor register={register} filter={filter} open={open} />
       {filter.source === "pipelines" ? <PipelineLinks /> : null}
       {value !== undefined ? (
         <div className="flex justify-end border-t border-[var(--border-subtle)] p-1.5">
@@ -444,20 +462,28 @@ function PipelineLinks() {
   );
 }
 
-/** "+ Filter": the questions this list can be asked that are not on the row yet. */
+/**
+ * "+ Filter": the questions this list can be asked that are not on the row
+ * yet — its own first, then the company's own fields under their heading.
+ */
 export function AddFilterMenu({
-  register,
+  filters,
   hidden,
   onPick,
 }: {
-  register: RegisterHandle;
+  /** Every filter the list has, the company's own fields among them. */
+  filters: readonly FilterDef[];
   /** Filters already on the row. */
   hidden: ReadonlySet<string>;
   onPick: (filter: FilterDef) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const offered = register.def.filters.filter((filter) => filter.offer !== false && !hidden.has(filter.key));
+  const offered = filters.filter((filter) => filter.offer !== false && !hidden.has(filter.key));
   if (offered.length === 0) return null;
+  const sections = [
+    { heading: "Filter by", filters: offered.filter((filter) => !isCustomFieldKey(filter.key)) },
+    { heading: "Your fields", filters: offered.filter((filter) => isCustomFieldKey(filter.key)) },
+  ].filter((section) => section.filters.length > 0);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -472,20 +498,22 @@ export function AddFilterMenu({
           {offered.length > 7 ? <CommandInput placeholder="Filter by…" /> : null}
           <CommandList>
             <CommandEmpty>No such filter</CommandEmpty>
-            <CommandGroup heading="Filter by">
-              {offered.map((filter) => (
-                <CommandItem
-                  key={filter.key}
-                  value={filter.label}
-                  onSelect={() => {
-                    setOpen(false);
-                    onPick(filter);
-                  }}
-                >
-                  {filter.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {sections.map((section) => (
+              <CommandGroup key={section.heading} heading={section.heading}>
+                {section.filters.map((filter) => (
+                  <CommandItem
+                    key={filter.key}
+                    value={`${filter.label} ${filter.key}`}
+                    onSelect={() => {
+                      setOpen(false);
+                      onPick(filter);
+                    }}
+                  >
+                    {filter.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

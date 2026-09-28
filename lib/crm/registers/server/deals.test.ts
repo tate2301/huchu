@@ -116,6 +116,8 @@ beforeAll(async () => {
       expectedCloseDate: new Date("2026-09-30T10:00:00Z"),
       // A week in New, whose budget is three days.
       stageEnteredAt: new Date("2026-09-20T08:00:00Z"),
+      // A single-choice field holds one answer.
+      customFields: { channel: "online" },
     })
   ).id;
   ids.gutters = (
@@ -131,6 +133,8 @@ beforeAll(async () => {
       expectedCloseDate: new Date("2026-10-15T10:00:00Z"),
       // Two days in Quoted, whose budget is seven.
       stageEnteredAt: new Date("2026-09-25T08:00:00Z"),
+      // A multi-choice field holds several.
+      customFields: { trades: ["roofing", "gutters"] },
     })
   ).id;
   ids.shed = (
@@ -267,6 +271,15 @@ describe("deals", () => {
 
   it("narrows to a group", async () => {
     expect(await which(`group=${ids.group}`)).toEqual(["Acme roof", "Supply order"]);
+  });
+
+  it("narrows by the company's own fields, one answer or any of several", async () => {
+    expect(await which("cf.channel=online")).toEqual(["Acme roof"]);
+    expect(await which("cf.channel=online,shop")).toEqual(["Acme roof"]);
+    expect(await which("cf.trades=gutters")).toEqual(["Beta gutters"]);
+    // Two fields are two questions, both asked.
+    expect(await which("cf.channel=online&cf.trades=gutters")).toEqual([]);
+    expect(await which("cf.channel=shop")).toEqual([]);
   });
 
   it("sorts by value and by expected close, the unknown last either way", async () => {

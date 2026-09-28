@@ -200,6 +200,12 @@ export type ColumnDef = {
   exportOnly?: boolean;
   /** The sort key this column's header sorts by, when it sorts. */
   sort?: string;
+  /**
+   * The filter its header narrows by, when it has one — the Owner column's
+   * menu filters by owner, as a spreadsheet's column filter does. Its menu
+   * also offers Group by when the list groups by that filter's key.
+   */
+  filter?: string;
 };
 
 export type SortDef = { key: string; label: string; dir: SortDir };
@@ -245,10 +251,10 @@ export type RegisterDef = {
   /** `status` bulk action: the answers, when the register has one. */
   statusOptions?: readonly FilterOption[];
   /**
-   * Which kind of record a group (a `CrmList`) holds for this register, when
-   * records here can be put in groups.
+   * Which kind of record this list holds, when its records can be put in
+   * groups (a `CrmList` holds one kind) and carry the company's custom fields.
    */
-  groupEntity?: "LEAD" | "DEAL" | "PERSON" | "COMPANY" | "SITE" | "WORK_ORDER";
+  entity?: "LEAD" | "DEAL" | "PERSON" | "COMPANY" | "SITE" | "WORK_ORDER";
 };
 
 /** A custom field's filter key: `cf.<field key>`. */

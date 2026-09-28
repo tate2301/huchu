@@ -225,6 +225,18 @@ describe("every register", () => {
         }
       });
 
+      it("links columns only to filters the list offers", () => {
+        for (const column of def.columns) {
+          if (!column.filter) continue;
+          const filter = def.filters.find((candidate) => candidate.key === column.filter);
+          expect(filter, `${def.key}/${column.id}`).toBeDefined();
+          // A header menu is a menu: a filter kept off "+ Filter" stays off it.
+          expect(filter?.offer, `${def.key}/${column.id}`).not.toBe(false);
+          // A switch is its own chip; there is no column of answers to tick.
+          expect(filter?.kind, `${def.key}/${column.id}`).not.toBe("boolean");
+        }
+      });
+
       it("offers presets only on date filters and options only on enums", () => {
         for (const filter of def.filters) {
           if (filter.presets) expect(filter.kind).toBe("date");
@@ -252,8 +264,8 @@ describe("every register", () => {
 
       it("offers a group filter only where records can be put in groups", () => {
         const hasGroupFilter = def.filters.some((filter) => filter.kind === "group");
-        expect(hasGroupFilter).toBe(Boolean(def.groupEntity));
-        expect(def.bulk.includes("group")).toBe(Boolean(def.groupEntity));
+        expect(hasGroupFilter).toBe(Boolean(def.entity));
+        expect(def.bulk.includes("group")).toBe(Boolean(def.entity));
       });
 
       it("offers the status action only with answers for it", () => {
