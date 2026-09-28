@@ -264,7 +264,15 @@ back.
 
 `RecordList` and `RecordTable` both take the same `selection` shape
 (`selectedIds`, `onChange`, `actions`), and a screen declares it once and passes
-the same object to every arrangement (`people-content.tsx`).
+the same object to every arrangement.
+
+On a CRM list the selection's actions live in the toolbar, not in a floating
+bar: ticking a row turns the options row into `[✕ 12 selected] │ [Assign ▾]
+[Status ▾] [Add to group ▾] [Archive] ··· │ [Export]` — the same row, the same
+height, not a second one. Such screens pass no `actions`, and `RecordTable` and
+`RecordList` draw no bar without them. Shift-click ticks a range, as a
+spreadsheet does. On a phone rows carry no checkboxes; the list is exported
+whole.
 
 *The failures:* "a column of checkboxes nobody uses is a column of noise" when
 selection is on by default; and "two copies of a bulk action are two chances for
@@ -295,6 +303,29 @@ is worse than no headings at all".
 
 A search result is ranked by relevance, not alphabet, so it stays a flat list
 and the jump strip disappears.
+
+### SHAPE-13 — Group by sorts first, and counts the whole list
+
+"Group ▾" in a list's toolbar (`?by=owner`) puts the rows under headings — one
+per owner, type, company — in the table and in the list alike. Three things
+make that honest on a list that pages:
+
+- **The server orders by the group first** (`PrismaRegisterSpec.groupBys[key]
+  .orderBy`), then by the list's sort, so a group's rows arrive together and
+  never come back in two runs on one page (SHAPE-12, applied to any field).
+- **A heading's number is the whole group, not the page.** "Rudo Moyo 14" is
+  fourteen across the list even when page 1 shows six of them; the count comes
+  from a `groupBy` over the same `where` as the rows, not from the rows.
+- **A board is not grouped.** Its columns are the grouping; the control is not
+  offered there.
+
+A heading folds its rows away on this page. Grouping is part of the view: it
+writes `by=` to the address bar, marks the view modified, and an export of a
+grouped list comes out in the same order.
+
+*The failure it answers:* "about the grouping, I don't see anything like that"
+— records could be put in named groups only after ticking rows, and nothing
+grouped rows at all.
 
 ---
 
@@ -594,27 +625,29 @@ side-by-side panes: "on a 1920 screen with the sidebar open it left ~180px of
 dead margin on each side". A page that genuinely needs a reading measure asks
 for `narrow`, "which is the only width here that still means anything".
 
-### PAGE-3 — The app bar names the record; the band names the view
+### PAGE-3 — The app bar names the page; nothing under it repeats the name
 
-The bar carries the page or record identity and the page's primary actions, via
-`PageChrome`. A page does not repeat its own name in its body.
+The bar carries the page or record identity — a record's reference in mono
+beside its name — and the page's primary actions, via `PageChrome`. A page
+does not repeat its own name in its body, and there is no heading band between
+the bar and the content on any page, in any module: `CrmPage`, `ModuleShell`,
+`AccountingShell` and the Gold, Retail and Maintenance shells all register
+their title with the bar and draw nothing. A settings area names its *section*
+in the bar ("Pipelines"), with that section's action beside it.
 
 *The failure:* "a page that repeats its own name below a bar that already says
 it is spending a band of vertical space on nothing, and the rule that band drew
-was the seam between the bar and the content."
+was the seam between the bar and the content." Ledes and count chips went with
+the bands: a working page has no summary band.
 
-So `RecordListShell` draws **no** band: the bar already names the list. `CrmPage`
-draws one only where there is a second name to state — the *section* of a setup
-area — or state to pin.
+### PAGE-4 — Under the bar is a toolbar of controls, not a heading
 
-### PAGE-4 — The band carries what never scrolls, and nothing else
-
-`bandSlot` is "context the page needs permanently in view — a count, a total, a
-period". The schools module states the same law correctly in
-`components/schools/common/page-band.tsx`: "the band under it carries STATE …
-not a second copy of the name, and not a caption explaining a word nobody
-misread. Every chip here is a number that changes; anything that never changes
-belongs in the heading or nowhere."
+A list's first row is its toolbar (FILT-1). A record's first row is its
+toolbar (`components/records/record-toolbar.tsx`): the lifecycle as a button
+that opens the stage control, the controls the page adds, and the record's
+headline figure at the far end — the same place a list keeps its count. It is
+flush under the app bar. The one band still drawn anywhere is the schools state
+band, on overview dashboards only, and it carries numbers, never a name.
 
 ### PAGE-5 — The sticky stack is a published variable, not a guessed offset
 
@@ -697,13 +730,31 @@ and the filter block in `people-content.tsx`.
 One options row, read left to right:
 
 ```
-[ layout ] │ [ search ] [ filter ] [ filter ] ···· 8 of 8 │ [ columns ] [ export ]
+[ view ▾ · layout ] │ [ search ] [+ Filter] [ filter ] [ filter ] ···· 8 of 8 · Clear │ [ sort ] [ columns ] [ export ]
 ```
 
 Search leads the narrowing controls because it is the shortest route to one
 record. The filters follow, "because they are the same question asked more
-slowly". Everything after the spacer is about the table rather than about which
-records are in it, so it is pushed right behind a hairline.
+slowly". "+ Filter" comes first among them, so the control that adds a question
+is never the one scrolled out of reach when the chips outgrow the row. The count
+answers whatever the filters just asked, and "Clear" sits beside it. Everything
+after the spacer is about how the records are shown rather than which records are
+in the list — their order, their columns, the file they go out as — so it is
+pushed right behind a hairline.
+
+On a list engine page (`components/crm/registers/register-shell.tsx`) this row
+is built for you from the list's definition: pinned filters are always on it,
+the rest wait behind "+ Filter" until they narrow anything. The chips that
+narrow come first and the unanswered pinned ones after, so when the row runs out
+of room it is an unanswered chip that scrolls out of sight, never one hiding
+records. A pinned question with one answer is not asked: Pipeline is pinned only
+for a company with more than one pipeline.
+
+A board is one pipeline at a time. Left alone, the pipeline filter means every
+pipeline on a table and the default pipeline on a board, and the chip says
+which ("Pipeline: Sales"). Filters whose answers are the company's own setup
+(`FilterDef.source`) list them from it; a stage follows the pipeline
+(`follows`), so choosing another pipeline lets go of the stage.
 
 *The failure:* the filters used to sit on a row of their own above this one, "so
 'narrow it down' was answered in two places a band apart".
@@ -756,6 +807,86 @@ They must not move when the filters do: "filtering to Form 2 must not make it
 look as though the school lost 700 children."
 
 ---
+
+### FILT-10 — A list's state lives in the address bar, and a view is all of it
+
+The search, every filter, the sort and the layout are the query string —
+`?q=roof&type=CUSTOMER&owner=me,none&created=this-month&sort=-updated` — read
+and written by one codec (`lib/crm/registers/codec.ts`). A link is the list as
+somebody saw it; a reload keeps it; the back button returns to it after a record
+is opened. A lone `?view=` means "that view, as saved"; any other key makes the
+address the whole state, so a filter cleared on a view stays cleared.
+
+A view is the whole state — search included. The failure this replaces: saved
+views that kept the filters and dropped the search box, so "my Harare roofing
+leads" came back as every lead.
+
+When the list has wandered from its view — its columns included — the views
+menu says so (a dot, and "modified" for a screen reader) and offers the way
+back.
+
+A saved view is stored the same way: the list it belongs to and its state
+(`CrmSavedView.register`, `state`), checked against that list's definition
+whenever it is written, so a view cannot hold a filter the list does not have.
+The Views menu lists the list's own views, then those **Shared with the team**,
+then those **Only you** can see, and does what a spreadsheet's file menu does:
+
+- **Save changes to "…"** — on a view the reader may change (its author, or a
+  manager; a shared one only while they may still share);
+- **Save as a new view…** — the state on screen, columns included, under a
+  name; shared with the team if they may share;
+- **Rename…**, **Share with the team** / **Make it only yours**,
+  **Duplicate…**, **Delete…** (confirmed). Anybody may duplicate a view the
+  team shares; only its author or a manager changes it.
+
+`?view=<id>` waits for the saved views to arrive before it reads any rows, so a
+view's link never shows the list's first view and then swaps. A view that has
+been deleted, or is no longer shared, says so in a toast and the list opens on
+its first view.
+
+A record's back link returns to the same slice. Each list remembers its last
+canonical address for the tab (`useListHref`), so "Deals" on a deal page goes
+back to Deals narrowed to mine, grouped by stage, on page 2 — not to its front
+door. A record opened from a link, with no list behind it, goes to the front
+door.
+
+### FILT-11 — Every list exports, and the export is the list
+
+Export sits at the end of the toolbar on every list: the rows ticked, or every
+row the filters select; Excel, CSV or PDF; the columns as on screen, in their
+order, or every column. The file is built on the server from the same query the
+rows came from, so what was on screen is what arrives. The button says what it
+will do — "Export 340 people".
+
+### FILT-12 — A column's header is its own menu
+
+Clicking a header's name sorts by it, as it always has. The caret at the end of
+the header opens its menu, the way a spreadsheet's column filter does:
+
+- the column's two orders, in the words its contents use — "A to Z", "Largest
+  first", "Earliest first";
+- its filter's answers, to tick right there — the same editor as the toolbar
+  chip, so a filter works one way wherever it is opened;
+- **Group by** when the list groups by that column;
+- **Hide column**, except on the one column a table cannot lose (IDENT-6).
+
+A column is linked to its filter in the list's definition (`ColumnDef.filter`).
+The caret appears on hover or focus. A filtered column shows a funnel in its
+place without being hovered, so a narrowed column reads as narrowed at a glance.
+
+### FILT-13 — A list answers the keyboard
+
+`/` goes to the search box and Esc lets go of the ticked rows. Neither fires
+while something is being typed. Esc leaves the selection alone when it has just
+closed a popover or dialog.
+
+### FILT-14 — The company's own fields filter like the list's own
+
+"+ Filter" lists the record type's custom choice fields under **Your fields**
+(`cf.<key>` in the address). Ticking several answers means any of them.
+Fields without a list of answers — text, numbers, dates — are not offered yet.
+A field filter whose field has gone stays on the row under its key, so it can
+still be seen and cleared.
 
 ## Part 8 — Empty, loading, error, saving
 

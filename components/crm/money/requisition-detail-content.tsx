@@ -63,7 +63,7 @@ import {
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
-import { CostEntryForm } from "./cost-entry-form";
+import { CostEntryFormDialog } from "./cost-entry-form-dialog";
 import { CostEntryTable } from "./cost-entry-table";
 import {
   CATEGORY_LABELS,
@@ -352,14 +352,14 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
         backLabel="Requisitions"
         title={requisition.purpose}
         reference={requisition.requisitionNo}
-        // The steps say where it has got to; the band only carries the two
+        // The steps say where it has got to; the toolbar only carries the two
         // states that leave the path (rule 5).
         status={
           requisition.status === "REJECTED" || requisition.status === "CANCELLED"
             ? { status: REQUISITION_STATUS[requisition.status] ?? "inactive", label: REQUISITION_STATUS_LABELS[requisition.status] }
             : null
         }
-        bandValue={formatMoney(payable(requisition), requisition.currency)}
+        figure={formatMoney(payable(requisition), requisition.currency)}
         primaryAction={
           move ? (
             <Button variant="primary" onClick={() => (move === "submit" ? act.mutate({ action: "submit" }) : setDialog(move))}>
@@ -471,7 +471,7 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
                     count={requisition.costEntries.length}
                     maxWidth={SECTION_WIDTH}
                     action={
-                      reportOpen && !adding ? (
+                      reportOpen ? (
                         <SectionAction icon={Plus} onClick={() => setAdding(true)}>
                           Add spend
                         </SectionAction>
@@ -481,26 +481,21 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
                     <span id="requisition-spend">Spend</span>
                   </SectionHeading>
 
-                  {adding && reportOpen ? (
-                    <div className="mb-6 border-b border-[var(--border-subtle)] pb-6" style={{ maxWidth: 560 }}>
-                      <CostEntryForm
-                        fixed={{
-                          direction: "SPENT",
-                          currency: requisition.currency,
-                          projectId: requisition.project?.id ?? null,
-                          requisitionId: requisition.id,
-                        }}
-                        defaultCategory={requisition.category}
-                        submitLabel="Add spend"
-                        onSaved={() => {
-                          setAdding(false);
-                          refresh();
-                        }}
-                      />
-                      <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAdding(false)}>
-                        Cancel
-                      </Button>
-                    </div>
+                  {reportOpen ? (
+                    <CostEntryFormDialog
+                      open={adding}
+                      onOpenChange={setAdding}
+                      title={`Add spend to ${requisition.requisitionNo}`}
+                      fixed={{
+                        direction: "SPENT",
+                        currency: requisition.currency,
+                        projectId: requisition.project?.id ?? null,
+                        requisitionId: requisition.id,
+                      }}
+                      defaultCategory={requisition.category}
+                      submitLabel="Add spend"
+                      onSaved={refresh}
+                    />
                   ) : null}
 
                   <CostEntryTable

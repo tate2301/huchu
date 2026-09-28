@@ -37,11 +37,10 @@ import { PipelinesPanel } from "@/components/crm/settings/pipelines-panel";
  * active section lives in the URL, so a link to Pipelines opens Pipelines.
  *
  * Each panel saves inline. There is deliberately no sticky unsaved bar —
- * settings are individually committed, not a form you submit — which is what
- * the band's "saves as you go" says, in the one place it cannot be missed.
+ * settings are individually committed, not a form you submit.
  */
 
-/** What each panel needs to open its own create flow from the page band. */
+/** What each panel needs to open its own create flow from the app bar. */
 export type SettingsPanelProps = {
   createOpen: boolean;
   onCreateOpenChange: (open: boolean) => void;
@@ -61,9 +60,8 @@ export type SetupCounts = {
 type SettingsSection = {
   id: string;
   label: string;
-  description: string;
   /**
-   * The band's primary action for this section — "New pipeline", "Add field".
+   * The app bar's primary action for this section — "New pipeline", "Add field".
    * Absent on a section that is one setting rather than a list of things: there
    * is nothing to add, and its own form carries the one action it has.
    */
@@ -77,11 +75,8 @@ type SettingsSection = {
 /**
  * The setup sections.
  *
- * Exported because the page band names the active one and carries its action —
- * see `CrmSettingsShell`. The descriptions are the band ledes, which is why
- * they are written as sentence fragments rather than headings: the band reads
- * "Pipelines · the stages a deal moves through", one line, and nothing below
- * repeats either half of it.
+ * Exported because the app bar names the active one and carries its action —
+ * see `CrmSettingsShell`.
  */
 export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
@@ -90,7 +85,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Funnel,
     countKey: "pipelines",
     addLabel: "New pipeline",
-    description: "the stages a deal moves through, and what each one requires",
     render: (props) => <PipelinesPanel {...props} />,
   },
   {
@@ -99,7 +93,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Dataset,
     countKey: "fields",
     addLabel: "Add field",
-    description: "extra fields for your business, on the form and the record page",
     render: (props) => <CustomFieldsPanel {...props} />,
   },
   {
@@ -108,7 +101,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Megaphone,
     countKey: "sources",
     addLabel: "Add source",
-    description: "where enquiries come from, so attribution has something to count",
     render: (props) => <LeadSourcesPanel {...props} />,
   },
   {
@@ -117,7 +109,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Package,
     countKey: "catalogue",
     addLabel: "Add item",
-    description: "what the business sells — shared with Stock & Inventory and Retail",
     render: (props) => <CataloguePanel {...props} />,
   },
   {
@@ -126,7 +117,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Paperclip,
     countKey: "resources",
     addLabel: "Add resource",
-    description: "brochures, data sheets and terms the client reviews alongside a quote",
     render: (props) => <ClientResourcesPanel {...props} />,
   },
   {
@@ -135,7 +125,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Coins,
     countKey: "commissions",
     addLabel: "Create rule",
-    description: "who earns what, and at which thresholds",
     render: (props) => <CommissionsPanel {...props} />,
   },
   {
@@ -144,7 +133,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Lock,
     countKey: "keys",
     addLabel: "Create key",
-    description: "credentials for webhook and intake-form integrations",
     render: (props) => <ApiKeysPanel {...props} />,
   },
   {
@@ -153,14 +141,12 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Plug,
     countKey: "integrations",
     addLabel: "Connect Page",
-    description: "Lead Ads forms delivered straight into the pipeline",
     render: (props) => <FacebookPanel {...props} />,
   },
   {
     id: "field-camera",
     label: "Field camera",
     icon: MapPin,
-    description: "the app reps take site photos with, so every photo says where it was taken",
     render: () => <FieldCameraPanel />,
   },
 ];

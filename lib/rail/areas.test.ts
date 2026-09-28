@@ -60,13 +60,14 @@ describe("areasFromSections", () => {
     const areas = areasFromSections([crm]).filter((area) => area.items.length > 1);
     expect(areas.map((area) => area.label)).toEqual([
       "Pipeline",
+      "Contacts",
       "Projects",
       "Finance",
       "Billing",
       "Work",
-      "Automation",
-      "CRM setup",
+      "Team",
       "Insights",
+      "Setup",
     ]);
 
     const rows = (label: string) => {
@@ -77,9 +78,11 @@ describe("areasFromSections", () => {
         alphabetical: area.ranked,
       }).map((item) => item.label);
     };
-    expect(rows("Pipeline")).toEqual(["Leads", "Deals", "Companies", "People", "Sites", "Team"]);
-    expect(rows("Work")).toEqual(["Site visits", "My overview", "Follow-ups", "Intake forms", "Tasks"]);
-    expect(rows("Finance")).toEqual(["Overview", "Requisitions", "Cost tracker", "Daily reports"]);
+    expect(rows("Pipeline")).toEqual(["Leads", "Deals", "Intake forms"]);
+    expect(rows("Contacts")).toEqual(["Companies", "People", "Sites"]);
+    expect(rows("Work")).toEqual(["Site visits", "Follow-ups", "Tasks"]);
+    expect(rows("Team")).toEqual(["My performance", "Team"]);
+    expect(rows("Finance")).toEqual(["Money in and out", "Requisitions", "Cost tracker", "Daily reports"]);
     expect(rows("Billing")).toEqual(["Quotes", "Invoices", "Receipts", "Collections"]);
   });
 });

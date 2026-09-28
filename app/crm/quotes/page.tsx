@@ -11,8 +11,6 @@ export default async function CrmQuotesPage() {
 
   return (
     <CrmPage
-      title="Quotes"
-      description="what is out with customers"
     >
       <DocumentsListContent
         kind="QUOTATION"

@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
 import { PostingRuleList } from "@/components/accounting/posting-rule-list";
 import { PostingRuleExplainer } from "@/components/accounting/posting-rule-explainer";
 import { PageActions } from "@/components/layout/page-actions";
@@ -1840,36 +1839,24 @@ export default function PostingStudioPage() {
     name: a.name,
   }));
 
-  // Count failures for badge
-  const { data: failuresData } = useQuery({
+  // Failed events ride on the "Failures & replay" view as a count: the one
+  // number that says something the ledger expected never arrived.
+  const { data: failedEvents = 0 } = useQuery({
     queryKey: ["accounting", "integration-events", "failed-count"],
     queryFn: () => fetchIntegrationEvents({ status: "FAILED", limit: 1 }).then((data) => data.meta.total),
     refetchInterval: 60_000,
   });
-  const failedEvents = failuresData ?? 0;
+  const views = VIEWS.map((view) =>
+    view.id === "failures" && failedEvents > 0 ? { ...view, count: failedEvents } : view,
+  );
 
   return (
     <AccountingShell
       activeTab="posting-rules"
       title="Posting Rules"
-      description="what each kind of business event posts to the ledger"
-      bandSlot={
-        <BandChip
-          label="Failed"
-          value={String(failedEvents)}
-          tone={failedEvents > 0 ? "bad" : "mute"}
-        />
-      }
     >
-      {/*
-        The failed count used to ride on the "Failures & replay" pill as well.
-        It is in the band alone now: the band never scrolls away, so the one
-        number that says "something the ledger expected never arrived" stays in
-        view while you read a rule, and printing it twice in two sticky rows
-        only invites the reader to check whether the two agree.
-      */}
       <VerticalDataViews
-        items={VIEWS}
+        items={views}
         value={activeView}
         onValueChange={setActiveView}
         railLabel="Views"

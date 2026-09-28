@@ -41,7 +41,7 @@ import { DocumentList } from "@/components/crm/documents/document-list";
 import { EntityLink } from "@/components/records/entity-link";
 import { formatMoney, invoiceOutstanding } from "@/components/crm/documents/document-types";
 import { LeadFormSheet } from "@/components/crm/leads/lead-form-sheet";
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import { LostReasonDialog } from "@/components/crm/leads/lost-reason-dialog";
 import {
   CRM_STAGE_LABELS,
@@ -86,6 +86,7 @@ import { StageProgress } from "./stage-progress";
 import { VisitsTab } from "./visits-tab";
 import { LeadScoreCard } from "./lead-score-card";
 import type { LeadAppointment, LeadDetail } from "./lead-types";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 
 /** Measurements captured on site, shaped into quotation lines for the builder. */
 function draftsToLines(drafts: MeasurementDraft[]): CrmDocumentLineInput[] {
@@ -134,7 +135,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
 
   const teamQuery = useQuery({
     queryKey: ["crm", "team"],
-    queryFn: () => fetchJson<{ data: LeadFilterOwner[] }>("/api/v2/crm/team"),
+    queryFn: () => fetchJson<{ data: CrmLeadOwner[] }>("/api/v2/crm/team"),
   });
 
   const owners = useMemo(() => teamQuery.data?.data ?? [], [teamQuery.data]);
@@ -152,7 +153,6 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     onSuccess: (_result, archived) => {
       queryClient.invalidateQueries({ queryKey: ["crm-lead", leadId] });
       queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
       toast({
         title: archived ? "Archived" : "Back in the pipeline",
         description: archived
@@ -172,7 +172,6 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     mutationFn: () => fetchJson(`/api/v2/crm/leads/${leadId}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
       toast({ title: "Deleted" });
       // Nothing left to look at — the record this page is about is gone.
       router.push("/crm/leads");
@@ -204,7 +203,6 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     onSuccess: (_result, { stage }) => {
       queryClient.invalidateQueries({ queryKey: ["crm-lead", leadId] });
       queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
       toast({ title: `Moved to ${CRM_STAGE_LABELS[stage]}` });
     },
     onError: (error) =>
@@ -355,6 +353,8 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
   return (
     <RecordPageShell
       icon={Funnel}
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="LEAD" recordId={lead.id} />}
       backHref="/crm/leads"
       backLabel="All leads"
       title={lead.title ?? lead.leadNo}
@@ -386,7 +386,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           )}
         </>
       }
-      bandValue={formatLeadValue(lead.estimatedValue, lead.currency)}
+      figure={formatLeadValue(lead.estimatedValue, lead.currency)}
       related={
         <RecordRelated
           items={[
@@ -556,7 +556,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           ]}
         />
       }
-      beforeTabs={
+      stage={
         <StageProgress
           compact
           stage={lead.stage}
@@ -655,10 +655,10 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
         <>
           {/* No "Worth" panel here any more.
 
-              The figure is in the band, where it stays in view while the
-              conversation scrolls — see `bandValue` below. A copy at the top of
-              this column was the same number twice on one screen, and it was
-              the copy that scrolled away.
+              The figure is at the end of the record's toolbar, where it stays
+              in view while the conversation scrolls — see `figure` below. A
+              copy at the top of this column was the same number twice on one
+              screen, and it was the copy that scrolled away.
 
               What is left is the score, which is not a headline but a
               breakdown: a number, a band, and the reasons for both. */}

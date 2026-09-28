@@ -42,6 +42,8 @@ export type ApprovalDoc = {
   /** What the rep asked the client to look at before answering. */
   resources: Array<{ title: string; description: string | null; url: string }>;
   linkState: "ACTIVE" | "EXPIRED" | "REVOKED";
+  /** When these figures last changed. Sent back with the answer. */
+  stamp: string;
 };
 
 const DOC_LABELS: Record<ApprovalDoc["documentType"], string> = {
@@ -135,33 +137,42 @@ export function ApprovalContent({ token }: { token: string }) {
   const [note, setNote] = React.useState("");
   const [result, setResult] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  // Said above the document when the business changed it while it was open
+  // here: the figures below are the new ones, and nothing was answered yet.
+  const [changed, setChanged] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    let active = true;
-    fetch(`/api/public/crm/approvals/${token}`)
-      .then(async (res) => {
-        const data = await res.json();
-        if (!active) return;
-        if (!res.ok || !data.ok) setLoadError(data.error ?? "Document not found.");
-        else setDoc(data.document as ApprovalDoc);
-      })
-      .catch(() => active && setLoadError("Document not found."));
-    return () => {
-      active = false;
-    };
+  const load = React.useCallback(async () => {
+    try {
+      const res = await fetch(`/api/public/crm/approvals/${token}`);
+      const data = await res.json();
+      if (!res.ok || !data.ok) setLoadError(data.error ?? "Document not found.");
+      else setDoc(data.document as ApprovalDoc);
+    } catch {
+      setLoadError("Document not found.");
+    }
   }, [token]);
 
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
   async function respond(action: "APPROVE" | "DECLINE") {
+    if (!doc) return;
     setSubmitting(true);
     setError(null);
     try {
       const res = await fetch(`/api/public/crm/approvals/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, name: name || undefined, note: note || undefined }),
+        body: JSON.stringify({ action, name: name || undefined, note: note || undefined, stamp: doc.stamp }),
       });
       const data = await res.json();
-      if (!res.ok || !data.ok) setError(data.error ?? "Could not record your response.");
+      if (res.status === 409 && data.outdated) {
+        // The name and note stay as typed; only the document is fetched again.
+        setChanged(data.error ?? "This document was changed after you opened it.");
+        await load();
+        window.scrollTo({ top: 0 });
+      } else if (!res.ok || !data.ok) setError(data.error ?? "Could not record your response.");
       else setResult(data.status);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -181,6 +192,14 @@ export function ApprovalContent({ token }: { token: string }) {
   return (
     <div className="min-h-screen bg-neutral-100 px-4 py-6 sm:py-10 print:bg-white print:p-0">
       <div className="mx-auto max-w-3xl space-y-4">
+        {changed ? (
+          <p
+            role="status"
+            className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 text-sm text-amber-900 print:hidden"
+          >
+            {changed}
+          </p>
+        ) : null}
         <ApprovalDocument doc={doc} />
 
         <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-6 print:hidden">

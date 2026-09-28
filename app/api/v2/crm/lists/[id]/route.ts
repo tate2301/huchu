@@ -4,6 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { hasCrmFullAccess } from "@/lib/crm/scope";
+import { existingRecordIds } from "@/lib/crm/lists";
 
 const updateListSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
@@ -80,10 +81,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const data = updateListSchema.parse(await request.json());
 
+    let added = 0;
+    let alreadyIn = 0;
+    let notFound = 0;
     const updated = await prisma.$transaction(async (tx) => {
       if (data.addRecordIds?.length) {
+        // Only records of the group's own type, in this company: a member is
+        // a bare id, and nothing else stops a deal's id landing among people.
+        const valid = await existingRecordIds(tx, { companyId, entity: list.entity, ids: data.addRecordIds });
+        alreadyIn = await tx.crmListMember.count({ where: { listId: id, recordId: { in: valid } } });
+        notFound = new Set(data.addRecordIds).size - valid.length;
+        added = valid.length - alreadyIn;
         await tx.crmListMember.createMany({
-          data: data.addRecordIds.map((recordId) => ({
+          data: valid.map((recordId) => ({
             companyId,
             listId: id,
             recordId,
@@ -113,7 +123,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
     });
 
-    return successResponse(updated);
+    return successResponse({ ...updated, added, alreadyIn, notFound });
   } catch (error) {
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
     console.error("[API] PATCH /api/v2/crm/lists/[id] error:", error);

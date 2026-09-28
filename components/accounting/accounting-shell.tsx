@@ -2,11 +2,10 @@
 
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { PageActions } from "@/components/layout/page-actions";
+import { PageActions, PageChrome } from "@/components/layout/page-chrome";
 import { NavRail, NavRailGroup, NavRailItem } from "@/components/ui/nav-rail";
 import { ACCOUNTING_CATEGORIES, ACCOUNTING_TABS, type AccountingTab } from "@/lib/accounting/tab-config";
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
-import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 
 export type { AccountingTab } from "@/lib/accounting/tab-config";
 
@@ -15,15 +14,11 @@ type AccountingShellProps = {
   /** Rendered in the app bar, not inline — see `PageActions`. */
   actions?: React.ReactNode;
   children: React.ReactNode;
-  title?: string;
-  /** One line under the title, in the page band. Hidden below `md`. */
-  description?: string;
   /**
-   * Anything the page needs permanently in view, pinned to the right of the
-   * band: the open period, a balance, a "3 in draft" count. Kept small and
-   * quiet — this is context, not a second action bar.
+   * The page's own name, for the app bar. Left off, the bar keeps the name
+   * the route table gives this screen.
    */
-  bandSlot?: React.ReactNode;
+  title?: string;
 };
 
 export function AccountingShell({
@@ -31,23 +26,11 @@ export function AccountingShell({
   actions,
   children,
   title,
-  description,
-  bandSlot,
 }: AccountingShellProps) {
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
     [session],
-  );
-  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
-  const modulePresentation = useMemo(
-    () =>
-      getWorkspaceModulePresentation({
-        moduleId: "accounting",
-        enabledFeatures,
-        workspaceProfile,
-      }),
-    [enabledFeatures, workspaceProfile],
   );
   const visibleTabs = useMemo(
     () => filterAccountingTabsByFeatures(ACCOUNTING_TABS, enabledFeatures),
@@ -90,47 +73,22 @@ export function AccountingShell({
     // See the note in `ModuleShell`: no container, no centring. Accounting is
     // the widest module in the app — a trial balance is eight numeric columns
     // — and it was the one paying the most for the cap.
-    <div className="w-full space-y-4">
-      {actions ? <PageActions>{actions}</PageActions> : null}
+    <div className="w-full">
+      {/* The page names itself once, in the app bar. The pinned band that
+          used to sit under it repeated the name and carried count chips; a
+          working page has no summary band. */}
+      {title ? (
+        <PageChrome title={title}>{actions}</PageChrome>
+      ) : actions ? (
+        <PageActions>{actions}</PageActions>
+      ) : null}
 
-      {/*
-        The page band.
-
-        This replaces the design system's `PageHeader`, which rendered the page
-        title as a large H1 in a block that scrolled away — while the app bar
-        directly above it showed the same title, permanently. Two titles, one
-        of them 40px tall and neither of them there when you needed it: by the
-        time you were far enough down a trial balance to forget which report
-        you were reading, the H1 had gone and the column headers had gone with
-        it.
-
-        One 44px band, pinned. It carries what the app bar cannot: the page's
-        own name, its lede, and — through `bandSlot` — whatever that page needs
-        permanently in view, which for accounting is usually a period or a
-        balance. Actions stay in the app bar via `PageActions`.
-      */}
-      <div className="band-shell sticky top-0 z-30 flex min-h-[var(--page-band-h)] items-center gap-2.5 border-b border-[var(--border)] bg-[var(--canvas)]">
-        <h1 className="text-base font-bold leading-tight tracking-[-0.012em] text-[var(--text-strong)]">
-          {title ?? modulePresentation.title}
-        </h1>
-        {description ? (
-          <span className="hidden min-w-0 truncate border-l border-[var(--border)] pl-2.5 text-sm text-[var(--text-subtle)] md:inline">
-            {description}
-          </span>
-        ) : null}
-        {bandSlot ? (
-          <div className="ml-auto flex shrink-0 items-center gap-2">{bandSlot}</div>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-4 pt-4 lg:flex-row lg:gap-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
         {/* One rail, grouped by category. No tab strip below it. */}
         <NavRail
           label="Accounting navigation"
           orientation="responsive"
-          // Pins below the band, not to the viewport: the band is 44px of
-          // opaque chrome at top 0, so a rail stuck at 0 would slide under it.
-          className="lg:sticky lg:top-[calc(var(--page-band-h)+1rem)] lg:w-[var(--rail-w)] lg:shrink-0 lg:self-start"
+          className="lg:sticky lg:top-4 lg:w-[var(--rail-w)] lg:shrink-0 lg:self-start"
         >
           {railGroups.map(({ category, tabs }) => (
             <NavRailGroup key={category.id} label={category.label}>
@@ -148,11 +106,6 @@ export function AccountingShell({
           ))}
         </NavRail>
 
-        {/*
-          Content area. `--views-top` tells any view switcher inside where the
-          sticky stack has got to: the band owns the first 44px, so a strip
-          pins beneath it rather than under it.
-        */}
         <div className="band-stack-content min-w-0 flex-1 space-y-5 pb-8">
           {children}
         </div>

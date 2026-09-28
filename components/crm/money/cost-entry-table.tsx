@@ -67,8 +67,9 @@ function dayOf(entry: CostEntryRow): string | null {
 /**
  * Lines of money in somebody's hands.
  *
- * A line is not a record — there is nothing of its own to open — so rows do
- * not link; the receipt and the project in them do. Money in and money out
+ * The description opens the line's own page, where its receipt is shown at a
+ * size somebody can check against the figure; the receipt and the project in
+ * the row link where they point. Money in and money out
  * are two columns rather than one column of signed figures: a column of
  * "−USD" is a column of minus signs to read past, and a reader adding up
  * what went out wants the outs lined up on their own. Where every line goes
@@ -191,7 +192,9 @@ export function CostEntryTable({
           rows={entries.map((entry) => ({
             id: entry.id,
             cells: {
-              what: <ColumnName name={entry.description} meta={metaOf(entry)} />,
+              what: (
+                <ColumnName name={entry.description} meta={metaOf(entry)} href={`/crm/cost-tracker/${entry.id}`} />
+              ),
               day: <ColumnFigure tone="muted">{dayOf(entry) ?? "—"}</ColumnFigure>,
               person: entry.log ? (
                 <Link
@@ -243,7 +246,12 @@ export function CostEntryTable({
             className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] py-3 last:border-b-0"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm text-[var(--text-strong)]">{entry.description}</p>
+              <Link
+                href={`/crm/cost-tracker/${entry.id}`}
+                className="block truncate text-sm text-[var(--text-strong)] hover:underline"
+              >
+                {entry.description}
+              </Link>
               <p className="truncate text-sm text-[var(--text-muted)]">
                 {[
                   dayOf(entry),

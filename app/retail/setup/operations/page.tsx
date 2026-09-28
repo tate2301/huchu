@@ -232,12 +232,10 @@ export default function RetailSetupOperationsPage() {
     </div>
   );
 
-  const description =
-    "Bind a primary branch and register, then provision the default terminal that cashiers will land on.";
 
   if (overviewQuery.isPending) {
     return (
-      <RetailShell title="Operations setup" description={description} actions={actions}>
+      <RetailShell title="Operations setup" actions={actions}>
         <div aria-busy="true" aria-live="polite" className="space-y-4">
           <span className="sr-only">Reading branches and registers…</span>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -254,7 +252,7 @@ export default function RetailSetupOperationsPage() {
 
   if (overviewQuery.isError) {
     return (
-      <RetailShell title="Operations setup" description={description} actions={actions}>
+      <RetailShell title="Operations setup" actions={actions}>
         <Alert tone="danger" title="Branches and registers would not load">
           {getApiErrorMessage(overviewQuery.error)}
         </Alert>
@@ -265,7 +263,7 @@ export default function RetailSetupOperationsPage() {
   const readySites = overviewQuery.data.sites.filter((site) => site.registerCount > 0).length;
 
   return (
-    <RetailShell title="Operations setup" description={description} actions={actions}>
+    <RetailShell title="Operations setup" actions={actions}>
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
           label="Branches ready"

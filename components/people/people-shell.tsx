@@ -20,7 +20,6 @@ export function PeopleShell({
 }) {
   return (
     <ModuleShell
-      moduleId="people"
       navSectionId="people"
       categories={PEOPLE_CATEGORIES}
       tabs={PEOPLE_TABS}

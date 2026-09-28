@@ -10,7 +10,7 @@ export default async function CrmTeamPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage title="Team">
+    <CrmPage>
       <RepsContent />
     </CrmPage>
   );

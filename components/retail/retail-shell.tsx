@@ -3,14 +3,13 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 import { retailRailFor, type RetailAreaId } from "@/lib/retail/areas";
 
 type RetailShellProps = {
+  /** The page's name, for the app bar. */
   title: string;
-  description?: string;
   actions?: ReactNode;
   /**
    * The area this page belongs to, for a route the rail cannot resolve on its
@@ -24,11 +23,8 @@ type RetailShellProps = {
 /**
  * The retail page frame.
  *
- * `description` is forwarded to `PageHeading`, which renders it in the design
- * system's `lede` slot. It used to be accepted and dropped — the same bug
- * `PageHeading` itself carried until it was fixed for the 73 pages that use it
- * directly, and which survived here because this shell sits in between. Five
- * setup screens had written explanatory copy that never reached a user.
+ * The page names itself once, in the app bar, with its actions beside it.
+ * There is no heading block or lede under the bar repeating the name.
  *
  * ── R-4.7: the rail ────────────────────────────────────────────────────────
  *
@@ -45,7 +41,7 @@ type RetailShellProps = {
  * list would have put the second one straight back.
  *
  * No rail is shown for a single-screen area. One tab is not navigation — it is
- * a label the heading above already carries, and on a laptop it costs a row of
+ * a label the app bar already carries, and on a laptop it costs a row of
  * the vertical space the tables below need.
  *
  * ── Actions ────────────────────────────────────────────────────────────────
@@ -56,14 +52,13 @@ type RetailShellProps = {
  * `<div>` holding six buttons. `lib/retail/areas.test.ts` counts them in the
  * source instead, where a fragment and a wrapper look the same.
  */
-export function RetailShell({ title, description, actions, area, children }: RetailShellProps) {
+export function RetailShell({ title, actions, area, children }: RetailShellProps) {
   const pathname = usePathname();
   const rail = retailRailFor(pathname ?? "", area);
 
   return (
     <div className="w-full space-y-4">
-      {actions ? <PageActions>{actions}</PageActions> : null}
-      <PageHeading title={title} description={description} className="mb-2" />
+      <PageChrome title={title}>{actions}</PageChrome>
 
       {rail ? (
         <SectionTabs label={`${rail.area.label} navigation`}>

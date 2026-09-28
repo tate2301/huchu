@@ -13,7 +13,6 @@ import {
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { BandChip } from "@/components/accounting/band-chip";
 import {
   ReportTable,
   amt,
@@ -295,7 +294,6 @@ export default function ReceivablesHomePage() {
     <AccountingShell
       activeTab="ar-report"
       title="AR Report"
-      description="the receivables book — what was a separate summary tab"
       /*
         The two figures the rest of the page is read against, pinned.
 
@@ -304,16 +302,6 @@ export default function ReceivablesHomePage() {
         scrolled away — which is the moment you most want to know whether the
         $12,800 in front of you is most of the overdue book or a tenth of it.
       */
-      bandSlot={
-        <>
-          <BandChip label="Open" value={formatHeadline(summary?.kpis.openBalance ?? 0)} tone="mute" />
-          <BandChip
-            label="Overdue"
-            value={formatHeadline(summary?.kpis.overdueBalance ?? 0)}
-            tone={(summary?.kpis.overdueBalance ?? 0) > 0 ? "bad" : "ok"}
-          />
-        </>
-      }
       actions={
         <AccountingNewButton
           items={[

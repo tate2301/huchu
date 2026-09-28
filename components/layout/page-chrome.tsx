@@ -17,6 +17,12 @@ export type PageIdentity = {
   title: string;
   icon?: LucideIcon;
   /**
+   * A record's reference — `DEAL-0001`, `INV-0042` — set in mono after its
+   * name. It is part of what the record is called, so it sits with the name
+   * rather than in a band of its own under the bar.
+   */
+  reference?: string | null;
+  /**
    * Where "up" is, for a page that sits under a list. Rendered in the bar
    * immediately before the title, because that is where the page's name is —
    * a back link stranded in the body is a second header in a different place.
@@ -75,12 +81,14 @@ function usePageChrome() {
 function PageChrome({
   title,
   icon,
+  reference,
   backHref,
   backLabel,
   children,
 }: {
   title: string;
   icon?: LucideIcon;
+  reference?: string | null;
   /** Where "up" goes. Both this and `backLabel` are needed for a back link. */
   backHref?: string;
   backLabel?: string;
@@ -93,10 +101,11 @@ function PageChrome({
     setIdentity({
       title,
       icon,
+      reference,
       back: backHref && backLabel ? { href: backHref, label: backLabel } : undefined,
     });
     return () => setIdentity(null);
-  }, [title, icon, backHref, backLabel, setIdentity]);
+  }, [title, icon, reference, backHref, backLabel, setIdentity]);
 
   React.useEffect(() => {
     // Left undefined, this component is only claiming the title — some other

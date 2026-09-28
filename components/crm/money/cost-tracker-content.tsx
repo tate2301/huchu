@@ -1,16 +1,18 @@
 "use client";
 
 /**
- * The cost tracker: writing up the day's money, and reading it back.
+ * The cost tracker: the day's money, and every line behind it.
  *
  * One subject — lines of money in somebody's hands — asked about two ways.
- * The top of the page is the day being written up: a form to add a line, what
- * the day has come to so far, and closing it, which is what sends the day's
- * report to management. Under it is every line, narrowed from the toolbar: a
- * rep's own, or the whole team's for somebody who may see everybody's money.
+ * The top of the page is the day: what it has come to, and closing it, which
+ * is what sends the day's report to management. Under it is every line,
+ * narrowed from the toolbar: a rep's own, or the whole team's for somebody
+ * who may see everybody's money.
  *
- * Built for somebody standing at a fuel pump on a phone, which decides the
- * form: on the page rather than in a modal, and one press to add a line.
+ * The page shows state and the dialogs change it. A line is added from the
+ * app bar — "New entry", on whichever day is on screen — and the day is
+ * closed from a dialog that carries its note, because the note is part of
+ * the report that goes.
  *
  * The register's filters live in the URL, so "Tendai's spend with no receipt
  * this month" is a link somebody can send.
@@ -22,33 +24,25 @@ import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Button, Skeleton } from "@corelithzw/react";
-import { FactList, FormField, SectionHeading, StatusBadge, StatusDot } from "@/components/management/ui";
+import { FactList, SectionHeading, StatusBadge, StatusDot } from "@/components/management/ui";
+import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { RecordListPager } from "@/components/records/record-list";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { useDebounced } from "@/hooks/use-debounced";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
-import { CostEntryForm } from "./cost-entry-form";
+import { CostEntryFormDialog } from "./cost-entry-form-dialog";
 import { CostEntryTable } from "./cost-entry-table";
 import { formatDay, formatMoney, todayKey, type CostEntryRow } from "./money";
 
-/** The form's measure, and the day's column beside it. */
-const FORM_WIDTH = 560;
-const DAY_WIDTH = 380;
-
-export function CostTrackerContent() {
-  return (
-    <div className="space-y-8">
-      <TheDay />
-      <Register />
-    </div>
-  );
-}
+/** The day's measure. */
+const DAY_WIDTH = 560;
 
 type DayResponse = {
   log: { id: string; logDate: string; notes: string | null; submittedAt: string | null };
@@ -61,22 +55,19 @@ type DayResponse = {
   };
 };
 
-/**
- * The day being written up.
- *
- * The day can be moved back, because the day being written up is not always
- * today. It cannot be moved forward: a log for Friday written on Wednesday is
- * a guess, and a guess in the cost figures is worse than a gap.
- */
-function TheDay() {
-  const { toast } = useToast();
+export function CostTrackerContent() {
   const queryClient = useQueryClient();
+  // The day being written up. It can be moved back, because the day being
+  // written up is not always today; never forward, because a log for Friday
+  // written on Wednesday is a guess.
   const [day, setDay] = useState(todayKey);
+  const [adding, setAdding] = useState(false);
 
   const dayQuery = useQuery({
     queryKey: ["crm", "daily-log", day],
     queryFn: () => fetchJson<DayResponse>(`/api/v2/crm/daily-logs?date=${day}`),
   });
+  const closed = Boolean(dayQuery.data?.log.submittedAt);
 
   // A line lands on the day and in the register alike.
   const refresh = () => {
@@ -84,137 +75,107 @@ function TheDay() {
     void queryClient.invalidateQueries({ queryKey: ["crm", "cost-entries"] });
   };
 
-  const saveNote = useMutation({
-    mutationFn: (notes: string) =>
-      fetchJson("/api/v2/crm/daily-logs", {
-        method: "PATCH",
-        body: JSON.stringify({ logDate: day, notes }),
-      }),
-    onSuccess: refresh,
-    onError: (error) =>
-      toast({
-        title: "The note was not saved",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  });
+  return (
+    <div className="space-y-8">
+      <TheDay day={day} onDayChange={setDay} dayQuery={dayQuery} onChanged={refresh} />
+      {/* A closed day takes no more lines, so the verb is not offered on it. */}
+      <Register onAdd={dayQuery.data && !closed ? () => setAdding(true) : undefined} />
+      <CostEntryFormDialog
+        open={adding}
+        onOpenChange={setAdding}
+        title={day === todayKey() ? "New entry" : `New entry for ${formatDay(day)}`}
+        day={day}
+        onSaved={refresh}
+      />
+    </div>
+  );
+}
 
-  const close = useMutation({
-    mutationFn: (logId: string) =>
-      fetchJson(`/api/v2/crm/daily-logs/${logId}/submit`, { method: "POST" }),
-    onSuccess: () => {
-      toast({ title: "Day closed", description: "Your report has gone to management." });
-      refresh();
-    },
-    onError: (error) =>
-      toast({
-        title: "The day was not closed",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  });
-
+/**
+ * The day on screen: what it has come to, and whether it has gone.
+ *
+ * The figure somebody counts the cash in their pocket against leads, then
+ * what it is made of, then what is still wrong with the day and the verb that
+ * ends it.
+ */
+function TheDay({
+  day,
+  onDayChange,
+  dayQuery,
+  onChanged,
+}: {
+  day: string;
+  onDayChange: (day: string) => void;
+  dayQuery: { data?: DayResponse; error: unknown };
+  onChanged: () => void;
+}) {
+  const [closing, setClosing] = useState(false);
   const log = dayQuery.data?.log;
   const totals = dayQuery.data?.totals;
   const closed = Boolean(log?.submittedAt);
   const today = todayKey();
   // An empty day can still be closed, with a note saying why nothing moved —
-  // the server's rule, so the button is only offered once it would work.
-  const closable = Boolean(log && totals && (totals.entryCount > 0 || log.notes));
-
+  // the dialog asks for the note when it is.
   const sentAt = log?.submittedAt
     ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(log.submittedAt))
     : null;
 
   return (
-    <section
-      aria-labelledby="cost-tracker-day"
-      className="grid gap-x-12 lg:grid-cols-[minmax(0,560px)_minmax(0,380px)]"
-    >
-      <div className="min-w-0">
-        {/* The day is the section, so the control that picks it sits on the
-            section's heading, where rule 2 puts a section's own control. */}
-        <SectionHeading
-          maxWidth={FORM_WIDTH}
-          className="mt-0"
-          action={
-            <Input
-              id="cost-tracker-date"
-              aria-label="Day"
-              type="date"
-              className="h-8 w-auto font-mono"
-              value={day}
-              max={today}
-              onChange={(event) => {
-                if (event.target.value) setDay(event.target.value);
-              }}
-            />
-          }
-        >
-          <span id="cost-tracker-day">{day === today ? "Today" : formatDay(day)}</span>
-          {closed ? <StatusBadge tone="neutral">Closed</StatusBadge> : null}
-        </SectionHeading>
+    <section aria-labelledby="cost-tracker-day" style={{ maxWidth: DAY_WIDTH }}>
+      {/* The day is the section, so the control that picks it sits on the
+          section's heading, where a section's own control goes. */}
+      <SectionHeading
+        maxWidth={DAY_WIDTH}
+        className="mt-0"
+        action={
+          <Input
+            id="cost-tracker-date"
+            aria-label="Day"
+            type="date"
+            className="h-8 w-auto font-mono"
+            value={day}
+            max={today}
+            onChange={(event) => {
+              if (event.target.value) onDayChange(event.target.value);
+            }}
+          />
+        }
+      >
+        <span id="cost-tracker-day">{day === today ? "Today" : formatDay(day)}</span>
+        {closed ? <StatusBadge tone="neutral">Closed</StatusBadge> : null}
+      </SectionHeading>
 
-        {dayQuery.error ? (
-          <Alert tone="danger" title="The day would not load" className="mb-4">
-            {getApiErrorMessage(dayQuery.error)}
-          </Alert>
-        ) : null}
+      {dayQuery.error ? (
+        <Alert tone="danger" title="The day would not load" className="mb-4">
+          {getApiErrorMessage(dayQuery.error)}
+        </Alert>
+      ) : null}
 
-        {closed ? (
-          <p className="text-sm text-[var(--text-muted)]">
-            Sent to management{sentAt ? ` at ${sentAt}` : ""}.
+      {totals && log ? (
+        <>
+          <p className="text-sm text-[var(--text-muted)]">In hand</p>
+          <p className="mb-2 font-mono text-[28px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-[var(--text-strong)]">
+            {formatMoney(totals.balance)}
           </p>
-        ) : (
-          // Keyed on the day so a half-typed line does not follow the person
-          // to a different day.
-          <CostEntryForm key={day} day={day} primary onSaved={refresh} />
-        )}
-      </div>
+          <FactList
+            align="end"
+            maxWidth={DAY_WIDTH}
+            labelWidth={140}
+            items={[
+              { label: "Received", value: formatMoney(totals.received), mono: true },
+              { label: "Spent", value: formatMoney(totals.spent), mono: true },
+              ...(log.notes ? [{ label: "Note", value: log.notes }] : []),
+              ...(closed ? [{ label: "Sent to management", value: sentAt ?? "Yes", mono: Boolean(sentAt) }] : []),
+            ]}
+          />
 
-      {/* What the day has come to: the figure somebody counts the cash in
-          their pocket against, then the note and the close. */}
-      <aside aria-label="The day so far" className="min-w-0">
-        <SectionHeading maxWidth={DAY_WIDTH} className="lg:mt-0">
-          In hand
-        </SectionHeading>
-        {totals ? (
-          <>
-            <p className="mb-2 font-mono text-[28px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-[var(--text-strong)]">
-              {formatMoney(totals.balance)}
-            </p>
-            <FactList
-              align="end"
-              maxWidth={DAY_WIDTH}
-              labelWidth={120}
-              items={[
-                { label: "Received", value: formatMoney(totals.received), mono: true },
-                { label: "Spent", value: formatMoney(totals.spent), mono: true },
-              ]}
-            />
-          </>
-        ) : (
-          <Skeleton height={120} />
-        )}
-
-        <div className="mt-6" style={{ maxWidth: DAY_WIDTH }}>
-          <FormField label="Note" htmlFor="cost-tracker-note">
-            <Textarea
-              // Remounted per day and per log, so the note shown is the one
-              // for the day on screen rather than the last day typed on.
-              key={`${day}-${log?.id ?? "loading"}`}
-              id="cost-tracker-note"
-              rows={3}
-              defaultValue={log?.notes ?? ""}
-              disabled={closed || !log}
-              onBlur={(event) => {
-                if (event.target.value !== (log?.notes ?? "")) saveNote.mutate(event.target.value);
-              }}
-            />
-          </FormField>
-
-          {closed || !totals ? null : (
-            <div className="flex flex-col items-start gap-3">
+          {closed ? null : (
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+              {/* Closing is offered on any open day, empty or not: an empty
+                  day is closed with a note saying why nothing moved. */}
+              <Button variant="secondary" onClick={() => setClosing(true)}>
+                Close the day
+              </Button>
               {totals.missingReceipts > 0 ? (
                 <StatusDot
                   tone="warn"
@@ -225,23 +186,144 @@ function TheDay() {
                   }
                 />
               ) : null}
-              {/* An empty day can still be closed, with a note saying why
-                  nothing moved — the server's rule, so the button is only
-                  offered once it would work (rule 9). */}
-              {closable && log ? (
-                <Button
-                  variant="secondary"
-                  disabled={close.isPending}
-                  onClick={() => close.mutate(log.id)}
-                >
-                  {close.isPending ? "Closing…" : "Close the day"}
-                </Button>
-              ) : null}
             </div>
           )}
-        </div>
-      </aside>
+
+          <CloseDayDialog
+            open={closing}
+            onOpenChange={setClosing}
+            day={day}
+            log={log}
+            totals={totals}
+            onClosed={onChanged}
+          />
+        </>
+      ) : dayQuery.error ? null : (
+        <Skeleton height={160} />
+      )}
     </section>
+  );
+}
+
+/**
+ * Closing the day, with the note that goes with it.
+ *
+ * Closing is what sends the report, and it cannot be taken back, so it asks
+ * once and says so. The note travels with the report — "no money moved, the
+ * site was shut" — and an empty day cannot close without one.
+ */
+function CloseDayDialog({
+  open,
+  onOpenChange,
+  day,
+  log,
+  totals,
+  onClosed,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  day: string;
+  log: DayResponse["log"];
+  totals: DayResponse["totals"];
+  onClosed: () => void;
+}) {
+  const { toast } = useToast();
+  const [note, setNote] = useState(log.notes ?? "");
+  const [errors, setErrors] = useState<string[]>([]);
+
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setNote(log.notes ?? "");
+      setErrors([]);
+    }
+  }
+
+  const close = useMutation({
+    mutationFn: async () => {
+      const trimmed = note.trim();
+      if (trimmed !== (log.notes ?? "")) {
+        await fetchJson("/api/v2/crm/daily-logs", {
+          method: "PATCH",
+          body: JSON.stringify({ logDate: day, notes: trimmed }),
+        });
+      }
+      return fetchJson(`/api/v2/crm/daily-logs/${log.id}/submit`, { method: "POST" });
+    },
+    onSuccess: () => {
+      toast({ title: "Day closed", description: "The report has gone to management." });
+      onOpenChange(false);
+      onClosed();
+    },
+    onError: (error) => {
+      setErrors([getApiErrorMessage(error)]);
+      // The note may have been saved before the close failed.
+      onClosed();
+    },
+  });
+
+  return (
+    <RecordDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={day === todayKey() ? "Close today" : `Close ${formatDay(day)}`}
+      description="Closing sends the day's report to management. The day cannot be changed afterwards."
+      size="md"
+      errors={errors}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (totals.entryCount === 0 && !note.trim()) {
+          setErrors(["Nothing was logged on this day. Say why in the note."]);
+          return;
+        }
+        setErrors([]);
+        close.mutate();
+      }}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={close.isPending}>
+            {close.isPending ? "Closing…" : "Close and send"}
+          </Button>
+        </>
+      }
+    >
+      <FactList
+        align="end"
+        labelWidth={140}
+        maxWidth={null}
+        items={[
+          { label: "In hand", value: formatMoney(totals.balance), mono: true },
+          {
+            label: "Lines",
+            value: String(totals.entryCount),
+            mono: true,
+          },
+          ...(totals.missingReceipts > 0
+            ? [
+                {
+                  label: "Without a receipt",
+                  value: String(totals.missingReceipts),
+                  mono: true,
+                  tone: "warn" as const,
+                },
+              ]
+            : []),
+        ]}
+      />
+      <div className="space-y-1.5">
+        <Label htmlFor="close-day-note">Note</Label>
+        <Textarea
+          id="close-day-note"
+          rows={3}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </div>
+    </RecordDialog>
   );
 }
 
@@ -277,8 +359,11 @@ function withCurrent(options: Map<string, string>, value: string, label: string)
   return new Map([...options, [value, label]]);
 }
 
-/** Every line, narrowed from the toolbar. */
-function Register() {
+/**
+ * Every line, narrowed from the toolbar. Its verb — a new line on the day on
+ * screen — sits in the app bar with the page's name.
+ */
+function Register({ onAdd }: { onAdd?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -442,6 +527,8 @@ function Register() {
   return (
     <RecordListShell
       title="Cost tracker"
+      createLabel={onAdd ? "New entry" : undefined}
+      onCreate={onAdd}
       search={search}
       onSearchChange={setSearch}
       searchPlaceholder="Search by what it was"

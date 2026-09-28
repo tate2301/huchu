@@ -44,13 +44,12 @@ export function StageProgress({
   onChange: (stage: CrmLeadStage) => void;
   disabled?: boolean;
   /**
-   * The band's stage rail: every stage named inline, current one filled.
+   * The stage rail the record's toolbar opens: every stage named inline,
+   * current one filled.
    *
    * Two different controls for two different jobs, not one control squeezed.
-   * The band has horizontal room and no vertical room — 44px, and a control
-   * that grew it would push the sticky stack down on record pages only — so it
-   * gets the rail. The standing column is the reverse shape, so it keeps the
-   * track, which stacks.
+   * The toolbar's popover has horizontal room, so it gets the rail. A phone's
+   * landing view is the reverse shape, so it keeps the track, which stacks.
    */
   compact?: boolean;
 }) {
@@ -76,7 +75,7 @@ export function StageProgress({
     show *how far along* but never *what the stages are called*, so reading it
     meant opening the menu — and the menu was the only way to jump backwards.
     Naming all of them costs the width the track was using and answers both
-    questions at a glance, which is what the band is for.
+    questions at a glance, which is what the control is for.
 
     The fill is the ink rather than the brand: a row of eight chips with one
     brand-tinted is a row where the tint competes with every other blue on the
@@ -220,14 +219,14 @@ export function StageProgress({
       </div>
 
       {/* "Step 1 of 6" is gone: the six segments directly above already say
-          it, and the band was stating the same stage three ways — the heading,
+          it, and the control was stating the same stage three ways — the heading,
           the track, and a sentence counting the track. Screen readers still
           get the count, from the track's own label. What is left here is the
           one case the track cannot show: a lost lead is not at a step, and
           somebody looking at a drained track needs telling how to reopen it. */}
-      {/* Kept on the phone, where there is room under the track; the band
-          drops it, since a lost lead already shows a Lost status chip beside
-          this control. */}
+      {/* Kept on the phone, where there is room under the track; the toolbar
+          drops it, since a lost lead already shows a Lost status chip on the
+          button that opens this control. */}
       {isLost ? (
         <p className="text-sm text-[var(--text-muted)]">
           Lost — reopen it from the stage menu

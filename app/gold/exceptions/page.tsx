@@ -8,7 +8,6 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { GoldShell } from "@/components/gold/gold-shell";
-import { PageIntro } from "@/components/shared/page-intro";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

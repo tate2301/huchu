@@ -13,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { BandChip } from "@/components/accounting/band-chip";
 import {
   type BadgeTone,
   type ReportRow,
@@ -240,22 +239,6 @@ export default function ChartOfAccountsPage() {
     return map;
   }, [trialBalance]);
 
-  /**
-   * The chart's size, for the band.
-   *
-   * Counted across every account rather than the filtered view: "96 accounts"
-   * is a fact about the chart, and a chip that changed as you typed in the
-   * search box would be reporting the filter rather than the books. Inactive
-   * only earns a chip when there are some — a permanent "Inactive 0" is a
-   * reassurance nobody asked for taking up band width on every page load.
-   */
-  const accountCounts = useMemo(
-    () => ({
-      total: accounts.length,
-      inactive: accounts.filter((account) => !account.isActive).length,
-    }),
-    [accounts],
-  );
 
   /**
    * Everything the type tabs do not decide.
@@ -527,15 +510,6 @@ export default function ChartOfAccountsPage() {
     <AccountingShell
       activeTab="chart-of-accounts"
       title="Chart of Accounts"
-      description="the account tree every posting lands in"
-      bandSlot={
-        <>
-          <BandChip label="Accounts" value={String(accountCounts.total)} tone="mute" />
-          {accountCounts.inactive > 0 ? (
-            <BandChip label="Inactive" value={String(accountCounts.inactive)} tone="warn" />
-          ) : null}
-        </>
-      }
       actions={
         <AccountingNewButton items={[{ label: "New account", icon: TableRows, onClick: openNew }]} />
       }

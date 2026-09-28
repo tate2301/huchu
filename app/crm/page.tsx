@@ -11,10 +11,8 @@ export default async function CrmDashboardPage() {
 
   return (
     <CrmPage
-      title="Overview"
-      description="the state of the book today"
     >
-      <PageChrome title="CRM" />
+      <PageChrome title="Home" />
       <CrmOverview />
     </CrmPage>
   );

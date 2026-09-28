@@ -13,6 +13,34 @@ const updateSchema = z.object({
   assignedToId: z.string().uuid().optional(),
 });
 
+/** One follow-up, for its own page, with the records it was raised about. */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    const { id } = await params;
+
+    const followUp = await prisma.crmFollowUp.findFirst({
+      where: { id, companyId: session.user.companyId },
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+        lead: { select: { id: true, leadNo: true, title: true } },
+        deal: { select: { id: true, dealNo: true, title: true } },
+        client: { select: { id: true, name: true } },
+        appointment: { select: { id: true, appointmentNo: true, title: true, scheduledStart: true } },
+      },
+    });
+    if (!followUp) return errorResponse("Follow-up not found", 404);
+
+    return successResponse({ followUp, mayEdit: await canEditRecord(session, followUp.assignedToId) });
+  } catch (error) {
+    console.error("[API] GET /api/v2/crm/follow-ups/[id] error:", error);
+    return errorResponse("Failed to load the follow-up");
+  }
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const sessionResult = await validateSession(request);

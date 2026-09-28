@@ -183,11 +183,10 @@ export default function RetailSetupPosPolicyPage() {
     </div>
   );
 
-  const description = "Tune the checkout guardrails without slowing the cashier down.";
 
   if (query.isPending) {
     return (
-      <RetailShell title="POS policy" description={description} actions={actions}>
+      <RetailShell title="POS policy" actions={actions}>
         <div aria-busy="true" aria-live="polite" className="space-y-4">
           <span className="sr-only">Reading the checkout policy…</span>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -204,7 +203,7 @@ export default function RetailSetupPosPolicyPage() {
 
   if (query.isError) {
     return (
-      <RetailShell title="POS policy" description={description} actions={actions}>
+      <RetailShell title="POS policy" actions={actions}>
         <Alert tone="danger" title="The checkout policy would not load">
           {getApiErrorMessage(query.error)}
         </Alert>
@@ -213,7 +212,7 @@ export default function RetailSetupPosPolicyPage() {
   }
 
   return (
-    <RetailShell title="POS policy" description={description} actions={actions}>
+    <RetailShell title="POS policy" actions={actions}>
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
           label="Policy state"

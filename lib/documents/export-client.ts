@@ -2,7 +2,7 @@
 
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
 
-export type DocumentExportFormat = "pdf" | "csv";
+export type DocumentExportFormat = "pdf" | "csv" | "xlsx";
 
 type AsyncRenderResponse = {
   mode: "ASYNC";
@@ -11,6 +11,12 @@ type AsyncRenderResponse = {
 };
 
 type RenderRequest = {
+  /**
+   * Where the request goes. The general render route by default; a CRM list
+   * exports through its own, `/api/v2/crm/registers/<list>/export`, which
+   * takes the same body.
+   */
+  endpoint?: string;
   sourceKey: string;
   format: DocumentExportFormat;
   /**
@@ -27,6 +33,12 @@ type RenderRequest = {
   /** The record to render, for server-resolved sources. */
   recordId?: string;
   filters?: Record<string, string>;
+  /** A list export narrowed to these records — the rows somebody ticked. */
+  ids?: string[];
+  /** A list export's columns, in order. */
+  columns?: string[];
+  /** What the file is called inside — the view it was taken from. */
+  title?: string;
   templateId?: string;
   templateVersionId?: string;
   mode?: "SYNC" | "ASYNC";
@@ -87,7 +99,9 @@ function triggerBlobDownload(blob: Blob, fileName: string) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  // Not revoked in the same tick as the click: a browser that has not read
+  // the URL yet saves the file as "download", without the name given above.
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 async function sleep(ms: number) {
@@ -129,7 +143,7 @@ export async function runDocumentExport(
 
   onStatus?.("requesting");
 
-  const response = await fetch("/api/documents/render", {
+  const response = await fetch(request.endpoint ?? "/api/documents/render", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -138,6 +152,9 @@ export async function runDocumentExport(
       format: request.format,
       recordId: request.recordId,
       filters: request.filters,
+      ids: request.ids,
+      columns: request.columns,
+      title: request.title,
       payload: request.payload,
       templateId: request.templateId,
       templateVersionId: request.templateVersionId,
@@ -158,7 +175,7 @@ export async function runDocumentExport(
     // A server-resolved document names itself in Content-Disposition, so the
     // fallback only matters for a caller that supplied its own payload.
     const defaultName = request.payload?.fileName || request.sourceKey.split(".").pop() || "export";
-    const suffix = request.format === "csv" ? ".csv" : ".pdf";
+    const suffix = `.${request.format}`;
     const fileName = parseFileNameFromContentDisposition(
       response.headers.get("Content-Disposition"),
       defaultName.endsWith(suffix) ? defaultName : `${defaultName}${suffix}`,
@@ -190,7 +207,18 @@ export async function runDocumentExport(
       }
       onStatus?.("ready", job.artifact.id);
       onStatus?.("downloading");
-      window.location.assign(`/api/documents/artifacts/${job.artifact.id}`);
+      const file = await fetch(`/api/documents/artifacts/${job.artifact.id}`, { cache: "no-store" });
+      if (!file.ok) {
+        const payload = (await file.json().catch(() => null)) as unknown;
+        throw new Error(parseErrorMessage(payload, "The export could not be downloaded"));
+      }
+      triggerBlobDownload(
+        await file.blob(),
+        parseFileNameFromContentDisposition(
+          file.headers.get("Content-Disposition"),
+          job.artifact.fileName ?? `export.${request.format}`,
+        ),
+      );
       onStatus?.("done");
       return;
     }

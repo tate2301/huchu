@@ -741,42 +741,60 @@ export const navSections: NavSection[] = [
     // each and told you nothing on the way past.
     flattenGroups: true,
     ranked: true,
+    // One group per question somebody opens the CRM to answer. What is in
+    // the pipeline? Who are we dealing with? What is on today? What are we
+    // delivering? Where did the money go? What have we billed? Who is on the
+    // team? A group that answered two of those — leads beside the team list
+    // under "Pipeline" — was one nobody could find anything in.
+    //
+    // Ranked: the rail reads pinned first, then the groups the business's
+    // work moves through (flow) in the order declared here, then the
+    // person's own (own), then the rest A to Z.
     groups: [
-      // Attio's word, and the right one: these are the kinds of thing the CRM
-      // keeps, and somebody looking for People is looking for an object, not
-      // for "records" as opposed to "pipeline". Splitting leads and deals away
-      // from people and companies drew a line the data does not have.
-      { id: "objects", label: "Objects", rank: "flow" },
+      // Selling: the leads, the deals they turn into, and the forms that
+      // bring leads in.
+      { id: "pipeline", label: "Pipeline", rank: "flow" },
+      // Who we deal with, outside the business.
+      { id: "contacts", label: "Contacts", rank: "flow" },
+      // What is on today: the tasks, visits and calls somebody owes.
       { id: "work", label: "Work", rank: "own" },
-      // Delivery: what a won deal turns into, and the days of work inside it.
-      // Its own group rather than two lines under Work, because a project is
-      // a place people go to — its jobs, its money, its team — not another
-      // queue of things to do today.
+      // Delivery: what a won deal turns into, and the jobs inside it. Its own
+      // group rather than two lines under Work, because a project is a place
+      // people go to — its jobs, its money, its team — not another queue of
+      // things to do today.
       { id: "projects", label: "Projects", rank: "flow" },
       // The money that moves through people's hands, as opposed to the
       // paperwork that asks for it: the float a rep draws, what they spent it
       // on, what they collected, and each day's report. Quotes and invoices
-      // are the documents group.
+      // are Billing.
       { id: "money", label: "Finance", rank: "flow" },
-      { id: "documents", label: "Sales documents", rank: "flow" },
+      { id: "documents", label: "Billing", rank: "flow" },
+      // The people inside the business, and your own page among them.
+      { id: "team", label: "Team", rank: "own" },
       { id: "learn", label: "Insights" },
-      { id: "workflows", label: "Workflows" },
-      { id: "setup", label: "CRM setup" },
+      // How the CRM is set up, and what it does by itself once it is: the
+      // workflows are configuration, and a group of their own was the mark
+      // that pushed the rail past ten and collapsed every group into one list.
+      { id: "setup", label: "Setup" },
     ],
     items: [
-      { href: "/crm", icon: Dashboard, label: "Overview" },
+      // "Home", not "Overview": it is where the day starts, and the CRM's one
+      // page with no subject of its own — every other row names what it holds.
+      { href: "/crm", icon: Home, label: "Home" },
 
-      { href: "/crm/leads", icon: Funnel, label: "Leads", group: "objects", rank: "flow" },
-      { href: "/crm/deals", icon: Funnel, label: "Deals", group: "objects", rank: "flow" },
-      { href: "/crm/forms", icon: NoteAdd, label: "Intake forms", group: "work" },
+      { href: "/crm/leads", icon: Funnel, label: "Leads", group: "pipeline", rank: "flow" },
+      { href: "/crm/deals", icon: Funnel, label: "Deals", group: "pipeline", rank: "flow" },
+      { href: "/crm/forms", icon: NoteAdd, label: "Intake forms", group: "pipeline" },
 
-      { href: "/crm/people", icon: Users, label: "People", group: "objects" },
-      { href: "/crm/companies", icon: Building2, label: "Companies", group: "objects" },
-      { href: "/crm/sites", icon: MapPin, label: "Sites", group: "objects" },
-      { href: "/crm/reps", icon: UserRound, label: "Team", group: "objects" },
+      { href: "/crm/people", icon: Users, label: "People", group: "contacts" },
+      { href: "/crm/companies", icon: Building2, label: "Companies", group: "contacts" },
+      { href: "/crm/sites", icon: MapPin, label: "Sites", group: "contacts" },
 
-      // Whoever is signed in: `/crm/reps/me` redirects to their own page.
-      { href: "/crm/reps/me", icon: UserCheck, label: "My overview", group: "work", rank: "own" },
+      { href: "/crm/reps", icon: UserRound, label: "Team", group: "team" },
+      // Whoever is signed in: `/crm/reps/me` redirects to their own page,
+      // which is how they are doing — what they won, finished and collected.
+      { href: "/crm/reps/me", icon: UserCheck, label: "My performance", group: "team", rank: "own" },
+
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
@@ -791,7 +809,9 @@ export const navSections: NavSection[] = [
       {
         href: "/crm/finance",
         icon: Dashboard,
-        label: "Overview",
+        // What the page answers, not what kind of page it is: "overview" on
+        // three rows said nothing about any of them.
+        label: "Money in and out",
         roles: ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"],
         group: "money",
         rank: "flow",
@@ -821,14 +841,14 @@ export const navSections: NavSection[] = [
         icon: Zap,
         label: "Workflows",
         roles: ["SUPERADMIN", "MANAGER"],
-        group: "workflows",
+        group: "setup",
       },
       {
         href: "/crm/workflows/runs",
         icon: History,
         label: "Workflow activity",
         roles: ["SUPERADMIN", "MANAGER"],
-        group: "workflows",
+        group: "setup",
       },
 
       { href: "/crm/import", icon: Upload, label: "Import", group: "setup" },

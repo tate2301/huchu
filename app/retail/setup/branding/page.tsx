@@ -120,12 +120,10 @@ export default function RetailSetupBrandingPage() {
     </Button>
   );
 
-  const description =
-    "Review the customer-facing identity that prints on receipts, invoices, and POS screens.";
 
   if (query.isPending) {
     return (
-      <RetailShell title="Receipt & branding" description={description} actions={actions}>
+      <RetailShell title="Receipt & branding" actions={actions}>
         <div aria-busy="true" aria-live="polite" className="space-y-4">
           <span className="sr-only">Reading the receipt identity…</span>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -142,7 +140,7 @@ export default function RetailSetupBrandingPage() {
 
   if (query.isError) {
     return (
-      <RetailShell title="Receipt & branding" description={description} actions={actions}>
+      <RetailShell title="Receipt & branding" actions={actions}>
         <Alert tone="danger" title="The branding checks would not load">
           {getApiErrorMessage(query.error)}
         </Alert>
@@ -155,7 +153,7 @@ export default function RetailSetupBrandingPage() {
 
   if (!branding) {
     return (
-      <RetailShell title="Receipt & branding" description={description} actions={actions}>
+      <RetailShell title="Receipt & branding" actions={actions}>
         <EmptyState
           title="No branding has been set"
           body="Receipts will print with the workspace defaults until a name, logo and footer are saved."
@@ -172,7 +170,7 @@ export default function RetailSetupBrandingPage() {
   const completion = Math.round((checksComplete / Math.max(totalChecks, 1)) * 100);
 
   return (
-    <RetailShell title="Receipt & branding" description={description} actions={actions}>
+    <RetailShell title="Receipt & branding" actions={actions}>
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
           label="Completion"

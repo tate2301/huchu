@@ -24,7 +24,7 @@ import {
   User,
 } from "@/lib/icons";
 import { resolveNextStep } from "@/lib/crm/tones";
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
@@ -51,6 +51,8 @@ import { SiteFormSheet } from "./site-form-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 
 import { Stack } from "@corelithzw/react";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
+import { useListHref } from "@/components/crm/registers/list-href";
 
 const VISIT_STATUS: Record<string, { label: string; status: CanonicalUiStatus }> = {
   SCHEDULED: { label: "Scheduled", status: "pending" },
@@ -94,6 +96,7 @@ type SiteDetail = {
 
 export function SiteDetailPage({ siteId }: { siteId: string }) {
   const { data: session } = useSession();
+  const listHref = useListHref("SITE");
   const [tab, setTab] = useState("visits");
   const [editOpen, setEditOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -115,7 +118,7 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
   // so opening the sheet costs nothing the page has not already paid.
   const teamQuery = useQuery({
     queryKey: ["crm", "team"],
-    queryFn: () => fetchJson<{ data: LeadFilterOwner[] }>("/api/v2/crm/team"),
+    queryFn: () => fetchJson<{ data: CrmLeadOwner[] }>("/api/v2/crm/team"),
   });
 
   const owners = teamQuery.data?.data ?? [];
@@ -227,7 +230,9 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
     <>
       <RecordPageShell
       icon={MapPin}
-      backHref="/crm/sites"
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="SITE" recordId={site.id} />}
+      backHref={listHref}
       primaryAction={
         // A site is a place somebody has to go to. Every other verb on this
         // record — edit the address, repoint the company — is maintenance;
@@ -242,7 +247,7 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
         { label: "Edit", onSelect: () => setEditOpen(true) },
         { label: "Raise a job", onSelect: jobs.raise },
       ]}
-      backLabel="All sites"
+      backLabel="Sites"
       leading={
         <RecordMark
           kind="site"

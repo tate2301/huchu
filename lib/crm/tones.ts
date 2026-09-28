@@ -452,6 +452,23 @@ export const DOCUMENT_STATUS: Record<string, { label: string; tone: BadgeTone }>
   MISSING: { label: "No paperwork", tone: "danger" },
 };
 
+/** A site visit, said as a word, and its ink in a list: a no-show is red, the rest grey. */
+export const VISIT_STATUS_LABELS: Record<string, string> = {
+  SCHEDULED: "Booked",
+  IN_PROGRESS: "On site",
+  COMPLETED: "Done",
+  CANCELLED: "Cancelled",
+  NO_SHOW: "No show",
+};
+
+export const VISIT_TONE: Record<string, StateTone> = {
+  SCHEDULED: "neutral",
+  IN_PROGRESS: "success",
+  COMPLETED: "neutral",
+  CANCELLED: "neutral",
+  NO_SHOW: "danger",
+};
+
 /** A site visit's standing. */
 export const VISIT_STATUS: Record<string, CanonicalUiStatus> = {
   SCHEDULED: "pending",

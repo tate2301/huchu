@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { CrmPage } from "@/components/crm/crm-page";
 import { DailyReportsContent } from "@/components/crm/money/daily-reports-content";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { authOptions } from "@/lib/auth";
 
 /**
@@ -16,7 +17,8 @@ export default async function CrmDailyReportsPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage title="Daily reports">
+    <CrmPage>
+      <PageChrome title="Daily reports" />
       <DailyReportsContent />
     </CrmPage>
   );

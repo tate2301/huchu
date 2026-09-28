@@ -111,7 +111,6 @@ export default function RetailSetupAccountingPage() {
   return (
     <RetailShell
       title="Accounting setup"
-      description="Make sure the retail business can be posted, reconciled, and explained to the owner in finance language."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">

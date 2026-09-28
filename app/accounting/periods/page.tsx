@@ -15,7 +15,6 @@ import {
   txt,
   type ReportRow,
 } from "@/components/accounting/report-table";
-import { BandChip } from "@/components/accounting/band-chip";
 import {
   PeriodCloseChecklist,
   type ChecklistItem,
@@ -318,7 +317,6 @@ export default function AccountingPeriodsPage() {
     ];
   }, [accountingSummary, financialSummary]);
 
-  const blockingCount = checklist.filter((item) => !item.done).length;
 
   /**
    * The period people are posting into.
@@ -402,17 +400,6 @@ export default function AccountingPeriodsPage() {
     <AccountingShell
       activeTab="periods"
       title="Periods"
-      description="what is open, what is closed, and what closing still needs"
-      bandSlot={
-        <>
-          <BandChip label="Open" value={openPeriodLabel} tone="ok" />
-          {blockingCount > 0 ? (
-            <BandChip label="Blocking" value={String(blockingCount)} tone="bad" />
-          ) : (
-            <BandChip label="Blocking" value="0" tone="ok" />
-          )}
-        </>
-      }
       actions={
         <AccountingNewButton
           items={[
@@ -463,7 +450,7 @@ export default function AccountingPeriodsPage() {
           />
         </ReportPanel>
 
-        <div className="flex flex-col gap-2.5 xl:sticky xl:top-[calc(var(--page-band-h)+12px)]">
+        <div className="flex flex-col gap-2.5 xl:sticky xl:top-3">
           <ReportPanel
             title="Open an accounting period"
             lead={

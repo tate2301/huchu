@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BandChip } from "@/components/accounting/band-chip";
 import { ReportPanel } from "@/components/ui/breakdown-panel";
 import {
   ReportTable,
@@ -180,14 +179,6 @@ export default function TrialBalancePage() {
     <AccountingShell
       activeTab="trial-balance"
       title="Trial Balance"
-      description="every account, opening through closing"
-      bandSlot={
-        <BandChip
-          label="Difference"
-          value={formatAmount(difference)}
-          tone={balanced ? "ok" : "bad"}
-        />
-      }
     >
       {error ? (
         <Alert variant="destructive">
@@ -230,11 +221,9 @@ export default function TrialBalancePage() {
       {/*
         The verdict, before the evidence.
 
-        The band carries the difference as a chip, but the chip is a bare
-        figure: it says 0.00 without saying zero what, or at what size. This
-        states the reconciliation in words and gives the total the two closing
-        columns agree at, which is the one number a reader carries away from a
-        trial balance.
+        This states the reconciliation in words and gives the total the two
+        closing columns agree at, which is the one number a reader carries away
+        from a trial balance.
 
         The design's trailing caption also counts the journals posted in the
         period. That count has no source — the trial balance response carries

@@ -8,7 +8,6 @@ import { Alert, Skeleton } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
 import {
   RetailSaleDetailBody,
-  retailTypeLabel,
   type RetailSaleDetail,
 } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
@@ -47,11 +46,6 @@ export default function RetailSaleDetailPage() {
     <RetailShell
       area="sales"
       title={sale?.saleNo ?? "Transaction"}
-      description={
-        sale
-          ? `${retailTypeLabel(sale.saleType)} · ${sale.status} · ${sale.cashierName ?? "Unknown cashier"}`
-          : "One posted transaction, its lines and its tenders."
-      }
       actions={
         <Button asChild size="sm" variant="outline">
           <Link href="/retail/sales">

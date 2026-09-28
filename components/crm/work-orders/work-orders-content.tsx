@@ -34,7 +34,7 @@ import {
   type WorkOrderQueue,
 } from "@/lib/crm/work-orders";
 import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
-import { Building2, CalendarCheck, Checklist, MapPin, Tag, User, Wrench } from "@/lib/icons";
+import { Building2, CalendarCheck, Checklist, Funnel, MapPin, Tag, User, Wrench } from "@/lib/icons";
 
 import { RaiseJobSheet } from "./raise-job-sheet";
 import { jobHref, jobWindow, type JobRow, type JobStatus } from "./job-types";
@@ -90,6 +90,7 @@ const EMPTY_MESSAGES: Record<JobQueue, string> = {
 
 const JOB_COLUMNS: ColumnOption[] = [
   { id: "name", label: "Job", required: true },
+  { id: "deal", label: "Deal" },
   { id: "status", label: "Status" },
   { id: "when", label: "Window" },
   { id: "assignee", label: "Crew lead" },
@@ -187,7 +188,7 @@ export function WorkOrdersContent() {
   // still reachable through its own record page, which lists its jobs.
   const sitesQuery = useQuery({
     queryKey: ["crm", "sites", "job-filter"],
-    queryFn: () => fetchCrmSites({ sort: { field: "name", direction: "asc" }, limit: 100 }),
+    queryFn: () => fetchCrmSites({ limit: 100 }),
     staleTime: 5 * 60_000,
   });
 
@@ -252,6 +253,20 @@ export function WorkOrdersContent() {
             leading={<RecordMark kind="work-order" name={job.title} size="sm" />}
             title={job.title}
             subtitle={job.workOrderNo}
+          />
+        ),
+      },
+      {
+        // What the job delivers, and what it is invoiced against.
+        id: "deal",
+        label: "Deal",
+        icon: Funnel,
+        width: "14rem",
+        cell: (job) => (
+          <RecordCell
+            kind="relation"
+            value={job.deal?.title ?? null}
+            href={job.deal ? `/crm/deals/${job.deal.id}` : null}
           />
         ),
       },

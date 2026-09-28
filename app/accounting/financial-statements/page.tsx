@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { BandChip } from "@/components/accounting/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
@@ -201,14 +200,6 @@ export default function FinancialStatementsPage() {
     <AccountingShell
       activeTab="financials"
       title="Financial Statements"
-      description="profit and loss, the balance sheet, and where the cash went"
-      bandSlot={
-        <BandChip
-          label="Net income"
-          value={accountingFigure(totals.netIncome)}
-          tone={totals.netIncome < 0 ? "bad" : "ok"}
-        />
-      }
     >
       {error ? (
         <Alert variant="destructive">

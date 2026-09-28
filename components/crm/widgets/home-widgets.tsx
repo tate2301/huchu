@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { registerHref } from "@/lib/crm/registers/href";
 import { useRouter } from "next/navigation";
 
 import { Card, EmptyState, KpiGrid, StatHero, Stack } from "@corelithzw/react";
@@ -232,7 +233,7 @@ export function renderHomeWidget(type: string, data: HomeData): React.ReactNode 
                 return (
                   <li key={stage.id}>
                     <Link
-                      href={`/crm/deals?stageId=${stage.id}`}
+                      href={registerHref("DEAL", { filters: { stage: [stage.id] }, layout: "TABLE" })}
                       className="flex items-center gap-3 text-sm hover:underline"
                     >
                       {/* The name, the bar and the money share one row. 32rem of

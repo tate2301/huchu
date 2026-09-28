@@ -2,7 +2,7 @@
 
 import { AlertCircle, Clock } from "@/lib/icons";
 import { formatSlaRemaining, stageSla } from "@/lib/crm/sla";
-import type { CrmBoardCard } from "@/lib/crm/crm-v2";
+import type { CrmLeadListRecord } from "@/lib/crm/crm-v2";
 
 import { BoardCardFace, BoardCardSignal } from "@/components/crm/records/board-card-face";
 import { useBoardField } from "@/components/crm/records/board-fields";
@@ -10,7 +10,7 @@ import { useBoardField } from "@/components/crm/records/board-fields";
 import { formatDaysAgo, formatLeadValue, isOverdue } from "./stage-config";
 
 /** A pipeline card's face. The board supplies the card around it. */
-export function LeadCardBody({ lead }: { lead: CrmBoardCard }) {
+export function LeadCardBody({ lead }: { lead: CrmLeadListRecord }) {
   const showReference = useBoardField("reference");
   const showClient = useBoardField("client");
   const showValue = useBoardField("value");
@@ -40,7 +40,9 @@ export function LeadCardBody({ lead }: { lead: CrmBoardCard }) {
           </>
         ) : undefined
       }
-      figure={showValue ? formatLeadValue(lead.estimatedValue, lead.currency) : undefined}
+      // The deal's own value supersedes the lead's estimate once one exists —
+      // that is the number somebody actually agreed to.
+      figure={showValue ? formatLeadValue(lead.deal?.value ?? lead.estimatedValue, lead.currency) : undefined}
       owner={showOwner ? (lead.assignedTo?.name ?? null) : undefined}
     >
       {showSla ? (

@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -133,8 +132,6 @@ export default function CostCentersPage() {
     <AccountingShell
       activeTab="cost-centers"
       title="Cost Centers"
-      description="where a posting gets charged, beyond the account it hits"
-      bandSlot={<BandChip label="Centres" value={String(costCenters.length)} tone="mute" />}
       actions={
         <AccountingNewButton items={[{ label: "New Cost Center", icon: Building2, onClick: () => setFormOpen(true) }]} />
       }

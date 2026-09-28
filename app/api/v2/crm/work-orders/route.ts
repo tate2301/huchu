@@ -11,6 +11,7 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { reserveIdentifier } from "@/lib/id-generator";
+import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
 import {
   completionPercent,
   createWorkOrderSchema,
@@ -22,7 +23,7 @@ import {
   type WorkOrderCounts,
   type WorkOrderQueue,
 } from "@/lib/crm/work-orders";
-import { ProjectLinkError, jobLinksFromProject } from "@/lib/crm/projects";
+import { ProjectLinkError, jobLinksFromProject, projectOfDeal } from "@/lib/crm/projects";
 import { isCompanyUser } from "../_helpers";
 import { jobRecordRefs, recordJobActivity } from "./_shared";
 
@@ -90,7 +91,15 @@ export async function GET(request: NextRequest) {
     const siteId = searchParams.get("siteId");
     const clientId = searchParams.get("clientId");
     const projectId = searchParams.get("projectId");
-    const scoped = Boolean(dealId || siteId || clientId || projectId);
+    // A group of jobs somebody put together by hand, the same `group` a list
+    // narrows by.
+    const groupId = searchParams.get("group");
+    const groupIds =
+      groupId && z.string().uuid().safeParse(groupId).success
+        ? await listRecordIds(prisma, { companyId, userId: session.user.id, listId: groupId })
+        : null;
+    if (groupId && groupIds === null) return errorResponse("Group not found", 404);
+    const scoped = Boolean(dealId || siteId || clientId || projectId || groupId);
 
     // Asked for one record's jobs, answer with all of them. The queues are for
     // browsing the day's work; applying TODAY by default to a deal's Jobs tab
@@ -100,6 +109,7 @@ export async function GET(request: NextRequest) {
       ...(siteId ? { siteId } : {}),
       ...(clientId ? { clientId } : {}),
       ...(projectId ? { projectId } : {}),
+      ...listIdFilter(groupIds),
     };
 
     // The register's own narrowing, done here rather than over whatever one
@@ -244,16 +254,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Every job delivers a deal: it is what the job is invoiced against when
+    // the work is signed off. A project names its own, above.
+    if (!data.dealId) return errorResponse("Choose the deal this job delivers", 400);
+
     // Everything it hangs off has to be in this tenant. The deal and the site
-    // are read for their company as well as for their existence, so a job
-    // raised against only one of them still lands on the company's record.
-    const deal = data.dealId
-      ? await prisma.crmDeal.findFirst({
-          where: { id: data.dealId, companyId },
-          select: { id: true, clientId: true },
-        })
-      : null;
-    if (data.dealId && !deal) return errorResponse("Invalid deal", 400);
+    // are read for their company as well as for their existence, so the job
+    // lands on the customer's record whichever of them the request named.
+    const deal = await prisma.crmDeal.findFirst({
+      where: { id: data.dealId, companyId },
+      select: { id: true, clientId: true, siteId: true },
+    });
+    if (!deal) return errorResponse("Invalid deal", 400);
+
+    // A deal has at most one project and its jobs belong in it, so a job
+    // raised against a deal that has one goes there without being asked twice.
+    if (!data.projectId) {
+      const projectId = await projectOfDeal(prisma, companyId, deal.id);
+      if (projectId) {
+        data = { ...data, ...(await jobLinksFromProject(prisma, companyId, projectId, data)) };
+      }
+    }
 
     const site = data.siteId
       ? await prisma.crmSite.findFirst({
@@ -300,13 +321,15 @@ export async function POST(request: NextRequest) {
         // A job with a slot booked is scheduled; without one it's still a plan.
         status: data.scheduledStart ? "SCHEDULED" : "DRAFT",
         priority: data.priority ?? "NORMAL",
-        dealId: data.dealId ?? undefined,
+        dealId: deal.id,
         // Backfilled from whichever record does know the customer, so the
         // job lands on the company's Jobs tab as well as on its timeline —
         // the GET filters on this column, and `jobRecordRefs` was already
         // deriving the same answer for the activity trail.
-        clientId: data.clientId ?? deal?.clientId ?? site?.clientId ?? undefined,
-        siteId: data.siteId ?? undefined,
+        clientId: data.clientId ?? deal.clientId ?? site?.clientId ?? undefined,
+        // And the deal's site, so "leave the address blank to use the site's"
+        // holds for a job raised from the register as well as from the deal.
+        siteId: data.siteId ?? deal.siteId ?? undefined,
         documentId: data.documentId ?? undefined,
         projectId: data.projectId ?? undefined,
         scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : undefined,

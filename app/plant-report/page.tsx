@@ -8,10 +8,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Save, Send } from "@/lib/icons";
 
 import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
-import { PageIntro } from "@/components/shared/page-intro";
 import { StatusState } from "@/components/shared/status-state";
 import { ContextHelp } from "@/components/shared/context-help";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -273,7 +272,7 @@ export default function PlantReportPage() {
   if (sessionStatus === "loading") {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeading title="Plant Report" />
+        <PageChrome title="Plant Report" />
         <Skeleton className="h-24 w-full" />
       </div>
     );
@@ -287,7 +286,7 @@ export default function PlantReportPage() {
             <Link href="/reports/plant">View Plant Reports</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Plant Report" />
+        <PageChrome title="Plant Report" />
         <Alert variant="destructive">
           <AlertTitle>Restricted access</AlertTitle>
           <AlertDescription>
@@ -306,7 +305,7 @@ export default function PlantReportPage() {
             <Link href="/reports/plant">Back to Plant Reports</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Edit Plant Report" />
+        <PageChrome title="Edit Plant Report" />
         <Alert variant="destructive">
           <AlertTitle>Unable to load report</AlertTitle>
           <AlertDescription>{getApiErrorMessage(editingReportError)}</AlertDescription>
@@ -323,13 +322,8 @@ export default function PlantReportPage() {
         </Button>
       </PageActions>
 
-      <PageHeading
+      <PageChrome
         title={isEditMode ? "Edit Plant Report" : "Plant Report"}
-      />
-      <PageIntro
-        title="Complete this plant report in 3 steps"
-        purpose="Step 1: capture site and production values. Step 2: add downtime and consumables. Step 3: submit and review in history."
-        nextStep="Start with date and site under Plant Details."
       />
       <ContextHelp href="/help#plant-report" />
 

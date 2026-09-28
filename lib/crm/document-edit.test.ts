@@ -3,13 +3,14 @@
  * when it cannot.
  *
  * Every lock here protects something already booked against the document as
- * it stood: money received, a credit, a write-off, a receipt at ZIMRA. Each
- * refusal names what happened and what to do instead, because the reason is
- * drawn on the greyed-out "Edit" and has to be a next step, not a dead end.
+ * it stood: money received, a credit, a write-off, a receipt at ZIMRA, or the
+ * client's own answer. Each refusal names what happened and what to do
+ * instead, because the reason is drawn on the greyed-out "Edit" and has to be
+ * a next step, not a dead end.
  */
 import { describe, expect, it } from "vitest";
 
-import { invoiceEditLock, quoteEditLock } from "@/lib/crm/document-edit";
+import { invoiceEditLock, quoteEditLock, quoteReviseLock } from "@/lib/crm/document-edit";
 
 const openInvoice = {
   status: "ISSUED",
@@ -88,18 +89,74 @@ describe("editing an invoice", () => {
       invoiceEditLock({ ...openInvoice, status: "PAID", amountPaid: 500, fiscalised: true }),
     ).toBe("Paid — issue a credit note in Accounting");
   });
+
+  it("is allowed while the client's link waits for an answer, or never got one", () => {
+    for (const approvalStatus of [null, "PENDING", "EXPIRED", "REVOKED"]) {
+      expect(invoiceEditLock({ ...openInvoice, approvalStatus })).toBeNull();
+    }
+  });
+
+  it("is refused once the client has answered, either way", () => {
+    expect(invoiceEditLock({ ...openInvoice, approvalStatus: "APPROVED" })).toBe(
+      "Approved by the client — adjust it with a credit note in Accounting",
+    );
+    expect(invoiceEditLock({ ...openInvoice, approvalStatus: "DECLINED" })).toBe(
+      "Declined by the client — credit it in Accounting and raise a new one",
+    );
+  });
+
+  it("names money received before the client's answer", () => {
+    expect(invoiceEditLock({ ...openInvoice, amountPaid: 50, approvalStatus: "APPROVED" })).toBe(
+      "Part paid — issue a credit note in Accounting",
+    );
+  });
 });
 
-describe("editing a quote", () => {
-  it("is allowed while it is out with the client, and after they decline", () => {
-    // A decline leaves the quotation SENT; revising it is the natural answer.
-    expect(quoteEditLock({ status: "SENT" })).toBeNull();
+describe("editing a quote in place", () => {
+  it("is allowed while nobody has answered it", () => {
+    for (const approvalStatus of [undefined, null, "PENDING", "EXPIRED", "REVOKED"]) {
+      expect(quoteEditLock({ status: "SENT", approvalStatus })).toBeNull();
+    }
     expect(quoteEditLock({ status: "DRAFT" })).toBeNull();
   });
 
+  it("is refused once the client has answered", () => {
+    // Approving marks the quotation ACCEPTED too; the answer alone is enough.
+    expect(quoteEditLock({ status: "SENT", approvalStatus: "APPROVED" })).toBe(
+      "Approved by the client — raise a new quote for any change",
+    );
+    // A decline leaves the quotation SENT: the next step is a revision.
+    expect(quoteEditLock({ status: "SENT", approvalStatus: "DECLINED" })).toBe(
+      "Declined by the client — revise it as a new version",
+    );
+  });
+
   it("is refused once accepted, void or expired", () => {
-    expect(quoteEditLock({ status: "ACCEPTED" })).toBe("Accepted — raise a new quote for any change");
+    expect(quoteEditLock({ status: "ACCEPTED", approvalStatus: "APPROVED" })).toBe(
+      "Accepted — raise a new quote for any change",
+    );
     expect(quoteEditLock({ status: "VOIDED" })).toBe("Voided — it has been replaced or withdrawn");
     expect(quoteEditLock({ status: "EXPIRED" })).toBe("Expired — raise a new quote");
+  });
+});
+
+describe("revising a quote as its next version", () => {
+  it("is allowed once the client has declined it", () => {
+    expect(quoteReviseLock({ status: "SENT", approvalStatus: "DECLINED" })).toBeNull();
+  });
+
+  it("is refused while nobody has answered it — it is edited instead", () => {
+    for (const approvalStatus of [null, "PENDING", "EXPIRED", "REVOKED"]) {
+      expect(quoteReviseLock({ status: "SENT", approvalStatus })).toBe("Not declined — edit it instead");
+    }
+  });
+
+  it("is refused once accepted, or once it has already been replaced", () => {
+    expect(quoteReviseLock({ status: "ACCEPTED", approvalStatus: "APPROVED" })).toBe(
+      "Accepted — raise a new quote for any change",
+    );
+    expect(quoteReviseLock({ status: "VOIDED", approvalStatus: "DECLINED" })).toBe(
+      "Voided — it has been replaced or withdrawn",
+    );
   });
 });

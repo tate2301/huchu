@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
@@ -116,7 +116,7 @@ export default function StoresMovementsReportPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading
+      <PageChrome
         title="Stock Movements"
       />
 

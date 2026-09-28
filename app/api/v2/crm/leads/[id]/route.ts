@@ -5,7 +5,7 @@ import { scoreLead } from "@/lib/crm/lead-scoring";
 import { prisma } from "@/lib/prisma";
 import { recordFieldChanges } from "@/lib/crm/history";
 import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
-import { crmLeadChannelSchema } from "@/lib/crm/views";
+import { crmLeadChannelSchema } from "@/lib/crm/sources";
 import {
   buildCustomFieldValues,
   mergeCustomFields,

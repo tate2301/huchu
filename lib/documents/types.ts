@@ -5,8 +5,36 @@ export type DocumentMeta = {
   value: string;
 };
 
+/**
+ * What a column holds, which decides how each format writes it: a spreadsheet
+ * types the cell (a number sums, a date sorts), a PDF right-aligns figures
+ * and sets identifiers in mono.
+ */
+export type ListColumnKind =
+  | "text"
+  | "code"
+  | "email"
+  | "phone"
+  | "relation"
+  | "date"
+  | "datetime"
+  | "number"
+  | "money"
+  | "percent"
+  | "status"
+  | "boolean";
+
+export type ListColumn = { key: string; label: string; kind?: ListColumnKind };
+
+/**
+ * A table's worth of rows.
+ *
+ * Cell values are plain: strings, numbers, booleans, null. A `date` cell is a
+ * `YYYY-MM-DD` day and a `datetime` cell `YYYY-MM-DD HH:mm`, both already in
+ * the reader's time zone, so no renderer has to know which zone that was.
+ */
 export type ListPayload = {
-  columns?: Array<{ key: string; label: string }>;
+  columns?: ListColumn[];
   rows: Array<Record<string, unknown>>;
 };
 

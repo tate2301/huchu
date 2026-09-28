@@ -19,7 +19,7 @@ import {
 import { GeotagNotice } from "@/components/crm/visits/geotag-notice";
 import { VisitReportSheet } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 
 type Appointment = {
   id: string;
@@ -96,7 +96,7 @@ export function CrmAppointmentsContent() {
 
   const teamQuery = useQuery({
     queryKey: ["crm", "team"],
-    queryFn: () => fetchJson<{ data: LeadFilterOwner[] }>("/api/v2/crm/team"),
+    queryFn: () => fetchJson<{ data: CrmLeadOwner[] }>("/api/v2/crm/team"),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -122,7 +122,8 @@ export function CrmAppointmentsContent() {
       const status = VISIT_STATUS[visit.status];
       return {
         id: visit.id,
-        href: visitSubject(visit)?.href ?? "/crm/appointments",
+        // The visit's own page: what was booked, and what came back.
+        href: `/crm/appointments/${visit.id}`,
         leading: (
           <span className="flex size-9 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--text-muted)]">
             <CalendarCheck className="size-4" />
