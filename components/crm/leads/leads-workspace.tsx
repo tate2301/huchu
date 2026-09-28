@@ -375,7 +375,7 @@ export function LeadsWorkspace({
         />
       ) : (
         <BoardFieldsProvider hidden={boardFields.hidden}>
-          <LeadsBoard filters={activeFilters} className="min-h-0 flex-1" />
+          <LeadsBoard filters={activeFilters} />
         </BoardFieldsProvider>
       )}
 

@@ -18,6 +18,7 @@ import { RecordListPager, type RecordListRow } from "@/components/records/record
 import { RecordTable, RecordTableName, type RecordTableColumn } from "@/components/records/record-table";
 import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
+import { BoardCardFace } from "./board-card-face";
 import { RecordBoard } from "./record-board";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
@@ -96,7 +97,7 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
       Object.entries(ACCOUNT_STATUS_LABELS).map(([value, label]) => ({
         id: value,
         name: label,
-        color: ACCOUNT_STATUS_COLOR[value] ?? stageColor(null),
+        dot: (ACCOUNT_STATUS_COLOR[value] ?? stageColor(null)).dot,
       })),
     [],
   );
@@ -133,42 +134,37 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
             ? [{ value: `${company._count?.people ?? 0} people` }]
             : undefined,
         },
+        label: company.name,
         content: (
-          <div className="flex items-start gap-2">
-            <RecordMark
-              kind="company"
-              name={company.name}
-              emoji={company.emoji}
-              avatarUrl={company.avatarUrl}
-              size="sm"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{company.name}</p>
-              {fields.isVisible("location") ? (
-                <p className="truncate text-sm text-[var(--text-muted)]">
-                  {[company.city, company.country].filter(Boolean).join(", ") ||
-                    company.clientNo}
-                </p>
-              ) : null}
-              {fields.isVisible("people") || fields.isVisible("deals") ? (
-                <p className="mt-1 text-sm text-[var(--text-subtle)]">
-                  {[
-                    fields.isVisible("people")
-                      ? `${company._count?.people ?? 0} people`
-                      : null,
-                    fields.isVisible("deals") ? `${company._count?.deals ?? 0} deals` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              ) : null}
-              {fields.isVisible("owner") ? (
-                <p className="mt-1 truncate text-sm text-[var(--text-subtle)]">
-                  {company.assignedTo?.name ?? "Unassigned"}
-                </p>
-              ) : null}
-            </div>
-          </div>
+          <BoardCardFace
+            leading={
+              <RecordMark
+                kind="company"
+                name={company.name}
+                emoji={company.emoji}
+                avatarUrl={company.avatarUrl}
+                size="sm"
+              />
+            }
+            title={company.name}
+            subtitle={
+              fields.isVisible("location")
+                ? [company.city, company.country].filter(Boolean).join(", ") || company.clientNo
+                : undefined
+            }
+            owner={fields.isVisible("owner") ? (company.assignedTo?.name ?? null) : undefined}
+          >
+            {fields.isVisible("people") || fields.isVisible("deals") ? (
+              <p className="text-sm text-[var(--text-subtle)]">
+                {[
+                  fields.isVisible("people") ? `${company._count?.people ?? 0} people` : null,
+                  fields.isVisible("deals") ? `${company._count?.deals ?? 0} deals` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            ) : null}
+          </BoardCardFace>
         ),
       })),
     [companies, fields],
@@ -439,8 +435,7 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
           isLoading={companiesQuery.isLoading}
           noun={{ one: "company", many: "companies" }}
           emptyLabel="None in this state"
-          onMove={(id, accountStatus) => moveAccountStatus.mutate({ id, accountStatus })}
-          className="min-h-[24rem]"
+          onMove={(id, accountStatus) => moveAccountStatus.mutateAsync({ id, accountStatus })}
         />
       ) : layout === "TABLE" ? (
         <RecordTable
