@@ -30,7 +30,7 @@ import {
   isSubscriptionOnlyTenantStatus,
   isSubscriptionReadOnly,
 } from "@/lib/platform/subscription";
-import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
+import { getAdminRootDomain, isAdminPortalHost, isPlatformSuperuser } from "@/lib/admin-portal";
 import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
 import { isAuthExpired } from "@/lib/auth-core/session-policy";
 import {
@@ -76,6 +76,7 @@ type PlatformToken = {
   enabledFeatures?: string[];
   allowedHosts?: string[];
   role?: string;
+  email?: string | null;
   authExpiresAt?: string;
 };
 
@@ -360,7 +361,9 @@ export default withAuth(
         return denyAccess(request, `Admin portal is only available on *.${adminRootDomain}`);
       }
 
-      if (token?.role && !isSuperuserRole(token.role)) {
+      // A tenant owner is SUPERADMIN too; only the allow-listed identity
+      // gets in. Signed-out requests fall through to the admin sign-in below.
+      if (token && !isPlatformSuperuser(token)) {
         return denyAccess(request, "Superuser access required");
       }
     }
