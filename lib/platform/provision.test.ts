@@ -14,30 +14,29 @@
 
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { bundlesToGrant, provisionTenant } from "./provision";
+import { getCompanyFeatureMap } from "@/lib/platform/entitlements";
+import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
+import { SlugTakenError, bundlesToGrant, provisionTenant } from "./provision";
 
 const STAMP = `${Date.now()}${Math.floor(process.hrtime()[1] / 1000)}`;
 const RETRY_SLUG = `provision-retry-${STAMP}`;
 const ALIAS_SLUG = `provision-alias-${STAMP}`;
+const CRM_SLUG = `provision-crm-${STAMP}`;
 
 async function destroyTenant(slug: string) {
   const company = await prisma.company.findUnique({ where: { slug }, select: { id: true } });
-  if (!company) return;
-  // The audit chain survives its company by design (`onDelete: SetNull`), so a
-  // test that only deletes the company leaves orphan rows in the ledger.
-  await prisma.platformAuditEvent.deleteMany({ where: { companyId: company.id } });
-  await prisma.user.deleteMany({ where: { companyId: company.id } });
-  await prisma.company.delete({ where: { id: company.id } }).catch(() => {});
+  if (company) await destroyProvisionedTenant(company.id);
 }
 
 beforeAll(async () => {
   await prisma.$connect();
-  await Promise.all([destroyTenant(RETRY_SLUG), destroyTenant(ALIAS_SLUG)]);
+  await Promise.all([destroyTenant(RETRY_SLUG), destroyTenant(ALIAS_SLUG), destroyTenant(CRM_SLUG)]);
 });
 
 afterAll(async () => {
   await destroyTenant(RETRY_SLUG);
   await destroyTenant(ALIAS_SLUG);
+  await destroyTenant(CRM_SLUG);
   await prisma.$disconnect();
 });
 
@@ -186,5 +185,51 @@ describe("provisionTenant", () => {
       expect(admin.isActive).toBe(true);
     },
     120_000,
+  );
+
+  it(
+    "keeps what the template disables out of the workspace, even when the tier carries it",
+    async () => {
+      // GROW carries the retail suite; TEMPLATE_CRM says a sales desk is not a
+      // shop floor. Without the template's disabled list written as flags, a
+      // self-serve CRM would open with a till in its sidebar.
+      const result = await provisionTenant({
+        name: "CRM Template Co",
+        slug: CRM_SLUG,
+        tierCode: "GROW",
+        templateCode: "TEMPLATE_CRM",
+        adminEmail: `admin+${STAMP}@crm.example`,
+        subscriptionStatus: "TRIALING",
+        trialDays: 14,
+        actor: "test:provision",
+      });
+
+      const features = await getCompanyFeatureMap(result.company.id);
+      expect(features["crm.core"]).toBe(true);
+      expect(features["retail.pos"]).toBe(false);
+      expect(features["gold.home"]).toBe(false);
+    },
+    120_000,
+  );
+
+  it(
+    "refuses someone else's slug when asked to, and adds nobody to that company",
+    async () => {
+      const stranger = `stranger+${STAMP}@crm.example`;
+      await expect(
+        provisionTenant({
+          name: "Somebody Else",
+          slug: CRM_SLUG,
+          tierCode: "GROW",
+          templateCode: "TEMPLATE_CRM",
+          adminEmail: stranger,
+          onExistingSlug: "refuse",
+          actor: "test:provision",
+        }),
+      ).rejects.toBeInstanceOf(SlugTakenError);
+
+      expect(await prisma.user.findUnique({ where: { email: stranger } })).toBeNull();
+    },
+    60_000,
   );
 });

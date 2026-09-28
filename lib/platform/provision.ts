@@ -1,13 +1,15 @@
 import bcrypt from "bcryptjs";
-import { Prisma } from "@prisma/client";
+import { Prisma, type WorkspaceProduct } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
+import { slugifyTenant } from "@/lib/platform/tenant-slug";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
-import { grantBundleToCompany } from "@/lib/platform/entitlements";
+import { denyFeaturesToCompany, grantBundleToCompany } from "@/lib/platform/entitlements";
 import { getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
 import {
   getClientTemplateBundleCodes,
+  getClientTemplateDisabledFeatureKeys,
   getClientTemplateWorkspaceProfile,
   resolveClientTemplateCode,
 } from "@/lib/platform/client-templates";
@@ -50,6 +52,8 @@ const MIN_ADMIN_PASSWORD_LENGTH = 8;
 export type ProvisionTenantInput = {
   /** Display name of the business. */
   name: string;
+  /** The trading name the workspace is sold under. Defaults to Corelith. */
+  product?: WorkspaceProduct;
   /** URL-safe identity, and the idempotency key. Derived from `name` if absent. */
   slug?: string;
   /** A `CLIENT_BUNDLE_TEMPLATES` code; aliases resolve. */
@@ -73,7 +77,22 @@ export type ProvisionTenantInput = {
   /** Who to attribute the audit entry to. */
   actor?: string;
   reason?: string;
+  /**
+   * What a slug that is already a company means. `resume` (the default) is the
+   * operator's retry: finish the tenant that is there. `refuse` is a stranger's
+   * signup, where the slug belonging to somebody else must never make them an
+   * admin of that company.
+   */
+  onExistingSlug?: "resume" | "refuse";
 };
+
+/** The slug is a company already, and the caller asked not to resume it. */
+export class SlugTakenError extends Error {
+  constructor(slug: string) {
+    super(`The workspace address "${slug}" is taken.`);
+    this.name = "SlugTakenError";
+  }
+}
 
 export type ProvisionTenantResult = {
   /** False when the slug was already provisioned — i.e. this was a retry. */
@@ -89,15 +108,6 @@ export type ProvisionTenantResult = {
   /** Things that did not stop the provision but somebody should read. */
   warnings: string[];
 };
-
-export function slugifyTenant(value: string): string {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-}
 
 function normaliseEmail(value: string): string {
   const normalised = String(value || "").trim().toLowerCase();
@@ -211,6 +221,8 @@ export async function provisionTenant(
     where: { slug },
     select: { id: true, name: true, slug: true },
   });
+  const refuseExisting = input.onExistingSlug === "refuse";
+  if (existingCompany && refuseExisting) throw new SlugTakenError(slug);
 
   // Both of these are globally unique columns owned by somebody else's tenant.
   // Checking before the company row is written means a collision fails with a
@@ -242,6 +254,7 @@ export async function provisionTenant(
         data: {
           name,
           slug,
+          product: input.product ?? "CORELITH",
           workspaceProfile,
           tenantStatus: "ACTIVE",
           isProvisioned: true,
@@ -252,8 +265,9 @@ export async function provisionTenant(
     } catch (error) {
       // Two provisions of the same slug in flight at once. The loser re-reads
       // rather than failing: the caller asked for this tenant to exist, and it
-      // does.
+      // does — unless the caller is a stranger, for whom it is someone else's.
       if (!isUniqueViolation(error, "slug")) throw error;
+      if (refuseExisting) throw new SlugTakenError(slug);
       company = await prisma.company.findUnique({
         where: { slug },
         select: { id: true, name: true, slug: true },
@@ -363,6 +377,18 @@ export async function provisionTenant(
         `Bundle "${bundleCode}" could not be granted: ${error instanceof Error ? error.message : "unknown error"}`,
       );
     }
+  }
+
+  // The tier may carry features the template has no use for — GROW carries a
+  // till, and a sales CRM is not a shop floor. The template's disabled list is
+  // a hard block, written as explicit flags because a flag outranks the tier.
+  const disabledFeatureKeys = getClientTemplateDisabledFeatureKeys(templateCode);
+  if (disabledFeatureKeys.length > 0) {
+    await denyFeaturesToCompany({
+      companyId,
+      featureKeys: disabledFeatureKeys,
+      reason: `Not part of template ${templateCode}`,
+    });
   }
 
   // Reported rather than thrown. Everything above this line is already

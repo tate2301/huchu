@@ -23,6 +23,12 @@ export const PUBLIC_BASE_PATHS = [
   "/s",
   /** Portal account claim for students and guardians — /c/[token] */
   "/c",
+  /**
+   * Self-serve signup — /signup/[product], and /signup/welcome where the new
+   * admin lands on their workspace host holding a one-use ticket. A stranger
+   * has no session and no tenant yet, which is the point.
+   */
+  "/signup",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {
