@@ -49,6 +49,12 @@ export const COMPANY_REGISTER = {
     { key: "contacted", label: "Last contacted", dir: "desc" },
     { key: "ref", label: "Reference", dir: "asc" },
   ],
+  groupBys: [
+    { key: "owner", label: "Owner" },
+    { key: "status", label: "Status" },
+    { key: "type", label: "Type" },
+    { key: "city", label: "City" },
+  ],
   columns: [
     { id: "name", label: "Name", kind: "text", required: true, sort: "name" },
     { id: "ref", label: "Reference", kind: "code", hiddenByDefault: true, sort: "ref" },

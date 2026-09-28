@@ -4,7 +4,16 @@ import { prisma } from "@/lib/prisma";
 
 import { SITE_REGISTER } from "../defs/site";
 import type { ViewState } from "../types";
-import { dayCell, distinctText, minuteCell, prismaRegister } from "./prisma-register";
+import {
+  NO_GROUP,
+  countsBy,
+  dayCell,
+  distinctText,
+  minuteCell,
+  nullsLast,
+  prismaRegister,
+  byRelation,
+} from "./prisma-register";
 import type { RegisterContext } from "./types";
 import {
   archivedClause,
@@ -94,6 +103,34 @@ export const sitesRegister = prismaRegister<SiteRow>({
     created: dayCell(site.createdAt, ctx),
     updated: minuteCell(site.updatedAt, ctx),
   }),
+  groupBys: {
+    company: {
+      orderBy: [byRelation("client", "name"), nullsLast("clientId", "asc")],
+      of: (site) => (site.client ? { id: site.client.id, label: site.client.name } : { id: NO_GROUP, label: "No company" }),
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmSite.groupBy({
+            by: ["clientId"],
+            where: where as Prisma.CrmSiteWhereInput,
+            _count: { _all: true },
+          }),
+          "clientId",
+        ),
+    },
+    city: {
+      orderBy: [nullsLast("city", "asc")],
+      of: (site) => (site.city ? { id: site.city, label: site.city } : { id: NO_GROUP, label: "No city" }),
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmSite.groupBy({
+            by: ["city"],
+            where: where as Prisma.CrmSiteWhereInput,
+            _count: { _all: true },
+          }),
+          "city",
+        ),
+    },
+  },
   facets: {
     city: async (where) =>
       distinctText(

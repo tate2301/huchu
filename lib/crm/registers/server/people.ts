@@ -6,11 +6,15 @@ import { prisma } from "@/lib/prisma";
 import { PERSON_REGISTER } from "../defs/person";
 import type { ViewState } from "../types";
 import {
+  NO_GROUP,
+  countsBy,
   dayCell,
   distinctText,
   minuteCell,
   nullsFirstAscending,
+  nullsLast,
   prismaRegister,
+  byRelation,
 } from "./prisma-register";
 import type { RegisterContext } from "./types";
 import {
@@ -109,6 +113,51 @@ export const peopleRegister = prismaRegister<PersonRow>({
     created: dayCell(person.createdAt, ctx),
     updated: minuteCell(person.updatedAt, ctx),
   }),
+  groupBys: {
+    owner: {
+      orderBy: [byRelation("assignedTo", "name"), nullsLast("assignedToId", "asc")],
+      of: (person) =>
+        person.assignedTo
+          ? { id: person.assignedTo.id, label: person.assignedTo.name ?? "Unnamed" }
+          : { id: NO_GROUP, label: "Unassigned" },
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmPerson.groupBy({
+            by: ["assignedToId"],
+            where: where as Prisma.CrmPersonWhereInput,
+            _count: { _all: true },
+          }),
+          "assignedToId",
+        ),
+    },
+    type: {
+      orderBy: [{ contactType: "asc" }],
+      of: (person) => ({ id: person.contactType, label: optionLabel(CONTACT_TYPE_OPTIONS, person.contactType) }),
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmPerson.groupBy({
+            by: ["contactType"],
+            where: where as Prisma.CrmPersonWhereInput,
+            _count: { _all: true },
+          }),
+          "contactType",
+        ),
+    },
+    company: {
+      orderBy: [byRelation("client", "name"), nullsLast("clientId", "asc")],
+      of: (person) =>
+        person.client ? { id: person.client.id, label: person.client.name } : { id: NO_GROUP, label: "No company" },
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmPerson.groupBy({
+            by: ["clientId"],
+            where: where as Prisma.CrmPersonWhereInput,
+            _count: { _all: true },
+          }),
+          "clientId",
+        ),
+    },
+  },
   facets: {
     city: async (where) =>
       distinctText(

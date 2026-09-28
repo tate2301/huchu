@@ -23,6 +23,8 @@ export type CrmListRecord = {
   _count?: { members: number };
   /** Whether the reader may add to, rename or delete it. */
   canEdit?: boolean;
+  /** Whether it holds the record the groups were asked about (`recordId`). */
+  contains?: boolean;
 };
 
 export type CrmSavedViewRecord = {
@@ -41,9 +43,13 @@ export type CrmSavedViewRecord = {
 
 type Envelope<T> = { data: T };
 
-export function fetchCrmLists(entity?: string) {
-  const suffix = entity ? `?entity=${encodeURIComponent(entity)}` : "";
-  return fetchJson<Envelope<CrmListRecord[]>>(`/api/v2/crm/lists${suffix}`);
+/** The groups the reader can see — of one record type, and whether each holds one record. */
+export function fetchCrmLists(entity?: string, recordId?: string) {
+  const params = new URLSearchParams();
+  if (entity) params.set("entity", entity);
+  if (recordId) params.set("recordId", recordId);
+  const query = params.toString();
+  return fetchJson<Envelope<CrmListRecord[]>>(`/api/v2/crm/lists${query ? `?${query}` : ""}`);
 }
 
 export function fetchCrmSavedViews() {

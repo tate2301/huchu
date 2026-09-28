@@ -55,6 +55,7 @@ import { PersonFormSheet } from "./person-form-sheet";
 import { MergeDialog } from "./merge-dialog";
 
 import { Stack } from "@corelithzw/react";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -292,6 +293,8 @@ export function PersonDetailPage({ personId }: { personId: string }) {
     <>
     <RecordPageShell
       icon={Users}
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="PERSON" recordId={person.id} />}
       backHref="/crm/people"
       backLabel="All people"
       primaryAction={

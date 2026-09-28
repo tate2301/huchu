@@ -15,13 +15,13 @@ import { Plus, X } from "@/lib/icons";
 import { BulkActions } from "./bulk-actions";
 import { RegisterExport } from "./export-control";
 import { AddFilterMenu, FilterChip } from "./filter-controls";
-import { ColumnsMenu, SortMenu, ViewsMenu } from "./toolbar-menus";
+import { ColumnsMenu, GroupByMenu, SortMenu, ViewsMenu } from "./toolbar-menus";
 import type { RegisterHandle } from "./use-register";
 
 /**
  * A list's toolbar, the one row under the app bar (PAGE-4):
  *
- *   [View ▾ · Table|List|Board] │ [⌕ search] [Type: Any] [Owner: Me] [+ Filter] ··· 50 of 214 │ [Sort ▾] [Columns] [Export]
+ *   [View ▾ · Table|List|Board] │ [⌕ search] [+ Filter] [Type: Any] [Owner: Me] ··· 50 of 214 │ [Sort ▾] [Group ▾] [Columns] [Export]
  *
  * With rows ticked the same row turns into the selection's actions — it does
  * not grow a second one:
@@ -138,9 +138,11 @@ export function RegisterToolbar({ register }: { register: RegisterHandle }) {
       }
       end={
         <>
-          {/* Order is about how the rows are shown, not which rows are in
-              the list, so it sits after the count with the columns (FILT-1). */}
+          {/* Order and grouping are about how the rows are shown, not which
+              rows are in the list, so they sit after the count with the
+              columns (FILT-1). A board is already grouped, by its columns. */}
           <SortMenu register={register} />
+          {(state.layout ?? def.layouts[0]) !== "BOARD" ? <GroupByMenu register={register} /> : null}
           {(state.layout ?? def.layouts[0]) === "TABLE" ? <ColumnsMenu register={register} /> : null}
           <RegisterExport register={register} />
         </>

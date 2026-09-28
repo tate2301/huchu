@@ -418,6 +418,7 @@ export const ListBullets = createPhosphorIcon("ListBullets", "ListBullets");
 export const SortAscending = createPhosphorIcon("ArrowsDownUp", "SortAscending");
 export const GripVertical = createPhosphorIcon("DotsSixVertical", "GripVertical");
 export const Columns = createPhosphorIcon("Columns", "Columns");
+export const Rows = createPhosphorIcon("Rows", "Rows");
 export const TableRows = createPhosphorIcon("Rows", "TableRows");
 /* Where an enquiry came from, on a record's "Source" property. */
 export const Tag = createPhosphorIcon("Tag", "Tag");

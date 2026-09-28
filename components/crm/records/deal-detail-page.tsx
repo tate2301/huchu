@@ -78,6 +78,7 @@ import { DealStageBar, StageChecklist } from "./deal-stage-bar";
 import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 
 import { Stack } from "@corelithzw/react";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -380,6 +381,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     <>
       <RecordPageShell
       icon={Funnel}
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="DEAL" recordId={deal.id} />}
         backHref="/crm/deals"
         backLabel="All deals"
         leading={

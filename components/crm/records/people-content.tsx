@@ -26,6 +26,7 @@ import { RegisterShell } from "@/components/crm/registers/register-shell";
 import { REGISTER_PAGE_SIZE, useRegister } from "@/components/crm/registers/use-register";
 import {
   emptyState,
+  groupSections,
   registerColumns,
   tableSort,
   type ColumnRenderer,
@@ -191,16 +192,20 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
   // letter (SHAPE-12: sort first, then group). Any other order, or a search
   // ranked by relevance, is a flat list.
   const byName = (state.sort?.key ?? "name") === "name" && (state.sort?.dir ?? "asc") === "asc";
+  const grouped = register.groups;
+  const lettered = !grouped && byName && !state.q;
   const sections = useMemo<RecordListSection[]>(
     () =>
-      byName && !state.q
-        ? bucketByLetter(rows, (row) => String(row.title ?? "")).map((bucket) => ({
-            id: bucket.id,
-            label: bucket.label,
-            rows: bucket.items,
-          }))
-        : [{ id: "results", label: state.q ? "Results" : "People", rows }],
-    [byName, rows, state.q],
+      grouped
+        ? groupSections(grouped, rows)
+        : lettered
+          ? bucketByLetter(rows, (row) => String(row.title ?? "")).map((bucket) => ({
+              id: bucket.id,
+              label: bucket.label,
+              rows: bucket.items,
+            }))
+          : [{ id: "results", label: state.q ? "Results" : "People", rows }],
+    [grouped, lettered, rows, state.q],
   );
 
   const boardColumns = useMemo(
@@ -256,7 +261,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
   const directory = (
     <GroupedRecordList
       sections={sections}
-      showJumpStrip={byName && !state.q && rows.length >= 30}
+      showJumpStrip={lettered && rows.length >= 30}
       isLoading={register.query.isLoading}
       emptyTitle={empty.title}
       emptyBody={empty.body}
@@ -288,6 +293,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
           isLoading={register.query.isLoading}
           selection={{ selectedIds: register.selection.ids, onChange: register.selection.set }}
           sort={tableSort(register)}
+          groups={register.groups}
           emptyTitle={empty.title}
           emptyBody={empty.body}
           emptyAction={emptyAction}

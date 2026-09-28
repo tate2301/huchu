@@ -277,3 +277,61 @@ describe("sites", () => {
     expect(long_ago).toBe(0);
   });
 });
+
+describe("grouped", () => {
+  it("brings each owner's people together, A–Z, with nobody's last", async () => {
+    const { rows, groups } = await peopleRegister.page(ctx, state("by=owner"), { skip: 0, take: 50 });
+    expect(rows.map((row) => row.fullName)).toEqual(["Blessing Moyo", "Anesu Dube", "Dudzai Zhou"]);
+    expect(groups).toEqual([
+      { id: rudo, label: "rudo", count: 1, ids: [ids.blessing] },
+      { id: tendai, label: "tendai", count: 1, ids: [ids.anesu] },
+      { id: "none", label: "Unassigned", count: 1, ids: [ids.dudzai] },
+    ]);
+  });
+
+  it("counts a group across the whole list, not the page", async () => {
+    // Acme first, then the people with no company — a group page 1 cuts in two.
+    const { rows, groups } = await peopleRegister.page(ctx, state("by=company"), { skip: 0, take: 2 });
+    expect(rows.map((row) => row.fullName)).toEqual(["Blessing Moyo", "Anesu Dube"]);
+    expect(groups).toEqual([
+      { id: ids.acme, label: "Acme Roofing", count: 1, ids: [ids.blessing] },
+      { id: "none", label: "No company", count: 2, ids: [ids.anesu] },
+    ]);
+  });
+
+  it("keeps the list's own order inside each group", async () => {
+    const { rows } = await peopleRegister.page(ctx, state("by=company&sort=-name"), { skip: 0, take: 50 });
+    expect(rows.map((row) => row.fullName)).toEqual(["Blessing Moyo", "Dudzai Zhou", "Anesu Dube"]);
+  });
+
+  it("exports in the order it shows", async () => {
+    const scanned: string[] = [];
+    for await (const batch of peopleRegister.scan(ctx, state("by=type"))) {
+      scanned.push(...batch.map((row) => row.fullName));
+    }
+    expect(scanned).toEqual(["Anesu Dube", "Blessing Moyo", "Dudzai Zhou"]);
+  });
+
+  it("is not grouped when nothing asks it to be", async () => {
+    const { groups } = await peopleRegister.page(ctx, state(""), { skip: 0, take: 50 });
+    expect(groups).toBeUndefined();
+  });
+
+  it("groups companies by status, in the order the statuses run", async () => {
+    const { groups } = await companiesRegister.page(
+      ctx,
+      readState(companiesRegister.def, new URLSearchParams("by=status")).state,
+      { skip: 0, take: 50 },
+    );
+    expect(groups?.map((group) => `${group.label} ${group.count}`)).toEqual(["Active 1", "On hold 1"]);
+  });
+
+  it("groups sites by city", async () => {
+    const { groups } = await sitesRegister.page(
+      ctx,
+      readState(sitesRegister.def, new URLSearchParams("by=city")).state,
+      { skip: 0, take: 50 },
+    );
+    expect(groups?.map((group) => `${group.label} ${group.count}`)).toEqual(["Harare 1", "Mutare 1"]);
+  });
+});

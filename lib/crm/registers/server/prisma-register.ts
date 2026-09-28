@@ -6,10 +6,23 @@
 import { withDefaults } from "../codec";
 import { dayIn, minuteIn } from "../dates";
 import type { FilterOption, RegisterDef, ViewState } from "../types";
-import type { ExportCell, RegisterContext, RegisterServer, RowWindow } from "./types";
+import type { ExportCell, RegisterContext, RegisterGroup, RegisterServer, RowWindow } from "./types";
 
 type Where = Record<string, unknown>;
 type OrderBy = Record<string, unknown>;
+
+/** The id a row with no value falls under — "Unassigned", "No company". */
+export const NO_GROUP = "none";
+
+/** How a list is grouped by one of its `groupBys`. */
+export type GroupBySpec<Row> = {
+  /** Brings one group's rows together, ahead of the list's own order. */
+  orderBy: OrderBy[];
+  /** The group a row falls in. A row with no value is `NO_GROUP`. */
+  of(row: Row): { id: string; label: string };
+  /** How many rows each group holds across the whole list, by group id. */
+  counts(where: Where): Promise<Map<string, number>>;
+};
 
 export type PrismaRegisterSpec<Row extends { id: string }> = {
   def: RegisterDef;
@@ -21,6 +34,8 @@ export type PrismaRegisterSpec<Row extends { id: string }> = {
   count(args: { where: Where }): Promise<number>;
   cells(row: Row, ctx: RegisterContext): Record<string, ExportCell>;
   facets?: Record<string, (where: Where) => Promise<FilterOption[]>>;
+  /** One per key of the definition's `groupBys`. */
+  groupBys?: Record<string, GroupBySpec<Row>>;
 };
 
 const SCAN_BATCH = 500;
@@ -29,12 +44,59 @@ function narrowed(where: Where, ids?: readonly string[]): Where {
   return ids ? { AND: [where, { id: { in: [...ids] } }] } : where;
 }
 
+/** A page's rows, in the groups they fall in, in the order they came. */
+function groupsOf<Row extends { id: string }>(
+  rows: Row[],
+  group: GroupBySpec<Row>,
+  counts: Map<string, number>,
+): RegisterGroup[] {
+  const byId = new Map<string, RegisterGroup>();
+  for (const row of rows) {
+    const { id, label } = group.of(row);
+    const existing = byId.get(id);
+    if (existing) existing.ids.push(row.id);
+    else byId.set(id, { id, label, count: counts.get(id) ?? 0, ids: [row.id] });
+  }
+  return [...byId.values()];
+}
+
+/** A group's id for a column's value: an empty one is `NO_GROUP`. */
+export function groupId(value: unknown): string {
+  return value === null || value === undefined || value === "" ? NO_GROUP : String(value);
+}
+
+/** Rows per group, from a Prisma `groupBy` on one column. */
+export function countsBy<K extends string>(
+  groups: Array<Record<K, unknown> & { _count: { _all: number } }>,
+  key: K,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const group of groups) {
+    const id = groupId(group[key]);
+    counts.set(id, (counts.get(id) ?? 0) + group._count._all);
+  }
+  return counts;
+}
+
+/**
+ * A to-one relation's column, A–Z. A row without the relation — nobody
+ * assigned, no company — has nothing to join, and Postgres puts that null
+ * last on an ascending sort: "Unassigned" after everybody.
+ */
+export function byRelation(relation: string, field: string): OrderBy {
+  return { [relation]: { [field]: "asc" } };
+}
+
 export function prismaRegister<Row extends { id: string }>(
   spec: PrismaRegisterSpec<Row>,
 ): RegisterServer<Row> {
+  const grouping = (state: ViewState) => (state.by ? spec.groupBys?.[state.by] : undefined);
+
+  // Sort before you group (SHAPE-12): the group's own order first, so each
+  // group's rows arrive together, then the list's order inside each group.
   const order = (state: ViewState) => {
     const sort = withDefaults(spec.def, state).sort ?? { key: spec.def.sorts[0].key, dir: "asc" as const };
-    return [...spec.orderBy(sort.key, sort.dir), { id: "asc" }];
+    return [...(grouping(state)?.orderBy ?? []), ...spec.orderBy(sort.key, sort.dir), { id: "asc" }];
   };
 
   return {
@@ -42,11 +104,13 @@ export function prismaRegister<Row extends { id: string }>(
 
     async page(ctx: RegisterContext, state: ViewState, window: RowWindow, ids?: readonly string[]) {
       const where = narrowed(await spec.where(ctx, state), ids);
-      const [rows, total] = await Promise.all([
+      const group = grouping(state);
+      const [rows, total, counts] = await Promise.all([
         spec.findMany({ where, orderBy: order(state), skip: window.skip, take: window.take }),
         spec.count({ where }),
+        group ? group.counts(where) : Promise.resolve(null),
       ]);
-      return { rows, total };
+      return group && counts ? { rows, total, groups: groupsOf(rows, group, counts) } : { rows, total };
     },
 
     async count(ctx: RegisterContext, state: ViewState, ids?: readonly string[]) {

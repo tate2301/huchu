@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const requested = searchParams.get("entity");
     const entity = VIEW_ENTITY_KEYS.find((value) => value === requested);
+    // Asked from a record's page: which of these groups already hold it.
+    const recordId = z.string().uuid().safeParse(searchParams.get("recordId")).data ?? null;
 
     const lists = await prisma.crmList.findMany({
       where: {
@@ -44,11 +46,26 @@ export async function GET(request: NextRequest) {
       orderBy: [{ isShared: "desc" }, { name: "asc" }],
     });
 
+    const holding = recordId
+      ? new Set(
+          (
+            await prisma.crmListMember.findMany({
+              where: { recordId, listId: { in: lists.map((list) => list.id) } },
+              select: { listId: true },
+            })
+          ).map((member) => member.listId),
+        )
+      : null;
+
     // Whether this reader may add to (or rename, or delete) each group: its
     // author, or a CRM manager — the rule `PATCH /lists/:id` enforces.
     const manager = hasCrmFullAccess(session.user.role);
     return successResponse({
-      data: lists.map((list) => ({ ...list, canEdit: manager || list.createdById === session.user.id })),
+      data: lists.map((list) => ({
+        ...list,
+        canEdit: manager || list.createdById === session.user.id,
+        ...(holding ? { contains: holding.has(list.id) } : {}),
+      })),
     });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/lists error:", error);

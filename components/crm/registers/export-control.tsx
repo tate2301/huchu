@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
 import { runDocumentExport, type DocumentExportFormat } from "@/lib/documents/export-client";
-import { ChevronDown, Download } from "@/lib/icons";
+import { Download } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 import type { RegisterHandle } from "./use-register";
@@ -104,7 +104,6 @@ export function RegisterExport({ register }: { register: RegisterHandle }) {
           <Download className="size-4" aria-hidden="true" />
           <span className="max-sm:not-sr-only sr-only 2xl:not-sr-only">Export</span>
           {selected > 0 ? <span className="font-mono text-sm tabular-nums">{selected}</span> : null}
-          <ChevronDown className="size-3 text-[var(--text-subtle)]" aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">

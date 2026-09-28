@@ -41,6 +41,11 @@ export const PERSON_REGISTER = {
     { key: "contacted", label: "Last contacted", dir: "desc" },
     { key: "ref", label: "Reference", dir: "asc" },
   ],
+  groupBys: [
+    { key: "owner", label: "Owner" },
+    { key: "type", label: "Type" },
+    { key: "company", label: "Company" },
+  ],
   columns: [
     { id: "name", label: "Name", kind: "text", required: true, sort: "name" },
     { id: "ref", label: "Reference", kind: "code", hiddenByDefault: true, sort: "ref" },

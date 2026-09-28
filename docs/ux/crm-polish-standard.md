@@ -304,6 +304,29 @@ is worse than no headings at all".
 A search result is ranked by relevance, not alphabet, so it stays a flat list
 and the jump strip disappears.
 
+### SHAPE-13 — Group by sorts first, and counts the whole list
+
+"Group ▾" in a list's toolbar (`?by=owner`) puts the rows under headings — one
+per owner, type, company — in the table and in the list alike. Three things
+make that honest on a list that pages:
+
+- **The server orders by the group first** (`PrismaRegisterSpec.groupBys[key]
+  .orderBy`), then by the list's sort, so a group's rows arrive together and
+  never come back in two runs on one page (SHAPE-12, applied to any field).
+- **A heading's number is the whole group, not the page.** "Rudo Moyo 14" is
+  fourteen across the list even when page 1 shows six of them; the count comes
+  from a `groupBy` over the same `where` as the rows, not from the rows.
+- **A board is not grouped.** Its columns are the grouping; the control is not
+  offered there.
+
+A heading folds its rows away on this page. Grouping is part of the view: it
+writes `by=` to the address bar, marks the view modified, and an export of a
+grouped list comes out in the same order.
+
+*The failure it answers:* "about the grouping, I don't see anything like that"
+— records could be put in named groups only after ticking rows, and nothing
+grouped rows at all.
+
 ---
 
 ## Part 3 — A record is a web, not a page

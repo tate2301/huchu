@@ -68,7 +68,7 @@ export function ListSearch({
         aria-label={placeholder}
         className={cn(
           "h-9 w-full border-[var(--border)] pl-8 text-sm sm:h-[var(--h-control-sm)]",
-          narrow ? "sm:w-[200px] 2xl:w-[250px]" : "sm:w-[250px]",
+          narrow ? "sm:w-[180px] 2xl:w-[250px]" : "sm:w-[250px]",
         )}
       />
     </div>

@@ -1,9 +1,27 @@
 "use client";
 
+import type { RecordListRow } from "@/components/records/record-list";
+import type { RecordListSection } from "@/components/records/record-list-groups";
 import type { RecordTableColumn, RecordTableSort } from "@/components/records/record-table";
+import type { RegisterPageGroup } from "@/lib/crm/crm-v2";
 import { activeFilterCount } from "@/lib/crm/registers/codec";
 
 import type { RegisterHandle } from "./use-register";
+
+/**
+ * A grouped page as list sections, in the order the groups came, each headed
+ * with how many it holds in the whole list — the List layout's and the
+ * phone's form of the table's group headings.
+ */
+export function groupSections(groups: readonly RegisterPageGroup[], rows: readonly RecordListRow[]): RecordListSection[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return groups.map((group) => ({
+    id: `group-${group.id}`,
+    label: group.label,
+    count: group.count,
+    rows: group.ids.map((id) => byId.get(id)).filter((row): row is RecordListRow => Boolean(row)),
+  }));
+}
 
 /** How a list draws one of its columns: everything but its name and its sort, which the list's definition owns. */
 export type ColumnRenderer<T> = Omit<RecordTableColumn<T>, "id" | "label" | "sortKey">;

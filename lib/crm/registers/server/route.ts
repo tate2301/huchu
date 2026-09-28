@@ -29,9 +29,9 @@ export async function registerGet(request: NextRequest, server: RegisterServer<{
     const { page, limit, skip } = getPaginationParams(request);
     const ctx = await registerContext(session.user, searchParams.get("tz"));
     const { state } = readState(server.def, searchParams);
-    const { rows, total } = await server.page(ctx, state, { skip, take: limit });
+    const { rows, total, groups } = await server.page(ctx, state, { skip, take: limit });
 
-    return successResponse(paginationResponse(rows, total, page, limit));
+    return successResponse({ ...paginationResponse(rows, total, page, limit), ...(groups ? { groups } : {}) });
   } catch (error) {
     console.error(`[API] GET ${server.def.endpoint} error:`, error);
     return errorResponse(`Failed to fetch ${server.def.noun.many}`);

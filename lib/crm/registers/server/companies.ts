@@ -6,11 +6,15 @@ import { prisma } from "@/lib/prisma";
 import { COMPANY_REGISTER } from "../defs/company";
 import type { ViewState } from "../types";
 import {
+  NO_GROUP,
+  countsBy,
   dayCell,
   distinctText,
   minuteCell,
   nullsFirstAscending,
+  nullsLast,
   prismaRegister,
+  byRelation,
 } from "./prisma-register";
 import type { RegisterContext } from "./types";
 import {
@@ -115,6 +119,66 @@ export const companiesRegister = prismaRegister<CompanyRow>({
     created: dayCell(company.createdAt, ctx),
     updated: minuteCell(company.updatedAt, ctx),
   }),
+  groupBys: {
+    owner: {
+      orderBy: [byRelation("assignedTo", "name"), nullsLast("assignedToId", "asc")],
+      of: (company) =>
+        company.assignedTo
+          ? { id: company.assignedTo.id, label: company.assignedTo.name ?? "Unnamed" }
+          : { id: NO_GROUP, label: "Unassigned" },
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmClient.groupBy({
+            by: ["assignedToId"],
+            where: where as Prisma.CrmClientWhereInput,
+            _count: { _all: true },
+          }),
+          "assignedToId",
+        ),
+    },
+    status: {
+      orderBy: [{ accountStatus: "asc" }],
+      of: (company) => ({
+        id: company.accountStatus,
+        label: optionLabel(ACCOUNT_STATUS_OPTIONS, company.accountStatus),
+      }),
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmClient.groupBy({
+            by: ["accountStatus"],
+            where: where as Prisma.CrmClientWhereInput,
+            _count: { _all: true },
+          }),
+          "accountStatus",
+        ),
+    },
+    type: {
+      orderBy: [{ companyType: "asc" }],
+      of: (company) => ({ id: company.companyType, label: optionLabel(COMPANY_TYPE_OPTIONS, company.companyType) }),
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmClient.groupBy({
+            by: ["companyType"],
+            where: where as Prisma.CrmClientWhereInput,
+            _count: { _all: true },
+          }),
+          "companyType",
+        ),
+    },
+    city: {
+      orderBy: [nullsLast("city", "asc")],
+      of: (company) => (company.city ? { id: company.city, label: company.city } : { id: NO_GROUP, label: "No city" }),
+      counts: async (where) =>
+        countsBy(
+          await prisma.crmClient.groupBy({
+            by: ["city"],
+            where: where as Prisma.CrmClientWhereInput,
+            _count: { _all: true },
+          }),
+          "city",
+        ),
+    },
+  },
   facets: {
     city: async (where) =>
       distinctText(

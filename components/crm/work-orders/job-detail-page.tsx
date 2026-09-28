@@ -62,6 +62,7 @@ import { jobNextStep, type JobAct } from "./job-next-step";
 import { JobStageRail } from "./job-stage-rail";
 import { jobWindow, type JobInvoicePreview, type JobRecord, type JobStatus } from "./job-types";
 import { useJobActions, type InvoiceLineInput } from "./use-job-actions";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 
 /** The stored enum, in the words somebody would say. */
 const PRIORITY_LABELS: Record<string, string> = {
@@ -414,6 +415,8 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
     <>
       <RecordPageShell
         icon={Wrench}
+        // Which groups it is in, from the record itself.
+        toolbar={<RecordGroupsControl entity="WORK_ORDER" recordId={job.id} />}
         backHref="/crm/work-orders"
         backLabel="All jobs"
         title={job.title}

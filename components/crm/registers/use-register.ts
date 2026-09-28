@@ -180,6 +180,11 @@ export function useRegister<Row extends { id: string }>(
     [set],
   );
   const setLayout = useCallback((layout: Layout) => set((previous) => ({ ...previous, layout })), [set]);
+  /** Group the rows by one of the list's `groupBys`, or not at all. Back to page 1: the order changes. */
+  const setBy = useCallback(
+    (by: string | undefined) => write({ ...state, by }, { page: 1 }),
+    [state, write],
+  );
   const setPage = useCallback((next: number) => write(state, { page: next, asSaved: url.asSaved }), [state, url.asSaved, write]);
 
   /** Open a view as it was saved. */
@@ -271,8 +276,11 @@ export function useRegister<Row extends { id: string }>(
   };
 
   // ── The rows. The query key keeps the list's own prefix, which is what
-  //    every form that changes one of its records refreshes by. ──
-  const apiState: ViewState = { q: state.q, filters: state.filters, sort: state.sort };
+  //    every form that changes one of its records refreshes by. A board is
+  //    already arranged in columns, so it is never also grouped. ──
+  const layout = state.layout ?? def.layouts[0];
+  const by = layout === "BOARD" ? undefined : state.by;
+  const apiState: ViewState = { q: state.q, filters: state.filters, sort: state.sort, by };
   const apiKey = writeState(def, apiState);
   const query = useQuery({
     queryKey: [...def.queryKey, "register", apiKey, page],
@@ -282,6 +290,8 @@ export function useRegister<Row extends { id: string }>(
 
   const rows = useMemo(() => query.data?.data ?? [], [query.data]);
   const total = query.data?.pagination?.total ?? rows.length;
+  /** This page's rows by group, when the list is grouped — each with its count across the whole list. */
+  const groups = by ? (query.data?.groups ?? null) : null;
 
   /**
    * The list's state as the export reads it: the same query string the rows
@@ -305,6 +315,7 @@ export function useRegister<Row extends { id: string }>(
     clearFilters,
     setSort,
     setLayout,
+    setBy,
     setPage,
     applyView,
     resetView,
@@ -314,6 +325,7 @@ export function useRegister<Row extends { id: string }>(
     query,
     rows,
     total,
+    groups,
     exportFilters,
   };
 }

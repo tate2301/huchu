@@ -23,6 +23,13 @@ export type ExportCell = string | number | boolean | null;
 export type RowWindow = { skip: number; take: number };
 
 /**
+ * One group of a grouped page: what it is called, how many rows it holds in
+ * the whole list — not only on this page — and which of this page's rows are
+ * in it.
+ */
+export type RegisterGroup = { id: string; label: string; count: number; ids: string[] };
+
+/**
  * The server half of a list: the records a state selects, and each record as
  * the cells of an export.
  *
@@ -33,12 +40,13 @@ export type RowWindow = { skip: number; take: number };
  */
 export type RegisterServer<Row extends { id: string }> = {
   def: RegisterDef;
+  /** With `state.by`, the rows come group by group, and `groups` says which is which. */
   page(
     ctx: RegisterContext,
     state: ViewState,
     window: RowWindow,
     ids?: readonly string[],
-  ): Promise<{ rows: Row[]; total: number }>;
+  ): Promise<{ rows: Row[]; total: number; groups?: RegisterGroup[] }>;
   count(ctx: RegisterContext, state: ViewState, ids?: readonly string[]): Promise<number>;
   scan(
     ctx: RegisterContext,

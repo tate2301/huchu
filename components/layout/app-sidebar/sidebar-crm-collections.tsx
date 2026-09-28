@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { Kanban, ListBullets } from "@/lib/icons";
+import { Kanban, ListBullets, Plus } from "@/lib/icons";
 import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/collections-client";
 import { groupHref } from "@/lib/crm/groups";
 import { orderRows } from "@/lib/rail/order";
@@ -55,14 +55,15 @@ function LayoutMark({ layout }: { layout: "TABLE" | "BOARD" }) {
 
 /**
  * The user's own shelves in the sidebar: the views they have saved and the
- * lists they have built.
+ * groups they have built.
  *
  * These sit below the product's own navigation rather than inside it, because
  * they are not part of the app's structure — they are what this particular
- * person keeps to hand. Both bands hide themselves when empty; a "Groups"
- * heading over nothing is a promise the sidebar cannot keep.
+ * person keeps to hand. Pinned views hide themselves when there are none.
+ * Groups do not: with none yet the band is where a first one is made, and a
+ * feature that only appears once it has been used is one nobody finds.
  *
- * Only rendered inside the CRM, where saved views and lists exist.
+ * Only rendered inside the CRM, where saved views and groups exist.
  */
 export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }) {
   const pathname = usePathname();
@@ -134,6 +135,18 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
         activeHref={activeGroup ? groupHref(activeGroup.entity, activeGroup.id) : null}
         createLabel="New group"
         onCreate={() => setCreatingGroup(true)}
+        emptyAction={
+          listsQuery.isSuccess ? (
+            <button
+              type="button"
+              onClick={() => setCreatingGroup(true)}
+              className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] py-1 text-left text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+            >
+              <Plus className="size-3.5 flex-none" aria-hidden="true" />
+              New group
+            </button>
+          ) : undefined
+        }
       />
 
       {creatingGroup ? (

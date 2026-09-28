@@ -51,6 +51,7 @@ import { SiteFormSheet } from "./site-form-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 
 import { Stack } from "@corelithzw/react";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 
 const VISIT_STATUS: Record<string, { label: string; status: CanonicalUiStatus }> = {
   SCHEDULED: { label: "Scheduled", status: "pending" },
@@ -227,6 +228,8 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
     <>
       <RecordPageShell
       icon={MapPin}
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="SITE" recordId={site.id} />}
       backHref="/crm/sites"
       primaryAction={
         // A site is a place somebody has to go to. Every other verb on this

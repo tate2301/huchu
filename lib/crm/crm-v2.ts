@@ -667,8 +667,14 @@ export function fetchRegisterPage<Row>(def: RegisterDef, query: RegisterQuery = 
   if (query.limit) params.set("limit", String(query.limit));
   const tz = browserTimeZone();
   if (tz) params.set("tz", tz);
-  return fetchJson<ListResponse<Row>>(`${def.endpoint}?${params}`);
+  return fetchJson<ListResponse<Row> & { groups?: RegisterPageGroup[] }>(`${def.endpoint}?${params}`);
 }
+
+/**
+ * One group of a grouped page (`?by=`): its name, how many rows it holds in
+ * the whole list, and which of this page's rows are in it.
+ */
+export type RegisterPageGroup = { id: string; label: string; count: number; ids: string[] };
 
 export function fetchCrmPeople(query: RegisterQuery = {}) {
   return fetchRegisterPage<CrmPersonRecord>(PERSON_REGISTER, query);

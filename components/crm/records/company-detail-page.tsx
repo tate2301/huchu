@@ -57,6 +57,7 @@ import { CompanyFormSheet } from "./company-form-sheet";
 import { DealFormSheet } from "./deal-form-sheet";
 import { MergeDialog } from "./merge-dialog";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 
 const ACCOUNT_STATUS_PRESENTATION: Record<string, { label: string; status: CanonicalUiStatus }> = {
   ACTIVE: { label: "Active", status: "passing" },
@@ -240,6 +241,8 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
     <>
     <RecordPageShell
       icon={Building2}
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="COMPANY" recordId={company.id} />}
       backHref="/crm/companies"
       backLabel="All companies"
       primaryAction={

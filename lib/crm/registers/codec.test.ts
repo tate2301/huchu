@@ -54,7 +54,7 @@ describe("readState", () => {
   it("drops what it cannot use rather than failing", () => {
     const parsed = read(
       people,
-      "type=CUSTOMER,NOT_A_TYPE&sort=-nope&layout=calendar&by=owner&archived=0&unknown=1&contacted=yesterday",
+      "type=CUSTOMER,NOT_A_TYPE&sort=-nope&layout=calendar&by=shoe-size&archived=0&unknown=1&contacted=yesterday",
     );
     expect(parsed.state.filters).toEqual({ type: ["CUSTOMER"] });
     expect(parsed.state.sort).toBeUndefined();
@@ -62,6 +62,15 @@ describe("readState", () => {
     expect(parsed.state.by).toBeUndefined();
     // Still explicit: somebody did say something, it just did not narrow.
     expect(parsed.asSaved).toBe(false);
+  });
+
+  it("reads and writes the grouping, which does not narrow the list", () => {
+    const parsed = read(people, "by=company&sort=-updated");
+    expect(parsed.state.by).toBe("company");
+    expect(writeState(people, parsed.state)).toContain("by=company");
+    // Grouping changes how the rows are shown, not which rows: a selection
+    // made before grouping is still a selection of the same records.
+    expect(narrowingKey(people, parsed.state)).toBe(narrowingKey(people, { ...parsed.state, by: undefined }));
   });
 
   it("reads sorts with a leading minus as descending", () => {

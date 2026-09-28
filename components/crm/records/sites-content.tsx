@@ -11,12 +11,14 @@ import { Building2, Calendar, Coins, Crosshair, MapPin, Tag, UserRound } from "@
 
 import { SiteFormSheet } from "./site-form-sheet";
 import { RecordList, RecordListPager, type RecordListRow } from "@/components/records/record-list";
+import { GroupedRecordList } from "@/components/records/record-list-groups";
 import { RecordCell, RecordTable, RecordTableName, recordCellTone } from "@/components/records/record-table";
 import { RecordMark } from "@/components/records/record-mark";
 import { RegisterShell } from "@/components/crm/registers/register-shell";
 import { REGISTER_PAGE_SIZE, useRegister } from "@/components/crm/registers/use-register";
 import {
   emptyState,
+  groupSections,
   registerColumns,
   tableSort,
   type ColumnRenderer,
@@ -165,7 +167,16 @@ export function SitesContent({ openCreate = false }: { openCreate?: boolean }) {
       </Button>
     ) : undefined;
 
-  const list = (
+  // Grouped, the list is sections under the same headings as the table.
+  const list = register.groups ? (
+    <GroupedRecordList
+      sections={groupSections(register.groups, rows)}
+      isLoading={register.query.isLoading}
+      emptyTitle={empty.title}
+      emptyBody={empty.body}
+      emptyAction={emptyAction}
+    />
+  ) : (
     <RecordList
       rows={rows}
       isLoading={register.query.isLoading}
@@ -185,6 +196,7 @@ export function SitesContent({ openCreate = false }: { openCreate?: boolean }) {
           isLoading={register.query.isLoading}
           selection={{ selectedIds: register.selection.ids, onChange: register.selection.set }}
           sort={tableSort(register)}
+          groups={register.groups}
           emptyTitle={empty.title}
           emptyBody={empty.body}
           emptyAction={emptyAction}

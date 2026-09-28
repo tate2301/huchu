@@ -39,6 +39,7 @@ import {
   GripVertical,
   Layers,
   RotateCcw,
+  Rows,
   SortAscending,
 } from "@/lib/icons";
 import type { ColumnDef } from "@/lib/crm/registers/types";
@@ -116,7 +117,9 @@ export function SortMenu({ register }: { register: RegisterHandle }) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5 whitespace-nowrap">
-          <SortAscending className="size-4" aria-hidden="true" />
+          {/* The label and the arrow already say it is an order; the mark
+              waits for the room 2xl has. */}
+          <SortAscending className="size-4 max-2xl:sm:hidden" aria-hidden="true" />
           <span className="max-sm:not-sr-only sr-only 2xl:not-sr-only">Sort</span>
           <span className="font-semibold text-[var(--text-strong)]">{label}</span>
           <Arrow className="size-3 text-[var(--text-subtle)]" aria-label={current.dir === "asc" ? "ascending" : "descending"} />
@@ -144,6 +147,48 @@ export function SortMenu({ register }: { register: RegisterHandle }) {
         >
           <DropdownMenuRadioItem value="asc">Ascending</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="desc">Descending</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** A value for "not grouped" that Radix can hold: an empty string is no selection at all. */
+const UNGROUPED = "__none";
+
+/**
+ * Rows grouped by one field — owner, type, company — each group under a
+ * heading with how many it holds in the whole list. Named on the button once
+ * it is on ("Owner"), so a grouped list says so without being opened.
+ */
+export function GroupByMenu({ register }: { register: RegisterHandle }) {
+  const options = register.def.groupBys ?? [];
+  if (options.length === 0) return null;
+  const current = options.find((option) => option.key === register.state.by);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5 whitespace-nowrap">
+          <Rows className="size-4" aria-hidden="true" />
+          {/* "Group by", not "Group": the Group filter asks which named
+              group, and two controls both called Group read as one. */}
+          <span className="max-sm:not-sr-only sr-only 2xl:not-sr-only">Group by</span>
+          {current ? <span className="font-semibold text-[var(--text-strong)]">{current.label}</span> : null}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuLabel>Group rows by</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={current?.key ?? UNGROUPED}
+          onValueChange={(key) => register.setBy(key === UNGROUPED ? undefined : key)}
+        >
+          <DropdownMenuRadioItem value={UNGROUPED}>Nothing</DropdownMenuRadioItem>
+          {options.map((option) => (
+            <DropdownMenuRadioItem key={option.key} value={option.key}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

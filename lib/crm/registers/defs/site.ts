@@ -10,7 +10,7 @@ export const SITE_REGISTER = {
   layouts: ["TABLE", "LIST"],
   search: { placeholder: "Search sites by name, number or address" },
   filters: [
-    { key: "company", label: "Company", kind: "relation", relation: "COMPANY", anyLabel: "Any company", pinned: true },
+    { key: "company", label: "Company", kind: "relation", relation: "COMPANY", anyLabel: "Any", pinned: true },
     { key: "city", label: "City", kind: "enum", facet: true, anyLabel: "Anywhere", pinned: true },
     { key: "tag", label: "Tag", kind: "enum", facet: true, anyLabel: "Any tag" },
     {
@@ -28,6 +28,10 @@ export const SITE_REGISTER = {
     { key: "updated", label: "Last updated", dir: "desc" },
     { key: "created", label: "Date added", dir: "desc" },
     { key: "ref", label: "Reference", dir: "asc" },
+  ],
+  groupBys: [
+    { key: "company", label: "Company" },
+    { key: "city", label: "City" },
   ],
   columns: [
     { id: "name", label: "Site", kind: "text", required: true, sort: "name" },

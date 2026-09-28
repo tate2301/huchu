@@ -86,6 +86,7 @@ import { StageProgress } from "./stage-progress";
 import { VisitsTab } from "./visits-tab";
 import { LeadScoreCard } from "./lead-score-card";
 import type { LeadAppointment, LeadDetail } from "./lead-types";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 
 /** Measurements captured on site, shaped into quotation lines for the builder. */
 function draftsToLines(drafts: MeasurementDraft[]): CrmDocumentLineInput[] {
@@ -355,6 +356,8 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
   return (
     <RecordPageShell
       icon={Funnel}
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="LEAD" recordId={lead.id} />}
       backHref="/crm/leads"
       backLabel="All leads"
       title={lead.title ?? lead.leadNo}
