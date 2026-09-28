@@ -10,7 +10,7 @@ export default async function NewCrmWorkflowPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage width="narrow" title="New workflow" description="a trigger, then the steps it sets off">
+    <CrmPage width="narrow">
       <WorkflowEditor workflowId={null} />
     </CrmPage>
   );

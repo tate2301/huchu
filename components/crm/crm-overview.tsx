@@ -17,6 +17,7 @@ import {
   type ReportRow,
 } from "@/components/accounting/report-table";
 import { fetchCrmLeads } from "@/lib/crm/crm-v2";
+import { registerHref } from "@/lib/crm/registers/href";
 import { Check, Clock, Coins, FileText, LocalShipping, TrendingUp, type LucideIcon } from "@/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { AGEING_BUCKETS, AGEING_LABELS } from "@/lib/crm/collections";
@@ -63,7 +64,7 @@ export function CrmOverview() {
           delta === null ? `${data.won.closed} closed` : `${delta > 0 ? "+" : ""}${Math.round(delta)}%`,
         note: delta === null ? "in this period" : "on the period before",
         tone: (delta ?? 0) >= 0 ? "good" : "warn",
-        href: "/crm/deals?status=won",
+        href: registerHref("DEAL", {}, { view: "won" }),
         icon: Check,
       },
       {
@@ -179,8 +180,7 @@ export function CrmOverview() {
     queryKey: ["crm-leads", "awaiting-first-call"],
     queryFn: () =>
       fetchCrmLeads({
-        filters: { stages: ["NEW"] },
-        sort: { field: "createdAt", direction: "asc" },
+        state: { filters: { stage: ["NEW"] }, sort: { key: "created", dir: "asc" } },
         limit: 8,
       }),
   });

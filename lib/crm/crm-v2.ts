@@ -3,10 +3,7 @@
  * Mirrors the lib/autos/autos-v2.ts pattern.
  */
 import { fetchJson } from "@/lib/api-client";
-import type {
-  CrmListRecord,
-  CrmSavedViewRecord,
-} from "@/lib/crm/collections-client";
+import type { CrmListRecord } from "@/lib/crm/collections-client";
 import type {
   CrmLeadStage,
   CrmRecurrence,
@@ -19,8 +16,13 @@ import type { CollabEntity } from "@/lib/crm/collaboration";
 import type { TaskQueue } from "@/lib/crm/tasks";
 import type { ImportEntity, ImportPlan } from "@/lib/crm/import";
 import type { FieldChoice, MergeFieldPlan } from "@/lib/crm/merge";
-import type { RecordSort } from "@/lib/crm/records";
-import type { LeadSort, LeadViewFilters } from "@/lib/crm/views";
+import { writeState } from "@/lib/crm/registers/codec";
+import { COMPANY_REGISTER } from "@/lib/crm/registers/defs/company";
+import { DEAL_REGISTER } from "@/lib/crm/registers/defs/deal";
+import { LEAD_REGISTER } from "@/lib/crm/registers/defs/lead";
+import { PERSON_REGISTER } from "@/lib/crm/registers/defs/person";
+import { SITE_REGISTER } from "@/lib/crm/registers/defs/site";
+import type { RegisterDef, ViewState } from "@/lib/crm/registers/types";
 import type {
   SiteVisitItemInput,
   SiteVisitPhotoInput,
@@ -87,28 +89,15 @@ export type CrmLeadOwner = { id: string; name: string | null };
 
 export type CrmNextFollowUp = { id: string; title: string; dueAt: string };
 
-/** A lead as the table renders it: owner, client, and what's owed next. */
+/** A lead as the list, the board and the export read it: owner, client, what's owed next. */
 export type CrmLeadListRecord = CrmLeadRecord & {
+  emoji: string | null;
+  avatarUrl: string | null;
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
-  sourceChannel: string | null;
-  client: { id: string; name: string } | null;
-  assignedTo: CrmLeadOwner | null;
-  nextFollowUp: CrmNextFollowUp | null;
-};
-
-export type CrmBoardCard = {
-  id: string;
-  leadNo: string;
-  title: string | null;
-  stage: CrmLeadStage;
-  estimatedValue: number | null;
-  currency: string;
-  contactName: string | null;
-  createdAt: string;
-  updatedAt: string;
-  stageEnteredAt: string;
+  sourceChannel: string;
+  archivedAt: string | null;
   client: { id: string; name: string } | null;
   assignedTo: CrmLeadOwner | null;
   nextFollowUp: CrmNextFollowUp | null;
@@ -117,25 +106,9 @@ export type CrmBoardCard = {
    * — it says so and opens the deal, not the lead it grew out of.
    */
   deal: { id: string; dealNo: string; value: number | null } | null;
+  /** When the lead reached its stage. */
+  stageEnteredAt: string;
 };
-
-export type CrmBoardColumn = {
-  stage: CrmLeadStage;
-  count: number;
-  totalValue: number;
-  hasMore: boolean;
-  leads: CrmBoardCard[];
-};
-
-// Lists and saved views live in `collections-client.ts` (the sidebar renders
-// them on every page and must not compile the whole CRM SDK). Re-exported here
-// so CRM pages keep one import surface.
-export {
-  fetchCrmLists,
-  fetchCrmSavedViews,
-  type CrmListRecord,
-  type CrmSavedViewRecord,
-} from "@/lib/crm/collections-client";
 
 export type CrmVisitItemRecord = SiteVisitItemInput & {
   id: string;
@@ -198,108 +171,21 @@ function qs(params: Record<string, string | number | boolean | null | undefined>
 }
 
 /**
- * Flatten a filter set into query params. Arrays are comma-joined and booleans
- * only sent when true, so a default view produces a clean URL.
+ * A list as a board (`boardEndpoint`): a column per stage, the first cards in
+ * the list's order, and the count and value of every card each column holds.
+ * Deals are one pipeline's stages; leads have no pipeline.
  */
-export function leadFiltersToParams(
-  filters: LeadViewFilters,
-): Record<string, string | number | boolean | undefined> {
-  return {
-    q: filters.q,
-    stages: filters.stages?.join(","),
-    assignedToIds: filters.assignedToIds?.join(","),
-    unassigned: filters.unassigned ? "1" : undefined,
-    mineOnly: filters.mineOnly ? "1" : undefined,
-    channels: filters.channels?.join(","),
-    sources: filters.sources?.join(","),
-    valueMin: filters.valueMin,
-    valueMax: filters.valueMax,
-    createdFrom: filters.createdFrom,
-    createdTo: filters.createdTo,
-    overdueOnly: filters.overdueOnly ? "1" : undefined,
-    archived: filters.archived ? "1" : undefined,
-  };
-}
-
-export function fetchCrmLeads(
-  params: {
-    filters?: LeadViewFilters;
-    sort?: LeadSort;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = qs({
-    ...leadFiltersToParams(params.filters ?? {}),
-    sortField: params.sort?.field,
-    sortDir: params.sort?.direction,
-    page: params.page,
-    limit: params.limit,
-  });
-  return fetchJson<ListResponse<CrmLeadListRecord>>(`/api/v2/crm/leads${query}`);
-}
-
-export function fetchCrmLeadsBoard(filters: LeadViewFilters = {}) {
-  const query = qs(leadFiltersToParams(filters));
-  // The route answers `{ columns, cardsPerColumn }` — no envelope. Declaring
-  // one here is what made the board throw the moment it was switched to.
-  return fetchJson<{ columns: CrmBoardColumn[]; cardsPerColumn: number }>(
-    `/api/v2/crm/leads/board${query}`,
-  );
-}
-
-export type CrmDealBoardCard = {
-  id: string;
-  dealNo: string;
-  title: string;
-  value: number | null;
-  currency: string;
-  status: "OPEN" | "WON" | "LOST";
-  stageId: string;
-  stageEnteredAt: string;
-  expectedCloseDate: string | null;
-  emoji: string | null;
-  avatarUrl: string | null;
-  client: { id: string; name: string } | null;
-  assignedTo: CrmLeadOwner | null;
-  nextFollowUp: { id: string; title: string; dueAt: string } | null;
-};
-
-export type CrmDealBoardColumn = {
-  stage: {
-    id: string;
-    name: string;
-    status: "OPEN" | "WON" | "LOST";
-    position: number;
-    colorToken: string | null;
-  };
-  count: number;
-  totalValue: number;
-  hasMore: boolean;
-  deals: CrmDealBoardCard[];
-};
-
-export type CrmDealBoard = {
-  pipeline: { id: string; name: string };
-  columns: CrmDealBoardColumn[];
+export type RegisterBoardData<Card> = {
+  pipeline: { id: string; name: string } | null;
+  columns: Array<{
+    stage: { id: string; name: string; status: "OPEN" | "WON" | "LOST"; position: number; colorToken: string | null };
+    count: number;
+    totalValue: number;
+    hasMore: boolean;
+    cards: Card[];
+  }>;
   cardsPerColumn: number;
 };
-
-export function fetchCrmDealsBoard(params: {
-  pipelineId?: string | null;
-  mineOnly?: boolean;
-  q?: string;
-} = {}) {
-  const search = new URLSearchParams();
-  if (params.pipelineId) search.set("pipelineId", params.pipelineId);
-  if (params.mineOnly) search.set("mineOnly", "1");
-  if (params.q) search.set("q", params.q);
-  const query = search.toString();
-  // Bare body, like the leads board — no envelope to unwrap.
-  return fetchJson<CrmDealBoard>(
-    `/api/v2/crm/deals/board${query ? `?${query}` : ""}`,
-  );
-}
 
 export function updateCrmDealStage(dealId: string, stageId: string) {
   return fetchJson<{ id: string; stageId: string }>(
@@ -323,52 +209,6 @@ export function createCrmList(body: {
   return fetchJson<CrmListRecord>(`/api/v2/crm/lists`, {
     method: "POST",
     body: JSON.stringify(body),
-  });
-}
-
-export type CrmBulkLeadAction =
-  | { action: "assign"; ids: string[]; assignedToId: string | null }
-  | { action: "stage"; ids: string[]; stage: CrmLeadStage; lostReason?: string }
-  | { action: "archive"; ids: string[]; archived: boolean };
-
-export function bulkUpdateCrmLeads(body: CrmBulkLeadAction) {
-  return fetchJson<
-    { updated: number; unchanged?: number; skipped: number; notFound: number }
-  >(`/api/v2/crm/leads/bulk`, { method: "POST", body: JSON.stringify(body) });
-}
-
-export function createCrmSavedView(body: {
-  name: string;
-  viewType?: "TABLE" | "BOARD";
-  filters: LeadViewFilters;
-  sort?: LeadSort | null;
-  isShared?: boolean;
-}) {
-  return fetchJson<CrmSavedViewRecord>(`/api/v2/crm/saved-views`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
-export function updateCrmSavedView(
-  id: string,
-  body: Partial<{
-    name: string;
-    viewType: "TABLE" | "BOARD";
-    filters: LeadViewFilters;
-    sort: LeadSort | null;
-    isShared: boolean;
-  }>,
-) {
-  return fetchJson<CrmSavedViewRecord>(`/api/v2/crm/saved-views/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(body),
-  });
-}
-
-export function deleteCrmSavedView(id: string) {
-  return fetchJson<{ id: string }>(`/api/v2/crm/saved-views/${id}`, {
-    method: "DELETE",
   });
 }
 
@@ -462,6 +302,7 @@ export type CrmPersonRecord = {
   contactType: string;
   preferredChannel: string | null;
   city: string | null;
+  country: string | null;
   tags: string[];
   clientId: string | null;
   client: { id: string; name: string } | null;
@@ -500,6 +341,7 @@ export type CrmCompanyRecord = {
   tags: string[];
   assignedTo: CrmLeadOwner | null;
   customFields: Record<string, unknown> | null;
+  lastContactedAt: string | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -514,10 +356,15 @@ export type CrmDealStage = {
   inactivityDays: number | null;
 };
 
+/** A deal as the list, the board and the export read it. */
 export type CrmDealRecord = {
   id: string;
   dealNo: string;
   title: string;
+  emoji: string | null;
+  avatarUrl: string | null;
+  stageId: string;
+  pipelineId: string;
   status: "OPEN" | "WON" | "LOST";
   value: number | null;
   currency: string;
@@ -530,8 +377,8 @@ export type CrmDealRecord = {
   primaryContact: { id: string; fullName: string } | null;
   site: { id: string; name: string } | null;
   assignedTo: CrmLeadOwner | null;
-  stage: CrmDealStage;
-  pipeline: { id: string; name: string };
+  stage: CrmDealStage & { position: number };
+  pipeline: { id: string; name: string; isDefault: boolean };
   nextFollowUp: CrmNextFollowUp | null;
   customFields: Record<string, unknown> | null;
   createdAt: string;
@@ -601,89 +448,72 @@ export type CrmFieldDefinitionRecord = {
   archivedAt: string | null;
 };
 
-/** Turn a filter object into query params, flattening arrays and custom fields. */
-export function recordFiltersToParams(
-  filters: Record<string, unknown>,
-): Record<string, string | number | boolean | undefined> {
-  const params: Record<string, string | number | boolean | undefined> = {};
-  for (const [key, value] of Object.entries(filters)) {
-    if (value === undefined || value === null || value === "") continue;
-    if (key === "customFields" && typeof value === "object") {
-      for (const [fieldKey, fieldValue] of Object.entries(value as Record<string, unknown>)) {
-        if (fieldValue === undefined || fieldValue === null || fieldValue === "") continue;
-        params[`cf.${fieldKey}`] = Array.isArray(fieldValue)
-          ? fieldValue.join(",")
-          : String(fieldValue);
-      }
-      continue;
-    }
-    if (Array.isArray(value)) {
-      if (value.length > 0) params[key] = value.join(",");
-      continue;
-    }
-    if (typeof value === "boolean") {
-      if (value) params[key] = "1";
-      continue;
-    }
-    params[key] = value as string | number;
+/**
+ * A register query: part of a list's state, a page and a page size. Missing
+ * state is the list's default — no filters, the list's first sort.
+ */
+export type RegisterQuery = {
+  state?: Partial<ViewState>;
+  page?: number;
+  limit?: number;
+};
+
+/** The reader's time zone, which the server needs to know what "today" means. */
+function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
   }
-  return params;
 }
 
-export function fetchCrmPeople(
-  params: { filters?: Record<string, unknown>; sort?: RecordSort; page?: number; limit?: number } = {},
-) {
-  return fetchJson<ListResponse<CrmPersonRecord>>(
-    `/api/v2/crm/people${qs({
-      ...recordFiltersToParams(params.filters ?? {}),
-      sortField: params.sort?.field,
-      sortDir: params.sort?.direction,
-      page: params.page,
-      limit: params.limit,
-    })}`,
-  );
+/**
+ * One page of a list, asked exactly the way the list's own page asks: the
+ * codec's query string, so a picker searching people and the People screen
+ * narrowed to the same search get the same rows.
+ */
+export function fetchRegisterPage<Row>(def: RegisterDef, query: RegisterQuery = {}) {
+  const state: ViewState = { ...query.state, filters: query.state?.filters ?? {} };
+  const params = new URLSearchParams(writeState(def, state, { page: query.page }));
+  if (query.limit) params.set("limit", String(query.limit));
+  const tz = browserTimeZone();
+  if (tz) params.set("tz", tz);
+  return fetchJson<ListResponse<Row> & { groups?: RegisterPageGroup[] }>(`${def.endpoint}?${params}`);
 }
 
-export function fetchCrmCompanies(
-  params: { filters?: Record<string, unknown>; sort?: RecordSort; page?: number; limit?: number } = {},
-) {
-  return fetchJson<ListResponse<CrmCompanyRecord>>(
-    `/api/v2/crm/companies${qs({
-      ...recordFiltersToParams(params.filters ?? {}),
-      sortField: params.sort?.field,
-      sortDir: params.sort?.direction,
-      page: params.page,
-      limit: params.limit,
-    })}`,
-  );
+/** One pipeline's board, asked with the list's own query string. */
+export function fetchRegisterBoard<Card>(def: RegisterDef, state: ViewState) {
+  const params = new URLSearchParams(writeState(def, state));
+  const tz = browserTimeZone();
+  if (tz) params.set("tz", tz);
+  // Bare body — the board is the answer, with no envelope around it.
+  return fetchJson<RegisterBoardData<Card>>(`${def.boardEndpoint}?${params}`);
 }
 
-export function fetchCrmDeals(
-  params: { filters?: Record<string, unknown>; sort?: RecordSort; page?: number; limit?: number } = {},
-) {
-  return fetchJson<ListResponse<CrmDealRecord>>(
-    `/api/v2/crm/deals${qs({
-      ...recordFiltersToParams(params.filters ?? {}),
-      sortField: params.sort?.field,
-      sortDir: params.sort?.direction,
-      page: params.page,
-      limit: params.limit,
-    })}`,
-  );
+/**
+ * One group of a grouped page (`?by=`): its name, how many rows it holds in
+ * the whole list, and which of this page's rows are in it.
+ */
+export type RegisterPageGroup = { id: string; label: string; count: number; ids: string[] };
+
+export function fetchCrmLeads(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmLeadListRecord>(LEAD_REGISTER, query);
 }
 
-export function fetchCrmSites(
-  params: { filters?: Record<string, unknown>; sort?: RecordSort; page?: number; limit?: number } = {},
-) {
-  return fetchJson<ListResponse<CrmSiteRecord>>(
-    `/api/v2/crm/sites${qs({
-      ...recordFiltersToParams(params.filters ?? {}),
-      sortField: params.sort?.field,
-      sortDir: params.sort?.direction,
-      page: params.page,
-      limit: params.limit,
-    })}`,
-  );
+export function fetchCrmPeople(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmPersonRecord>(PERSON_REGISTER, query);
+}
+
+export function fetchCrmCompanies(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmCompanyRecord>(COMPANY_REGISTER, query);
+}
+
+export function fetchCrmDeals(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmDealRecord>(DEAL_REGISTER, query);
+}
+
+export function fetchCrmSites(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmSiteRecord>(SITE_REGISTER, query);
 }
 
 export function fetchCrmPipelines() {

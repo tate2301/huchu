@@ -60,11 +60,11 @@ import { RecordStory } from "@/components/crm/records/record-story";
 import { buildStory } from "@/lib/crm/story";
 import { VisitsTab } from "@/components/crm/lead-detail/visits-tab";
 import type { LeadActivity, LeadAppointment, LeadFollowUp } from "@/components/crm/lead-detail/lead-types";
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
-import { StartProjectSheet } from "@/components/crm/money/start-project-sheet";
+import { StartProjectDialog } from "@/components/crm/money/start-project-dialog";
 
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
@@ -78,6 +78,8 @@ import { DealStageBar, StageChecklist } from "./deal-stage-bar";
 import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 
 import { Stack } from "@corelithzw/react";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
+import { useListHref } from "@/components/crm/registers/list-href";
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -153,6 +155,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const { data: session } = useSession();
+  const listHref = useListHref("DEAL");
   const currentUserId = session?.user?.id;
 
   const [tab, setTab] = useState("timeline");
@@ -171,7 +174,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   });
   const teamQuery = useQuery({
     queryKey: ["crm", "team"],
-    queryFn: () => fetchJson<{ data: LeadFilterOwner[] }>("/api/v2/crm/team"),
+    queryFn: () => fetchJson<{ data: CrmLeadOwner[] }>("/api/v2/crm/team"),
   });
   const fieldsQuery = useQuery({
     queryKey: ["crm", "field-definitions", "DEAL"],
@@ -380,8 +383,10 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     <>
       <RecordPageShell
       icon={Funnel}
-        backHref="/crm/deals"
-        backLabel="All deals"
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="DEAL" recordId={deal.id} />}
+        backHref={listHref}
+        backLabel="Deals"
         leading={
           <RecordMark
             kind="deal"
@@ -418,8 +423,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
             ]}
           />
         }
-        bandValue={deal.value == null ? undefined : formatMoney(deal.value, deal.currency)}
-        beforeTabs={
+        figure={deal.value == null ? undefined : formatMoney(deal.value, deal.currency)}
+        stage={
           <DealStageBar
             compact
             dealId={dealId}
@@ -695,9 +700,9 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               </RailSection>
             ) : null}
 
-            {/* The stage control itself is in the band now — see `beforeTabs`.
-                What stays here is the stage's checklist, which is a stack and
-                has nowhere to go in a 44px row. */}
+            {/* The stage control itself opens from the record's toolbar — see
+                `stage`. What stays here is the stage's checklist, which is a
+                stack and has nowhere to go in a 44px row. */}
             {deal.stage.checklist && deal.stage.checklist.length > 0 ? (
               <RailSection title="At this stage">
                 <StageChecklist checklist={deal.stage.checklist} />
@@ -833,7 +838,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
 
       {jobs.sheet}
 
-      <StartProjectSheet
+      <StartProjectDialog
         open={startProjectOpen}
         onOpenChange={setStartProjectOpen}
         deal={{

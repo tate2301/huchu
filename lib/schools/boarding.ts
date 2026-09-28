@@ -346,6 +346,19 @@ export async function hostelOccupancy(input: {
       return {
         id: bed.id,
         code: bed.code,
+        // Spelled out rather than spread, but every selected field has to
+        // appear here or it does not leave the server. The commit that widened
+        // the `select` above to add these stopped at the select and left this
+        // mapping alone, so bay, tier and status were fetched from the database
+        // and then dropped on the floor — the plan still rendered blank and a
+        // bed out of service still looked free. `HostelOccupancy` in
+        // components/schools/boarding/boarding-data.ts is hand-written, so the
+        // client asserts a shape the server never sent and no typecheck can
+        // see the gap. If you add a field to the select, add it here too.
+        bay: bed.bay,
+        tier: bed.tier,
+        status: bed.status,
+        statusReason: bed.statusReason,
         room: bed.room,
         allocationId: occupant?.id ?? null,
         student: occupant?.student ?? null,

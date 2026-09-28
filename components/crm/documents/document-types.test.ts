@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  documentHref,
   documentNumber,
   documentStatus,
   invoiceOutstanding,
@@ -122,5 +123,13 @@ describe("documentNumber", () => {
 
   it("falls back to a dash rather than rendering undefined", () => {
     expect(documentNumber(doc())).toBe("—");
+  });
+});
+
+describe("documentHref", () => {
+  it("opens each kind under its own list", () => {
+    expect(documentHref(doc({ type: "QUOTATION" }))).toBe("/crm/quotes/doc-1");
+    expect(documentHref(doc({ type: "INVOICE" }))).toBe("/crm/invoices/doc-1");
+    expect(documentHref(doc({ type: "RECEIPT" }))).toBe("/crm/receipts/doc-1");
   });
 });

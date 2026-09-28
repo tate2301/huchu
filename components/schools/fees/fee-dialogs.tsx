@@ -28,6 +28,7 @@ import {
 } from "@/lib/schools/fees-v2";
 
 import { ClassPicker, InvoicePicker, StudentPicker, TermPicker } from "@/components/schools/fees/fee-pickers";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * The fee module's forms.
@@ -511,7 +512,7 @@ function newLine(): LineDraft {
 }
 
 /**
- * A term's charges for one year group, line by line.
+ * A term's charges for one class, line by line.
  *
  * The lines are edited in the dialog rather than on a second screen because a
  * fee sheet is only meaningful as a total: six lines that add to what a family
@@ -566,6 +567,7 @@ export function StructureFormDialog({
 
   const repricingLocked = editing && (structure?._count.invoices ?? 0) > 0;
 
+  const words = useClassVocabulary();
   const save = useMutation({
     mutationFn: async () => {
       const payloadLines: FeeStructureLineInput[] = lines
@@ -610,7 +612,7 @@ export function StructureFormDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={editing ? `Edit ${structure?.name}` : "New fee sheet"}
-      description="What a year group is charged for a term, line by line."
+      description="What a class is charged for a term, line by line."
       size="lg"
       onSubmit={(event) => {
         event.preventDefault();
@@ -652,7 +654,7 @@ export function StructureFormDialog({
         />
         <ClassPicker
           id="structure-class"
-          label="Year group"
+          label={words.One}
           value={classId}
           onChange={setClassId}
           required

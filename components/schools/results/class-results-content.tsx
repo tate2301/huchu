@@ -39,7 +39,7 @@ import {
 import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
 /**
- * One year group's mark sheets.
+ * One class's mark sheets.
  *
  * A result sheet already belongs to a class, so listing every sheet in the
  * school and asking a head of department to find theirs was the same
@@ -54,10 +54,10 @@ import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-w
  * ── The filter row ─────────────────────────────────────────────────────────
  *
  * Each filter is named by its unnarrowed choice: Class = Every class, State =
- * Any state. Class is the stream within this year group — the route has already
- * answered "which form?" — and it is offered only when the year group has been
+ * Any state. Class is the stream within this class — the route has already
+ * answered "which form?" — and it is offered only when the class has been
  * split into any. State is applied here rather than at the endpoint, so the
- * row count beside the filters counts against the year group's whole list
+ * row count beside the filters counts against the class's whole list
  * rather than against a response that has already been cut to one state.
  */
 export function ClassResultsContent({
@@ -66,7 +66,7 @@ export function ClassResultsContent({
   initialStreamId,
 }: {
   classId: string;
-  /** The year group's name, for the heading the page is titled by. */
+  /** The class's name, for the heading the page is titled by. */
   yearGroup: string;
   initialStreamId?: string;
 }) {
@@ -95,7 +95,7 @@ export function ClassResultsContent({
   });
 
   // The state cut is applied here rather than sent to the server, so the
-  // denominator on the filter row stays the year group's whole list.
+  // denominator on the filter row stays the class's whole list.
   const resultsQuery = useQuery({
     queryKey: ["schools", "results", "by-class", classId, streamFilter, termFilter],
     queryFn: () =>
@@ -184,8 +184,8 @@ export function ClassResultsContent({
   const emptyState =
     sheets.length === 0 && !narrowed ? (
       <NothingYet
-        title="No mark sheets for this year group yet"
-        body="Sheets appear here when the mark book is written to one under the year group's assessments."
+        title="No mark sheets for this class yet"
+        body="Sheets appear here when the mark book is written to one under the class's assessments."
       />
     ) : (
       <NothingMatched
@@ -202,7 +202,7 @@ export function ClassResultsContent({
     // State filter and the row count do not already say — and they said it
     // above controls that did not govern them.
     <SchoolsPage>
-      {/* The bar carries the year group and the way back up to Results — a
+      {/* The bar carries the class and the way back up to Results — a
           back link stranded in the body is a second header in a different
           place. */}
       <PageChrome

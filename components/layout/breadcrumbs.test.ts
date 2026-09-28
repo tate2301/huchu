@@ -16,7 +16,7 @@ describe("buildCrumbs", () => {
     );
     const labels = crumbs.map((crumb) => crumb.label);
 
-    expect(labels).toEqual(["Home", "Schools", "Students", "Year group"]);
+    expect(labels).toEqual(["Home", "Schools", "Students", "Class"]);
     // The failure this exists for: "515bcc28 5300 49b9 8187 Abf2f2d44988".
     expect(labels.some((label) => label.includes("515bcc28"))).toBe(false);
   });

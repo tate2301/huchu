@@ -21,7 +21,7 @@ import { ChevronDown, SlidersHorizontal } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * The options row — the band between the page band and the records.
+ * The options row — the strip between the app bar and the records.
  *
  * Module-neutral, and in `components/records` for it: HR's directory wants the
  * same band over the same table, and a toolbar owned by the CRM is one HR has
@@ -88,6 +88,7 @@ export function ViewToolbar({
   count,
   end,
   filterCount,
+  sheetLabel,
   className,
 }: {
   /**
@@ -119,6 +120,11 @@ export function ViewToolbar({
    * on the phone trigger, where the controls themselves are out of sight.
    */
   filterCount?: number;
+  /**
+   * What the phone's one button says, when it is not about filters — "3
+   * selected" while the row is carrying a selection's actions.
+   */
+  sheetLabel?: string;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -172,7 +178,7 @@ export function ViewToolbar({
               aria-label="View and filters"
             >
               <SlidersHorizontal className="size-4" aria-hidden="true" />
-              {filterCount ? `Filters (${filterCount})` : "View"}
+              {sheetLabel ?? (filterCount ? `Filters (${filterCount})` : "View")}
             </Button>
           </SheetTrigger>
           {/* A sheet rather than a dropdown menu: these controls are

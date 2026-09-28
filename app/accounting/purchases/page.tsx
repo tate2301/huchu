@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -58,9 +57,8 @@ import { useHasFeature } from "@/hooks/use-entitlement";
 const today = format(new Date(), "yyyy-MM-dd");
 
 /**
- * Money in the band: grouped, two decimals, no currency symbol — the chip's
- * label already says what the figure is, and a symbol in front of a mono value
- * pushes the digits out of alignment with the chip beside it.
+ * Money in a column of figures: grouped, two decimals, no currency symbol — a
+ * symbol in front of a mono value pushes the digits out of alignment.
  */
 function formatMoney(value: number) {
   return value.toLocaleString(undefined, {
@@ -276,19 +274,6 @@ export default function AccountingPurchasesPage() {
   const writeOffs = writeOffsData?.data ?? [];
   const agingRows = agingReport?.rows ?? [];
 
-  /**
-   * Open and overdue, for the band — read from the ageing report rather than
-   * recomputed from bill due dates, so this and the AP report cannot disagree.
-   */
-  const apTotals = useMemo(() => {
-    let open = 0;
-    let overdue = 0;
-    for (const row of agingRows) {
-      open += row.total;
-      overdue += row.days30 + row.days60 + row.days90 + row.days90Plus;
-    }
-    return { open, overdue };
-  }, [agingRows]);
   const statementLines = statementReport?.lines ?? [];
 
   /**
@@ -1072,17 +1057,6 @@ export default function AccountingPurchasesPage() {
     <AccountingShell
       activeTab="payables"
       title="Payables"
-      description="vendors, bills and the money going out"
-      bandSlot={
-        <>
-          <BandChip label="Open" value={formatMoney(apTotals.open)} tone="mute" />
-          <BandChip
-            label="Overdue"
-            value={formatMoney(apTotals.overdue)}
-            tone={apTotals.overdue > 0 ? "warn" : "ok"}
-          />
-        </>
-      }
       actions={
         <AccountingNewButton
           items={[

@@ -11,8 +11,6 @@ export default async function CrmInvoicesPage() {
 
   return (
     <CrmPage
-      title="Invoices"
-      description="what has been billed, and what is still owed"
     >
       <DocumentsListContent
         kind="INVOICE"

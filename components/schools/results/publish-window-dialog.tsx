@@ -18,6 +18,7 @@ import {
   type PublishWindowRecord,
 } from "@/lib/schools/results-v2";
 import { WINDOW_STATE_OPTIONS } from "@/components/schools/results/sheet-state";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 /**
  * When marks are allowed out.
@@ -85,6 +86,7 @@ export function PublishWindowDialog({
   // derived as the default rather than written into state when it lands.
   const chosenTermId = termId || (terms.find((term) => term.isActive)?.id ?? "");
 
+  const words = useClassVocabulary();
   const mutation = useMutation({
     mutationFn: () => {
       const payload = {
@@ -112,7 +114,7 @@ export function PublishWindowDialog({
   if (openAt && closeAt && new Date(closeAt) <= new Date(openAt)) {
     problems.push("A window has to close after it opens.");
   }
-  if (streamId && !classId) problems.push("A class needs its year group named too.");
+  if (streamId && !classId) problems.push("A class needs its class named too.");
 
   return (
     <RecordDialog
@@ -159,8 +161,8 @@ export function PublishWindowDialog({
           so these are the filter dropdown, which already carries an "all"
           choice, rather than a picker that has to invent one. */}
       <FilterSelect
-        label="Year group"
-        allLabel="Every year group"
+        label={words.One}
+        allLabel={`Every ${words.one}`}
         value={classId}
         options={classes.map((row) => ({ value: row.id, label: row.name }))}
         onChange={(next) => {
@@ -173,7 +175,7 @@ export function PublishWindowDialog({
       {streams.length > 0 ? (
         <FilterSelect
           label="Class"
-          allLabel="The whole year group"
+          allLabel="The whole class"
           value={streamId}
           options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
           onChange={setStreamId}

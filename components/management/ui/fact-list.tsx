@@ -27,7 +27,8 @@ export type FactListProps = {
   align?: "start" | "end";
   /** Default 150, as the Profile board. */
   labelWidth?: number;
-  maxWidth?: number;
+  /** Default 470, as RecordList. `null` fills whatever holds it — a dialog. */
+  maxWidth?: number | null;
   className?: string;
 };
 
@@ -48,7 +49,7 @@ export function FactList({
     <dl
       className={cn(styles.factList, className)}
       data-align={align}
-      style={{ maxWidth, ["--fact-label-width" as string]: `${labelWidth}px` }}
+      style={{ maxWidth: maxWidth ?? undefined, ["--fact-label-width" as string]: `${labelWidth}px` }}
     >
       {items.map((item) => (
         <div key={item.id ?? item.label} className={styles.factRow}>

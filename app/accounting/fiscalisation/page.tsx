@@ -5,19 +5,12 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip, type BandChipTone } from "@/components/accounting/band-chip";
 import type { BadgeTone } from "@/components/accounting/report-table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
-import {
-  FISCAL_DAY_FLEET_KEY,
-  FiscalDayConsole,
-  ZIMRA_MAX_OPEN_HOURS,
-  fetchFiscalDayFleet,
-  hoursOpen,
-} from "@/components/accounting/fiscalisation/fiscal-day-console";
+import { FiscalDayConsole } from "@/components/accounting/fiscalisation/fiscal-day-console";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -234,20 +227,6 @@ export default function FiscalisationPage() {
     queryFn: () => fetchFiscalReceipts({ limit: 200 }),
   });
 
-  /*
-    The same fleet the console reads, under the same key.
-
-    The "Day" chip belongs in the band, which means it has to survive the
-    console being unmounted — and the console is unmounted whenever the reader
-    is on Configuration or Receipts, which is exactly when a day quietly going
-    past 24 hours needs saying. Sharing the query key means this costs one
-    fetch, not two: react-query hands both observers the same cache entry.
-  */
-  const { data: fleet } = useQuery({
-    queryKey: FISCAL_DAY_FLEET_KEY,
-    queryFn: fetchFiscalDayFleet,
-  });
-
   const baseFormState = useMemo<FiscalisationFormState>(
     () => ({
       providerKey: configData?.provider?.providerKey ?? "ZIMRA_FDMS",
@@ -281,7 +260,7 @@ export default function FiscalisationPage() {
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
 
   /**
-   * What is waiting on ZIMRA, for the band and the queue panel.
+   * What is waiting on ZIMRA, for the queue panel.
    *
    * Pending and failed are separated because they need different things from
    * a supervisor. A pending receipt is the system working — it wants patience.
@@ -311,27 +290,6 @@ export default function FiscalisationPage() {
     };
   }, [receipts]);
 
-  /**
-   * How long the oldest open day has been open, for the band.
-   *
-   * The fleet has many devices and the band has room for one figure, so it
-   * carries the worst one — the day closest to breaching ZIMRA's 24 hours is
-   * the day somebody has to go and close. A tenant with devices but no open
-   * day is its own kind of bad: no till on it can fiscalise a sale.
-   */
-  const dayChip = useMemo<{ value: string; tone: BandChipTone } | null>(() => {
-    const devices = fleet?.devices ?? [];
-    if (devices.length === 0) return null;
-
-    const openedAt = devices
-      .map((device) => device.activeDay?.openedAt)
-      .filter((value): value is string => Boolean(value))
-      .sort()[0];
-    if (!openedAt) return { value: "none open", tone: "bad" };
-
-    const hours = hoursOpen(openedAt);
-    return { value: `${hours}h open`, tone: hours >= ZIMRA_MAX_OPEN_HOURS ? "bad" : "ok" };
-  }, [fleet]);
 
   const hasActiveProvider = Boolean(configData?.provider?.isActive);
 
@@ -535,20 +493,6 @@ export default function FiscalisationPage() {
     <AccountingShell
       activeTab="fiscalisation"
       title="Fiscalisation"
-      description="ZIMRA FDMS — the device, its credentials, and the open fiscal day"
-      bandSlot={
-        <>
-          <BandChip
-            label="Queued"
-            value={String(receiptCounts.pending)}
-            tone={receiptCounts.pending > 0 ? "warn" : "ok"}
-          />
-          {receiptCounts.failed > 0 ? (
-            <BandChip label="Failed" value={String(receiptCounts.failed)} tone="bad" />
-          ) : null}
-          {dayChip ? <BandChip label="Day" value={dayChip.value} tone={dayChip.tone} /> : null}
-        </>
-      }
     >
       {(configError || receiptsError) ? (
         <Alert variant="destructive">

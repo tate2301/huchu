@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { deleteTestCompany } from "@/lib/schools/test-support";
 import {
   InviteError,
   claimPortalInvite,
@@ -60,8 +61,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
-  await prisma.company.delete({ where: { id: otherCompanyId } }).catch(() => {});
+  await deleteTestCompany(companyId);
+  await deleteTestCompany(otherCompanyId);
   await prisma.$disconnect();
 });
 

@@ -112,14 +112,17 @@ export function SiteFormSheet({
 
   const companiesQuery = useQuery({
     queryKey: ["crm", "companies", "options"],
-    queryFn: () => fetchCrmCompanies({ limit: 200 }),
+    queryFn: () => fetchCrmCompanies({ limit: 100 }),
     enabled: open,
   });
 
   const peopleQuery = useQuery({
     queryKey: ["crm", "people", "options", form.clientId],
     queryFn: () =>
-      fetchCrmPeople({ filters: form.clientId ? { clientId: form.clientId } : {}, limit: 200 }),
+      fetchCrmPeople({
+        state: { filters: form.clientId ? { company: [form.clientId] } : {} },
+        limit: 100,
+      }),
     enabled: open,
   });
 

@@ -42,7 +42,7 @@ type Resource = {
  *
  * Resources hang off a *subject*, not a class: a Form 2 worksheet is the same
  * worksheet next September, and pinning it to a class means re-uploading it
- * every year. The year group is a hint, not the key.
+ * every year. The class is a hint, not the key.
  *
  * A teacher's own unshared drafts are visible to them and to nobody else, which
  * is what makes it safe to put a half-finished worksheet here rather than on a

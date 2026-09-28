@@ -32,6 +32,7 @@ export function LostReasonDialog({
   open,
   leadLabel,
   count,
+  noun = { one: "lead", many: "leads" },
   onCancel,
   onConfirm,
   isPending,
@@ -39,6 +40,8 @@ export function LostReasonDialog({
   open: boolean;
   leadLabel?: string;
   count?: number;
+  /** What is being lost — leads, unless a list says otherwise. */
+  noun?: { one: string; many: string };
   onCancel: () => void;
   onConfirm: (reason: string) => void;
   isPending?: boolean;
@@ -56,7 +59,7 @@ export function LostReasonDialog({
   }
 
   const subject =
-    count && count > 1 ? `${count} leads` : leadLabel ? `"${leadLabel}"` : "this lead";
+    count && count > 1 ? `${count} ${noun.many}` : leadLabel ? `"${leadLabel}"` : `this ${noun.one}`;
 
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onCancel() : undefined)}>

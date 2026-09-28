@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
 import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import {
@@ -303,17 +302,6 @@ export default function PayablesHomePage() {
     <AccountingShell
       activeTab="ap-report"
       title="AP Report"
-      description="the payables book — what was a separate summary tab"
-      bandSlot={
-        <>
-          <BandChip label="Open" value={formatHeadline(summary?.kpis.openBalance ?? 0)} tone="mute" />
-          <BandChip
-            label="Overdue"
-            value={formatHeadline(summary?.kpis.overdueBalance ?? 0)}
-            tone={(summary?.kpis.overdueBalance ?? 0) > 0 ? "bad" : "ok"}
-          />
-        </>
-      }
       actions={
         <AccountingNewButton
           items={[

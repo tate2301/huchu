@@ -65,7 +65,7 @@ export type SchoolAuditEventType =
   | "schools.fee.waiver.edited"
   | "schools.fee.waiver.discarded"
   /**
-   * S-4.6 — copying a fee sheet to other year groups. One act that decides what
+   * S-4.6 — copying a fee sheet to other classes. One act that decides what
    * every family in fifteen classes will be billed, so "who copied Form 1's fees
    * across the school, and which classes were left alone" needs an answer.
    */
@@ -151,7 +151,10 @@ export type SchoolAuditEventType =
    */
   | "schools.leaver.opened"
   | "schools.leaver.clearance.marked"
-  | "schools.leaver.closed";
+  | "schools.leaver.closed"
+  // Reopening puts a pupil back on the roll and takes them off the alumni
+  // register, so it is as consequential as closing and is recorded the same way.
+  | "schools.leaver.reopened";
 
 export type SchoolAuditArgs = {
   companyId: string;

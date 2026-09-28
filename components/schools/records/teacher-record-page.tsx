@@ -471,7 +471,7 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
               the fact behind them and the one a timetable is built from. */}
           <GlanceList>
             <Glance label="Subjects" value={subjects.size || "None"} />
-            <Glance label="Year groups" value={classes.size || "None"} />
+            <Glance label="Classes" value={classes.size || "None"} />
           </GlanceList>
         </RailSection>
       }

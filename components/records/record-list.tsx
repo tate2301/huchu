@@ -90,7 +90,11 @@ export function RecordList({
   selection?: {
     selectedIds: string[];
     onChange: (next: string[]) => void;
-    /** The bar's buttons. Rendered beside the count once anything is picked. */
+    /**
+     * The bar's buttons, rendered beside the count once anything is picked.
+     * Without them there is no bar: the page's own toolbar carries the
+     * selection's actions instead.
+     */
     actions?: (context: { ids: string[]; clear: () => void }) => ReactNode;
   };
 }) {
@@ -237,7 +241,7 @@ export function RecordList({
       })}
     </ul>
 
-    {selection && selectedIds.length > 0 ? (
+    {selection?.actions && selectedIds.length > 0 ? (
       <DataTableFloatingActions
         count={selectedIds.length}
         onClear={() => selection.onChange([])}

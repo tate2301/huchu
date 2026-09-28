@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { deleteTestCompany } from "@/lib/schools/test-support";
 import {
   canViewAnyPortalSubject,
   consentDeniedMessage,
@@ -164,8 +165,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
-  await prisma.company.delete({ where: { id: otherCompanyId } }).catch(() => {});
+  await deleteTestCompany(companyId);
+  await deleteTestCompany(otherCompanyId);
   await prisma.$disconnect();
 });
 

@@ -1,5 +1,5 @@
 /**
- * The finance overview — money in, money out, and where it all stands.
+ * Money in and out — what came in, what went out, and where it all stands.
  *
  * Read-only, and only for somebody who may see everybody's money
  * (`money.view_all`). The figures are `financeOverview`'s; this route turns
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const { companyId } = session.user;
 
     if (!(await requireCrmCapability(session, "money.view_all"))) {
-      return errorResponse("Only somebody who may see everybody's money can open the finance overview", 403);
+      return errorResponse("Only somebody who may see everybody's money can open Money in and out", 403);
     }
 
     const { searchParams } = new URL(request.url);
@@ -41,6 +41,6 @@ export async function GET(request: NextRequest) {
     return successResponse({ ...overview, period: { from: dayKey(period.from), to: dayKey(period.to) } });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/finance error:", error);
-    return errorResponse("Failed to load the finance overview");
+    return errorResponse("Failed to load Money in and out");
   }
 }

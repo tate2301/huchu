@@ -245,20 +245,63 @@ export async function planTermClose(
 }
 
 /**
- * End every active allocation in a term.
+ * End every active allocation in a term, and put its bed back into service.
  *
  * ENDED rather than deleted, always. "Who slept in bed 12 last October" is a
  * safeguarding question, and a school that answers it with a shrug because the
- * rows were tidied away has a real problem. The beds come free because free is
- * computed from ACTIVE allocations, not from the absence of a row.
+ * rows were tidied away has a real problem.
+ *
+ * ## Why the beds have to be reset here
+ *
+ * This used to end the allocations and stop, on the reasoning — written into
+ * the comment it replaced — that "the beds come free because free is computed
+ * from ACTIVE allocations, not from the absence of a row". That is not what the
+ * board computes. `allocateBed` writes `bed.status = OCCUPIED`, and the plan
+ * reads:
+ *
+ *     isBedFree          = occupant === null && status === "AVAILABLE"
+ *     isBedOutOfService  = status !== "AVAILABLE" && occupant === null
+ *
+ * So a bed whose allocation was ended but whose status was left on OCCUPIED
+ * satisfies the *second* of those. Closing a term did not merely fail to free
+ * the beds — it turned **every bed in the school out of service**, free fell to
+ * zero, and a warden opened Term 2 to a house that could not take a child. The
+ * rollover this file exists to serve then had nowhere to put anybody.
+ *
+ * Only OCCUPIED beds are reset. A bed marked OUT_OF_SERVICE is broken, and a
+ * broken bed is still broken in the holidays — its `statusReason` is somebody's
+ * note about a window or a frame, and clearing it here would quietly offer a
+ * child a bed nobody has repaired.
+ *
+ * One transaction, because a term that ended its allocations and then failed to
+ * free the beds is the exact state described above.
  */
 export async function applyTermClose(
   prisma: PrismaClient,
   input: { companyId: string; termId: string; endDate: Date },
-): Promise<{ ended: number }> {
-  const result = await prisma.schoolBoardingAllocation.updateMany({
-    where: { companyId: input.companyId, termId: input.termId, status: "ACTIVE" },
-    data: { status: "ENDED", endDate: input.endDate },
+): Promise<{ ended: number; bedsFreed: number }> {
+  return prisma.$transaction(async (tx) => {
+    const ending = await tx.schoolBoardingAllocation.findMany({
+      where: { companyId: input.companyId, termId: input.termId, status: "ACTIVE" },
+      select: { bedId: true },
+    });
+
+    const result = await tx.schoolBoardingAllocation.updateMany({
+      where: { companyId: input.companyId, termId: input.termId, status: "ACTIVE" },
+      data: { status: "ENDED", endDate: input.endDate },
+    });
+
+    const bedIds = ending
+      .map((row) => row.bedId)
+      .filter((id): id is string => id !== null);
+
+    const freed = bedIds.length
+      ? await tx.schoolHostelBed.updateMany({
+          where: { companyId: input.companyId, id: { in: bedIds }, status: "OCCUPIED" },
+          data: { status: "AVAILABLE" },
+        })
+      : { count: 0 };
+
+    return { ended: result.count, bedsFreed: freed.count };
   });
-  return { ended: result.count };
 }

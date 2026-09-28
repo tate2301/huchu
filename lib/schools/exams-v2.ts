@@ -26,6 +26,19 @@ export const EXAM_LEVEL_LABELS: Record<ExamLevel, string> = {
   IGCSE: "IGCSE",
 };
 
+/**
+ * How far through a sitting a series is. The labels stay keyed by plain string
+ * because every screen reads `status` off the wire and falls back to the raw
+ * word; this union is for the one caller that *writes* it.
+ */
+export type SeriesStatus =
+  | "PLANNED"
+  | "ENTRIES_OPEN"
+  | "ENTRIES_CLOSED"
+  | "SAT"
+  | "RESULTS_IN"
+  | "ARCHIVED";
+
 export const SERIES_STATUS_LABELS: Record<string, string> = {
   PLANNED: "Planned",
   ENTRIES_OPEN: "Open for entries",
@@ -139,6 +152,47 @@ export function createSeries(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+/**
+ * Correct a series that was typed wrong, or move it on to its next standing.
+ *
+ * `createSeries` had no companion, so a board, a level, a centre number, six
+ * dates and two fees were all settled by whoever first filled the dialog in.
+ * The date entries close is the one that matters: it is what every countdown on
+ * these screens is counting to, and a school that typed it wrong watched the
+ * wrong deadline go red.
+ *
+ * Every field is optional and the dates and fees take an explicit `null`, so
+ * clearing a late deadline the board withdrew is a request the school can
+ * actually make. Board and level are refused once the roll has candidates on
+ * it — the API answers with the count and says why.
+ */
+export function updateSeries(
+  seriesId: string,
+  input: {
+    name?: string;
+    year?: number;
+    boardId?: string;
+    level?: ExamLevel;
+    centreId?: string | null;
+    cohortLevel?: number | null;
+    entriesOpenAt?: string | null;
+    entriesCloseAt?: string | null;
+    lateEntriesCloseAt?: string | null;
+    startsOn?: string | null;
+    endsOn?: string | null;
+    resultsDueOn?: string | null;
+    feePerSubject?: number | null;
+    lateFeePerSubject?: number | null;
+    currency?: string;
+    status?: SeriesStatus;
+  },
+) {
+  return fetchJson<{ id: string; name: string; status: string }>(
+    `/api/v2/schools/exams/series/${seriesId}`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
 }
 
 export type Blocker = string;
@@ -417,4 +471,106 @@ export type ExamReference = {
 
 export function fetchExamReference() {
   return fetchJson<ExamReference>("/api/v2/schools/exams/reference");
+}
+
+export type TimetablePaper = {
+  id: string;
+  paperNumber: number;
+  code: string;
+  sitsAt: string | null;
+  durationMinutes: number | null;
+  subject: { id: string; code: string; name: string };
+  session: { id: string; startsAt: string; endsAt: string | null; seated: number } | null;
+};
+
+export function fetchTimetable(seriesId: string) {
+  return fetchJson<{ papers: TimetablePaper[] }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+  );
+}
+
+export function addTimetablePaper(
+  seriesId: string,
+  input: {
+    examSubjectId: string;
+    paperNumber: number;
+    code?: string | null;
+    sitsAt: string;
+    durationMinutes?: number | null;
+  },
+) {
+  return fetchJson<{ paper: TimetablePaper }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function reschedulePaper(
+  seriesId: string,
+  input: { paperId: string; sitsAt: string; durationMinutes?: number | null },
+) {
+  return fetchJson<{ paperId: string }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function removeTimetablePaper(seriesId: string, paperId: string) {
+  return fetchJson<{ paperId: string }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable${query({ paperId })}`,
+    { method: "DELETE" },
+  );
+}
+
+/**
+ * Add a board, a centre number or a syllabus subject.
+ *
+ * `POST /api/v2/schools/exams/reference` shipped and had no caller anywhere, so
+ * a school could not create the exam board its series hangs off — which made
+ * the entire exams module unreachable from an empty tenant: no board, so no
+ * series; no series, so no candidates, no entries, no timetable and no results.
+ */
+export function createExamReference(
+  input:
+    | { kind: "board"; code: string; name: string }
+    | { kind: "centre"; boardId: string; number: string; name?: string | null }
+    | {
+        kind: "subject";
+        boardId: string;
+        subjectId?: string | null;
+        code: string;
+        name: string;
+        level: ExamLevel;
+      },
+) {
+  return fetchJson<{ id: string }>("/api/v2/schools/exams/reference", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Correct a board, a centre number or a syllabus subject, or retire it.
+ *
+ * All three carry `isActive` and nothing could set it, so the reference was
+ * create-only — and a centre number typed wrong is what the board knows the
+ * school by.
+ */
+export function updateExamReference(
+  input:
+    | { kind: "board"; id: string; code?: string; name?: string; isActive?: boolean }
+    | { kind: "centre"; id: string; number?: string; name?: string | null; isActive?: boolean }
+    | {
+        kind: "subject";
+        id: string;
+        code?: string;
+        name?: string;
+        level?: ExamLevel;
+        isActive?: boolean;
+      },
+) {
+  return fetchJson<{ id: string }>("/api/v2/schools/exams/reference", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }

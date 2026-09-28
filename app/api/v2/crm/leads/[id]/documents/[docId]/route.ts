@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { getEditableDocument, patchInvoiceDocument } from "../../../../_document-routes";
+import { getEditableDocument, patchDocument } from "../../../../_document-routes";
 
 /** A lead's quote or invoice, as the builder opens it for an edit. */
 export async function GET(
@@ -11,11 +11,14 @@ export async function GET(
   return getEditableDocument(request, { kind: "lead", id }, docId);
 }
 
-/** Edit an issued invoice on a lead. See `updateInvoiceForDocument`. */
+/**
+ * Edit a quote or an invoice on a lead, in place, until the client answers.
+ * See `updateQuotationForDocument` and `updateInvoiceForDocument`.
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; docId: string }> },
 ) {
   const { id, docId } = await params;
-  return patchInvoiceDocument(request, { kind: "lead", id }, docId);
+  return patchDocument(request, { kind: "lead", id }, docId);
 }

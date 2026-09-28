@@ -148,7 +148,7 @@ const gapFilterLabel = (value: string) =>
  * this morning. Putting the second on the same form as the first would mean a
  * nurse editing consents to write down a nosebleed.
  *
- * The whole school is the default view and the year group narrows it, rather
+ * The whole school is the default view and the class narrows it, rather
  * than a picker that makes "show me every child with something outstanding" an
  * unreachable question. That is the one an office opens this page for.
  */
@@ -302,7 +302,6 @@ export function WelfareContent() {
         filters={
           <>
             <ClassFilter
-              label="Year group"
               allLabel="The whole school"
               value={classValue}
               onChange={setClassValue}

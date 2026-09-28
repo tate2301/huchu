@@ -1,4 +1,4 @@
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const helpTopics = [
@@ -52,7 +52,7 @@ const helpTopics = [
 export default function HelpPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
-      <PageHeading
+      <PageChrome
         title="Quick Tips"
       />
       <div className="grid gap-4">

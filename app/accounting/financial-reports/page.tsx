@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { ReportPanel } from "@/components/ui/breakdown-panel";
 import {
@@ -295,11 +294,6 @@ export default function FinancialReportsHomePage() {
     <AccountingShell
       activeTab="financial-reports"
       title="Financial Reports"
-      description="the statements, from one period selector"
-      // The applied period is the one fact every figure below depends on, so
-      // it belongs in the band that never scrolls rather than on a panel head
-      // that leaves the screen with its own table.
-      bandSlot={<BandChip label="Period" value={periodLabel} tone="mute" />}
       actions={
         <AccountingNewButton
           label="Run a report"

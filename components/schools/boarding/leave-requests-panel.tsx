@@ -85,7 +85,7 @@ export function LeaveRequestsPanel({
       }),
   });
 
-  // Year group and a name search are not queries the leave endpoint takes — a
+  // Class and a name search are not queries the leave endpoint takes — a
   // request knows a child, not a class — so both are applied here.
   const rows = useMemo(() => {
     const source = leaveQuery.data ?? [];

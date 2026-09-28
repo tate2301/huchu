@@ -34,17 +34,56 @@ second person — "your record" — not a different noun for them. Fixing that i
 separate pass with its own rule, and doing it with a find-and-replace would
 produce "your pupil record", which is worse than what it replaced.
 
-## Form or Grade — open
+## Form or Grade — decided
 
 A Zimbabwean secondary school says **Form 1–6**; a primary says **Grade 1–7**.
-The product currently says "Year group" in 321 places, which is a British
-import and wrong for both.
+The product said "Year group" in 433 places, which is a British import and
+wrong for both.
 
-This is **not** a copy pass. The right label depends on the tenant, so it wants
-a per-school setting driving the word — which means a schema question, a
-default for existing tenants, and a decision about mixed primary/secondary
-schools. `ClassFilter` and the classes master-data screen are where it would
-hang. Left undone deliberately rather than half-done globally.
+It is not a per-school setting, because a combined school runs both ladders at
+once and its Grade 4 is not a Form. **The word comes from the class**, off a
+rung the data already carried.
+
+### The ladder
+
+`SchoolClass.level` is one continuous ordering across the whole school, so a
+list sorted by it reads top to bottom. `lib/schools/class-stage.ts` owns it:
+
+| Level | Stage | Named |
+|---|---|---|
+| 0 | ECD | ECD A, ECD B |
+| 1–7 | Grade | Grade 1–7 |
+| 8–13 | Form | Form 1–6 |
+
+### Saying it
+
+| Where | Use | Gives |
+|---|---|---|
+| A screen | `useClassVocabulary()` | `words.One` → "Form" / "Grade" / "Form or grade" |
+| A screen holding its own class list | `classVocabularyOf(classes)` | the same, without a second query |
+| `ClassFilter` | nothing — it names itself | drop any `label` you were passing |
+| A rung, shown to somebody | `rungName(level)` | "Form 1", not "8" |
+| Server copy, no class list | the literal word "class" | never wrong, only unspecific |
+
+A school with no levels set gets "class" everywhere, which is the fallback's
+whole job: unspecific, never incorrect.
+
+### What it turned up
+
+The word was the smaller half of this. Chasing it found three places where the
+rung itself was being read wrongly, each of them shipped:
+
+- **The New class dialog** offered quick presets putting Form 1 at level 1,
+  against provisioning's level 8. A combined school that used both got Form 1
+  sorting above Grade 1. It asks for a stage and a year now, and computes the
+  rung.
+- **The exam series dialogs** asked for the cohort as a number under the hint
+  *"Form 4 is 4"*. `registerCohort` matches that against `SchoolClass.level`,
+  where Form 4 is 11 — so a combined school following the hint registered its
+  **Grade 4 pupils as O-Level candidates**. Both dialogs pick a class now.
+- **Search, the record peek and the merit leaderboard** printed the rung raw or
+  hardcoded "Form", so Form 1 read as "Year group 8" and a primary school's
+  Grade 4 leaderboard read "Form 4".
 
 ## Exeat — open
 

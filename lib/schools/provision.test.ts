@@ -29,7 +29,28 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
+  /*
+    The cascade from `Company` stops on one link, so the delete has to unwind it
+    first — and it must not be allowed to fail quietly.
+
+    `provisionSchool` writes the accounting scaffolding, which includes a tax
+    template and its lines. `TaxTemplateLine.taxCodeId` has no `onDelete`, so it
+    restricts: deleting the company cascades as far as `TaxCode` and is refused
+    there. This teardown used to be `.catch(() => {})`, so the refusal was eaten
+    and **every run of this file left its tenants behind** — 208 of them had
+    accumulated on the local test database, which is the fan-out that makes
+    `lib/inventory/shelf-price-integrity.test.ts` start timing out on connect.
+
+    That is the exact failure `scripts/clean-provision-test-tenants.ts` was
+    written about, for the retail provisioning test, which had the same swallow.
+    This file borrowed the `provision-` prefix without the label that script
+    matched on, so its litter was invisible to the tool as well.
+
+    No `catch` now. A teardown that cannot clean up should say so on the run
+    that broke it, not on somebody's afternoon three weeks later.
+  */
+  await prisma.taxTemplateLine.deleteMany({ where: { template: { companyId } } });
+  await prisma.company.delete({ where: { id: companyId } });
 });
 
 afterAll(async () => {

@@ -3,10 +3,12 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { VIEW_ENTITY_KEYS } from "@/lib/crm/views-registry";
+import { GROUP_ENTITIES } from "@/lib/crm/groups";
+import { existingRecordIds } from "@/lib/crm/lists";
+import { hasCrmFullAccess } from "@/lib/crm/scope";
 
 const createListSchema = z.object({
-  entity: z.enum(VIEW_ENTITY_KEYS),
+  entity: z.enum(GROUP_ENTITIES),
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500).nullable().optional(),
   isShared: z.boolean().optional(),
@@ -27,7 +29,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const requested = searchParams.get("entity");
-    const entity = VIEW_ENTITY_KEYS.find((value) => value === requested);
+    const entity = GROUP_ENTITIES.find((value) => value === requested);
+    // Asked from a record's page: which of these groups already hold it.
+    const recordId = z.string().uuid().safeParse(searchParams.get("recordId")).data ?? null;
 
     const lists = await prisma.crmList.findMany({
       where: {
@@ -42,7 +46,27 @@ export async function GET(request: NextRequest) {
       orderBy: [{ isShared: "desc" }, { name: "asc" }],
     });
 
-    return successResponse({ data: lists });
+    const holding = recordId
+      ? new Set(
+          (
+            await prisma.crmListMember.findMany({
+              where: { recordId, listId: { in: lists.map((list) => list.id) } },
+              select: { listId: true },
+            })
+          ).map((member) => member.listId),
+        )
+      : null;
+
+    // Whether this reader may add to (or rename, or delete) each group: its
+    // author, or a CRM manager — the rule `PATCH /lists/:id` enforces.
+    const manager = hasCrmFullAccess(session.user.role);
+    return successResponse({
+      data: lists.map((list) => ({
+        ...list,
+        canEdit: manager || list.createdById === session.user.id,
+        ...(holding ? { contains: holding.has(list.id) } : {}),
+      })),
+    });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/lists error:", error);
     return errorResponse("Failed to fetch lists");
@@ -64,6 +88,10 @@ export async function POST(request: NextRequest) {
     });
     if (clash) return errorResponse("A list with that name already exists here", 409);
 
+    const recordIds = data.recordIds?.length
+      ? await existingRecordIds(prisma, { companyId, entity: data.entity, ids: data.recordIds })
+      : [];
+
     const list = await prisma.crmList.create({
       data: {
         companyId,
@@ -72,10 +100,10 @@ export async function POST(request: NextRequest) {
         description: data.description ?? undefined,
         isShared: data.isShared ?? false,
         createdById: session.user.id,
-        ...(data.recordIds && data.recordIds.length > 0
+        ...(recordIds.length > 0
           ? {
               members: {
-                create: data.recordIds.map((recordId) => ({
+                create: recordIds.map((recordId) => ({
                   companyId,
                   recordId,
                   addedById: session.user.id,

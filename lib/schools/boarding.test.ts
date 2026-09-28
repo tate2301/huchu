@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { deleteTestCompany } from "@/lib/schools/test-support";
 import {
   allocateBed,
   AllocationRefusedError,
@@ -20,6 +21,7 @@ import {
   hostelOccupancy,
   normaliseGender,
 } from "./boarding";
+import { applyTermClose } from "./boarding-rollover";
 
 let companyId: string;
 let termId: string;
@@ -123,7 +125,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => undefined);
+  await deleteTestCompany(companyId);
   await prisma.$disconnect();
 });
 
@@ -402,5 +404,118 @@ describe("hostelOccupancy", () => {
     });
     const board = await hostelOccupancy({ companyId, hostelId: boysHostelId });
     expect(board.unbedded).toHaveLength(1);
+  });
+
+  it("ships the geometry and status the plan draws from", async () => {
+    /*
+      The regression this pins, which shipped twice in one commit.
+
+      `HostelOccupancy` in components/schools/boarding/boarding-data.ts is
+      hand-written, so the client asserts a shape rather than deriving it. The
+      endpoint can therefore drop a field and every gate stays green: typecheck
+      sees a satisfied cast, eslint sees nothing, and the plan renders "this
+      room has no plan yet" on a school whose beds all have a bay.
+
+      That is exactly what happened. `bay`, `tier`, `status` and `statusReason`
+      were missing from the `select`; the fix added them to the select and left
+      the return mapping untouched, so they were fetched and then discarded and
+      the bug the fix was named after stayed live.
+
+      A shape assertion is the only gate that can see this, so here it is. If
+      you add a field the plan reads, add it to this list.
+    */
+    const board = await hostelOccupancy({ companyId, hostelId: boysHostelId });
+    const bed = board.beds.find((row) => row.code === "B1");
+
+    expect(bed).toBeDefined();
+    for (const key of ["bay", "tier", "status", "statusReason"] as const) {
+      expect(bed).toHaveProperty(key);
+    }
+    // A bed with no recorded fault is available, and the plan hatches anything
+    // that is not — so this must be a real value, never undefined.
+    expect(bed?.status).toBeTruthy();
+    for (const key of ["isPrefectDorm", "yearGroupIds"] as const) {
+      expect(bed?.room).toHaveProperty(key);
+    }
+  });
+});
+
+describe("closing a boarding term", () => {
+  it("puts the beds back into service, not out of it", async () => {
+    /*
+      The regression this pins.
+
+      `allocateBed` writes `bed.status = OCCUPIED`. Closing a term used to end
+      the allocations and stop there, on the reasoning that free is computed
+      from ACTIVE allocations. The plan does not compute it that way:
+
+          isBedFree         = occupant === null && status === "AVAILABLE"
+          isBedOutOfService = status !== "AVAILABLE" && occupant === null
+
+      An ended allocation clears the occupant and leaves the status, which
+      satisfies the SECOND of those. So closing a term did not fail to free the
+      beds — it marked every bed in the school out of service, and the warden
+      opened the next term to a house that could take nobody.
+    */
+    await allocateBed({
+      companyId,
+      studentId: boyId,
+      termId,
+      hostelId: boysHostelId,
+      bedId: bedOneId,
+    });
+
+    const occupied = await prisma.schoolHostelBed.findUnique({
+      where: { id: bedOneId },
+      select: { status: true },
+    });
+    expect(occupied?.status).toBe("OCCUPIED");
+
+    const result = await applyTermClose(prisma, {
+      companyId,
+      termId,
+      endDate: date("2026-12-05"),
+    });
+    expect(result.ended).toBe(1);
+    expect(result.bedsFreed).toBe(1);
+
+    const after = await prisma.schoolHostelBed.findUnique({
+      where: { id: bedOneId },
+      select: { status: true },
+    });
+    expect(after?.status).toBe("AVAILABLE");
+
+    // And the board agrees: a bed nobody is in, that works, is free.
+    const board = await hostelOccupancy({ companyId, hostelId: boysHostelId });
+    const bed = board.beds.find((row) => row.id === bedOneId);
+    expect(bed?.student).toBeNull();
+    expect(bed?.status).toBe("AVAILABLE");
+  });
+
+  it("leaves a broken bed broken over the holidays", async () => {
+    // A bed out of service has somebody's note on it about a frame or a window.
+    // Closing a term is not a repair.
+    await prisma.schoolHostelBed.update({
+      where: { id: bedTwoId },
+      data: { status: "OUT_OF_SERVICE", statusReason: "Frame broken" },
+    });
+
+    await applyTermClose(prisma, {
+      companyId,
+      termId,
+      endDate: date("2026-12-05"),
+    });
+
+    const after = await prisma.schoolHostelBed.findUnique({
+      where: { id: bedTwoId },
+      select: { status: true, statusReason: true },
+    });
+    expect(after?.status).toBe("OUT_OF_SERVICE");
+    expect(after?.statusReason).toBe("Frame broken");
+
+    await prisma.schoolHostelBed.update({
+      where: { id: bedTwoId },
+      data: { status: "AVAILABLE", statusReason: null },
+    });
   });
 });

@@ -95,7 +95,7 @@ export function StudentTimetableScreen() {
   if (!student.currentClassId) {
     return (
       <NothingYet
-        title="You are not in a year group yet"
+        title="You are not in a class yet"
         body="A timetable is your class's timetable, so there is nothing to show until the office puts you in one."
       />
     );

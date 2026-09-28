@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -162,8 +163,19 @@ export function AwardMeritDialog({
               </SelectContent>
             </Select>
             {forKind.length === 0 ? (
+              // It said this and stopped, which leaves the reader holding a
+              // true sentence and no next move. Setting them up is a screen,
+              // so name it.
               <p className="text-xs text-[color:var(--text-muted)]">
-                The school has no {kind === "DEMERIT" ? "demerit" : "merit"} reasons set up yet.
+                The school has no {kind === "DEMERIT" ? "demerit" : "merit"} reasons set up
+                yet.{" "}
+                <Link
+                  href="/schools/conduct/setup"
+                  className="underline underline-offset-2 hover:text-[color:var(--text-body)]"
+                >
+                  Set them up
+                </Link>
+                .
               </p>
             ) : null}
           </div>

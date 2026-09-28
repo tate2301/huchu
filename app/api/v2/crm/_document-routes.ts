@@ -6,10 +6,12 @@
  * reached through the record it belongs to, which is what keeps the tenant
  * and ownership scoping explicit.
  *
- * Editing a quote does not come through here. A quote is changed by issuing
- * the next version (`POST …/quotation` with `supersedesId`), which voids this
- * one and moves the client's approval link; only an invoice is edited in
- * place, because it keeps its number.
+ * Both kinds are edited in place until the client answers. A quote keeps its
+ * number and its approval link, which shows the new figures next time it is
+ * opened; an invoice keeps its number and has its journal reposted. A
+ * declined quote is not edited here: it is revised as its next version
+ * (`POST …/quotation` with `supersedesId`), which the same link asks about
+ * afresh.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -21,6 +23,7 @@ import {
   DocumentLockedError,
   loadEditableDocument,
   updateInvoiceForDocument,
+  updateQuotationForDocument,
   type DocumentOwnerRef,
 } from "@/lib/crm/accounting-bridge";
 import { documentResourceIdsSchema, ResourceNotAvailableError } from "@/lib/crm/resources";
@@ -32,9 +35,12 @@ function ownerRef(owner: Owner): DocumentOwnerRef {
   return owner.kind === "deal" ? { dealId: owner.id } : { leadId: owner.id };
 }
 
-const updateInvoiceSchema = z.object({
+const updateDocumentSchema = z.object({
   lines: z.array(crmDocumentLineSchema).min(1),
   notes: z.string().trim().max(2000).nullable().optional(),
+  /** A quote's. */
+  validUntil: z.string().datetime().nullable().optional(),
+  /** An invoice's. */
   dueDate: z.string().datetime().nullable().optional(),
   renderTemplateId: z.string().uuid().nullable().optional(),
   resourceIds: documentResourceIdsSchema.optional(),
@@ -59,7 +65,7 @@ export async function getEditableDocument(request: NextRequest, owner: Owner, do
   }
 }
 
-export async function patchInvoiceDocument(request: NextRequest, owner: Owner, docId: string) {
+export async function patchDocument(request: NextRequest, owner: Owner, docId: string) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
@@ -75,40 +81,51 @@ export async function patchInvoiceDocument(request: NextRequest, owner: Owner, d
       },
     });
     if (!doc) return errorResponse("Document not found", 404);
-    if (doc.type !== "INVOICE") {
-      return errorResponse("A quote is changed by issuing its next version, not edited in place", 400);
+    if (doc.type !== "QUOTATION" && doc.type !== "INVOICE") {
+      return errorResponse("A receipt is not edited — void it in Accounting", 400);
     }
+    const noun = doc.type === "QUOTATION" ? "quotes" : "invoices";
 
     const ownerId = doc.deal?.assignedToId ?? doc.lead?.assignedToId ?? null;
     if (!(await canEditRecord(session, ownerId))) {
-      return errorResponse(`You can only edit invoices on ${owner.kind}s assigned to you`, 403);
+      return errorResponse(`You can only edit ${noun} on ${owner.kind}s assigned to you`, 403);
     }
     // Owning the record is not the same as being allowed to bill against it.
     if (!(await canUser(session, "documents.issue"))) {
       return errorResponse(denialMessage("documents.issue"), 403);
     }
 
-    const data = updateInvoiceSchema.parse(await request.json());
-    const result = await updateInvoiceForDocument({
+    const data = updateDocumentSchema.parse(await request.json());
+    const common = {
       ...ownerRef(owner),
       companyId,
       userId: session.user.id,
       leadDocumentId: docId,
       lines: data.lines,
       notes: data.notes ?? null,
-      dueDate: data.dueDate ? new Date(data.dueDate) : null,
       renderTemplateId: data.renderTemplateId ?? null,
       resourceIds: data.resourceIds,
-    });
+    };
+    const result =
+      doc.type === "QUOTATION"
+        ? await updateQuotationForDocument({
+            ...common,
+            validUntil: data.validUntil ? new Date(data.validUntil) : null,
+          })
+        : await updateInvoiceForDocument({
+            ...common,
+            dueDate: data.dueDate ? new Date(data.dueDate) : null,
+          });
 
     return successResponse(result);
   } catch (error) {
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
-    // The two refusals a rep can act on come back as themselves: the invoice
-    // is locked, and why; or a resource left the library while they worked.
+    // The two refusals a rep can act on come back as themselves: the
+    // document is locked, and why; or a resource left the library while they
+    // worked.
     if (error instanceof DocumentLockedError) return errorResponse(error.message, 409);
     if (error instanceof ResourceNotAvailableError) return errorResponse(error.message, 409);
     console.error(`[API] PATCH /api/v2/crm/${owner.kind}s/[id]/documents/[docId] error:`, error);
-    return errorResponse(error instanceof Error ? error.message : "Failed to edit the invoice", 400);
+    return errorResponse(error instanceof Error ? error.message : "Failed to edit the document", 400);
   }
 }

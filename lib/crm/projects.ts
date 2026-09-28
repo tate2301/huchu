@@ -7,10 +7,10 @@
  * far, because cost attaches to nothing. A project is that missing thing, and
  * the jobs are raised inside it.
  *
- * Every link it has — deal, client, site — is optional, because work is
- * sometimes raised directly and refusing to record it until the pipeline
- * catches up helps nobody. A deal has at most one project; a job has at most
- * one project, and can have none.
+ * Every project belongs to a deal: it is what the deal turns into once it is
+ * sold, and it is started from the deal, which hands it its name, customer,
+ * site and owner. A deal has at most one project. A job belongs to at most
+ * one project, and a job raised against a deal that has one goes into it.
  *
  * The rollup here is the question people actually ask: what has this cost, and
  * how much of it is still out in somebody's pocket. It reads two sources and
@@ -38,7 +38,8 @@ export const createProjectSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(5000).nullable().optional(),
   status: z.enum(PROJECT_STATUSES).optional(),
-  dealId: z.string().uuid().nullable().optional(),
+  /** The deal it delivers. Required, and fixed once the project exists. */
+  dealId: z.string().uuid(),
   clientId: z.string().uuid().nullable().optional(),
   siteId: z.string().uuid().nullable().optional(),
   managerId: z.string().uuid().nullable().optional(),
@@ -56,6 +57,7 @@ export const createProjectSchema = z.object({
 });
 
 export const updateProjectSchema = createProjectSchema
+  .omit({ dealId: true })
   .partial()
   .extend({ actualEndDate: z.coerce.date().nullable().optional() });
 
@@ -120,7 +122,7 @@ export async function createProject(
       name: input.name,
       description: input.description ?? null,
       status: input.status ?? "PLANNING",
-      dealId: input.dealId ?? null,
+      dealId: input.dealId,
       clientId: input.clientId ?? null,
       siteId: input.siteId ?? null,
       managerId: input.managerId ?? null,
@@ -221,23 +223,38 @@ export async function jobLinksFromProject(
   companyId: string,
   projectId: string,
   given: { dealId?: string | null; clientId?: string | null; siteId?: string | null },
-): Promise<{ projectId: string; dealId: string | null; clientId: string | null; siteId: string | null }> {
+): Promise<{ projectId: string; dealId: string; clientId: string | null; siteId: string | null }> {
   const project = await tx.crmProject.findFirst({
     where: { id: projectId, companyId },
     select: { id: true, dealId: true, clientId: true, siteId: true },
   });
   if (!project) throw new ProjectLinkError("Project not found");
 
-  if (given.dealId && project.dealId && given.dealId !== project.dealId) {
+  if (given.dealId && given.dealId !== project.dealId) {
     throw new ProjectLinkError("That project belongs to a different deal");
   }
 
   return {
     projectId: project.id,
-    dealId: given.dealId ?? project.dealId,
+    dealId: project.dealId,
     clientId: given.clientId ?? project.clientId,
     siteId: given.siteId ?? project.siteId,
   };
+}
+
+/**
+ * The project a deal's job goes into, if the deal has one.
+ *
+ * A deal has at most one project and its jobs belong in it, so a job raised
+ * against the deal — from the deal's page, a company's, the register — lands
+ * in the project without anybody having to pick it a second time.
+ */
+export async function projectOfDeal(tx: Tx, companyId: string, dealId: string): Promise<string | null> {
+  const project = await tx.crmProject.findFirst({
+    where: { companyId, dealId },
+    select: { id: true },
+  });
+  return project?.id ?? null;
 }
 
 /**

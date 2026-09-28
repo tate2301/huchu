@@ -63,7 +63,7 @@ export function SchoolsPage({
           than reserving 44px for a band that was never drawn. */}
       <div
         className="band-stack-content space-y-4"
-        style={band ? undefined : ({ "--stack-top": "0px" } as CSSProperties)}
+        style={band ? ({ "--stack-top": "var(--page-band-h)" } as CSSProperties) : undefined}
       >
         {children}
       </div>

@@ -303,7 +303,7 @@ export async function grantClearance(args: {
     );
   }
   if (args.scope === "YEAR_GROUP" && args.scopeLevel == null) {
-    throw new PastoralError("Say which year group this clearance covers.");
+    throw new PastoralError("Say which class this clearance covers.");
   }
   if (args.scope === "CLASS" && !args.scopeClassId) {
     throw new PastoralError("Say which class this clearance covers.");

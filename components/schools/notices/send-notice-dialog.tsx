@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 
 export type NoticeDraft = {
   title: string;
@@ -52,7 +53,7 @@ const AUDIENCES = [
  *
  * The audience sits above the message on purpose: who this is for changes what
  * you write, and a form that asks last is a form where "Dear parents" gets sent
- * to four hundred pupils. Narrowing to a year group is one more choice, not a
+ * to four hundred pupils. Narrowing to a class is one more choice, not a
  * different screen, because "the Form 2 parents" is the commonest notice a
  * school sends.
  *
@@ -102,6 +103,7 @@ export function SendNoticeDialog({
     if (open) setDraft(seed());
   }
 
+  const words = useClassVocabulary();
   const classesQuery = useQuery({
     queryKey: ["schools", "classes", "for-notice"],
     queryFn: () => fetchSchoolsClasses({ limit: 100 }),
@@ -150,7 +152,7 @@ export function SendNoticeDialog({
             className={locked ? "pointer-events-none opacity-60" : undefined}
           />
           <FilterSelect
-            label="Year group"
+            label={words.One}
             allLabel="The whole school"
             value={draft.classId}
             options={classes.map((row) => ({ value: row.id, label: row.name }))}
@@ -163,12 +165,12 @@ export function SendNoticeDialog({
             ? "Fixed to the people who got the notice this puts right."
             : draft.classId
               ? draft.audience === "PARENTS"
-                ? "Only the parents of pupils in that year group will get this."
+                ? "Only the parents of pupils in that class will get this."
                 : draft.audience === "STUDENTS"
-                  ? "Only pupils in that year group will get this."
+                  ? "Only pupils in that class will get this."
                   : draft.audience === "TEACHERS"
-                    ? "Only the teachers who teach that year group will get this."
-                    : "Only that year group's families and teachers will get this."
+                    ? "Only the teachers who teach that class will get this."
+                    : "Only that class's families and teachers will get this."
               : "Everybody in the chosen audience, across the school."}
         </p>
 

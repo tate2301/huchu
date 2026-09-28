@@ -22,6 +22,7 @@ import { activeFilterCount, FilterSelect } from "@/components/schools/common/fil
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
+import { PageCaption } from "@/components/schools/records/page-caption";
 import { DataTable } from "@/components/ui/data-table";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Download } from "@/lib/icons";
@@ -42,20 +43,21 @@ import { PupilLedgerDialog } from "@/components/schools/conduct/pupil-ledger-dia
  * Merits and demerits.
  *
  * Rudo Makoni in the week before prize giving, deciding whether Form 3's net of
- * +96 against Form 2's +268 is a year group with a problem or a year group
+ * +96 against Form 2's +268 is a class with a problem or a class
  * whose teachers do not write things down. The second question is the one this
- * screen is built to make askable, which is why `By year group` sits beside
+ * screen is built to make askable, which is why `By class` sits beside
  * `What gets written down` rather than under it.
  *
- * `Net` is deliberately untoned in the band. A net is not good news or bad
- * news, and a screen that coloured it would answer the reader's question for
- * them.
+ * The class total is deliberately untoned. A net across a whole year is
+ * not good news or bad news, and a screen that coloured it would answer the
+ * reader's question for them. A pupil's own net is toned, because there the
+ * sign is the fact being read.
  *
  * ## Four verbs, not one
  *
  * The artboard draws `Award a merit` and nothing else. `conduct.md` open
  * question 4 flags that as an omission rather than an intent — demerits are
- * half the table, half the chips and half the arithmetic, and nothing created
+ * half the table, half the summary and half the arithmetic, and nothing created
  * one; nothing opened a pupil; nothing corrected an entry made in error, which
  * is the thing that happens with merit points more than with anything else in a
  * school. So this ships with the four the screen contract asks for.
@@ -152,10 +154,11 @@ export function ConductMeritsContent() {
 
   const rows = useMemo(() => ledgerQuery.data?.rows ?? [], [ledgerQuery.data]);
 
+  const tallies = ledgerQuery.data?.tallies;
   const summary = summaryQuery.data;
 
   const namedFilters = [
-    classValue.classId ? "a year group" : null,
+    classValue.classId ? "a class" : null,
     SORT_OPTIONS.find((option) => option.value === sort && sort !== "net-desc")?.label,
   ].filter((entry): entry is string => Boolean(entry));
 
@@ -283,6 +286,13 @@ export function ConductMeritsContent() {
   );
 
   return (
+    // No band. Three of its four chips were arithmetic the summaries below
+    // already do: merit and demerit points are read from the group headers in
+    // `What gets written down`, beside the occasions they weigh, and the
+    // term's net is the total row of `By class`. None of the three moved
+    // when the class filter narrowed the table under them, which is the
+    // whole objection. The fourth — pupils with nothing recorded either way —
+    // has no row anywhere by definition, so it is the caption below.
     <SchoolsPage>
       <PageChrome title="Merits and demerits">
         <CreateButton
@@ -291,6 +301,19 @@ export function ConductMeritsContent() {
           onSelect={() => setAwarding({ kind: "MERIT" })}
         />
       </PageChrome>
+
+      {/* A pupil with neither a merit nor a demerit is filtered out of the
+          ledger — a row of two zeroes is not a conduct record — and appears in
+          no summary either. It is the whole school and the whole term, so it
+          does not belong on the count row beside a number the filters move. */}
+      {tallies && tallies.pupilsWithNeither > 0 ? (
+        <PageCaption>
+          {tallies.pupilsWithNeither === 1
+            ? "1 pupil has"
+            : `${tallies.pupilsWithNeither.toLocaleString()} pupils have`}{" "}
+          nothing recorded this term, in either direction
+        </PageCaption>
+      ) : null}
 
       {actionError ? <SaveError what="That entry" error={actionError} /> : null}
 
@@ -313,19 +336,9 @@ export function ConductMeritsContent() {
               sort === "net-desc" ? "" : sort,
             )}
             count={ledgerQuery.isPending ? null : `${rows.length} pupils`}
-            actions={
-              // Came off the band with it. It exports the term's ledger as the
-              // filters leave it, so it sits on the row that sets them.
-              <Button variant="secondary" size="sm" onClick={() => window.print()}>
-                <Download className="size-4" />
-                Export the term
-              </Button>
-            }
             filters={
               <>
                 <ClassFilter
-                  label="Year group"
-                  allLabel="Every year group"
                   value={classValue}
                   onChange={setClassValue}
                 />
@@ -337,6 +350,15 @@ export function ConductMeritsContent() {
                   onChange={(next) => setSort(next || "net-desc")}
                 />
               </>
+            }
+            // Printing the term acts on the table, not on the page, so it sits
+            // with the controls that decide what would be printed. The app bar
+            // keeps the one verb somebody came here to perform.
+            actions={
+              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                <Download className="size-4" />
+                Export the term
+              </Button>
             }
           />
 
@@ -424,23 +446,36 @@ export function ConductMeritsContent() {
               ) : summaryQuery.isPending ? (
                 <TableRowsSkeleton
                   rows={8}
-                  headers={["Reason", "Times", "Share"]}
-                  columns={[{}, { width: 70, align: "right" }, { width: 150 }]}
+                  headers={["Reason", "Times", "Points", "Share"]}
+                  columns={[
+                    {},
+                    { width: 70, align: "right" },
+                    { width: 70, align: "right" },
+                    { width: 150 },
+                  ]}
                 />
               ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-[color:var(--text-muted)]">
                       <th className="py-1 font-normal">Reason</th>
+                      {/* Two columns because they are two facts. "Times" used to
+                          render the point sum, so a reason worth three points
+                          awarded once read as 3. */}
                       <th className="w-[70px] py-1 text-right font-normal">Times</th>
+                      <th className="w-[70px] py-1 text-right font-normal">Points</th>
                       <th className="w-[150px] py-1 font-normal">Share</th>
                     </tr>
                   </thead>
                   <tbody>
                     {/* One table, two group headers: merits and demerits are
-                        one question. Each header carries two numbers because
-                        they are not the same number — the reasons shown are a
-                        slice of the whole. */}
+                        one question. Each header carries the occasions shown
+                        against the occasions there are, because the reasons
+                        drawn are a slice of the whole, and then the term's
+                        points for that kind — the weight of everything above
+                        the slice, which is the number the reader was getting
+                        off the strip that used to sit at the top of the
+                        page. */}
                     {(["merit", "demerit"] as const).map((kind) => {
                       const block = summary?.[kind];
                       if (!block || block.rows.length === 0) return null;
@@ -448,11 +483,13 @@ export function ConductMeritsContent() {
                         <Fragment key={kind}>
                           <tr className="bg-[color:var(--surface-muted)]">
                             <th
-                              colSpan={3}
+                              colSpan={4}
                               className="py-1.5 text-left text-xs font-semibold text-[color:var(--text-muted)]"
                             >
                               {kind === "merit" ? "Merits" : "Demerits"} ·{" "}
-                              {block.shown.toLocaleString()} of {block.total.toLocaleString()}
+                              {block.shownTimes.toLocaleString()} of{" "}
+                              {block.totalTimes.toLocaleString()} ·{" "}
+                              {block.totalPoints.toLocaleString()} points
                             </th>
                           </tr>
                           {block.rows.map((row) => (
@@ -461,11 +498,16 @@ export function ConductMeritsContent() {
                               className="border-t border-[color:var(--border-subtle)]"
                             >
                               <td className="py-1.5">{row.reason}</td>
-                              <td className="py-1.5 text-right font-mono text-xs">{row.points}</td>
+                              <td className="py-1.5 text-right font-mono text-xs">{row.times}</td>
+                              <td className="py-1.5 text-right font-mono text-xs text-[color:var(--text-muted)]">
+                                {row.points}
+                              </td>
                               <td className="py-1.5">
+                                {/* Share of occasions, so the bar and the Times
+                                    column beside it are measuring one thing. */}
                                 <ShareBar
-                                  value={row.points}
-                                  total={block.total}
+                                  value={row.times}
+                                  total={block.totalTimes}
                                   tone={kind === "merit" ? "ok" : "warn"}
                                 />
                               </td>
@@ -480,9 +522,14 @@ export function ConductMeritsContent() {
                         <td className="py-1.5 text-right font-mono text-xs font-bold">
                           {summary.recordedThisTerm.toLocaleString()}
                         </td>
+                        <td className="py-1.5 text-right font-mono text-xs text-[color:var(--text-muted)]">
+                          {(
+                            summary.merit.totalPoints + summary.demerit.totalPoints
+                          ).toLocaleString()}
+                        </td>
                         <td className="py-1.5 text-xs text-[color:var(--text-muted)]">
-                          {summary.merit.total.toLocaleString()} merits ·{" "}
-                          {summary.demerit.total.toLocaleString()} demerits
+                          {summary.merit.totalTimes.toLocaleString()} merits ·{" "}
+                          {summary.demerit.totalTimes.toLocaleString()} demerits
                         </td>
                       </tr>
                     ) : null}
@@ -494,21 +541,21 @@ export function ConductMeritsContent() {
             <section className="space-y-2">
               <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
                 <span className="text-sm font-semibold text-[color:var(--text-strong)]">
-                  By year group
+                  By class
                 </span>
                 <span className="text-xs text-[color:var(--text-muted)]">This term</span>
               </h2>
               {summaryQuery.isPending ? (
                 <TableRowsSkeleton
                   rows={6}
-                  headers={["Year group", "Net", "Share"]}
+                  headers={["Class", "Net", "Share"]}
                   columns={[{}, { width: 70, align: "right" }, { width: 150 }]}
                 />
               ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-[color:var(--text-muted)]">
-                      <th className="py-1 font-normal">Year group</th>
+                      <th className="py-1 font-normal">Class</th>
                       <th className="w-[70px] py-1 text-right font-normal">Net</th>
                       <th className="w-[150px] py-1 font-normal">Share</th>
                     </tr>
@@ -538,7 +585,7 @@ export function ConductMeritsContent() {
                     {summary && summary.byYearGroup.length > 0 ? (
                       <tr className="border-t-2 border-[color:var(--border)]">
                         <td className="py-1.5 text-xs font-semibold">
-                          All {summary.byYearGroup.length} year groups
+                          All {summary.byYearGroup.length} classes
                         </td>
                         <td className="py-1.5 text-right font-mono text-xs font-bold">
                           {(() => {

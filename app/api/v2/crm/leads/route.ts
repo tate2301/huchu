@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  errorResponse,
-  getPaginationParams,
-  paginationResponse,
-  successResponse,
-  validateSession,
-} from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { crmLeadStageSchema, defaultProbabilityForStage } from "@/lib/crm/pipeline";
+import { leadsRegister } from "@/lib/crm/registers/server/leads";
+import { registerGet } from "@/lib/crm/registers/server/route";
 import { deriveLeadChannel } from "@/lib/crm/sources";
-import {
-  buildLeadOrderBy,
-  buildLeadWhere,
-  leadSortSchema,
-  parseLeadFiltersFromParams,
-} from "@/lib/crm/views";
 import { autoAssignLead } from "@/lib/crm/auto-assign";
 import { runAutomations } from "@/lib/crm/automation-runner";
 import { scoreLead } from "@/lib/crm/lead-scoring";
@@ -40,73 +30,9 @@ const createLeadSchema = z.object({
   assignedToId: z.string().uuid().nullable().optional(),
 });
 
+/** The list: see `registerGet` — the page's own query string, paged. */
 export async function GET(request: NextRequest) {
-  try {
-    const sessionResult = await validateSession(request);
-    if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-
-    const { searchParams } = new URL(request.url);
-    const { page, limit, skip } = getPaginationParams(request);
-
-    // Legacy singular params (stage=, assignedToId=, source=, channel=) still
-    // work; they fold into the plural filter set the workspace now sends.
-    const filters = parseLeadFiltersFromParams(searchParams);
-    const legacyStage = searchParams.get("stage");
-    const legacyAssignee = searchParams.get("assignedToId");
-    const legacySource = searchParams.get("source");
-    const legacyChannel = searchParams.get("channel");
-    const merged = {
-      ...filters,
-      ...(legacyStage && !filters.stages
-        ? { stages: crmLeadStageSchema.array().parse([legacyStage]) }
-        : {}),
-      ...(legacyAssignee && !filters.assignedToIds ? { assignedToIds: [legacyAssignee] } : {}),
-      ...(legacySource && !filters.sources ? { sources: [legacySource] } : {}),
-      ...(legacyChannel && !filters.channels
-        ? { channels: [legacyChannel as NonNullable<typeof filters.channels>[number]] }
-        : {}),
-    };
-
-    const where = buildLeadWhere(session.user.companyId, merged, session.user.id);
-    const sortParsed = leadSortSchema.safeParse({
-      field: searchParams.get("sortField"),
-      direction: searchParams.get("sortDir"),
-    });
-    const orderBy = buildLeadOrderBy(sortParsed.success ? sortParsed.data : undefined);
-
-    const [leads, total] = await Promise.all([
-      prisma.crmLead.findMany({
-        where,
-        include: {
-          client: { select: { id: true, name: true } },
-          assignedTo: { select: { id: true, name: true } },
-          // The next thing owed on this lead — surfaced in the table and on
-          // board cards so nothing quietly goes cold.
-          followUps: {
-            where: { status: "PENDING" },
-            orderBy: { dueAt: "asc" },
-            take: 1,
-            select: { id: true, title: true, dueAt: true },
-          },
-        },
-        orderBy,
-        skip,
-        take: limit,
-      }),
-      prisma.crmLead.count({ where }),
-    ]);
-
-    const shaped = leads.map(({ followUps, ...lead }) => ({
-      ...lead,
-      nextFollowUp: followUps[0] ?? null,
-    }));
-
-    return successResponse(paginationResponse(shaped, total, page, limit));
-  } catch (error) {
-    console.error("[API] GET /api/v2/crm/leads error:", error);
-    return errorResponse("Failed to fetch leads");
-  }
+  return registerGet(request, leadsRegister);
 }
 
 export async function POST(request: NextRequest) {

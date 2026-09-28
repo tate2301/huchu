@@ -428,6 +428,7 @@ async function main() {
   const workOrders = [
     {
       no: "CRMW-0001",
+      deal: 0,
       title: "Install shopfront signage — Borrowdale",
       status: "SCHEDULED" as const,
       site: 0,
@@ -437,6 +438,7 @@ async function main() {
     },
     {
       no: "CRMW-0002",
+      deal: 2,
       title: "Depot yard re-branding",
       status: "IN_PROGRESS" as const,
       site: 3,
@@ -446,6 +448,7 @@ async function main() {
     },
     {
       no: "CRMW-0003",
+      deal: 3,
       title: "Block C wayfinding survey",
       status: "COMPLETED" as const,
       site: 4,
@@ -458,13 +461,15 @@ async function main() {
   for (const spec of workOrders) {
     const order = await prisma.crmWorkOrder.upsert({
       where: { companyId_workOrderNo: { companyId: company.id, workOrderNo: spec.no } },
-      update: { title: spec.title, status: spec.status },
+      // Every job delivers a deal — the one it is invoiced against.
+      update: { title: spec.title, status: spec.status, dealId: deals[spec.deal].id },
       create: {
         companyId: company.id,
         workOrderNo: spec.no,
         title: spec.title,
         status: spec.status,
         priority: "NORMAL",
+        dealId: deals[spec.deal].id,
         clientId: clients[spec.client].id,
         siteId: sites[spec.site].id,
         scheduledStart: days(spec.start),

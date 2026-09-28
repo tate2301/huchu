@@ -8,6 +8,7 @@ import {
   closeLeaver,
   leavingDocuments,
   markClearance,
+  reopenLeaver,
 } from "@/lib/schools/leavers";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
@@ -27,6 +28,31 @@ const patchSchema = z.union([
     overrideNote: z.string().trim().max(300).nullish(),
   }),
   z.object({ close: z.literal(true) }),
+  z.object({
+    reopen: z.literal(true),
+    // Supplied where this is a second departure rather than an undo: a pupil
+    // who was withdrawn, came back, and is now leaving properly.
+    lastDay: z
+      .string()
+      .trim()
+      .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+        message: "lastDay must be a date",
+      })
+      .optional(),
+    reason: z
+      .enum([
+        "COMPLETED_FORM_4",
+        "COMPLETED_UPPER_6",
+        "FEES",
+        "TRANSFERRED_TO_ANOTHER_SCHOOL",
+        "MOVED_ABROAD",
+        "EXPELLED",
+        "WITHDRAWN_BY_GUARDIAN",
+        "OTHER",
+      ])
+      .optional(),
+    note: z.string().trim().max(300).nullish(),
+  }),
 ]);
 
 export async function GET(
@@ -66,6 +92,21 @@ export async function PATCH(
     const { leaverId } = await context.params;
     const body = patchSchema.parse(await request.json());
     const base = { companyId: session.user.companyId, actorId: session.user.id, leaverId };
+
+    if ("reopen" in body) {
+      // Reopening puts a pupil back on the roll and takes them off the alumni
+      // register, so it is the same authority as closing rather than the
+      // narrower `clear` that settles one mark.
+      const denied = schoolPermissionDenial(session, "schools.leavers", "record");
+      if (denied) return errorResponse(denied, 403);
+      const reopened = await reopenLeaver({
+        ...base,
+        lastDay: body.lastDay ? new Date(body.lastDay) : undefined,
+        reason: body.reason,
+        note: body.note ?? undefined,
+      });
+      return successResponse(reopened);
+    }
 
     if ("close" in body) {
       const denied = schoolPermissionDenial(session, "schools.leavers", "record");

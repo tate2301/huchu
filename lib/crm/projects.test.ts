@@ -1,11 +1,13 @@
 /**
  * The project spine — deal -> project -> jobs — against a real database.
  *
- * Two promises are pinned here. Starting a deal's project twice gives back the
- * one project rather than two, because two projects on a deal split its costs
- * and neither figure is true. And a job raised inside a project lands on the
- * project's deal, customer and site, because that is what makes it billable
- * against the deal and visible on the customer's record.
+ * Three promises are pinned here. A project always belongs to a deal — it is
+ * what the deal turns into. Starting a deal's project twice gives back the one
+ * project rather than two, because two projects on a deal split its costs and
+ * neither figure is true. And a job raised inside a project, or against a
+ * deal that has one, lands on the project's deal, customer and site, because
+ * that is what makes it billable against the deal and visible on the
+ * customer's record.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -14,9 +16,11 @@ import { ensureDefaultPipeline } from "@/lib/crm/pipelines";
 import {
   ProjectLinkError,
   createProject,
+  createProjectSchema,
   jobLinksFromProject,
   overBudgetProjectIds,
   projectFromDeal,
+  projectOfDeal,
 } from "@/lib/crm/projects";
 import { addCostEntry } from "@/lib/crm/daily-log";
 
@@ -190,12 +194,17 @@ describe("starting a deal's project", () => {
     ).rejects.toMatchObject({ code: "P2002" });
   });
 
-  it("allows any number of projects with no deal behind them", async () => {
-    await prisma.$transaction((tx) => createProject(tx, companyId, userId, { name: "Direct one" }));
-    await prisma.$transaction((tx) => createProject(tx, companyId, userId, { name: "Direct two" }));
-    expect(
-      await prisma.crmProject.count({ where: { companyId, dealId: null, name: { startsWith: "Direct" } } }),
-    ).toBe(2);
+  it("cannot be raised with no deal behind it", () => {
+    expect(createProjectSchema.safeParse({ name: "Direct" }).success).toBe(false);
+  });
+
+  it("is the one a deal's jobs go into", async () => {
+    const won = await deal();
+    expect(await projectOfDeal(prisma, companyId, won.id)).toBeNull();
+    const project = await prisma.$transaction((tx) => projectFromDeal(tx, companyId, userId, won.id));
+    expect(await projectOfDeal(prisma, companyId, won.id)).toBe(project.id);
+    // Asked by another tenant, the deal has no project.
+    expect(await projectOfDeal(prisma, otherCompanyId, won.id)).toBeNull();
   });
 });
 
@@ -236,8 +245,9 @@ describe("a job raised inside a project", () => {
   });
 
   it("refuses another company's project", async () => {
+    const theirDeal = await deal({ companyId: otherCompanyId });
     const theirs = await prisma.$transaction((tx) =>
-      createProject(tx, otherCompanyId, null, { name: "Not yours" }),
+      createProject(tx, otherCompanyId, null, { name: "Not yours", dealId: theirDeal.id }),
     );
     await expect(jobLinksFromProject(prisma, companyId, theirs.id, {})).rejects.toBeInstanceOf(
       ProjectLinkError,
@@ -263,14 +273,15 @@ describe("a job raised inside a project", () => {
 
 describe("over budget", () => {
   it("finds a project whose spend has passed its budget, and only that one", async () => {
+    const [overDeal, underDeal, unbudgetedDeal] = [await deal(), await deal(), await deal()];
     const over = await prisma.$transaction((tx) =>
-      createProject(tx, companyId, userId, { name: "Over", budget: 100 }),
+      createProject(tx, companyId, userId, { name: "Over", budget: 100, dealId: overDeal.id }),
     );
     const under = await prisma.$transaction((tx) =>
-      createProject(tx, companyId, userId, { name: "Under", budget: 1000 }),
+      createProject(tx, companyId, userId, { name: "Under", budget: 1000, dealId: underDeal.id }),
     );
     const unbudgeted = await prisma.$transaction((tx) =>
-      createProject(tx, companyId, userId, { name: "No budget" }),
+      createProject(tx, companyId, userId, { name: "No budget", dealId: unbudgetedDeal.id }),
     );
 
     for (const [projectId, amount] of [

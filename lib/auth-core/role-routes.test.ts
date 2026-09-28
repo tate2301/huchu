@@ -13,6 +13,9 @@ describe("role route allowlist", () => {
     expect(isRouteAllowedForRole("SALES_REP", "/api/v2/crm/leads")).toBe(true);
     expect(isRouteAllowedForRole("SALES_REP", "/help")).toBe(true);
     expect(isRouteAllowedForRole("SALES_REP", "/api/notifications")).toBe(true);
+    // Their own exports' progress and files.
+    expect(isRouteAllowedForRole("SALES_REP", "/api/documents/render-jobs/abc")).toBe(true);
+    expect(isRouteAllowedForRole("SALES_REP", "/api/documents/artifacts/abc")).toBe(true);
   });
 
   it("blocks SALES_REP from other modules", () => {
@@ -20,6 +23,8 @@ describe("role route allowlist", () => {
     expect(isRouteAllowedForRole("SALES_REP", "/people")).toBe(false);
     expect(isRouteAllowedForRole("SALES_REP", "/api/v2/autos/leads")).toBe(false);
     expect(isRouteAllowedForRole("SALES_REP", "/api/accounting/sales/invoices")).toBe(false);
+    // Rendering in general stays out of reach; CRM lists export from the CRM.
+    expect(isRouteAllowedForRole("SALES_REP", "/api/documents/render")).toBe(false);
     expect(isRouteAllowedForRole("SALES_REP", "/")).toBe(false);
   });
 

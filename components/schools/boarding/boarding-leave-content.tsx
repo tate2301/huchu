@@ -166,7 +166,7 @@ export function BoardingLeaveContent() {
               options={hostels.map((hostel) => ({ value: hostel.id, label: hostel.name }))}
               onChange={setHostelFilter}
             />
-            <ClassFilter label="Year group" value={classValue} onChange={setClassValue} />
+            <ClassFilter value={classValue} onChange={setClassValue} />
             <FilterSelect
               label="Status"
               allLabel="Every status"

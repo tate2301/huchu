@@ -29,7 +29,7 @@ const routeLabels: Record<string, string> = {
   stores: "Stock & Fuel",
   adjustments: "Adjustments",
   unassigned: "Unassigned",
-  class: "Year group",
+  class: "Class",
   held: "Held / Draft",
   "approval-requests": "Approval Requests",
   "password-reset": "Password Reset",

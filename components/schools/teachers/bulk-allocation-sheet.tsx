@@ -34,7 +34,7 @@ export type BulkAllocationResult = {
 };
 
 /**
- * Giving one teacher a subject across several year groups at once.
+ * Giving one teacher a subject across several classes at once.
  *
  * The other half-day a term start costs. A head of department assigning maths
  * across six forms does the same thing six times through a dialog, and the
@@ -97,7 +97,7 @@ export function BulkAllocationSheet({
       open={open}
       onOpenChange={onOpenChange}
       title="Allocate a teacher"
-      description="Give one teacher a subject across several year groups."
+      description="Give one teacher a subject across several classes."
       footer={
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
@@ -184,7 +184,7 @@ export function BulkAllocationSheet({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Year groups</Label>
+          <Label>Classes</Label>
           <div className="grid gap-2 sm:grid-cols-2">
             {classes.map((schoolClass) => (
               <label key={schoolClass.id} className="flex items-center gap-2 text-sm">
@@ -197,7 +197,7 @@ export function BulkAllocationSheet({
             ))}
           </div>
           <p className="text-sm text-muted-foreground">
-            A year group that already has this subject under another teacher is
+            A class that already has this subject under another teacher is
             moved to this one.
           </p>
         </div>

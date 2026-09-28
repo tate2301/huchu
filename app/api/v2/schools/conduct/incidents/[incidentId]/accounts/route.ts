@@ -49,7 +49,21 @@ export async function POST(
       body: body.body,
       takenAt: body.takenAt ? new Date(body.takenAt) : undefined,
     });
-    if (body.markSeen) await markIncidentSeen(base);
+    /*
+      Stamping "seen by the head of year" is a different act from adding an
+      account, and it needs a different grant.
+
+      Adding an account is `create`, which every teacher holds — they are the
+      people who take statements. But `markIncidentSeen` writes step two of the
+      review spine: the record that the head of year has looked at this. Gating
+      it on `create` let any teacher sign off their own incident as reviewed,
+      which empties the queue the deputy head opens the screen for.
+    */
+    if (body.markSeen) {
+      const cannotSign = schoolPermissionDenial(session, "schools.conduct", "edit");
+      if (cannotSign) return errorResponse(cannotSign, 403);
+      await markIncidentSeen(base);
+    }
     return successResponse(account, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {

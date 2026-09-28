@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { ClassFeesContent } from "@/components/schools/fees/class-fees-content";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -26,22 +26,13 @@ export default async function ClassFeesPage({
     select: {
       id: true,
       name: true,
-      _count: { select: { students: true } },
     },
   });
   if (!schoolClass) notFound();
 
-  const pupils = schoolClass._count.students;
-
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      {/* The caption is the size of the room, not a restatement of the title:
-          "118 pupils" is what tells a bursar whether 31 families owing is most
-          of the form or a handful of it. */}
-      <PageHeading
-        title={`${schoolClass.name} fees`}
-        description={`${pupils} ${pupils === 1 ? "pupil" : "pupils"}`}
-      />
+      <PageChrome title={`${schoolClass.name} fees`} />
       <ClassFeesContent classId={schoolClass.id} initialStreamId={streamId} />
     </div>
   );

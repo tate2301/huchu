@@ -6,7 +6,7 @@ import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
 import { getEffectiveFeaturesForUser } from "@/lib/platform/user-entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import { buildAuthExpiresAt, resolvePolicyForStrategy } from "@/lib/auth-core/session-policy";
-import type { AuthenticatedSession, PlatformJwtClaims } from "@/lib/auth-core/types";
+import type { AuthStrategyId, AuthenticatedSession, PlatformJwtClaims } from "@/lib/auth-core/types";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
   normalizeWorkspaceProfileInput,
@@ -74,7 +74,7 @@ export function buildInitialTokenClaims(input: {
   id: string;
   role?: string;
   companyId?: string;
-  authStrategy?: "credentials" | "admin-email-link" | "email-link" | "otp";
+  authStrategy?: AuthStrategyId;
   rememberMe?: boolean;
 }): PlatformJwtClaims {
   const sessionPolicy = resolvePolicyForStrategy(input.authStrategy, input.rememberMe === true);

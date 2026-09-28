@@ -223,7 +223,7 @@ export function ClassSubjectsPanel({
             `A subject reaches ${className} through an assignment — which subject, ` +
             "taught by whom, in which term. Start with the core ones every pupil " +
             "takes — Mathematics, English Language, Combined Science, Shona — then " +
-            "the electives this year group has chosen, Geography and History among " +
+            "the electives this class has chosen, Geography and History among " +
             "them. Timetable the first one and the mark sheets follow."
           }
         />

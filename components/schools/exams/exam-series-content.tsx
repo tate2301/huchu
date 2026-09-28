@@ -19,7 +19,7 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
-import { CreateButton } from "@/components/schools/common/record-actions";
+import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { DataTable } from "@/components/ui/data-table";
 import { Certificate, Printer } from "@/lib/icons";
@@ -33,6 +33,7 @@ import {
 } from "@/lib/schools/exams-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import { NewSeriesDialog } from "@/components/schools/exams/new-series-dialog";
+import { EditSeriesDialog } from "@/components/schools/exams/edit-series-dialog";
 
 /**
  * Exam series — the index.
@@ -42,10 +43,15 @@ import { NewSeriesDialog } from "@/components/schools/exams/new-series-dialog";
  * anything will stop the November entry going in, and she wants that answered
  * above the fold, before she has chosen a series.
  *
- * So the deadline leads: the first band chip, then the page's one alert, then a
- * table of the dates that follow it — dates, days and consequences rather than
- * a paragraph each. A missed ZIMSEC deadline costs a pupil a year; there is no
- * appeal and no late door after the late door.
+ * So the deadline leads: the page's one alert, then a table of the dates that
+ * follow it — dates, days and consequences rather than a paragraph each. A
+ * missed ZIMSEC deadline costs a pupil a year; there is no appeal and no late
+ * door after the late door.
+ *
+ * The days left are not counted a second time above that alert. The alert says
+ * them in words, the deadline table draws them on a track, and the `Entries
+ * close` column goes red at a week or less — three places is already two more
+ * than the number needs.
  *
  * Cambridge sits in the same table as ZIMSEC — not a tab, not a second screen —
  * because the school runs both and the deadline that matters is whichever is
@@ -99,6 +105,9 @@ export function ExamSeriesContent() {
   const [levelFilter, setLevelFilter] = useState("");
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
+  // The series being corrected. Its id is the dialog's identity, so the row
+  // menu opens it and nothing else has to be held in step.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const indexQuery = useQuery({
@@ -112,10 +121,11 @@ export function ExamSeriesContent() {
       }),
   });
 
+  const chips = indexQuery.data?.chips;
   const rows = useMemo(() => indexQuery.data?.rows ?? [], [indexQuery.data]);
   // Not a chip any more, but still the spine of the page: the alert and the
   // deadline table below both hang off whichever series closes soonest.
-  const nearest = indexQuery.data?.chips?.nearestDeadline ?? null;
+  const nearest = chips?.nearestDeadline ?? null;
 
   // The series the alert and the deadline table are about: the one whose entries
   // close soonest.
@@ -249,10 +259,14 @@ export function ExamSeriesContent() {
         header: () => <span className="sr-only">Row actions</span>,
         // Which verb a row carries follows its standing: a series still taking
         // entries opens its candidate roll, one with grades opens its results.
+        //
+        // `Correct the series` sits behind the menu rather than on the row
+        // because it is the rarer act — but it is the only way a board that
+        // moved its deadline, or a date typed a month out, ever gets fixed.
         cell: ({ row }) => {
           const open = row.original.status === "ENTRIES_OPEN" || row.original.status === "PLANNED";
           return (
-            <div className="flex justify-end">
+            <div className="flex items-center justify-end gap-1">
               <Button
                 asChild
                 size="sm"
@@ -268,6 +282,18 @@ export function ExamSeriesContent() {
                   {open ? "Open" : "Results"}
                 </Link>
               </Button>
+              <RecordActions
+                resource="schools.exams"
+                layout="menu"
+                label={`Row actions for ${row.original.board.name} ${row.original.name}`}
+                verbs={[
+                  {
+                    label: "Correct the series",
+                    action: "create",
+                    onSelect: () => setEditingId(row.original.id),
+                  },
+                ]}
+              />
             </div>
           );
         },
@@ -284,12 +310,6 @@ export function ExamSeriesContent() {
           label="New series"
           onSelect={() => setNewOpen(true)}
         />
-        {/* Rehoused off the band. It prints the deadline table below, which is
-            the thing on this page somebody carries out of the room. */}
-        <Button variant="secondary" size="sm" onClick={() => window.print()}>
-          <Printer className="size-4" />
-          Print the deadline sheet
-        </Button>
       </PageChrome>
 
       {saveError ? <SaveError what="That series" error={saveError} /> : null}
@@ -312,16 +332,24 @@ export function ExamSeriesContent() {
 
       {lead ? (
         <section className="space-y-2">
-          <h2 className="flex items-baseline justify-between border-b border-[color:var(--border-subtle)] pb-1.5">
+          <h2 className="flex items-baseline justify-between gap-3 border-b border-[color:var(--border-subtle)] pb-1.5">
             <span className="text-sm font-semibold text-[color:var(--text-strong)]">
               {lead.series.board.name} {lead.series.name}, {EXAM_LEVEL_LABELS[lead.series.level]}
             </span>
-            <span className="text-xs text-[color:var(--text-muted)]">
-              {lead.series.entriesCloseAt
-                ? `entries close ${formatSchoolDate(lead.series.entriesCloseAt)}${
-                    lead.tallies.daysLeft != null ? ` · ${lead.tallies.daysLeft} days` : ""
-                  }`
-                : "no deadline set"}
+            <span className="flex items-baseline gap-3">
+              <span className="text-xs text-[color:var(--text-muted)]">
+                {lead.series.entriesCloseAt
+                  ? `entries close ${formatSchoolDate(lead.series.entriesCloseAt)}${
+                      lead.tallies.daysLeft != null ? ` · ${lead.tallies.daysLeft} days` : ""
+                    }`
+                  : "no deadline set"}
+              </span>
+              {/* The deadline sheet is this table, so the verb that prints it
+                  sits on it rather than over the page. */}
+              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                <Printer className="size-4" />
+                Print the deadline sheet
+              </Button>
             </span>
           </h2>
           <table className="w-full text-sm">
@@ -483,6 +511,32 @@ export function ExamSeriesContent() {
                 )
               }
             />
+
+            {/* The foot of the columns above it: `Candidates` summed, and what
+                `Invoiced` less `Collected` comes to. Both count only the series
+                still taking entries — a closed series has its candidates
+                registered already and owes the board nothing further — which is
+                why the line names that set rather than saying "total". */}
+            {chips && indexQuery.data && indexQuery.data.counts.open > 0 ? (
+              <div className="flex items-baseline justify-between gap-3 border-t-2 border-[color:var(--border)] px-1 py-2">
+                <span className="text-xs font-semibold text-[color:var(--text-strong)]">
+                  Across the {indexQuery.data.counts.open} series still taking entries
+                </span>
+                <span className="font-mono text-xs text-[color:var(--text-muted)]">
+                  {chips.candidates} candidates ·{" "}
+                  <span
+                    className={
+                      Number(chips.entryFeesUnpaid) > 0
+                        ? "text-[color:var(--tone-warn)]"
+                        : "text-[color:var(--tone-success)]"
+                    }
+                  >
+                    {formatSchoolMoney(chips.entryFeesUnpaid)}
+                  </span>{" "}
+                  in entry fees unpaid
+                </span>
+              </div>
+            ) : null}
           </>
         )}
       </section>
@@ -494,6 +548,21 @@ export function ExamSeriesContent() {
         onSaved={() => {
           setNewOpen(false);
           setSaveError(null);
+          void queryClient.invalidateQueries({ queryKey: ["schools", "exams"] });
+        }}
+      />
+
+      <EditSeriesDialog
+        seriesId={editingId}
+        onOpenChange={(next) => {
+          if (!next) setEditingId(null);
+        }}
+        onError={setSaveError}
+        onSaved={() => {
+          setEditingId(null);
+          setSaveError(null);
+          // The whole exams tree: a moved deadline changes the alert, the
+          // countdown table and every days-away figure on the page at once.
           void queryClient.invalidateQueries({ queryKey: ["schools", "exams"] });
         }}
       />

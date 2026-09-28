@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import { canSchoolRoleDo, schoolPermissionDenial } from "./permissions";
+import { canSchool, schoolAccess } from "./access";
 
 describe("tenant administrators", () => {
   it("are not scoped by a vertical persona", () => {
@@ -227,4 +228,40 @@ describe("denial messages", () => {
       schoolPermissionDenial({ user: { role: "BURSAR" } }, "schools.fees", "receive-payment"),
     ).toBeNull();
   });
+});
+
+describe("the pastoral carve-out, on both sides of the wall", () => {
+  /*
+    Two functions decide this and they had drifted.
+
+    `canSchoolRoleDo` in permissions.ts is the server gate, and it carves
+    `schools.pastoral` out of the tenant-admin shortcut — correctly, because
+    seniority is not clearance and the Pastoral screen draws the Group Head
+    himself as "Not cleared". `canSchool` in access.ts is what the rail and the
+    screens read, and it said yes to any unconstrained role for any resource.
+
+    So a tenant administrator was given a navigation row and a row menu full of
+    verbs, every one of which led to a silent 403. Nothing could see it: each
+    half was internally consistent and no test asked them the same question.
+
+    This does.
+  */
+  const ADMIN_ROLES = ["SUPERADMIN", "MANAGER"] as const;
+
+  for (const role of ADMIN_ROLES) {
+    it(`refuses ${role} a pastoral note on both sides`, () => {
+      expect(canSchoolRoleDo(role, "schools.pastoral", "view")).toBe(false);
+      expect(canSchool(role, "schools.pastoral", "view")).toBe(false);
+      // And the menu builder agrees, so no verb is offered that the API refuses.
+      expect(schoolAccess(role).actionsOn("schools.pastoral").size).toBe(0);
+    });
+
+    it(`still gives ${role} everything else`, () => {
+      // The carve-out is one resource wide. An administrator who lost the fee
+      // ledger to this would be a worse bug than the one it fixes.
+      expect(canSchoolRoleDo(role, "schools.fees", "issue")).toBe(true);
+      expect(canSchool(role, "schools.fees", "issue")).toBe(true);
+      expect(schoolAccess(role).actionsOn("schools.fees").size).toBeGreaterThan(0);
+    });
+  }
 });
