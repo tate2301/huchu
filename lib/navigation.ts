@@ -224,49 +224,11 @@ export const navSections: NavSection[] = [
   {
     id: "reporting",
     title: "Reports",
-    description: "Open report pages across operations",
-    featureKey: "reports.dashboard",
-    items: [
-      { href: "/reports", icon: FileCheck, label: "Overview" },
-      { href: "/reports/shift", icon: EventNote, label: "Shift Reports" },
-      { href: "/reports/attendance", icon: Checklist, label: "Attendance" },
-      { href: "/reports/plant", icon: TableRows, label: "Plant Reports" },
-      {
-        href: "/reports/stores-movements",
-        icon: History,
-        label: "Stock Movements",
-      },
-      { href: "/reports/fuel-ledger", icon: Fuel, label: "Fuel Ledger" },
-      {
-        href: "/reports/maintenance-work-orders",
-        icon: Wrench,
-        label: "Work Orders",
-      },
-      {
-        href: "/reports/maintenance-equipment",
-        icon: Package,
-        label: "Equipment Service",
-      },
-      { href: "/reports/gold-chain", icon: ChartLine, label: "Chain" },
-      {
-        href: "/reports/gold-receipts",
-        icon: ReceiptLong,
-        label: "Receipts",
-      },
-      { href: "/reports/audit-trails", icon: FileCheck, label: "Audit Trails" },
-      {
-        href: "/reports/downtime",
-        icon: BarChart3,
-        label: "Downtime Analytics",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/reports/compliance-incidents",
-        icon: ShieldCheck,
-        label: "Incidents",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-    ],
+    description: "The reports this workspace can run, for its own industry",
+    // No feature of its own: every report is gated by the page it is about
+    // (see lib/reports/access.ts), and the entry shows only when at least one
+    // is readable (the reporting module in lib/workspaces.ts).
+    items: [{ href: "/reports", icon: FileCheck, label: "Reports" }],
   },
   {
     id: "people",

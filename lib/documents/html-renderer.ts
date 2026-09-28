@@ -7,7 +7,7 @@ import type {
   UniversalDocumentPayload,
 } from "@/lib/documents/types";
 
-function esc(value: unknown): string {
+export function esc(value: unknown): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -461,22 +461,6 @@ export function renderDocumentHtml(input: {
   template: DocumentTemplateSchema;
 }): string {
   const { payload, branding, template } = input;
-  const accent = branding.primaryColor || DEFAULT_ACCENT;
-  const margin = template.page.marginMm;
-  // A stack of real families. `branding.fontFamily` is resolved for documents
-  // in the snapshot precisely so no `var()` reaches this string: one that does
-  // not resolve here invalidates the declaration and the whole document prints
-  // in the browser's default face, whatever the tenant chose.
-  const fontFamily =
-    branding.fontFamily || '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
-  const monoFontFamily =
-    branding.monoFontFamily ||
-    '"Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-  // Fetched by the renderer before it prints. Without it the container has
-  // almost no fonts installed and the stack falls through to a default.
-  const fontImport = branding.fontImportUrl
-    ? `@import url("${esc(branding.fontImportUrl)}");`
-    : "";
 
   const badge = payload.badge
     ? (() => {
@@ -486,14 +470,6 @@ export function renderDocumentHtml(input: {
     : "";
 
   const { header: headerMeta, rest: bodyMeta } = pickHeaderMeta(payload.meta ?? []);
-  const headerMetaHtml = headerMeta
-    .filter(hasValue)
-    .map(
-      (item) =>
-        `<div class="stamp-item"><div class="stamp-label">${esc(item.label)}</div><div class="stamp-value mono">${esc(item.value)}</div></div>`,
-    )
-    .join("");
-
   const summary = renderSummaryBand(buildSummaryColumns(payload, bodyMeta));
 
   // On a financial document the subtitle IS the number, which the header
@@ -514,6 +490,63 @@ export function renderDocumentHtml(input: {
     buildLinks(payload),
   ]
     .filter(Boolean)
+    .join("");
+
+  return renderDocumentShell({
+    branding,
+    template,
+    title: payload.title,
+    subtitle,
+    badge,
+    stamp: headerMeta,
+    content,
+  });
+}
+
+/**
+ * The paper every document is printed on: the tenant's masthead, the brand
+ * rule, the title, and the footer — with whatever the document is about in
+ * between. Invoices and reports share it, so a tenant's paper is one design
+ * however many kinds of document it prints. `css` adds rules for content the
+ * shell does not know about, in the same stylesheet and under the same tokens.
+ */
+export function renderDocumentShell(input: {
+  branding: CompanyBrandingSnapshot;
+  template: DocumentTemplateSchema;
+  title: string;
+  subtitle?: string | null;
+  /** Pre-rendered, already escaped. */
+  badge?: string;
+  /** The identifying pairs stated opposite the masthead. */
+  stamp?: DocumentMeta[];
+  /** Pre-rendered, already escaped. */
+  content: string;
+  css?: string;
+}): string {
+  const { branding, template, title, subtitle, badge = "", stamp = [], content, css = "" } = input;
+  const accent = branding.primaryColor || DEFAULT_ACCENT;
+  const margin = template.page.marginMm;
+  // A stack of real families. `branding.fontFamily` is resolved for documents
+  // in the snapshot precisely so no `var()` reaches this string: one that does
+  // not resolve here invalidates the declaration and the whole document prints
+  // in the browser's default face, whatever the tenant chose.
+  const fontFamily =
+    branding.fontFamily || '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
+  const monoFontFamily =
+    branding.monoFontFamily ||
+    '"Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  // Fetched by the renderer before it prints. Without it the container has
+  // almost no fonts installed and the stack falls through to a default.
+  const fontImport = branding.fontImportUrl
+    ? `@import url("${esc(branding.fontImportUrl)}");`
+    : "";
+
+  const headerMetaHtml = stamp
+    .filter(hasValue)
+    .map(
+      (item) =>
+        `<div class="stamp-item"><div class="stamp-label">${esc(item.label)}</div><div class="stamp-value mono">${esc(item.value)}</div></div>`,
+    )
     .join("");
 
   return `<!doctype html>
@@ -642,6 +675,7 @@ export function renderDocumentHtml(input: {
     .stamp { max-height: 60px; max-width: 100px; object-fit: contain; opacity: 0.85; }
     .footer-text { font-size: 10px; margin-top: 4px; }
     .footer-disclaimer { font-size: 8.5px; color: #a1a1aa; margin-top: 6px; }
+    ${css}
   </style>
 </head>
 <body>
@@ -653,7 +687,7 @@ export function renderDocumentHtml(input: {
     <div class="brand-rule"></div>
     <div class="title-block">
       <div class="title-row">
-        <h1 class="doc-title">${esc(template.labels.documentTitle || payload.title)}</h1>
+        <h1 class="doc-title">${esc(template.labels.documentTitle || title)}</h1>
         ${badge}
       </div>
       ${subtitle ? `<div class="doc-subtitle mono">${esc(subtitle)}</div>` : ""}
