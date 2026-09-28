@@ -285,6 +285,40 @@ export async function grantBundleToCompany(input: {
   return { bundleCode, featuresEnabled: features.length };
 }
 
+/**
+ * Switch features off for one company, whatever its tier or bundles include.
+ *
+ * An explicit disabled flag outranks every entitlement in
+ * `getCompanyFeatureMap`, so this is how a template keeps a feature its tier
+ * carries out of a workspace that has no use for it — a till in a sales CRM.
+ */
+export async function denyFeaturesToCompany(input: {
+  companyId: string;
+  featureKeys: string[];
+  reason?: string;
+}): Promise<{ featuresDisabled: number }> {
+  const companyId = input.companyId.trim();
+  if (!companyId) throw new Error("companyId is required.");
+  const featureKeys = [...new Set(input.featureKeys.map((key) => normalizeFeatureKey(key)))];
+  if (featureKeys.length === 0) return { featuresDisabled: 0 };
+
+  const reason = input.reason ?? "Disabled for this company";
+  const features = await prisma.platformFeature.findMany({
+    where: { key: { in: featureKeys } },
+    select: { id: true },
+  });
+
+  for (const feature of features) {
+    await prisma.companyFeatureFlag.upsert({
+      where: { companyId_featureId: { companyId, featureId: feature.id } },
+      update: { isEnabled: false, reason, expiresAt: null },
+      create: { companyId, featureId: feature.id, isEnabled: false, reason },
+    });
+  }
+
+  return { featuresDisabled: features.length };
+}
+
 export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMap> {
   const normalizedCompanyId = companyId.trim();
   if (!normalizedCompanyId) return {};

@@ -12,15 +12,22 @@ import {
   Lock,
   Mail,
 } from "@/lib/icons";
+import { EmailCodeSignIn } from "./email-code-sign-in";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
+
+type SignInMethod = "password" | "code";
 
 type LoginFormProps = {
   companyLabel: string;
   productLabel?: string;
   callbackUrl?: string;
   rememberMeEnabled?: boolean;
+  /** Whether signing in with an emailed code is offered here at all. */
+  codeSignInEnabled?: boolean;
+  /** Which way in the form opens on. A workspace that signed up without passwords opens on the code. */
+  defaultMethod?: SignInMethod;
 };
 
 type AuthErrorPayload = {
@@ -76,8 +83,11 @@ export function LoginForm({
   productLabel,
   callbackUrl,
   rememberMeEnabled = true,
+  codeSignInEnabled = false,
+  defaultMethod = "password",
 }: LoginFormProps) {
   const router = useRouter();
+  const [method, setMethod] = useState<SignInMethod>(codeSignInEnabled ? defaultMethod : "password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -167,6 +177,9 @@ export function LoginForm({
               </div>
             ) : null}
 
+            {method === "code" ? (
+              <EmailCodeSignIn callbackUrl={resolvedCallbackUrl} rememberMeEnabled={rememberMeEnabled} />
+            ) : (
             <form onSubmit={handleSubmit} className="grid gap-3.5">
               <div className="grid gap-1.5">
                 <label
@@ -271,6 +284,17 @@ export function LoginForm({
                 {loading ? "Signing in…" : "Sign in to your account"}
               </Button>
             </form>
+            )}
+
+            {codeSignInEnabled ? (
+              <button
+                type="button"
+                onClick={() => setMethod(method === "code" ? "password" : "code")}
+                className="mt-4 w-full text-center text-sm font-medium text-[var(--text-link)] underline"
+              >
+                {method === "code" ? "Sign in with a password instead" : "Email me a code instead"}
+              </button>
+            ) : null}
 
             <p className="mt-6 text-center text-xs text-[var(--text-muted)]">
               By continuing you agree to the{" "}

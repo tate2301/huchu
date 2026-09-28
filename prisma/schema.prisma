@@ -27,6 +27,10 @@ model Company {
   fieldCameraAppUrl             String?
   tenantStatus                  TenantStatus       @default(PROVISIONING)
   workspaceProfile              WorkspaceProfile   @default(GENERAL)
+  /// The trading name the workspace was sold under. Decides the brand, the
+  /// home route and which integrations are offered. Written at provisioning
+  /// and never inferred afterwards. See `lib/platform/products.ts`.
+  product                       WorkspaceProduct   @default(CORELITH)
   isProvisioned                 Boolean            @default(false)
   suspendedAt                   DateTime?
   disabledAt                    DateTime?
@@ -39,6 +43,7 @@ model Company {
 
   sites                         Site[]
   users                         User[]
+  signupRequests                SignupRequest[]
   employees                     Employee[]
   employeeModuleAssignments     EmployeeModuleAssignment[]
   shiftGroups                   ShiftGroup[]
@@ -355,6 +360,82 @@ enum TenantStatus {
   ACTIVE
   SUSPENDED
   DISABLED
+}
+
+/// A product sold under its own trading name. CORELITH is every workspace
+/// provisioned by an operator before self-serve existed.
+enum WorkspaceProduct {
+  CORELITH
+  FLARE
+}
+
+enum EmailCodePurpose {
+  SIGNUP
+  SIGN_IN
+}
+
+/// One stranger's way from a product's signup page to a workspace.
+///
+/// There is no user until the workspace exists, because a user belongs to a
+/// company. The name and email wait here, the emailed code proves the address,
+/// and provisioning turns the request into a company and its first admin. The
+/// id travels in an httpOnly cookie, so a reload picks up where the visitor
+/// left off.
+model SignupRequest {
+  id          String           @id @default(uuid())
+  product     WorkspaceProduct
+  email       String
+  name        String
+  /// Where the visitor came from: UTM parameters and the referring page.
+  attribution Json?
+  verifiedAt  DateTime?
+  /// Set once provisioning succeeds; a retried submit finds it and returns the
+  /// same workspace instead of making a second one.
+  companyId   String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([companyId])
+}
+
+/// A six-digit code sent to an address, stored only as a keyed hash.
+///
+/// One table for both jobs a code does — proving an address at signup and
+/// signing in without a password — because the rules are the same: short
+/// life, few attempts, one use.
+model EmailCode {
+  id         String           @id @default(uuid())
+  email      String
+  purpose    EmailCodePurpose
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int              @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([email, purpose, createdAt])
+}
+
+/// A one-use ticket that signs a user in on another host.
+///
+/// Sessions are per host, and a workspace lives on its own subdomain, so the
+/// page that finishes signup cannot hand its visitor a session for the
+/// workspace. It hands them this instead: a random token, valid for two
+/// minutes, that the workspace host exchanges for a session exactly once.
+model SessionHandoff {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum WorkspaceProfile {
@@ -1285,6 +1366,7 @@ model User {
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
+  sessionHandoffs                   SessionHandoff[]
 
   @@index([companyId])
   @@index([email])

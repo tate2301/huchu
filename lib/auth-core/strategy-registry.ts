@@ -39,14 +39,28 @@ function buildStrategyRegistry(): AuthStrategyDescriptor[] {
       supportsRememberMe: false,
     },
     {
-      id: "otp",
-      providerId: "otp",
-      label: "One-time passcode",
-      description: "Dark-launch OTP strategy reserved for future rollout.",
-      surfaces: ["primary-login", "portal-login"],
-      enabled: config.enableOtp,
-      live: false,
-      kind: "otp",
+      id: "email-code",
+      providerId: "email-code",
+      label: "Email code",
+      description: "A six-digit code sent to the address, for people who never set a password.",
+      surfaces: ["primary-login"],
+      enabled: true,
+      live: true,
+      kind: "email-code",
+      supportsRememberMe: true,
+    },
+    {
+      // Not a way anyone chooses to sign in: it is how the signup host hands a
+      // new admin to their workspace host, where sessions are separate. It
+      // appears on no sign-in surface.
+      id: "handoff",
+      providerId: "handoff",
+      label: "Signup handoff",
+      description: "A one-use ticket exchanged for a session on the workspace host.",
+      surfaces: [],
+      enabled: true,
+      live: true,
+      kind: "handoff",
       supportsRememberMe: false,
     },
   ];
