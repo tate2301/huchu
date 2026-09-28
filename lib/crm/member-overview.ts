@@ -352,6 +352,8 @@ export type MemberDay = {
   date: string;
   /** Closed and sent — its report is the one management got. */
   submitted: boolean;
+  /** The stored report's id, for its own page, once the day is closed. */
+  reportId: string | null;
   summary: DailyReportSummary;
 };
 
@@ -405,7 +407,7 @@ export async function memberActivity(tx: Tx, scope: MemberScope): Promise<Member
     }),
     tx.crmDailyReport.findMany({
       where: { companyId, userId, reportDate: { gte: start, lte: to } },
-      select: { reportDate: true, summary: true },
+      select: { id: true, reportDate: true, summary: true },
     }),
   ]);
 
@@ -421,19 +423,26 @@ export async function memberActivity(tx: Tx, scope: MemberScope): Promise<Member
 
   const submitted = new Set(logs.filter((log) => log.submittedAt).map((log) => dayKey(log.logDate)));
   const stored = new Map(
-    reports.map((report) => [dayKey(report.reportDate), report.summary as unknown as DailyReportSummary]),
+    reports.map((report) => [
+      dayKey(report.reportDate),
+      { id: report.id, summary: report.summary as unknown as DailyReportSummary },
+    ]),
   );
   for (const date of stored.keys()) days.add(date);
 
   const ordered = [...days].sort().reverse();
   return Promise.all(
-    ordered.map(async (date) => ({
-      date,
-      submitted: submitted.has(date),
-      summary:
-        (submitted.has(date) ? stored.get(date) : undefined) ??
-        (await buildDailyReport(tx, companyId, userId, new Date(`${date}T00:00:00.000Z`))),
-    })),
+    ordered.map(async (date) => {
+      const report = submitted.has(date) ? stored.get(date) : undefined;
+      return {
+        date,
+        submitted: submitted.has(date),
+        reportId: report?.id ?? null,
+        summary:
+          report?.summary ??
+          (await buildDailyReport(tx, companyId, userId, new Date(`${date}T00:00:00.000Z`))),
+      };
+    }),
   );
 }
 

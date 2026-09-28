@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -67,6 +68,30 @@ export async function POST(request: NextRequest) {
     const body = createSchema.parse(await request.json());
     const companyId = session.user.companyId;
 
+    /*
+      A `boardId` or `subjectId` in a request body is a claim.
+
+      Both are written straight into a row stamped with THIS company's
+      `companyId`, so an unchecked one hangs this school's centre number or
+      syllabus off another school's board — a row the victim school can see on
+      its own reference screen and cannot explain, and one that makes its board
+      list disagree with its own series.
+    */
+    if (body.kind !== "board") {
+      const board = await prisma.schoolExamBoard.findFirst({
+        where: { id: body.boardId, companyId },
+        select: { id: true },
+      });
+      if (!board) return errorResponse("That exam board is not this school's.", 404);
+    }
+    if (body.kind === "subject" && body.subjectId) {
+      const subject = await prisma.schoolSubject.findFirst({
+        where: { id: body.subjectId, companyId },
+        select: { id: true },
+      });
+      if (!subject) return errorResponse("That subject is not this school's.", 404);
+    }
+
     if (body.kind === "board") {
       const board = await prisma.schoolExamBoard.create({
         data: { companyId, code: body.code, name: body.name },
@@ -102,7 +127,126 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
+    // A school typing its syllabus list in will reach for a code it already
+    // used. `@@unique([companyId, boardId, code, level])` and its siblings are
+    // right to refuse it; a raw 500 is not the way to say so.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("Something with that code already exists for this school.", 409);
+    }
     console.error("[API] POST /api/v2/schools/exams/reference error:", error);
     return errorResponse("Failed to add it");
+  }
+}
+
+/**
+ * Correct a board, a centre number or a syllabus subject, or retire it.
+ *
+ * All three carry `isActive` and nothing could set it, so the reference was
+ * create-only. A centre number is the single most consequential thing to get
+ * wrong here — it is what the board knows the school by, it goes on the entry
+ * file, and a school that typed it wrong could not fix it.
+ *
+ * Retire rather than delete: a series points at its board and an entry points
+ * at its syllabus subject, and taking either away would strip the meaning out
+ * of the rows that reference it.
+ */
+const patchSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("board"),
+    id: z.string().uuid(),
+    code: z.string().trim().min(1).max(40).optional(),
+    name: z.string().trim().min(1).max(120).optional(),
+    isActive: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal("centre"),
+    id: z.string().uuid(),
+    number: z.string().trim().min(1).max(40).optional(),
+    name: z.string().trim().max(160).nullish(),
+    isActive: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal("subject"),
+    id: z.string().uuid(),
+    code: z.string().trim().min(1).max(20).optional(),
+    name: z.string().trim().min(1).max(120).optional(),
+    level: z.enum(["O_LEVEL", "A_LEVEL", "IGCSE"]).optional(),
+    isActive: z.boolean().optional(),
+  }),
+]);
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+
+    const denied = schoolPermissionDenial(session, "schools.exams", "configure");
+    if (denied) return errorResponse(denied, 403);
+
+    const body = patchSchema.parse(await request.json());
+    const companyId = session.user.companyId;
+
+    if (body.kind === "board") {
+      const existing = await prisma.schoolExamBoard.findFirst({
+        where: { id: body.id, companyId },
+        select: { id: true },
+      });
+      if (!existing) return errorResponse("That exam board is not this school's.", 404);
+      const updated = await prisma.schoolExamBoard.update({
+        where: { id: existing.id },
+        data: {
+          ...(body.code !== undefined ? { code: body.code } : {}),
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+        },
+        select: { id: true },
+      });
+      return successResponse(updated);
+    }
+
+    if (body.kind === "centre") {
+      const existing = await prisma.schoolExamCentre.findFirst({
+        where: { id: body.id, companyId },
+        select: { id: true },
+      });
+      if (!existing) return errorResponse("That centre number is not this school's.", 404);
+      const updated = await prisma.schoolExamCentre.update({
+        where: { id: existing.id },
+        data: {
+          ...(body.number !== undefined ? { number: body.number } : {}),
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+        },
+        select: { id: true },
+      });
+      return successResponse(updated);
+    }
+
+    const existing = await prisma.schoolExamSubject.findFirst({
+      where: { id: body.id, companyId },
+      select: { id: true },
+    });
+    if (!existing) return errorResponse("That subject is not this school's.", 404);
+    const updated = await prisma.schoolExamSubject.update({
+      where: { id: existing.id },
+      data: {
+        ...(body.code !== undefined ? { code: body.code } : {}),
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.level !== undefined ? { level: body.level } : {}),
+        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      },
+      select: { id: true },
+    });
+    return successResponse(updated);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return errorResponse("Validation failed", 400, error.issues);
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("Something with that code already exists for this school.", 409);
+    }
+    console.error("[API] PATCH /api/v2/schools/exams/reference error:", error);
+    return errorResponse("Failed to change it");
   }
 }

@@ -9,6 +9,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CRM_CHANNEL_LABELS } from "@/lib/crm/sources";
+import { registerHref } from "@/lib/crm/registers/href";
 import { REPORT_RANGES, formatRate, type ReportRange } from "@/lib/crm/reports";
 import { MobileRow, MobileRows } from "@/components/crm/records/mobile-rows";
 
@@ -354,7 +355,10 @@ export function CrmInsightsContent() {
                       className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
                     >
                       <Link
-                        href={`/crm/leads?channels=${row.channel}`}
+                        href={registerHref("LEAD", {
+                          filters: { channel: [row.channel] },
+                          layout: "TABLE",
+                        })}
                         className="font-medium hover:underline"
                       >
                         {(CRM_CHANNEL_LABELS as Record<string, string>)[row.channel] ?? row.channel}

@@ -10,7 +10,6 @@ export type AuthRuntimeConfig = {
   adminMagicLinkResendApiKey?: string;
   adminMagicLinkWebhookUrl?: string;
   enableEmailLink: boolean;
-  enableOtp: boolean;
 };
 
 const DEFAULT_ADMIN_EMAIL = "thehalfstackdev@gmail.com";
@@ -46,16 +45,12 @@ export function getAuthRuntimeConfig(): AuthRuntimeConfig {
     adminMagicLinkResendApiKey: process.env.ADMIN_MAGIC_LINK_RESEND_API_KEY?.trim() || undefined,
     adminMagicLinkWebhookUrl: process.env.ADMIN_MAGIC_LINK_WEBHOOK_URL?.trim() || undefined,
     enableEmailLink: process.env.AUTH_ENABLE_EMAIL_LINK === "true",
-    enableOtp: process.env.AUTH_ENABLE_OTP === "true",
   };
 }
 
 function isStrategyEnabled(config: AuthRuntimeConfig, strategyId: AuthStrategyId): boolean {
   if (strategyId === "email-link") {
     return config.enableEmailLink;
-  }
-  if (strategyId === "otp") {
-    return config.enableOtp;
   }
   return true;
 }
@@ -83,10 +78,6 @@ export function validateAuthConfiguration(): void {
     !config.adminMagicLinkWebhookUrl
   ) {
     warnings.push("Admin magic-link delivery is not configured. Magic-link requests will fail until ADMIN_MAGIC_LINK_RESEND_API_KEY or ADMIN_MAGIC_LINK_WEBHOOK_URL is set.");
-  }
-
-  if (config.enableOtp) {
-    warnings.push("AUTH_ENABLE_OTP is enabled, but OTP delivery/verification plumbing is not live yet.");
   }
 
   if (warnings.length > 0) {

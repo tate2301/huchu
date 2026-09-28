@@ -10,6 +10,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { ensureDefaultPipeline } from "@/lib/crm/pipelines";
 import { budgetOverrun, createProject, projectCostSummary } from "@/lib/crm/projects";
 import { PROJECT_STATUSES, canTransition } from "@/lib/crm/project-status";
 import { addCostEntry, dayTotals, openDailyLog, submitDailyLog, toLogDate } from "@/lib/crm/daily-log";
@@ -21,6 +22,23 @@ const EMAIL = "project-accounting-test@example.invalid";
 let companyId: string;
 let userId: string;
 let projectId: string;
+let pipelineId: string;
+let stageId: string;
+
+/** Every project delivers a deal; each project here gets one of its own. */
+async function deal(title: string): Promise<string> {
+  const created = await prisma.crmDeal.create({
+    data: {
+      companyId,
+      dealNo: `DEAL-ACCT-${Math.random().toString(36).slice(2, 10)}`,
+      title,
+      pipelineId,
+      stageId,
+    },
+    select: { id: true },
+  });
+  return created.id;
+}
 
 /** A fixed day, so "today" cannot make the suite answer differently. */
 const DAY = new Date("2026-05-14T09:30:00.000Z");
@@ -90,12 +108,19 @@ beforeAll(async () => {
 
   await clear();
   await prisma.crmProject.deleteMany({ where: { companyId } });
+  await prisma.crmDeal.deleteMany({ where: { companyId } });
 
+  const pipeline = await prisma.$transaction((tx) => ensureDefaultPipeline(tx, companyId));
+  pipelineId = pipeline.id;
+  stageId = pipeline.stages[0].id;
+
+  const dealId = await deal("Warehouse floor");
   const project = await prisma.$transaction((tx) =>
     createProject(tx, companyId, userId, {
       name: "Warehouse floor",
       budget: 5000,
       currency: "USD",
+      dealId,
     }),
   );
   projectId = project.id;
@@ -105,9 +130,12 @@ beforeEach(clear);
 
 afterAll(async () => {
   await clear();
+  await prisma.crmWorkOrder.deleteMany({ where: { companyId } });
   await prisma.crmProject.deleteMany({ where: { companyId } });
   await prisma.costCenter.deleteMany({ where: { companyId } });
-  await prisma.crmWorkOrder.deleteMany({ where: { companyId } });
+  await prisma.crmDeal.deleteMany({ where: { companyId } });
+  await prisma.crmPipelineStage.deleteMany({ where: { companyId } });
+  await prisma.crmPipeline.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
   await prisma.company.deleteMany({ where: { slug: SLUG } });
 });
@@ -132,8 +160,9 @@ describe("raising a project", () => {
   });
 
   it("reuses a cost centre rather than colliding on its code", async () => {
+    const dealId = await deal("Another floor");
     const second = await prisma.$transaction((tx) =>
-      createProject(tx, companyId, userId, { name: "Another floor", currency: "USD" }),
+      createProject(tx, companyId, userId, { name: "Another floor", currency: "USD", dealId }),
     );
     expect(second.costCenterId).not.toBeNull();
     expect(second.costCenterId).not.toBe(
@@ -214,8 +243,9 @@ describe("what a project has cost", () => {
   });
 
   it("leaves other projects' costs alone", async () => {
+    const dealId = await deal("Somebody else's floor");
     const other = await prisma.$transaction((tx) =>
-      createProject(tx, companyId, userId, { name: "Somebody else's floor", currency: "USD" }),
+      createProject(tx, companyId, userId, { name: "Somebody else's floor", currency: "USD", dealId }),
     );
     await entry("SPENT", "500.00", { projectId: other.id });
 

@@ -2,8 +2,7 @@
 
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageActions, PageChrome } from "@/components/layout/page-chrome";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
@@ -62,8 +61,8 @@ type MaintenanceShellProps = {
   activeTab: MaintenanceTab;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  /** The page's own name, for the app bar; left off, the route table names it. */
   title?: string;
-  description?: string;
 };
 
 export function MaintenanceShell({
@@ -71,7 +70,6 @@ export function MaintenanceShell({
   actions,
   children,
   title,
-  description,
 }: MaintenanceShellProps) {
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
@@ -95,11 +93,13 @@ export function MaintenanceShell({
 
   return (
     <div className="w-full space-y-6">
-      {actions ? <PageActions>{actions}</PageActions> : null}
-      <PageHeading
-        title={title ?? modulePresentation.title}
-        className="mb-4"
-      />
+      {/* The page names itself once, in the app bar — no heading block under
+          it repeating the name. */}
+      {title ? (
+        <PageChrome title={title}>{actions}</PageChrome>
+      ) : actions ? (
+        <PageActions>{actions}</PageActions>
+      ) : null}
 
       <SectionTabs label="Maintenance navigation">
         {visibleTabs.map((tab) => (

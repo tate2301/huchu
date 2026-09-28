@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { checkRateLimit } from "@/lib/auth-core/rate-limit";
-import { getApprovalByToken, respondToApproval } from "@/lib/crm/approvals";
+import { ApprovalOutdatedError, getApprovalByToken, respondToApproval } from "@/lib/crm/approvals";
 
 const respondSchema = z.object({
   action: z.enum(["APPROVE", "DECLINE"]),
   note: z.string().trim().max(1000).optional(),
   name: z.string().trim().max(160).optional(),
+  /** When the figures on the client's page last changed — see `PublicApprovalView.stamp`. */
+  stamp: z.string().min(1).max(40),
   website: z.string().max(0).optional(), // honeypot
 });
 
@@ -60,9 +62,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       action: parsed.data.action,
       note: parsed.data.note ?? null,
       name: parsed.data.name ?? null,
+      stamp: parsed.data.stamp,
     });
     return NextResponse.json({ ok: true, status: result.status });
   } catch (error) {
+    // The document changed under the page: the client is shown it again
+    // rather than told their answer failed.
+    if (error instanceof ApprovalOutdatedError) {
+      return NextResponse.json({ ok: false, error: error.message, outdated: true }, { status: 409 });
+    }
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Could not record your response" },
       { status: 400 },

@@ -57,6 +57,8 @@ import { CompanyFormSheet } from "./company-form-sheet";
 import { DealFormSheet } from "./deal-form-sheet";
 import { MergeDialog } from "./merge-dialog";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
+import { useListHref } from "@/components/crm/registers/list-href";
 
 const ACCOUNT_STATUS_PRESENTATION: Record<string, { label: string; status: CanonicalUiStatus }> = {
   ACTIVE: { label: "Active", status: "passing" },
@@ -120,6 +122,7 @@ type CompanyDetail = {
 export function CompanyDetailPage({ companyId }: { companyId: string }) {
   const router = useRouter();
   const { data: session } = useSession();
+  const listHref = useListHref("COMPANY");
   const [mergeOpen, setMergeOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [dealOpen, setDealOpen] = useState(false);
@@ -240,8 +243,10 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
     <>
     <RecordPageShell
       icon={Building2}
-      backHref="/crm/companies"
-      backLabel="All companies"
+      // Which groups it is in, from the record itself.
+      toolbar={<RecordGroupsControl entity="COMPANY" recordId={company.id} />}
+      backHref={listHref}
+      backLabel="Companies"
       primaryAction={
         // A company is an account you sell to. The record had no primary
         // action at all, so the bar on a phone was a back arrow, a search
@@ -269,7 +274,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       title={company.name}
       onTitleCommit={(next) => edit.save.mutate({ name: next })}
       reference={company.clientNo}
-      bandValue={wonValue > 0 ? formatMoney(wonValue, currency) : undefined}
+      figure={wonValue > 0 ? formatMoney(wonValue, currency) : undefined}
       status={ACCOUNT_STATUS_PRESENTATION[company.accountStatus] ?? null}
       subtitle={subtitle}
       activeTab={tab}

@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { recordSummaryPath, RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
 import { kept, money, type PeekSummary, type PeekTone } from "@/lib/records/peek-summary";
 import { recordType, type SchoolRecordType } from "@/lib/records/registry";
+import { rungName } from "@/lib/schools/class-stage";
 import { schoolPermissionDenial, type SchoolResource } from "@/lib/schools/permissions";
 
 /**
@@ -384,8 +385,9 @@ export async function GET(
         ]),
         properties: kept([
           {
-            label: "Year group",
-            value: schoolClass.level == null ? null : String(schoolClass.level),
+            // Not the rung: a peek at Form 1 read "Year group 8".
+            label: "Stage",
+            value: rungName(schoolClass.level),
           },
           {
             label: "Streams",

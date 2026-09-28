@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -15,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { CohortLevelSelect } from "@/components/schools/exams/cohort-level-select";
 import {
   EXAM_LEVEL_LABELS,
   createSeries,
@@ -166,9 +168,19 @@ export function NewSeriesDialog({
             </SelectContent>
           </Select>
           {(reference.data?.boards ?? []).length === 0 && !reference.isPending ? (
+            // It explained the ordering and then left the reader with nowhere
+            // to go — there was no screen that created a board at all. Now
+            // there is, so say where.
             <p className="text-xs text-[color:var(--text-muted)]">
               No board has been set up yet. A board and its centre number come first — the board
-              issues the number and it is stable across years.
+              issues the number and it is stable across years.{" "}
+              <Link
+                href="/schools/exams/reference"
+                className="underline underline-offset-2 hover:text-[color:var(--text-body)]"
+              >
+                Set one up
+              </Link>
+              .
             </p>
           ) : null}
         </div>
@@ -228,18 +240,11 @@ export function NewSeriesDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="series-cohort">Year group that sits it</Label>
-          <Input
-            id="series-cohort"
-            type="number"
-            min={1}
-            max={13}
-            value={cohortLevel}
-            onChange={(event) => setCohortLevel(event.target.value)}
-            placeholder="4"
-          />
+          <Label htmlFor="series-cohort">Who sits it</Label>
+          <CohortLevelSelect id="series-cohort" value={cohortLevel} onChange={setCohortLevel} />
           <p className="text-xs text-[color:var(--text-muted)]">
-            Form 4 is 4; Upper Six is 6. It is what &ldquo;Register the year group&rdquo; reads.
+            The class whose pupils become candidates. It is what &ldquo;Register the
+            cohort&rdquo; reads.
           </p>
         </div>
 

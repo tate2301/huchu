@@ -29,6 +29,44 @@ const updateTaskSchema = z.object({
   outcomeNotes: z.string().trim().max(2000).nullable().optional(),
 });
 
+/**
+ * One task, for its own page: the same shape the lists read, plus the site it
+ * is filed against and the chain a repeating task belongs to — the one it
+ * came from and the one that came after it.
+ */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    const { id } = await params;
+
+    const task = await prisma.crmTask.findFirst({
+      where: { id, companyId: session.user.companyId },
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+        deal: { select: { id: true, dealNo: true, title: true } },
+        lead: { select: { id: true, leadNo: true, title: true } },
+        client: { select: { id: true, name: true } },
+        person: { select: { id: true, fullName: true } },
+        site: { select: { id: true, name: true } },
+        recurredFrom: { select: { id: true, title: true, dueAt: true, status: true } },
+        recurrences: {
+          orderBy: { dueAt: "asc" },
+          select: { id: true, title: true, dueAt: true, status: true },
+        },
+      },
+    });
+    if (!task) return errorResponse("Task not found", 404);
+
+    return successResponse({ task, mayEdit: await canEditRecord(session, task.assignedToId) });
+  } catch (error) {
+    console.error("[API] GET /api/v2/crm/tasks/[id] error:", error);
+    return errorResponse("Failed to load the task");
+  }
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const sessionResult = await validateSession(request);

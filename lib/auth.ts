@@ -16,8 +16,10 @@ import {
   getPlatformHostContext,
   getTenantClaimsForCompany,
   isTenantStatusActive,
-  resolveTenantFromHost,
 } from "@/lib/platform/tenant";
+import { verifyEmailCode } from "@/lib/auth-core/email-code";
+import { consumeSessionHandoff } from "@/lib/auth-core/session-handoff";
+import { resolveSignInScope } from "@/lib/auth-core/sign-in-scope";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import {
@@ -276,6 +278,156 @@ function buildAdminPortalRedirectBaseUrl(baseUrl: string): string {
   }
 }
 
+type SignInContext = {
+  email: string;
+  strategy: AuthStrategyId;
+  hostHeader: string | null;
+  clientAddress: string;
+};
+
+type SignInUserRecord = {
+  id: string;
+  email: string;
+  name: string;
+  password: string | null;
+  role: UserRole;
+  companyId: string;
+  isActive: boolean;
+  image: string | null;
+};
+
+function buildSignInContext(
+  email: string,
+  strategy: AuthStrategyId,
+  headers: Headers | Record<string, string | string[] | undefined> | undefined,
+): SignInContext {
+  return {
+    email,
+    strategy,
+    hostHeader: getHostHeaderFromRequestHeaders(headers),
+    clientAddress: getClientAddressFromHeaders(headers),
+  };
+}
+
+/** Record why a sign-in was refused, then refuse it with a code the form can read. */
+async function failSignIn(
+  ctx: SignInContext,
+  reason: string,
+  options: { companyId?: string; message?: string } = {},
+): Promise<never> {
+  await logAuthEvent({
+    eventType: "auth.login.failed",
+    actor: ctx.email,
+    companyId: options.companyId,
+    reason,
+    entityType: "auth-strategy",
+    entityId: ctx.strategy,
+    payload: { hostHeader: ctx.hostHeader, clientAddress: ctx.clientAddress },
+  });
+  throw new Error(options.message ?? reason);
+}
+
+async function enforceSignInRateLimit(ctx: SignInContext): Promise<void> {
+  const rateLimit = checkRateLimit({
+    key: `auth:${ctx.strategy}:${ctx.hostHeader ?? "unknown-host"}:${ctx.email}:${ctx.clientAddress}`,
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (rateLimit.allowed) return;
+
+  await logAuthEvent({
+    eventType: "auth.login.rate-limited",
+    actor: ctx.email,
+    reason: `Retry after ${rateLimit.retryAfterSeconds}s`,
+    entityType: "auth-strategy",
+    entityId: ctx.strategy,
+    payload: { hostHeader: ctx.hostHeader, clientAddress: ctx.clientAddress },
+  });
+  throw new Error("AUTH_RATE_LIMITED");
+}
+
+/** The company this host lets people sign in to, or undefined when any will do. */
+async function resolveSignInCompanyScope(ctx: SignInContext): Promise<string | undefined> {
+  const scope = await resolveSignInScope(ctx.hostHeader);
+  if (!scope.ok) {
+    return failSignIn(ctx, scope.reason, { companyId: scope.companyId });
+  }
+  return scope.companyId;
+}
+
+async function findSignInUser(email: string, companyId: string | undefined): Promise<SignInUserRecord | null> {
+  return prisma.user.findFirst({
+    where: {
+      email: { equals: email, mode: "insensitive" },
+      ...(companyId ? { companyId } : {}),
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      password: true,
+      role: true,
+      companyId: true,
+      isActive: true,
+      image: true,
+    },
+  });
+}
+
+async function assertAccountUsable(user: SignInUserRecord, ctx: SignInContext): Promise<void> {
+  if (!user.isActive) {
+    await failSignIn(ctx, "ACCOUNT_INACTIVE", { companyId: user.companyId, message: "Account is inactive" });
+  }
+
+  const hostContext = getPlatformHostContext(ctx.hostHeader);
+  if (hostContext.portalCanonicalPrefix === "pos" && !canAccessPosPortal(user.role)) {
+    await failSignIn(ctx, "POS_PORTAL_ACCESS_REQUIRED", { companyId: user.companyId });
+  }
+}
+
+/** The checks every way of signing in ends with, then the session's claims. */
+async function completeSignIn(user: SignInUserRecord, ctx: SignInContext, rememberMe: boolean) {
+  const loginEnabled = await hasFeature(user.companyId, "core.auth.login");
+  if (!loginEnabled) {
+    await failSignIn(ctx, "LOGIN_DISABLED", {
+      companyId: user.companyId,
+      message: "Login is disabled for this organization",
+    });
+  }
+
+  const [tenantClaims, subscriptionHealth] = await Promise.all([
+    getTenantClaimsForCompany(user.companyId),
+    getSubscriptionHealth(user.companyId),
+  ]);
+  const effectiveTenantStatus = toTenantStatus(tenantClaims.tenantStatus, !subscriptionHealth.shouldBlock);
+  if (!isTenantStatusActive(effectiveTenantStatus)) {
+    await failSignIn(ctx, "TENANT_INACTIVE", { companyId: user.companyId });
+  }
+
+  await logAuthEvent({
+    eventType: "auth.login.success",
+    actor: ctx.email,
+    companyId: user.companyId,
+    entityType: "auth-strategy",
+    entityId: ctx.strategy,
+    payload: { hostHeader: ctx.hostHeader, clientAddress: ctx.clientAddress, rememberMe },
+  });
+
+  const sessionPolicy: SessionPolicy = rememberMe ? "remember" : "standard";
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    companyId: user.companyId,
+    image: user.image,
+    authStrategy: ctx.strategy,
+    rememberMe,
+    sessionPolicy,
+    authExpiresAt: buildAuthExpiresAt(sessionPolicy),
+  };
+}
+
 validateAuthConfiguration();
 
 export const authOptions: NextAuthOptions = {
@@ -431,153 +583,25 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials");
         }
 
-        const hostHeader = getHostHeaderFromRequestHeaders(req?.headers);
-        const clientAddress = getClientAddressFromHeaders(req?.headers);
-        const hostContext = getPlatformHostContext(hostHeader);
-
-        const rateLimit = checkRateLimit({
-          key: `auth:credentials:${hostHeader ?? "unknown-host"}:${email}:${clientAddress}`,
-          limit: 10,
-          windowMs: 15 * 60 * 1000,
-        });
-        if (!rateLimit.allowed) {
-          await logAuthEvent({
-            eventType: "auth.login.rate-limited",
-            actor: email,
-            reason: `Retry after ${rateLimit.retryAfterSeconds}s`,
-            entityType: "auth-strategy",
-            entityId: "credentials",
-            payload: { hostHeader, clientAddress },
-          });
-          throw new Error("AUTH_RATE_LIMITED");
-        }
-
-        let scopedCompanyId: string | undefined;
-        if (hostContext.strictTenantEnforcement) {
-          if (hostContext.isCentralHost) {
-            await logAuthEvent({
-              eventType: "auth.login.failed",
-              actor: email,
-              reason: "TENANT_HOST_REQUIRED",
-              entityType: "auth-strategy",
-              entityId: "credentials",
-              payload: { hostHeader, clientAddress },
-            });
-            throw new Error("TENANT_HOST_REQUIRED");
-          }
-
-          const tenant = await resolveTenantFromHost(hostHeader);
-          if (!tenant) {
-            await logAuthEvent({
-              eventType: "auth.login.failed",
-              actor: email,
-              reason: "TENANT_NOT_FOUND",
-              entityType: "auth-strategy",
-              entityId: "credentials",
-              payload: { hostHeader, clientAddress },
-            });
-            throw new Error("TENANT_NOT_FOUND");
-          }
-
-          if (!isTenantStatusActive(tenant.tenantStatus)) {
-            await logAuthEvent({
-              eventType: "auth.login.failed",
-              actor: email,
-              companyId: tenant.companyId,
-              reason: "TENANT_INACTIVE",
-              entityType: "auth-strategy",
-              entityId: "credentials",
-              payload: { hostHeader, clientAddress },
-            });
-            throw new Error("TENANT_INACTIVE");
-          }
-
-          scopedCompanyId = tenant.companyId;
-        }
-
-        const user = await prisma.user.findFirst({
-          where: {
-            email: { equals: email, mode: "insensitive" },
-            ...(scopedCompanyId ? { companyId: scopedCompanyId } : {}),
-          },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            password: true,
-            role: true,
-            companyId: true,
-            isActive: true,
-            image: true,
-            updatedAt: true,
-          },
-        });
+        const ctx = buildSignInContext(email, "credentials", req?.headers);
+        await enforceSignInRateLimit(ctx);
+        const scopedCompanyId = await resolveSignInCompanyScope(ctx);
+        const user = await findSignInUser(email, scopedCompanyId);
 
         if (!user) {
-          await logAuthEvent({
-            eventType: "auth.login.failed",
-            actor: email,
-            reason: exposeCredentialDebugReason
-              ? "AUTH_EMAIL_NOT_FOUND"
-              : "INVALID_CREDENTIALS",
-            entityType: "auth-strategy",
-            entityId: "credentials",
-            payload: { hostHeader, clientAddress },
+          return failSignIn(ctx, exposeCredentialDebugReason ? "AUTH_EMAIL_NOT_FOUND" : "INVALID_CREDENTIALS", {
+            message: exposeCredentialDebugReason ? "AUTH_EMAIL_NOT_FOUND" : "Invalid credentials",
           });
-          throw new Error(
-            exposeCredentialDebugReason
-              ? "AUTH_EMAIL_NOT_FOUND"
-              : "Invalid credentials",
-          );
         }
 
         if (!user.password) {
-          await logAuthEvent({
-            eventType: "auth.login.failed",
-            actor: email,
+          return failSignIn(ctx, exposeCredentialDebugReason ? "AUTH_PASSWORD_NOT_SET" : "INVALID_CREDENTIALS", {
             companyId: user.companyId,
-            reason: exposeCredentialDebugReason
-              ? "AUTH_PASSWORD_NOT_SET"
-              : "INVALID_CREDENTIALS",
-            entityType: "auth-strategy",
-            entityId: "credentials",
-            payload: { hostHeader, clientAddress },
+            message: exposeCredentialDebugReason ? "AUTH_PASSWORD_NOT_SET" : "Invalid credentials",
           });
-          throw new Error(
-            exposeCredentialDebugReason
-              ? "AUTH_PASSWORD_NOT_SET"
-              : "Invalid credentials",
-          );
         }
 
-        if (!user.isActive) {
-          await logAuthEvent({
-            eventType: "auth.login.failed",
-            actor: email,
-            companyId: user.companyId,
-            reason: "ACCOUNT_INACTIVE",
-            entityType: "auth-strategy",
-            entityId: "credentials",
-            payload: { hostHeader, clientAddress },
-          });
-          throw new Error("Account is inactive");
-        }
-
-        if (
-          hostContext.portalCanonicalPrefix === "pos" &&
-          !canAccessPosPortal(user.role)
-        ) {
-          await logAuthEvent({
-            eventType: "auth.login.failed",
-            actor: email,
-            companyId: user.companyId,
-            reason: "POS_PORTAL_ACCESS_REQUIRED",
-            entityType: "auth-strategy",
-            entityId: "credentials",
-            payload: { hostHeader, clientAddress },
-          });
-          throw new Error("POS_PORTAL_ACCESS_REQUIRED");
-        }
+        await assertAccountUsable(user, ctx);
 
         const passwordCandidates = exposeCredentialDebugReason
           ? buildDevPasswordFallbackCandidates(password)
@@ -594,22 +618,10 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (!isCorrectPassword) {
-          await logAuthEvent({
-            eventType: "auth.login.failed",
-            actor: email,
+          return failSignIn(ctx, exposeCredentialDebugReason ? "AUTH_PASSWORD_MISMATCH" : "INVALID_CREDENTIALS", {
             companyId: user.companyId,
-            reason: exposeCredentialDebugReason
-              ? "AUTH_PASSWORD_MISMATCH"
-              : "INVALID_CREDENTIALS",
-            entityType: "auth-strategy",
-            entityId: "credentials",
-            payload: { hostHeader, clientAddress },
+            message: exposeCredentialDebugReason ? "AUTH_PASSWORD_MISMATCH" : "Invalid credentials",
           });
-          throw new Error(
-            exposeCredentialDebugReason
-              ? "AUTH_PASSWORD_MISMATCH"
-              : "Invalid credentials",
-          );
         }
 
         if (exposeCredentialDebugReason && matchedCandidate !== password) {
@@ -620,69 +632,81 @@ export const authOptions: NextAuthOptions = {
           });
         }
 
-        const loginEnabled = await hasFeature(
-          user.companyId,
-          "core.auth.login",
-        );
-        if (!loginEnabled) {
-          await logAuthEvent({
-            eventType: "auth.login.failed",
-            actor: email,
-            companyId: user.companyId,
-            reason: "LOGIN_DISABLED",
-            entityType: "auth-strategy",
-            entityId: "credentials",
-          });
-          throw new Error("Login is disabled for this organization");
+        return completeSignIn(user, ctx, rememberMe);
+      },
+    }),
+    CredentialsProvider({
+      // The same person as a password sign-in, proving it with a code sent to
+      // their address instead. The only way in for someone who signed up and
+      // never set a password.
+      id: "email-code",
+      name: "email-code",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        code: { label: "Code", type: "text" },
+        rememberMe: { label: "Remember me", type: "text" },
+      },
+      async authorize(credentials, req) {
+        assertStrategyEnabled("email-code");
+
+        const email = credentials?.email?.trim().toLowerCase();
+        const code = credentials?.code?.trim();
+        const rememberMe = credentials?.rememberMe === "true";
+        if (!email || !code) {
+          throw new Error("INVALID_CODE");
         }
 
-        const [tenantClaims, subscriptionHealth] = await Promise.all([
-          getTenantClaimsForCompany(user.companyId),
-          getSubscriptionHealth(user.companyId),
-        ]);
-        const effectiveTenantStatus = toTenantStatus(
-          tenantClaims.tenantStatus,
-          !subscriptionHealth.shouldBlock,
-        );
-        if (!isTenantStatusActive(effectiveTenantStatus)) {
-          await logAuthEvent({
-            eventType: "auth.login.failed",
-            actor: email,
-            companyId: user.companyId,
-            reason: "TENANT_INACTIVE",
-            entityType: "auth-strategy",
-            entityId: "credentials",
-          });
-          throw new Error("TENANT_INACTIVE");
+        const ctx = buildSignInContext(email, "email-code", req?.headers);
+        await enforceSignInRateLimit(ctx);
+        const scopedCompanyId = await resolveSignInCompanyScope(ctx);
+        const user = await findSignInUser(email, scopedCompanyId);
+        if (!user) {
+          return failSignIn(ctx, "INVALID_CODE");
         }
 
-        await logAuthEvent({
-          eventType: "auth.login.success",
-          actor: email,
-          companyId: user.companyId,
-          entityType: "auth-strategy",
-          entityId: "credentials",
-          payload: {
-            hostHeader,
-            clientAddress,
-            rememberMe,
-          },
-        });
+        const verified = await verifyEmailCode({ email: user.email, purpose: "SIGN_IN", code });
+        if (!verified.ok) {
+          const reason =
+            verified.reason === "EXPIRED" ? "CODE_EXPIRED" : verified.reason === "LOCKED" ? "CODE_LOCKED" : "INVALID_CODE";
+          return failSignIn(ctx, reason, { companyId: user.companyId });
+        }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          companyId: user.companyId,
-          image: user.image,
-          authStrategy: "credentials" satisfies AuthStrategyId,
-          rememberMe,
-          sessionPolicy: rememberMe ? "remember" : "standard",
-          authExpiresAt: buildAuthExpiresAt(
-            rememberMe ? "remember" : "standard",
-          ),
-        };
+        await assertAccountUsable(user, ctx);
+        return completeSignIn(user, ctx, rememberMe);
+      },
+    }),
+    CredentialsProvider({
+      // Not something anyone chooses: the signup host hands a new admin to
+      // their workspace host with a one-use ticket, because sessions are per
+      // host. The ticket is spent here, on the workspace host, and only for
+      // the workspace it names.
+      id: "handoff",
+      name: "handoff",
+      credentials: {
+        token: { label: "Token", type: "text" },
+      },
+      async authorize(credentials, req) {
+        assertStrategyEnabled("handoff");
+
+        const userId = await consumeSessionHandoff(credentials?.token ?? "");
+        if (!userId) {
+          throw new Error("HANDOFF_INVALID");
+        }
+
+        const account = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+        if (!account) {
+          throw new Error("HANDOFF_INVALID");
+        }
+
+        const ctx = buildSignInContext(account.email, "handoff", req?.headers);
+        const scopedCompanyId = await resolveSignInCompanyScope(ctx);
+        const user = await findSignInUser(account.email, scopedCompanyId);
+        if (!user || user.id !== userId) {
+          return failSignIn(ctx, "TENANT_HOST_MISMATCH");
+        }
+
+        await assertAccountUsable(user, ctx);
+        return completeSignIn(user, ctx, true);
       },
     }),
   ],

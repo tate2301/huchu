@@ -77,7 +77,6 @@ export default function RetailSetupPage() {
     return (
       <RetailShell
         title="Setup"
-        description="Complete the retail operating model, then pin the default branch, register, branding, policy, and accounting map."
         actions={actions}
       >
         <div aria-busy="true" aria-live="polite" className="space-y-4">
@@ -99,7 +98,6 @@ export default function RetailSetupPage() {
     return (
       <RetailShell
         title="Setup"
-        description="Complete the retail operating model, then pin the default branch, register, branding, policy, and accounting map."
         actions={actions}
       >
         <Alert tone="danger" title="The setup checklist would not load">
@@ -116,7 +114,6 @@ export default function RetailSetupPage() {
   return (
     <RetailShell
       title="Setup"
-      description="Complete the retail operating model, then pin the default branch, register, branding, policy, and accounting map."
       actions={actions}
     >
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { OfficeInboxContent } from "@/components/schools/messages/office-inbox-content";
 import { authOptions } from "@/lib/auth";
 
@@ -21,9 +21,8 @@ export default async function SchoolsMessagesPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading
+      <PageChrome
         title="Messages"
-        description="Every conversation between a family and the school — and the ones nobody has picked up yet."
       />
       <OfficeInboxContent />
     </div>

@@ -124,7 +124,7 @@ export function bedRefusal(bed: PlaceableBed, pupil: PlaceablePupil): string | n
  *
  * The ordering is a warden's, not an optimiser's:
  *
- * 1. **The right year group** dominates everything else. A Form 1 in the Form 1
+ * 1. **The right class** dominates everything else. A Form 1 in the Form 1
  *    dormitory is the single thing that makes a house work socially, and the
  *    weight is large enough that no combination of the others outvotes it.
  * 2. **Their year-mates**, so a child arriving late is put with people they

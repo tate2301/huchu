@@ -28,7 +28,7 @@ export type StreamFormValues = {
  * sheet and publish window filters by one — so a school that arrived with no
  * streams could not narrow anything and had no screen that would let it fix
  * that. The class it belongs to is a picker rather than an id box, and it is
- * fixed once the stream exists: moving a stream between year groups would take
+ * fixed once the stream exists: moving a stream between classes would take
  * every pupil in it with it.
  */
 /**
@@ -144,7 +144,7 @@ export function StreamFormDialog({
           </Select>
           {editing ? (
             <p className="text-sm text-muted-foreground">
-              A stream cannot change year group — every pupil in it would move too.
+              A stream cannot change class — every pupil in it would move too.
             </p>
           ) : null}
         </div>

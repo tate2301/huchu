@@ -183,7 +183,9 @@ export function CrmFollowUpsContent() {
               <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                    {row.title}
+                    <Link href={`/crm/follow-ups/${row.id}`} className="hover:underline">
+                      {row.title}
+                    </Link>
                     <Badge tone="neutral" size="sm">
                       Lead reminder
                     </Badge>

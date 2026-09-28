@@ -5,7 +5,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,18 +94,6 @@ export default function BankingPage() {
   const transactions = useMemo(() => transactionsData?.data ?? [], [transactionsData]);
   const reconciliations = useMemo(() => reconciliationsData?.data ?? [], [reconciliationsData]);
 
-  /**
-   * Bank lines nobody has matched yet.
-   *
-   * The single fact this page exists to surface, so it goes in the band and
-   * stays there. Counted across every account rather than the filtered view —
-   * "eleven lines unmatched" is a fact about the books, and a chip that reset
-   * to zero when you filtered to one account would be reporting the filter.
-   */
-  const unreconciledCount = useMemo(
-    () => transactions.filter((txn) => !txn.reconciledAt).length,
-    [transactions],
-  );
 
   const filteredTransactions = useMemo(() => {
     if (!accountFilter) return transactions;
@@ -439,17 +426,6 @@ export default function BankingPage() {
     <AccountingShell
       activeTab="banking"
       title="Banking"
-      description="accounts, the lines that came in, and what has been reconciled"
-      bandSlot={
-        <>
-          <BandChip label="Accounts" value={String(accounts.length)} tone="mute" />
-          <BandChip
-            label="Unreconciled"
-            value={String(unreconciledCount)}
-            tone={unreconciledCount > 0 ? "warn" : "ok"}
-          />
-        </>
-      }
       actions={
         <AccountingNewButton
           items={[

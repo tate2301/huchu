@@ -79,11 +79,6 @@ export default function RetailCatalogItemPage() {
     <RetailShell
       area="range"
       title={item?.name ?? "Catalogue item"}
-      description={
-        item
-          ? `${item.sku} · ${item.status} · ${item.site?.name ?? "Unknown branch"}`
-          : "One line on the range, its price, and the stock behind it."
-      }
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">

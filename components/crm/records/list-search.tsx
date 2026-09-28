@@ -30,13 +30,22 @@ export function ListSearch({
    * shows "Search".
    */
   noun,
+  narrow = false,
+  id,
   className,
 }: {
+  /** The input's id — what a keyboard shortcut focuses. */
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   /** The full hint, used on wider screens and as the accessible name. */
   placeholder: string;
   noun?: string;
+  /**
+   * 200px until the widest screens, for a toolbar that also carries a views
+   * menu and pinned filters — the 50px goes to the filters beside it.
+   */
+  narrow?: boolean;
   className?: string;
 }) {
   const compact = useIsBelow(640);
@@ -56,11 +65,15 @@ export function ListSearch({
           `--border-strong`: a toolbar control sits on the page rather than in
           a form, and the heavier rule made it the loudest thing in the band. */}
       <Input
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={compact ? (noun ? `Search ${noun}` : "Search") : placeholder}
         aria-label={placeholder}
-        className="h-9 w-full border-[var(--border)] pl-8 text-sm sm:h-[var(--h-control-sm)] sm:w-[250px]"
+        className={cn(
+          "h-9 w-full border-[var(--border)] pl-8 text-sm sm:h-[var(--h-control-sm)]",
+          narrow ? "sm:w-[180px] 2xl:w-[250px]" : "sm:w-[250px]",
+        )}
       />
     </div>
   );

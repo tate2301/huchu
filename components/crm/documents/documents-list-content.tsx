@@ -24,29 +24,20 @@ import {
 } from "@/components/records/record-list-groups";
 import { RecordListPager } from "@/components/records/record-list";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { formatMoney } from "./document-types";
+import { documentHref, formatMoney } from "./document-types";
 
 const PAGE_SIZE = 50;
 
-/** The accounting statuses, said the way a salesperson would say them. */
 /**
  * Where the document came from, and therefore where its PDF lives — the
  * render route hangs off the record the document was raised against.
  */
 function origin(document: CrmDocumentRecord) {
   if (document.deal) {
-    return {
-      href: `/crm/deals/${document.deal.id}`,
-      label: document.deal.title,
-      api: `/api/v2/crm/deals/${document.deal.id}`,
-    };
+    return { label: document.deal.title, api: `/api/v2/crm/deals/${document.deal.id}` };
   }
   if (document.lead) {
-    return {
-      href: `/crm/leads/${document.lead.id}`,
-      label: document.lead.title,
-      api: `/api/v2/crm/leads/${document.lead.id}`,
-    };
+    return { label: document.lead.title, api: `/api/v2/crm/leads/${document.lead.id}` };
   }
   return null;
 }
@@ -96,7 +87,9 @@ export function DocumentsListContent({
 
         return {
           id: document.id,
-          href: from?.href ?? "/crm/deals",
+          // The document's own page, where its lines, its payments and its
+          // chasing are. The deal is one step from there, under Related.
+          href: documentHref(document),
           title: (
             <span className="font-mono">{document.number ?? "—"}</span>
           ),

@@ -8,7 +8,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ClientDate } from "@/components/ui/client-date";
 import { PurchaseForm } from "@/components/gold/forms/purchase-form";
 import { GoldShell } from "@/components/gold/gold-shell";
-import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";

@@ -32,7 +32,7 @@ import { PROJECT_TONE } from "@/lib/crm/tones";
 
 import { formatMoney } from "./money";
 import type { ProjectCosts } from "./project-cost-strip";
-import { StartProjectSheet } from "./start-project-sheet";
+import { StartProjectDialog } from "./start-project-dialog";
 
 type ProjectRow = {
   id: string;
@@ -41,7 +41,7 @@ type ProjectRow = {
   status: ProjectStatus;
   currency: string;
   client: { id: string; name: string } | null;
-  deal: { id: string; dealNo: string; title: string } | null;
+  deal: { id: string; dealNo: string; title: string };
   manager: { id: string; name: string | null } | null;
   _count: { workOrders: number };
   costs: ProjectCosts;
@@ -79,7 +79,7 @@ export function ProjectsContent() {
   const [status, setStatus] = useState<string>(FILTER_ANY);
   const [owner, setOwner] = useState<string>(FILTER_ANY);
   const [client, setClient] = useState<string>(FILTER_ANY);
-  // The finance overview links here as "projects over budget", so the budget
+  // Money in and out links here as "projects over budget", so the budget
   // filter can arrive already set.
   const [budget, setBudget] = useState<string>(() =>
     BUDGET_OPTIONS.has(searchParams.get("budget") ?? "") ? searchParams.get("budget")! : FILTER_ANY,
@@ -118,7 +118,7 @@ export function ProjectsContent() {
   // A picker over the directory, not a tally of the customers on this page.
   const companiesQuery = useQuery({
     queryKey: ["crm", "companies", "project-filter"],
-    queryFn: () => fetchCrmCompanies({ sort: { field: "name", direction: "asc" }, limit: 100 }),
+    queryFn: () => fetchCrmCompanies({ limit: 100 }),
     staleTime: 5 * 60_000,
   });
 
@@ -227,7 +227,11 @@ export function ProjectsContent() {
                     <ColumnName
                       code={project.projectNo}
                       name={project.name}
-                      meta={[project.client?.name, project.manager?.name ?? "No owner"].filter(Boolean).join(" · ")}
+                      // The deal it delivers, by number: the project is
+                      // usually named after it, so its title would repeat.
+                      meta={[project.deal.dealNo, project.client?.name, project.manager?.name ?? "No owner"]
+                        .filter(Boolean)
+                        .join(" · ")}
                       href={`/crm/projects/${project.id}`}
                     />
                   ),
@@ -255,7 +259,7 @@ export function ProjectsContent() {
 
       <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 
-      <StartProjectSheet open={creating} onOpenChange={setCreating} />
+      <StartProjectDialog open={creating} onOpenChange={setCreating} />
     </RecordListShell>
   );
 }

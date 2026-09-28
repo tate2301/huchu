@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The finance overview: money in and out, and where it stands.
+ * Money in and out, and where it stands.
  *
  * For somebody who runs the money without being an accountant, so it speaks
  * in the words they use — money in, money out, owed to us, floats not
@@ -251,7 +251,7 @@ export function FinanceContent() {
       />
 
       {financeQuery.error ? (
-        <Alert tone="danger" title="The finance overview would not load" className="mt-6">
+        <Alert tone="danger" title="Money in and out would not load" className="mt-6">
           {getApiErrorMessage(financeQuery.error)}
         </Alert>
       ) : null}

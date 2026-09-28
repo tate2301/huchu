@@ -31,6 +31,7 @@ import {
 } from "@/lib/schools/results-v2";
 import { fetchSchoolsResultsData } from "@/lib/schools/schools-v2";
 import { PublishWindowDialog } from "@/components/schools/results/publish-window-dialog";
+import { useClassVocabulary } from "@/components/schools/common/use-class-vocabulary";
 import {
   WINDOW_STATE_LABELS,
   WINDOW_STATE_OPTIONS,
@@ -155,6 +156,7 @@ export function PublishingContent() {
     [queryClient],
   );
 
+  const words = useClassVocabulary();
   const windowColumns = useMemo<ColumnDef<PublishWindowRecord>[]>(
     () => [
       {
@@ -165,8 +167,8 @@ export function PublishingContent() {
         // whole school says so in words rather than leaving the class blank —
         // an empty cell there reads as a window nobody finished setting up.
         //
-        // Where it is scoped to one year group, that year group is the way to
-        // the year group; the school-wide window has no record to point at, so
+        // Where it is scoped to one class, that class is the way to
+        // the class; the school-wide window has no record to point at, so
         // it is a phrase and not a link.
         cell: ({ row }) => (
           <RecordNameCell
@@ -271,7 +273,7 @@ export function PublishingContent() {
   ) : (
     <NothingYet
       title="No publish windows yet"
-      body="Until one is open, approved sheets stay inside the school. Open a window for the term, or for one year group at a time."
+      body="Until one is open, approved sheets stay inside the school. Open a window for the term, or for one class at a time."
     />
   );
 
@@ -315,8 +317,8 @@ export function PublishingContent() {
         filters={
           <>
             <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
+              label={words.One}
+              allLabel={`Every ${words.one}`}
               value={classFilter}
               options={classes.map((row) => ({ value: row.id, label: row.name }))}
               onChange={(next) => {

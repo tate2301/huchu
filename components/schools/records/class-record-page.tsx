@@ -137,7 +137,7 @@ export function ClassRecordPage({ classId }: { classId: string }) {
       { id: "code", label: "Code", icon: Tag, mono: true, ...edit.required("code", record.code) },
       {
         id: "level",
-        label: "Year group",
+        label: "Class",
         icon: Layers,
         ...edit.numeric("level", record.level),
       },
@@ -323,7 +323,7 @@ export function ClassRecordPage({ classId }: { classId: string }) {
 
           {/*
             The same class, in the two modules that hold the rest of it. This
-            page is the only one in the product that is *about* a year group,
+            page is the only one in the product that is *about* a class,
             so it is where "what does Form 1 Blue owe" and "has Form 1 Blue
             been marked" should be one click from, rather than a trip back out
             to Finance or Results to pick the class off a grid again.
@@ -342,6 +342,14 @@ export function ClassRecordPage({ classId }: { classId: string }) {
               items={[
                 { href: `/schools/finance/class/${classId}`, label: "Fees" },
                 { href: `/schools/results/class/${classId}`, label: "Marks" },
+                // The office's own mark entry. It had no door anywhere: the
+                // screen existed, nothing imported it, and the only place in
+                // the product a mark could be entered was the teacher's
+                // portal — which is no use on the morning that teacher is away.
+                {
+                  href: `/schools/results/class/${classId}/assessments`,
+                  label: "Work set",
+                },
               ]}
             />
           </RailSection>

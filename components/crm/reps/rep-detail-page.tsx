@@ -139,7 +139,7 @@ function outstandingMeta(item: CrmOutstandingItem): string {
   return kind;
 }
 
-type MemberDay = { date: string; submitted: boolean; summary: DailyReportCardSummary };
+type MemberDay = { date: string; submitted: boolean; reportId: string | null; summary: DailyReportCardSummary };
 
 /**
  * One member of the team: what they got done, what is outstanding against
@@ -300,7 +300,7 @@ export function RepDetailPage({ repId }: { repId: string }) {
       }
       // One period for every section: what they did, what they spent, which
       // days — all of it this month unless somebody chooses otherwise.
-      beforeTabs={
+      toolbar={
         <DateRangeFilter
           label="Period"
           anyLabel="This month"
@@ -432,7 +432,16 @@ export function RepDetailPage({ repId }: { repId: string }) {
                   {activityQuery.data.data.map((day) => (
                     <DailyReportCard
                       key={day.date}
-                      heading={formatDay(day.date)}
+                      heading={
+                        // A closed day opens the report management got.
+                        day.reportId ? (
+                          <Link href={`/crm/daily-reports/${day.reportId}`} className="hover:underline">
+                            {formatDay(day.date)}
+                          </Link>
+                        ) : (
+                          formatDay(day.date)
+                        )
+                      }
                       aside={
                         day.submitted ? (
                           <StatusDot tone="neutral" label="Closed" />

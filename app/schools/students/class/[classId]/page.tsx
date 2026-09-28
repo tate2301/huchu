@@ -19,7 +19,7 @@ export default async function ClassStudentsPage({
   const { classId } = await params;
   const { streamId } = await searchParams;
 
-  // Resolved here so the heading names the year group on first paint rather
+  // Resolved here so the heading names the class on first paint rather
   // than saying "Pupils" until a client fetch lands, and so a class from
   // another tenant is a 404 rather than an empty list.
   const schoolClass = await prisma.schoolClass.findFirst({
@@ -29,7 +29,7 @@ export default async function ClassStudentsPage({
   if (!schoolClass) notFound();
 
   // The caption carries the term because that is the thing about this page
-  // that changes; the year group's name never does, and it is already the
+  // that changes; the class's name never does, and it is already the
   // title. No term running is a school between terms, and the caption simply
   // drops the half it cannot fill.
   const term = await prisma.schoolTerm.findFirst({

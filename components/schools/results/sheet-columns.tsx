@@ -23,7 +23,7 @@ import type { useResultSheetWorkflow } from "@/components/schools/results/use-sh
  * What a result sheet looks like as a row, decided once.
  *
  * The overview, the sheets list, the moderation queue, the publishing screen
- * and a year group's own page are five arrangements of one table. Each had
+ * and a class's own page are five arrangements of one table. Each had
  * grown its own column array, and they had drifted the way column arrays do:
  * the same sheet was `title` over `term / class / stream` on three of them and
  * a bare class name on a fourth, its average was to one decimal place here and
@@ -37,7 +37,7 @@ import type { useResultSheetWorkflow } from "@/components/schools/results/use-sh
  * *says* is not.
  */
 
-/** Where a sheet's row goes: the year group's marks, narrowed to its stream. */
+/** Where a sheet's row goes: the class's marks, narrowed to its stream. */
 export function sheetHref(sheet: ResultSheetLike) {
   return `/schools/results/class/${sheet.class.id}${sheet.stream ? `?streamId=${sheet.stream.id}` : ""}`;
 }
@@ -55,7 +55,7 @@ function linesOf(sheet: ResultSheetLike) {
  * The sheet, as an identity cell.
  *
  * The class leads the supporting line because it is the half that is unique —
- * "Mathematics — end of term" is the title of one sheet per year group — and
+ * "Mathematics — end of term" is the title of one sheet per class — and
  * the term follows, because that is what tells this term's Form 2 Mathematics
  * from last term's. Both on one mono line rather than in columns of their own:
  * a Class column and a Term column beside a Sheet column spend 220px of a

@@ -10,8 +10,11 @@
  * someone has paid, credited, written off or fiscalised must come back
  * exactly as it was, with nothing posted.
  *
- * The quote half pins the revision path the builder now uses: a new version,
- * the old one void, and the client's link following the work.
+ * The quote half pins both of a quote's paths: edited in place — the same
+ * number, the same link — while the client has not answered, and revised as
+ * its next version once they decline, the old one void and the link following
+ * the work. Between them sits the client's answer, which is only ever
+ * recorded against the figures the client was shown.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -22,8 +25,14 @@ import {
   createQuotationForLead,
   recordReceiptForLead,
   updateInvoiceForDocument,
+  updateQuotationForDocument,
 } from "@/lib/crm/accounting-bridge";
-import { getApprovalByToken, getOrCreateApproval, respondToApproval } from "@/lib/crm/approvals";
+import {
+  ApprovalOutdatedError,
+  getApprovalByToken,
+  getOrCreateApproval,
+  respondToApproval,
+} from "@/lib/crm/approvals";
 import { getTrialBalance } from "@/lib/accounting/ledger";
 import { JournalReversalError, salesInvoicePostingKey } from "@/lib/accounting/journals";
 
@@ -106,6 +115,26 @@ function invoiceOnLead(lines = ORIGINAL) {
 
 function editInvoice(leadDocumentId: string, lines = EDITED) {
   return updateInvoiceForDocument({ companyId, userId, leadId, leadDocumentId, lines });
+}
+
+function quoteOnLead(lines = ORIGINAL) {
+  return createQuotationForLead({ companyId, userId, leadId, lines });
+}
+
+function editQuote(leadDocumentId: string, lines = EDITED, notes: string | null = null) {
+  return updateQuotationForDocument({ companyId, userId, leadId, leadDocumentId, lines, notes });
+}
+
+/** The approval link the client is sent. */
+async function linkFor(leadDocumentId: string) {
+  const { token } = await prisma.$transaction((tx) => getOrCreateApproval(tx, { companyId, leadDocumentId }));
+  return token;
+}
+
+/** The client opens the link and answers from the page they were shown. */
+async function answer(token: string, action: "APPROVE" | "DECLINE", said: { note?: string; name?: string } = {}) {
+  const page = await getApprovalByToken(token);
+  return respondToApproval({ token, action, stamp: page!.stamp, ...said });
 }
 
 async function entryWithLines(where: { id?: string; sourceId?: string }) {
@@ -309,17 +338,135 @@ describe("an invoice something has happened to", () => {
     await prisma.salesInvoice.update({ where: { id: invoice.invoiceId }, data: { status: "VOIDED" } });
     await expectLocked(invoice.leadDocumentId, invoice.invoiceId, "Voided — raise a new invoice instead");
   });
+
+  it("is refused once the client has approved it", async () => {
+    const invoice = await invoiceOnLead();
+    await answer(await linkFor(invoice.leadDocumentId), "APPROVE", { name: "Tariro Moyo" });
+    await expectLocked(
+      invoice.leadDocumentId,
+      invoice.invoiceId,
+      "Approved by the client — adjust it with a credit note in Accounting",
+    );
+  });
+
+  it("is refused once the client has declined it", async () => {
+    const invoice = await invoiceOnLead();
+    await answer(await linkFor(invoice.leadDocumentId), "DECLINE", { note: "Wrong quantity" });
+    await expectLocked(
+      invoice.leadDocumentId,
+      invoice.invoiceId,
+      "Declined by the client — credit it in Accounting and raise a new one",
+    );
+  });
 });
 
-describe("revising a quote", () => {
+describe("an invoice out with the client", () => {
+  it("is edited while its link waits for an answer, and the link shows the new figures", async () => {
+    const invoice = await invoiceOnLead();
+    const token = await linkFor(invoice.leadDocumentId);
+
+    await editInvoice(invoice.leadDocumentId);
+
+    const approval = await prisma.crmDocumentApproval.findUniqueOrThrow({ where: { token } });
+    expect(approval.status).toBe("PENDING");
+    const page = await getApprovalByToken(token);
+    expect(page?.number).toBe(invoice.invoiceNumber);
+    expect(page?.total).toBeCloseTo(2760, 2);
+  });
+});
+
+describe("editing a quote in place", () => {
+  it("keeps its number, its version and its link, and the link shows the new figures", async () => {
+    const quote = await quoteOnLead();
+    const token = await linkFor(quote.leadDocumentId);
+
+    const result = await editQuote(quote.leadDocumentId, EDITED, "Net 30");
+    expect(result.quotationNumber).toBe(quote.quotationNumber);
+    expect(result.total).toBeCloseTo(2760, 2);
+
+    const doc = await prisma.crmLeadDocument.findUniqueOrThrow({ where: { id: quote.leadDocumentId } });
+    expect(doc.version).toBe(1);
+    expect(doc.supersedesId).toBeNull();
+    expect(doc.amount).toBeCloseTo(2760, 2);
+
+    const quotation = await prisma.salesQuotation.findUniqueOrThrow({
+      where: { id: quote.quotationId },
+      include: { lines: true },
+    });
+    expect(quotation.status).toBe("SENT");
+    expect(quotation.notes).toBe("Net 30");
+    expect(quotation.lines.map((line) => line.quantity)).toEqual([120]);
+    // One quote for the work: nothing voided, nothing issued alongside it.
+    expect(await prisma.salesQuotation.count({ where: { companyId } })).toBe(1);
+
+    const approval = await prisma.crmDocumentApproval.findUniqueOrThrow({ where: { token } });
+    expect(approval.leadDocumentId).toBe(quote.leadDocumentId);
+    expect(approval.status).toBe("PENDING");
+    const page = await getApprovalByToken(token);
+    expect(page?.number).toBe(quote.quotationNumber);
+    expect(page?.total).toBeCloseTo(2760, 2);
+
+    expect(
+      await prisma.crmActivity.count({ where: { companyId, subject: `Quotation ${quote.quotationNumber} edited` } }),
+    ).toBe(1);
+  });
+
+  it("is edited before it has ever been sent, too", async () => {
+    const quote = await quoteOnLead();
+    const result = await editQuote(quote.leadDocumentId, EDITED_AGAIN);
+    expect(result.total).toBeCloseTo(2932.5, 2);
+  });
+
+  it("is refused once the client has approved it, and left as they approved it", async () => {
+    const quote = await quoteOnLead();
+    await answer(await linkFor(quote.leadDocumentId), "APPROVE", { name: "Tariro Moyo" });
+
+    const attempt = editQuote(quote.leadDocumentId);
+    await expect(attempt).rejects.toBeInstanceOf(DocumentLockedError);
+    await expect(attempt).rejects.toThrow("Accepted — raise a new quote for any change");
+    const quotation = await prisma.salesQuotation.findUniqueOrThrow({ where: { id: quote.quotationId } });
+    expect(quotation.total).toBeCloseTo(2300, 2);
+  });
+
+  it("is refused once the client has declined it — that is a revision", async () => {
+    const quote = await quoteOnLead();
+    await answer(await linkFor(quote.leadDocumentId), "DECLINE", { note: "Too dear" });
+
+    await expect(editQuote(quote.leadDocumentId)).rejects.toThrow(
+      "Declined by the client — revise it as a new version",
+    );
+  });
+
+  it("refuses an answer given to figures that have changed since the page was opened", async () => {
+    const quote = await quoteOnLead();
+    const token = await linkFor(quote.leadDocumentId);
+    const seen = await getApprovalByToken(token);
+
+    // The rep edits it while the client is reading the old figures.
+    await editQuote(quote.leadDocumentId);
+
+    const late = respondToApproval({ token, action: "APPROVE", name: "Tariro Moyo", stamp: seen!.stamp });
+    await expect(late).rejects.toBeInstanceOf(ApprovalOutdatedError);
+    await expect(late).rejects.toThrow("This quote was changed after you opened it");
+
+    const approval = await prisma.crmDocumentApproval.findUniqueOrThrow({ where: { token } });
+    expect(approval.status).toBe("PENDING");
+    expect(approval.respondedAt).toBeNull();
+    const quotation = await prisma.salesQuotation.findUniqueOrThrow({ where: { id: quote.quotationId } });
+    expect(quotation.status).toBe("SENT");
+
+    // Looked at again, the new figures can be answered.
+    await expect(answer(token, "APPROVE", { name: "Tariro Moyo" })).resolves.toEqual({ status: "APPROVED" });
+  });
+});
+
+describe("revising a declined quote", () => {
   const CHEAPER = [{ description: "Epoxy floor, per m²", quantity: 100, unitPrice: 17.5 }];
 
   it("issues the next version, voids the old one and moves the client's link to it", async () => {
-    const first = await createQuotationForLead({ companyId, userId, leadId, lines: ORIGINAL });
-    const { token } = await prisma.$transaction((tx) =>
-      getOrCreateApproval(tx, { companyId, leadDocumentId: first.leadDocumentId }),
-    );
-    await respondToApproval({ token, action: "DECLINE", note: "Too dear" });
+    const first = await quoteOnLead();
+    const token = await linkFor(first.leadDocumentId);
+    await answer(token, "DECLINE", { note: "Too dear" });
 
     const second = await createQuotationForLead({
       companyId,
@@ -345,32 +492,35 @@ describe("revising a quote", () => {
     expect(approval.respondedAt).toBeNull();
     expect(approval.responseNote).toBeNull();
 
-    const view = await getApprovalByToken(token);
-    expect(view?.number).toBe(second.quotationNumber);
-    expect(view?.total).toBeCloseTo(1750, 2);
-    expect(view?.linkState).toBe("ACTIVE");
+    const page = await getApprovalByToken(token);
+    expect(page?.number).toBe(second.quotationNumber);
+    expect(page?.total).toBeCloseTo(1750, 2);
+    expect(page?.linkState).toBe("ACTIVE");
+  });
+
+  it("refuses to revise a quote nobody has answered — it is edited instead", async () => {
+    const first = await quoteOnLead();
+    await linkFor(first.leadDocumentId);
+
+    const attempt = createQuotationForLead({ companyId, userId, leadId, lines: CHEAPER, supersedesId: first.leadDocumentId });
+    await expect(attempt).rejects.toBeInstanceOf(DocumentLockedError);
+    await expect(attempt).rejects.toThrow("Not declined — edit it instead");
+    expect(await prisma.salesQuotation.count({ where: { companyId } })).toBe(1);
   });
 
   it("refuses to revise a quote that has already been replaced", async () => {
-    const first = await createQuotationForLead({ companyId, userId, leadId, lines: ORIGINAL });
-    await createQuotationForLead({
-      companyId,
-      userId,
-      leadId,
-      lines: CHEAPER,
-      supersedesId: first.leadDocumentId,
-    });
+    const first = await quoteOnLead();
+    await answer(await linkFor(first.leadDocumentId), "DECLINE");
+    await createQuotationForLead({ companyId, userId, leadId, lines: CHEAPER, supersedesId: first.leadDocumentId });
+
     await expect(
       createQuotationForLead({ companyId, userId, leadId, lines: CHEAPER, supersedesId: first.leadDocumentId }),
     ).rejects.toThrow("Voided");
   });
 
   it("refuses to revise an accepted quote", async () => {
-    const first = await createQuotationForLead({ companyId, userId, leadId, lines: ORIGINAL });
-    const { token } = await prisma.$transaction((tx) =>
-      getOrCreateApproval(tx, { companyId, leadDocumentId: first.leadDocumentId }),
-    );
-    await respondToApproval({ token, action: "APPROVE", name: "Tariro Moyo" });
+    const first = await quoteOnLead();
+    await answer(await linkFor(first.leadDocumentId), "APPROVE", { name: "Tariro Moyo" });
 
     await expect(
       createQuotationForLead({ companyId, userId, leadId, lines: CHEAPER, supersedesId: first.leadDocumentId }),

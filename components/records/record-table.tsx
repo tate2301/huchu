@@ -1,12 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
-import { ChevronRight, type LucideIcon } from "@/lib/icons";
+import { ArrowDownward, ArrowUpward, ChevronDown, ChevronRight, type LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -56,7 +56,25 @@ export type RecordTableColumn<T> = {
   width?: string;
   /** Numbers and money hang off the right edge so their digits line up. */
   align?: "start" | "end";
+  /**
+   * The sort this column's header sorts by, when it sorts. Clicking the
+   * header sorts by it; clicking again turns the order round — the way a
+   * spreadsheet's column head works.
+   */
+  sortKey?: string;
+  /**
+   * The column's own menu — sort, filter, hide — hung off a caret at the end
+   * of its header. The caller builds it; the table only gives it a place.
+   */
+  menu?: ReactNode;
   cell: (row: T) => ReactNode;
+};
+
+/** The table's current order, and what to do when a sortable header is clicked. */
+export type RecordTableSort = {
+  key: string;
+  dir: "asc" | "desc";
+  onSort: (key: string) => void;
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -219,6 +237,12 @@ export function RecordCell({
   return <span className={cn("block", tone)}>{value}</span>;
 }
 
+/**
+ * One group of a grouped table: its heading, how many rows it holds across the
+ * whole list — not only on this page — and which of these rows are in it.
+ */
+export type RecordTableGroup = { id: string; label: string; count: number; ids: readonly string[] };
+
 export function RecordTable<T extends { id: string }>({
   rows,
   columns,
@@ -228,11 +252,15 @@ export function RecordTable<T extends { id: string }>({
   emptyBody,
   emptyAction,
   selection,
+  sort,
   mobile,
+  groups,
   className,
 }: {
   rows: T[];
   columns: RecordTableColumn<T>[];
+  /** Makes headers with a `sortKey` sort the list. */
+  sort?: RecordTableSort;
   /**
    * Where the first cell points. The rest of the row is inert on purpose.
    *
@@ -252,18 +280,35 @@ export function RecordTable<T extends { id: string }>({
    * lists each remembering to do it is four lists where one of them forgets.
    */
   mobile?: ReactNode;
+  /**
+   * Rows under group headings — "Rudo Moyo 14" — when the list is grouped
+   * (SHAPE-13). The rows arrive in group order, because the server sorts by
+   * the group first; each heading folds its rows away on this page.
+   */
+  groups?: readonly RecordTableGroup[] | null;
   isLoading?: boolean;
   emptyTitle?: string;
   emptyBody?: string;
   emptyAction?: ReactNode;
   className?: string;
-  /** Turns on the leading checkbox column and the floating action bar. */
+  /**
+   * Turns on the leading checkbox column. With `actions`, a floating bar
+   * carries them; without, the page's own toolbar does (the CRM lists, whose
+   * toolbar turns into the selection's actions rather than growing a bar).
+   */
   selection?: {
     selectedIds: string[];
     onChange: (next: string[]) => void;
     actions?: (context: { ids: string[]; clear: () => void }) => ReactNode;
   };
 }) {
+  // Shift-click ticks everything between the last row ticked and this one, as
+  // a spreadsheet selects a range. Kept across renders, reset by nothing: a
+  // stale anchor just makes the next shift-click a single tick.
+  const anchor = useRef<number | null>(null);
+  const shift = useRef(false);
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+
   // Before the loading and empty branches, so a phone gets the row list's own
   // skeleton and empty state rather than the table's.
   if (mobile) {
@@ -279,6 +324,8 @@ export function RecordTable<T extends { id: string }>({
             emptyBody={emptyBody}
             emptyAction={emptyAction}
             selection={selection}
+            sort={sort}
+            groups={groups}
             className={className}
           />
         </div>
@@ -312,12 +359,130 @@ export function RecordTable<T extends { id: string }>({
         : [...new Set([...selectedIds, ...rows.map((row) => row.id)])],
     );
 
-  const toggle = (id: string) =>
-    selection?.onChange(
-      selectedIds.includes(id)
-        ? selectedIds.filter((entry) => entry !== id)
-        : [...selectedIds, id],
+  const toggle = (id: string, index: number) => {
+    if (!selection) return;
+    const on = !selectedIds.includes(id);
+    if (shift.current && anchor.current !== null && anchor.current !== index) {
+      const [from, to] = anchor.current < index ? [anchor.current, index] : [index, anchor.current];
+      const range = rows.slice(from, to + 1).map((row) => row.id);
+      selection.onChange(
+        on ? [...new Set([...selectedIds, ...range])] : selectedIds.filter((entry) => !range.includes(entry)),
+      );
+    } else {
+      selection.onChange(on ? [...selectedIds, id] : selectedIds.filter((entry) => entry !== id));
+    }
+    anchor.current = index;
+  };
+
+  const renderRow = (row: T, rowIndex: number) => {
+    const selected = selectedIds.includes(row.id);
+    const href = rowHref?.(row) ?? null;
+    return (
+      <tr
+        key={row.id}
+        className={cn(
+          "group/row",
+          selected ? "bg-[var(--brand-tint)]" : "hover:bg-[var(--canvas)]",
+        )}
+      >
+        {selection ? (
+          <td className="border-b border-[var(--table-divider)] px-2">
+            <Checkbox
+              checked={selected}
+              onClick={(event) => {
+                shift.current = event.shiftKey;
+              }}
+              onCheckedChange={() => toggle(row.id, rowIndex)}
+              aria-label="Select this row"
+            />
+          </td>
+        ) : null}
+
+        {columns.map((column, index) => (
+          <td
+            key={column.id}
+            className={cn(
+              // 36px on a mouse, 44 on a coarse pointer.
+              //
+              // The canvas runs these lists at 36px — four more rows
+              // per screen on a register somebody scans all day. A
+              // 36px row is still a comfortable mouse target and a
+              // poor thumb one, so the row grows back on touch,
+              // where the extra height buys a hit area rather than
+              // costing a row.
+              "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[13px] py-1.5 align-middle text-sm",
+              "[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:py-2.5",
+              column.align === "end" && "text-right",
+            )}
+          >
+            {index === 0 && href ? (
+              // Only the first cell navigates. A row where every cell
+              // is inside the link is a row where you cannot select
+              // the text in it, and where a chip in the third column
+              // is a link that does not look like one.
+              // The link carries no underline of its own. A text
+              // decoration is painted by the element that declares
+              // it and cannot be switched off by a descendant, so an
+              // underline here struck through the job title and the
+              // reference under every name — `no-underline` on the
+              // subtitle does nothing about it. `RecordTableName`
+              // underlines the title itself instead.
+              <Link
+                href={href}
+                className="-mx-1 block min-w-0 rounded-[var(--radius-sm)] px-1"
+              >
+                {column.cell(row)}
+              </Link>
+            ) : (
+              column.cell(row)
+            )}
+          </td>
+        ))}
+
+        {/* "This row opens."
+
+            The first cell is the link and the rest of the row is
+            inert, which is the right trade — but it left a table
+            where nothing at the end of a 46rem row said there was
+            anywhere to go. The artboards close the row with a
+            chevron, and it is a link to the same place rather than
+            decoration, so a reader who has scanned across to the
+            last column does not have to scan back. */}
+        <td className="border-b border-[var(--table-divider)] px-2 py-1.5 align-middle">
+          {href ? (
+            <Link
+              href={href}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="flex items-center justify-center"
+            >
+              <ChevronRight className="size-3.5 text-[var(--text-disabled)] group-hover/row:text-[var(--text-subtle)]" />
+            </Link>
+          ) : null}
+        </td>
+      </tr>
     );
+  };
+
+  // Consecutive rows of one group share a tbody under its heading. Without
+  // groups the whole page is one run with no heading — the table as it was.
+  const groupOf = new Map<string, RecordTableGroup>();
+  for (const group of groups ?? []) for (const id of group.ids) groupOf.set(id, group);
+  const runs: Array<{ key: string; group: RecordTableGroup | null; rows: Array<{ row: T; index: number }> }> = [];
+  rows.forEach((row, index) => {
+    const group = groups ? (groupOf.get(row.id) ?? null) : null;
+    const last = runs[runs.length - 1];
+    if (last && last.group?.id === group?.id) last.rows.push({ row, index });
+    else runs.push({ key: `${group?.id ?? "rows"}-${index}`, group, rows: [{ row, index }] });
+  });
+  const columnCount = columns.length + (selection ? 2 : 1);
+  const toggleFold = (id: string) =>
+    setFolded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <>
@@ -366,10 +531,13 @@ export function RecordTable<T extends { id: string }>({
 
               {columns.map((column) => {
                 const Icon = column.icon;
+                const sorted = sort && column.sortKey && sort.key === column.sortKey ? sort.dir : null;
+                const SortArrow = sorted === "desc" ? ArrowDownward : ArrowUpward;
                 return (
                   <th
                     key={column.id}
                     scope="col"
+                    aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                     style={column.width ? { width: column.width } : undefined}
                     className={cn(
                       // Pinned at whatever offset the band stack has reached
@@ -388,19 +556,44 @@ export function RecordTable<T extends { id: string }>({
                       // prose: small, heavy, uppercase and letterspaced, so it
                       // reads as the table's chrome rather than as its first
                       // line of data.
-                      "acct-col-head",
+                      "acct-col-head group/head",
                       column.align === "end" && "text-right",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "flex items-center gap-1.5",
-                        column.align === "end" && "justify-end",
+                    <div className="flex items-center gap-1">
+                      {sort && column.sortKey ? (
+                        <button
+                          type="button"
+                          onClick={() => sort.onSort(column.sortKey!)}
+                          className={cn(
+                            "group/sort -mx-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-[var(--radius-sm)] px-1 uppercase hover:text-[var(--text-strong)]",
+                            column.align === "end" && "justify-end",
+                            sorted && "text-[var(--text-strong)]",
+                          )}
+                        >
+                          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                          {column.label}
+                          <SortArrow
+                            className={cn(
+                              "size-3 shrink-0",
+                              sorted ? "opacity-100" : "opacity-0 group-hover/sort:opacity-50",
+                            )}
+                            aria-hidden="true"
+                          />
+                        </button>
+                      ) : (
+                        <span
+                          className={cn(
+                            "flex min-w-0 flex-1 items-center gap-1.5",
+                            column.align === "end" && "justify-end",
+                          )}
+                        >
+                          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                          {column.label}
+                        </span>
                       )}
-                    >
-                      {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-                      {column.label}
-                    </span>
+                      {column.menu}
+                    </div>
                   </th>
                 );
               })}
@@ -418,99 +611,44 @@ export function RecordTable<T extends { id: string }>({
             </tr>
           </thead>
 
-          <tbody>
-            {rows.map((row) => {
-              const selected = selectedIds.includes(row.id);
-              const href = rowHref?.(row) ?? null;
-              return (
-                <tr
-                  key={row.id}
-                  className={cn(
-                    "group/row",
-                    selected ? "bg-[var(--brand-tint)]" : "hover:bg-[var(--canvas)]",
-                  )}
-                >
-                  {selection ? (
-                    <td className="border-b border-[var(--table-divider)] px-2">
-                      <Checkbox
-                        checked={selected}
-                        onCheckedChange={() => toggle(row.id)}
-                        aria-label="Select this row"
-                      />
-                    </td>
-                  ) : null}
-
-                  {columns.map((column, index) => (
-                    <td
-                      key={column.id}
-                      className={cn(
-                        // 36px on a mouse, 44 on a coarse pointer.
-                        //
-                        // The canvas runs these lists at 36px — four more rows
-                        // per screen on a register somebody scans all day. A
-                        // 36px row is still a comfortable mouse target and a
-                        // poor thumb one, so the row grows back on touch,
-                        // where the extra height buys a hit area rather than
-                        // costing a row.
-                        "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[13px] py-1.5 align-middle text-sm",
-                        "[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:py-2.5",
-                        column.align === "end" && "text-right",
-                      )}
+          {runs.map((run) => {
+            const isFolded = run.group ? folded.has(run.group.id) : false;
+            return (
+              <tbody key={run.key}>
+                {run.group ? (
+                  <tr>
+                    <th
+                      scope="rowgroup"
+                      colSpan={columnCount}
+                      className="border-b border-[var(--table-divider)] bg-[var(--surface-subtle)] px-[13px] py-1.5 text-left"
                     >
-                      {index === 0 && href ? (
-                        // Only the first cell navigates. A row where every cell
-                        // is inside the link is a row where you cannot select
-                        // the text in it, and where a chip in the third column
-                        // is a link that does not look like one.
-                        // The link carries no underline of its own. A text
-                        // decoration is painted by the element that declares
-                        // it and cannot be switched off by a descendant, so an
-                        // underline here struck through the job title and the
-                        // reference under every name — `no-underline` on the
-                        // subtitle does nothing about it. `RecordTableName`
-                        // underlines the title itself instead.
-                        <Link
-                          href={href}
-                          className="-mx-1 block min-w-0 rounded-[var(--radius-sm)] px-1"
-                        >
-                          {column.cell(row)}
-                        </Link>
-                      ) : (
-                        column.cell(row)
-                      )}
-                    </td>
-                  ))}
-
-                  {/* "This row opens."
-
-                      The first cell is the link and the rest of the row is
-                      inert, which is the right trade — but it left a table
-                      where nothing at the end of a 46rem row said there was
-                      anywhere to go. The artboards close the row with a
-                      chevron, and it is a link to the same place rather than
-                      decoration, so a reader who has scanned across to the
-                      last column does not have to scan back. */}
-                  <td className="border-b border-[var(--table-divider)] px-2 py-1.5 align-middle">
-                    {href ? (
-                      <Link
-                        href={href}
-                        tabIndex={-1}
-                        aria-hidden="true"
-                        className="flex items-center justify-center"
+                      <button
+                        type="button"
+                        onClick={() => toggleFold(run.group!.id)}
+                        aria-expanded={!isFolded}
+                        className="-mx-1 flex items-center gap-2 rounded-[var(--radius-sm)] px-1 text-sm font-medium text-[var(--text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                       >
-                        <ChevronRight className="size-3.5 text-[var(--text-disabled)] group-hover/row:text-[var(--text-subtle)]" />
-                      </Link>
-                    ) : null}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
+                        <ChevronDown
+                          className={cn("size-3.5 text-[var(--text-subtle)] transition-transform", isFolded && "-rotate-90")}
+                          aria-hidden="true"
+                        />
+                        <span>{run.group.label}</span>
+                        <span className="font-mono font-normal tabular-nums text-[var(--text-subtle)]">
+                          {run.group.count.toLocaleString("en-US")}
+                        </span>
+                      </button>
+                    </th>
+                  </tr>
+                ) : null}
+                {isFolded ? null : run.rows.map(({ row, index }) => renderRow(row, index))}
+              </tbody>
+            );
+          })}
         </table>
         </div>
       </div>
 
-      {selection && selectedIds.length > 0 ? (
+      {selection?.actions && selectedIds.length > 0 ? (
         <DataTableFloatingActions
           count={selectedIds.length}
           onClear={() => selection.onChange([])}

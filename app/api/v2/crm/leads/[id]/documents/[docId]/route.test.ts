@@ -4,10 +4,10 @@
  *
  * The bridge's own tests pin what an edit does to the books. What is pinned
  * here is what the rep's screen is told: the builder opens on the document as
- * it stands, a quote is sent to the revision path rather than edited in
- * place, a locked invoice answers 409 with the reason written for a person,
- * and somebody without the permission to bill is refused before anything is
- * read into the ledger.
+ * it stands, a quote is edited in place until the client answers it, a locked
+ * quote or invoice answers 409 with the reason written for a person, and
+ * somebody without the permission to bill is refused before anything is read
+ * into the ledger.
  *
  * Only the session is mocked, and the capability check where a test says so.
  */
@@ -16,6 +16,7 @@ import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { createInvoiceForLead, createQuotationForLead } from "@/lib/crm/accounting-bridge";
+import { getApprovalByToken, getOrCreateApproval, respondToApproval } from "@/lib/crm/approvals";
 
 const { validateSessionMock, canUserMock } = vi.hoisted(() => ({
   validateSessionMock: vi.fn(),
@@ -67,6 +68,7 @@ async function patch(docId: string, body: unknown) {
 }
 
 async function clear() {
+  await prisma.crmDocumentApproval.deleteMany({ where: { companyId } });
   await prisma.crmActivity.deleteMany({ where: { companyId } });
   await prisma.crmLeadDocument.deleteMany({ where: { companyId } });
   await prisma.salesReceipt.deleteMany({ where: { companyId } });
@@ -152,13 +154,6 @@ describe("editing an invoice through the route", () => {
     expect(body.error).toBe(`${invoice.invoiceNumber} cannot be edited. Voided — raise a new invoice instead.`);
   });
 
-  it("sends a quote to the revision path instead of editing it in place", async () => {
-    const quote = await createQuotationForLead({ companyId, userId, leadId, lines: LINES });
-    const { status, body } = await patch(quote.leadDocumentId, { lines: LINES });
-    expect(status).toBe(400);
-    expect(body.error).toMatch(/next version/);
-  });
-
   it("refuses somebody who may not bill, and posts nothing", async () => {
     const invoice = await createInvoiceForLead({ companyId, userId, leadId, lines: LINES });
     const entries = await prisma.journalEntry.count({ where: { companyId } });
@@ -166,5 +161,40 @@ describe("editing an invoice through the route", () => {
     const { status } = await patch(invoice.leadDocumentId, { lines: LINES });
     expect(status).toBe(403);
     expect(await prisma.journalEntry.count({ where: { companyId } })).toBe(entries);
+  });
+});
+
+describe("editing a quote through the route", () => {
+  it("saves it in place: the same number, the new total and terms", async () => {
+    const quote = await createQuotationForLead({ companyId, userId, leadId, lines: LINES });
+    const { status, body } = await patch(quote.leadDocumentId, {
+      lines: [{ description: "Epoxy floor, per m²", quantity: 120, unitPrice: 20, taxRate: 15 }],
+      validUntil: "2026-10-31T00:00:00.000Z",
+    });
+    expect(status).toBe(200);
+    expect(body.quotationNumber).toBe(quote.quotationNumber);
+    expect(body.total).toBeCloseTo(2760, 2);
+
+    const { body: reopened } = await read(quote.leadDocumentId);
+    expect(reopened).toMatchObject({ number: quote.quotationNumber, version: 1, validUntil: "2026-10-31T00:00:00.000Z" });
+  });
+
+  it("answers 409 with the reason once the client has declined it, and offers the revision", async () => {
+    const quote = await createQuotationForLead({ companyId, userId, leadId, lines: LINES });
+    const { token } = await prisma.$transaction((tx) =>
+      getOrCreateApproval(tx, { companyId, leadDocumentId: quote.leadDocumentId }),
+    );
+    const page = await getApprovalByToken(token);
+    await respondToApproval({ token, action: "DECLINE", stamp: page!.stamp });
+
+    const { status, body } = await patch(quote.leadDocumentId, { lines: LINES });
+    expect(status).toBe(409);
+    expect(body.error).toBe(
+      `${quote.quotationNumber} cannot be edited. Declined by the client — revise it as a new version.`,
+    );
+
+    const { body: reopened } = await read(quote.leadDocumentId);
+    expect(reopened.editLock).toBe("Declined by the client — revise it as a new version");
+    expect(reopened.reviseLock).toBeNull();
   });
 });

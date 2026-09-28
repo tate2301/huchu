@@ -255,7 +255,7 @@ export async function clearHealthRecord(input: {
 }
 
 /**
- * The welfare list for a year group: who has what, and what is still missing.
+ * The welfare list for a class: who has what, and what is still missing.
  *
  * Built from the students outward rather than from the health records, so a
  * child with no record at all is a row saying "nothing recorded" instead of an

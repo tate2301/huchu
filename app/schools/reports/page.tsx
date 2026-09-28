@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { SchoolsReportsEnhancedContent } from "@/components/schools/reports/schools-reports-enhanced-content";
 import { authOptions } from "@/lib/auth";
 
@@ -12,9 +12,8 @@ export default async function SchoolsReportsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading
+      <PageChrome
         title="School Reports"
-        description="What the school has billed and collected, who is behind and by how long, how many are on the roll and how full the hostels are — each of them narrowable, and exportable as it stands."
       />
       <SchoolsReportsEnhancedContent />
     </div>

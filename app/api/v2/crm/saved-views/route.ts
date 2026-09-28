@@ -1,47 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { canUser, denialMessage } from "@/lib/crm/permissions";
+import { REGISTER_KEYS } from "@/lib/crm/registers/types";
 import { prisma } from "@/lib/prisma";
-import { leadSortSchema } from "@/lib/crm/views";
-import { allowedViewTypes, VIEW_ENTITY_KEYS, type ViewEntity } from "@/lib/crm/views-registry";
+
+import {
+  VIEW_INCLUDE,
+  canEditView,
+  nameTakenMessage,
+  parseViewState,
+  viewNameSchema,
+  viewNameTaken,
+} from "./_shared";
 
 const createViewSchema = z.object({
-  entity: z.enum(VIEW_ENTITY_KEYS).optional(),
-  name: z.string().trim().min(1).max(80),
-  viewType: z.enum(["TABLE", "BOARD", "CALENDAR"]).optional(),
-  // Filters vary by record type, so they are validated by the endpoint that
-  // consumes them rather than here — a view only stores them.
-  filters: z.record(z.string(), z.unknown()),
-  sort: leadSortSchema.nullable().optional(),
-  columns: z.array(z.string().trim().max(60)).max(40).nullable().optional(),
-  groupBy: z.string().trim().max(60).nullable().optional(),
+  register: z.enum(REGISTER_KEYS),
+  name: viewNameSchema,
+  state: z.unknown(),
   isShared: z.boolean().optional(),
 });
 
+/**
+ * The saved views the reader can see — their own and the team's — of one list
+ * (`?register=LEAD`), or of every list for the sidebar. Each says whether the
+ * reader may change it, and the answer says whether they may share one.
+ */
 export async function GET(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const { searchParams } = new URL(request.url);
-    const requested = searchParams.get("entity");
-    const entity = VIEW_ENTITY_KEYS.find((value) => value === requested);
+    const requested = new URL(request.url).searchParams.get("register");
+    const register = REGISTER_KEYS.find((key) => key === requested);
 
-    const views = await prisma.crmSavedView.findMany({
-      where: {
-        companyId: session.user.companyId,
-        ...(entity ? { entity } : {}),
-        // A view is visible when shared with the company or owned by the caller.
-        OR: [{ isShared: true }, { createdById: session.user.id }],
-      },
-      include: { createdBy: { select: { id: true, name: true } } },
-      orderBy: [{ isShared: "desc" }, { name: "asc" }],
+    const [views, canShare] = await Promise.all([
+      prisma.crmSavedView.findMany({
+        where: {
+          companyId: session.user.companyId,
+          ...(register ? { register } : {}),
+          // A view is visible when shared with the company or owned by the caller.
+          OR: [{ isShared: true }, { createdById: session.user.id }],
+        },
+        include: VIEW_INCLUDE,
+        orderBy: [{ name: "asc" }, { createdAt: "asc" }],
+      }),
+      canUser(session, "views.share"),
+    ]);
+
+    return successResponse({
+      data: views.map((view) => ({ ...view, canEdit: canEditView(view, session.user) })),
+      canShare,
     });
-
-    return successResponse({ data: views });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/saved-views error:", error);
     return errorResponse("Failed to fetch saved views");
@@ -55,38 +68,35 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult;
 
     const data = createViewSchema.parse(await request.json());
-    const entity = (data.entity ?? "LEAD") as ViewEntity;
-
-    // A board of people has no columns worth having, so the view type has to
-    // be one this record type can actually render.
-    const viewType = data.viewType ?? "TABLE";
-    if (!allowedViewTypes(entity).includes(viewType)) {
-      return errorResponse(`${entity.toLowerCase()} records can't be shown as a ${viewType.toLowerCase()}`, 400);
-    }
+    const state = parseViewState(data.register, data.state);
+    if (!state) return errorResponse("This list cannot save views yet", 400);
 
     // Publishing a view to the whole team is its own permission — one person's
     // idea of "all open deals" becomes everybody's default otherwise.
     if (data.isShared && !(await canUser(session, "views.share"))) {
       return errorResponse(denialMessage("views.share"), 403);
     }
+    const taken = await viewNameTaken({
+      companyId: session.user.companyId,
+      register: data.register,
+      createdById: session.user.id,
+      name: data.name,
+    });
+    if (taken) return errorResponse(nameTakenMessage(data.name), 409);
 
     const view = await prisma.crmSavedView.create({
       data: {
         companyId: session.user.companyId,
-        entity,
+        register: data.register,
         name: data.name,
-        viewType,
-        filters: data.filters as never,
-        sort: data.sort ?? undefined,
-        columns: (data.columns ?? undefined) as never,
-        groupBy: data.groupBy ?? undefined,
+        state: state as Prisma.InputJsonValue,
         isShared: data.isShared ?? false,
         createdById: session.user.id,
       },
-      include: { createdBy: { select: { id: true, name: true } } },
+      include: VIEW_INCLUDE,
     });
 
-    return successResponse(view, 201);
+    return successResponse({ ...view, canEdit: true }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
     console.error("[API] POST /api/v2/crm/saved-views error:", error);

@@ -713,8 +713,6 @@ export function TransportContent() {
                 <ClassFilter
                   value={classes}
                   onChange={setClasses}
-                  label="Year group"
-                  allLabel="Every year group"
                   includeStreams={false}
                 />
               </>
@@ -760,7 +758,7 @@ export function TransportContent() {
                     ? "No stop set"
                     : (activeRouteRecord?.stops.find((stop) => stop.id === stopFilter)
                         ?.name ?? ""),
-                  classes.classId ? "that year group" : "",
+                  classes.classId ? "that class" : "",
                   search.trim(),
                 ].filter(Boolean)}
                 onClear={

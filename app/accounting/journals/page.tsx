@@ -17,7 +17,6 @@ import {
   journalStatusTone,
   type JournalStatus,
 } from "@/components/accounting/journal-detail-panel";
-import { BandChip } from "@/components/accounting/band-chip";
 import { AccountingEditableListView } from "@/components/accounting/listview/accounting-editable-list-view";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -216,14 +215,6 @@ export default function JournalsPage() {
     [accounts],
   );
 
-  /**
-   * Drafts across the whole ledger, not the filtered view.
-   *
-   * The band chip is a standing fact about the books — "there are three
-   * journals nobody has posted" — and it would be worse than useless if it
-   * changed to zero the moment somebody filtered the list to Posted.
-   */
-  const draftCount = statusCounts.DRAFT;
 
   /*
     Five columns, because a journal row answers five questions: which entry,
@@ -626,14 +617,6 @@ export default function JournalsPage() {
     <AccountingShell
       activeTab="journals"
       title="Journals"
-      description="every posting into the ledger, and where it came from"
-      bandSlot={
-        draftCount > 0 ? (
-          <BandChip label="In draft" value={String(draftCount)} tone="warn" />
-        ) : (
-          <BandChip label="In draft" value="0" tone="ok" />
-        )
-      }
       actions={
         <AccountingNewButton
           label="New journal"

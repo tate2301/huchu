@@ -41,6 +41,15 @@ import { formatSchoolDate } from "@/lib/schools/format";
  *
  * The certificate preview on the artboard is a **preview**. The artefact comes
  * out of the pipeline, branded, with the tenant's letterhead.
+ *
+ * ## There is no raised state, so the screen does not claim one
+ *
+ * A document is `ready`, `blocked` or `not-built` and nothing else —
+ * `LeavingDocumentsPage` has no field for it, and printing writes nothing back
+ * against the leaver. So the screen can say a certificate *may* be raised; it
+ * cannot say whether anyone has raised it, and asking the same expression
+ * twice under two different labels does not make the second answer true.
+ * Recording a raise is real work in the leaver record, not a count here.
  */
 export function LeavingDocumentsContent({ leaverId }: { leaverId?: string }) {
   const [selected, setSelected] = useState(leaverId ?? "");
@@ -61,6 +70,12 @@ export function LeavingDocumentsContent({ leaverId }: { leaverId?: string }) {
   const page = documentsQuery.data;
   const pupil = page?.leaver.student;
   const documents = page?.documents ?? [];
+  /**
+   * What the family still owes. It is read under the certificate, next to the
+   * thing it is holding up, and with the sentence that says what to do about
+   * it — a figure on its own at the top of the page names the amount without
+   * naming the consequence.
+   */
   const owing = page?.leaver.clearances.find((mark) => mark.kind === "FEES");
 
   return (
@@ -134,6 +149,10 @@ export function LeavingDocumentsContent({ leaverId }: { leaverId?: string }) {
               <span className="text-sm font-semibold text-[color:var(--text-strong)]">
                 The five documents
               </span>
+              {/* Ready against the five, on the table it counts. How many are
+                  blocked is the rest of that sentence, and which ones are is
+                  the badge on each row — a strip of chips above the page can
+                  only repeat it further from the rows it describes. */}
               <span className="text-xs text-[color:var(--text-muted)]">
                 {documents.filter((document) => document.state === "ready").length} of{" "}
                 {documents.length} ready

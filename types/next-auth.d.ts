@@ -1,3 +1,4 @@
+import type { AuthStrategyId } from "@/lib/auth-core/types";
 import { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
@@ -6,7 +7,7 @@ declare module "next-auth" {
       id: string;
       role: string;
       companyId: string;
-      authStrategy?: "credentials" | "admin-email-link" | "email-link" | "otp";
+      authStrategy?: AuthStrategyId;
       sessionPolicy?: "standard" | "remember" | "admin";
       authExpiresAt?: string;
       rememberMe?: boolean;
@@ -23,7 +24,7 @@ declare module "next-auth" {
     id: string;
     role: string;
     companyId: string;
-    authStrategy?: "credentials" | "admin-email-link" | "email-link" | "otp";
+    authStrategy?: AuthStrategyId;
     sessionPolicy?: "standard" | "remember" | "admin";
     authExpiresAt?: string;
     rememberMe?: boolean;
@@ -41,7 +42,7 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: string;
     companyId?: string;
-    authStrategy?: "credentials" | "admin-email-link" | "email-link" | "otp";
+    authStrategy?: AuthStrategyId;
     sessionPolicy?: "standard" | "remember" | "admin";
     authExpiresAt?: string;
     rememberMe?: boolean;

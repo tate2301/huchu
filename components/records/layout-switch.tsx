@@ -31,11 +31,17 @@ export function LayoutSwitch<L extends RecordLayout>({
   value,
   onChange,
   options,
+  compact = false,
 }: {
   value: L;
   onChange: (next: L) => void;
   /** Which arrangements this list has. A directory with no stages has no board. */
   options: readonly L[];
+  /**
+   * Icons only on every desktop width — for a toolbar that already carries a
+   * views menu beside the switch, where the words cost the filters their room.
+   */
+  compact?: boolean;
 }) {
   return (
     <SegmentedControl<L>
@@ -60,7 +66,7 @@ export function LayoutSwitch<L extends RecordLayout>({
                   The painted label is decorative and the `sr-only` one is the
                   accessible name, so the segment is announced the same at
                   every width and never announced twice. */}
-              <span aria-hidden="true" className="sm:hidden lg:inline">
+              <span aria-hidden="true" className={compact ? "sm:hidden" : "sm:hidden lg:inline"}>
                 {LAYOUT[option].label}
               </span>
               <span className="sr-only">{LAYOUT[option].label}</span>

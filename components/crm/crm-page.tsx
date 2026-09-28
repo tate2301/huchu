@@ -30,46 +30,17 @@ const WIDTH = {
 export function CrmPage({
   width = "list",
   className,
-  title,
-  description,
-  bandSlot,
   children,
 }: {
   width?: keyof typeof WIDTH;
   className?: string;
-  /**
-   * Renders the sticky page band. Omit it and the page behaves exactly as
-   * before — the band is opt-in so pages adopt it one at a time rather than
-   * all sprouting a half-filled header at once.
-   *
-   * This is the page's *own* name, which is not always what the app bar shows:
-   * the bar names the record you are in ("Taromax Hardware"), the band names
-   * the view you are looking at.
-   */
-  title?: string;
-  description?: string;
-  /** Context the page needs permanently in view — a count, a total, a period. */
-  bandSlot?: ReactNode;
   children: ReactNode;
 }) {
+  // No band: the page names itself once, in the app bar, and the first thing
+  // under the bar is the page's own toolbar or content.
   return (
-    <div className={cn("mx-auto w-full", WIDTH[width], className)}>
-      {title ? (
-        <div className="band-shell sticky top-0 z-30 mb-4 flex min-h-[var(--page-band-h)] items-center gap-2.5 border-b border-[var(--border)] bg-[var(--canvas)]">
-          <h1 className="text-base font-bold leading-tight tracking-[-0.012em] text-[var(--text-strong)]">
-            {title}
-          </h1>
-          {description ? (
-            <span className="hidden min-w-0 truncate border-l border-[var(--border)] pl-2.5 text-sm text-[var(--text-subtle)] md:inline">
-              {description}
-            </span>
-          ) : null}
-          {bandSlot ? (
-            <div className="ml-auto flex shrink-0 items-center gap-2">{bandSlot}</div>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="band-stack-content space-y-6">{children}</div>
+    <div className={cn("band-stack-content mx-auto w-full space-y-6", WIDTH[width], className)}>
+      {children}
     </div>
   );
 }

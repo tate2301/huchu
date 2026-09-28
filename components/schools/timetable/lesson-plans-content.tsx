@@ -24,6 +24,10 @@ import {
 } from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchTeacherProfiles } from "@/lib/schools/admin-v2";
+import {
+  correctLessonPlan,
+  type LessonPlanCorrection,
+} from "@/lib/schools/lesson-plans-v2";
 import { DAY_NAMES, formatMinute } from "@/lib/schools/timetable-format";
 
 type Plan = {
@@ -155,6 +159,27 @@ export function LessonPlansContent({
     },
   });
 
+  /**
+   * Opening a plan that already exists and changing a line of it.
+   *
+   * Separate from the mutation above, which writes new plans. Posting an edit
+   * back through `save` rebuilt the whole row from this dialog's boxes, and the
+   * dialog has no box for the resources note — so a draft laid out from the
+   * scheme of work lost the reading list the scheme had put on it the first
+   * time a teacher corrected the topic. It also re-filed the plan under
+   * whatever term is current, which quietly dragged last term's lessons into
+   * this one. A correction sends the fields that changed and leaves the rest
+   * of the plan where it is.
+   */
+  const correctMutation = useMutation({
+    mutationFn: ({ id, ...changes }: LessonPlanCorrection & { id: string }) =>
+      correctLessonPlan(id, changes),
+    onSuccess: () => {
+      setEditing(null);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "lesson-plans"] });
+    },
+  });
+
   const copyMutation = useMutation({
     mutationFn: () =>
       fetchJson<{ copied: number; skipped: number; message: string | null }>(
@@ -226,6 +251,12 @@ export function LessonPlansContent({
   });
 
   const covered = plans.filter((plan) => plan.cover).length;
+
+  // The planner dialog writes through whichever of the two verbs it is open
+  // for, so its button and its error line follow the same branch the submit
+  // does rather than watching `save` alone.
+  const writing = editing ? correctMutation.isPending : saveMutation.isPending;
+  const writeError = editing ? correctMutation.error : saveMutation.error;
 
   // Both bulk verbs write a whole week of drafts at once. The planner dims
   // under them: a teacher who opens a plan mid-copy is editing a row that is
@@ -485,15 +516,30 @@ export function LessonPlansContent({
         }}
         title={editing ? editing.topic : "Plan a lesson"}
         size="lg"
-        errors={saveMutation.error ? [getApiErrorMessage(saveMutation.error)] : undefined}
+        errors={writeError ? [getApiErrorMessage(writeError)] : undefined}
         onSubmit={(event) => {
           event.preventDefault();
-          if (saveMutation.isPending || !draft.topic.trim()) return;
+          if (writing || !draft.topic.trim()) return;
+
+          // An existing plan is corrected, not rewritten: the boxes below are
+          // not the whole row, and posting them back as a `save` wiped the
+          // columns they do not cover.
+          if (editing) {
+            correctMutation.mutate({
+              id: editing.id,
+              lessonDate: draft.lessonDate,
+              topic: draft.topic.trim(),
+              objectives: draft.objectives.trim() || null,
+              activities: draft.activities.trim() || null,
+              homeworkNote: draft.homeworkNote.trim() || null,
+              reflection: draft.reflection.trim() || null,
+            });
+            return;
+          }
+
           saveMutation.mutate({
             action: "save",
-            ...(editing ? { id: editing.id } : {}),
-            classSubjectId: editing ? editing.classSubject.id : creatingFor,
-            slotId: editing?.slot?.id ?? null,
+            classSubjectId: creatingFor,
             lessonDate: draft.lessonDate,
             topic: draft.topic.trim(),
             objectives: draft.objectives.trim() || null,
@@ -514,8 +560,8 @@ export function LessonPlansContent({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!draft.topic.trim() || saveMutation.isPending}>
-              {saveMutation.isPending ? "Saving…" : "Save"}
+            <Button type="submit" disabled={!draft.topic.trim() || writing}>
+              {writing ? "Saving…" : "Save"}
             </Button>
           </div>
         }

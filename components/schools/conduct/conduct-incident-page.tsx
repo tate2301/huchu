@@ -10,6 +10,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { ListRowsSkeleton, LoadError, RecordNotFound, SaveError } from "@/components/records/states";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { RecordActions } from "@/components/schools/common/record-actions";
+import { AwardDetentionDialog } from "@/components/schools/conduct/award-detention-dialog";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
 import { EntityLink } from "@/components/records/entity-link";
@@ -187,6 +188,7 @@ function Spine({
 export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
   const queryClient = useQueryClient();
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [detentionOpen, setDetentionOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({
@@ -250,7 +252,7 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
       ),
     },
     { label: "What happened", value: `${incident.category.name} — ${incident.summary}` },
-    { label: "Year group", value: yearGroup || "—" },
+    { label: "Class", value: yearGroup || "—" },
     {
       label: "When",
       value: [
@@ -294,6 +296,16 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
     },
   ];
 
+  /*
+    No band. This is one incident, not the behaviour module, and the four
+    numbers a band would carry are all read from the record itself about a
+    hundred pixels lower: "Home told" from the property list and the spine's
+    fourth step, "Served" and "Next detention" from the spine's fifth step —
+    which is fed by the same `detail.detention` helper, so they could never
+    have disagreed but could very easily have been read twice — and the term's
+    incident count from the heading of the rail beside them, which also says
+    the merits the band had no room for.
+  */
   return (
     <SchoolsPage width="detail">
       {/* The incident, not the module. The caption carries the identity the
@@ -313,10 +325,40 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
                 action: "create",
                 onSelect: () => setUpdateOpen(true),
               },
+              /*
+                The verb the detention surface was waiting for. Its own empty
+                state read "Award a detention from an incident and the pupil
+                appears on the register they are serving" — and there was no
+                such verb anywhere, so `awardDetention` and its endpoint had no
+                caller and the register could never have a name put on it.
+              */
+              {
+                label: "Award a detention",
+                action: "create",
+                onSelect: () => setDetentionOpen(true),
+                /*
+                  No availability guard, deliberately.
+
+                  There was one, keyed on `detail.detention.owed > 0` and
+                  captioned "already served for this incident". Both halves were
+                  wrong: the route calls `detentionStandingFor` WITHOUT an
+                  `incidentId`, so those two numbers are the pupil's standing
+                  across every incident they have ever had — and the guard
+                  therefore refused a detention to any pupil who already owed
+                  one for something else. That is the repeat offender, which is
+                  the pupil a head of year is most often standing there to
+                  award a second detention to.
+
+                  Whether a second detention is right is a judgement, and the
+                  page already shows what is owed on the review spine. Offering
+                  the verb and letting the reader decide is the honest shape.
+                */
+              },
             ]}
           />
-          {/* Came off the band with it. Printing this record is one of the
-              page's verbs, so it sits with them in the bar. */}
+          {/* The paper copy a head of year takes into the meeting. It sits in
+              the bar with the other verbs, the way the pupil and class records
+              carry theirs. */}
           <PrintDocumentButton
             sourceKey="schools.class-list"
             filters={{ classId: incident.student.currentClass?.id ?? "" }}
@@ -496,6 +538,27 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
         pupilName={pupilName}
         isSaving={update.isPending}
         onSubmit={(values) => update.mutate(values)}
+      />
+
+      <AwardDetentionDialog
+        // Remounted per open so the sittings ticked last time are not still
+        // ticked for the next pupil.
+        key={detentionOpen ? "open" : "closed"}
+        open={detentionOpen}
+        onOpenChange={setDetentionOpen}
+        studentId={detail.incident.student.id}
+        pupilName={pupilName}
+        incidentId={detail.incident.id}
+        defaultReason={`${detail.incident.category.name} — ${detail.incident.summary}`}
+        onAwarded={() => {
+          void queryClient.invalidateQueries({
+            queryKey: ["schools", "conduct", "incident", incidentId],
+          });
+          // The register is the thing that changed.
+          void queryClient.invalidateQueries({
+            queryKey: ["schools", "conduct", "detention"],
+          });
+        }}
       />
     </SchoolsPage>
   );

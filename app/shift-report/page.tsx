@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Save, Send } from "@/lib/icons";
 
 import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmployeeAvatar } from "@/components/shared/employee-avatar";
@@ -19,7 +19,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
-import { PageIntro } from "@/components/shared/page-intro";
 import { ContextHelp } from "@/components/shared/context-help";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/components/ui/searchable-select";
@@ -316,7 +315,7 @@ export default function ShiftReportPage() {
   if (sessionStatus === "loading") {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeading title="Shift Report" />
+        <PageChrome title="Shift Report" />
         <Skeleton className="h-24 w-full" />
       </div>
     );
@@ -330,7 +329,7 @@ export default function ShiftReportPage() {
             <Link href="/reports/shift">View Submitted Reports</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Shift Report" />
+        <PageChrome title="Shift Report" />
         <Alert variant="destructive">
           <AlertTitle>Restricted access</AlertTitle>
           <AlertDescription>
@@ -349,7 +348,7 @@ export default function ShiftReportPage() {
             <Link href="/reports/shift">Back to Shift Reports</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Edit Shift Report" />
+        <PageChrome title="Edit Shift Report" />
         <Alert variant="destructive">
           <AlertTitle>Unable to load report</AlertTitle>
           <AlertDescription>{getApiErrorMessage(editingReportError)}</AlertDescription>
@@ -366,13 +365,8 @@ export default function ShiftReportPage() {
         </Button>
       </PageActions>
 
-      <PageHeading
+      <PageChrome
         title={isEditMode ? "Edit Shift Report" : "Shift Report"}
-      />
-      <PageIntro
-        title="Complete this shift report in 3 steps"
-        purpose="Step 1: select shift details. Step 2: capture output. Step 3: submit and view the saved report in history."
-        nextStep="Start with date, shift, site, and group leader."
       />
       <ContextHelp href="/help#shift-report" />
 

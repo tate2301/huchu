@@ -153,8 +153,8 @@ export function ReportsArrearsContent() {
   const router = useRouter();
   const access = useSchoolAccess();
 
-  // The year group and the stream are one control, not two. The canvas draws
-  // them as a pair — "Stream / Every stream" beside "Year group / Every year
+  // The class and the stream are one control, not two. The canvas draws
+  // them as a pair — "Stream / Every stream" beside "Class / Every year
   // group" — but a stream only means anything inside its class, and chaining
   // two selects to reach "Form 2 Green" is one decision more than the question
   // has. `ClassFilter` offers the streams inline beneath their class.
@@ -237,10 +237,10 @@ export function ReportsArrearsContent() {
     );
   }, [arrears, search]);
 
-  /** Where the 90+ sits: the oldest column, by year group. */
+  /** Where the 90+ sits: the oldest column, by class. */
   const oldest = useMemo(() => {
     // Keyed by the class's id rather than its name, so each line keeps the
-    // record it is about and can link to it. Two year groups with the same
+    // record it is about and can link to it. Two classes with the same
     // name would otherwise be added together and neither could be opened.
     const byClass = new Map<string, { name: string; classId: string; amount: number }>();
     for (const row of arrears) {
@@ -250,7 +250,7 @@ export function ReportsArrearsContent() {
       if (seen) seen.amount += row.days120Plus;
       else
         byClass.set(key, {
-          name: row.className || "No year group",
+          name: row.className || "No class",
           classId: row.classId,
           amount: row.days120Plus,
         });
@@ -259,7 +259,7 @@ export function ReportsArrearsContent() {
     const top = ordered.slice(0, 4);
     const rest = ordered.slice(4).reduce((total, row) => total + row.amount, 0);
     return {
-      // Four year groups and a remainder: past that the panel is a second copy
+      // Four classes and a remainder: past that the panel is a second copy
       // of the table with worse columns.
       rows:
         rest > 0
@@ -270,7 +270,7 @@ export function ReportsArrearsContent() {
   }, [arrears]);
 
   const narrowing = [
-    classFilter.classId || classFilter.streamId ? "the chosen year group" : null,
+    classFilter.classId || classFilter.streamId ? "the chosen class" : null,
     AGE_OPTIONS.find((option) => option.value === oldestAtLeast)?.label,
     OWING_OPTIONS.find((option) => option.value === minOutstanding)?.label,
     BOARDING_OPTIONS.find((option) => option.value === boarding)?.label,
@@ -441,7 +441,7 @@ export function ReportsArrearsContent() {
         {/* No band. "Outstanding / 90+ days / Families" were three totals over
             four filters that did not govern them — narrow to Form 4 and all
             three still answered for the school, while the table under them was
-            one year group. The outstanding money and the age of it are still
+            one class. The outstanding money and the age of it are still
             on the page, in the two bounded summary panels beside the table,
             which are read against the same rows the filters left; the families
             figure is the row count on the filter row. §2 of the canvas law.
@@ -518,8 +518,6 @@ export function ReportsArrearsContent() {
           filters={
             <>
               <ClassFilter
-                label="Year group"
-                allLabel="Every year group"
                 value={classFilter}
                 onChange={setClassFilter}
               />
@@ -637,7 +635,7 @@ export function ReportsArrearsContent() {
           </div>
 
           <div className="flex flex-col gap-4">
-            <Card title="Where the 90+ sits" subtitle="The oldest column, by year group">
+            <Card title="Where the 90+ sits" subtitle="The oldest column, by class">
               {oldest.rows.length === 0 ? (
                 <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
                   Nothing in this view has run past ninety days.

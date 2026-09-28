@@ -1,13 +1,14 @@
 import { Prisma, SchoolMeritKind } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { rungName } from "@/lib/schools/class-stage";
 import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 
 /**
  * Merits and demerits — one ledger, read three ways.
  *
  * Every number on the merits screen is an aggregate over `SchoolMeritEntry`: by
- * pupil, by reason, by year group. Nothing is stored twice, which is what keeps
+ * pupil, by reason, by class. Nothing is stored twice, which is what keeps
  * the arithmetic reconciling in three directions the way the artboard's does.
  *
  * A net is not good news or bad news. The screen leaves it untoned and so does
@@ -191,6 +192,26 @@ export async function meritLedger(filters: MeritLedgerFilters): Promise<MeritPup
 export type ReasonRow = { reason: string; times: number; points: number };
 export type YearGroupRow = { level: number | null; label: string; net: number };
 
+/**
+ * How many awards, and how much they weighed. Both, and named so.
+ *
+ * These are two different questions and the screen used to answer one of them
+ * under the other's heading: a column headed "Times" rendered the point sum, so
+ * a reason worth three points awarded once read as "3". "Four demerits" is a
+ * pattern of behaviour a head of year acts on; "twelve demerit points" is its
+ * weight against a threshold. A summary that conflates them cannot answer
+ * either.
+ */
+export type ReasonTotals = {
+  rows: ReasonRow[];
+  /** Occasions across the reasons drawn, and across all of them. */
+  shownTimes: number;
+  totalTimes: number;
+  /** Points across the reasons drawn, and across all of them. */
+  shownPoints: number;
+  totalPoints: number;
+};
+
 export type MeritSummary = {
   /**
    * `Merits · 669 of 1,284` — the six reasons drawn, and the whole. The two
@@ -198,9 +219,10 @@ export type MeritSummary = {
    * demerits for six things and merits for many more, and this is the only
    * place that says so.
    */
-  merit: { rows: ReasonRow[]; shown: number; total: number };
-  demerit: { rows: ReasonRow[]; shown: number; total: number };
+  merit: ReasonTotals;
+  demerit: ReasonTotals;
   byYearGroup: YearGroupRow[];
+  /** Occasions, not points — "how many were recorded this term". */
   recordedThisTerm: number;
 };
 
@@ -242,20 +264,31 @@ export async function meritSummary(args: {
         times: row._count._all,
         points: row._sum.points ?? 0,
       }))
-      .sort((a, b) => b.points - a.points);
-    const total = rows.reduce((sum, row) => sum + row.points, 0);
+      // Most frequent first. The table leads on occasions, so the order does
+      // too; points break a tie.
+      .sort((a, b) => b.times - a.times || b.points - a.points);
     const shownRows = rows.slice(0, top);
+    const sum = (list: ReasonRow[], key: "times" | "points") =>
+      list.reduce((total, row) => total + row[key], 0);
     return {
       rows: shownRows,
-      shown: shownRows.reduce((sum, row) => sum + row.points, 0),
-      total,
+      shownTimes: sum(shownRows, "times"),
+      totalTimes: sum(rows, "times"),
+      shownPoints: sum(shownRows, "points"),
+      totalPoints: sum(rows, "points"),
     };
   };
 
   const levels = new Map<string, { level: number | null; label: string; net: number }>();
   for (const entry of byStudent) {
     const level = entry.student.currentClass?.level ?? null;
-    const label = level == null ? "No year group" : `Form ${level}`;
+    /*
+     * This said `Form ${level}`, which was wrong twice over: it called a
+     * primary school's Grade 4 a Form, and it printed the rung rather than the
+     * year, so an actual Form 1 — level 8 — appeared on the leaderboard as
+     * "Form 8". `rungName` reads the stage off the rung and names it.
+     */
+    const label = rungName(level) ?? "No class";
     const key = String(level ?? "none");
     const seen = levels.get(key) ?? { level, label, net: 0 };
     seen.net += entry.kind === "MERIT" ? entry.points : -entry.points;
@@ -268,7 +301,10 @@ export async function meritSummary(args: {
     merit,
     demerit,
     byYearGroup: [...levels.values()].sort((a, b) => (a.level ?? 99) - (b.level ?? 99)),
-    recordedThisTerm: merit.total + demerit.total,
+    // Occasions. Adding merit points to demerit points made a number that is
+    // neither a count nor a net — 40 merit points and 12 demerit points is not
+    // "52" of anything a school would recognise.
+    recordedThisTerm: merit.totalTimes + demerit.totalTimes,
   };
 }
 
@@ -398,10 +434,32 @@ export async function pupilMeritLedger(args: {
   });
 }
 
-export async function meritReasons(companyId: string, kind?: SchoolMeritKind) {
+/**
+ * The reasons a merit or a demerit can be given for.
+ *
+ * Active only by default — the award dialog reads this and must not offer a
+ * retired reason. `includeRetired` is for the setup screen, so that retiring
+ * one is not a door that locks behind you.
+ */
+export async function meritReasons(
+  companyId: string,
+  kind?: SchoolMeritKind,
+  options: { includeRetired?: boolean } = {},
+) {
   return prisma.schoolMeritReason.findMany({
-    where: { companyId, isActive: true, ...(kind ? { kind } : {}) },
-    select: { id: true, code: true, name: true, kind: true, defaultPoints: true },
-    orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
+    where: {
+      companyId,
+      ...(options.includeRetired ? {} : { isActive: true }),
+      ...(kind ? { kind } : {}),
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      kind: true,
+      defaultPoints: true,
+      isActive: true,
+    },
+    orderBy: [{ isActive: "desc" }, { kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
   });
 }

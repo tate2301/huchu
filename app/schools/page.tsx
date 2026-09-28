@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { SchoolsDashboardContent } from "@/components/schools/schools-dashboard-content";
 import { authOptions } from "@/lib/auth";
 
@@ -21,7 +21,7 @@ export default async function SchoolsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="School overview" />
+      <PageChrome title="School overview" />
       <SchoolsDashboardContent />
     </div>
   );

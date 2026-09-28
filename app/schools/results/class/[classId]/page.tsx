@@ -27,7 +27,7 @@ export default async function ClassResultsPage({
 
   // The heading lives inside the client component because its create button
   // needs a click handler, which cannot cross the server boundary — so the
-  // year group's name is handed down rather than rendered here.
+  // class's name is handed down rather than rendered here.
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <ClassResultsContent

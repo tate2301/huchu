@@ -99,7 +99,7 @@ export async function POST(
     const endDate = validated.endDate ? new Date(validated.endDate) : term.endDate;
 
     const plan = await planTermClose(prisma, { companyId, termId: term.id });
-    const { ended } = await applyTermClose(prisma, {
+    const { ended, bedsFreed } = await applyTermClose(prisma, {
       companyId,
       termId: term.id,
       endDate,
@@ -109,6 +109,11 @@ export async function POST(
       termId: term.id,
       endDate,
       ended,
+      // The warden was promised "this ends 215 allocations and frees 215 beds".
+      // Saying how many actually came free is how they find out when the two
+      // numbers differ — a bed already marked out of service is not freed, and
+      // that is the difference worth seeing.
+      bedsFreed,
       byHostel: plan.byHostel,
     });
   } catch (error) {
