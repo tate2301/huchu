@@ -33,6 +33,7 @@ import {
   DirectoryCell,
   DirectoryName,
 } from "@/components/records/people-directory";
+import { BoardCardFace } from "./board-card-face";
 import { RecordBoard } from "./record-board";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
@@ -203,7 +204,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
       Object.entries(CONTACT_TYPE_LABELS).map(([value, label]) => ({
         id: value,
         name: label,
-        color: CONTACT_TYPE_COLOR[value] ?? stageColor(null),
+        dot: (CONTACT_TYPE_COLOR[value] ?? stageColor(null)).dot,
       })),
     [],
   );
@@ -229,35 +230,33 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
             facts: row.facts,
           };
         })(),
+        label: person.fullName,
         content: (
-          <div className="flex items-start gap-2">
-            <RecordMark
-              kind="person"
-              name={person.fullName}
-              emoji={person.emoji}
-              avatarUrl={person.avatarUrl}
-              size="sm"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{person.fullName}</p>
-              {fields.isVisible("role") ? (
-                <p className="truncate text-sm text-[var(--text-muted)]">
-                  {[person.jobTitle, person.client?.name].filter(Boolean).join(" · ") ||
-                    person.personNo}
-                </p>
-              ) : null}
-              {fields.isVisible("contact") && (person.email || person.phone) ? (
-                <p className="mt-1 truncate text-sm text-[var(--text-subtle)]">
-                  {person.email ?? person.phone}
-                </p>
-              ) : null}
-              {fields.isVisible("owner") ? (
-                <p className="mt-1 truncate text-sm text-[var(--text-subtle)]">
-                  {person.assignedTo?.name ?? "Unassigned"}
-                </p>
-              ) : null}
-            </div>
-          </div>
+          <BoardCardFace
+            leading={
+              <RecordMark
+                kind="person"
+                name={person.fullName}
+                emoji={person.emoji}
+                avatarUrl={person.avatarUrl}
+                size="sm"
+              />
+            }
+            title={person.fullName}
+            subtitle={
+              fields.isVisible("role")
+                ? [person.jobTitle, person.client?.name].filter(Boolean).join(" · ") ||
+                  person.personNo
+                : undefined
+            }
+            owner={fields.isVisible("owner") ? (person.assignedTo?.name ?? null) : undefined}
+          >
+            {fields.isVisible("contact") && (person.email || person.phone) ? (
+              <p className="truncate text-sm text-[var(--text-subtle)]">
+                {person.email ?? person.phone}
+              </p>
+            ) : null}
+          </BoardCardFace>
         ),
       })),
     [fields, people, rowsById],
@@ -601,8 +600,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
           isLoading={peopleQuery.isLoading}
           noun={{ one: "person", many: "people" }}
           emptyLabel="No one of this kind"
-          onMove={(id, type) => moveContactType.mutate({ id, contactType: type })}
-          className="min-h-[24rem]"
+          onMove={(id, type) => moveContactType.mutateAsync({ id, contactType: type })}
         />
       ) : layout === "TABLE" ? (
         <RecordTable

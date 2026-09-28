@@ -302,7 +302,6 @@ export function DealsContent({
           <DealsBoard
             pipelineId={activePipeline?.id ?? null}
             search={debouncedSearch}
-            className="min-h-[24rem]"
           />
         </BoardFieldsProvider>
       ) : (
