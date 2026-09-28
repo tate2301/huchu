@@ -5,11 +5,13 @@
  * still drawn the old way.
  */
 import { COMPANY_REGISTER } from "./defs/company";
+import { DEAL_REGISTER } from "./defs/deal";
 import { PERSON_REGISTER } from "./defs/person";
 import { SITE_REGISTER } from "./defs/site";
 import type { RegisterDef, RegisterKey } from "./types";
 
 export const REGISTERS = {
+  DEAL: DEAL_REGISTER,
   PERSON: PERSON_REGISTER,
   COMPANY: COMPANY_REGISTER,
   SITE: SITE_REGISTER,

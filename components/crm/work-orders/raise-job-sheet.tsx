@@ -23,12 +23,11 @@ import {
 } from "@/components/crm/records/record-picker";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchCrmDeals } from "@/lib/crm/crm-v2";
 
 import { jobHref } from "./job-types";
 
 type TeamResponse = { data: { id: string; name: string | null; email: string }[] };
-
-type DealsResponse = { data: { id: string; dealNo: string | null; title: string }[] };
 
 type ProjectsResponse = { data: { id: string; projectNo: string; name: string }[] };
 
@@ -139,10 +138,14 @@ export function RaiseJobSheet({
    * Asked for the customer's own deals rather than searched across the
    * tenant, because the answer is nearly always one of two or three.
    */
-  const scope = clientId ? `clientIds=${clientId}` : siteId ? `siteIds=${siteId}` : null;
+  const scope: Record<string, string[]> | null = clientId
+    ? { company: [clientId] }
+    : siteId
+      ? { site: [siteId] }
+      : null;
   const { data: deals, isLoading: dealsLoading } = useQuery({
-    queryKey: ["crm", "deals", "for-job", scope],
-    queryFn: () => fetchJson<DealsResponse>(`/api/v2/crm/deals?${scope}&limit=50`),
+    queryKey: ["crm", "deals", "for-job", clientId ?? null, siteId ?? null],
+    queryFn: () => fetchCrmDeals({ state: { filters: scope ?? {} }, limit: 50 }),
     enabled: open && Boolean(scope) && !dealId && !project,
     staleTime: 60_000,
   });

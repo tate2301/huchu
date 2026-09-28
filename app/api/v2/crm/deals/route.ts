@@ -1,29 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import {
-  errorResponse,
-  getPaginationParams,
-  paginationResponse,
-  successResponse,
-  validateSession,
-} from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { ensureDefaultPipeline, firstOpenStage } from "@/lib/crm/pipelines";
-import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
 import { buildCustomFieldValues, type FieldDefinition } from "@/lib/crm/custom-fields";
 import { recordMarkFields } from "@/lib/crm/record-mark";
-import {
-  boolParam,
-  buildDealWhere,
-  buildRecordOrderBy,
-  customFieldParams,
-  dealFiltersSchema,
-  listParam,
-  numberParam,
-  recordSortSchema,
-} from "@/lib/crm/records";
+import { dealsRegister } from "@/lib/crm/registers/server/deals";
+import { registerGet } from "@/lib/crm/registers/server/route";
 import { isCompanyUser } from "../_helpers";
 
 const createDealSchema = z.object({
@@ -48,96 +33,9 @@ const createDealSchema = z.object({
   customFields: z.record(z.string(), z.unknown()).optional(),
 });
 
+/** The list: see `registerGet` — the page's own query string, paged. */
 export async function GET(request: NextRequest) {
-  try {
-    const sessionResult = await validateSession(request);
-    if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-
-    const { searchParams } = new URL(request.url);
-    const { page, limit, skip } = getPaginationParams(request);
-
-    const parsed = dealFiltersSchema.safeParse({
-      q: searchParams.get("q") || undefined,
-      listId: searchParams.get("listId") || undefined,
-      pipelineIds: listParam(searchParams, "pipelineIds"),
-      stageIds: listParam(searchParams, "stageIds"),
-      statuses: listParam(searchParams, "statuses"),
-      assignedToIds: listParam(searchParams, "assignedToIds"),
-      clientIds: listParam(searchParams, "clientIds"),
-      siteIds: listParam(searchParams, "siteIds"),
-      forecastCategories: listParam(searchParams, "forecastCategories"),
-      valueMin: numberParam(searchParams, "valueMin"),
-      valueMax: numberParam(searchParams, "valueMax"),
-      closeFrom: searchParams.get("closeFrom") || undefined,
-      closeTo: searchParams.get("closeTo") || undefined,
-      createdFrom: searchParams.get("createdFrom") || undefined,
-      createdTo: searchParams.get("createdTo") || undefined,
-      mineOnly: boolParam(searchParams, "mineOnly"),
-      unassigned: boolParam(searchParams, "unassigned"),
-      overdueOnly: boolParam(searchParams, "overdueOnly"),
-      includeArchived: boolParam(searchParams, "includeArchived"),
-      customFields: customFieldParams(searchParams),
-    });
-    const filters = parsed.success ? parsed.data : {};
-
-    const baseWhere = buildDealWhere(session.user.companyId, filters, session.user.id);
-    // A filter on an empty list must return nothing — ignoring it would show
-    // the whole table, which reads as though the filter had failed.
-    const listIds = filters.listId
-      ? await listRecordIds(prisma, {
-          companyId: session.user.companyId,
-          userId: session.user.id,
-          listId: filters.listId,
-        })
-      : null;
-    // "Which deals could a project be started from?" — a deal has one
-    // project, so a deal that already has it is not an answer.
-    const withoutProject = searchParams.get("withoutProject") === "true";
-    const where = {
-      ...baseWhere,
-      ...(listIdFilter(listIds) ?? {}),
-      ...(withoutProject ? { projects: { none: {} } } : {}),
-    };
-    const sort = recordSortSchema.safeParse({
-      field: searchParams.get("sortField"),
-      direction: searchParams.get("sortDir"),
-    });
-
-    const [deals, total] = await Promise.all([
-      prisma.crmDeal.findMany({
-        where,
-        include: {
-          client: { select: { id: true, name: true } },
-          primaryContact: { select: { id: true, fullName: true } },
-          site: { select: { id: true, name: true } },
-          assignedTo: { select: { id: true, name: true } },
-          stage: { select: { id: true, name: true, status: true, colorToken: true, inactivityDays: true } },
-          pipeline: { select: { id: true, name: true } },
-          followUps: {
-            where: { status: "PENDING" },
-            orderBy: { dueAt: "asc" },
-            take: 1,
-            select: { id: true, title: true, dueAt: true },
-          },
-        },
-        orderBy: buildRecordOrderBy("DEAL", sort.success ? sort.data : undefined),
-        skip,
-        take: limit,
-      }),
-      prisma.crmDeal.count({ where }),
-    ]);
-
-    const shaped = deals.map(({ followUps, ...deal }) => ({
-      ...deal,
-      nextFollowUp: followUps[0] ?? null,
-    }));
-
-    return successResponse(paginationResponse(shaped, total, page, limit));
-  } catch (error) {
-    console.error("[API] GET /api/v2/crm/deals error:", error);
-    return errorResponse("Failed to fetch deals");
-  }
+  return registerGet(request, dealsRegister);
 }
 
 export async function POST(request: NextRequest) {

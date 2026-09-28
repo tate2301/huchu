@@ -19,9 +19,9 @@ import type { CollabEntity } from "@/lib/crm/collaboration";
 import type { TaskQueue } from "@/lib/crm/tasks";
 import type { ImportEntity, ImportPlan } from "@/lib/crm/import";
 import type { FieldChoice, MergeFieldPlan } from "@/lib/crm/merge";
-import type { RecordSort } from "@/lib/crm/records";
 import { writeState } from "@/lib/crm/registers/codec";
 import { COMPANY_REGISTER } from "@/lib/crm/registers/defs/company";
+import { DEAL_REGISTER } from "@/lib/crm/registers/defs/deal";
 import { PERSON_REGISTER } from "@/lib/crm/registers/defs/person";
 import { SITE_REGISTER } from "@/lib/crm/registers/defs/site";
 import type { RegisterDef, ViewState } from "@/lib/crm/registers/types";
@@ -253,58 +253,22 @@ export function fetchCrmLeadsBoard(filters: LeadViewFilters = {}) {
   );
 }
 
-export type CrmDealBoardCard = {
-  id: string;
-  dealNo: string;
-  title: string;
-  value: number | null;
-  currency: string;
-  status: "OPEN" | "WON" | "LOST";
-  stageId: string;
-  stageEnteredAt: string;
-  expectedCloseDate: string | null;
-  emoji: string | null;
-  avatarUrl: string | null;
-  client: { id: string; name: string } | null;
-  assignedTo: CrmLeadOwner | null;
-  nextFollowUp: { id: string; title: string; dueAt: string } | null;
-};
-
-export type CrmDealBoardColumn = {
-  stage: {
-    id: string;
-    name: string;
-    status: "OPEN" | "WON" | "LOST";
-    position: number;
-    colorToken: string | null;
-  };
-  count: number;
-  totalValue: number;
-  hasMore: boolean;
-  deals: CrmDealBoardCard[];
-};
-
-export type CrmDealBoard = {
+/**
+ * One pipeline as a board (`boardEndpoint`): a column per stage, the first
+ * cards in the list's order, and the count and value of every card each
+ * column holds.
+ */
+export type RegisterBoardData<Card> = {
   pipeline: { id: string; name: string };
-  columns: CrmDealBoardColumn[];
+  columns: Array<{
+    stage: { id: string; name: string; status: "OPEN" | "WON" | "LOST"; position: number; colorToken: string | null };
+    count: number;
+    totalValue: number;
+    hasMore: boolean;
+    cards: Card[];
+  }>;
   cardsPerColumn: number;
 };
-
-export function fetchCrmDealsBoard(params: {
-  pipelineId?: string | null;
-  mineOnly?: boolean;
-  q?: string;
-} = {}) {
-  const search = new URLSearchParams();
-  if (params.pipelineId) search.set("pipelineId", params.pipelineId);
-  if (params.mineOnly) search.set("mineOnly", "1");
-  if (params.q) search.set("q", params.q);
-  const query = search.toString();
-  // Bare body, like the leads board — no envelope to unwrap.
-  return fetchJson<CrmDealBoard>(
-    `/api/v2/crm/deals/board${query ? `?${query}` : ""}`,
-  );
-}
 
 export function updateCrmDealStage(dealId: string, stageId: string) {
   return fetchJson<{ id: string; stageId: string }>(
@@ -521,10 +485,15 @@ export type CrmDealStage = {
   inactivityDays: number | null;
 };
 
+/** A deal as the list, the board and the export read it. */
 export type CrmDealRecord = {
   id: string;
   dealNo: string;
   title: string;
+  emoji: string | null;
+  avatarUrl: string | null;
+  stageId: string;
+  pipelineId: string;
   status: "OPEN" | "WON" | "LOST";
   value: number | null;
   currency: string;
@@ -537,8 +506,8 @@ export type CrmDealRecord = {
   primaryContact: { id: string; fullName: string } | null;
   site: { id: string; name: string } | null;
   assignedTo: CrmLeadOwner | null;
-  stage: CrmDealStage;
-  pipeline: { id: string; name: string };
+  stage: CrmDealStage & { position: number };
+  pipeline: { id: string; name: string; isDefault: boolean };
   nextFollowUp: CrmNextFollowUp | null;
   customFields: Record<string, unknown> | null;
   createdAt: string;
@@ -608,35 +577,6 @@ export type CrmFieldDefinitionRecord = {
   archivedAt: string | null;
 };
 
-/** Turn a filter object into query params, flattening arrays and custom fields. */
-export function recordFiltersToParams(
-  filters: Record<string, unknown>,
-): Record<string, string | number | boolean | undefined> {
-  const params: Record<string, string | number | boolean | undefined> = {};
-  for (const [key, value] of Object.entries(filters)) {
-    if (value === undefined || value === null || value === "") continue;
-    if (key === "customFields" && typeof value === "object") {
-      for (const [fieldKey, fieldValue] of Object.entries(value as Record<string, unknown>)) {
-        if (fieldValue === undefined || fieldValue === null || fieldValue === "") continue;
-        params[`cf.${fieldKey}`] = Array.isArray(fieldValue)
-          ? fieldValue.join(",")
-          : String(fieldValue);
-      }
-      continue;
-    }
-    if (Array.isArray(value)) {
-      if (value.length > 0) params[key] = value.join(",");
-      continue;
-    }
-    if (typeof value === "boolean") {
-      if (value) params[key] = "1";
-      continue;
-    }
-    params[key] = value as string | number;
-  }
-  return params;
-}
-
 /**
  * A register query: part of a list's state, a page and a page size. Missing
  * state is the list's default — no filters, the list's first sort.
@@ -670,6 +610,15 @@ export function fetchRegisterPage<Row>(def: RegisterDef, query: RegisterQuery = 
   return fetchJson<ListResponse<Row> & { groups?: RegisterPageGroup[] }>(`${def.endpoint}?${params}`);
 }
 
+/** One pipeline's board, asked with the list's own query string. */
+export function fetchRegisterBoard<Card>(def: RegisterDef, state: ViewState) {
+  const params = new URLSearchParams(writeState(def, state));
+  const tz = browserTimeZone();
+  if (tz) params.set("tz", tz);
+  // Bare body — the board is the answer, with no envelope around it.
+  return fetchJson<RegisterBoardData<Card>>(`${def.boardEndpoint}?${params}`);
+}
+
 /**
  * One group of a grouped page (`?by=`): its name, how many rows it holds in
  * the whole list, and which of this page's rows are in it.
@@ -684,18 +633,8 @@ export function fetchCrmCompanies(query: RegisterQuery = {}) {
   return fetchRegisterPage<CrmCompanyRecord>(COMPANY_REGISTER, query);
 }
 
-export function fetchCrmDeals(
-  params: { filters?: Record<string, unknown>; sort?: RecordSort; page?: number; limit?: number } = {},
-) {
-  return fetchJson<ListResponse<CrmDealRecord>>(
-    `/api/v2/crm/deals${qs({
-      ...recordFiltersToParams(params.filters ?? {}),
-      sortField: params.sort?.field,
-      sortDir: params.sort?.direction,
-      page: params.page,
-      limit: params.limit,
-    })}`,
-  );
+export function fetchCrmDeals(query: RegisterQuery = {}) {
+  return fetchRegisterPage<CrmDealRecord>(DEAL_REGISTER, query);
 }
 
 export function fetchCrmSites(query: RegisterQuery = {}) {

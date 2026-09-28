@@ -29,6 +29,20 @@ export type RowWindow = { skip: number; take: number };
  */
 export type RegisterGroup = { id: string; label: string; count: number; ids: string[] };
 
+/** One of a board's columns: a stage. */
+export type BoardLane = { id: string; name: string; status: string; position: number; colorToken: string | null };
+
+/**
+ * One pipeline as a board: a column per stage, each with the first cards in
+ * the list's order and the count and value of every card it holds — not only
+ * the ones drawn — so a column's header stays honest past its last card.
+ */
+export type RegisterBoard<Row> = {
+  pipeline: { id: string; name: string };
+  columns: Array<{ stage: BoardLane; count: number; totalValue: number; hasMore: boolean; cards: Row[] }>;
+  cardsPerColumn: number;
+};
+
 /**
  * The server half of a list: the records a state selects, and each record as
  * the cells of an export.
@@ -56,4 +70,9 @@ export type RegisterServer<Row extends { id: string }> = {
   cells(row: Row, ctx: RegisterContext): Record<string, ExportCell>;
   /** The answers a `facet` filter offers, read from the records the rest of the state selects. */
   facet?(ctx: RegisterContext, state: ViewState, key: string): Promise<FilterOption[]>;
+  /**
+   * The BOARD layout of a list whose board is one pipeline's stages. Null when
+   * the pipeline the state names is not there.
+   */
+  board?(ctx: RegisterContext, state: ViewState): Promise<RegisterBoard<Row> | null>;
 };

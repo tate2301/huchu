@@ -105,7 +105,17 @@ export type ViewState = {
   columns?: readonly string[];
 };
 
-export type FilterOption = { value: string; label: string };
+export type FilterOption = {
+  value: string;
+  label: string;
+  /**
+   * What a board shows while this single-choice filter is unset: the default
+   * pipeline. A table can span every pipeline; a board is one at a time.
+   */
+  isDefault?: boolean;
+  /** The heading the answer is listed under — a stage under its pipeline. */
+  group?: string;
+};
 
 export type FilterKind =
   | "enum"
@@ -127,6 +137,18 @@ export type FilterDef = {
    * is in — the way a spreadsheet's column filter lists what is in the column.
    */
   facet?: boolean;
+  /**
+   * `enum`: the answers are the company's own configuration — its deal
+   * pipelines, or the stages of the pipeline chosen (every pipeline's, when
+   * none is).
+   */
+  source?: "pipelines" | "stages";
+  /**
+   * Another filter whose answer this one's answers belong to — a stage is one
+   * pipeline's. Changing that filter clears this one, rather than leaving it
+   * holding a stage the list can no longer have.
+   */
+  follows?: string;
   /** `relation`: whose records to pick from. */
   relation?: "COMPANY" | "PERSON" | "DEAL" | "SITE" | "PROJECT" | "LEAD";
   /** What "no filter" is called on this chip — "Anyone", "All", "Anywhere". */
@@ -206,6 +228,11 @@ export type RegisterDef = {
    */
   queryKey: readonly string[];
   layouts: readonly Layout[];
+  /**
+   * BOARD: where one pipeline's board is read from, a column per stage. A
+   * list without one draws its board from the page of rows.
+   */
+  boardEndpoint?: string;
   search: { placeholder: string };
   filters: readonly FilterDef[];
   sorts: readonly SortDef[];

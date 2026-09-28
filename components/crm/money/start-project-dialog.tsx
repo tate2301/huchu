@@ -17,23 +17,13 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchCrmDeals } from "@/lib/crm/crm-v2";
 
 import { formatMoney, todayKey } from "./money";
 
 type TeamResponse = { data: { id: string; name: string | null; email: string }[] };
 
 /** A deal a project could be started from, as the deals route answers it. */
-type DealOption = {
-  id: string;
-  dealNo: string;
-  title: string;
-  value: number | string | null;
-  currency: string;
-  status: string;
-  assignedTo: { id: string; name: string | null } | null;
-  client: { id: string; name: string } | null;
-};
-
 /** The deal the project delivers, when the page already knows it. */
 type GivenDeal = {
   id: string;
@@ -114,9 +104,7 @@ export function StartProjectDialog({
   const { data: candidates, isLoading: candidatesLoading } = useQuery({
     queryKey: ["crm", "deals", "without-project"],
     queryFn: () =>
-      fetchJson<{ data: DealOption[] }>(
-        "/api/v2/crm/deals?withoutProject=true&statuses=WON,OPEN&limit=100",
-      ),
+      fetchCrmDeals({ state: { filters: { noProject: true, status: ["OPEN", "WON"] } }, limit: 100 }),
     enabled: open && !deal,
   });
   // Won first: a won deal with no project is work sold and not yet started.

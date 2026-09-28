@@ -5,8 +5,8 @@
  * page in the CRM already is, and "add to list" beside a list of records
  * reads as nothing.
  */
-import { REGISTERS, isEngineRegisterKey } from "@/lib/crm/registers/registry";
-import { writeState } from "@/lib/crm/registers/codec";
+import { registerHref } from "@/lib/crm/registers/href";
+import { isEngineRegisterKey } from "@/lib/crm/registers/registry";
 
 export const GROUP_ENTITY_LABELS = {
   PERSON: "People",
@@ -21,13 +21,11 @@ export type GroupEntity = keyof typeof GROUP_ENTITY_LABELS;
 
 /**
  * Where a group opens: its record type's own list, narrowed to the group,
- * where it can be searched, sorted and exported like any other slice. A
- * record type not on the list engine yet still opens the group's own page.
+ * where it can be searched, sorted and exported like any other slice. As a
+ * table — a group of deals can span pipelines, and a board is one pipeline.
+ * A record type not on the list engine yet still opens the group's own page.
  */
 export function groupHref(entity: string, groupId: string): string {
-  if (isEngineRegisterKey(entity)) {
-    const def = REGISTERS[entity];
-    return `${def.route}?${writeState(def, { filters: { group: [groupId] } })}`;
-  }
+  if (isEngineRegisterKey(entity)) return registerHref(entity, { filters: { group: [groupId] }, layout: "TABLE" });
   return `/crm/lists/${groupId}`;
 }

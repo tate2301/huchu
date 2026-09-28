@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,10 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
+  configOptions,
   useFacetOptions,
   useGroups,
+  usePipelines,
   useRecordNames,
   useRelationSearch,
   useTeamMembers,
@@ -58,6 +61,14 @@ function useFilterOptions(
   const groups = useGroups(register.def.groupEntity, filter.kind === "group");
   const facet = useFacetOptions(register.def, filter, register.state, open);
   const search = useRelationSearch(filter.relation, query, open && filter.kind === "relation");
+  const pipelines = usePipelines(Boolean(filter.source));
+
+  if (filter.source) {
+    return {
+      options: configOptions(filter, pipelines.data ?? [], register.state, register.layout === "BOARD"),
+      loading: pipelines.isLoading,
+    };
+  }
 
   switch (filter.kind) {
     case "person":
@@ -90,8 +101,13 @@ function useValueLabels(register: RegisterHandle, filter: FilterDef, values: rea
   const team = useTeamMembers(filter.kind === "person" && values.length > 0);
   const groups = useGroups(register.def.groupEntity, filter.kind === "group" && values.length > 0);
   const names = useRecordNames(filter.kind === "relation" ? filter.relation : undefined, values);
+  const pipelines = usePipelines(Boolean(filter.source) && values.length > 0);
 
   return (value: string): string => {
+    if (filter.source === "pipelines") return pipelines.data?.find((pipeline) => pipeline.id === value)?.name ?? "…";
+    if (filter.source === "stages") {
+      return pipelines.data?.flatMap((pipeline) => pipeline.stages).find((stage) => stage.id === value)?.name ?? "…";
+    }
     if (filter.kind === "person") {
       if (value === "me") return "Me";
       if (value === "none") return "Nobody";
@@ -103,9 +119,26 @@ function useValueLabels(register: RegisterHandle, filter: FilterDef, values: rea
   };
 }
 
+/**
+ * What a board shows while a single-choice filter is left alone: the default
+ * pipeline. A table spans every pipeline; a board is one at a time, so on a
+ * board the chip names the one it is showing rather than "All pipelines".
+ */
+function useBoardDefault(register: RegisterHandle, filter: FilterDef): FilterOption | undefined {
+  const applies = register.layout === "BOARD" && Boolean(register.def.boardEndpoint) && filter.source === "pipelines";
+  const pipelines = usePipelines(applies);
+  if (!applies) return undefined;
+  return configOptions(filter, pipelines.data ?? [], register.state, true).find((option) => option.isDefault);
+}
+
 /** What a chip says it is filtered to: "Customer", "Me, +2", "This month", "1,000 – 5,000". */
-function summarize(filter: FilterDef, value: FilterValue | undefined, label: (value: string) => string): string {
-  if (value === undefined) return filter.anyLabel ?? "Any";
+function summarize(
+  filter: FilterDef,
+  value: FilterValue | undefined,
+  label: (value: string) => string,
+  fallback?: string,
+): string {
+  if (value === undefined) return fallback ?? filter.anyLabel ?? "Any";
   if (value === true) return filter.onLabel ?? "Yes";
   if (Array.isArray(value)) {
     const values = value as readonly string[];
@@ -152,10 +185,14 @@ function OptionsEditor({
   const selected = useMemo(() => (Array.isArray(value) ? [...(value as readonly string[])] : []), [value]);
   const { options, loading } = useFilterOptions(register, filter, open, query);
   const label = useValueLabels(register, filter, selected);
+  const fallback = useBoardDefault(register, filter);
+  // Left alone on a board, the pipeline filter is the default pipeline, and
+  // says so with its tick.
+  const ticked = selected.length > 0 ? selected : fallback ? [fallback.value] : [];
 
   // Relation answers come from a search, so the ones already chosen may not be
   // among the results; they stay at the top where they can be unticked.
-  const shown = useMemo(() => {
+  const shown = useMemo<FilterOption[]>(() => {
     if (filter.kind !== "relation") return options;
     const found = new Set(options.map((option) => option.value));
     return [...selected.filter((id) => !found.has(id)).map((id) => ({ value: id, label: label(id) })), ...options];
@@ -172,6 +209,16 @@ function OptionsEditor({
 
   const searchable = filter.kind === "relation" || shown.length > 7;
 
+  // Answers under headings when they carry one — stages under their pipeline.
+  const sections = useMemo(() => {
+    const byHeading = new Map<string, FilterOption[]>();
+    for (const option of shown) {
+      const heading = option.group ?? "";
+      byHeading.set(heading, [...(byHeading.get(heading) ?? []), option]);
+    }
+    return [...byHeading.entries()];
+  }, [shown]);
+
   return (
     <Command shouldFilter={filter.kind !== "relation"} className="bg-transparent">
       {searchable ? (
@@ -183,24 +230,27 @@ function OptionsEditor({
       ) : null}
       <CommandList className="max-h-72">
         <CommandEmpty>{loading ? "Loading…" : filter.kind === "relation" && !query ? "Type to search" : "Nothing matches"}</CommandEmpty>
-        <CommandGroup>
-          {shown.map((option) => {
-            const on = selected.includes(option.value);
-            return (
-              <CommandItem
-                key={option.value}
-                value={`${option.label} ${option.value}`}
-                onSelect={() => toggle(option.value)}
-                aria-checked={on}
-                role="menuitemcheckbox"
-                className="gap-2"
-              >
-                <Tick on={on} />
-                <span className="min-w-0 flex-1 truncate">{option.label}</span>
-              </CommandItem>
-            );
-          })}
-        </CommandGroup>
+        {sections.map(([heading, answers]) => (
+          <CommandGroup key={heading || "answers"} heading={heading || undefined}>
+            {answers.map((option) => {
+              const on = ticked.includes(option.value);
+              return (
+                <CommandItem
+                  key={option.value}
+                  value={`${option.label} ${option.group ?? ""} ${option.value}`}
+                  onSelect={() => toggle(option.value)}
+                  aria-checked={on}
+                  role="menuitemcheckbox"
+                  className="gap-2"
+                >
+                  <Tick on={on} />
+                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                  {option.isDefault ? <span className="text-sm text-[var(--text-subtle)]">default</span> : null}
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        ))}
       </CommandList>
     </Command>
   );
@@ -317,6 +367,7 @@ export function FilterChip({
   const value = register.state.filters[filter.key];
   const values = Array.isArray(value) ? (value as readonly string[]) : [];
   const label = useValueLabels(register, filter, values);
+  const fallback = useBoardDefault(register, filter);
 
   if (filter.kind === "boolean") {
     // An on/off filter is its own chip: pressed, it narrows; the cross takes
@@ -350,9 +401,10 @@ export function FilterChip({
       }}
       title={filter.label}
       className="w-72 p-0"
-      trigger={<ViewToolbarChip label={filter.label} value={summarize(filter, value, label)} />}
+      trigger={<ViewToolbarChip label={filter.label} value={summarize(filter, value, label, fallback?.label)} />}
     >
       {editor}
+      {filter.source === "pipelines" ? <PipelineLinks /> : null}
       {value !== undefined ? (
         <div className="flex justify-end border-t border-[var(--border-subtle)] p-1.5">
           <Button
@@ -369,6 +421,26 @@ export function FilterChip({
         </div>
       ) : null}
     </ResponsivePopover>
+  );
+}
+
+/**
+ * Under the pipelines: leads, which are the intake pipeline and live on a
+ * page of their own, and where pipelines are set up.
+ */
+function PipelineLinks() {
+  const item =
+    "flex items-center rounded-[var(--radius-sm)] px-2 py-1.5 text-sm text-[var(--text-strong)] hover:bg-[var(--surface-subtle)]";
+  return (
+    <nav aria-label="Other pipelines" className="flex flex-col border-t border-[var(--border-subtle)] p-1">
+      <Link href="/crm/leads" className={item}>
+        Leads
+        <span className="ml-auto text-sm text-[var(--text-subtle)]">intake</span>
+      </Link>
+      <Link href="/crm/settings?tab=pipelines" className={item}>
+        Manage pipelines
+      </Link>
+    </nav>
   );
 }
 

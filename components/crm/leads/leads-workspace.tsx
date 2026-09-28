@@ -53,15 +53,12 @@ export function LeadsWorkspace({
   initialFilters = {},
   initialView = "BOARD",
   initialViewId = null,
-  onPickPipeline,
 }: {
   /** Parsed from the page's query string, so links like /crm/leads?stages=QUOTED land pre-filtered. */
   initialFilters?: LeadViewFilters;
   initialView?: "TABLE" | "BOARD";
   /** From `?view=`, so the sidebar's saved-view links land on that view. */
   initialViewId?: string | null;
-  /** Set by the unified workspace so the pipeline menu swaps in place. */
-  onPickPipeline?: (target: "leads" | string) => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -307,7 +304,7 @@ export function LeadsWorkspace({
 
             {/* The same pipeline menu deals has. Leads are the intake
                 pipeline; the menu is how you cross to the deal ones. */}
-            <PipelineSwitcher active="leads" onPick={onPickPipeline} />
+            <PipelineSwitcher />
 
             {/* A board is already ordered by stage, so sorting it means nothing. */}
             {viewType === "TABLE" ? (

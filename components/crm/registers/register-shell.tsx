@@ -13,6 +13,7 @@ import type { FilterDef } from "@/lib/crm/registers/types";
 import { Plus, X } from "@/lib/icons";
 
 import { BulkActions } from "./bulk-actions";
+import { usePipelines } from "./register-data";
 import { RegisterExport } from "./export-control";
 import { AddFilterMenu, FilterChip } from "./filter-controls";
 import { ColumnsMenu, GroupByMenu, SortMenu, ViewsMenu } from "./toolbar-menus";
@@ -32,21 +33,28 @@ import type { RegisterHandle } from "./use-register";
  * list is opened to answer. The rest wait behind "+ Filter" until they are
  * used, and stay on the row while they narrow anything.
  */
-export function RegisterToolbar({ register }: { register: RegisterHandle }) {
+export function RegisterToolbar({ register, display }: { register: RegisterHandle; display?: ReactNode }) {
   const { def, state, selection } = register;
   const [pending, setPending] = useState<string | null>(null);
 
-  const shown = useMemo<FilterDef[]>(
-    () =>
-      def.filters.filter(
-        (filter) => filter.pinned || state.filters[filter.key] !== undefined || filter.key === pending,
-      ),
-    [def.filters, pending, state.filters],
-  );
+  // A company with one pipeline has no pipeline question to ask.
+  const pipelines = usePipelines(def.filters.some((filter) => filter.source === "pipelines"));
+  const pipelineCount = pipelines.data?.filter((pipeline) => pipeline.isActive).length ?? 0;
+
+  // The chips that narrow the list come first, then the pinned questions not
+  // yet answered: when the row runs out of room it is an unanswered chip that
+  // scrolls out of sight, never one that is hiding records.
+  const shown = useMemo<FilterDef[]>(() => {
+    const on = def.filters.filter((filter) => state.filters[filter.key] !== undefined || filter.key === pending);
+    const waiting = def.filters.filter(
+      (filter) => filter.pinned && !on.includes(filter) && (filter.source !== "pipelines" || pipelineCount > 1),
+    );
+    return [...on, ...waiting];
+  }, [def.filters, pending, pipelineCount, state.filters]);
   const shownKeys = useMemo(() => new Set(shown.map((filter) => filter.key)), [shown]);
   const narrowing = activeFilterCount(state);
-  const count = register.query.data
-    ? `${register.rows.length.toLocaleString("en-US")} of ${register.total.toLocaleString("en-US")}`
+  const count = register.count
+    ? `${register.count.shown.toLocaleString("en-US")} of ${register.count.total.toLocaleString("en-US")}`
     : null;
 
   if (selection.ids.length > 0) {
@@ -142,8 +150,9 @@ export function RegisterToolbar({ register }: { register: RegisterHandle }) {
               rows are in the list, so they sit after the count with the
               columns (FILT-1). A board is already grouped, by its columns. */}
           <SortMenu register={register} />
-          {(state.layout ?? def.layouts[0]) !== "BOARD" ? <GroupByMenu register={register} /> : null}
-          {(state.layout ?? def.layouts[0]) === "TABLE" ? <ColumnsMenu register={register} /> : null}
+          {register.layout !== "BOARD" ? <GroupByMenu register={register} /> : null}
+          {register.layout === "TABLE" ? <ColumnsMenu register={register} /> : null}
+          {display}
           <RegisterExport register={register} />
         </>
       }
@@ -163,6 +172,7 @@ export function RegisterShell({
   createLabel,
   onCreate,
   notice,
+  display,
   children,
 }: {
   register: RegisterHandle;
@@ -172,6 +182,8 @@ export function RegisterShell({
   onCreate?: () => void;
   /** A standing instruction about the whole list, above the toolbar. */
   notice?: ReactNode;
+  /** How this layout draws its records, where the engine does not own it — a board's card fields. */
+  display?: ReactNode;
   children: ReactNode;
 }) {
   const actions = useMemo(
@@ -194,11 +206,11 @@ export function RegisterShell({
 
       {notice ? <div className="mb-3">{notice}</div> : null}
 
-      <RegisterToolbar register={register} />
+      <RegisterToolbar register={register} display={display} />
 
-      {register.query.error ? (
+      {register.error ? (
         <Alert tone="danger" title={`Unable to load ${title.toLowerCase()}`} className="mt-4">
-          {getApiErrorMessage(register.query.error)}
+          {getApiErrorMessage(register.error)}
         </Alert>
       ) : null}
 

@@ -4,7 +4,13 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import { fetchCrmLists } from "@/lib/crm/collections-client";
-import { fetchCrmCompanies, fetchCrmPeople, fetchCrmSites } from "@/lib/crm/crm-v2";
+import {
+  fetchCrmCompanies,
+  fetchCrmPeople,
+  fetchCrmPipelines,
+  fetchCrmSites,
+  type CrmPipelineRecord,
+} from "@/lib/crm/crm-v2";
 import { writeState } from "@/lib/crm/registers/codec";
 import type { FilterDef, FilterOption, RegisterDef, ViewState } from "@/lib/crm/registers/types";
 
@@ -30,6 +36,56 @@ export function useGroups(entity: string | undefined, enabled = true) {
     enabled: Boolean(entity) && enabled,
     select: (response) => response.data,
   });
+}
+
+/** The company's deal pipelines, with their stages. Shared cache with every pipeline picker. */
+export function usePipelines(enabled = true) {
+  return useQuery({
+    queryKey: ["crm", "pipelines"],
+    queryFn: () => fetchCrmPipelines(),
+    staleTime: 5 * 60_000,
+    enabled,
+    select: (response) => response.data,
+  });
+}
+
+/**
+ * A filter's answers when they are the company's own pipeline setup
+ * (`FilterDef.source`):
+ *
+ * - pipelines, the default one marked — it is what a board shows while the
+ *   filter is left alone;
+ * - stages: the chosen pipeline's; on a board with none chosen, the default
+ *   pipeline's; on a table, every pipeline's, each under its pipeline's name.
+ */
+export function configOptions(
+  filter: FilterDef,
+  pipelines: readonly CrmPipelineRecord[],
+  state: ViewState,
+  onBoard: boolean,
+): FilterOption[] {
+  const active = pipelines.filter((pipeline) => pipeline.isActive);
+  if (filter.source === "pipelines") {
+    return active.map((pipeline) => ({
+      value: pipeline.id,
+      label: pipeline.name,
+      ...(pipeline.isDefault ? { isDefault: true } : {}),
+    }));
+  }
+  const chosen = filter.follows ? state.filters[filter.follows] : undefined;
+  const chosenId = Array.isArray(chosen) ? (chosen as readonly string[])[0] : undefined;
+  const shown = chosenId
+    ? active.filter((pipeline) => pipeline.id === chosenId)
+    : onBoard
+      ? active.filter((pipeline) => pipeline.isDefault)
+      : active;
+  return shown.flatMap((pipeline) =>
+    pipeline.stages.map((stage) => ({
+      value: stage.id,
+      label: stage.name,
+      ...(shown.length > 1 ? { group: pipeline.name } : {}),
+    })),
+  );
 }
 
 /**

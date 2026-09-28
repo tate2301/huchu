@@ -25,11 +25,14 @@ export function ColumnPicker({
   label = "Columns",
   /** Past this many, the popover grows a search box. */
   searchThreshold = 8,
+  /** `sm` on a list engine toolbar, where every control is the small size. */
+  size,
 }: {
   columns: ColumnOption[];
   state: VisibleColumns;
   label?: string;
   searchThreshold?: number;
+  size?: "sm";
 }) {
   const [query, setQuery] = React.useState("");
   const needle = query.trim().toLowerCase();
@@ -45,9 +48,10 @@ export function ColumnPicker({
             height is what every other trigger in the toolbar is, and asking
             for `sm` and then forcing 36px back on top is how the row ended up
             with three different heights in it. */}
-        <Button type="button" variant="outline">
+        <Button type="button" variant="outline" size={size} className={size ? "shrink-0 gap-1.5" : undefined}>
           <Eye className="size-4" aria-hidden="true" />
-          {label}
+          {/* On a list toolbar the word waits for the room 2xl has, like Columns. */}
+          <span className={size ? "max-sm:not-sr-only sr-only 2xl:not-sr-only" : undefined}>{label}</span>
           {/* The count alone. "2 hidden" spelt out makes the trigger a
               sentence; a red-toned number reads as "attention: not seeing
               everything" at a glance. */}

@@ -744,7 +744,17 @@ pushed right behind a hairline.
 
 On a list engine page (`components/crm/registers/register-shell.tsx`) this row
 is built for you from the list's definition: pinned filters are always on it,
-the rest wait behind "+ Filter" until they narrow anything.
+the rest wait behind "+ Filter" until they narrow anything. The chips that
+narrow come first and the unanswered pinned ones after, so when the row runs out
+of room it is an unanswered chip that scrolls out of sight, never one hiding
+records. A pinned question with one answer is not asked: Pipeline is pinned only
+for a company with more than one pipeline.
+
+A board is one pipeline at a time. Left alone, the pipeline filter means every
+pipeline on a table and the default pipeline on a board, and the chip says
+which ("Pipeline: Sales"). Filters whose answers are the company's own setup
+(`FilterDef.source`) list them from it; a stage follows the pipeline
+(`follows`), so choosing another pipeline lets go of the stage.
 
 *The failure:* the filters used to sit on a row of their own above this one, "so
 'narrow it down' was answered in two places a band apart".

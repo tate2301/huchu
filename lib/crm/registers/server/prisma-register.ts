@@ -6,7 +6,15 @@
 import { withDefaults } from "../codec";
 import { dayIn, minuteIn } from "../dates";
 import type { FilterOption, RegisterDef, ViewState } from "../types";
-import type { ExportCell, RegisterContext, RegisterGroup, RegisterServer, RowWindow } from "./types";
+import type {
+  BoardLane,
+  ExportCell,
+  RegisterBoard,
+  RegisterContext,
+  RegisterGroup,
+  RegisterServer,
+  RowWindow,
+} from "./types";
 
 type Where = Record<string, unknown>;
 type OrderBy = Record<string, unknown>;
@@ -24,6 +32,23 @@ export type GroupBySpec<Row> = {
   counts(where: Where): Promise<Map<string, number>>;
 };
 
+/** How a list is drawn as one pipeline's board. */
+export type BoardSpec = {
+  /**
+   * The pipeline a state's board shows and the stages drawn as its columns,
+   * with the state the cards are read with — the pipeline filled in when the
+   * state left it to the default. Null when the pipeline asked for is gone.
+   */
+  lanes(
+    ctx: RegisterContext,
+    state: ViewState,
+  ): Promise<{ pipeline: { id: string; name: string }; lanes: BoardLane[]; state: ViewState } | null>;
+  /** The records of one column. */
+  inLane(where: Where, laneId: string): Where;
+  /** Cards and their value per column, across every card the state selects. */
+  totals(where: Where): Promise<Map<string, { count: number; value: number }>>;
+};
+
 export type PrismaRegisterSpec<Row extends { id: string }> = {
   def: RegisterDef;
   /** The records a state selects, inside the reader's scope. */
@@ -36,9 +61,16 @@ export type PrismaRegisterSpec<Row extends { id: string }> = {
   facets?: Record<string, (where: Where) => Promise<FilterOption[]>>;
   /** One per key of the definition's `groupBys`. */
   groupBys?: Record<string, GroupBySpec<Row>>;
+  board?: BoardSpec;
 };
 
 const SCAN_BATCH = 500;
+
+/**
+ * Cards drawn per column. A board is for working a pipeline, not for reading
+ * every record; past this the column says how many more there are.
+ */
+export const CARDS_PER_COLUMN = 50;
 
 function narrowed(where: Where, ids?: readonly string[]): Where {
   return ids ? { AND: [where, { id: { in: [...ids] } }] } : where;
@@ -99,8 +131,44 @@ export function prismaRegister<Row extends { id: string }>(
     return [...(grouping(state)?.orderBy ?? []), ...spec.orderBy(sort.key, sort.dir), { id: "asc" }];
   };
 
+  const boardSpec = spec.board;
+  const board = boardSpec
+    ? async (ctx: RegisterContext, state: ViewState): Promise<RegisterBoard<Row> | null> => {
+        const lanes = await boardSpec.lanes(ctx, state);
+        if (!lanes) return null;
+        const where = await spec.where(ctx, lanes.state);
+        // The list's own order inside each column; a board is already grouped.
+        const orderBy = order({ ...lanes.state, by: undefined });
+        // One read per column: a single read across them all would let a busy
+        // stage crowd the quiet ones off the board entirely.
+        const [cards, totals] = await Promise.all([
+          Promise.all(
+            lanes.lanes.map((lane) =>
+              spec.findMany({ where: boardSpec.inLane(where, lane.id), orderBy, skip: 0, take: CARDS_PER_COLUMN }),
+            ),
+          ),
+          boardSpec.totals(where),
+        ]);
+        return {
+          pipeline: lanes.pipeline,
+          cardsPerColumn: CARDS_PER_COLUMN,
+          columns: lanes.lanes.map((lane, index) => {
+            const total = totals.get(lane.id) ?? { count: 0, value: 0 };
+            return {
+              stage: lane,
+              count: total.count,
+              totalValue: total.value,
+              hasMore: total.count > cards[index].length,
+              cards: cards[index],
+            };
+          }),
+        };
+      }
+    : undefined;
+
   return {
     def: spec.def,
+    ...(board ? { board } : {}),
 
     async page(ctx: RegisterContext, state: ViewState, window: RowWindow, ids?: readonly string[]) {
       const where = narrowed(await spec.where(ctx, state), ids);

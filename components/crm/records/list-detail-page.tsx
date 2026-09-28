@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { ListBullets } from "@/lib/icons";
-import { fetchCrmDeals, fetchCrmList } from "@/lib/crm/crm-v2";
+import { fetchCrmLeads, fetchCrmList } from "@/lib/crm/crm-v2";
 
 import { RecordList, type RecordListRow } from "@/components/records/record-list";
 import { RecordMark, type RecordKind } from "@/components/records/record-mark";
@@ -24,7 +24,6 @@ const ENTITY: Record<
   string,
   { label: string; kind: RecordKind; href: (id: string) => string }
 > = {
-  DEAL: { label: "Deals", kind: "deal", href: (id) => `/crm/deals/${id}` },
   LEAD: { label: "Leads", kind: "lead", href: (id) => `/crm/leads/${id}` },
 };
 
@@ -37,18 +36,18 @@ export function ListDetailPage({ listId }: { listId: string }) {
   const list = listQuery.data;
   const entity = list ? ENTITY[list.entity] : undefined;
 
-  // The list stores plain record ids, so the records themselves come from
-  // whichever collection the list is over. Fetched once and filtered here
-  // rather than one request per member, which for a list of two hundred would
-  // be two hundred round trips.
+  // The group stores plain record ids, so the records themselves come from
+  // the leads they are. Fetched once and filtered here rather than one
+  // request per member, which for a group of two hundred would be two hundred
+  // round trips.
   const recordsQuery = useQuery({
     queryKey: ["crm", "list-records", list?.entity, listId],
-    enabled: Boolean(list),
+    enabled: list?.entity === "LEAD",
     queryFn: async () =>
-      (await fetchCrmDeals({ page: 1, limit: 500 })).data.map((deal) => ({
-        id: deal.id,
-        title: deal.title,
-        subtitle: [deal.dealNo, deal.client?.name].filter(Boolean).join(" · "),
+      (await fetchCrmLeads({ page: 1, limit: 100 })).data.map((lead) => ({
+        id: lead.id,
+        title: lead.title ?? lead.contactName ?? lead.leadNo,
+        subtitle: [lead.leadNo, lead.client?.name].filter(Boolean).join(" · "),
         emoji: null as string | null,
         avatarUrl: null as string | null,
       })),

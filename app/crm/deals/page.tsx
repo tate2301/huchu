@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { CrmPage } from "@/components/crm/crm-page";
 import { redirect } from "next/navigation";
 
-import { PipelineWorkspace } from "@/components/crm/records/pipeline-workspace";
+import { DealsContent } from "@/components/crm/records/deals-content";
 import { authOptions } from "@/lib/auth";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -11,13 +11,9 @@ export default async function CrmDealsPage({ searchParams }: { searchParams: Sea
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
   const params = await searchParams;
-  // Landing here means "show me a deal pipeline"; the menu can walk back to
-  // leads without a navigation.
-  const pipeline = typeof params.pipeline === "string" ? params.pipeline : "deals";
   return (
-    <CrmPage
-    >
-      <PipelineWorkspace initial={pipeline} openCreate={params.new === "1"} />
+    <CrmPage>
+      <DealsContent openCreate={params.new === "1"} />
     </CrmPage>
   );
 }

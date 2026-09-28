@@ -229,8 +229,13 @@ describe("every register", () => {
         for (const filter of def.filters) {
           if (filter.presets) expect(filter.kind).toBe("date");
           if (filter.options) expect(filter.kind).toBe("enum");
-          if (filter.kind === "enum") expect(Boolean(filter.options) !== Boolean(filter.facet)).toBe(true);
+          // An enum's answers come from exactly one place: fixed, the records, or the setup.
+          if (filter.kind === "enum") {
+            expect([filter.options, filter.facet, filter.source].filter(Boolean), filter.key).toHaveLength(1);
+          }
           if (filter.kind === "relation") expect(filter.relation).toBeTruthy();
+          // A filter follows another filter of the same list.
+          if (filter.follows) expect(def.filters.map((other) => other.key)).toContain(filter.follows);
         }
       });
 

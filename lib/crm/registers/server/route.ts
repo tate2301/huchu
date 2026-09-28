@@ -37,3 +37,27 @@ export async function registerGet(request: NextRequest, server: RegisterServer<{
     return errorResponse(`Failed to fetch ${server.def.noun.many}`);
   }
 }
+
+/**
+ * A list's board: the same query string as its page, drawn as one
+ * pipeline's stages. The body is the board itself, with no envelope.
+ */
+export async function registerBoardGet(request: NextRequest, server: RegisterServer<{ id: string }>) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    if (!server.board) return errorResponse(`${server.def.noun.many} have no board`, 404);
+
+    const { searchParams } = new URL(request.url);
+    const ctx = await registerContext(session.user, searchParams.get("tz"));
+    const { state } = readState(server.def, searchParams);
+    const board = await server.board(ctx, state);
+    if (!board) return errorResponse("That pipeline does not exist", 404);
+
+    return successResponse(board);
+  } catch (error) {
+    console.error(`[API] GET ${server.def.boardEndpoint} error:`, error);
+    return errorResponse(`Failed to fetch the ${server.def.noun.many} board`);
+  }
+}

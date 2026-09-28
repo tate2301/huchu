@@ -33,6 +33,19 @@ export const ACCOUNT_STATUS_OPTIONS = [
   { value: "BLACKLISTED", label: "Blacklisted" },
 ] as const satisfies readonly FilterOption[];
 
+export const DEAL_STATUS_OPTIONS = [
+  { value: "OPEN", label: "Open" },
+  { value: "WON", label: "Won" },
+  { value: "LOST", label: "Lost" },
+] as const satisfies readonly FilterOption[];
+
+export const FORECAST_OPTIONS = [
+  { value: "PIPELINE", label: "Pipeline" },
+  { value: "BEST_CASE", label: "Best case" },
+  { value: "COMMIT", label: "Commit" },
+  { value: "CLOSED", label: "Closed" },
+] as const satisfies readonly FilterOption[];
+
 export const PREFERRED_CHANNEL_OPTIONS = [
   { value: "PHONE", label: "Phone" },
   { value: "EMAIL", label: "Email" },

@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { useDebounced } from "@/hooks/use-debounced";
-import { fetchRegisterPage } from "@/lib/crm/crm-v2";
+import { fetchRegisterBoard, fetchRegisterPage } from "@/lib/crm/crm-v2";
 import { narrowingKey, readState, sameState, writeState } from "@/lib/crm/registers/codec";
 import type {
   BuiltInView,
@@ -169,9 +169,11 @@ export function useRegister<Row extends { id: string }>(
         const filters = { ...previous.filters };
         if (value === undefined) delete filters[key];
         else filters[key] = value;
+        // A stage belongs to one pipeline: another pipeline lets go of it.
+        for (const filter of def.filters) if (filter.follows === key) delete filters[filter.key];
         return { ...previous, filters };
       }),
-    [set],
+    [def.filters, set],
   );
 
   const clearFilters = useCallback(() => set((previous) => ({ ...previous, q: undefined, filters: {} })), [set]);
@@ -277,8 +279,10 @@ export function useRegister<Row extends { id: string }>(
 
   // ── The rows. The query key keeps the list's own prefix, which is what
   //    every form that changes one of its records refreshes by. A board is
-  //    already arranged in columns, so it is never also grouped. ──
+  //    already arranged in columns, so it is never also grouped; a list with
+  //    a board of its own reads it instead of a page. ──
   const layout = state.layout ?? def.layouts[0];
+  const onBoard = layout === "BOARD" && Boolean(def.boardEndpoint);
   const by = layout === "BOARD" ? undefined : state.by;
   const apiState: ViewState = { q: state.q, filters: state.filters, sort: state.sort, by };
   const apiKey = writeState(def, apiState);
@@ -286,22 +290,47 @@ export function useRegister<Row extends { id: string }>(
     queryKey: [...def.queryKey, "register", apiKey, page],
     queryFn: () => fetchRegisterPage<Row>(def, { state: apiState, page, limit: REGISTER_PAGE_SIZE }),
     placeholderData: (previous) => previous,
+    enabled: !onBoard,
+  });
+  const boardKey = [...def.queryKey, "board", apiKey];
+  const board = useQuery({
+    queryKey: boardKey,
+    queryFn: () => fetchRegisterBoard<Row>(def, apiState),
+    placeholderData: (previous) => previous,
+    enabled: onBoard,
   });
 
   const rows = useMemo(() => query.data?.data ?? [], [query.data]);
-  const total = query.data?.pagination?.total ?? rows.length;
+  const boardColumns = onBoard ? board.data?.columns : undefined;
+  /** How many rows are drawn, and how many the list holds — a board's across its columns. */
+  const count = boardColumns
+    ? {
+        shown: boardColumns.reduce((sum, column) => sum + column.cards.length, 0),
+        total: boardColumns.reduce((sum, column) => sum + column.count, 0),
+      }
+    : !onBoard && query.data
+      ? { shown: rows.length, total: query.data.pagination?.total ?? rows.length }
+      : null;
+  const total = count?.total ?? 0;
   /** This page's rows by group, when the list is grouped — each with its count across the whole list. */
   const groups = by ? (query.data?.groups ?? null) : null;
 
   /**
    * The list's state as the export reads it: the same query string the rows
-   * were fetched with, plus the reader's time zone.
+   * were fetched with, plus the reader's time zone. A board is one pipeline
+   * even while the pipeline filter is left to the default, and exports that one.
    */
+  const pipelineFilter = def.filters.find((filter) => filter.source === "pipelines")?.key;
+  const boardPipeline = onBoard ? board.data?.pipeline.id : undefined;
+  const exportQuery =
+    pipelineFilter && boardPipeline && !state.filters[pipelineFilter]
+      ? writeState(def, { ...apiState, filters: { ...apiState.filters, [pipelineFilter]: [boardPipeline] } })
+      : apiKey;
   const exportFilters = useCallback((): Record<string, string> => {
-    const params = Object.fromEntries(new URLSearchParams(apiKey));
+    const params = Object.fromEntries(new URLSearchParams(exportQuery));
     const tz = browserTimeZone();
     return tz ? { ...params, tz } : params;
-  }, [apiKey]);
+  }, [exportQuery]);
 
   return {
     def,
@@ -322,10 +351,16 @@ export function useRegister<Row extends { id: string }>(
     search: { draft, setDraft },
     columns,
     selection,
+    layout,
     query,
     rows,
     total,
+    count,
     groups,
+    board: { query: board, queryKey: boardKey },
+    /** What went wrong loading whichever the layout reads. */
+    error: onBoard ? board.error : query.error,
+    isLoading: onBoard ? board.isLoading : query.isLoading,
     exportFilters,
   };
 }
