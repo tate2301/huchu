@@ -4,6 +4,13 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -14,7 +21,7 @@ import { ChevronDown, SlidersHorizontal } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * The options row — the band between the page band and the records.
+ * The options row — the strip between the app bar and the records.
  *
  * Module-neutral, and in `components/records` for it: HR's directory wants the
  * same band over the same table, and a toolbar owned by the CRM is one HR has
@@ -81,6 +88,7 @@ export function ViewToolbar({
   count,
   end,
   filterCount,
+  sheetLabel,
   className,
 }: {
   /**
@@ -112,6 +120,11 @@ export function ViewToolbar({
    * on the phone trigger, where the controls themselves are out of sight.
    */
   filterCount?: number;
+  /**
+   * What the phone's one button says, when it is not about filters — "3
+   * selected" while the row is carrying a selection's actions.
+   */
+  sheetLabel?: string;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -140,8 +153,12 @@ export function ViewToolbar({
         // fails the whole stylesheet, so *every* page 500s rather than this
         // one looking wrong. The horizontal bleed below is written as an
         // explicit `calc()` for the same reason.
-        "sticky z-20 flex h-[var(--list-toolbar-h)] items-center gap-[7px] border-b border-[var(--border)] bg-[var(--surface-base)]",
-        "before:absolute before:inset-x-0 before:bottom-full before:h-[var(--content-gutter-y)] before:bg-[var(--surface-base)] before:content-['']",
+        //
+        // The page's colour, not white. The band above it and the records
+        // below it both sit on the canvas, and a white bar between them read
+        // as a stray strip with square ends rather than as part of the page.
+        "sticky z-20 flex h-[var(--list-toolbar-h)] items-center gap-[7px] border-b border-[var(--border)] bg-[var(--canvas)]",
+        "before:absolute before:inset-x-0 before:bottom-full before:h-[var(--content-gutter-y)] before:bg-[var(--canvas)] before:content-['']",
         // The bleed is what makes the hairline a seam across the page rather
         // than a rule floating inside the gutter — the same edge the app bar
         // above it draws.
@@ -161,7 +178,7 @@ export function ViewToolbar({
               aria-label="View and filters"
             >
               <SlidersHorizontal className="size-4" aria-hidden="true" />
-              {filterCount ? `Filters (${filterCount})` : "View"}
+              {sheetLabel ?? (filterCount ? `Filters (${filterCount})` : "View")}
             </Button>
           </SheetTrigger>
           {/* A sheet rather than a dropdown menu: these controls are
@@ -295,5 +312,54 @@ export function ViewToolbarChip({
       <span className="font-semibold text-[var(--text-strong)]">{value}</span>
       <ChevronDown className="size-3 flex-none text-[var(--text-subtle)]" aria-hidden="true" />
     </Button>
+  );
+}
+
+/** "No filter", as an option value — "" would be indistinguishable from unset. */
+export const FILTER_ANY = "__any";
+
+/**
+ * One filter on the options row: a chip that opens its choices.
+ *
+ * Every register asks the same question in the same shape — whose, which
+ * site, what state — so the chip is shared rather than redrawn per list. The
+ * "no filter" answer is named for what it means on this chip ("Anyone",
+ * "Anywhere") because "All" says nothing about which question it answers.
+ *
+ * Hidden when there is nothing to choose between and nothing chosen: a chip
+ * with one option is a label pretending to be a control.
+ */
+export function ViewToolbarFilter({
+  label,
+  value,
+  anyLabel,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  /** What "no filter" is called — "Anyone", "Anywhere". */
+  anyLabel: string;
+  options: Map<string, string>;
+  onChange: (next: string) => void;
+}) {
+  if (options.size < 2 && value === FILTER_ANY) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <ViewToolbarChip label={label} value={options.get(value) ?? anyLabel} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+        <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+          <DropdownMenuRadioItem value={FILTER_ANY}>{anyLabel}</DropdownMenuRadioItem>
+          {[...options.entries()].map(([id, name]) => (
+            <DropdownMenuRadioItem key={id} value={id}>
+              {name}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

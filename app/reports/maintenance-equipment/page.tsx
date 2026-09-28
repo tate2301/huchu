@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,7 +70,7 @@ export default function MaintenanceEquipmentReportPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading title="Equipment Service" />
+      <PageChrome title="Equipment Service" />
 
       {pageError ? (
         <Alert variant="destructive">

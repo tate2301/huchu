@@ -133,5 +133,5 @@ test("marks a crew with no site, and the register shows it", async ({ page }) =>
   await expect(page.getByRole("cell", { name: "Whole company" }).first()).toBeVisible();
 
   await shot(page, "register-desktop");
-  console.log(`[shots] attendance mark -> ${shot.dir}`);
+  console.log(`[shots] attendance mark -> ${shot.file("*")}`);
 });

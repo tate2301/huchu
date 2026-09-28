@@ -1,0 +1,371 @@
+/*
+  A question, edited where it sits: its words, its answer drawn as it will be
+  given, its choices typed into their list. The row around it is the page
+  editor's (components/editor/page-editor.module.css).
+*/
+@layer components {
+  .choiceHandle:focus-visible,
+  .choiceRemove:focus-visible {
+    outline: none;
+    opacity: 1;
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  .labelRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .labelSizer {
+    display: inline-grid;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .labelSizer::after {
+    content: attr(data-value);
+    padding-right: 1px;
+    grid-area: 1 / 1;
+    overflow: hidden;
+    visibility: hidden;
+    white-space: pre;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  .labelInput {
+    grid-area: 1 / 1;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.35;
+    color: #16181d;
+    outline: none;
+  }
+
+  .labelInput::placeholder,
+  .helpInput::placeholder,
+  .placeholderInput::placeholder,
+  .choiceInput::placeholder {
+    color: #8a91a0;
+    opacity: 1;
+  }
+
+  .required {
+    flex-shrink: 0;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.35;
+    color: #b83a2a;
+  }
+
+  .helpInput {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #5e6573;
+    outline: none;
+  }
+
+  .fakeBox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    height: 36px;
+    margin-top: 10px;
+    padding: 0 12px;
+    border: 1px solid #d2d7e0;
+    border-radius: 8px;
+    background: #ffffff;
+  }
+
+  .fakeArea {
+    align-items: flex-start;
+    height: 76px;
+    padding-top: 8px;
+  }
+
+  .placeholderInput {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #5e6573;
+    outline: none;
+  }
+
+  .fakeHint {
+    font-size: 13px;
+    color: #8a91a0;
+  }
+
+  .fakeIcon {
+    width: 16px;
+    height: 16px;
+    margin-left: auto;
+    color: #8a91a0;
+  }
+
+  .fakeRating {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .fakeRatingStep {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #d2d7e0;
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: #5e6573;
+  }
+
+  .fakeDrop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 64px;
+    margin-top: 10px;
+    border: 1px dashed #d2d7e0;
+    border-radius: 8px;
+    background: #f7f8fa;
+    font-weight: 500;
+    font-size: 13px;
+    color: #5e6573;
+  }
+
+  .fakeDrop svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .fakeCheck,
+  .fakeSquare,
+  .fakeCircle {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    border: 1.5px solid #d2d7e0;
+    background: #ffffff;
+  }
+
+  .fakeCheck,
+  .fakeSquare {
+    border-radius: 4px;
+  }
+
+  .fakeCircle {
+    border-radius: 9999px;
+  }
+
+  .choiceList {
+    display: grid;
+    gap: 2px;
+    margin-top: 8px;
+  }
+
+  .choiceLine {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 34px;
+    padding: 0 4px 0 8px;
+    border-radius: 7px;
+  }
+
+  .choiceLine:hover,
+  .choiceLine:focus-within {
+    background: #f7f8fa;
+  }
+
+  .choiceLine[data-dragging] {
+    z-index: 2;
+    background: #ffffff;
+    box-shadow: 0 6px 16px -6px rgba(42, 38, 34, 0.2);
+  }
+
+  .choiceHandle {
+    position: absolute;
+    left: -24px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #8a91a0;
+    cursor: grab;
+    touch-action: none;
+    opacity: 0;
+  }
+
+  .choiceHandle svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .choiceLine:hover .choiceHandle,
+  .choiceLine:focus-within .choiceHandle,
+  .choiceLine[data-dragging] .choiceHandle {
+    opacity: 1;
+  }
+
+  .choiceInput {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #262a33;
+    outline: none;
+  }
+
+  .choiceRemove {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #8a91a0;
+    cursor: pointer;
+    opacity: 0;
+  }
+
+  .choiceRemove svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .choiceRemove:hover {
+    background: #eef0f4;
+    color: #565c69;
+  }
+
+  .choiceLine:hover .choiceRemove,
+  .choiceLine:focus-within .choiceRemove {
+    opacity: 1;
+  }
+
+  .typeTrigger {
+    width: auto;
+    height: 26px;
+    gap: 6px;
+    padding: 0 26px 0 8px;
+    border-color: transparent;
+    font-weight: 500;
+    font-size: 12px;
+    color: #262a33;
+  }
+
+  .typeTrigger > svg:first-child {
+    width: 14px;
+    height: 14px;
+    color: #565c69;
+  }
+
+  .typeTrigger:hover {
+    background: #f1f3f6;
+  }
+
+  .typeOption {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .typeOption svg {
+    width: 14px;
+    height: 14px;
+    color: #565c69;
+  }
+
+  .requiredToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #262a33;
+    cursor: pointer;
+  }
+
+  .settings {
+    display: grid;
+    gap: 14px;
+  }
+
+  .control {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .control > label {
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #565c69;
+  }
+
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .keyFact {
+    margin: 0;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #262a33;
+  }
+}

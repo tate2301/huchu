@@ -4,7 +4,8 @@ import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, MobileList, MobileListSectionHeader } from "@corelithzw/react";
+import { Button, MobileList, MobileListSectionHeader } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordMark } from "@/components/records/record-mark";

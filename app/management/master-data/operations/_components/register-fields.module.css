@@ -1,0 +1,26 @@
+/**
+ * The register's own type, as CSS rather than as utilities.
+ *
+ * The contract's ladder has two rungs below `text-sm` — the field label at
+ * `500 12/1.4 #565C69` and meta at `400 12/1.45 #5E6573` — and the repo's
+ * `no-restricted-syntax` fence bans `text-[12px]` in `app/management/**` and
+ * `app/preferences/**` precisely so nobody reaches for a size the ladder does
+ * not have. Both things are right: the fence is guarding against an arbitrary
+ * size, and these two are not arbitrary, they are the ladder.
+ *
+ * So the values live here, named, in one place — the same answer
+ * `components/management/ui/settings.module.css` reached for the shared layer.
+ * A reader who wants to know what a register label is reads one rule, and a
+ * reviewer who sees a raw `12px` in a class attribute still gets stopped.
+ */
+
+.detailLabel {
+  align-self: center;
+  font: 400 12px/1.45 var(--font-sans);
+  color: #5e6573;
+}
+
+.createLabel {
+  font: 500 12px/1.4 var(--font-sans);
+  color: #565c69;
+}

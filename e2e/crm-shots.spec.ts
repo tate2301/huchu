@@ -1,7 +1,7 @@
 import { test, expect } from "./_support/fixtures";
 import { CRM } from "./_support/tenants";
 import { visitSettled } from "./_support/nav";
-import { freeze, settle, VIEWPORT } from "./_support/shots";
+import { freeze, settle, shotPath, VIEWPORT } from "./_support/shots";
 import type { Page } from "@playwright/test";
 
 /**
@@ -50,8 +50,7 @@ import type { Page } from "@playwright/test";
   `/tmp/shots`, which on this workstation is neither a real path nor one that
   survives a reboot.
 */
-const ROOT = process.env.SHOT_DIR ?? "docs/screenshots";
-const OUT = `${ROOT}/crm/widths`;
+const JOURNEY = "widths";
 
 /*
   How long to let a screen finish before believing what it shows.
@@ -310,7 +309,10 @@ for (const [label, size] of VIEWPORTS) {
         // Stop the animations, the caret and the focus ring, so two runs of
         // this spec produce comparable images rather than merely similar ones.
         await freeze(page);
-        await page.screenshot({ path: `${OUT}/${name}-${label}.png`, fullPage: true });
+        await page.screenshot({
+          path: shotPath("crm", JOURNEY, `${name}-${label}`),
+          fullPage: true,
+        });
       }
 
       /*
@@ -325,7 +327,7 @@ for (const [label, size] of VIEWPORTS) {
       if (problems.length > 0) {
         console.error(`[shots] ${label}: ${problems.length} problems\n${problems.join("\n")}`);
       }
-      console.log(`[shots] ${label} -> ${OUT}`);
+      console.log(`[shots] ${label} -> ${shotPath("crm", JOURNEY, "*")}`);
     });
   });
 }

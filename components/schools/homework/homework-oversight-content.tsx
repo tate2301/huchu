@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Card, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Alert, Card, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordMark } from "@/components/records/record-mark";

@@ -45,7 +45,11 @@ export async function POST(request: NextRequest) {
     const passwordHash = await bcrypt.hash(validated.newPassword, 12);
     const updated = await prisma.user.update({
       where: { id: existing.id },
-      data: { password: passwordHash },
+      // An administrator resetting somebody else's password is still the
+      // password changing, so it moves the date. If only the self-service
+      // route set it, an account whose password was last set by an admin would
+      // read as never changed, which is the opposite of the truth.
+      data: { password: passwordHash, passwordChangedAt: new Date() },
       select: {
         id: true,
         name: true,

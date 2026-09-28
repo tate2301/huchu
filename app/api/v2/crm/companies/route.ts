@@ -3,27 +3,17 @@ import { z } from "zod";
 
 import {
   errorResponse,
-  getPaginationParams,
-  paginationResponse,
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { registerGet } from "@/lib/crm/registers/server/route";
+import { companiesRegister } from "@/lib/crm/registers/server/companies";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
 import { extractDomain, findCompanyDuplicates } from "@/lib/crm/duplicates";
-import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
 import { buildCustomFieldValues, type FieldDefinition } from "@/lib/crm/custom-fields";
 import { recordMarkFields } from "@/lib/crm/record-mark";
-import {
-  boolParam,
-  buildCompanyWhere,
-  buildRecordOrderBy,
-  companyFiltersSchema,
-  customFieldParams,
-  listParam,
-  recordSortSchema,
-} from "@/lib/crm/records";
 import { isCompanyUser } from "../_helpers";
 
 const createCompanySchema = z.object({
@@ -52,66 +42,9 @@ const createCompanySchema = z.object({
   force: z.boolean().optional(),
 });
 
+/** The list: see `registerGet` — the page's own query string, paged. */
 export async function GET(request: NextRequest) {
-  try {
-    const sessionResult = await validateSession(request);
-    if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-
-    const { searchParams } = new URL(request.url);
-    const { page, limit, skip } = getPaginationParams(request);
-
-    const parsed = companyFiltersSchema.safeParse({
-      q: searchParams.get("q") || undefined,
-      listId: searchParams.get("listId") || undefined,
-      companyTypes: listParam(searchParams, "companyTypes"),
-      accountStatuses: listParam(searchParams, "accountStatuses"),
-      assignedToIds: listParam(searchParams, "assignedToIds"),
-      tags: listParam(searchParams, "tags"),
-      parentClientId: searchParams.get("parentClientId") || undefined,
-      mineOnly: boolParam(searchParams, "mineOnly"),
-      unassigned: boolParam(searchParams, "unassigned"),
-      includeArchived: boolParam(searchParams, "includeArchived"),
-      customFields: customFieldParams(searchParams),
-    });
-    const filters = parsed.success ? parsed.data : {};
-
-    const baseWhere = buildCompanyWhere(session.user.companyId, filters, session.user.id);
-    // A filter on an empty list must return nothing — ignoring it would show
-    // the whole table, which reads as though the filter had failed.
-    const listIds = filters.listId
-      ? await listRecordIds(prisma, {
-          companyId: session.user.companyId,
-          userId: session.user.id,
-          listId: filters.listId,
-        })
-      : null;
-    const where = { ...baseWhere, ...(listIdFilter(listIds) ?? {}) };
-    const sort = recordSortSchema.safeParse({
-      field: searchParams.get("sortField"),
-      direction: searchParams.get("sortDir"),
-    });
-
-    const [companies, total] = await Promise.all([
-      prisma.crmClient.findMany({
-        where,
-        include: {
-          assignedTo: { select: { id: true, name: true } },
-          parent: { select: { id: true, name: true } },
-          _count: { select: { people: true, deals: true, sites: true } },
-        },
-        orderBy: buildRecordOrderBy("COMPANY", sort.success ? sort.data : undefined),
-        skip,
-        take: limit,
-      }),
-      prisma.crmClient.count({ where }),
-    ]);
-
-    return successResponse(paginationResponse(companies, total, page, limit));
-  } catch (error) {
-    console.error("[API] GET /api/v2/crm/companies error:", error);
-    return errorResponse("Failed to fetch companies");
-  }
+  return registerGet(request, companiesRegister);
 }
 
 export async function POST(request: NextRequest) {

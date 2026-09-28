@@ -46,6 +46,9 @@ import { periodsOverlap } from "./timetable-format";
  * ambiguous. Unlike the slot clashes this is not a unique index — overlap is a
  * range predicate, which needs an exclusion constraint and a btree_gist
  * extension. It is checked here and covered by a test.
+ *
+ * Only live periods are candidates. A retired one keeps the lessons already
+ * placed in it but stops being offered, and stops occupying its minutes.
  */
 export async function findOverlappingPeriod(
   input: {
@@ -61,6 +64,12 @@ export async function findOverlappingPeriod(
     where: {
       companyId: input.companyId,
       termId: input.termId,
+      // A retired period does not hold its minutes. Without this, archiving the
+      // 10:00 period would take it off the day and it would still block
+      // anything else from ever occupying 10:00 — retirement that retires
+      // nothing. Restoring one therefore has to re-check the clock, which
+      // `PATCH /api/v2/schools/periods/[id]` does.
+      isActive: true,
       ...(input.excludePeriodId ? { id: { not: input.excludePeriodId } } : {}),
     },
     select: { id: true, code: true, name: true, startMinute: true, endMinute: true },
@@ -78,7 +87,14 @@ export async function findOverlappingPeriod(
   );
 }
 
-export type SlotConflictKind = "CLASS" | "TEACHER" | "ROOM" | "LESSON" | "NON_TEACHING";
+export type SlotConflictKind =
+  | "CLASS"
+  | "TEACHER"
+  | "ROOM"
+  | "LESSON"
+  | "NON_TEACHING"
+  /** The period has been retired. Its existing lessons stay; new ones do not. */
+  | "ARCHIVED";
 
 export type SlotConflict = {
   kind: SlotConflictKind;
@@ -153,7 +169,7 @@ export async function findSlotConflicts(
     }),
     db.schoolPeriod.findFirst({
       where: { id: placement.periodId, companyId: placement.companyId },
-      select: { id: true, name: true, isTeaching: true },
+      select: { id: true, name: true, isTeaching: true, isActive: true },
     }),
   ]);
 
@@ -161,6 +177,17 @@ export async function findSlotConflicts(
   // does not exist, is not a clash to explain — it is a bad request, and the
   // route turns a null into a 404 rather than this function inventing a reason.
   if (!assignment || !period) return conflicts;
+
+  // A retired period keeps what is already in it — that is the difference
+  // between archiving and deleting — but nothing new goes in, the same way
+  // nothing goes into a break.
+  if (!period.isActive) {
+    conflicts.push({
+      kind: "ARCHIVED",
+      message: `${period.name} has been archived, so nothing more can be scheduled in it.`,
+    });
+    return conflicts;
+  }
 
   if (!period.isTeaching) {
     conflicts.push({
@@ -505,6 +532,9 @@ export async function autoFillTimetable(input: {
       where: {
         companyId: input.companyId,
         isTeaching: true,
+        // The auto-scheduler fills empty slots; a retired period has no slots
+        // to fill, so it is not a candidate.
+        isActive: true,
         OR: [{ termId: input.termId }, { termId: null }],
       },
       select: { id: true },

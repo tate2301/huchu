@@ -1,0 +1,375 @@
+/*
+  My-account paint: Profile, Notifications, Appearance.
+
+  Everything structural comes from `components/management/ui` (FormPage,
+  FormField, RecordHeader). What is left is the handful of shapes those three
+  boards draw and the shared layer has no component for: the 44px fact/switch
+  row, the 64px identity mark, the theme cards, and the bare section heading.
+
+  Why a bare heading rather than `<SectionHeading />`: `Account.dc.html`,
+  `Notifications.dc.html` and `Appearance.dc.html` draw their headings with no
+  tinted tile and `margin: 36px 0 14px` — the tile belongs to the register and
+  record boards, which is where `SectionHeading` is used. Matching the board is
+  the contract's own tie-break.
+
+  `@layer components` for the same reason `settings.module.css` uses it: above
+  the design system, below Tailwind's utilities, so a caller's `className`
+  still wins.
+*/
+
+@layer components {
+  /*
+    All three boards draw the title line the same height: 33px of content over
+    the header's own 16px of padding, which is what the 32px icon button at the
+    right end of the row comes to. Profile and Appearance have no verb to put
+    there, so without a floor their rule would ride 11px higher than the board
+    and the three pages would not agree with each other either. Measured
+    against `Account.dc.html` and `Notifications.dc.html`: header height 49,
+    rule at y=73.
+
+    The element selector reaches `RecordHeader`'s own `<header>` — its class
+    belongs to the shared module and is not writable from a call site.
+  */
+  .page header {
+    min-height: 49px;
+  }
+
+  .heading {
+    margin: 36px 0 14px;
+    font: 600 15px/1.35 var(--font-sans);
+    color: var(--text-strong); /* #16181D */
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The 44px row — a fact, or a switch
+   * ------------------------------------------------------------------ */
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 44px;
+    border-bottom: 1px solid var(--border-subtle); /* #EEF0F4 */
+  }
+
+  .rowLabel {
+    width: 150px;
+    flex-shrink: 0;
+    font: 400 12px/1.45 var(--font-sans);
+    /* The DS's runtime --text-subtle is #8A91A0 and fails 4.5:1 on white. */
+    color: #5e6573;
+  }
+
+  .rowValue {
+    flex-grow: 1;
+    min-width: 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-strong);
+  }
+
+  .rowMono {
+    flex-grow: 1;
+    min-width: 0;
+    font: 500 11px/1.5 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-strong);
+  }
+
+  /* A switch row names the thing it switches, so its name carries the row. */
+  .rowName {
+    flex-grow: 1;
+    min-width: 0;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-strong);
+  }
+
+  /*
+    The DS switch is already 38×22 and turns `var(--tone-info)` — which
+    resolves to `--brand`, #0B5DF0, the board's colour. Only the thumb differs:
+    the DS draws 18px inset 2px, the boards draw 16px inset 3px.
+  */
+  .row :global(.switch)::after {
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+  }
+
+  .row :global(.switch):checked::after {
+    left: 19px;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Profile
+   * ------------------------------------------------------------------ */
+
+  .identity {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 26px;
+  }
+
+  .mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: var(--surface-sunken); /* #E8EBF0 */
+    color: var(--text-strong);
+    font: 600 21px/1 var(--font-sans);
+  }
+
+  .markImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /*
+    Change photo. One rung taller than the header's 32px verb because the board
+    draws it that way — it stands against a 64px mark rather than against a
+    title, and it is the same 34px/0 14px button the form footer's Cancel is.
+  */
+  .photoButton {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid var(--border); /* #E5E8EE */
+    border-radius: var(--radius-md); /* 8px */
+    background: var(--surface);
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-strong);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .photoButton:hover {
+    background: var(--surface-muted); /* #F1F3F6 */
+  }
+
+  .photoButton:focus-visible {
+    outline: none;
+    border-color: var(--brand); /* #0B5DF0 */
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .photoButton:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  /* The real `<input type="file">`. It is never the thing anybody sees or tabs
+     to — the button beside it calls `.click()` on it — so it is out of the
+     layout entirely rather than parked off-screen at 1px. */
+  .photoInput {
+    display: none;
+  }
+
+  /* `Account.dc.html` sets the phone field in the mono face. */
+  .monoField {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Change password — what the Password row's verb opens
+   *
+   * The board draws the row and the verb, not the dialog. Its fields are
+   * `FormField`'s, so only the title and the footer need paint, and the footer
+   * sits on the same two rungs `FormPage`'s does — 34px primary, 34px ghost —
+   * over a tighter gap, because a modal is not a page.
+   * ------------------------------------------------------------------ */
+
+  .dialogTitle {
+    font: 600 17px/1.25 var(--font-sans);
+    letter-spacing: -0.012em;
+    color: var(--text-strong);
+  }
+
+  .dialogForm {
+    margin-top: 20px;
+  }
+
+  /* No top margin of its own: `FormField` already carries 22px under the last
+     field, which is the gap above the rule. The page's footer adds 36 on top of
+     that because a page has a lot more above it than two fields do. */
+  .dialogFooter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-subtle); /* #EEF0F4 */
+  }
+
+  .dialogSubmit {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 16px;
+    border: 1px solid var(--brand);
+    border-radius: var(--radius-md);
+    background: var(--brand); /* #0B5DF0 */
+    font: 500 13px/1.4 var(--font-sans);
+    color: #ffffff;
+    cursor: pointer;
+  }
+
+  .dialogSubmit:hover {
+    background: var(--brand-strong);
+    border-color: var(--brand-strong);
+  }
+
+  .dialogSubmit:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .dialogCancel {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-muted); /* #565C69 */
+    cursor: pointer;
+  }
+
+  .dialogCancel:hover {
+    background: var(--surface-muted);
+    color: var(--text-strong);
+  }
+
+  .dialogSubmit:focus-visible,
+  .dialogCancel:focus-visible {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Appearance — the three theme cards
+   * ------------------------------------------------------------------ */
+
+  .themes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 26px;
+  }
+
+  .themeCard {
+    padding: 0;
+    border: 1px solid var(--border); /* #E5E8EE */
+    border-radius: 12px;
+    background: var(--surface);
+    cursor: pointer;
+    overflow: hidden;
+    text-align: left;
+  }
+
+  .themeCard[aria-current="true"] {
+    border: 2px solid var(--brand); /* #0B5DF0 */
+  }
+
+  .themeCard:focus-visible {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
+  /*
+    The preview is a picture of a theme, not a surface painted in the current
+    one, so its colours are literal rather than tokens. `--canvas`,
+    `--surface`, `--text-body` and `--text-strong` all flip under
+    `[data-theme="dark"]` — token-painted previews invert with the page, and
+    the Light card draws itself almost black the moment somebody picks Dark.
+    The values are the board's, and they are the light palette's own
+    #F7F8FA / #FFFFFF / #E5E8EE / #262A33 / #16181D.
+  */
+  .themePreview {
+    display: block;
+    height: 78px;
+  }
+
+  .themePreview[data-theme="light"] {
+    background: #f7f8fa;
+    border-bottom: 1px solid #e5e8ee;
+  }
+
+  .themePreview[data-theme="dark"] {
+    background: #262a33;
+  }
+
+  .themePreview[data-theme="system"] {
+    background: linear-gradient(90deg, #f7f8fa 50%, #262a33 50%);
+  }
+
+  /* The sidebar in the little drawing of a window. */
+  .themeSidebar {
+    display: block;
+    width: 46px;
+    height: 100%;
+  }
+
+  .themePreview[data-theme="light"] .themeSidebar {
+    background: #ffffff;
+    border-right: 1px solid #e5e8ee;
+  }
+
+  .themePreview[data-theme="dark"] .themeSidebar {
+    background: #16181d;
+  }
+
+  .themeLabel {
+    display: block;
+    padding: 9px 12px;
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--text-strong);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Loading and failure — states the boards do not draw
+   * ------------------------------------------------------------------ */
+
+  .skeleton {
+    display: grid;
+    gap: 14px;
+    margin-top: 30px;
+  }
+
+  .skeletonBar {
+    height: 9px;
+    border-radius: 3px;
+    background: var(--surface-sunken);
+  }
+
+  .failure {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 26px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--tone-danger-bg); /* #F6E2DD */
+    font: 500 13px/1.4 var(--font-sans);
+    color: var(--tone-danger-strong); /* #7A2419 */
+  }
+
+  .failure svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+}

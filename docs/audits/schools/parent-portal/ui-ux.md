@@ -1,6 +1,6 @@
 # Parent portal: UI/UX audit
 
-Surface: `app/portal/parent/**`, shell `components/schools/portal/parent/parent-portal-shell.tsx`, screens under `components/schools/portal/parent/`, styles `parent-portal.css`, shared login `components/auth/portal-login-form.tsx`, claim flow `app/c/[token]`. Audited from source and from `docs/screenshots/schools/parent-portal-phone/*` and `parent-portal-tablet/*`. The workflow companion is `workflows.md` in this folder; this document covers how the workflows feel, not whether they exist.
+Surface: `app/portal/parent/**`, shell `components/schools/portal/parent/parent-portal-shell.tsx`, screens under `components/schools/portal/parent/`, styles `parent-portal.css`, shared login `components/auth/portal-login-form.tsx`, claim flow `app/c/[token]`. Audited from source and from `docs/screenshots/schools/parent-portal-phone-*` and `parent-portal-tablet-*`. The workflow companion is `workflows.md` in this folder; this document covers how the workflows feel, not whether they exist.
 
 Rules applied: the portal build contract (`docs/design-system/portals/README.md`: every feature in the prototype is required), the prototype `parent.html`, the platform UX playbook phone rules, `docs/design-system/11-campus-states-and-motion.md`, `docs/portal-shell.css`, `.impeccable.md`, and `SPEC.md`. A digest of the testable rules is in `../reference/docs-baseline.md` §9.
 

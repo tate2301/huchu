@@ -128,7 +128,7 @@ export function TasksRegisterContent() {
           <section key={bucket.id} aria-labelledby={`tasks-${bucket.id}`} className="space-y-2">
             <h3
               id={`tasks-${bucket.id}`}
-              className="sticky top-14 z-10 flex items-baseline gap-2 bg-[var(--surface-base)] py-1.5 text-base font-semibold text-[var(--text-strong)]"
+              className="sticky top-14 z-10 flex items-baseline gap-2 bg-[var(--canvas)] py-1.5 text-base font-semibold text-[var(--text-strong)]"
             >
               <span
                 className={

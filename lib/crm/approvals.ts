@@ -15,6 +15,11 @@ import { prisma } from "@/lib/prisma";
 import { emitCrmNotification } from "@/lib/notifications";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { buildPaymentRows, type PaymentRow } from "@/lib/documents/payment-details";
+import {
+  DOCUMENT_RESOURCES_SELECT,
+  documentResourceLinks,
+  type ResourceLink,
+} from "@/lib/crm/resources";
 
 type Tx = Prisma.TransactionClient;
 
@@ -22,10 +27,52 @@ export function generateApprovalToken(): string {
   return randomBytes(32).toString("base64url");
 }
 
+export type ApprovalLink = {
+  token: string;
+  /** True when this call minted the token rather than returning the live one. */
+  issued: boolean;
+};
+
 /**
- * Create (or rotate) the approval token for a lead document. Returns the token.
+ * The approval link for a lead document, minting one if it has none.
+ *
+ * Deliberately NOT a rotation. This used to replace the token on every call,
+ * and both of the UI's two "share this" actions — copy the link, email the
+ * client — went through it. So a rep who sent a quote on Monday and reopened
+ * the menu on Tuesday to re-read the link silently revoked the one already in
+ * the customer's inbox, and the customer got "Document not found". Worse, the
+ * rewrite reset `status` to PENDING and cleared `respondedAt`, so a quote the
+ * customer had already approved lost their answer.
+ *
+ * A live link is therefore returned as it is, and a new one is minted only
+ * when there is none, or when the last one is no longer usable (revoked, or
+ * expired unanswered) and the rep is asking for a fresh one. Deliberately
+ * rotating a link that still works — because it leaked — is `rotateApproval`.
  */
-export async function createOrRotateApproval(
+export async function getOrCreateApproval(
+  tx: Tx,
+  params: { companyId: string; leadDocumentId: string; expiresInDays?: number },
+): Promise<ApprovalLink> {
+  const existing = await tx.crmDocumentApproval.findUnique({
+    where: { leadDocumentId: params.leadDocumentId },
+    select: { token: true, status: true, expiresAt: true },
+  });
+
+  // Anything the customer can still open, or has already answered, is the
+  // link — handing back a second one would make the first a dead end.
+  if (existing && existing.status !== "REVOKED" && !isExpired(existing.expiresAt)) {
+    return { token: existing.token, issued: false };
+  }
+
+  return { token: await rotateApproval(tx, params), issued: true };
+}
+
+/**
+ * Replace a lead document's approval token, invalidating whatever was sent
+ * before. For a link that has to be withdrawn — it went to the wrong address,
+ * or the quote has been revised — not for re-reading the current one.
+ */
+export async function rotateApproval(
   tx: Tx,
   params: { companyId: string; leadDocumentId: string; expiresInDays?: number },
 ): Promise<string> {
@@ -91,8 +138,35 @@ export type PublicApprovalView = {
     paymentTerms: string | null;
     footerText: string | null;
   };
-  expired: boolean;
+  /**
+   * What the rep asked the client to look at before answering — the
+   * brochure, the data sheet. Withheld with the pricing when the link no
+   * longer works: a proposal PDF can carry prices of its own.
+   */
+  resources: ResourceLink[];
+  /**
+   * Why the link no longer works, when it does not. A customer who is told
+   * "document not found" about a quote they were sent an hour ago concludes
+   * the business has lost it; "this link was replaced" tells them what to ask
+   * for. Pricing is withheld for anything but `ACTIVE` either way.
+   */
+  linkState: "ACTIVE" | "EXPIRED" | "REVOKED";
+  /**
+   * The version of the figures on the page: when the document last changed.
+   * Sent back with the answer, because a document is edited in place until
+   * it is answered, and an answer to figures that have since changed must
+   * not be recorded against the new ones.
+   */
+  stamp: string;
 };
+
+/** An answer given to figures that changed after the client opened them. */
+export class ApprovalOutdatedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApprovalOutdatedError";
+  }
+}
 
 function isExpired(expiresAt: Date | null): boolean {
   return Boolean(expiresAt && expiresAt.getTime() < Date.now());
@@ -125,6 +199,7 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
               notes: true,
               lines: true,
               customer: { select: { name: true } },
+              updatedAt: true,
             },
           },
           invoice: {
@@ -137,15 +212,17 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
               notes: true,
               lines: true,
               customer: { select: { name: true } },
+              updatedAt: true,
             },
           },
+          resources: DOCUMENT_RESOURCES_SELECT,
         },
       },
     },
   });
   if (!approval) return null;
-  // A revoked link must not leak the document's content — treat as not found.
-  if (approval.status === "REVOKED") return null;
+
+  const revoked = approval.status === "REVOKED";
 
   if (!approval.firstViewedAt) {
     void prisma.crmDocumentApproval
@@ -159,10 +236,12 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
   const source = doc.quotation ?? doc.invoice;
   const number = doc.quotation?.quotationNumber ?? doc.invoice?.invoiceNumber ?? "";
   const expired = approval.status === "PENDING" && isExpired(approval.expiresAt);
+  // An expired or withdrawn link no longer discloses pricing — the client must
+  // ask the rep for a fresh one. Both are withheld the same way; only the
+  // sentence the page shows differs.
+  const withheld = expired || revoked;
 
-  // An expired, never-actioned link no longer discloses pricing — the client
-  // must request a fresh link from the rep.
-  const lines = expired
+  const lines = withheld
     ? []
     : (source?.lines ?? []).map((l) => ({
         description: l.description,
@@ -178,14 +257,14 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
     status: approval.status,
     number,
     currency: doc.currency,
-    total: expired ? 0 : doc.amount,
-    subTotal: expired ? 0 : (source?.subTotal ?? 0),
-    taxTotal: expired ? 0 : (source?.taxTotal ?? 0),
+    total: withheld ? 0 : doc.amount,
+    subTotal: withheld ? 0 : (source?.subTotal ?? 0),
+    taxTotal: withheld ? 0 : (source?.taxTotal ?? 0),
     issuedAt:
       doc.quotation?.quotationDate?.toISOString() ?? doc.invoice?.invoiceDate?.toISOString() ?? null,
     validUntil: doc.quotation?.validUntil?.toISOString() ?? null,
     dueDate: doc.invoice?.dueDate?.toISOString() ?? null,
-    notes: expired ? null : (source?.notes ?? null),
+    notes: withheld ? null : (source?.notes ?? null),
     billedTo: source?.customer?.name ?? null,
     lines,
     branding: {
@@ -202,8 +281,18 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
       paymentTerms: branding.paymentTerms ?? null,
       footerText: branding.defaultFooterText ?? null,
     },
-    expired,
+    resources: withheld ? [] : documentResourceLinks(doc.resources),
+    linkState: revoked ? "REVOKED" : expired ? "EXPIRED" : "ACTIVE",
+    stamp: documentStamp(doc),
   };
+}
+
+/** When a document's figures last changed: its accounting row's `updatedAt`. */
+function documentStamp(doc: {
+  quotation?: { updatedAt: Date } | null;
+  invoice?: { updatedAt: Date } | null;
+}): string {
+  return (doc.quotation ?? doc.invoice)?.updatedAt.toISOString() ?? "";
 }
 
 export type RespondInput = {
@@ -211,11 +300,16 @@ export type RespondInput = {
   action: "APPROVE" | "DECLINE";
   note?: string | null;
   name?: string | null;
+  /** The `stamp` of the page the client answered from. */
+  stamp: string;
 };
 
 /**
  * Record a client's approve/decline decision. Only a PENDING, non-expired
- * approval can be actioned. Returns the resulting status or throws.
+ * approval can be actioned, and only for the figures the client was shown:
+ * a document edited since the page loaded is refused with
+ * `ApprovalOutdatedError`, and the page shows the new figures. Returns the
+ * resulting status or throws.
  */
 export async function respondToApproval(input: RespondInput): Promise<{ status: "APPROVED" | "DECLINED" }> {
   const approval = await prisma.crmDocumentApproval.findUnique({
@@ -237,6 +331,9 @@ export async function respondToApproval(input: RespondInput): Promise<{ status: 
     },
   });
   if (!approval) throw new Error("Approval not found");
+  if (approval.status === "REVOKED") {
+    throw new Error("This link has been withdrawn. Please ask us for a current copy.");
+  }
   if (approval.status !== "PENDING") throw new Error("This document has already been responded to");
   if (isExpired(approval.expiresAt)) {
     // Persist the expiry outside any transaction that later throws — a throw
@@ -262,6 +359,20 @@ export async function respondToApproval(input: RespondInput): Promise<{ status: 
     });
     if (claimed.count === 0) {
       throw new Error("This document has already been responded to");
+    }
+
+    // After the claim, which holds the approval row: an edit takes that row
+    // first, so by now it has either finished — and the stamp has moved — or
+    // it will wait for this answer and then be refused.
+    const current = await tx.crmLeadDocument.findUnique({
+      where: { id: approval.leadDocument.id },
+      select: { quotation: { select: { updatedAt: true } }, invoice: { select: { updatedAt: true } } },
+    });
+    if (!current || documentStamp(current) !== input.stamp) {
+      const noun = approval.leadDocument.type === "INVOICE" ? "invoice" : "quote";
+      throw new ApprovalOutdatedError(
+        `This ${noun} was changed after you opened it. Look at it again before you answer.`,
+      );
     }
 
     if (input.action === "APPROVE" && approval.leadDocument.type === "QUOTATION" && approval.leadDocument.quotationId) {

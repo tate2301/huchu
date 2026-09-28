@@ -5,13 +5,26 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import { Coins, Dataset, Funnel, Lock, Megaphone, Package, Plug, type LucideIcon } from "@/lib/icons";
+import {
+  Coins,
+  Dataset,
+  Funnel,
+  Lock,
+  MapPin,
+  Megaphone,
+  Package,
+  Paperclip,
+  Plug,
+  type LucideIcon,
+} from "@/lib/icons";
 import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
 import { CataloguePanel } from "@/components/inventory/catalogue-panel";
 import { ApiKeysPanel } from "@/components/crm/settings/api-keys-panel";
+import { ClientResourcesPanel } from "@/components/crm/settings/client-resources-panel";
 import { CommissionsPanel } from "@/components/crm/settings/commissions-panel";
 import { CustomFieldsPanel } from "@/components/crm/settings/custom-fields-panel";
 import { FacebookPanel } from "@/components/crm/settings/facebook-panel";
+import { FieldCameraPanel } from "@/components/crm/settings/field-camera-panel";
 import { LeadSourcesPanel } from "@/components/crm/settings/lead-sources-panel";
 import { PipelinesPanel } from "@/components/crm/settings/pipelines-panel";
 
@@ -24,11 +37,10 @@ import { PipelinesPanel } from "@/components/crm/settings/pipelines-panel";
  * active section lives in the URL, so a link to Pipelines opens Pipelines.
  *
  * Each panel saves inline. There is deliberately no sticky unsaved bar —
- * settings are individually committed, not a form you submit — which is what
- * the band's "saves as you go" says, in the one place it cannot be missed.
+ * settings are individually committed, not a form you submit.
  */
 
-/** What each panel needs to open its own create flow from the page band. */
+/** What each panel needs to open its own create flow from the app bar. */
 export type SettingsPanelProps = {
   createOpen: boolean;
   onCreateOpenChange: (open: boolean) => void;
@@ -42,28 +54,29 @@ export type SetupCounts = {
   commissions: number;
   keys: number;
   integrations: number;
+  resources: number;
 };
 
 type SettingsSection = {
   id: string;
   label: string;
-  description: string;
-  /** The band's primary action for this section — "New pipeline", "Add field". */
-  addLabel: string;
+  /**
+   * The app bar's primary action for this section — "New pipeline", "Add field".
+   * Absent on a section that is one setting rather than a list of things: there
+   * is nothing to add, and its own form carries the one action it has.
+   */
+  addLabel?: string;
   icon: LucideIcon;
-  /** Which key in the counts response tallies this section. */
-  countKey: keyof SetupCounts;
+  /** Which key in the counts response tallies this section. Absent where there is nothing to count. */
+  countKey?: keyof SetupCounts;
   render: (props: SettingsPanelProps) => ReactNode;
 };
 
 /**
- * The seven setup sections.
+ * The setup sections.
  *
- * Exported because the page band names the active one and carries its action —
- * see `CrmSettingsShell`. The descriptions are the band ledes, which is why
- * they are written as sentence fragments rather than headings: the band reads
- * "Pipelines · the stages a deal moves through", one line, and nothing below
- * repeats either half of it.
+ * Exported because the app bar names the active one and carries its action —
+ * see `CrmSettingsShell`.
  */
 export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
@@ -72,7 +85,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Funnel,
     countKey: "pipelines",
     addLabel: "New pipeline",
-    description: "the stages a deal moves through, and what each one requires",
     render: (props) => <PipelinesPanel {...props} />,
   },
   {
@@ -81,7 +93,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Dataset,
     countKey: "fields",
     addLabel: "Add field",
-    description: "extra fields for your business, on the form and the record page",
     render: (props) => <CustomFieldsPanel {...props} />,
   },
   {
@@ -90,7 +101,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Megaphone,
     countKey: "sources",
     addLabel: "Add source",
-    description: "where enquiries come from, so attribution has something to count",
     render: (props) => <LeadSourcesPanel {...props} />,
   },
   {
@@ -99,8 +109,15 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Package,
     countKey: "catalogue",
     addLabel: "Add item",
-    description: "what the business sells — shared with Stock & Inventory and Retail",
     render: (props) => <CataloguePanel {...props} />,
+  },
+  {
+    id: "resources",
+    label: "Client resources",
+    icon: Paperclip,
+    countKey: "resources",
+    addLabel: "Add resource",
+    render: (props) => <ClientResourcesPanel {...props} />,
   },
   {
     id: "commissions",
@@ -108,7 +125,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Coins,
     countKey: "commissions",
     addLabel: "Create rule",
-    description: "who earns what, and at which thresholds",
     render: (props) => <CommissionsPanel {...props} />,
   },
   {
@@ -117,7 +133,6 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Lock,
     countKey: "keys",
     addLabel: "Create key",
-    description: "credentials for webhook and intake-form integrations",
     render: (props) => <ApiKeysPanel {...props} />,
   },
   {
@@ -126,8 +141,13 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Plug,
     countKey: "integrations",
     addLabel: "Connect Page",
-    description: "Lead Ads forms delivered straight into the pipeline",
     render: (props) => <FacebookPanel {...props} />,
+  },
+  {
+    id: "field-camera",
+    label: "Field camera",
+    icon: MapPin,
+    render: () => <FieldCameraPanel />,
   },
 ];
 
@@ -177,7 +197,7 @@ export function CrmSettingsContent({ createOpen, onCreateOpenChange }: SettingsP
             icon={<section.icon className="size-4" aria-hidden="true" />}
             // A zero is a real answer here — "nothing set up yet" — but it is
             // only worth drawing once the counts have actually arrived.
-            count={counts.data ? counts.data[section.countKey] : undefined}
+            count={counts.data && section.countKey ? counts.data[section.countKey] : undefined}
             onClick={() => select(section.id)}
           >
             {section.label}

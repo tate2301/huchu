@@ -88,11 +88,6 @@ export default function RetailShiftDetailPage() {
     <RetailShell
       area="shifts"
       title={shift?.shiftNo ?? "Shift"}
-      description={
-        shift
-          ? `${shift.cashierName ?? "Unknown cashier"} · ${shift.registerName ?? "Unknown till"} · ${shift.status}`
-          : "One drawer, its takings and its cash-up."
-      }
       actions={
         <Button asChild size="sm" variant="outline">
           <Link href="/retail/shifts">

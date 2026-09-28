@@ -19,6 +19,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { IconButton } from "@/components/ui/icon-button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EntityLink } from "@/components/records/entity-link";
+import { RecordToolbar } from "@/components/records/record-toolbar";
 import { useRecordTrail } from "@/components/records/record-trail";
 import { DotsThree, SidebarRight, type LucideIcon } from "@/lib/icons";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
@@ -42,6 +43,12 @@ export type RecordTab = {
    * says how much and this says whether it matters.
    */
   attention?: boolean;
+  /**
+   * The section opens with a heading of its own — its name, its count and
+   * its verb — so a phone, drilled into it, does not name it a second time
+   * above that heading.
+   */
+  titled?: boolean;
   content: ReactNode;
 };
 
@@ -53,13 +60,13 @@ export type RecordAction = {
 };
 
 /**
- * One record-page structure for people, companies, deals, sites and reps.
+ * One record-page structure for every record in the CRM.
  *
- * The record's name and its actions live in the top app bar, the same as
- * every other page — so moving from a list to a record does not move the
- * controls. What stays on the page is the part the bar cannot carry: the
- * identity strip, which is the reference, the status and the one line that
- * says what this record is, sitting directly above the tabs.
+ * The record's name, its reference and its actions live in the top app bar,
+ * the same as every other page — so moving from a list to a record does not
+ * move the controls. Under the bar is the record's toolbar: its lifecycle, the
+ * controls a page adds, and its headline figure. There is no band repeating
+ * the name.
  *
  * Tabs with no content are dropped rather than shown empty: a company with no
  * site visits shouldn't advertise a Visits tab, and a page that only shows
@@ -91,7 +98,7 @@ export function RecordPageShell({
   reference,
   status,
   subtitle,
-  bandValue,
+  figure,
   related,
   leading,
   primaryAction,
@@ -101,7 +108,8 @@ export function RecordPageShell({
   onTabChange,
   rail,
   attributes,
-  beforeTabs,
+  stage,
+  toolbar,
   children,
 }: {
   backHref: string;
@@ -116,20 +124,18 @@ export function RecordPageShell({
    * and their name lives in the directory rather than here.
    */
   onTitleCommit?: (value: string) => void;
+  /** Shown in mono after the name in the app bar: `DEAL-0001`. */
   reference?: string | null;
   status?: { label: string; status: CanonicalUiStatus } | null;
+  /** One line under the name on a phone, where the record's landing view names it. */
   subtitle?: ReactNode;
   /**
-   * The record's headline figure, pinned in the band — a lead's worth, a
-   * deal's value, a company's balance.
-   *
-   * The artboards put it between the identity and the stage controls, for the
-   * same reason the stage ladder came back to the band: it is the number you
-   * are deciding *against* while working the record, and in the standing
-   * column it was three screens above a long conversation by the time you had
-   * read enough to decide anything.
+   * The record's headline figure — a lead's worth, a deal's value, a line's
+   * amount — at the far end of the record's toolbar, where it stays in view
+   * while a long conversation scrolls: it is the number you are deciding
+   * *against* while working the record.
    */
-  bandValue?: ReactNode;
+  figure?: ReactNode;
   /**
    * Records this one points at — the company, the site, the deal it became.
    * Drawn under the section rail, below a "Related" heading.
@@ -144,11 +150,16 @@ export function RecordPageShell({
   onTabChange: (value: string) => void;
   rail?: ReactNode;
   /**
-   * A record-specific band between the properties and the tabs. A lead's
-   * stage stepper lives here: its stages are a fixed enum you click along,
-   * which is neither a property nor a tab.
+   * The control that moves the record along its lifecycle — a lead's stage
+   * stepper, a deal's stage bar, a job's stage rail. It opens from the status
+   * in the record's toolbar, and heads the landing view on a phone.
    */
-  beforeTabs?: ReactNode;
+  stage?: ReactNode;
+  /**
+   * The page's own controls in the record's toolbar, after the lifecycle — a
+   * member page's period, for one. On a phone they head the landing view.
+   */
+  toolbar?: ReactNode;
   /** Sheets and dialogs the page owns — mounted outside the tab content so
    *  they survive a tab change. */
   children?: ReactNode;
@@ -349,11 +360,10 @@ export function RecordPageShell({
   /**
    * The record's identity — mark, name, reference, status, standfirst.
    *
-   * Phone only. Above `md` all of this is in the band across the top of the
-   * shell, and the artboard's right rail starts at the Properties strip: a
-   * record whose name is in the app bar, whose status and reference are in the
-   * band, and whose name and status are *also* at the top of the rail is
-   * saying the same three things three times inside 200px of each other.
+   * Phone only. Above `md` the name and reference are in the app bar and the
+   * status is in the record's toolbar, and the right rail starts at the
+   * Properties strip: repeating them at the top of the rail would say the same
+   * three things three times inside 200px of each other.
    */
   const identityBlock = (
     <div className="space-y-5">
@@ -393,11 +403,12 @@ export function RecordPageShell({
         ) : null}
       </div>
 
-      {/* Phone only — above `md` this is in the band, and rendering it twice
-          would put two stage ladders on one page. */}
-      {beforeTabs ? (
-        <div className="border-t border-[var(--border-subtle)] pt-4 md:hidden">{beforeTabs}</div>
+      {/* Phone only — above `md` these are in the record's toolbar, and
+          rendering them twice would put two stage ladders on one page. */}
+      {stage ? (
+        <div className="border-t border-[var(--border-subtle)] pt-4 md:hidden">{stage}</div>
       ) : null}
+      {toolbar ? <div className="flex flex-wrap items-center gap-2 md:hidden">{toolbar}</div> : null}
     </div>
   );
 
@@ -442,9 +453,10 @@ export function RecordPageShell({
     already has the viewport's height, which is what makes `overflow-y: auto`
     inside them mean anything.
 
-    11rem and 21.25rem are the artboard's 176 and 340. The section rail was
-    13rem: the longest label a record carries is "Conversation", and the two
-    rem came off the middle column, which is the one holding the timeline.
+    The section rail is as wide as the app sidebar's panel beside it
+    (`--sidebar-panel-w`, 224): two navigation columns side by side at two
+    different widths read as a mistake. The properties pane is the
+    artboard's 340.
   */
   const panes = "min-w-0 md:flex md:min-h-0 md:flex-1 md:overflow-hidden";
 
@@ -537,6 +549,7 @@ export function RecordPageShell({
       <PageChrome
         title={title}
         icon={icon}
+        reference={reference}
         backHref={
           openSection && narrow ? recordHref : (trailBack?.href ?? backHref)
         }
@@ -547,64 +560,24 @@ export function RecordPageShell({
         {barActions}
       </PageChrome>
 
-      {/*
-        The record band.
-
-        The properties still live in the standing column — that decision holds,
-        and a phone still leads with them. What comes back to the top is the
-        part you act on: where the record is in its lifecycle, and the move to
-        the next stage. Those were in the column too, which meant that on a long
-        conversation the ladder was three screens above the thing you had just
-        read before deciding to advance it.
-
-        So this is not the old identity band returning. It carries the status,
-        the reference and the stage controls only — the facts you need *while*
-        working the record, pinned — and nothing that the column already says
-        better. Hidden below `md`, where the column is the landing view anyway.
-      */}
-      {status || reference || bandValue || beforeTabs ? (
-        /* Not sticky any more, and it does not need to be: it is a row of the
-           shell rather than the first thing in a scroller, so there is nothing
-           for it to scroll away from. White, as the artboard draws it — the
-           panes below carry the canvas tint, and the band reads as part of the
-           chrome with them. */
-        <div className="hidden min-h-[var(--page-band-h)] shrink-0 items-center gap-2.5 border-b border-[var(--border)] bg-[var(--surface-base)] px-[var(--content-gutter-x)] md:flex">
-          {status ? <StatusChip status={status.status} label={status.label} /> : null}
-          {reference ? (
-            <span className="font-mono text-sm text-[var(--text-muted)]">{reference}</span>
-          ) : null}
-          {subtitle ? (
-            <>
-              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-[var(--border)]" />
-              <span className="min-w-0 truncate text-sm text-[var(--text-muted)]">{subtitle}</span>
-            </>
-          ) : null}
-          {/* The figure, mono and heavy, with its own rule before it. It is the
-              one thing in the band that is a number rather than a name, and
-              without the rule it read as the end of the subtitle. */}
-          {bandValue ? (
-            <>
-              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-[var(--border)]" />
-              <span className="shrink-0 font-mono text-sm font-bold tabular-nums text-[var(--text-strong)]">
-                {bandValue}
-              </span>
-            </>
-          ) : null}
-          {beforeTabs ? (
-            <div className="ml-auto flex min-w-0 shrink items-center justify-end">{beforeTabs}</div>
-          ) : null}
-        </div>
-      ) : null}
+      {/* The record's toolbar: where it is in its lifecycle and the move to
+          the next stage, the controls the page adds, and its headline figure
+          — the things you act on while working the record, in view the whole
+          time. A row of the shell rather than the first thing in a scroller,
+          so there is nothing for it to scroll away from. */}
+      <RecordToolbar status={status} stage={stage} figure={figure}>
+        {toolbar}
+      </RecordToolbar>
 
       <div className={panes}>
         {/* The sections, in a pane of their own. It scrolls independently, so a
             record with thirteen sections keeps every one reachable without
             scrolling the conversation back to the top to get at them. */}
         {hasSectionRail ? (
-          // 176 wide on 10/8 of padding, against the subtle hairline — the
-          // artboard's rail exactly. White, because the pane beside it carries
-          // the canvas tint and the seam between them is what makes it a rail.
-          <aside className="hidden shrink-0 overflow-y-auto border-r border-[var(--border-subtle)] bg-[var(--surface-base)] px-2 py-2.5 md:block md:w-[11rem]">
+          // As wide as the app sidebar's panel, on 10/8 of padding, against the
+          // subtle hairline. White, because the pane beside it carries the
+          // canvas tint and the seam between them is what makes it a rail.
+          <aside className="hidden shrink-0 overflow-y-auto border-r border-[var(--border-subtle)] bg-[var(--surface-base)] px-2 py-2.5 md:block md:w-[var(--sidebar-panel-w)]">
             {sectionRail}
             {/* Records this one points at. Under the sections rather than
                 beside them: these are places to go, the same as a section, and
@@ -643,7 +616,7 @@ export function RecordPageShell({
 
           {/* Drilled in on a phone, the section names itself — the bar is
               still carrying the record's name. */}
-          {openSection ? (
+          {openSection && !currentTab?.titled ? (
             <h2 className="text-base font-semibold text-[var(--text-strong)] md:hidden">
               {currentTab?.label}
             </h2>

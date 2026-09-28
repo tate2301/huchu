@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./_support/fixtures";
 import { PAYROLL } from "./_support/tenants";
 import { visitSettled } from "./_support/nav";
-import { freeze, settle, VIEWPORT } from "./_support/shots";
+import { freeze, settle, shotPath, VIEWPORT } from "./_support/shots";
 
 /**
  * Screenshots of the Zimbabwe payroll surface, at three widths.
@@ -60,11 +60,11 @@ import { freeze, settle, VIEWPORT } from "./_support/shots";
  *
  * Was `/tmp/shots`, which does not survive a reboot and does not exist on the
  * Windows workstation this runs on. `_support/shots.ts` settled the convention:
- * everything goes under `docs/screenshots/<vertical>/<journey>/`, overridable
+ * everything goes under `docs/screenshots/<vertical>/<journey>-`, overridable
  * with `SHOT_DIR`. Named per viewport rather than numbered, because these are a
  * grid of the same screens at three widths, not a journey.
  */
-const OUT = `${process.env.SHOT_DIR ?? "docs/screenshots"}/payroll/hr-payroll`;
+const JOURNEY = "hr-payroll";
 
 /**
  * How long to let a screen finish before photographing it.
@@ -248,12 +248,12 @@ for (const [label, size] of VIEWPORTS) {
         // produce the same image rather than two that can only be re-taken.
         await freeze(page);
         await page.screenshot({
-          path: `${OUT}/${name}-${label}.png`,
+          path: shotPath("payroll", JOURNEY, `${name}-${label}`),
           fullPage: true,
         });
       }
 
-      console.log(`[shots] payroll/HR at ${label} -> ${OUT}`);
+      console.log(`[shots] payroll/HR at ${label} -> ${shotPath("payroll", JOURNEY, "*")}`);
     });
   });
 }

@@ -360,9 +360,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "hr.disciplinary-actions",
       "hr.salaries",
       "hr.approvals-history",
-      // `hr.settlements` used to ride in here, so every payroll customer was sold
-      // a gold-and-scrap settlement surface whether or not they had a commodity.
-      // Settlements are their own addon now.
       "admin.payroll-config",
     ],
   },
@@ -397,7 +394,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     name: "Commodity Settlements",
     description:
       "Settling gold, scrap, commission and other quantity-based pay, with its own approval chain and payouts.",
-    monthlyPrice: 29,
+    monthlyPrice: 9.99,
     additionalSiteMonthlyPrice: 5,
     features: ["settlements.core", "settlements.gold"],
   },
@@ -413,7 +410,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_COMPLIANCE_PRO",
     name: "Compliance Pro",
     description: "Compliance deep controls and reporting.",
-    monthlyPrice: 49,
+    monthlyPrice: 9.99,
     additionalSiteMonthlyPrice: 10,
     features: ["compliance.overview", "compliance.permits", "compliance.inspections", "compliance.incidents", "compliance.training-records", "reports.compliance-incidents"],
   },
@@ -421,7 +418,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_MAINTENANCE_PRO",
     name: "Maintenance Pro",
     description: "Maintenance operations and analytics.",
-    monthlyPrice: 39,
+    monthlyPrice: 9.99,
     additionalSiteMonthlyPrice: 10,
     features: [
       "maintenance.dashboard",
@@ -437,7 +434,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_USER_MANAGEMENT_PRO",
     name: "User Management Pro",
     description: "Advanced manager/clerk lifecycle management controls.",
-    monthlyPrice: 19,
+    monthlyPrice: 2.99,
     additionalSiteMonthlyPrice: 5,
     features: [
       "admin.user-management.core",

@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { ROLES } from "@/lib/roles"
+import { findLastSignInByEmail } from "@/lib/auth-core/last-sign-in"
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,7 +67,24 @@ export async function GET(request: NextRequest) {
       prisma.user.count({ where }),
     ])
 
-    return successResponse(paginationResponse(users, total, page, limit))
+    // One grouped read for the whole page, not one per row. `User` records no
+    // sign-in time; the audit ledger does, keyed by the normalised email, and
+    // a `findFirst` per user would be 25 round trips every time somebody typed
+    // in the search box.
+    const lastSignInByEmail = await findLastSignInByEmail({
+      companyId: session.user.companyId,
+      emails: users.map((user) => user.email),
+    })
+
+    const rows = users.map((user) => ({
+      ...user,
+      // Null means this account has never signed in — the register draws that
+      // rather than leaving the column blank.
+      lastSignInAt:
+        lastSignInByEmail.get(user.email.trim().toLowerCase())?.toISOString() ?? null,
+    }))
+
+    return successResponse(paginationResponse(rows, total, page, limit))
   } catch (error) {
     console.error("[API] GET /api/users error:", error)
     return errorResponse("Failed to fetch users")

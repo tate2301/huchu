@@ -40,6 +40,12 @@ export const RECORD_TYPES = [
    * subject type. It is not a custom-field target; see `CRM_FIELD_ENTITIES`.
    */
   "REP",
+  /**
+   * What a won deal turns into, and what its jobs belong to. It has a record
+   * page and files hang off it; it is not a custom-field target yet — see
+   * `CRM_FIELD_ENTITIES`.
+   */
+  "PROJECT",
   // Schools (S-4.3)
   "STUDENT",
   "GUARDIAN",
@@ -170,6 +176,20 @@ const CONFIGS: RecordTypeConfig[] = [
     apiPath: (id) => `/api/v2/crm/reps/${id}`,
     summaryPath: (id) => `/api/v2/crm/records/rep/${id}/summary`,
     queryKey: (id) => ["crm", "rep", id],
+  },
+  {
+    type: "PROJECT",
+    label: "Project",
+    labelPlural: "Projects",
+    module: "crm",
+    kind: "project",
+    isPerson: false,
+    indexHref: "/crm/projects",
+    href: (id) => `/crm/projects/${id}`,
+    apiPath: (id) => `/api/v2/crm/projects/${id}`,
+    // No summary endpoint yet, so a link to a project opens the page rather
+    // than a peek — which is the honest behaviour until one exists.
+    queryKey: (id) => ["crm", "project", id],
   },
   {
     type: "STUDENT",

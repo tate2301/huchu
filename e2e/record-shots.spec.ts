@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./_support/fixtures";
 import { CRM } from "./_support/tenants";
 import { visitSettled } from "./_support/nav";
-import { freeze, settle, VIEWPORT } from "./_support/shots";
+import { freeze, settle, shotPath, VIEWPORT } from "./_support/shots";
 
 /**
  * Every record page, at the width it is hardest at.
@@ -45,12 +45,12 @@ test.use({ tenant: CRM, as: "owner" });
  * Where the images land.
  *
  * `_support/shots.ts` keeps the rule: everything under
- * `docs/screenshots/<vertical>/<journey>`, because the previous four roots
+ * `docs/screenshots/<vertical>/<journey>-`, because the previous four roots
  * included two `/tmp` paths that do not survive a reboot. This spec cannot use
  * `shooter()` — it needs `fullPage` — but it obeys the same root, and the same
  * `SHOT_DIR` override.
  */
-const OUT = `${process.env.SHOT_DIR ?? "docs/screenshots"}/crm/records`;
+const JOURNEY = "records";
 
 type Record_ = {
   name: string;
@@ -171,11 +171,16 @@ for (const [label, width, height] of VIEWPORTS) {
 
         // The whole page, which is what shows how much scrolling a record
         // costs, and the first screen, which is what somebody actually gets.
-        await page.screenshot({ path: `${OUT}/record-${name}-${label}.png`, fullPage: true });
-        await page.screenshot({ path: `${OUT}/record-${name}-${label}-fold.png` });
+        await page.screenshot({
+          path: shotPath("crm", JOURNEY, `record-${name}-${label}`),
+          fullPage: true,
+        });
+        await page.screenshot({
+          path: shotPath("crm", JOURNEY, `record-${name}-${label}-fold`),
+        });
       }
 
-      console.log(`[shots] record pages (${label}) -> ${OUT}`);
+      console.log(`[shots] record pages (${label}) -> ${shotPath("crm", JOURNEY, "*")}`);
     });
   });
 }

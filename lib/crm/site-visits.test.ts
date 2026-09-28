@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import {
   buildDefaultChecklist,
   composeItemDescription,
   DEFAULT_SITE_VISIT_CHECKLIST,
   formatDimensions,
+  isPhoto,
+  newClientPhotoId,
   siteVisitReportSchema,
   visitItemsToQuotationLines,
 } from "./site-visits";
@@ -99,7 +102,18 @@ describe("siteVisitReportSchema", () => {
   it("accepts a complete report", () => {
     const parsed = siteVisitReportSchema.parse({
       checklist: [{ key: "access_confirmed", label: "Access", checked: true }],
-      photos: [{ url: "https://example.com/a.jpg", kind: "PHOTO" }],
+      photos: [
+        {
+          clientPhotoId: "7d4f3c2a-6a1e-4b8f-9c55-2f0f4d9e1a01",
+          url: "https://example.com/a.jpg",
+          pathname: "companies/co/crm-attachments/a.jpg",
+          contentType: "image/jpeg",
+          size: 2048,
+          latitude: -17.825,
+          longitude: 31.0375,
+          capturedAt: "2026-09-20T08:15:30.000Z",
+        },
+      ],
       siteConditions: "Steep driveway, no power on site",
       items: [{ description: "Window", quantity: 2, widthMm: 1000, heightMm: 1200 }],
       markCompleted: true,
@@ -116,7 +130,64 @@ describe("siteVisitReportSchema", () => {
 
   it("rejects a photo that is not a URL", () => {
     expect(() =>
-      siteVisitReportSchema.parse({ photos: [{ url: "not-a-url", kind: "PHOTO" }] }),
+      siteVisitReportSchema.parse({
+        photos: [
+          {
+            clientPhotoId: "7d4f3c2a-6a1e-4b8f-9c55-2f0f4d9e1a01",
+            url: "not-a-url",
+            pathname: "a.jpg",
+            contentType: "image/jpeg",
+            size: 1,
+          },
+        ],
+      }),
     ).toThrow();
+  });
+
+  it("rejects a location off the globe rather than storing it", () => {
+    expect(() =>
+      siteVisitReportSchema.parse({
+        photos: [
+          {
+            clientPhotoId: "7d4f3c2a-6a1e-4b8f-9c55-2f0f4d9e1a01",
+            url: "https://example.com/a.jpg",
+            pathname: "a.jpg",
+            contentType: "image/jpeg",
+            size: 1,
+            latitude: 123,
+            longitude: 31,
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+});
+
+describe("a photo's identity on the phone", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is a UUID the report schema accepts", () => {
+    expect(z.string().uuid().safeParse(newClientPhotoId()).success).toBe(true);
+  });
+
+  it("is still a UUID on a plain-http host, where randomUUID does not exist", () => {
+    // The tenant demo hosts are not a secure context, so the browser hides
+    // `crypto.randomUUID` there and the report would otherwise refuse to save.
+    const real = globalThis.crypto;
+    vi.stubGlobal("crypto", {
+      getRandomValues: <T extends ArrayBufferView>(array: T) => real.getRandomValues(array),
+    });
+    const ids = new Set(Array.from({ length: 50 }, () => newClientPhotoId()));
+    expect(ids.size).toBe(50);
+    for (const id of ids) expect(z.string().uuid().safeParse(id).success).toBe(true);
+  });
+});
+
+describe("isPhoto", () => {
+  it("draws images as pictures and anything else as a file", () => {
+    expect(isPhoto({ contentType: "image/jpeg" })).toBe(true);
+    expect(isPhoto({ contentType: "application/pdf" })).toBe(false);
   });
 });

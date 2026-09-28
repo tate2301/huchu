@@ -123,6 +123,8 @@ export function ExamSeriesContent() {
 
   const chips = indexQuery.data?.chips;
   const rows = useMemo(() => indexQuery.data?.rows ?? [], [indexQuery.data]);
+  // Not a chip any more, but still the spine of the page: the alert and the
+  // deadline table below both hang off whichever series closes soonest.
   const nearest = chips?.nearestDeadline ?? null;
 
   // The series the alert and the deadline table are about: the one whose entries

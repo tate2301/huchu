@@ -1,42 +1,40 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Badge, Button } from "@corelithzw/react";
-import { Building2, Coins, Funnel, MapPin, Users } from "@/lib/icons";
+import { Building2, Calendar, Coins, Funnel, Globe, Mail, MapPin, Phone, Tag, Users } from "@/lib/icons";
 import { useToast } from "@/components/ui/use-toast";
 import { StatusChip } from "@/components/ui/status-chip";
-import { fetchCrmCompanies } from "@/lib/crm/crm-v2";
+import { ClientDate } from "@/components/ui/client-date";
+import { EntityLink } from "@/components/records/entity-link";
+import type { CrmCompanyRecord } from "@/lib/crm/crm-v2";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ACCOUNT_STATUS_COLOR, stageColor } from "@/lib/crm/tones";
+import { ACCOUNT_STATUS_OPTIONS, COMPANY_TYPE_OPTIONS, optionLabel } from "@/lib/crm/record-labels";
+import { COMPANY_REGISTER } from "@/lib/crm/registers/defs/company";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
-import { useDebounced } from "@/hooks/use-debounced";
 
 import { CompanyFormSheet } from "./company-form-sheet";
 import { RecordListPager, type RecordListRow } from "@/components/records/record-list";
-import { RecordTable, RecordTableName, type RecordTableColumn } from "@/components/records/record-table";
-import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
+import { RecordCell, RecordTable, RecordTableName, recordCellTone } from "@/components/records/record-table";
+import { DirectoryCell } from "@/components/records/people-directory";
 import { RecordMark } from "@/components/records/record-mark";
+import { BoardCardFace } from "./board-card-face";
 import { RecordBoard } from "./record-board";
-import { ColumnPicker } from "@/components/ui/column-picker";
-import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
+import { GroupedRecordList, bucketByLetter, type RecordListSection } from "@/components/records/record-list-groups";
+import { RegisterShell } from "@/components/crm/registers/register-shell";
+import { REGISTER_PAGE_SIZE, useRegister } from "@/components/crm/registers/use-register";
 import {
-  GroupedRecordList,
-  bucketByLetter,
-  type RecordListSection,
-} from "@/components/records/record-list-groups";
-import { RecordListShell } from "./record-list-shell";
+  emptyState,
+  groupSections,
+  registerColumns,
+  tableSort,
+  type ColumnRenderer,
+} from "@/components/crm/registers/table-helpers";
 
-const PAGE_SIZE = 50;
-
-const COMPANY_TYPE_LABELS: Record<string, string> = {
-  CUSTOMER: "Customer",
-  PROSPECT: "Prospect",
-  SUPPLIER: "Supplier",
-  PARTNER: "Partner",
-  OTHER: "Other",
-};
+type Company = CrmCompanyRecord;
 
 const ACCOUNT_STATUS_PRESENTATION: Record<string, CanonicalUiStatus> = {
   ACTIVE: "passing",
@@ -45,149 +43,128 @@ const ACCOUNT_STATUS_PRESENTATION: Record<string, CanonicalUiStatus> = {
   BLACKLISTED: "failing",
 };
 
-const ACCOUNT_STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Active",
-  ON_HOLD: "On hold",
-  INACTIVE: "Inactive",
-  BLACKLISTED: "Blacklisted",
-};
+function Standing({ status }: { status: string }) {
+  return (
+    <StatusChip
+      status={ACCOUNT_STATUS_PRESENTATION[status] ?? "pending"}
+      label={optionLabel(ACCOUNT_STATUS_OPTIONS, status)}
+    />
+  );
+}
 
-/** What a company's row or card can show, for the picker. */
-const COMPANY_FIELDS: ColumnOption[] = [
-  { id: "name", label: "Name", required: true },
-  { id: "location", label: "Reference and location" },
-  { id: "status", label: "Account status" },
-  { id: "type", label: "Company type" },
-  { id: "people", label: "People count" },
-  { id: "deals", label: "Deal count" },
-  { id: "owner", label: "Owner" },
-];
-
+/** Companies: the accounts, on the list engine. See `PeopleContent`. */
 export function CompaniesContent({ openCreate = false }: { openCreate?: boolean }) {
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const register = useRegister<Company>(COMPANY_REGISTER);
+  const { state, rows: companies } = register;
+  const layout = state.layout ?? "TABLE";
   const [createOpen, setCreateOpen] = useState(openCreate);
-  const [layout, setLayout] = useState<RecordLayout>("TABLE");
-  const debouncedSearch = useDebounced(search, 300);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const companiesQuery = useQuery({
-    queryKey: ["crm", "companies", debouncedSearch, page],
-    queryFn: () =>
-      fetchCrmCompanies({
-        filters: { q: debouncedSearch },
-        // By name: the list below groups by first letter, and grouping a list
-        // ordered by `updatedAt` produces headings in no order at all.
-        sort: { field: "name", direction: "asc" },
-        page,
-        limit: PAGE_SIZE,
-      }),
-    placeholderData: (previous) => previous,
+  const moveAccountStatus = useMutation({
+    mutationFn: ({ id, accountStatus }: { id: string; accountStatus: string }) =>
+      fetchJson(`/api/v2/crm/companies/${id}`, { method: "PATCH", body: JSON.stringify({ accountStatus }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crm", "companies"] }),
+    onError: (error) =>
+      toast({ title: "Could not change the account status", description: getApiErrorMessage(error), variant: "destructive" }),
   });
 
-  const companies = useMemo(() => companiesQuery.data?.data ?? [], [companiesQuery.data]);
-  const total = companiesQuery.data?.pagination?.total ?? companies.length;
-
-  // Account standing is the one attribute on a company worth arranging by:
-  // "who is on hold" is a question somebody actually asks.
-  const boardColumns = useMemo(
-    () =>
-      Object.entries(ACCOUNT_STATUS_LABELS).map(([value, label]) => ({
-        id: value,
-        name: label,
-        color: ACCOUNT_STATUS_COLOR[value] ?? stageColor(null),
-      })),
+  const renderers = useMemo<Record<string, ColumnRenderer<Company>>>(
+    () => ({
+      name: {
+        icon: Building2,
+        cell: (company) => (
+          <RecordTableName
+            leading={<RecordMark kind="company" name={company.name} emoji={company.emoji} avatarUrl={company.avatarUrl} size="sm" />}
+            title={company.name}
+            subtitle={company.clientNo}
+          />
+        ),
+      },
+      ref: { width: "8rem", cell: (company) => <RecordCell kind="code" value={company.clientNo} /> },
+      tradingName: { width: "11rem", cell: (company) => <RecordCell value={company.tradingName} /> },
+      status: { icon: Funnel, width: "9rem", cell: (company) => <Standing status={company.accountStatus} /> },
+      type: {
+        icon: Funnel,
+        width: "8rem",
+        cell: (company) => (
+          <Badge tone="neutral" size="sm">
+            {optionLabel(COMPANY_TYPE_OPTIONS, company.companyType)}
+          </Badge>
+        ),
+      },
+      location: {
+        icon: MapPin,
+        width: "11rem",
+        cell: (company) => <RecordCell value={[company.city, company.country].filter(Boolean).join(", ")} />,
+      },
+      people: {
+        icon: Users,
+        width: "5.5rem",
+        align: "end",
+        cell: (company) => <RecordCell kind="number" value={company._count?.people ?? 0} />,
+      },
+      deals: {
+        icon: Coins,
+        width: "5.5rem",
+        align: "end",
+        cell: (company) => <RecordCell kind="number" value={company._count?.deals ?? 0} />,
+      },
+      owner: {
+        icon: Users,
+        width: "10rem",
+        cell: (company) => <DirectoryCell value={company.assignedTo?.name} missing="Unassigned" />,
+      },
+      email: { icon: Mail, width: "13rem", cell: (company) => <DirectoryCell kind="email" value={company.email} missing="no email" /> },
+      phone: { icon: Phone, width: "10rem", cell: (company) => <DirectoryCell kind="phone" value={company.phone} missing="no phone" /> },
+      website: { icon: Globe, width: "12rem", cell: (company) => <RecordCell value={company.website} /> },
+      industry: { width: "10rem", cell: (company) => <RecordCell value={company.industry} /> },
+      parent: {
+        icon: Building2,
+        width: "12rem",
+        cell: (company) =>
+          company.parent ? (
+            <span className="block truncate">
+              <EntityLink href={`/crm/companies/${company.parent.id}`} className={recordCellTone("relation")}>
+                {company.parent.name}
+              </EntityLink>
+            </span>
+          ) : (
+            <RecordCell value={null} />
+          ),
+      },
+      taxNumber: { width: "9rem", cell: (company) => <RecordCell kind="code" value={company.taxNumber} /> },
+      tags: { icon: Tag, width: "10rem", cell: (company) => <RecordCell value={company.tags?.join(", ")} /> },
+      contacted: {
+        icon: Calendar,
+        width: "8.5rem",
+        cell: (company) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={company.lastContactedAt} mode="date" fallback="never" />
+          </span>
+        ),
+      },
+      created: {
+        width: "8.5rem",
+        cell: (company) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={company.createdAt} mode="date" />
+          </span>
+        ),
+      },
+      updated: {
+        width: "10rem",
+        cell: (company) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={company.updatedAt} />
+          </span>
+        ),
+      },
+    }),
     [],
   );
 
-  const fields = useVisibleColumns("crm.companies.fields", COMPANY_FIELDS);
-
-  const boardCards = useMemo(
-    () =>
-      companies.map((company) => ({
-        id: company.id,
-        columnId: company.accountStatus,
-        href: `/crm/companies/${company.id}`,
-        // What the phone board shows instead of the card face: the same two
-        // lines the list view uses, so switching between them is a change of
-        // arrangement rather than of vocabulary.
-        row: {
-          leading: (
-            <RecordMark
-              kind="company"
-              name={company.name}
-              emoji={company.emoji}
-              avatarUrl={company.avatarUrl}
-              size="md"
-            />
-          ),
-          title: company.name,
-          subtitle: [
-            company.clientNo,
-            [company.city, company.country].filter(Boolean).join(", "),
-          ]
-            .filter(Boolean)
-            .join(" · "),
-          facts: fields.isVisible("people")
-            ? [{ value: `${company._count?.people ?? 0} people` }]
-            : undefined,
-        },
-        content: (
-          <div className="flex items-start gap-2">
-            <RecordMark
-              kind="company"
-              name={company.name}
-              emoji={company.emoji}
-              avatarUrl={company.avatarUrl}
-              size="sm"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{company.name}</p>
-              {fields.isVisible("location") ? (
-                <p className="truncate text-sm text-[var(--text-muted)]">
-                  {[company.city, company.country].filter(Boolean).join(", ") ||
-                    company.clientNo}
-                </p>
-              ) : null}
-              {fields.isVisible("people") || fields.isVisible("deals") ? (
-                <p className="mt-1 text-sm text-[var(--text-subtle)]">
-                  {[
-                    fields.isVisible("people")
-                      ? `${company._count?.people ?? 0} people`
-                      : null,
-                    fields.isVisible("deals") ? `${company._count?.deals ?? 0} deals` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              ) : null}
-              {fields.isVisible("owner") ? (
-                <p className="mt-1 truncate text-sm text-[var(--text-subtle)]">
-                  {company.assignedTo?.name ?? "Unassigned"}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        ),
-      })),
-    [companies, fields],
-  );
-
-  const moveAccountStatus = useMutation({
-    mutationFn: ({ id, accountStatus }: { id: string; accountStatus: string }) =>
-      fetchJson(`/api/v2/crm/companies/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ accountStatus }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crm", "companies"] }),
-    onError: (error) =>
-      toast({
-        title: "Could not change the account status",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  });
+  const columns = registerColumns(register, renderers);
 
   const rows = useMemo<RecordListRow[]>(
     () =>
@@ -195,265 +172,132 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
         id: company.id,
         href: `/crm/companies/${company.id}`,
         leading: (
-          <RecordMark
-            kind="company"
-            name={company.name}
-            emoji={company.emoji}
-            avatarUrl={company.avatarUrl}
-            size="md"
-          />
+          <RecordMark kind="company" name={company.name} emoji={company.emoji} avatarUrl={company.avatarUrl} size="md" />
         ),
         title: company.name,
-        subtitle: fields.isVisible("location")
-          ? [company.clientNo, [company.city, company.country].filter(Boolean).join(", ")]
-              .filter(Boolean)
-              .join(" · ")
-          : null,
-        status: (
-          <>
-            {fields.isVisible("status") ? (
-              <StatusChip
-                status={ACCOUNT_STATUS_PRESENTATION[company.accountStatus] ?? "pending"}
-                label={ACCOUNT_STATUS_LABELS[company.accountStatus] ?? company.accountStatus}
-              />
-            ) : null}
-            {/* Two chips beside a company name wrap onto a line of their own
-                at phone width, which turns a two-line row into a three-line
-                one and costs the list a third of its rows per screen. Account
-                standing is the one worth the space — "on hold" changes what
-                you do next; "Customer" is what nearly every row says. */}
-            {fields.isVisible("type") ? (
-              <span className="hidden sm:contents">
-                <Badge tone="neutral" size="sm">
-                  {COMPANY_TYPE_LABELS[company.companyType] ?? company.companyType}
-                </Badge>
-              </span>
-            ) : null}
-          </>
-        ),
+        subtitle: [company.clientNo, [company.city, company.country].filter(Boolean).join(", ")]
+          .filter(Boolean)
+          .join(" · "),
+        // Standing, not type: "on hold" changes what you do next; "Customer"
+        // is what nearly every row says, and two chips wrap at phone width.
+        status: <Standing status={company.accountStatus} />,
         facts: [
-          ...(fields.isVisible("people")
-            ? [{ label: "People", value: company._count?.people ?? 0, mono: true }]
-            : []),
-          ...(fields.isVisible("deals")
-            ? [{ label: "Deals", value: company._count?.deals ?? 0, mono: true }]
-            : []),
-          ...(fields.isVisible("owner")
-            ? [{ label: "Owner", value: company.assignedTo?.name ?? "Unassigned" }]
-            : []),
+          { label: "People", value: company._count?.people ?? 0, mono: true },
+          { label: "Deals", value: company._count?.deals ?? 0, mono: true },
+          { label: "Owner", value: company.assignedTo?.name ?? "Unassigned" },
         ],
       })),
-    [companies, fields],
+    [companies],
   );
 
-  /**
-   * The same companies, arranged as columns.
-   *
-   * Standing and type are the two questions a directory of accounts gets asked
-   * — "who is on hold", "which of these are suppliers" — and in the row layout
-   * they are two chips crowded against the name, with the second one dropped
-   * entirely on a phone. As columns they line up, which is the whole reason
-   * this arrangement exists.
-   */
-  const columns = useMemo<RecordTableColumn<(typeof companies)[number]>[]>(
-    () => [
-      {
-        id: "name",
-        label: "Company",
-        icon: Building2,
-        cell: (company) => (
-          <RecordTableName
-            leading={
-              <RecordMark
-                kind="company"
-                name={company.name}
-                emoji={company.emoji}
-                avatarUrl={company.avatarUrl}
-                size="sm"
-              />
-            }
-            title={company.name}
-            subtitle={company.clientNo}
-          />
-        ),
-      },
-      ...(fields.isVisible("status")
-        ? [
-            {
-              id: "status",
-              label: "Standing",
-              icon: Funnel,
-              width: "9rem",
-              cell: (company: (typeof companies)[number]) => (
-                <StatusChip
-                  status={ACCOUNT_STATUS_PRESENTATION[company.accountStatus] ?? "pending"}
-                  label={ACCOUNT_STATUS_LABELS[company.accountStatus] ?? company.accountStatus}
-                />
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("type")
-        ? [
-            {
-              id: "type",
-              label: "Type",
-              icon: Funnel,
-              width: "8rem",
-              cell: (company: (typeof companies)[number]) => (
-                <Badge tone="neutral" size="sm">
-                  {COMPANY_TYPE_LABELS[company.companyType] ?? company.companyType}
-                </Badge>
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("location")
-        ? [
-            {
-              id: "location",
-              label: "Location",
-              icon: MapPin,
-              width: "11rem",
-              cell: (company: (typeof companies)[number]) => (
-                <span className="block truncate">
-                  {[company.city, company.country].filter(Boolean).join(", ") || (
-                    <span className="text-[var(--text-subtle)]">—</span>
-                  )}
-                </span>
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("people")
-        ? [
-            {
-              id: "people",
-              label: "People",
-              icon: Users,
-              width: "6rem",
-              align: "end" as const,
-              cell: (company: (typeof companies)[number]) => (
-                <span className="font-mono tabular-nums">{company._count?.people ?? 0}</span>
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("deals")
-        ? [
-            {
-              id: "deals",
-              label: "Deals",
-              icon: Coins,
-              width: "6rem",
-              align: "end" as const,
-              cell: (company: (typeof companies)[number]) => (
-                <span className="font-mono tabular-nums">{company._count?.deals ?? 0}</span>
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("owner")
-        ? [
-            {
-              id: "owner",
-              label: "Owner",
-              icon: Users,
-              width: "11rem",
-              cell: (company: (typeof companies)[number]) => (
-                <span className="block truncate">
-                  {company.assignedTo?.name ?? (
-                    <span className="text-[var(--text-subtle)]">Unassigned</span>
-                  )}
-                </span>
-              ),
-            },
-          ]
-        : []),
-    ],
-    [fields],
-  );
-
-  // Same reasoning as People: a directory is scanned by name, so it gets a
-  // heading per letter and a jump strip once it is long enough to be work to
-  // scroll. Search results stay flat — they are ranked, not alphabetical.
+  const byName = (state.sort?.key ?? "name") === "name" && (state.sort?.dir ?? "asc") === "asc";
+  const grouped = register.groups;
+  const lettered = !grouped && byName && !state.q;
   const sections = useMemo<RecordListSection[]>(
     () =>
-      bucketByLetter(rows, (row) => String(row.title ?? "")).map((bucket) => ({
-        id: bucket.id,
-        label: bucket.label,
-        rows: bucket.items,
-      })),
-    [rows],
+      grouped
+        ? groupSections(grouped, rows)
+        : lettered
+          ? bucketByLetter(rows, (row) => String(row.title ?? "")).map((bucket) => ({
+              id: bucket.id,
+              label: bucket.label,
+              rows: bucket.items,
+            }))
+          : [{ id: "results", label: state.q ? "Results" : "Companies", rows }],
+    [grouped, lettered, rows, state.q],
   );
 
-  // The rows arrangement, which is also what the table falls back to on a
-  // phone — so it is written once and used twice rather than diverging.
+  // Account standing is the one attribute worth arranging companies by: "who
+  // is on hold" is a question somebody actually asks.
+  const boardColumns = useMemo(
+    () =>
+      ACCOUNT_STATUS_OPTIONS.map(({ value, label }) => ({
+        id: value,
+        name: label,
+        dot: (ACCOUNT_STATUS_COLOR[value] ?? stageColor(null)).dot,
+      })),
+    [],
+  );
+  const boardCards = useMemo(
+    () =>
+      companies.map((company) => ({
+        id: company.id,
+        columnId: company.accountStatus,
+        href: `/crm/companies/${company.id}`,
+        row: rows.find((row) => row.id === company.id),
+        label: company.name,
+        content: (
+          <BoardCardFace
+            leading={
+              <RecordMark kind="company" name={company.name} emoji={company.emoji} avatarUrl={company.avatarUrl} size="sm" />
+            }
+            title={company.name}
+            subtitle={[company.city, company.country].filter(Boolean).join(", ") || company.clientNo}
+            owner={company.assignedTo?.name ?? null}
+          >
+            <p className="text-sm text-[var(--text-subtle)]">
+              {company._count?.people ?? 0} people · {company._count?.deals ?? 0} deals
+            </p>
+          </BoardCardFace>
+        ),
+      })),
+    [companies, rows],
+  );
+
+  const empty = emptyState(register, {
+    none: "No companies yet",
+    noneBody: "Add one, or convert a lead and its company comes with it.",
+  });
+  const emptyAction =
+    empty.kind === "none" ? (
+      <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+        Add the first company
+      </Button>
+    ) : empty.kind === "filtered" ? (
+      <Button variant="secondary" size="sm" onClick={register.clearFilters}>
+        Clear the filters
+      </Button>
+    ) : undefined;
+
   const directory = (
     <GroupedRecordList
-      sections={debouncedSearch ? [{ id: "results", label: "Results", rows }] : sections}
-      showJumpStrip={!debouncedSearch && rows.length >= 30}
-      isLoading={companiesQuery.isLoading}
-      emptyTitle={debouncedSearch ? "No companies match that search" : "No companies yet"}
-      emptyBody={
-        debouncedSearch ? undefined : "Add one, or convert a lead and its company comes with it."
-      }
-      emptyAction={
-        debouncedSearch ? undefined : (
-          <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-            Add the first company
-          </Button>
-        )
-      }
+      sections={sections}
+      showJumpStrip={lettered && rows.length >= 30}
+      isLoading={register.query.isLoading}
+      emptyTitle={empty.title}
+      emptyBody={empty.body}
+      emptyAction={emptyAction}
     />
   );
 
   return (
-    <RecordListShell
+    <RegisterShell
+      register={register}
       title="Companies"
-      search={search}
-      onSearchChange={(value) => {
-        setSearch(value);
-        setPage(1);
-      }}
-      searchPlaceholder="Search companies by name, number or city"
       createLabel="New company"
       onCreate={() => setCreateOpen(true)}
-      error={companiesQuery.error}
-      count={`${companies.length} of ${total}`}
-      display={
-        <ColumnPicker
-          columns={COMPANY_FIELDS}
-          state={fields}
-          label={layout === "BOARD" ? "Fields" : "Columns"}
-        />
-      }
-      layout={
-        <LayoutSwitch value={layout} onChange={setLayout} options={["TABLE", "LIST", "BOARD"]} />
-      }
     >
       {layout === "BOARD" ? (
         <RecordBoard
           columns={boardColumns}
           cards={boardCards}
-          isLoading={companiesQuery.isLoading}
+          isLoading={register.query.isLoading}
           noun={{ one: "company", many: "companies" }}
           emptyLabel="None in this state"
-          onMove={(id, accountStatus) => moveAccountStatus.mutate({ id, accountStatus })}
-          className="min-h-[24rem]"
+          onMove={(id, accountStatus) => moveAccountStatus.mutateAsync({ id, accountStatus })}
         />
       ) : layout === "TABLE" ? (
         <RecordTable
           rows={companies}
           columns={columns}
           rowHref={(company) => `/crm/companies/${company.id}`}
-          isLoading={companiesQuery.isLoading}
-          emptyTitle={debouncedSearch ? "No companies match that search" : "No companies yet"}
-          emptyBody={
-            debouncedSearch
-              ? undefined
-              : "Add one, or convert a lead and its company comes with it."
-          }
+          isLoading={register.query.isLoading}
+          selection={{ selectedIds: register.selection.ids, onChange: register.selection.set }}
+          sort={tableSort(register)}
+          groups={register.groups}
+          emptyTitle={empty.title}
+          emptyBody={empty.body}
+          emptyAction={emptyAction}
           mobile={directory}
         />
       ) : (
@@ -461,10 +305,15 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
       )}
 
       {layout === "BOARD" ? null : (
-        <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+        <RecordListPager
+          page={register.page}
+          pageSize={REGISTER_PAGE_SIZE}
+          total={register.total}
+          onPageChange={register.setPage}
+        />
       )}
 
       <CompanyFormSheet open={createOpen} onOpenChange={setCreateOpen} />
-    </RecordListShell>
+    </RegisterShell>
   );
 }

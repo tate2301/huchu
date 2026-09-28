@@ -2,13 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Badge,
-  Button,
-  MobileList,
-  MobileListSectionHeader,
-} from "@corelithzw/react";
+import { Alert, Button, MobileList, MobileListSectionHeader } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { RecordMark } from "@/components/records/record-mark";
 import { PageChrome } from "@/components/layout/page-chrome";

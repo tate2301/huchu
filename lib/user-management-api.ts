@@ -11,6 +11,16 @@ export type ManagedUserSummary = {
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
+  /**
+   * Last **sign-in**, read from the `auth.login.success` audit events rather
+   * than from a column on `User` — a session outlives the moment it was opened
+   * and nothing records that. `null` means this account has never signed in.
+   *
+   * Only the list and the record carry it; the mutation endpoints
+   * (`/api/users/create`, `/status`, `/password-reset`, `/role`) return the row
+   * they wrote and do not read the ledger, so it is optional here.
+   */
+  lastSignInAt?: string | null;
 };
 
 export type ManagedUsersPage = {
@@ -193,6 +203,10 @@ export type ManagedUserDetail = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** See `ManagedUserSummary.lastSignInAt`. Null: never signed in. */
+  lastSignInAt: string | null;
+  /** Null means the password has not been changed since the account was made. */
+  passwordChangedAt: string | null;
   phone: string | null;
   image: string | null;
 };

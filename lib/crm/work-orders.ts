@@ -145,6 +145,12 @@ export const createWorkOrderSchema = z.object({
   siteId: z.string().uuid().nullable().optional(),
   /** Pull the checklist from this quote's lines instead of typing it out. */
   documentId: z.string().uuid().nullable().optional(),
+  /**
+   * The project this job is part of. Given one, the job takes the project's
+   * deal, client and site wherever the request left them blank. Given only a
+   * deal, the job goes into that deal's project if it has one.
+   */
+  projectId: z.string().uuid().nullable().optional(),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
   scheduledStart: z.string().datetime().nullable().optional(),
   scheduledEnd: z.string().datetime().nullable().optional(),
@@ -158,6 +164,8 @@ export const createWorkOrderSchema = z.object({
 });
 
 export const updateWorkOrderSchema = createWorkOrderSchema.partial().extend({
+  /** A job's deal can change, never go: every job delivers a deal. */
+  dealId: z.string().uuid().optional(),
   status: z.enum(WORK_ORDER_STATUSES).optional(),
   blockedReason: z.string().trim().max(500).nullable().optional(),
   completionNotes: z.string().trim().max(4000).nullable().optional(),

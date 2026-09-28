@@ -1,66 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import {
-  DndContext,
-  DragOverlay,
-  defaultDropAnimationSideEffects,
-  KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
-  closestCorners,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-  type DropAnimation,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { ClientDate } from "@/components/ui/client-date";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Clock } from "@/lib/icons";
-import {
-  fetchCrmDealsBoard,
-  updateCrmDealStage,
-  type CrmDealBoard,
-  type CrmDealBoardCard,
-  type CrmDealBoardColumn,
-} from "@/lib/crm/crm-v2";
+import { AlertCircle, Clock } from "@/lib/icons";
+import { updateCrmDealStage, type CrmDealRecord, type RegisterBoardData } from "@/lib/crm/crm-v2";
 import { stageColor } from "@/lib/crm/tones";
-import { cn } from "@/lib/utils";
 
 import { isOverdue } from "@/components/crm/leads/stage-config";
-
-import { BoardColumnHeader } from "./board-column-header";
-import { MobileBoard } from "./board-mobile";
+import type { RegisterHandle } from "@/components/crm/registers/use-register";
 import { RecordMark } from "@/components/records/record-mark";
-import { useBoardField } from "./board-fields";
 
-/**
- * The card animates back into its column rather than vanishing. Without this
- * the overlay is destroyed the instant the pointer lifts and the card appears
- * to teleport.
- */
-const DROP_ANIMATION: DropAnimation = {
-  duration: 220,
-  easing: "cubic-bezier(0.2, 0, 0, 1)",
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: { active: { opacity: "0.4" } },
-  }),
-};
+import { BoardCardFace, BoardCardSignal } from "./board-card-face";
+import { useBoardField } from "./board-fields";
+import { RecordBoard, type RecordBoardCard, type RecordBoardColumn } from "./record-board";
+
+type Deal = CrmDealRecord;
+type DealBoard = RegisterBoardData<Deal>;
 
 function money(value: number | null, currency: string): string {
   if (typeof value !== "number") return "—";
@@ -71,7 +30,7 @@ function money(value: number | null, currency: string): string {
   });
 }
 
-function DealCardBody({ deal }: { deal: CrmDealBoardCard }) {
+function DealCardBody({ deal }: { deal: Deal }) {
   const showReference = useBoardField("reference");
   const showClient = useBoardField("client");
   const showValue = useBoardField("value");
@@ -79,11 +38,11 @@ function DealCardBody({ deal }: { deal: CrmDealBoardCard }) {
   const showCloseDate = useBoardField("closeDate");
   const showOverdue = useBoardField("overdue");
 
-  const overdue = isOverdue(deal.nextFollowUp?.dueAt);
+  const overdue = showOverdue && isOverdue(deal.nextFollowUp?.dueAt);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-start gap-2">
+    <BoardCardFace
+      leading={
         <RecordMark
           kind="deal"
           name={deal.title}
@@ -91,183 +50,46 @@ function DealCardBody({ deal }: { deal: CrmDealBoardCard }) {
           avatarUrl={deal.avatarUrl}
           size="sm"
         />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{deal.title}</p>
-          {showReference || showClient ? (
-            <p className="truncate text-sm text-[var(--text-muted)]">
-              {showReference ? <span className="font-mono">{deal.dealNo}</span> : null}
-              {showReference && showClient ? " · " : null}
-              {showClient ? (deal.client?.name ?? "No company") : null}
-            </p>
-          ) : null}
-        </div>
-        {overdue && showOverdue ? (
-          <span
-            className="mt-1 size-2 shrink-0 rounded-full bg-[var(--status-error-border)]"
-            title={`Overdue: ${deal.nextFollowUp?.title ?? "task"}`}
-            aria-label="Has an overdue task"
-          />
-        ) : null}
-      </div>
-
-      {showValue || showOwner ? (
-        <div className="flex items-center justify-between gap-2">
-          {showValue ? (
-            <span className="font-mono text-sm">{money(deal.value, deal.currency)}</span>
-          ) : (
-            <span />
-          )}
-          {showOwner ? (
-            <RecordMark
-              kind="rep"
-              name={deal.assignedTo?.name ?? "Unassigned"}
-              size="sm"
-              className="shrink-0"
-            />
-          ) : null}
-        </div>
-      ) : null}
-
+      }
+      title={deal.title}
+      subtitle={
+        showReference || showClient ? (
+          <>
+            {showReference ? <span className="font-mono">{deal.dealNo}</span> : null}
+            {showReference && showClient ? " · " : null}
+            {showClient ? (deal.client?.name ?? "No company") : null}
+          </>
+        ) : undefined
+      }
+      figure={showValue ? money(deal.value, deal.currency) : undefined}
+      owner={showOwner ? (deal.assignedTo?.name ?? null) : undefined}
+    >
       {deal.expectedCloseDate && showCloseDate ? (
-        <p className="flex items-center gap-1 text-sm text-[var(--text-muted)]">
-          <Clock className="size-3" />
-          <span>
-            Expected <ClientDate value={deal.expectedCloseDate} mode="date" />
-          </span>
-        </p>
+        <BoardCardSignal icon={Clock}>
+          Expected <ClientDate value={deal.expectedCloseDate} mode="date" />
+        </BoardCardSignal>
       ) : null}
-    </div>
-  );
-}
-
-function DealCard({ deal }: { deal: CrmDealBoardCard }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: deal.id,
-    data: { stageId: deal.stageId },
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Translate.toString(transform),
-        transition:
-          transition ??
-          "transform var(--motion-duration-base, 180ms) var(--motion-ease-standard, ease)",
-      }}
-      className={cn(
-        "rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--surface)] p-3",
-        // `touch-manipulation` keeps the board scrollable under a finger until
-        // the long-press fires; `select-none` stops the hold raising a text
-        // selection callout over the card it is about to move.
-        "cursor-grab touch-manipulation select-none shadow-[var(--shadow-xs)] transition-shadow active:cursor-grabbing",
-        "hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-sm)]",
-        isDragging &&
-          "border-dashed bg-[var(--surface-muted)] opacity-50 shadow-none [&_*]:invisible",
-      )}
-      {...attributes}
-      {...listeners}
-    >
-      <Link
-        href={`/crm/deals/${deal.id}`}
-        className="block focus:outline-none focus-visible:underline"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <DealCardBody deal={deal} />
-      </Link>
-    </div>
-  );
-}
-
-function DealColumn({
-  column,
-  currency,
-  onAdd,
-  onViewAll,
-}: {
-  column: CrmDealBoardColumn;
-  currency: string;
-  onAdd?: (stageId: string) => void;
-  onViewAll?: (stageId: string) => void;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id: `stage:${column.stage.id}` });
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "flex w-72 shrink-0 flex-col rounded-[var(--card-radius)] transition-colors",
-        isOver
-          ? "bg-[var(--action-primary-bg)]/[0.06] ring-1 ring-[var(--action-primary-bg)]"
-          : "bg-transparent",
-      )}
-    >
-      <BoardColumnHeader
-        name={column.stage.name}
-        count={column.count}
-        color={stageColor(column.stage.colorToken)}
-        meta={
-          column.totalValue > 0 ? (
-            <span className="font-mono text-sm text-[var(--text-muted)]">
-              {money(column.totalValue, currency)}
-            </span>
-          ) : null
-        }
-        onAdd={onAdd ? () => onAdd(column.stage.id) : undefined}
-        addLabel={`New deal in ${column.stage.name}`}
-        actions={[
-          {
-            label: "Open this stage as a list",
-            onSelect: () => onViewAll?.(column.stage.id),
-          },
-        ]}
-      />
-
-      <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-1 pb-2">
-        <SortableContext
-          items={column.deals.map((deal) => deal.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {column.deals.map((deal) => (
-            <DealCard key={deal.id} deal={deal} />
-          ))}
-        </SortableContext>
-
-        {column.deals.length === 0 ? (
-          <p
-            className={cn(
-              "rounded-[var(--radius-md)] border border-dashed px-1 py-6 text-center text-sm transition-colors",
-              isOver
-                ? "border-[var(--action-primary-bg)] text-[var(--action-primary-bg)]"
-                : "border-[var(--border)] text-[var(--text-muted)]",
-            )}
-          >
-            Drop a deal here
-          </p>
-        ) : null}
-
-        {column.hasMore ? (
-          <p className="px-2 py-1.5 text-sm text-[var(--text-muted)]">
-            Showing the {column.deals.length} most recently touched of {column.count}.
-          </p>
-        ) : null}
-      </div>
-    </div>
+      {overdue ? (
+        <BoardCardSignal icon={AlertCircle} tone="danger">
+          Overdue: {deal.nextFollowUp?.title ?? "task"}
+        </BoardCardSignal>
+      ) : null}
+    </BoardCardFace>
   );
 }
 
 /** Move a card between columns in the cache, keeping counts and totals in step. */
-function moveCardInCache(board: CrmDealBoard, dealId: string, toStageId: string): CrmDealBoard {
-  let moved: CrmDealBoardCard | undefined;
+function moveCardInCache(board: DealBoard, dealId: string, toStageId: string): DealBoard {
+  let moved: Deal | undefined;
   const stripped = board.columns.map((column) => {
-    const found = column.deals.find((deal) => deal.id === dealId);
+    const found = column.cards.find((deal) => deal.id === dealId);
     if (!found) return column;
     moved = found;
     return {
       ...column,
       count: Math.max(0, column.count - 1),
       totalValue: Math.max(0, column.totalValue - (found.value ?? 0)),
-      deals: column.deals.filter((deal) => deal.id !== dealId),
+      cards: column.cards.filter((deal) => deal.id !== dealId),
     };
   });
 
@@ -282,7 +104,7 @@ function moveCardInCache(board: CrmDealBoard, dealId: string, toStageId: string)
             ...column,
             count: column.count + 1,
             totalValue: column.totalValue + (card.value ?? 0),
-            deals: [card, ...column.deals],
+            cards: [card, ...column.cards],
           }
         : column,
     ),
@@ -290,59 +112,24 @@ function moveCardInCache(board: CrmDealBoard, dealId: string, toStageId: string)
 }
 
 /**
- * One pipeline's deals as a board.
+ * One pipeline's deals as a board, read by the deals list with its own
+ * filters — the pipeline filter's pipeline, or the default one.
  *
- * Which pipeline is the caller's choice, because a board mixing pipelines
- * would have columns meaning different things depending on which card sits in
- * them — and dragging between those columns would be nonsense.
+ * One pipeline at a time, because a board mixing pipelines would have
+ * columns meaning different things depending on which card sits in them —
+ * and dragging between those columns would be nonsense.
  */
-export function DealsBoard({
-  pipelineId,
-  search,
-  className,
-  onAdd,
-  onViewAll,
-}: {
-  pipelineId: string | null;
-  search?: string;
-  className?: string;
-  /** Start a deal already in this stage. */
-  onAdd?: (stageId: string) => void;
-  /** Open one stage as a list, for the columns past the fifty-card cap. */
-  onViewAll?: (stageId: string) => void;
-}) {
+export function DealsBoard({ register, className }: { register: RegisterHandle<Deal>; className?: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [dragging, setDragging] = useState<CrmDealBoardCard | null>(null);
-
-  const queryKey = useMemo(
-    () => ["crm", "deals-board", pipelineId, search ?? ""],
-    [pipelineId, search],
-  );
-
-  const boardQuery = useQuery({
-    queryKey,
-    queryFn: () => fetchCrmDealsBoard({ pipelineId, q: search }),
-    placeholderData: (previous) => previous,
-  });
-
-  const sensors = useSensors(
-    // MouseSensor and TouchSensor rather than PointerSensor. PointerSensor
-    // answers touch too, and its 6px threshold is crossed long before any
-    // long-press delay elapses — so with both registered, every attempt to
-    // swipe the board sideways started a drag instead. Splitting them lets a
-    // finger scroll immediately and drag only after a deliberate hold.
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const { query: boardQuery, queryKey } = register.board;
 
   const move = useMutation({
     mutationFn: ({ dealId, stageId }: { dealId: string; stageId: string }) =>
       updateCrmDealStage(dealId, stageId),
     onMutate: async ({ dealId, stageId }) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<CrmDealBoard>(queryKey);
+      const previous = queryClient.getQueryData<DealBoard>(queryKey);
       if (previous) {
         queryClient.setQueryData(queryKey, moveCardInCache(previous, dealId, stageId));
       }
@@ -358,119 +145,85 @@ export function DealsBoard({
         variant: "destructive",
       });
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["crm", "deals-board"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "deals"] });
-    },
+    // The board and every page of the list share the deals prefix.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["crm", "deals"] }),
   });
 
   const board = boardQuery.data;
-  const currency = board?.columns.flatMap((column) => column.deals)[0]?.currency ?? "USD";
+  const currency = board?.columns.flatMap((column) => column.cards)[0]?.currency ?? "USD";
+  const { set } = register;
 
-  if (boardQuery.isLoading && !board) {
-    return (
-      // A phone is about to get a list, so it waits for a list — not a strip
-      // of column skeletons, of which it can see one and a quarter.
-      <div className="space-y-2 lg:flex lg:space-y-0 lg:gap-3" aria-busy="true">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-16 w-full lg:h-96 lg:w-72 lg:shrink-0" />
-        ))}
-      </div>
-    );
-  }
-
-  if (boardQuery.error) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>Unable to load the board</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(boardQuery.error)}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (!board) return null;
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const id = String(event.active.id);
-    setDragging(
-      board.columns.flatMap((column) => column.deals).find((deal) => deal.id === id) ?? null,
-    );
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    setDragging(null);
-    const over = event.over;
-    if (!over) return;
-
-    const dealId = String(event.active.id);
-    const overId = String(over.id);
-    // A drop lands either on a column or on another card in one.
-    const stageId = overId.startsWith("stage:")
-      ? overId.slice("stage:".length)
-      : board.columns.find((column) => column.deals.some((deal) => deal.id === overId))?.stage.id;
-
-    if (!stageId) return;
-    const from = board.columns.find((column) =>
-      column.deals.some((deal) => deal.id === dealId),
-    );
-    if (!from || from.stage.id === stageId) return;
-
-    move.mutate({ dealId, stageId });
-  };
-
-  return (
-    <>
-    {/* A phone gets the stage picker and one list. Restaging lives on the deal
-        page's stage bar, so nothing is lost by not dragging here. */}
-    <MobileBoard
-      className="lg:hidden"
-      noun={{ one: "deal", many: "deals" }}
-      emptyTitle="No deals in this stage"
-      stages={board.columns.map((column) => ({
+  const columns = useMemo<RecordBoardColumn[]>(
+    () =>
+      (board?.columns ?? []).map((column) => ({
         id: column.stage.id,
-        label: column.stage.name,
+        name: column.stage.name,
         dot: stageColor(column.stage.colorToken).dot,
         count: column.count,
-        meta: column.totalValue > 0 ? money(column.totalValue, currency) : undefined,
-        rows: column.deals.map((deal) => ({
+        total: column.totalValue > 0 ? money(column.totalValue, currency) : undefined,
+        // Past the cards a column draws, the table has the rest of them: the
+        // same filters, this pipeline, this stage.
+        footer: column.hasMore ? (
+          <button
+            type="button"
+            className="underline decoration-[var(--border)] underline-offset-2 hover:text-[var(--text-strong)]"
+            onClick={() =>
+              set((previous) => ({
+                ...previous,
+                layout: "TABLE",
+                filters: {
+                  ...previous.filters,
+                  ...(board?.pipeline ? { pipeline: [board.pipeline.id] } : {}),
+                  stage: [column.stage.id],
+                },
+              }))
+            }
+          >
+            Showing <span className="font-mono tabular-nums">{column.cards.length}</span> of{" "}
+            <span className="font-mono tabular-nums">{column.count}</span> — see them all
+          </button>
+        ) : undefined,
+      })),
+    [board, currency, set],
+  );
+
+  const cards = useMemo<RecordBoardCard[]>(
+    () =>
+      (board?.columns ?? []).flatMap((column) =>
+        column.cards.map((deal) => ({
           id: deal.id,
+          columnId: column.stage.id,
           href: `/crm/deals/${deal.id}`,
-          title: deal.title,
-          subtitle: `${deal.dealNo} · ${deal.client?.name ?? "No company"}`,
-          facts: [{ value: money(deal.value, deal.currency), mono: true, primary: true }],
+          label: deal.title,
+          content: <DealCardBody deal={deal} />,
+          row: {
+            title: deal.title,
+            subtitle: `${deal.dealNo} · ${deal.client?.name ?? "No company"}`,
+            facts: [{ value: money(deal.value, deal.currency), mono: true, primary: true }],
+          },
         })),
-      }))}
+      ),
+    [board],
+  );
+
+  const { mutateAsync } = move;
+  const onMove = useCallback(
+    (dealId: string, stageId: string) => mutateAsync({ dealId, stageId }),
+    [mutateAsync],
+  );
+
+  // A load error is the shell's to say, above the board.
+  if (boardQuery.error) return null;
+
+  return (
+    <RecordBoard
+      columns={columns}
+      cards={cards}
+      isLoading={boardQuery.isLoading && !board}
+      noun={{ one: "deal", many: "deals" }}
+      emptyLabel="No deals in this stage"
+      onMove={onMove}
+      className={className}
     />
-
-    <div className="hidden lg:block">
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => setDragging(null)}
-    >
-      <div className={cn("scroll-rail flex gap-3 overflow-x-auto pb-2", className)}>
-        {board.columns.map((column) => (
-          <DealColumn
-            key={column.stage.id}
-            column={column}
-            currency={currency}
-            onAdd={onAdd}
-            onViewAll={onViewAll}
-          />
-        ))}
-      </div>
-
-      <DragOverlay dropAnimation={DROP_ANIMATION}>
-        {dragging ? (
-          <div className="w-72 rotate-1 rounded-[var(--card-radius)] border border-[var(--border-strong)] bg-[var(--surface)] p-3 shadow-[var(--elevation-3)]">
-            <DealCardBody deal={dragging} />
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
-    </div>
-    </>
   );
 }

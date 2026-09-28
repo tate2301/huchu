@@ -42,7 +42,8 @@ type VisitLike = {
   scheduledStart: string;
   reportNotes?: string | null;
   location?: string | null;
-  photos?: unknown;
+  /** Counted by the record's route, which never loads the photos themselves. */
+  _count?: { visitPhotos?: number };
 };
 
 type DocumentLike = {
@@ -141,7 +142,7 @@ export function taskEvents(tasks: TaskLike[]): StoryEvent[] {
 
 export function visitEvents(visits: VisitLike[]): StoryEvent[] {
   return visits.map((visit) => {
-    const photoCount = Array.isArray(visit.photos) ? visit.photos.length : 0;
+    const photoCount = visit._count?.visitPhotos ?? 0;
     return {
       id: visit.id,
       kind: "visit" as const,

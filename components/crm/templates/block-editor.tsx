@@ -1,18 +1,14 @@
 "use client";
 
-import { useState } from "react";
-
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Switch } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
+
+import { PageEditor, type EditorItemContext, type EditorKind } from "@/components/editor/page-editor";
+import editor from "@/components/editor/page-editor.module.css";
+import { followLabel, newQuestion } from "@/components/forms/form-builder/form-builder";
+import { QuestionEditor, QuestionToolbar } from "@/components/forms/form-builder/question-editor";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -21,488 +17,712 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowDownward,
-  ArrowUpward,
-  DotsThree,
+  Calculate,
+  Camera,
+  EditSquare,
+  Grid3x3,
+  Minus,
+  NotePencil,
   Plus,
-  Trash2,
+  Policy,
+  ReceiptLong,
+  SlidersHorizontal,
+  Square,
+  TableRows,
+  TextAlignLeft,
+  TextT,
+  X,
+  type LucideIcon,
 } from "@/lib/icons";
 import {
   BLOCKS_FOR_KIND,
   BLOCK_LABELS,
-  FIELD_TYPES,
-  FIELD_TYPE_LABELS,
+  blockFields,
   emptyBlock,
   type Block,
   type BlockType,
+  type LeafBlock,
   type TemplateKind,
 } from "@/lib/crm/blocks";
 import { starterBlocks, startersForKind } from "@/lib/crm/starter-templates";
-import { cn } from "@/lib/utils";
+import { VARIABLE_CATALOGUE } from "@/lib/crm/template-variables";
+import { FIELD_TYPES, keyFromLabel } from "@/lib/forms/fields";
 
+import styles from "./block-editor.module.css";
 import { VariablePicker } from "./variable-picker";
 
 /**
- * A Notion-style block editor, cut down to what a document needs.
+ * A template, written on the page — the same editor the form builder uses.
  *
- * The Notion things worth keeping: everything is a block, blocks are added
- * between blocks rather than at the end, each block reveals its controls on
- * hover instead of wearing them, and the page is the document rather than a
- * form that produces one.
+ * Every block is edited where it sits: a heading is typed at its size, text is
+ * typed as the paragraph it will be (with `{{variables}}` put in at the caret),
+ * a question is typed onto the form, a table's columns are typed as its
+ * headers. `/` on the line at the foot offers every block the template's kind
+ * allows; `+` beside a block puts one under it; the handle drags it. Selecting
+ * a block shows only the controls that block has.
  *
- * The Notion things left out: slash commands over a hundred block types,
- * arbitrary nesting, and inline databases. Somebody laying out an invoice
- * wants eleven blocks that all print correctly, not a general-purpose
- * document tool they have to be trained on.
+ * The block vocabulary is `lib/crm/blocks.ts` and nothing here invents a kind:
+ * `BLOCKS_FOR_KIND` decides what is offered, so a quote never gets a question
+ * and an export never gets a logo.
  */
 
-function ids(prefix: string): string {
-  // Not a uuid: block ids double as field keys, and a key somebody might have
-  // to read in an export should be short. Uniqueness within one template is
-  // all that is required.
-  return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
-}
+const BLOCK_ICONS: Record<BlockType, LucideIcon> = {
+  heading: TextT,
+  text: TextAlignLeft,
+  field: EditSquare,
+  divider: Minus,
+  spacer: Square,
+  image: Camera,
+  table: TableRows,
+  lineItems: ReceiptLong,
+  totals: Calculate,
+  signature: NotePencil,
+  terms: Policy,
+  columns: Grid3x3,
+};
 
-function BlockInsert({
-  kind,
-  onInsert,
-  label = "Add a block",
-}: {
-  kind: TemplateKind;
-  onInsert: (type: BlockType) => void;
-  label?: string;
-}) {
-  return (
-    <div className="group/insert relative flex h-4 items-center justify-center">
-      <span
-        aria-hidden="true"
-        className="absolute inset-x-0 top-1/2 h-px bg-[var(--border-subtle)] opacity-0 transition-opacity group-hover/insert:opacity-100 pointer-coarse:opacity-100"
-      />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={label}
-            className="relative z-10 flex size-5 items-center justify-center rounded-full border border-dashed border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] opacity-0 transition-opacity hover:border-[var(--brand)] hover:text-[var(--text)] focus-visible:opacity-100 group-hover/insert:opacity-100 pointer-coarse:opacity-100"
-          >
-            <Plus className="size-3" aria-hidden="true" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="center" className="max-h-72 overflow-y-auto">
-          {BLOCKS_FOR_KIND[kind].map((type) => (
-            <DropdownMenuItem key={type} onClick={() => onInsert(type)}>
-              {BLOCK_LABELS[type]}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
+const PREFILL = VARIABLE_CATALOGUE.map((variable) => ({ key: variable.key, label: variable.label }));
 
-function FieldEditor({
-  block,
-  onChange,
-}: {
-  block: Extract<Block, { type: "field" }>;
-  onChange: (next: Partial<Extract<Block, { type: "field" }>>) => void;
-}) {
-  const needsOptions = block.fieldType === "select" || block.fieldType === "multiSelect";
+const newId = (type: string) => `${type}-${Math.random().toString(36).slice(2, 8)}`;
 
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <Input
-          className="min-w-48 flex-1"
-          value={block.label}
-          placeholder="What are you asking?"
-          aria-label="Question"
-          onChange={(event) => onChange({ label: event.target.value })}
-        />
-        <Select
-          value={block.fieldType}
-          onValueChange={(value) =>
-            onChange({ fieldType: value as (typeof FIELD_TYPES)[number] })
-          }
-        >
-          <SelectTrigger className="w-full max-w-40" aria-label="Answer type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FIELD_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {FIELD_TYPE_LABELS[type]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {needsOptions ? (
-        <Textarea
-          rows={3}
-          value={(block.options ?? []).join("\n")}
-          placeholder={"One option per line"}
-          aria-label="Options"
-          onChange={(event) =>
-            onChange({
-              options: event.target.value
-                .split("\n")
-                .map((line) => line.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          className="min-w-40 flex-1"
-          value={block.help ?? ""}
-          placeholder="Help text (optional)"
-          aria-label="Help text"
-          onChange={(event) => onChange({ help: event.target.value })}
-        />
-        <label className="flex items-center gap-2 text-sm">
-          <Switch
-            checked={block.required}
-            onChange={(event) => onChange({ required: event.target.checked })}
-            aria-label="Required"
-          />
-          Required
-        </label>
-      </div>
-
-      <p className="text-sm text-[var(--text-subtle)]">
-        {/* The key is shown rather than editable: renaming it orphans every
-            answer already collected under the old one. */}
-        Answers save as <span className="font-mono">{block.key}</span>
-      </p>
-    </div>
-  );
-}
-
-function BlockEditorRow({
-  block,
-  onChange,
-  onRemove,
-  onMove,
-  isFirst,
-  isLast,
-}: {
-  block: Block;
-  onChange: (next: Block) => void;
-  onRemove: () => void;
-  onMove: (direction: -1 | 1) => void;
-  isFirst: boolean;
-  isLast: boolean;
-}) {
-  function patch(next: Record<string, unknown>) {
-    onChange({ ...block, ...next } as Block);
-  }
-
-  return (
-    <div className="group relative rounded-[var(--radius-md)] px-2 py-2 transition-colors hover:bg-[var(--surface-subtle)]">
-      <div className="absolute right-1 top-1 flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Move up"
-          disabled={isFirst}
-          onClick={() => onMove(-1)}
-        >
-          <ArrowUpward className="size-4" aria-hidden="true" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Move down"
-          disabled={isLast}
-          onClick={() => onMove(1)}
-        >
-          <ArrowDownward className="size-4" aria-hidden="true" />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton aria-label="Block options">
-              <DotsThree aria-hidden="true" />
-            </IconButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onRemove}>
-              <Trash2 className="size-4" aria-hidden="true" />
-              Delete block
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <p className="mb-1 text-sm text-[var(--text-subtle)]">{BLOCK_LABELS[block.type]}</p>
-
-      {block.type === "heading" ? (
-        <div className="flex gap-2">
-          <Input
-            className="flex-1"
-            value={block.text}
-            placeholder="Heading"
-            aria-label="Heading text"
-            onChange={(event) => patch({ text: event.target.value })}
-          />
-          <Select
-            value={String(block.level)}
-            onValueChange={(value) => patch({ level: Number(value) })}
-          >
-            <SelectTrigger className="w-24 shrink-0" aria-label="Heading level">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Large</SelectItem>
-              <SelectItem value="2">Medium</SelectItem>
-              <SelectItem value="3">Small</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-
-      {block.type === "text" || block.type === "terms" ? (
-        <div className="space-y-1.5">
-          <Textarea
-            rows={block.type === "terms" ? 5 : 3}
-            value={block.text}
-            placeholder={
-              block.type === "terms"
-                ? "Terms and conditions"
-                : "Text. Use {{variables}} to fill in details."
-            }
-            aria-label={BLOCK_LABELS[block.type]}
-            onChange={(event) => patch({ text: event.target.value })}
-          />
-          <VariablePicker onPick={(token) => patch({ text: `${block.text}${token}` })} />
-        </div>
-      ) : null}
-
-      {block.type === "field" ? (
-        <FieldEditor
-          block={block}
-          onChange={(next) => onChange({ ...block, ...next })}
-        />
-      ) : null}
-
-      {block.type === "spacer" ? (
-        <Select value={block.size} onValueChange={(value) => patch({ size: value })}>
-          <SelectTrigger className="w-full max-w-32" aria-label="Space size">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="sm">Small</SelectItem>
-            <SelectItem value="md">Medium</SelectItem>
-            <SelectItem value="lg">Large</SelectItem>
-          </SelectContent>
-        </Select>
-      ) : null}
-
-      {block.type === "image" ? (
-        <div className="space-y-2">
-          <Select value={block.source} onValueChange={(value) => patch({ source: value })}>
-            <SelectTrigger className="w-full max-w-56" aria-label="Image source">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="branding.logo">Your company logo</SelectItem>
-              <SelectItem value="url">A specific image</SelectItem>
-            </SelectContent>
-          </Select>
-          {block.source === "url" ? (
-            <Input
-              value={block.url ?? ""}
-              placeholder="https://…"
-              aria-label="Image URL"
-              onChange={(event) => patch({ url: event.target.value })}
-            />
-          ) : null}
-        </div>
-      ) : null}
-
-      {block.type === "table" ? (
-        <div className="space-y-2">
-          <Input
-            value={block.source}
-            placeholder="Which list fills the rows, e.g. lines"
-            aria-label="Row source"
-            onChange={(event) => patch({ source: event.target.value })}
-          />
-          <Textarea
-            rows={3}
-            value={block.columns.map((column) => `${column.key}: ${column.label}`).join("\n")}
-            placeholder={"key: Column heading\nqty: Quantity"}
-            aria-label="Columns"
-            onChange={(event) =>
-              patch({
-                columns: event.target.value
-                  .split("\n")
-                  .map((line) => {
-                    const [key, ...rest] = line.split(":");
-                    return { key: key.trim(), label: rest.join(":").trim() || key.trim() };
-                  })
-                  .filter((column) => column.key),
-              })
-            }
-          />
-        </div>
-      ) : null}
-
-      {block.type === "lineItems" || block.type === "totals" ? (
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <Switch
-              checked={block.showTax}
-              onChange={(event) => patch({ showTax: event.target.checked })}
-              aria-label="Show tax"
-            />
-            Show tax
-          </label>
-          {block.type === "lineItems" ? (
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={block.showDiscount}
-                onChange={(event) => patch({ showDiscount: event.target.checked })}
-                aria-label="Show discount"
-              />
-              Show discount
-            </label>
-          ) : (
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={block.showPaid}
-                onChange={(event) => patch({ showPaid: event.target.checked })}
-                aria-label="Show what has been paid"
-              />
-              Show paid
-            </label>
-          )}
-        </div>
-      ) : null}
-
-      {block.type === "signature" ? (
-        <div className="flex flex-wrap gap-2">
-          <Input
-            className="min-w-40 flex-1"
-            value={block.label}
-            placeholder="Signature line label"
-            aria-label="Signature label"
-            onChange={(event) => patch({ label: event.target.value })}
-          />
-          <Select value={block.party} onValueChange={(value) => patch({ party: value })}>
-            <SelectTrigger className="w-full max-w-40 sm:w-40" aria-label="Who signs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="customer">The customer</SelectItem>
-              <SelectItem value="us">Us</SelectItem>
-              <SelectItem value="both">Both</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-
-      {block.type === "divider" ? (
-        <hr className="border-[var(--border-subtle)]" />
-      ) : null}
-
-      {block.type === "columns" ? (
-        <p className="text-sm text-[var(--text-muted)]">
-          Two columns. Add blocks to each side below.
-        </p>
-      ) : null}
-    </div>
-  );
+function kindsFor(types: readonly BlockType[]): EditorKind[] {
+  return types.map((type) => ({ id: type, label: BLOCK_LABELS[type], icon: BLOCK_ICONS[type] }));
 }
 
 export function BlockEditor({
   kind,
   blocks,
   onChange,
+  problems,
+  lockedKeys = new Set<string>(),
+  header,
 }: {
   kind: TemplateKind;
   blocks: Block[];
   onChange: (next: Block[]) => void;
+  /** What is stopping this template being published, shown under the last block. */
+  problems?: readonly string[];
+  /** Question keys saved answers are stored under. Their questions keep them. */
+  lockedKeys?: ReadonlySet<string>;
+  header?: ReactNode;
 }) {
-  const [, forceKey] = useState(0);
-
-  function insertAt(index: number, type: BlockType) {
-    const next = [...blocks];
-    next.splice(index, 0, emptyBlock(type, ids(type)));
-    onChange(next);
-    forceKey((value) => value + 1);
-  }
-
-  function replaceAt(index: number, block: Block) {
-    onChange(blocks.map((existing, position) => (position === index ? block : existing)));
-  }
-
-  function removeAt(index: number) {
-    onChange(blocks.filter((_block, position) => position !== index));
-  }
-
-  function moveAt(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= blocks.length) return;
-    const next = [...blocks];
-    [next[index], next[target]] = [next[target], next[index]];
-    onChange(next);
-  }
+  const allowed = BLOCKS_FOR_KIND[kind];
+  const starters = startersForKind(kind);
+  const asks = allowed.includes("field");
 
   return (
-    <div className={cn("space-y-0")}>
-      <BlockInsert kind={kind} onInsert={(type) => insertAt(0, type)} label="Add a block at the top" />
+    <PageEditor<Block>
+      items={blocks}
+      onChange={onChange}
+      kinds={kindsFor(allowed)}
+      // A form is questions, typed one after another; anything else is prose.
+      defaultKind={asks ? "field" : "text"}
+      addPlaceholder={asks ? "Type a question, or / for any block" : "Type, or / for any block"}
+      itemName={(block) => BLOCK_LABELS[block.type]}
+      create={(type, text, existing) => createBlock(type as BlockType, text, existing)}
+      duplicate={(block, existing) => duplicateBlock(block, existing)}
+      normalize={(previous, next, others) =>
+        previous.type === "field" && next.type === "field"
+          ? { ...next, field: followLabel(previous.field, next.field, blockFields([...others]), lockedKeys) }
+          : next
+      }
+      renderItem={(block, update, context) => (
+        <BlockBody block={block} update={update} context={context} allowed={allowed} />
+      )}
+      renderToolbar={(block, update) => (
+        <BlockToolbar block={block} update={update} keyEditable={block.type !== "field" || !lockedKeys.has(block.field.key)} />
+      )}
+      problems={problems}
+      header={header}
+      before={
+        blocks.length === 0 && starters.length > 0 ? (
+          <div className={styles.starters}>
+            <p className={styles.startersLabel}>Start from</p>
+            {starters.map((starter) => (
+              <button
+                key={starter.id}
+                type="button"
+                className={styles.button}
+                onClick={() => onChange(starterBlocks(starter, ""))}
+              >
+                {starter.name}
+              </button>
+            ))}
+          </div>
+        ) : null
+      }
+    />
+  );
+}
 
-      {blocks.map((block, index) => (
-        <div key={block.id}>
-          <BlockEditorRow
-            block={block}
-            isFirst={index === 0}
-            isLast={index === blocks.length - 1}
-            onChange={(next) => replaceAt(index, next)}
-            onRemove={() => removeAt(index)}
-            onMove={(direction) => moveAt(index, direction)}
+function createBlock(type: BlockType, text: string, existing: readonly Block[]): Block {
+  const id = newId(type);
+  if (type === "field") {
+    return { id, type: "field", field: newQuestion("text", text, blockFields([...existing])) };
+  }
+  const block = emptyBlock(type, id);
+  if (text && (block.type === "heading" || block.type === "text" || block.type === "terms")) {
+    return { ...block, text };
+  }
+  return block;
+}
+
+function duplicateBlock(block: Block, existing: readonly Block[]): Block {
+  if (block.type === "field") {
+    const label = `${block.field.label} (copy)`;
+    const taken = new Set(blockFields([...existing]).map((field) => field.key));
+    return { ...block, id: newId("field"), field: { ...block.field, label, key: keyFromLabel(label, taken) } };
+  }
+  if (block.type === "columns") {
+    const renew = (child: LeafBlock): LeafBlock => ({ ...child, id: newId(child.type) });
+    return { ...block, id: newId("columns"), left: block.left.map(renew), right: block.right.map(renew) };
+  }
+  return { ...block, id: newId(block.type) };
+}
+
+/** A block, edited where it sits. */
+function BlockBody({
+  block,
+  update,
+  context,
+  allowed,
+}: {
+  block: Block;
+  update: (next: Block) => void;
+  context: EditorItemContext;
+  allowed: readonly BlockType[];
+}) {
+  if (block.type === "columns") {
+    return (
+      <div className={styles.columns}>
+        {(["left", "right"] as const).map((side) => (
+          <Column
+            key={side}
+            side={side}
+            blocks={block[side]}
+            allowed={allowed.filter((type): type is LeafBlock["type"] => type !== "columns")}
+            selected={context.selected}
+            onChange={(children) => update({ ...block, [side]: children })}
           />
-          <BlockInsert kind={kind} onInsert={(type) => insertAt(index + 1, type)} />
+        ))}
+      </div>
+    );
+  }
+  return <LeafBody block={block} update={update} context={context} />;
+}
+
+function LeafBody({
+  block,
+  update,
+  context,
+}: {
+  block: LeafBlock;
+  update: (next: LeafBlock) => void;
+  context: EditorItemContext;
+}) {
+  const onEnterKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      context.onEnter(event.currentTarget);
+    }
+  };
+
+  switch (block.type) {
+    case "heading":
+      return (
+        <input
+          className={`${styles.heading} ${styles[`h${block.level}`]}`}
+          value={block.text}
+          placeholder="Heading"
+          aria-label="Heading"
+          onChange={(event) => update({ ...block, text: event.target.value })}
+          onKeyDown={onEnterKey}
+        />
+      );
+
+    case "text":
+    case "terms":
+      return (
+        <Prose
+          text={block.text}
+          placeholder={block.type === "terms" ? "Terms and conditions" : "Text"}
+          minRows={block.type === "terms" ? 4 : 1}
+          selected={context.selected}
+          onChange={(text) => update({ ...block, text })}
+        />
+      );
+
+    case "field":
+      return (
+        <QuestionEditor field={block.field} onChange={(field) => update({ ...block, field })} context={context} />
+      );
+
+    case "divider":
+      return <hr className={styles.rule} />;
+
+    case "spacer":
+      return <div className={styles.spacer} data-size={block.size} aria-hidden="true" />;
+
+    case "image":
+      return block.source === "url" && block.url ? (
+        // A tenant-chosen address, drawn as-is: this is the preview of their document.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className={styles.image} src={block.url} alt={block.alt ?? ""} style={{ width: block.width }} />
+      ) : (
+        <div className={styles.logo}>
+          <Camera aria-hidden="true" />
+          <span>{block.source === "url" ? "An image" : "Your logo"}</span>
         </div>
-      ))}
+      );
 
-      {blocks.length === 0 ? (
-        <div className="py-6 text-center">
-          <p className="text-sm text-[var(--text-muted)]">
-            Empty. Use the + above to add the first block.
-          </p>
+    case "signature":
+      return (
+        <div className={styles.signature}>
+          <input
+            className={styles.signatureLabel}
+            value={block.label}
+            placeholder="Signature"
+            aria-label="What the signature line says"
+            onChange={(event) => update({ ...block, label: event.target.value })}
+            onKeyDown={onEnterKey}
+          />
+          <span className={styles.signLine} aria-hidden="true" />
+        </div>
+      );
 
-          {/* Or don't start from nothing. Somebody who reached a blank
-              template did not necessarily choose one — they may have picked
-              Blank in the dialog and then discovered what that means. */}
-          {startersForKind(kind).length > 0 ? (
-            <div className="mt-4">
-              <p className="text-sm font-medium text-[var(--text-strong)]">Or start from</p>
-              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                {startersForKind(kind).map((starter) => (
-                  <button
-                    key={starter.id}
-                    type="button"
-                    onClick={() => onChange(starterBlocks(starter, ""))}
-                    className="rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-1.5 text-sm hover:border-[var(--interactive-primary)] hover:bg-[var(--surface-hover)]"
-                  >
-                    <span aria-hidden="true" className="mr-1.5">
-                      {starter.emoji}
-                    </span>
-                    {starter.name}
-                  </button>
-                ))}
-              </div>
-            </div>
+    case "table":
+      return (
+        <TableColumns
+          columns={block.columns}
+          onChange={(columns) => update({ ...block, columns })}
+        />
+      );
+
+    case "lineItems":
+      return (
+        <div className={styles.drawnTable} aria-hidden="true">
+          <span>Description</span>
+          <span>Qty</span>
+          <span>Unit price</span>
+          {block.showDiscount ? <span>Discount</span> : null}
+          {block.showTax ? <span>Tax</span> : null}
+          <span>Amount</span>
+        </div>
+      );
+
+    case "totals":
+      return (
+        <dl className={styles.ladder} aria-hidden="true">
+          <dt>Subtotal</dt>
+          <dd>0.00</dd>
+          {block.showTax ? (
+            <>
+              <dt>Tax</dt>
+              <dd>0.00</dd>
+            </>
           ) : null}
+          <dt className={styles.ladderTotal}>Total</dt>
+          <dd className={styles.ladderTotal}>0.00</dd>
+          {block.showPaid ? (
+            <>
+              <dt>Paid</dt>
+              <dd>0.00</dd>
+            </>
+          ) : null}
+        </dl>
+      );
+  }
+}
+
+/**
+ * A paragraph, typed as the paragraph it will be. It grows with what is typed,
+ * and a variable goes in at the caret — where the author was writing — rather
+ * than at the end of the paragraph.
+ */
+function Prose({
+  text,
+  placeholder,
+  minRows,
+  selected,
+  onChange,
+}: {
+  text: string;
+  placeholder: string;
+  minRows: number;
+  selected: boolean;
+  onChange: (text: string) => void;
+}) {
+  const area = useRef<HTMLTextAreaElement>(null);
+  const [caret, setCaret] = useState<number | null>(null);
+
+  return (
+    <>
+      {/* As tall as its words once wrapped, which `rows` cannot count. */}
+      <div className={styles.proseSizer} data-value={text || placeholder}>
+        <textarea
+          ref={area}
+          className={styles.prose}
+          value={text}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          rows={minRows}
+          onChange={(event) => onChange(event.target.value)}
+          onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+        />
+      </div>
+      {selected ? (
+        <div className={styles.proseTools}>
+          <VariablePicker
+            onPick={(token) => {
+              const at = caret ?? text.length;
+              onChange(`${text.slice(0, at)}${token}${text.slice(at)}`);
+              const next = at + token.length;
+              requestAnimationFrame(() => {
+                area.current?.focus();
+                area.current?.setSelectionRange(next, next);
+              });
+            }}
+          />
         </div>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * A table's columns, typed as its header row. Enter starts the next column;
+ * Backspace in an empty one removes it. A column's key comes from its first
+ * words and is kept, so renaming a header does not unhook the data under it.
+ */
+function TableColumns({
+  columns,
+  onChange,
+}: {
+  columns: Array<{ key: string; label: string }>;
+  onChange: (columns: Array<{ key: string; label: string }>) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const keyFor = (label: string) =>
+    keyFromLabel(label || "column", new Set(columns.map((column) => column.key)));
+
+  return (
+    <div className={styles.headerRow}>
+      {columns.map((column, index) => (
+        <span key={column.key} className={styles.headerCell}>
+          <input
+            className={styles.headerInput}
+            value={column.label}
+            size={Math.max(4, column.label.length)}
+            placeholder="Column"
+            aria-label={`Column ${index + 1}`}
+            onChange={(event) =>
+              onChange(columns.map((existing, at) => (at === index ? { ...existing, label: event.target.value } : existing)))
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Backspace" && column.label === "") {
+                event.preventDefault();
+                onChange(columns.filter((_, at) => at !== index));
+              }
+            }}
+          />
+          <button
+            type="button"
+            className={styles.cellRemove}
+            aria-label={`Remove ${column.label || `column ${index + 1}`}`}
+            onClick={() => onChange(columns.filter((_, at) => at !== index))}
+          >
+            <X aria-hidden="true" />
+          </button>
+        </span>
+      ))}
+      {columns.length < 12 ? (
+        <input
+          className={`${styles.headerCell} ${styles.headerDraft}`}
+          value={draft}
+          size={Math.max(10, draft.length)}
+          placeholder="Add a column"
+          aria-label="Add a column"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && draft.trim()) {
+              event.preventDefault();
+              onChange([...columns, { key: keyFor(draft.trim()), label: draft.trim() }]);
+              setDraft("");
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) {
+              onChange([...columns, { key: keyFor(draft.trim()), label: draft.trim() }]);
+              setDraft("");
+            }
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** One side of a side-by-side block: its blocks, edited in place, and a way to add one. */
+function Column({
+  side,
+  blocks,
+  allowed,
+  selected,
+  onChange,
+}: {
+  side: "left" | "right";
+  blocks: LeafBlock[];
+  allowed: readonly LeafBlock["type"][];
+  /** Whether the columns block is selected: its cells open up with it. */
+  selected: boolean;
+  onChange: (blocks: LeafBlock[]) => void;
+}) {
+  const ownContext: EditorItemContext = {
+    selected,
+    onEnter: (from) => {
+      const next = from.closest("[data-column-item]")?.nextElementSibling;
+      next?.querySelector<HTMLElement>("input, textarea")?.focus();
+    },
+  };
+
+  return (
+    <div className={styles.column} aria-label={side === "left" ? "Left" : "Right"}>
+      {blocks.map((child, index) => (
+        <div key={child.id} className={styles.columnItem} data-column-item="">
+          {/* One grid cell, whatever the body draws: a question is several parts. */}
+          <div className={styles.cellBody}>
+            <LeafBody
+              block={child}
+              update={(next) => onChange(blocks.map((existing, at) => (at === index ? next : existing)))}
+              context={ownContext}
+            />
+          </div>
+          <button
+            type="button"
+            className={styles.cellRemove}
+            aria-label={`Remove ${BLOCK_LABELS[child.type].toLowerCase()}`}
+            onClick={() => onChange(blocks.filter((_, at) => at !== index))}
+          >
+            <X aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+      <Select
+        value=""
+        onValueChange={(type) =>
+          onChange([...blocks, createBlock(type as BlockType, "", blocks) as LeafBlock])
+        }
+      >
+        <SelectTrigger className={`${styles.columnAdd} w-auto`} aria-label={`Add to the ${side}`}>
+          <Plus aria-hidden="true" />
+          <SelectValue placeholder="Add" />
+        </SelectTrigger>
+        <SelectContent>
+          {allowed.map((type) => (
+            <SelectItem key={type} value={type}>
+              {BLOCK_LABELS[type]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/** The selected block's own controls, and nothing it does not have. */
+function BlockToolbar({
+  block,
+  update,
+  keyEditable,
+}: {
+  block: Block;
+  update: (next: Block) => void;
+  keyEditable: boolean;
+}) {
+  switch (block.type) {
+    case "field":
+      return (
+        <QuestionToolbar
+          field={block.field}
+          types={FIELD_TYPES}
+          keyEditable={keyEditable}
+          prefillVariables={PREFILL}
+          onChange={(field) => update({ ...block, field })}
+        />
+      );
+
+    case "heading":
+      return (
+        <Choice
+          label="Size"
+          value={String(block.level)}
+          options={[
+            ["1", "Large"],
+            ["2", "Medium"],
+            ["3", "Small"],
+          ]}
+          onChange={(value) => update({ ...block, level: Number(value) as 1 | 2 | 3 })}
+        />
+      );
+
+    case "spacer":
+      return (
+        <Choice
+          label="Size"
+          value={block.size}
+          options={[
+            ["sm", "Small"],
+            ["md", "Medium"],
+            ["lg", "Large"],
+          ]}
+          onChange={(value) => update({ ...block, size: value as "sm" | "md" | "lg" })}
+        />
+      );
+
+    case "signature":
+      return (
+        <Choice
+          label="Who signs"
+          value={block.party}
+          options={[
+            ["customer", "The customer"],
+            ["us", "Us"],
+            ["both", "Both"],
+          ]}
+          onChange={(value) => update({ ...block, party: value as "customer" | "us" | "both" })}
+        />
+      );
+
+    case "lineItems":
+      return (
+        <>
+          <Toggle label="Tax" on={block.showTax} onChange={(showTax) => update({ ...block, showTax })} />
+          <Toggle
+            label="Discount"
+            on={block.showDiscount}
+            onChange={(showDiscount) => update({ ...block, showDiscount })}
+          />
+        </>
+      );
+
+    case "totals":
+      return (
+        <>
+          <Toggle label="Tax" on={block.showTax} onChange={(showTax) => update({ ...block, showTax })} />
+          <Toggle label="Paid" on={block.showPaid} onChange={(showPaid) => update({ ...block, showPaid })} />
+        </>
+      );
+
+    case "image":
+      return (
+        <>
+          <Choice
+            label="Image"
+            value={block.source}
+            options={[
+              ["branding.logo", "Your logo"],
+              ["url", "An image"],
+            ]}
+            onChange={(value) => update({ ...block, source: value as "branding.logo" | "url" })}
+          />
+          {block.source === "url" ? (
+            <Settings>
+              <Field label="Address" value={block.url ?? ""} onChange={(url) => update({ ...block, url: url || undefined })} />
+              <Field label="Described as" value={block.alt ?? ""} onChange={(alt) => update({ ...block, alt: alt || undefined })} />
+            </Settings>
+          ) : null}
+        </>
+      );
+
+    case "table":
+      return (
+        <Settings>
+          <Field
+            label="Rows from"
+            value={block.source}
+            mono
+            onChange={(source) => update({ ...block, source })}
+          />
+        </Settings>
+      );
+
+    default:
+      return null;
+  }
+}
+
+function Choice({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<[string, string]>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className={`${styles.toolbarSelect} w-auto`} aria-label={label}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(([option, text]) => (
+          <SelectItem key={option} value={option}>
+            {text}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className={styles.toolbarToggle}>
+      <span>{label}</span>
+      <Switch checked={on} onChange={(event) => onChange(event.target.checked)} />
+    </label>
+  );
+}
+
+function Settings({ children }: { children: ReactNode }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className={editor.toolbarButton} aria-label="Settings">
+          <SlidersHorizontal aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-3">
+        <div className={styles.settings}>{children}</div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function Field({
+  label,
+  value,
+  mono,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const id = `block-setting-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+  return (
+    <div className={styles.control}>
+      <label htmlFor={id}>{label}</label>
+      <Input
+        id={id}
+        className={mono ? styles.mono : undefined}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   );
 }

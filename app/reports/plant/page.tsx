@@ -9,7 +9,7 @@ import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -300,7 +300,7 @@ export default function PlantReportHistoryPage() {
         />
       </PageActions>
 
-      <PageHeading
+      <PageChrome
         title="Plant Reports"
       />
       <RecordSavedBanner entityLabel="plant report" />

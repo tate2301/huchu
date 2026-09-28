@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Skeleton, StatCard } from "@corelithzw/react";
 
 import { RetailShell } from "@/components/retail/retail-shell";
-import { retailMoney, retailTypeLabel } from "@/components/retail/sale-detail";
+import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -71,11 +71,6 @@ export default function RetailPurchaseOrderDetailPage() {
     <RetailShell
       area="purchasing"
       title={order?.poNo ?? "Purchase order"}
-      description={
-        order
-          ? `${order.supplierName} · ${retailTypeLabel(order.status)} · ${order.site?.name ?? "Unknown branch"}`
-          : "One order, its lines, and what has been received against it."
-      }
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">

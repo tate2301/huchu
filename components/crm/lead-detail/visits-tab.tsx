@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useMutation } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -86,7 +88,9 @@ export function VisitsTab({
                       <span className="text-sm text-[var(--text-muted)]">Written up</span>
                     ) : null}
                   </div>
-                  <p className="text-sm">{visit.title}</p>
+                  <Link href={`/crm/appointments/${visit.id}`} className="block text-sm hover:underline">
+                    {visit.title}
+                  </Link>
                   <p className="text-sm text-[var(--text-muted)]">
                     <ClientDate value={visit.scheduledStart} />
                     {visit.location ? ` · ${visit.location}` : ""}

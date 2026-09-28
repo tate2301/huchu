@@ -4,7 +4,6 @@ import { useMemo, useState, type ReactNode } from "react";
 
 import { DataTable, type DataTableColumn } from "@corelithzw/react";
 import { ManagementShell } from "@/components/settings/management-shell";
-import type { ManagementArea } from "@/lib/settings/management-nav";
 import {
   ListRowsSkeleton,
   LoadError,
@@ -47,9 +46,7 @@ import { cn } from "@/lib/utils";
  * itself; and only the genuine emptiness offers the verb that fills it.
  */
 export function MasterDataPage<Row>({
-  area = "master-data",
   title,
-  description,
   createLabel,
   onCreate,
   columns,
@@ -71,10 +68,7 @@ export function MasterDataPage<Row>({
   banner,
   children,
 }: {
-  /** Which management navigation group the shell highlights. */
-  area?: ManagementArea;
   title: string;
-  description?: string;
   createLabel?: string;
   onCreate?: () => void;
   columns: DataTableColumn<Row>[];
@@ -196,9 +190,7 @@ export function MasterDataPage<Row>({
 
   return (
     <ManagementShell
-      area={area}
       title={title}
-      description={description}
       actions={
         createLabel && onCreate ? (
           <Button size="sm" className="gap-1.5" onClick={onCreate}>

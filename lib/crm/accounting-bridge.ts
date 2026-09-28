@@ -13,7 +13,10 @@
 import type { Prisma } from "@prisma/client";
 
 import { settleCrmRecordIfPaid } from "./accounting-hooks";
+import { invoiceEditLock, quoteEditLock, quoteReviseLock } from "./document-edit";
+import { setDocumentResources } from "./resources";
 import { prisma } from "@/lib/prisma";
+import { reverseJournalEntry, salesInvoicePostingKey } from "@/lib/accounting/journals";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { reserveIdentifier } from "@/lib/id-generator";
 
@@ -261,18 +264,54 @@ export type CreateQuotationInput = DocumentOwnerRef & {
   currency?: string;
   validUntil?: Date | null;
   notes?: string | null;
-  /** The quote this one replaces, when it's a revision rather than a first go. */
+  /**
+   * The quote this one replaces, when it's a revision rather than a first go.
+   * Only a declined quote is revised; one nobody has answered is edited in
+   * place (`updateQuotationForDocument`).
+   */
   supersedesId?: string | null;
   /** Why the revision exists — "customer asked for the cheaper panel". */
   revisionNote?: string | null;
   /** The document layout to render through. Absent means the company default. */
   renderTemplateId?: string | null;
+  /** Library resources the client is asked to review alongside it. */
+  resourceIds?: string[];
 };
 
 export async function createQuotationForLead(input: CreateQuotationInput) {
   const currency = input.currency ?? "USD";
   return prisma.$transaction(async (tx) => {
     const owner = await requireDocumentOwner(tx, input.companyId, input as DocumentOwnerRef);
+
+    // A revision continues the chain rather than starting a new one, so
+    // "what did we actually agree" stays answerable. The quote it replaces
+    // has to be this record's own — a bare tenant check would let any quote
+    // in the company be voided from here — and declined: until the client
+    // answers, a quote is edited in place, and an accepted quote is an
+    // agreement, so changing it is a new quote, not a new version.
+    let previous: { id: string; version: number; quotationId: string | null } | null = null;
+    if (input.supersedesId) {
+      const found = await tx.crmLeadDocument.findFirst({
+        where: {
+          id: input.supersedesId,
+          companyId: input.companyId,
+          ...ownerKey(owner),
+          type: "QUOTATION",
+        },
+        select: {
+          id: true,
+          version: true,
+          quotationId: true,
+          quotation: { select: { quotationNumber: true, status: true } },
+        },
+      });
+      if (!found) throw new Error("The quote being revised doesn't exist");
+      const approvalStatus = await lockApproval(tx, found.id);
+      const lock = found.quotation ? quoteReviseLock({ status: found.quotation.status, approvalStatus }) : null;
+      if (lock) throw new DocumentLockedError(`${found.quotation?.quotationNumber} cannot be revised. ${lock}.`);
+      previous = found;
+    }
+
     const customerId = await ensureAccountingCustomer(tx, {
       companyId: input.companyId,
       clientId: owner.clientId,
@@ -304,18 +343,6 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
       select: { id: true, quotationNumber: true, total: true },
     });
 
-    // A revision continues the chain rather than starting a new one, so
-    // "what did we actually agree" stays answerable.
-    let version = 1;
-    if (input.supersedesId) {
-      const previous = await tx.crmLeadDocument.findFirst({
-        where: { id: input.supersedesId, companyId: input.companyId, type: "QUOTATION" },
-        select: { id: true, version: true },
-      });
-      if (!previous) throw new Error("The quote being revised doesn't exist");
-      version = previous.version + 1;
-    }
-
     const doc = await tx.crmLeadDocument.create({
       data: {
         companyId: input.companyId,
@@ -324,28 +351,47 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
         quotationId: quotation.id,
         amount: totals.total,
         currency,
-        version,
-        supersedesId: input.supersedesId ?? undefined,
-        revisionNote: input.revisionNote ?? undefined,
+        version: previous ? previous.version + 1 : 1,
+        supersedesId: previous?.id ?? undefined,
+        revisionNote: previous ? input.revisionNote?.trim() || undefined : undefined,
         renderTemplateId: input.renderTemplateId ?? undefined,
         createdById: input.userId,
       },
       select: { id: true },
     });
 
-    // The quote it replaces stops being live: two open quotes for the same
-    // work is how a customer ends up holding the cheaper one.
-    if (input.supersedesId) {
-      const superseded = await tx.crmLeadDocument.findUnique({
-        where: { id: input.supersedesId },
-        select: { quotationId: true },
-      });
-      if (superseded?.quotationId) {
+    await setDocumentResources(tx, {
+      companyId: input.companyId,
+      documentId: doc.id,
+      resourceIds: input.resourceIds ?? [],
+    });
+
+    if (previous) {
+      // The quote it replaces stops being live: two open quotes for the same
+      // work is how a customer ends up holding the cheaper one.
+      if (previous.quotationId) {
         await tx.salesQuotation.update({
-          where: { id: superseded.quotationId },
+          where: { id: previous.quotationId },
           data: { status: "VOIDED" },
         });
       }
+
+      // And the client's link follows the work. Whoever was sent it is
+      // looking at this job, not at a version number: the same link now opens
+      // the new version and asks for a fresh answer, so a decline on the old
+      // price is not read as a decline of the new one, and nobody can accept
+      // the voided quote. A link the rep deliberately withdrew stays withdrawn.
+      await tx.crmDocumentApproval.updateMany({
+        where: { leadDocumentId: previous.id, status: { not: "REVOKED" } },
+        data: {
+          leadDocumentId: doc.id,
+          status: "PENDING",
+          respondedAt: null,
+          responseNote: null,
+          responderName: null,
+          firstViewedAt: null,
+        },
+      });
     }
 
     await tx.crmActivity.create({
@@ -354,8 +400,15 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
         type: "DOCUMENT_CREATED",
         ...ownerKey(owner),
         clientId: owner.clientId,
-        subject: `Quotation ${quotation.quotationNumber} created`,
-        metadata: { documentId: doc.id, quotationId: quotation.id },
+        subject: previous
+          ? `Quotation ${quotation.quotationNumber} issued as version ${previous.version + 1}`
+          : `Quotation ${quotation.quotationNumber} created`,
+        body: previous ? input.revisionNote?.trim() || undefined : undefined,
+        metadata: {
+          documentId: doc.id,
+          quotationId: quotation.id,
+          ...(previous ? { supersedesId: previous.id } : {}),
+        },
         createdById: input.userId,
       },
     });
@@ -383,6 +436,8 @@ export type CreateInvoiceInput = DocumentOwnerRef & {
   isDeposit?: boolean;
   /** The document layout to render through. Null means the company default. */
   renderTemplateId?: string | null;
+  /** Library resources the client is asked to review alongside it. */
+  resourceIds?: string[];
 };
 
 export async function createInvoiceForLead(input: CreateInvoiceInput) {
@@ -440,6 +495,11 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
         invoiceNumber,
         invoiceDate,
         dueDate: input.dueDate ?? undefined,
+        // The quote it was converted from. Accounting's invoice list reads
+        // this to say where an invoice came from, and the document's own page
+        // reads it both ways — the invoice names its quote, the quote its
+        // invoice. Left off, a converted invoice looked raised from nothing.
+        quotationId: input.fromQuotationId ?? undefined,
         status: "ISSUED",
         currency,
         subTotal: totals.subTotal,
@@ -469,6 +529,12 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
       select: { id: true },
     });
 
+    await setDocumentResources(tx, {
+      companyId: input.companyId,
+      documentId: doc.id,
+      resourceIds: input.resourceIds ?? [],
+    });
+
     await tx.crmActivity.create({
       data: {
         companyId: input.companyId,
@@ -492,7 +558,8 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
       {
         companyId: input.companyId,
         sourceType: "SALES_INVOICE",
-        sourceId: invoice.id,
+        // Revision 0 — the invoice's own id. See `salesInvoicePostingKey`.
+        sourceId: salesInvoicePostingKey({ id: invoice.id, revision: 0 }),
         entryDate: invoiceDate,
         description: `CRM invoice ${invoice.invoiceNumber}`,
         createdById: input.userId,
@@ -518,6 +585,499 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
     };
   });
   return result;
+}
+
+/** The facts an invoice's edit lock is judged on, as one select. */
+const INVOICE_EDIT_STATE_SELECT = {
+  status: true,
+  amountPaid: true,
+  creditTotal: true,
+  writeOffTotal: true,
+  fiscalStatus: true,
+  fiscalReceipt: { select: { id: true } },
+  _count: {
+    select: {
+      receipts: true,
+      creditNotes: { where: { status: { not: "VOIDED" } } },
+      writeOffs: { where: { status: { not: "VOIDED" } } },
+    },
+  },
+} satisfies Prisma.SalesInvoiceSelect;
+
+type InvoiceEditFacts = Prisma.SalesInvoiceGetPayload<{ select: typeof INVOICE_EDIT_STATE_SELECT }>;
+
+function invoiceLockOf(invoice: InvoiceEditFacts, approvalStatus: string | null): string | null {
+  return invoiceEditLock({
+    status: invoice.status,
+    amountPaid: invoice.amountPaid,
+    creditTotal: invoice.creditTotal,
+    writeOffTotal: invoice.writeOffTotal,
+    receiptCount: invoice._count.receipts,
+    creditNoteCount: invoice._count.creditNotes,
+    writeOffCount: invoice._count.writeOffs,
+    fiscalised: Boolean(invoice.fiscalReceipt) || invoice.fiscalStatus === "SUCCESS",
+    approvalStatus,
+  });
+}
+
+/**
+ * Hold the client's answer still while a document is changed.
+ *
+ * Locks the document's approval row and returns its status — null when it
+ * was never sent for approval. An answer arriving in the same instant waits
+ * on the lock: either it lands first, and the edit sees it and is refused, or
+ * it lands after, and `respondToApproval` sees that the figures changed under
+ * the page the client was reading, and is refused.
+ */
+async function lockApproval(tx: Tx, leadDocumentId: string): Promise<string | null> {
+  const rows = await tx.$queryRaw<Array<{ status: string }>>`
+    SELECT "status"::text AS "status" FROM "CrmDocumentApproval"
+    WHERE "leadDocumentId" = ${leadDocumentId}
+    FOR UPDATE
+  `;
+  return rows[0]?.status ?? null;
+}
+
+/** A document, as the builder needs it to open prefilled for an edit. */
+export type EditableDocument = {
+  id: string;
+  type: "QUOTATION" | "INVOICE";
+  number: string;
+  currency: string;
+  version: number;
+  lines: CrmDocumentLineInput[];
+  notes: string | null;
+  validUntil: string | null;
+  dueDate: string | null;
+  renderTemplateId: string | null;
+  resourceIds: string[];
+  /** Why it cannot be edited in place, or null when it can. */
+  editLock: string | null;
+  /** Why it cannot be revised as its next version, or null when it can. Quotes only. */
+  reviseLock: string | null;
+};
+
+/**
+ * What the document builder opens with when a quote or an invoice is edited
+ * or revised: the lines and terms as they stand, and whether either is
+ * allowed at all.
+ */
+export async function loadEditableDocument(input: DocumentOwnerRef & {
+  companyId: string;
+  leadDocumentId: string;
+}): Promise<EditableDocument | null> {
+  const doc = await prisma.crmLeadDocument.findFirst({
+    where: {
+      id: input.leadDocumentId,
+      companyId: input.companyId,
+      ...(input.dealId ? { dealId: input.dealId } : { leadId: input.leadId }),
+      type: { in: ["QUOTATION", "INVOICE"] },
+    },
+    select: {
+      id: true,
+      type: true,
+      currency: true,
+      version: true,
+      renderTemplateId: true,
+      approval: { select: { status: true } },
+      resources: { select: { resourceId: true } },
+      quotation: {
+        select: {
+          quotationNumber: true,
+          status: true,
+          notes: true,
+          validUntil: true,
+          // Unordered, as the PDF and the approval page read them: every line
+          // of a document is written in one statement and shares its
+          // createdAt, so ordering on it would only shuffle ties.
+          lines: true,
+        },
+      },
+      invoice: {
+        select: {
+          ...INVOICE_EDIT_STATE_SELECT,
+          invoiceNumber: true,
+          notes: true,
+          dueDate: true,
+          lines: true,
+        },
+      },
+    },
+  });
+  if (!doc) return null;
+
+  const source = doc.quotation ?? doc.invoice;
+  if (!source) return null;
+  const approvalStatus = doc.approval?.status ?? null;
+
+  return {
+    id: doc.id,
+    type: doc.type as "QUOTATION" | "INVOICE",
+    number: doc.quotation?.quotationNumber ?? doc.invoice?.invoiceNumber ?? "",
+    currency: doc.currency,
+    version: doc.version,
+    lines: source.lines.map((line) => ({
+      description: line.description,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      ...(line.taxRate ? { taxRate: line.taxRate } : {}),
+    })),
+    notes: source.notes ?? null,
+    validUntil: doc.quotation?.validUntil?.toISOString() ?? null,
+    dueDate: doc.invoice?.dueDate?.toISOString() ?? null,
+    renderTemplateId: doc.renderTemplateId,
+    resourceIds: doc.resources.map((row) => row.resourceId),
+    editLock: doc.quotation
+      ? quoteEditLock({ status: doc.quotation.status, approvalStatus })
+      : doc.invoice
+        ? invoiceLockOf(doc.invoice, approvalStatus)
+        : null,
+    reviseLock: doc.quotation
+      ? quoteReviseLock({ status: doc.quotation.status, approvalStatus })
+      : "An invoice is edited, not revised",
+  };
+}
+
+/** An edit refused for a reason the rep can act on — the lock, in words. */
+export class DocumentLockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DocumentLockedError";
+  }
+}
+
+export type UpdateQuotationInput = DocumentOwnerRef & {
+  companyId: string;
+  userId: string;
+  leadDocumentId: string;
+  lines: CrmDocumentLineInput[];
+  notes?: string | null;
+  validUntil?: Date | null;
+  renderTemplateId?: string | null;
+  /** When given, replaces what the quote offers the client to review. */
+  resourceIds?: string[];
+};
+
+/**
+ * Change a quote the client has not answered yet.
+ *
+ * It stays the same quote: the same number, the same version, and the same
+ * approval link, which shows the new figures the next time it is opened. A
+ * quote is not on the books, so nothing is reversed or posted — the lines and
+ * terms are replaced in one transaction, and the record's story says so.
+ *
+ * Refused once the client has approved or declined it, or it is accepted,
+ * void or expired (`quoteEditLock`). A declined quote is revised as its next
+ * version instead: `createQuotationForLead` with `supersedesId`.
+ */
+export async function updateQuotationForDocument(input: UpdateQuotationInput) {
+  if (input.lines.length === 0) throw new Error("Quotation needs at least one line");
+
+  return prisma.$transaction(async (tx) => {
+    const owner = await requireDocumentOwner(tx, input.companyId, input as DocumentOwnerRef);
+    const doc = await tx.crmLeadDocument.findFirst({
+      where: {
+        id: input.leadDocumentId,
+        companyId: input.companyId,
+        ...ownerKey(owner),
+        type: "QUOTATION",
+      },
+      select: { id: true, quotationId: true },
+    });
+    if (!doc?.quotationId) throw new Error("Quotation document not found for this record");
+
+    // The answer first, then the quote: the order `respondToApproval` takes
+    // them in, so the two never wait on each other.
+    const approvalStatus = await lockApproval(tx, doc.id);
+    await tx.$queryRaw`
+      SELECT "id" FROM "SalesQuotation"
+      WHERE "companyId" = ${input.companyId} AND "id" = ${doc.quotationId}
+      FOR UPDATE
+    `;
+    const quotation = await tx.salesQuotation.findFirst({
+      where: { id: doc.quotationId, companyId: input.companyId },
+      select: { id: true, quotationNumber: true, status: true },
+    });
+    if (!quotation) throw new Error("Quotation not found");
+    const lock = quoteEditLock({ status: quotation.status, approvalStatus });
+    if (lock) throw new DocumentLockedError(`${quotation.quotationNumber} cannot be edited. ${lock}.`);
+
+    const totals = computeTotals(input.lines);
+    await tx.salesQuotation.update({
+      where: { id: quotation.id },
+      data: {
+        subTotal: totals.subTotal,
+        taxTotal: totals.taxTotal,
+        total: totals.total,
+        notes: input.notes ?? null,
+        validUntil: input.validUntil ?? null,
+        lines: { deleteMany: {}, create: totals.lines },
+      },
+    });
+    await tx.crmLeadDocument.update({
+      where: { id: doc.id },
+      data: {
+        amount: totals.total,
+        renderTemplateId: input.renderTemplateId ?? null,
+      },
+    });
+    if (input.resourceIds) {
+      await setDocumentResources(tx, {
+        companyId: input.companyId,
+        documentId: doc.id,
+        resourceIds: input.resourceIds,
+      });
+    }
+
+    await tx.crmActivity.create({
+      data: {
+        companyId: input.companyId,
+        type: "DOCUMENT_CREATED",
+        ...ownerKey(owner),
+        clientId: owner.clientId,
+        subject: `Quotation ${quotation.quotationNumber} edited`,
+        metadata: { documentId: doc.id, quotationId: quotation.id },
+        createdById: input.userId,
+      },
+    });
+
+    return {
+      leadDocumentId: doc.id,
+      quotationId: quotation.id,
+      quotationNumber: quotation.quotationNumber,
+      total: totals.total,
+    };
+  });
+}
+
+export type UpdateInvoiceInput = DocumentOwnerRef & {
+  companyId: string;
+  userId: string;
+  leadDocumentId: string;
+  lines: CrmDocumentLineInput[];
+  notes?: string | null;
+  dueDate?: Date | null;
+  renderTemplateId?: string | null;
+  /** When given, replaces what the invoice offers the client to review. */
+  resourceIds?: string[];
+};
+
+/**
+ * Change an issued invoice that nothing has happened to yet.
+ *
+ * The invoice keeps its number — it is the same bill, corrected — and the
+ * books follow in one transaction, or not at all:
+ *
+ *   1. the journal it posted is reversed (a mirror entry, dated now);
+ *   2. its lines are replaced and the totals worked out again;
+ *   3. the new figures are posted, under the invoice's next revision.
+ *
+ * Step 3 is why `SalesInvoice.revision` exists: a journal's source is unique,
+ * and the reversed entry keeps its claim on the previous key.
+ *
+ * Only allowed while `invoiceEditLock` says so — issued, nothing paid, no
+ * receipt, credit note or write-off, never sent to ZIMRA, and not yet
+ * answered by the client. The approval row and then the invoice row are
+ * locked first, so an answer or a payment recorded in the same instant lands
+ * either before the check, and the edit is refused, or after the edit, against
+ * the new total.
+ *
+ * Both entries are dated when the edit is made. A correction is booked when
+ * it happens: posting back into the invoice's own period would fail the day
+ * that period is locked, and rewrites a month somebody may have reported on.
+ *
+ * Posting failures here are refusals, unlike when an invoice is raised. An
+ * edit that reversed the old figures without posting the new ones would leave
+ * the invoice saying one thing and the ledger another, so the edit is not
+ * saved and the rep is told why.
+ */
+export async function updateInvoiceForDocument(input: UpdateInvoiceInput) {
+  if (input.lines.length === 0) throw new Error("Invoice needs at least one line");
+
+  // The outbox row for a posting is written outside any transaction (see
+  // `createJournalEntryFromSource`), so a rolled-back edit would otherwise
+  // leave one behind for the replay job to post: the new figures, against an
+  // invoice that never changed. Remembered here so the failure path can
+  // stand it down.
+  let newPostingKey: string | null = null;
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const owner = await requireDocumentOwner(tx, input.companyId, input as DocumentOwnerRef);
+      const doc = await tx.crmLeadDocument.findFirst({
+        where: {
+          id: input.leadDocumentId,
+          companyId: input.companyId,
+          ...ownerKey(owner),
+          type: "INVOICE",
+        },
+        select: { id: true, invoiceId: true },
+      });
+      if (!doc?.invoiceId) throw new Error("Invoice document not found for this record");
+
+      const approvalStatus = await lockApproval(tx, doc.id);
+      await tx.$queryRaw`
+        SELECT "id" FROM "SalesInvoice"
+        WHERE "companyId" = ${input.companyId} AND "id" = ${doc.invoiceId}
+        FOR UPDATE
+      `;
+      const invoice = await tx.salesInvoice.findFirst({
+        where: { id: doc.invoiceId, companyId: input.companyId },
+        select: {
+          ...INVOICE_EDIT_STATE_SELECT,
+          id: true,
+          invoiceNumber: true,
+          currency: true,
+          revision: true,
+        },
+      });
+      if (!invoice) throw new Error("Invoice not found");
+      const lock = invoiceLockOf(invoice, approvalStatus);
+      if (lock) throw new DocumentLockedError(`${invoice.invoiceNumber} cannot be edited. ${lock}.`);
+
+      const editedAt = new Date();
+      const previousKey = salesInvoicePostingKey(invoice);
+      const revision = invoice.revision + 1;
+      newPostingKey = salesInvoicePostingKey({ id: invoice.id, revision });
+
+      // 1. Take the old figures off the books.
+      const posted = await tx.journalEntry.findFirst({
+        where: {
+          companyId: input.companyId,
+          sourceType: "SALES_INVOICE",
+          sourceId: previousKey,
+          status: "POSTED",
+          reversedAt: null,
+        },
+        select: { id: true },
+      });
+      if (posted) {
+        await reverseJournalEntry(tx, {
+          companyId: input.companyId,
+          entryId: posted.id,
+          actorId: input.userId,
+          reversalDate: editedAt,
+          reason: `invoice ${invoice.invoiceNumber} edited`,
+        });
+      }
+      // Or they never reached them: the first posting failed and is waiting
+      // in the outbox. It is superseded now, and must not be replayed at the
+      // old figures after the new ones are posted.
+      await tx.accountingIntegrationEvent.updateMany({
+        where: {
+          companyId: input.companyId,
+          sourceType: "SALES_INVOICE",
+          sourceId: previousKey,
+          status: { in: ["PENDING", "FAILED"] },
+        },
+        data: {
+          status: "IGNORED",
+          lastError: `Superseded by revision ${revision} of invoice ${invoice.invoiceNumber}`,
+        },
+      });
+
+      // 2. The corrected invoice.
+      const totals = computeTotals(input.lines);
+      await tx.salesInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          subTotal: totals.subTotal,
+          taxTotal: totals.taxTotal,
+          total: totals.total,
+          notes: input.notes ?? null,
+          dueDate: input.dueDate ?? null,
+          revision,
+          lines: { deleteMany: {}, create: totals.lines },
+        },
+      });
+      await tx.crmLeadDocument.update({
+        where: { id: doc.id },
+        data: {
+          amount: totals.total,
+          renderTemplateId: input.renderTemplateId ?? null,
+        },
+      });
+      if (input.resourceIds) {
+        await setDocumentResources(tx, {
+          companyId: input.companyId,
+          documentId: doc.id,
+          resourceIds: input.resourceIds,
+        });
+      }
+
+      // 3. The new figures, on the books.
+      const posting = await createJournalEntryFromSource(
+        {
+          companyId: input.companyId,
+          sourceType: "SALES_INVOICE",
+          sourceId: newPostingKey,
+          entryDate: editedAt,
+          description: `CRM invoice ${invoice.invoiceNumber} (revision ${revision})`,
+          createdById: input.userId,
+          amount: totals.total,
+          netAmount: totals.subTotal,
+          taxAmount: totals.taxTotal,
+          grossAmount: totals.total,
+          currency: invoice.currency,
+        },
+        tx,
+      );
+      if (posting.error || !posting.entryId) {
+        throw new Error(
+          `The edit was not saved: the new figures could not be posted (${posting.error ?? "no journal was written"}).`,
+        );
+      }
+
+      // Where the receivables sub-ledger already carries this invoice, it
+      // carries the corrected amount now. It is keyed on the invoice, not on
+      // the posting, so the revision key would never reach it on its own.
+      await tx.paymentLedgerEntry.updateMany({
+        where: { companyId: input.companyId, sourceType: "SALES_INVOICE", sourceId: invoice.id },
+        data: { debit: totals.total, amount: totals.total, journalEntryId: posting.entryId },
+      });
+
+      await tx.crmActivity.create({
+        data: {
+          companyId: input.companyId,
+          type: "DOCUMENT_CREATED",
+          ...ownerKey(owner),
+          clientId: owner.clientId,
+          subject: `Invoice ${invoice.invoiceNumber} edited`,
+          metadata: {
+            documentId: doc.id,
+            invoiceId: invoice.id,
+            revision,
+            journalEntryId: posting.entryId,
+          },
+          createdById: input.userId,
+        },
+      });
+
+      return {
+        leadDocumentId: doc.id,
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        total: totals.total,
+        revision,
+        journalEntryId: posting.entryId,
+      };
+    });
+  } catch (error) {
+    if (newPostingKey) {
+      await prisma.accountingIntegrationEvent
+        .updateMany({
+          where: {
+            companyId: input.companyId,
+            sourceType: "SALES_INVOICE",
+            sourceId: newPostingKey,
+            status: { in: ["PENDING", "FAILED"] },
+          },
+          data: { status: "IGNORED", lastError: "The invoice edit that raised this was not saved" },
+        })
+        .catch(() => undefined);
+    }
+    throw error;
+  }
 }
 
 export type RecordReceiptInput = DocumentOwnerRef & {

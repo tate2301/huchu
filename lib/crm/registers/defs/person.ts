@@ -1,0 +1,88 @@
+import { CONTACT_TYPE_OPTIONS } from "@/lib/crm/record-labels";
+
+import type { RegisterDef } from "../types";
+
+/** People: the contact directory. Opens A–Z, because it is looked up by name. */
+export const PERSON_REGISTER = {
+  key: "PERSON",
+  noun: { one: "person", many: "people" },
+  route: "/crm/people",
+  endpoint: "/api/v2/crm/people",
+  queryKey: ["crm", "people"],
+  layouts: ["TABLE", "LIST", "BOARD"],
+  search: { placeholder: "Search people by name, email or phone" },
+  filters: [
+    { key: "type", label: "Type", kind: "enum", options: CONTACT_TYPE_OPTIONS, anyLabel: "All", pinned: true },
+    { key: "owner", label: "Owner", kind: "person", anyLabel: "Anyone", pinned: true },
+    { key: "company", label: "Company", kind: "relation", relation: "COMPANY", anyLabel: "Any company" },
+    { key: "city", label: "City", kind: "enum", facet: true, anyLabel: "Anywhere" },
+    { key: "tag", label: "Tag", kind: "enum", facet: true, anyLabel: "Any tag" },
+    {
+      key: "contacted",
+      label: "Last contacted",
+      kind: "date",
+      anyLabel: "Any time",
+      presets: ["this-week", "last-7d", "last-30d", "this-month"],
+    },
+    {
+      key: "created",
+      label: "Added",
+      kind: "date",
+      anyLabel: "Any time",
+      presets: ["today", "this-week", "this-month", "last-30d"],
+    },
+    { key: "group", label: "Group", kind: "group", anyLabel: "Any group" },
+    { key: "archived", label: "Archived", kind: "boolean", onLabel: "Archived only" },
+  ],
+  sorts: [
+    { key: "name", label: "Name", dir: "asc" },
+    { key: "updated", label: "Last updated", dir: "desc" },
+    { key: "created", label: "Date added", dir: "desc" },
+    { key: "contacted", label: "Last contacted", dir: "desc" },
+    { key: "ref", label: "Reference", dir: "asc" },
+  ],
+  groupBys: [
+    { key: "owner", label: "Owner" },
+    { key: "type", label: "Type" },
+    { key: "company", label: "Company" },
+  ],
+  columns: [
+    { id: "name", label: "Name", kind: "text", required: true, sort: "name" },
+    { id: "ref", label: "Reference", kind: "code", hiddenByDefault: true, sort: "ref" },
+    { id: "jobTitle", label: "Job title", kind: "text", hiddenByDefault: true },
+    { id: "company", label: "Company", kind: "relation", filter: "company" },
+    { id: "email", label: "Email", kind: "email" },
+    { id: "phone", label: "Phone", kind: "phone" },
+    { id: "type", label: "Type", kind: "status", filter: "type" },
+    { id: "deals", label: "Deals", kind: "number" },
+    { id: "owner", label: "Owner", kind: "relation", filter: "owner" },
+    { id: "city", label: "City", kind: "text", hiddenByDefault: true, filter: "city" },
+    { id: "country", label: "Country", kind: "text", hiddenByDefault: true },
+    { id: "channel", label: "Preferred channel", kind: "text", hiddenByDefault: true },
+    { id: "tags", label: "Tags", kind: "text", hiddenByDefault: true, filter: "tag" },
+    {
+      id: "contacted",
+      label: "Last contacted",
+      kind: "date",
+      hiddenByDefault: true,
+      sort: "contacted",
+      filter: "contacted",
+    },
+    { id: "created", label: "Added", kind: "date", hiddenByDefault: true, sort: "created", filter: "created" },
+    { id: "updated", label: "Last updated", kind: "datetime", hiddenByDefault: true, sort: "updated" },
+  ],
+  views: [
+    { key: "all", name: "Everyone", state: { filters: {} } },
+    { key: "mine", name: "My contacts", state: { filters: { owner: ["me"] } } },
+    { key: "unassigned", name: "Unassigned", state: { filters: { owner: ["none"] } } },
+    { key: "customers", name: "Customers", state: { filters: { type: ["CUSTOMER"] } } },
+    {
+      key: "quiet",
+      name: "Longest since contact",
+      state: { filters: {}, sort: { key: "contacted", dir: "asc" } },
+    },
+    { key: "archived", name: "Archived", state: { filters: { archived: true } } },
+  ],
+  bulk: ["assign", "group", "archive", "restore"],
+  entity: "PERSON",
+} as const satisfies RegisterDef;

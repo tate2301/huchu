@@ -25,6 +25,9 @@ export const CRM_CAPABILITIES = [
   "documents.issue",
   "documents.approve",
   "commissions.manage",
+  "money.approve",
+  "money.disburse",
+  "money.view_all",
   "settings.manage",
 ] as const;
 
@@ -45,6 +48,9 @@ export const CRM_CAPABILITY_LABELS: Record<CrmCapability, string> = {
   "documents.issue": "Issue quotes and invoices",
   "documents.approve": "Send documents for customer approval",
   "commissions.manage": "Set commission rules",
+  "money.approve": "Approve requisitions",
+  "money.disburse": "Record money paid out",
+  "money.view_all": "See everybody's money",
   "settings.manage": "Change CRM settings",
 };
 
@@ -71,6 +77,10 @@ export const CRM_CAPABILITY_NOTES: Record<CrmCapability, string> = {
   "documents.issue": "Raises quotes and invoices against a customer.",
   "documents.approve": "Sends a document to the customer for signature.",
   "commissions.manage": "Changes what the team gets paid.",
+  "money.approve": "Says yes to somebody's request for money. Not the same as handing it over.",
+  "money.disburse": "Records that the money actually left. Usually a different person, and it should be.",
+  "money.view_all":
+    "Money in and out, and anybody's cost tracker and floats — not only their own. Reading, not changing.",
   "settings.manage": "Everything on the CRM settings screen.",
 };
 
@@ -89,8 +99,17 @@ const REP_CAPABILITIES = new Set<CrmCapability>([
 
 const MANAGER_CAPABILITIES = new Set<CrmCapability>(CRM_CAPABILITIES);
 
+/**
+ * A finance officer works the CRM as a rep does, and also reads everybody's
+ * money: the overview, the floats and the cost trackers are what the role is
+ * for. Seeing is not approving or paying out — those stay with managers unless
+ * an admin grants them.
+ */
+const FINANCE_CAPABILITIES = new Set<CrmCapability>([...REP_CAPABILITIES, "money.view_all"]);
+
 export function capabilitiesForRole(role: string | null | undefined): Set<CrmCapability> {
-  return hasCrmFullAccess(role) ? MANAGER_CAPABILITIES : REP_CAPABILITIES;
+  if (hasCrmFullAccess(role)) return MANAGER_CAPABILITIES;
+  return role === "FINANCE_OFFICER" ? FINANCE_CAPABILITIES : REP_CAPABILITIES;
 }
 
 export function can(session: AuthenticatedSession, capability: CrmCapability): boolean {
@@ -135,15 +154,27 @@ export async function canUserAll(
   session: AuthenticatedSession,
   capabilities: readonly CrmCapability[],
 ): Promise<(capability: CrmCapability) => boolean> {
+  return capabilityCheckFor(session.user, capabilities);
+}
+
+/**
+ * `canUserAll` for a person rather than a session — an export job running
+ * after its requester has gone, which still has to answer as them.
+ */
+export async function capabilityCheckFor(
+  user: { id: string; role: string | null | undefined },
+  capabilities: readonly CrmCapability[],
+): Promise<(capability: CrmCapability) => boolean> {
   const overrides = await prisma.userPermissionOverride.findMany({
-    where: { userId: session.user.id, permissionKey: { in: [...capabilities] } },
+    where: { userId: user.id, permissionKey: { in: [...capabilities] } },
     select: { permissionKey: true, isAllowed: true },
   });
   const decided = new Map(overrides.map((row) => [row.permissionKey, row.isAllowed]));
+  const roleAllows = capabilitiesForRole(user.role);
 
   return (capability) => {
     const override = decided.get(capability);
-    return override === undefined ? can(session, capability) : override;
+    return override === undefined ? roleAllows.has(capability) : override;
   };
 }
 

@@ -35,6 +35,8 @@ export type ReservableIdEntity =
   | "CRM_PERSON"
   | "CRM_WORK_ORDER"
   | "CRM_DEAL"
+  | "CRM_PROJECT"
+  | "CRM_REQUISITION"
   | "CRM_SITE"
   | "SALES_QUOTATION"
   | "SALES_INVOICE"
@@ -89,6 +91,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   // CRMD rather than DEAL: the prefix is baked into every deal number already
   // issued, so it outlives the car-sales entity (ST-2.2) that first forced it.
   CRM_DEAL: { prefix: "CRMD", requiresSiteId: false },
+  CRM_PROJECT: { prefix: "PRJ", requiresSiteId: false },
+  CRM_REQUISITION: { prefix: "REQ", requiresSiteId: false },
   CRM_SITE: { prefix: "CSITE", requiresSiteId: false },
   SALES_QUOTATION: { prefix: "QTN", requiresSiteId: false },
   SALES_INVOICE: { prefix: "INV", requiresSiteId: false },

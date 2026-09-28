@@ -8,7 +8,7 @@ import { endOfMonth, endOfQuarter, endOfWeek, format, startOfMonth, startOfQuart
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { FrappeChartShell } from "@/components/charts/frappe-chart-shell"
 import { FrappeStatCard } from "@/components/charts/frappe-stat-card"
-import { PageHeading } from "@/components/layout/page-heading"
+import { PageChrome } from "@/components/layout/page-chrome"
 import { StatusState } from "@/components/shared/status-state"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -161,7 +161,7 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
-      <PageHeading title="Production Dashboard" />
+      <PageChrome title="Production Dashboard" />
 
       {(sitesError || reportsError) && (
         <Alert variant="destructive">

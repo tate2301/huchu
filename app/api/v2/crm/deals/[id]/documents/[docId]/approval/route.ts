@@ -3,9 +3,17 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
-import { createOrRotateApproval } from "@/lib/crm/approvals";
+import { getOrCreateApproval, rotateApproval } from "@/lib/crm/approvals";
 
-const bodySchema = z.object({ expiresInDays: z.number().int().min(1).max(90).optional() });
+const bodySchema = z.object({
+  expiresInDays: z.number().int().min(1).max(90).optional(),
+  /**
+   * Withdraw the link the customer already has and issue a new one. Off by
+   * default: reading the link back is the common case, and rotating on every
+   * read is what left customers holding dead links.
+   */
+  rotate: z.boolean().optional(),
+});
 
 async function loadDoc(companyId: string, dealId: string, docId: string) {
   return prisma.crmLeadDocument.findFirst({
@@ -44,16 +52,27 @@ export async function POST(
       return errorResponse(denialMessage("documents.approve"), 403);
     }
 
-    const { expiresInDays } = bodySchema.parse(await request.json().catch(() => ({})));
-    const token = await prisma.$transaction((tx) =>
-      createOrRotateApproval(tx, {
+    const { expiresInDays, rotate } = bodySchema.parse(await request.json().catch(() => ({})));
+    const link = await prisma.$transaction(async (tx) => {
+      if (rotate) {
+        const token = await rotateApproval(tx, {
+          companyId: session.user.companyId,
+          leadDocumentId: docId,
+          expiresInDays,
+        });
+        return { token, issued: true };
+      }
+      return getOrCreateApproval(tx, {
         companyId: session.user.companyId,
         leadDocumentId: docId,
         expiresInDays,
-      }),
-    );
+      });
+    });
 
-    return successResponse({ token, path: `/a/${token}` }, 201);
+    return successResponse(
+      { token: link.token, path: `/a/${link.token}`, issued: link.issued },
+      201,
+    );
   } catch (error) {
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
     console.error("[API] POST .../documents/[docId]/approval error:", error);

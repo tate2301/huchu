@@ -3,25 +3,15 @@ import { z } from "zod";
 
 import {
   errorResponse,
-  getPaginationParams,
-  paginationResponse,
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { registerGet } from "@/lib/crm/registers/server/route";
+import { sitesRegister } from "@/lib/crm/registers/server/sites";
 import { reserveIdentifier } from "@/lib/id-generator";
-import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
 import { buildCustomFieldValues, type FieldDefinition } from "@/lib/crm/custom-fields";
 import { recordMarkFields } from "@/lib/crm/record-mark";
-import {
-  boolParam,
-  buildRecordOrderBy,
-  buildSiteWhere,
-  customFieldParams,
-  listParam,
-  recordSortSchema,
-  siteFiltersSchema,
-} from "@/lib/crm/records";
 
 const createSiteSchema = z.object({
   ...recordMarkFields,
@@ -40,61 +30,9 @@ const createSiteSchema = z.object({
   customFields: z.record(z.string(), z.unknown()).optional(),
 });
 
+/** The list: see `registerGet` — the page's own query string, paged. */
 export async function GET(request: NextRequest) {
-  try {
-    const sessionResult = await validateSession(request);
-    if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-
-    const { searchParams } = new URL(request.url);
-    const { page, limit, skip } = getPaginationParams(request);
-
-    const parsed = siteFiltersSchema.safeParse({
-      q: searchParams.get("q") || undefined,
-      listId: searchParams.get("listId") || undefined,
-      clientIds: listParam(searchParams, "clientIds"),
-      cities: listParam(searchParams, "cities"),
-      includeArchived: boolParam(searchParams, "includeArchived"),
-      customFields: customFieldParams(searchParams),
-    });
-    const filters = parsed.success ? parsed.data : {};
-
-    const baseWhere = buildSiteWhere(session.user.companyId, filters);
-    // A filter on an empty list must return nothing — ignoring it would show
-    // the whole table, which reads as though the filter had failed.
-    const listIds = filters.listId
-      ? await listRecordIds(prisma, {
-          companyId: session.user.companyId,
-          userId: session.user.id,
-          listId: filters.listId,
-        })
-      : null;
-    const where = { ...baseWhere, ...(listIdFilter(listIds) ?? {}) };
-    const sort = recordSortSchema.safeParse({
-      field: searchParams.get("sortField"),
-      direction: searchParams.get("sortDir"),
-    });
-
-    const [sites, total] = await Promise.all([
-      prisma.crmSite.findMany({
-        where,
-        include: {
-          client: { select: { id: true, name: true } },
-          primaryContact: { select: { id: true, fullName: true, phone: true } },
-          _count: { select: { deals: true, appointments: true } },
-        },
-        orderBy: buildRecordOrderBy("SITE", sort.success ? sort.data : undefined),
-        skip,
-        take: limit,
-      }),
-      prisma.crmSite.count({ where }),
-    ]);
-
-    return successResponse(paginationResponse(sites, total, page, limit));
-  } catch (error) {
-    console.error("[API] GET /api/v2/crm/sites error:", error);
-    return errorResponse("Failed to fetch sites");
-  }
+  return registerGet(request, sitesRegister);
 }
 
 export async function POST(request: NextRequest) {

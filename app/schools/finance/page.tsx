@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { FeesGradePicker } from "@/components/schools/fees/fees-grade-picker";
 import { authOptions } from "@/lib/auth";
 
@@ -18,7 +18,7 @@ export default async function SchoolsFinancePage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Fees and finance" />
+      <PageChrome title="Fees and finance" />
       <FeesGradePicker />
     </div>
   );

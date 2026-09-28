@@ -8,6 +8,11 @@ const profileUpdateSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
     phone: z.string().trim().max(60).nullable().optional(),
+    // The avatar. The client uploads the file to POST /api/preferences/profile/photo
+    // first and PATCHes the url it gets back, so this never carries bytes — and a
+    // url is all `User.image` has ever held. Nullable so "Change photo" can also
+    // mean remove it.
+    image: z.string().trim().url().max(2048).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one profile field is required",
@@ -21,6 +26,13 @@ const profileSelect = {
   image: true,
   role: true,
   isActive: true,
+  // "Member since" on the profile board. The column has always been here; it
+  // simply was not selected.
+  createdAt: true,
+  // "Password — Changed <date>". Null means it has never been changed since the
+  // account was made, and the board's row then carries no subtitle. It is not
+  // `createdAt`, which is a different claim.
+  passwordChangedAt: true,
   company: {
     select: {
       id: true,
@@ -73,6 +85,10 @@ export async function PATCH(request: NextRequest) {
             : validated.phone === null
               ? null
               : validated.phone.trim() || null,
+        // undefined leaves the column alone, null clears the photo. Unlike
+        // `phone` there is no empty-string case: a url either validated or the
+        // request was rejected.
+        image: validated.image,
       },
       select: profileSelect,
     });

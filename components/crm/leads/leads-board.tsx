@@ -1,319 +1,209 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  DndContext,
-  DragOverlay,
-  defaultDropAnimationSideEffects,
-  KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
-  closestCorners,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-  type DropAnimation,
-} from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CrmLeadStage } from "@prisma/client";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
-import {
-  fetchCrmLeadsBoard,
-  updateCrmLeadStage,
-  type CrmBoardCard,
-  type CrmBoardColumn,
-} from "@/lib/crm/crm-v2";
-import type { LeadViewFilters } from "@/lib/crm/views";
-
+import { updateCrmLeadStage, type CrmLeadListRecord, type RegisterBoardData } from "@/lib/crm/crm-v2";
 import { LEAD_STAGE_COLOR, stageColor } from "@/lib/crm/tones";
-import { MobileBoard } from "@/components/crm/records/board-mobile";
 
-import { BoardColumn } from "./board-column";
+import type { RegisterHandle } from "@/components/crm/registers/use-register";
+import {
+  RecordBoard,
+  type RecordBoardCard,
+  type RecordBoardColumn,
+} from "@/components/crm/records/record-board";
+
 import { LeadCardBody } from "./lead-card";
 import { LostReasonDialog } from "./lost-reason-dialog";
-import { CRM_STAGE_LABELS, formatLeadValue } from "./stage-config";
+import { formatLeadValue } from "./stage-config";
 
-/**
- * The card animates back into its column rather than vanishing, and the hole
- * it left fades out under it. Without this the overlay is destroyed the
- * instant the pointer lifts and the card appears to teleport.
- */
-const DROP_ANIMATION: DropAnimation = {
-  duration: 220,
-  easing: "cubic-bezier(0.2, 0, 0, 1)",
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: { active: { opacity: "0.4" } },
-  }),
-};
-
-
-type BoardData = { columns: CrmBoardColumn[]; cardsPerColumn: number };
+type Lead = CrmLeadListRecord;
+type LeadBoard = RegisterBoardData<Lead>;
 
 /** Move a card between columns in the cache, keeping counts and totals in step. */
-function moveCardInCache(
-  data: BoardData,
-  leadId: string,
-  toStage: CrmLeadStage,
-): BoardData {
-  let moved: CrmBoardCard | undefined;
-  const stripped = data.columns.map((column) => {
-    const found = column.leads.find((lead) => lead.id === leadId);
+function moveCardInCache(board: LeadBoard, leadId: string, toStage: string): LeadBoard {
+  let moved: Lead | undefined;
+  const stripped = board.columns.map((column) => {
+    const found = column.cards.find((lead) => lead.id === leadId);
     if (!found) return column;
     moved = found;
-    const value = found.estimatedValue ?? 0;
     return {
       ...column,
       count: Math.max(0, column.count - 1),
-      totalValue: column.totalValue - value,
-      leads: column.leads.filter((lead) => lead.id !== leadId),
+      totalValue: column.totalValue - (found.estimatedValue ?? 0),
+      cards: column.cards.filter((lead) => lead.id !== leadId),
     };
   });
 
-  if (!moved) return data;
-  const card = { ...moved, stage: toStage, stageEnteredAt: new Date().toISOString() };
-  const value = card.estimatedValue ?? 0;
+  if (!moved) return board;
+  const card = { ...moved, stage: toStage as CrmLeadStage, stageEnteredAt: new Date().toISOString() };
 
   return {
-    ...data,
+    ...board,
     columns: stripped.map((column) =>
-      column.stage === toStage
+      column.stage.id === toStage
         ? {
             ...column,
             count: column.count + 1,
-            totalValue: column.totalValue + value,
-            leads: [card, ...column.leads],
+            totalValue: column.totalValue + (card.estimatedValue ?? 0),
+            cards: [card, ...column.cards],
           }
         : column,
     ),
   };
 }
 
-export function LeadsBoard({
-  filters,
-  className,
-}: {
-  filters: LeadViewFilters;
-  className?: string;
-}) {
+/**
+ * The leads as a board, a column per stage, read by the leads list with its
+ * own filters — a stage filter chooses the columns. Dropping a card on Lost
+ * asks why before it lands.
+ */
+export function LeadsBoard({ register }: { register: RegisterHandle<Lead> }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [activeCard, setActiveCard] = useState<CrmBoardCard | null>(null);
-  const [pendingLost, setPendingLost] = useState<CrmBoardCard | null>(null);
-
-  const queryKey = useMemo(() => ["crm", "board", filters] as const, [filters]);
-
-  const boardQuery = useQuery({
-    queryKey,
-    queryFn: () => fetchCrmLeadsBoard(filters),
-    placeholderData: (previous) => previous,
-  });
-
-  const sensors = useSensors(
-    // A small activation distance keeps a click on the card title a click,
-    // not an accidental one-pixel drag.
-    // MouseSensor and TouchSensor rather than PointerSensor. PointerSensor
-    // answers touch too, and its 6px threshold is crossed long before any
-    // long-press delay elapses — so with both registered, every attempt to
-    // swipe the board sideways started a drag instead. Splitting them lets a
-    // finger scroll immediately and drag only after a deliberate hold.
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const { query: boardQuery, queryKey } = register.board;
+  const [pendingLost, setPendingLost] = useState<Lead | null>(null);
+  // Settles the board's move once the lost-reason dialog closes either way.
+  const closeLost = useRef<(() => void) | null>(null);
 
   const moveStage = useMutation({
-    mutationFn: ({
-      leadId,
-      stage,
-      lostReason,
-    }: {
-      leadId: string;
-      stage: CrmLeadStage;
-      lostReason?: string;
-    }) => updateCrmLeadStage(leadId, stage, lostReason),
+    mutationFn: ({ leadId, stage, lostReason }: { leadId: string; stage: CrmLeadStage; lostReason?: string }) =>
+      updateCrmLeadStage(leadId, stage, lostReason),
     onMutate: async ({ leadId, stage }) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<BoardData>(queryKey);
-      if (previous) {
-        queryClient.setQueryData(queryKey, moveCardInCache(previous, leadId, stage));
-      }
+      const previous = queryClient.getQueryData<LeadBoard>(queryKey);
+      if (previous) queryClient.setQueryData(queryKey, moveCardInCache(previous, leadId, stage));
       return { previous };
     },
     onError: (error, _variables, context) => {
+      // Put it back where it was: a card that stayed in the new column after a
+      // failed save is a lie the next reader has no way to spot.
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
-      toast({
-        title: "Could not move the lead",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
+      toast({ title: "Could not move the lead", description: getApiErrorMessage(error), variant: "destructive" });
     },
-    onSuccess: (_result, { stage }) => {
-      toast({ title: `Moved to ${CRM_STAGE_LABELS[stage]}` });
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
-    },
+    // The board and every page of the list share the leads prefix.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["crm", "leads"] }),
   });
 
-  // Filtering by stage on a board means the columns you unticked go away.
-  // Leaving them in place and emptying them is the version that looks broken:
-  // eight columns, two with cards, and no explanation.
-  const allColumns = boardQuery.data?.columns ?? [];
-  const chosen = filters.stages;
-  const columns =
-    chosen && chosen.length > 0
-      ? allColumns.filter((column) => chosen.includes(column.stage))
-      : allColumns;
-
-  const resolveDropStage = (overId: string): CrmLeadStage | null => {
-    if (overId.startsWith("column:")) return overId.slice("column:".length) as CrmLeadStage;
-    // Dropped onto another card — inherit that card's column.
-    const target = columns.find((column) => column.leads.some((lead) => lead.id === overId));
-    return target?.stage ?? null;
-  };
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const id = String(event.active.id);
-    const found = columns.flatMap((column) => column.leads).find((lead) => lead.id === id);
-    setActiveCard(found ?? null);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const card = activeCard;
-    setActiveCard(null);
-    if (!card || !event.over) return;
-
-    const toStage = resolveDropStage(String(event.over.id));
-    if (!toStage || toStage === card.stage) return;
-
-    if (toStage === "LOST") {
-      setPendingLost(card);
-      return;
-    }
-    moveStage.mutate({ leadId: card.id, stage: toStage });
-  };
-
-  if (boardQuery.isLoading) {
-    return (
-      <div className={cn("space-y-2 lg:flex lg:space-y-0 lg:gap-3 lg:overflow-x-auto lg:pb-2", className)}>
-        {Array.from({ length: 5 }).map((_, index) => (
-          <Skeleton key={index} className="h-16 w-full rounded-[var(--card-radius)] lg:h-96 lg:w-72 lg:shrink-0" />
-        ))}
-      </div>
-    );
-  }
-
-  if (boardQuery.error) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>Unable to load the pipeline</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(boardQuery.error)}</AlertDescription>
-      </Alert>
-    );
-  }
-
+  const board = boardQuery.data;
+  const leads = useMemo(() => (board?.columns ?? []).flatMap((column) => column.cards), [board]);
   // Columns report their own currency mix; the first lead's currency is a
   // reasonable label for a tenant that trades in one.
-  const currency =
-    columns.flatMap((column) => column.leads).find((lead) => lead.currency)?.currency ?? "USD";
+  const currency = leads.find((lead) => lead.currency)?.currency ?? "USD";
+  const { set } = register;
 
-  return (
-    <div className={cn("flex min-h-0 flex-col", className)}>
-      {/* A phone gets the stage picker and one list; the strip of columns is
-          desktop-only. Tapping a lead opens it, where the stage stepper is —
-          so restaging stays reachable without dragging anything. */}
-      <MobileBoard
-        className="lg:hidden"
-        noun={{ one: "lead", many: "leads" }}
-        emptyTitle="No leads in this stage"
-        stages={columns.map((column) => ({
-          id: column.stage,
-          label: CRM_STAGE_LABELS[column.stage],
-          dot: (LEAD_STAGE_COLOR[column.stage] ?? stageColor(null)).dot,
-          count: column.count,
-          meta:
-            column.totalValue > 0
-              ? formatLeadValue(column.totalValue, currency)
-              : undefined,
-          rows: column.leads.map((lead) => ({
-            id: lead.id,
-            href: `/crm/leads/${lead.id}`,
+  const columns = useMemo<RecordBoardColumn[]>(
+    () =>
+      (board?.columns ?? []).map((column) => ({
+        id: column.stage.id,
+        name: column.stage.name,
+        dot: (LEAD_STAGE_COLOR[column.stage.id as CrmLeadStage] ?? stageColor(null)).dot,
+        count: column.count,
+        total: column.totalValue > 0 ? formatLeadValue(column.totalValue, currency) : undefined,
+        // Past the cards a column draws, the table has the rest of them.
+        footer: column.hasMore ? (
+          <button
+            type="button"
+            className="underline decoration-[var(--border)] underline-offset-2 hover:text-[var(--text-strong)]"
+            onClick={() =>
+              set((previous) => ({
+                ...previous,
+                layout: "TABLE",
+                filters: { ...previous.filters, stage: [column.stage.id] },
+              }))
+            }
+          >
+            Showing <span className="font-mono tabular-nums">{column.cards.length}</span> of{" "}
+            <span className="font-mono tabular-nums">{column.count}</span> — see them all
+          </button>
+        ) : undefined,
+      })),
+    [board, currency, set],
+  );
+
+  const cards = useMemo<RecordBoardCard[]>(
+    () =>
+      (board?.columns ?? []).flatMap((column) =>
+        column.cards.map((lead) => ({
+          id: lead.id,
+          columnId: column.stage.id,
+          // Once promoted, the deal is the live record — the lead behind it is
+          // history. Opening the lead from the board would show the husk.
+          href: lead.deal ? `/crm/deals/${lead.deal.id}` : `/crm/leads/${lead.id}`,
+          label: lead.title ?? lead.leadNo,
+          content: <LeadCardBody lead={lead} />,
+          row: {
             title: lead.title ?? lead.leadNo,
-            subtitle: [
-              lead.deal?.dealNo ?? lead.leadNo,
-              lead.client?.name ?? lead.contactName ?? "No client",
-            ]
-              .filter(Boolean)
-              .join(" · "),
+            subtitle: [lead.deal?.dealNo ?? lead.leadNo, lead.client?.name ?? lead.contactName ?? "No client"].join(
+              " · ",
+            ),
             facts: [
               {
-                value: formatLeadValue(lead.estimatedValue, lead.currency ?? currency),
+                value: formatLeadValue(lead.deal?.value ?? lead.estimatedValue, lead.currency ?? currency),
                 mono: true,
                 primary: true,
               },
             ],
-          })),
-        }))}
+          },
+        })),
+      ),
+    [board, currency],
+  );
+
+  const { mutateAsync } = moveStage;
+  const onMove = useCallback(
+    (leadId: string, stage: string) => {
+      // Lost needs a reason. The card waits in the Lost column while the
+      // dialog asks for it, so the question reads as a consequence of the
+      // drop; cancelling puts it back.
+      if (stage === "LOST") {
+        const lead = leads.find((item) => item.id === leadId);
+        if (!lead) return Promise.resolve();
+        setPendingLost(lead);
+        return new Promise<void>((resolve) => {
+          closeLost.current = resolve;
+        });
+      }
+      return mutateAsync({ leadId, stage: stage as CrmLeadStage });
+    },
+    [leads, mutateAsync],
+  );
+
+  const finishLost = () => {
+    closeLost.current?.();
+    closeLost.current = null;
+    setPendingLost(null);
+  };
+
+  // A load error is the shell's to say, above the board.
+  if (boardQuery.error) return null;
+
+  return (
+    <>
+      <RecordBoard
+        columns={columns}
+        cards={cards}
+        isLoading={boardQuery.isLoading && !board}
+        noun={{ one: "lead", many: "leads" }}
+        emptyLabel="No leads in this stage"
+        onMove={onMove}
       />
-
-      <div className="hidden min-h-0 flex-1 flex-col lg:flex">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveCard(null)}
-      >
-        {/* The strip of columns takes the height the page has left, so a short
-            pipeline still reaches the bottom instead of floating in white
-            space, and a long one scrolls inside its column. */}
-        <div className="scroll-rail flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto pb-2">
-          {columns.map((column) => (
-            <BoardColumn
-              key={column.stage}
-              column={column}
-              currency={currency}
-              onViewAll={() => {
-                toast({
-                  title: `${CRM_STAGE_LABELS[column.stage]} has ${column.count} leads`,
-                  description: "Switch to the table view to page through all of them.",
-                });
-              }}
-            />
-          ))}
-        </div>
-
-        <DragOverlay dropAnimation={DROP_ANIMATION}>
-          {activeCard ? (
-            <div className="w-72 rotate-2 scale-[1.02] cursor-grabbing rounded-[var(--card-radius)] border border-[var(--border-strong)] bg-[var(--surface)] p-3 shadow-[var(--shadow-lg)]">
-              <LeadCardBody lead={activeCard} />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-      </div>
 
       <LostReasonDialog
         open={Boolean(pendingLost)}
         leadLabel={pendingLost?.title ?? pendingLost?.leadNo}
         isPending={moveStage.isPending}
-        onCancel={() => setPendingLost(null)}
+        onCancel={finishLost}
         onConfirm={(reason) => {
           if (!pendingLost) return;
-          moveStage.mutate(
-            { leadId: pendingLost.id, stage: "LOST", lostReason: reason },
-            { onSettled: () => setPendingLost(null) },
-          );
+          mutateAsync({ leadId: pendingLost.id, stage: "LOST", lostReason: reason })
+            .catch(() => undefined)
+            .finally(finishLost);
         }}
       />
-    </div>
+    </>
   );
 }

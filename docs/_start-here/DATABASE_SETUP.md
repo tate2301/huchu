@@ -2,6 +2,12 @@
 
 This guide explains how to set up the PostgreSQL database for the Huchu Mine Operations System.
 
+> **For local development, skip to `pnpm db:up`.** `docker-compose.yml` runs
+> Postgres 16 in a container with the database, user and password already set,
+> so none of the host installation below is needed. See the Quick Start in the
+> README. The steps here are for a host Postgres — a server, or a machine
+> without Docker.
+
 ## Prerequisites
 
 - PostgreSQL 14 or later

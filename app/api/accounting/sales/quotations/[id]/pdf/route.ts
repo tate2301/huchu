@@ -4,6 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { renderDocumentSync } from "@/lib/documents/service";
 import { hasFeature } from "@/lib/platform/features";
 
+export const runtime = "nodejs";
+// Rendering spins up Chromium. A cold start plus the render itself runs well
+// past the platform's default function budget, and the timeout surfaced as an
+// unexplained failure with nothing in the logs.
+export const maxDuration = 120;
+
 type RouteParams = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
@@ -45,6 +51,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("[API] GET /api/accounting/sales/quotations/[id]/pdf/route.ts error:", error);
-    return errorResponse("Failed to render Quotation PDF");
+    // The reason matters: "no Chromium executable" and "invoice not found"
+    // are different problems, and a flat message sent every render failure
+    // to the same dead end.
+    return errorResponse(
+      error instanceof Error ? error.message : "Failed to render Quotation PDF",
+      500,
+    );
   }
 }

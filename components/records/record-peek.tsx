@@ -19,7 +19,7 @@ import {
   type RecordEntity,
   type RecordRef,
 } from "@/lib/crm/record-ref";
-import { ArrowRight, Building2, Funnel, MapPin, User, Users } from "@/lib/icons";
+import { ArrowRight, Building2, Funnel, MapPin, User, Users, Work } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -70,6 +70,9 @@ const ENTITY_MARK: Record<RecordEntity, { icon: typeof Funnel; accent: Accent }>
   class: { icon: Building2, accent: "indigo" },
   subject: { icon: Funnel, accent: "blue" },
   hostel: { icon: MapPin, accent: "orange" },
+  // Not peekable yet — it has no summary endpoint — but the map covers every
+  // record type so one never opens as a blank disc when it is.
+  project: { icon: Work, accent: "green" },
 };
 
 type PeekValue = {

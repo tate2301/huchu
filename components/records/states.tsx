@@ -6,7 +6,36 @@ import { Alert, Button, EmptyState, Skeleton } from "@corelithzw/react";
 
 import { getApiErrorMessage } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { CheckCircle, Funnel, Tray, WarningCircle } from "@/lib/icons";
 import { whoCan, type SchoolAction, type SchoolResource } from "@/lib/schools/access";
+
+/**
+ * ## Each of these states has ONE meaning, so it carries ONE mark
+ *
+ * The icon is set inside the component rather than asked for at the call site.
+ * There are ~530 of these across the product, and "nothing here yet" means the
+ * same thing on the fee ledger as it does in the gate book — so a per-call-site
+ * `icon` prop would be 530 chances to disagree about what emptiness looks like,
+ * for no gain.
+ *
+ * The four marks are chosen to be told apart at a glance, because the whole job
+ * here is answering *why is this screen blank* before the sentence is read:
+ *
+ * | State | Mark | Reads as |
+ * |---|---|---|
+ * | `NothingYet` | tray | nothing has been put here |
+ * | `NothingMatched` | funnel | YOU narrowed it — the filter is the cause |
+ * | `NothingLeftToDo` | tick | good news, not an absence |
+ * | `LoadError` / `SaveError` | warning | something broke |
+ *
+ * The funnel is the one that earns its keep. An empty list is ambiguous between
+ * "there is nothing" and "you filtered it all away", and those need opposite
+ * responses — the mark separates them before the reader starts reading.
+ *
+ * `NothingYet` still takes an `icon` override, because the verb that fills a
+ * list is sometimes worth naming (a house, a bed, a book). The others do not:
+ * their meaning is fixed and an override would only let it drift.
+ */
 
 /**
  * The loading / empty / error / denied / not-found vocabulary for a record
@@ -341,9 +370,17 @@ export function NothingYet({
   title: ReactNode;
   body?: ReactNode;
   action?: ReactNode;
+  /** Override the tray where the thing that fills the list is worth naming. */
   icon?: ReactNode;
 }) {
-  return <EmptyState icon={icon} title={title} body={body} action={action} />;
+  return (
+    <EmptyState
+      icon={icon ?? <Tray aria-hidden="true" />}
+      title={title}
+      body={body}
+      action={action}
+    />
+  );
 }
 
 /**
@@ -378,6 +415,10 @@ export function NothingMatched({
 
   return (
     <EmptyState
+      // The funnel, not the tray. An empty list is ambiguous between "there is
+      // nothing" and "you filtered it all away", and those want opposite
+      // responses — the mark separates them before the sentence is read.
+      icon={<Funnel aria-hidden="true" />}
       title={searchOnly ? `No ${what} match that search` : `No ${what} match these filters`}
       body={
         searchOnly
@@ -412,7 +453,17 @@ export function NothingLeftToDo({
   body?: ReactNode;
   action?: ReactNode;
 }) {
-  return <EmptyState title={title} body={body} action={action} />;
+  return (
+    <EmptyState
+      // A tick, because this one is good news. The same blank space that means
+      // "nothing here yet" elsewhere means "you are finished" here, and the
+      // mark is what stops an empty queue reading as a broken one.
+      icon={<CheckCircle aria-hidden="true" />}
+      title={title}
+      body={body}
+      action={action}
+    />
+  );
 }
 
 /* ── error ───────────────────────────────────────────────────────────── */
@@ -432,6 +483,7 @@ export function LoadError({
   return (
     <Alert
       tone="danger"
+      icon={<WarningCircle aria-hidden="true" />}
       title={`${titled} would not load`}
       actions={
         onRetry ? (
@@ -449,7 +501,11 @@ export function LoadError({
 /** A write that failed. Separate from `LoadError` because the verb differs. */
 export function SaveError({ what, error }: { what: string; error: unknown }) {
   return (
-    <Alert tone="danger" title={`${what} was not saved`}>
+    <Alert
+      tone="danger"
+      icon={<WarningCircle aria-hidden="true" />}
+      title={`${what} was not saved`}
+    >
       {getApiErrorMessage(error)}
     </Alert>
   );

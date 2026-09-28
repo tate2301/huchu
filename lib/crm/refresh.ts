@@ -21,9 +21,9 @@ const DOCUMENT_KEYS: readonly unknown[][] = [
   ["crm-lead"],
   ["crm", "lead"],
   ["crm", "deal"],
+  // The lists and their boards, which live under the same prefixes.
   ["crm", "leads"],
   ["crm", "deals"],
-  ["crm", "board"],
   ["crm", "documents"],
   ["crm", "person"],
   ["crm", "company"],
@@ -45,7 +45,6 @@ const RECORD_KEYS: readonly unknown[][] = [
   ["crm", "deal"],
   ["crm", "leads"],
   ["crm", "deals"],
-  ["crm", "board"],
   ["crm", "person"],
   ["crm", "people"],
   ["crm", "company"],

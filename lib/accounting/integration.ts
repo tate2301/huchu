@@ -199,6 +199,10 @@ export async function retryPendingAccountingEvents(input: {
       deductionsAmount: event.deductionsAmount ?? undefined,
       allowancesAmount: event.allowancesAmount ?? undefined,
       currency: event.currency ?? undefined,
+      // Carried in the payload rather than as a column on the event: the
+      // dimension belongs to the source, not to the integration log, and only
+      // the sources that know a cost centre send one.
+      costCenterId: typeof payload?.costCenterId === "string" ? payload.costCenterId : undefined,
       invertDirection: payload?.invertDirection === true,
       actorRole: input.actorRole ?? undefined,
       periodOverrideReason: input.periodOverrideReason ?? undefined,

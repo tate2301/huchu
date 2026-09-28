@@ -5,8 +5,36 @@ export type DocumentMeta = {
   value: string;
 };
 
+/**
+ * What a column holds, which decides how each format writes it: a spreadsheet
+ * types the cell (a number sums, a date sorts), a PDF right-aligns figures
+ * and sets identifiers in mono.
+ */
+export type ListColumnKind =
+  | "text"
+  | "code"
+  | "email"
+  | "phone"
+  | "relation"
+  | "date"
+  | "datetime"
+  | "number"
+  | "money"
+  | "percent"
+  | "status"
+  | "boolean";
+
+export type ListColumn = { key: string; label: string; kind?: ListColumnKind };
+
+/**
+ * A table's worth of rows.
+ *
+ * Cell values are plain: strings, numbers, booleans, null. A `date` cell is a
+ * `YYYY-MM-DD` day and a `datetime` cell `YYYY-MM-DD HH:mm`, both already in
+ * the reader's time zone, so no renderer has to know which zone that was.
+ */
 export type ListPayload = {
-  columns?: Array<{ key: string; label: string }>;
+  columns?: ListColumn[];
   rows: Array<Record<string, unknown>>;
 };
 
@@ -50,6 +78,17 @@ export type DocumentBadge = {
   tone: DocumentBadgeTone;
 };
 
+export type DocumentLink = {
+  title: string;
+  description?: string | null;
+  url: string;
+};
+
+export type DocumentLinkBlock = {
+  heading: string;
+  items: DocumentLink[];
+};
+
 export type UniversalDocumentPayload = {
   title: string;
   subtitle?: string;
@@ -63,6 +102,12 @@ export type UniversalDocumentPayload = {
   badge?: DocumentBadge;
   /** Free-form notes / terms rendered after the line items. */
   notes?: string[];
+  /**
+   * Links the reader is asked to open — a brochure, a data sheet — printed
+   * last, under their own heading, with each address written out in full
+   * because paper cannot be clicked.
+   */
+  links?: DocumentLinkBlock;
   list?: ListPayload;
   record?: RecordPayload;
   dashboard?: DashboardPayload;
@@ -110,7 +155,16 @@ export type CompanyBrandingSnapshot = {
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;
+  /**
+   * A stack naming real families — never a `var()`. A document is rendered
+   * from a standalone HTML string with none of the app's CSS in scope, and an
+   * unresolved custom property invalidates the whole declaration.
+   */
   fontFamily?: string;
+  /** The webfont to fetch so the rendering container actually has that face. */
+  fontImportUrl?: string | null;
+  /** The monospace face figures are set in, matching the app. */
+  monoFontFamily?: string;
   documentLocale?: string | null;
   dateFormat?: string | null;
   timeFormat?: string | null;

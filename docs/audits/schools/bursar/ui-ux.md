@@ -1,6 +1,6 @@
 # Bursar dashboard: UI/UX audit
 
-Surface: `app/schools/finance/**` and their content components `components/schools/fees/{fees-grade-picker,class-fees-content,schools-fees-content,fee-dialogs,bulk-generate-invoices-dialog,copy-structure-dialog,fee-status}.tsx`, `components/schools/reports/reports-arrears-content.tsx`, plus the fee tabs of `documents/school-documents-content.tsx`. Audited from source and from `docs/screenshots/schools/fees/*`, `finance-desktop/*`, `finance-phone/*`, `visual-pass-*/01-class-fees.png`. Workflow companion: `workflows.md` in this folder.
+Surface: `app/schools/finance/**` and their content components `components/schools/fees/{fees-grade-picker,class-fees-content,schools-fees-content,fee-dialogs,bulk-generate-invoices-dialog,copy-structure-dialog,fee-status}.tsx`, `components/schools/reports/reports-arrears-content.tsx`, plus the fee tabs of `documents/school-documents-content.tsx`. Audited from source and from `docs/screenshots/schools/fees-*`, `finance-desktop-*`, `finance-phone-*`, `visual-pass-*-01-class-fees.png`. Workflow companion: `workflows.md` in this folder.
 
 Rules applied: `docs/ux/platform-ux-playbook.md`, `docs/design-system/{05-rules,08-cookbook-patterns,12-tables}.md`, `09-campus-canvas-law.md`, `10-campus-screen-contract.md`, `11-campus-states-and-motion.md`, `.impeccable.md`, `SPEC.md`. The rule digest is in `../reference/docs-baseline.md` §9 and `../reference/backoffice-ui-ux-evidence.md` §0.
 

@@ -1,12 +1,7 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, validateSession } from "@/lib/api-utils";
-import {
-  enqueueDocumentRenderJob,
-  processDocumentRenderJobsBatch,
-  renderDocumentSync,
-} from "@/lib/documents/service";
+import { ExportTooLargeError } from "@/lib/documents/service";
 import { hasFeature } from "@/lib/platform/features";
 import {
   isSchoolDocumentSourceKey,
@@ -17,6 +12,8 @@ import {
   HR_DOCUMENT_ACCESS,
   isHrDocumentSourceKey,
 } from "@/lib/documents/hr-sources";
+import { isCrmRegisterSourceKey } from "@/lib/documents/crm-register-sources";
+import { respondWithRender } from "@/lib/documents/render-response";
 import { isApproverRole } from "@/lib/workflow/approvals";
 import { canSchoolRoleDo } from "@/lib/schools/permissions";
 import {
@@ -26,12 +23,10 @@ import {
 import type { DocumentRenderRequest } from "@/lib/documents/service";
 
 export const runtime = "nodejs";
-
-function parseInlineBatchLimit() {
-  const configured = Number(process.env.PDF_INLINE_BATCH_LIMIT ?? 2);
-  if (!Number.isFinite(configured)) return 2;
-  return Math.max(1, Math.min(10, Math.floor(configured)));
-}
+// Rendering spins up Chromium. A cold start plus the render itself runs well
+// past the platform's default function budget, and the timeout surfaced as an
+// unexplained failure with nothing in the logs.
+export const maxDuration = 120;
 
 /**
  * Feature keys that may authorise an export source. A tenant needs only ONE of
@@ -67,7 +62,7 @@ function resolveFeatureKeys(sourceKey: string): string[] {
 const requestSchema = z.object({
   target: z.enum(["LIST", "RECORD", "DASHBOARD"]),
   sourceKey: z.string().min(1),
-  format: z.enum(["pdf", "csv"]).default("pdf"),
+  format: z.enum(["pdf", "csv", "xlsx"]).default("pdf"),
   mode: z.enum(["SYNC", "ASYNC"]).optional(),
   recordId: z.string().uuid().optional(),
   filters: z.record(z.string(), z.string()).optional(),
@@ -86,6 +81,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const input = requestSchema.parse(body);
     const typedInput = input as unknown as DocumentRenderRequest;
+
+    // A CRM list is exported from the list — `/api/v2/crm/registers/<list>/export`
+    // — where it is gated by the list's own page and written to the audit trail.
+    if (isCrmRegisterSourceKey(typedInput.sourceKey)) {
+      return errorResponse("Export a CRM list from the list itself", 400);
+    }
 
     const featureKeys = resolveFeatureKeys(typedInput.sourceKey);
     if (featureKeys.length > 0) {
@@ -153,38 +154,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const queued = await enqueueDocumentRenderJob(session.user.companyId, session.user.id, typedInput);
-    if (queued.mode === "ASYNC") {
-      const inlineLimit = parseInlineBatchLimit();
-      after(async () => {
-        try {
-          await processDocumentRenderJobsBatch(inlineLimit);
-        } catch (error) {
-          console.error("[API] inline async render dispatch error:", error);
-        }
-      });
-
-      return NextResponse.json({
-        mode: "ASYNC",
-        jobId: queued.jobId,
-        status: queued.status,
-        reused: queued.reused,
-      });
-    }
-
-    const rendered = await renderDocumentSync(session.user.companyId, typedInput);
-
-    const bodyBuffer = new Uint8Array(rendered.data);
-    return new Response(bodyBuffer, {
-      headers: {
-        "Content-Type": rendered.contentType,
-        "Content-Disposition": `attachment; filename="${rendered.fileName}"`,
-        "Cache-Control": "no-store",
-      },
-    });
+    return await respondWithRender(session.user, typedInput);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
+    }
+    if (error instanceof ExportTooLargeError) {
+      return errorResponse(error.message, error.status);
     }
 
     console.error("[API] POST /api/documents/render error:", error);

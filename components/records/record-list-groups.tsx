@@ -26,6 +26,12 @@ export type RecordListSection = {
   label: string;
   rows: RecordListRow[];
   /**
+   * How many the section holds in the whole list, when that is more than the
+   * rows here — a grouped list on its second page. The rows' own count
+   * otherwise.
+   */
+  count?: number;
+  /**
    * Render the section even with nothing in it. "Today — nothing yet" is
    * information; a missing Today section is just an absence you have to infer.
    */
@@ -195,11 +201,11 @@ export function GroupedRecordList({
               id={`${section.id}-heading`}
               // The bar is opaque so rows do not show through the heading as
               // they slide under it.
-              className="sticky top-14 z-10 -mx-1 flex items-baseline gap-2 bg-[var(--surface-base)] px-1 py-1.5 text-sm font-medium text-[var(--text-subtle)]"
+              className="sticky top-14 z-10 -mx-1 flex items-baseline gap-2 bg-[var(--canvas)] px-1 py-1.5 text-sm font-medium text-[var(--text-subtle)]"
             >
               <span>{section.label}</span>
               <span className="font-mono normal-case tracking-normal">
-                {section.rows.length}
+                {section.count ?? section.rows.length}
               </span>
             </h3>
 

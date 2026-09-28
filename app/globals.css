@@ -429,6 +429,7 @@
   .btn-label {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: inherit;
     min-width: 0;
   }
@@ -444,6 +445,9 @@
         the icon is both the first and the last *element*, and the auto margin
         shoved the icon and its label together against the right edge. A
         genuine trailing caret has a sibling element before it. */
+        .btn-label:where(:only-child) {
+            justify-content: center;
+        }
   .btn:where(.w-full) {
     justify-content: flex-start;
   }
@@ -1159,19 +1163,25 @@
       overflow: hidden;
       width: calc(100% + (var(--content-gutter-x) * 2));
       margin-inline: calc(var(--content-gutter-x) * -1);
+      /* Up over `main`'s lede as well: the record's toolbar is the first row
+         under the app bar, with no strip of page between them — and a shell
+         the height of the viewport that started 16px down scrolled `main` by
+         16px. */
+      margin-top: calc(var(--content-lede) * -1);
       max-width: none;
     }
   }
 
   /* `--stack-top` is "the next free offset in this scrollport".
-     Each band that pins reads it, then republishes it one band lower to its
-     own children. The bands compose without any of them knowing what is above:
-     a list toolbar on a page with a view switcher lands at 88, the same
-     toolbar on a page without one lands at 44, and neither page states a
-     number. This is what stops a column header hiding behind a toolbar the
-     next time a band is added or removed. */
+     Each strip that pins reads it, then republishes it one strip lower to its
+     own children. The strips compose without any of them knowing what is
+     above: a list toolbar under a view switcher lands at 44, the same toolbar
+     with nothing above it lands at 0, and neither page states a number. Pages
+     name themselves in the app bar, so the stack starts at the top of the
+     scrollport; a page that pins a band of its own (the schools state band)
+     sets the offset where it draws it. */
   .band-stack-content {
-    --stack-top: var(--page-band-h);
+    --stack-top: 0px;
   }
 
   /* frappe's ListView, made to pin.

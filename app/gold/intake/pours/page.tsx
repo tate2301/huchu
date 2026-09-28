@@ -10,7 +10,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ClientDate } from "@/components/ui/client-date";
 import { PourForm } from "@/components/gold/forms/pour-form";
 import { GoldShell } from "@/components/gold/gold-shell";
-import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

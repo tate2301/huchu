@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { FrappeChartShell } from "@/components/charts/frappe-chart-shell"
 import { FrappeStatCard } from "@/components/charts/frappe-stat-card"
 import { Card, CardContent } from "@/components/ui/card"
-import { PageHeading } from "@/components/layout/page-heading"
+import { PageChrome } from "@/components/layout/page-chrome"
 import { StatusState } from "@/components/shared/status-state"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -159,7 +159,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading title="Downtime Analytics" />
+      <PageChrome title="Downtime Analytics" />
 
       {(sitesError || analyticsError) && (
         <Alert variant="destructive">

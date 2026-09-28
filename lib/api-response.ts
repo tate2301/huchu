@@ -6,6 +6,7 @@
 // only shape responses should import from this module directly so their
 // compile closure stays at two modules instead of thirty-four.
 import { NextRequest, NextResponse } from 'next/server';
+import { markActivityFailed } from "@/lib/activity/context";
 import { serializeDecimals } from "@/lib/serialize-decimals";
 
 /**
@@ -16,6 +17,10 @@ export function errorResponse(
   status: number = 500,
   details?: unknown,
 ) {
+  // A request answered with an error did not do what it set out to; whatever
+  // it wrote on the way (usually inside a transaction that rolled back) is not
+  // activity anybody performed.
+  markActivityFailed();
   return NextResponse.json(
     {
       error: message,

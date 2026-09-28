@@ -10,11 +10,21 @@ import {
 import { prisma } from "@/lib/prisma"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
+import { departmentInclude, resolveDepartmentPlacement } from "@/lib/hr/departments"
 
+/**
+ * Head, cost centre and site are nullable everywhere — in the column, in the
+ * payload and here. `.nullish()` rather than `.optional()` is the difference
+ * between "leave it alone" and "clear it", and a combobox with a None option
+ * needs both.
+ */
 const departmentSchema = z.object({
   code: z.string().trim().min(1).max(40).optional(),
   name: z.string().trim().min(1).max(200),
   isActive: z.boolean().optional(),
+  headEmployeeId: z.string().uuid().nullish(),
+  costCenterId: z.string().uuid().nullish(),
+  siteId: z.string().uuid().nullish(),
 })
 
 export async function GET(request: NextRequest) {
@@ -43,9 +53,9 @@ export async function GET(request: NextRequest) {
     const [records, total] = await Promise.all([
       prisma.department.findMany({
         where,
-        include: {
-          _count: { select: { employees: true } },
-        },
+        // The register renders the selected row as the record rather than
+        // fetching it again, so the list carries the whole placement.
+        include: departmentInclude,
         orderBy: [{ isActive: "desc" }, { name: "asc" }],
         skip,
         take: limit,
@@ -79,13 +89,26 @@ export async function POST(request: NextRequest) {
           entity: "DEPARTMENT",
         })
 
+    const placement = await resolveDepartmentPlacement(session.user.companyId, {
+      ...(validated.headEmployeeId === undefined
+        ? {}
+        : { headEmployeeId: validated.headEmployeeId }),
+      ...(validated.costCenterId === undefined
+        ? {}
+        : { costCenterId: validated.costCenterId }),
+      ...(validated.siteId === undefined ? {} : { siteId: validated.siteId }),
+    })
+    if (!placement.ok) return errorResponse(placement.error, 400)
+
     const department = await prisma.department.create({
       data: {
         companyId: session.user.companyId,
         code,
         name: validated.name,
         isActive: validated.isActive ?? true,
+        ...placement.data,
       },
+      include: departmentInclude,
     })
 
     return successResponse(department, 201)

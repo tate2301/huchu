@@ -502,6 +502,11 @@
      cap it never chose. */
   --content-max: none;
   --rail-w: 184px;   /* was 220 — longest label in the app is "Public holidays" */
+  /* The app sidebar's second tier — the panel of links beside the 56px icon
+     rail — and every other column that should line up with it. A record's
+     section rail is one: it sits beside the app's panel, and two adjacent
+     navigation columns of different widths read as a mistake. */
+  --sidebar-panel-w: 224px;
 
   /* The app bar's height, and the padding `main` puts above and below a page.
      Named because any page that wants to fill the screen has to subtract them
@@ -516,6 +521,20 @@
      own edge, and 24px of padding above them meant each one floated with a
      gap the content then slid through. Bands own their vertical padding now. */
   --content-gutter-y: 0px;
+
+  /* The air between the app bar and the first thing on the page.
+     `--content-gutter-y` cannot supply it: padding on `main` moves the
+     scrollport's edge, and every sticky band pins to that edge — so a gutter
+     there lifts the bands off the bar and lets rows scroll through the gap
+     underneath them. That is the bug the zero above is holding down.
+
+     This is the other half of the same problem. The page was flush against
+     the bar: 48px of chrome, then a column header, with nothing between them,
+     so the bar read as part of the table. Bands own their vertical padding,
+     per the note above, so the padding goes INSIDE the first band — it scrolls
+     away with the content it belongs to, and the band still pins at the bar's
+     own edge because the padding is inside the sticky box, not above it. */
+  --content-lede:     16px;
   --content-viewport: calc(
     100dvh - var(--app-bar-h) - env(safe-area-inset-top, 0px)
       - (var(--content-gutter-y) * 2)
@@ -524,18 +543,18 @@
   --table-head-min-h: 32px;   /* was 40 — it is a label strip, not a row */
 
   /* The sticky stack.
-     Four bands pin in sequence and each offset is the sum of the ones above
-     it. Named because the alternative is a literal in every table: the first
-     time the app bar changes height, every column header in the app hides
-     behind a toolbar and nothing fails loudly. Read these, never re-type them.
+     The app bar sits outside the scrollport; inside it the page's strips pin
+     in sequence, each at the offset the one above publishes as `--stack-top`
+     (see `.band-stack-content`). Pages name themselves in the app bar, so no
+     band sits between the bar and the first toolbar:
 
-       app bar      top: 0                        h 48   z 40
-       page band    top: var(--app-bar-h)         h 44   z 30
-       list toolbar top: var(--band-stack-h)      h 44   z 20
-       table head   top: var(--sticky-stack-h)    h 32   z 10 */
+       app bar      outside the scrollport       h 48   z 40
+       toolbar      top: var(--stack-top) = 0    h 44   z 20
+       table head   top: var(--stack-top) = 44   h 32   z 10
+
+     `--page-band-h` is the height of the one band still drawn — the schools
+     state band on an overview dashboard. */
   --page-band-h:      44px;
-  --band-stack-h:     calc(var(--app-bar-h) + var(--page-band-h));
-  --sticky-stack-h:   calc(var(--band-stack-h) + var(--list-toolbar-h));
 
   /* The options row on a record list — the band holding the layout switch, the
      filters and the search. Named for the same reason the app bar is: it pins

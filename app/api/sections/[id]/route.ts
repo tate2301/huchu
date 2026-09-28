@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma"
 const updateSectionSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
+    // Nullish on both: `null` clears the code or detaches the section from its
+    // department, and omitting the key leaves it alone.
+    code: z.string().trim().min(1).max(40).nullish(),
     siteId: z.string().uuid().optional(),
+    departmentId: z.string().uuid().nullish(),
     isActive: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: "No fields provided" })
@@ -14,10 +18,13 @@ const updateSectionSchema = z
 const sectionSelect = {
   id: true,
   name: true,
+  code: true,
   siteId: true,
+  departmentId: true,
   isActive: true,
   _count: { select: { shiftReports: true } },
   site: { select: { name: true, code: true, companyId: true } },
+  department: { select: { id: true, code: true, name: true } },
 } as const
 
 export async function GET(
@@ -83,11 +90,28 @@ export async function PATCH(
       }
     }
 
+    // A department is company-scoped and the foreign key only asks that the row
+    // exists, so the tenancy check is this route's job rather than the
+    // constraint's — the same check `siteId` gets above.
+    if (validated.departmentId) {
+      const targetDepartment = await prisma.department.findFirst({
+        where: { id: validated.departmentId, companyId: session.user.companyId },
+        select: { id: true },
+      })
+      if (!targetDepartment) {
+        return errorResponse("Invalid department", 403)
+      }
+    }
+
     const section = await prisma.section.update({
       where: { id },
       data: {
         name: validated.name,
+        ...(validated.code === undefined ? {} : { code: validated.code }),
         siteId: validated.siteId,
+        ...(validated.departmentId === undefined
+          ? {}
+          : { departmentId: validated.departmentId }),
         isActive: validated.isActive,
       },
       select: sectionSelect,

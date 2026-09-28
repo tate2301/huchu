@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { SchoolsImportContent } from "@/components/schools/imports/schools-import-content";
 import { authOptions } from "@/lib/auth";
 
@@ -20,9 +20,8 @@ export default async function SchoolsImportPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading
+      <PageChrome
         title="Import records"
-        description="Bring pupils, parents, classes, fee structures and outstanding balances over from your old system."
       />
       <SchoolsImportContent />
     </div>

@@ -56,7 +56,7 @@ function reportTemplate(documentTitle: string): DocumentTemplateSchema {
   return mergeSchema({
     page: {
       orientation: "landscape",
-      marginMm: 8,
+      marginMm: 15,
     },
     table: {
       compact: true,
@@ -78,7 +78,7 @@ function recordTemplate(documentTitle: string): DocumentTemplateSchema {
   return mergeSchema({
     page: {
       orientation: "portrait",
-      marginMm: 10,
+      marginMm: 20,
     },
     table: {
       compact: false,
@@ -91,6 +91,12 @@ function recordTemplate(documentTitle: string): DocumentTemplateSchema {
       showFooterText: true,
       showDisclaimer: true,
       showPaymentDetails: true,
+      // A tenant who uploads a signature and a stamp has said what they want
+      // on their paper; leaving these off meant the assets were accepted,
+      // stored, and never printed. The renderer draws each only where the
+      // asset exists, so this turns nothing on for a tenant with none.
+      showSignature: true,
+      showStamp: true,
     },
   });
 }
@@ -104,7 +110,7 @@ function letterTemplate(documentTitle: string): DocumentTemplateSchema {
   return mergeSchema({
     page: {
       orientation: "portrait",
-      marginMm: 10,
+      marginMm: 20,
     },
     table: {
       compact: false,
@@ -159,7 +165,7 @@ export const DEFAULT_TEMPLATE_CATALOG: DefaultTemplateCatalogEntry[] = [
     schema: mergeSchema({
       page: {
         orientation: "portrait",
-        marginMm: 10,
+        marginMm: 20,
       },
       table: {
         compact: true,

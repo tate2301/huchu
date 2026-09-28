@@ -8,6 +8,7 @@ import {
 } from "@/lib/platform/branding";
 import { getCurrentAuthSession } from "@/lib/auth-core/guards";
 import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
+import type { IconPurpose } from "@/lib/platform/workspace-icon";
 
 export type WorkspaceIdentity = {
   companyId: string | null;
@@ -16,6 +17,8 @@ export type WorkspaceIdentity = {
   initial: string;
   backgroundColor: string;
   foregroundColor: string;
+  /** The branding logo, when the workspace has one. See `EffectiveBranding`. */
+  logoUrl: string | null;
   version: string;
   branding: EffectiveBranding;
 };
@@ -62,6 +65,7 @@ function buildVersionSeed(branding: EffectiveBranding, workspaceName: string) {
     primary: branding.colors.primary,
     secondary: branding.colors.secondary,
     accent: branding.colors.accent,
+    logoUrl: branding.logoUrl,
   });
 }
 
@@ -75,6 +79,7 @@ function toWorkspaceIdentity(branding: EffectiveBranding): WorkspaceIdentity {
     initial: deriveInitial(workspaceName),
     backgroundColor,
     foregroundColor: resolveForegroundColor(backgroundColor),
+    logoUrl: branding.logoUrl,
     version: createHash("sha1")
       .update(buildVersionSeed(branding, workspaceName))
       .digest("hex")
@@ -97,6 +102,11 @@ export async function resolveWorkspaceIdentityForHost(hostHeader?: string | null
   return toWorkspaceIdentity(branding);
 }
 
+/** A workspace's identity by its company, or the platform's without one. */
+export async function resolveWorkspaceIdentityForCompany(companyId: string | null) {
+  return toWorkspaceIdentity(await getEffectiveBrandingForCompany(companyId ?? ""));
+}
+
 export async function resolveWorkspaceIdentityFromRequestHeaders() {
   const requestHeaders = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
@@ -107,17 +117,20 @@ export function buildWorkspaceManifestHref(identity: WorkspaceIdentity) {
   return `/manifest.webmanifest?v=${encodeURIComponent(identity.version)}`;
 }
 
+/**
+ * The workspace's icon. Names the company rather than carrying its logo or
+ * colours, so the route draws from the branding it looks up itself and cannot
+ * be pointed at an address or made to draw somebody else's name. `v` changes
+ * with the branding, so a new logo is a new URL rather than a stale cache.
+ */
 export function buildWorkspaceIconHref(
   identity: WorkspaceIdentity,
-  options?: { size?: number; purpose?: "any" | "maskable" | "apple" },
+  options?: { size?: number; purpose?: IconPurpose },
 ) {
-  const params = new URLSearchParams({
-    initial: identity.initial,
-    name: identity.workspaceName,
-    bg: identity.backgroundColor,
-    fg: identity.foregroundColor,
-    v: identity.version,
-  });
+  const params = new URLSearchParams({ v: identity.version });
+  if (identity.companyId) {
+    params.set("c", identity.companyId);
+  }
 
   if (options?.size) {
     params.set("size", String(options.size));

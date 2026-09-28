@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { countOverrides, getUserPermissionCatalog } from "@/lib/platform/permission-catalog";
+import { findLastSignInAt } from "@/lib/auth-core/last-sign-in";
 
 import {
   appendUserManagementEvent,
@@ -45,6 +46,7 @@ export async function GET(
         companyId: true,
         createdAt: true,
         updatedAt: true,
+        passwordChangedAt: true,
         phone: true,
         image: true,
       },
@@ -54,13 +56,18 @@ export async function GET(
       return errorResponse("User not found for this organization.", 404);
     }
 
-    const groups = canManageUserPermissions(session)
-      ? await getUserPermissionCatalog({
-          companyId: session.user.companyId,
-          userId: user.id,
-          role: user.role,
-        })
-      : [];
+    // The permission catalogue and the sign-in read do not depend on each
+    // other, so they go out together rather than one after the other.
+    const [groups, lastSignInAt] = await Promise.all([
+      canManageUserPermissions(session)
+        ? getUserPermissionCatalog({
+            companyId: session.user.companyId,
+            userId: user.id,
+            role: user.role,
+          })
+        : Promise.resolve([]),
+      findLastSignInAt({ companyId: session.user.companyId, email: user.email }),
+    ]);
 
     return successResponse({
       user: {
@@ -71,6 +78,13 @@ export async function GET(
         isActive: user.isActive,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
+        // Last **sign-in**, not last seen: a session outlives the moment it was
+        // opened and nothing records the difference. Null means this account
+        // has never signed in, which is a fact worth drawing rather than a gap.
+        lastSignInAt: lastSignInAt ? lastSignInAt.toISOString() : null,
+        passwordChangedAt: user.passwordChangedAt
+          ? user.passwordChangedAt.toISOString()
+          : null,
         phone: user.phone,
         image: user.image,
       },

@@ -207,6 +207,8 @@ export const CalendarIcon = createPhosphorIcon(
   "CalendarIcon",
 );
 export const Camera = createPhosphorIcon("VideoCamera", "Camera");
+/** A still camera — taking a photo, as opposed to `Camera`'s video feed. */
+export const PhotoCamera = createPhosphorIcon("Camera", "PhotoCamera");
 export const ChartLine = createPhosphorIcon("ChartLineUp", "ChartLine");
 export const Check = createPhosphorIcon("Check", "Check");
 export const CheckCircle = createPhosphorIcon("CheckCircle", "CheckCircle");
@@ -414,6 +416,9 @@ export const Storefront = createPhosphorIcon("Storefront", "Storefront");
 export const Kanban = createPhosphorIcon("Kanban", "Kanban");
 export const ListBullets = createPhosphorIcon("ListBullets", "ListBullets");
 export const SortAscending = createPhosphorIcon("ArrowsDownUp", "SortAscending");
+export const GripVertical = createPhosphorIcon("DotsSixVertical", "GripVertical");
+export const Columns = createPhosphorIcon("Columns", "Columns");
+export const Rows = createPhosphorIcon("Rows", "Rows");
 export const TableRows = createPhosphorIcon("Rows", "TableRows");
 /* Where an enquiry came from, on a record's "Source" property. */
 export const Tag = createPhosphorIcon("Tag", "Tag");
@@ -489,3 +494,88 @@ export const Paperclip = createPhosphorIcon("Paperclip", "Paperclip");
 export const At = createPhosphorIcon("At", "At");
 export const FlowArrow = createPhosphorIcon("FlowArrow", "FlowArrow");
 export const Archive = createPhosphorIcon("Archive", "Archive");
+
+/**
+ * Marks for the school verbs.
+ *
+ * Added for `lib/schools/action-icons.ts`, which pairs every `SchoolAction`
+ * with one of these so a verb wears the same mark on every screen. The names
+ * are Phosphor's, not the verb's — `Prohibit` is what voiding looks like, and
+ * calling the export `Void` would hide which glyph you are getting.
+ */
+export const ArrowUDownLeft = createPhosphorIcon("ArrowUDownLeft", "ArrowUDownLeft");
+export const ArrowBendUpLeft = createPhosphorIcon("ArrowBendUpLeft", "ArrowBendUpLeft");
+export const ArrowLineDown = createPhosphorIcon("ArrowLineDown", "ArrowLineDown");
+export const ArrowLineUp = createPhosphorIcon("ArrowLineUp", "ArrowLineUp");
+export const Money = createPhosphorIcon("Money", "Money");
+export const Prohibit = createPhosphorIcon("Prohibit", "Prohibit");
+export const GearSix = createPhosphorIcon("GearSix", "GearSix");
+export const CalendarPlus = createPhosphorIcon("CalendarPlus", "CalendarPlus");
+
+/**
+ * Marks for the record states — see `components/records/states.tsx`.
+ *
+ * A tray for "nothing has been put here", a warning circle for "something
+ * broke". The funnel and the tick are already exported above.
+ */
+export const Tray = createPhosphorIcon("Tray", "Tray");
+export const WarningCircle = createPhosphorIcon("WarningCircle", "WarningCircle");
+
+/**
+ * Marks for the conduct, exams and leavers verbs, which arrived with the
+ * schools expansion after the first pass of `action-icons.tsx`.
+ */
+export const ListChecks = createPhosphorIcon("ListChecks", "ListChecks");
+export const NotePencil = createPhosphorIcon("NotePencil", "NotePencil");
+export const NoteBlank = createPhosphorIcon("NoteBlank", "NoteBlank");
+
+/**
+ * The warning triangle, for `components/schools/common/status-badge.tsx`.
+ * Distinct from `WarningCircle`, which the error states use: the triangle says
+ * "look at this", the circle says "this broke".
+ */
+export const Warning = createPhosphorIcon("Warning", "Warning");
+
+/**
+ * The marks the workspace rail navigates by.
+ *
+ * A tier-one icon is the only thing standing for its area — there is no label
+ * beside it — so each one has to be read at 17px by somebody who has not been
+ * told what it means. That rules out the generic set: a bar chart cannot mean
+ * Results when it already means Insights, and a warning triangle cannot mean
+ * Conduct when it also means an overdue invoice two rows below. These are the
+ * specific ones. Where a mark is claimed by an area, nothing else in the same
+ * column may use it — see `AREA_ICONS` in `lib/rail/areas.ts`.
+ */
+export const Sun = createPhosphorIcon("Sun", "Sun");
+export const UsersThree = createPhosphorIcon("UsersThree", "UsersThree");
+export const Bed = createPhosphorIcon("Bed", "Bed");
+export const IdentificationCard = createPhosphorIcon(
+  "IdentificationCard",
+  "IdentificationCard",
+);
+export const TrayArrowDown = createPhosphorIcon(
+  "TrayArrowDown",
+  "TrayArrowDown",
+);
+export const ClipboardText = createPhosphorIcon(
+  "ClipboardText",
+  "ClipboardText",
+);
+export const Lightning = createPhosphorIcon("Lightning", "Lightning");
+export const ChartLineUp = createPhosphorIcon("ChartLineUp", "ChartLineUp");
+export const CashRegister = createPhosphorIcon("CashRegister", "CashRegister");
+export const Drop = createPhosphorIcon("Drop", "Drop");
+export const MagnifyingGlass = createPhosphorIcon(
+  "MagnifyingGlass",
+  "MagnifyingGlass",
+);
+export const SidebarSimple = createPhosphorIcon("SidebarSimple", "SidebarSimple");
+export const CaretLeft = createPhosphorIcon("CaretLeft", "CaretLeft");
+
+// The form builder's question types and its row controls.
+export const TextT = createPhosphorIcon("TextT", "TextT");
+export const TextAlignLeft = createPhosphorIcon("TextAlignLeft", "TextAlignLeft");
+export const Hash = createPhosphorIcon("Hash", "Hash");
+export const CopySimple = createPhosphorIcon("CopySimple", "CopySimple");
+export const DotsSixVertical = createPhosphorIcon("DotsSixVertical", "DotsSixVertical");

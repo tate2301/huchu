@@ -128,6 +128,11 @@ export async function GET(request: NextRequest) {
     const type = TYPES.find((value) => value === requestedType);
     const q = searchParams.get("q")?.trim();
 
+    // Invoices still owed on — what cash collected in the field can be
+    // logged against. Issued, because a draft has not been sent to anybody
+    // and a paid or voided one is owed nothing.
+    const outstanding = searchParams.get("outstanding") === "true";
+
     const clientId = searchParams.get("clientId")?.trim();
     const ownerId = searchParams.get("ownerId")?.trim();
     const recordFilters: Prisma.CrmLeadDocumentWhereInput[] = [];
@@ -141,6 +146,7 @@ export async function GET(request: NextRequest) {
         OR: [{ lead: { assignedToId: ownerId } }, { deal: { assignedToId: ownerId } }],
       });
     }
+    if (outstanding) recordFilters.push({ invoice: { status: "ISSUED" } });
 
     const where: Prisma.CrmLeadDocumentWhereInput = {
       companyId: session.user.companyId,

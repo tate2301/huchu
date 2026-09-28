@@ -3,24 +3,31 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Input, Button } from '@corelithzw/react';
 
 import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 import {
   AlertCircle,
   Eye,
   EyeOff,
-  Hexagon,
   Lock,
   Mail,
 } from "@/lib/icons";
+import { EmailCodeSignIn } from "./email-code-sign-in";
 import { Checkbox } from "../ui/checkbox";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
+
+type SignInMethod = "password" | "code";
 
 type LoginFormProps = {
   companyLabel: string;
   productLabel?: string;
   callbackUrl?: string;
   rememberMeEnabled?: boolean;
+  /** Whether signing in with an emailed code is offered here at all. */
+  codeSignInEnabled?: boolean;
+  /** Which way in the form opens on. A workspace that signed up without passwords opens on the code. */
+  defaultMethod?: SignInMethod;
 };
 
 type AuthErrorPayload = {
@@ -76,8 +83,11 @@ export function LoginForm({
   productLabel,
   callbackUrl,
   rememberMeEnabled = true,
+  codeSignInEnabled = false,
+  defaultMethod = "password",
 }: LoginFormProps) {
   const router = useRouter();
+  const [method, setMethod] = useState<SignInMethod>(codeSignInEnabled ? defaultMethod : "password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -167,6 +177,9 @@ export function LoginForm({
               </div>
             ) : null}
 
+            {method === "code" ? (
+              <EmailCodeSignIn callbackUrl={resolvedCallbackUrl} rememberMeEnabled={rememberMeEnabled} />
+            ) : (
             <form onSubmit={handleSubmit} className="grid gap-3.5">
               <div className="grid gap-1.5">
                 <label
@@ -176,10 +189,12 @@ export function LoginForm({
                   Work email
                 </label>
                 <div className="relative">
-
+                  <Mail
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]"
+                  />
                   <Input
                     id="login-email"
-                    leadingIcon={<Mail className="size-4" />}
                     type="email"
                     autoComplete="email"
                     placeholder={`you@${companyLabel
@@ -211,9 +226,11 @@ export function LoginForm({
                   </a>
                 </div>
                 <div className="relative">
-
+                  <Lock
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]"
+                  />
                   <Input
-                    leadingIcon={<Lock className="size-4" />}
                     id="login-password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
@@ -261,12 +278,23 @@ export function LoginForm({
               <Button
                 type="submit"
                 variant={"primary"}
-                className="mt-3 h-11 w-full text-[15px]"
+                className="mt-3 h-11 w-full "
                 disabled={loading}
               >
-                {loading ? "Signing in…" : "Sign in"}
+                {loading ? "Signing in…" : "Sign in to your account"}
               </Button>
             </form>
+            )}
+
+            {codeSignInEnabled ? (
+              <button
+                type="button"
+                onClick={() => setMethod(method === "code" ? "password" : "code")}
+                className="mt-4 w-full text-center text-sm font-medium text-[var(--text-link)] underline"
+              >
+                {method === "code" ? "Sign in with a password instead" : "Email me a code instead"}
+              </button>
+            ) : null}
 
             <p className="mt-6 text-center text-xs text-[var(--text-muted)]">
               By continuing you agree to the{" "}

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Badge, StatCard } from "@corelithzw/react";
+import { StatCard } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { TableControls } from "@/components/records/table-controls";

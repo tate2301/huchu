@@ -62,7 +62,13 @@ export function useJobsTab({
    * company back out — so a job raised from a deal and given nothing else is
    * invisible on that deal's own customer.
    */
-  links?: { dealId?: string | null; clientId?: string | null; siteId?: string | null };
+  links?: {
+    dealId?: string | null;
+    clientId?: string | null;
+    siteId?: string | null;
+    /** The project a job raised here belongs to — a deal's own, once started. */
+    project?: { id: string; label: string } | null;
+  };
   /** Open this section — the raised job is in it, and nowhere else on the page. */
   onRaised?: () => void;
 }): JobsTab {
@@ -93,6 +99,7 @@ export function useJobsTab({
       dealId={ref.kind === "deal" ? ref.id : (links?.dealId ?? null)}
       clientId={ref.kind === "company" ? ref.id : (links?.clientId ?? null)}
       siteId={ref.kind === "site" ? ref.id : (links?.siteId ?? null)}
+      project={links?.project ?? null}
       defaultTitle={defaultTitle}
       quotationDocuments={quotationDocuments}
       currentUserId={currentUserId}
@@ -116,7 +123,7 @@ export function useJobsTab({
         ) : jobs.length === 0 ? (
           <EmptyState
             title="No work has been raised here"
-            body="A job is what a won deal turns into — the checklist, the crew, the address and the sign-off."
+            body="A job is one piece of the work — the checklist, the crew, the address and the sign-off."
             action={
               <Button size="sm" onClick={() => setRaiseOpen(true)}>
                 <Plus className="size-4" aria-hidden="true" />

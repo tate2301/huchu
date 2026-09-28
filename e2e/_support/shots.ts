@@ -10,7 +10,20 @@ import type { Page } from "@playwright/test";
  * **They must land in one place.** Before this, four specs wrote to four
  * different roots — `/tmp/shots` twice, `docs/retail/screenshots`, and
  * `docs/retail/screenshots/workflows`. Two of those do not survive a reboot.
- * Everything now goes to `docs/screenshots/<vertical>/<journey>/NN-name.png`.
+ * Everything now goes to `docs/screenshots/<vertical>/<journey>-NN-name.png`.
+ *
+ * One folder per vertical, with the journey folded into the filename rather than
+ * standing as a directory of its own. Journeys are the unit a spec writes, not
+ * the unit anyone reads: picking stills for a deck means scanning one folder of
+ * 172 school images, and it used to mean opening 40 directories of one or two
+ * files each. The journey still prefixes every name, so the set sorts by journey
+ * and `admissions-desktop-*` is as selectable as the directory was.
+ *
+ * The prefix has to come from here and not from each spec, because the same
+ * filename appears in journey after journey — `01-attendance.png` was in six of
+ * them — so a flat folder is only unambiguous while every writer applies the
+ * same rule. `shotPath` exists for the three specs that need `fullPage` and so
+ * cannot go through `shooter`.
  *
  * **They must be reproducible.** A screenshot that differs run to run cannot be
  * reviewed, only re-taken. `settle()` waits the page out; `freeze()` stops the
@@ -66,18 +79,43 @@ export async function settle(page: Page, ms: number = SETTLE_MS): Promise<void> 
   await page.waitForTimeout(ms);
 }
 
+/**
+ * Where one screenshot goes: `<root>/<vertical>/<journey>-<name>.png`.
+ *
+ * The single place that knows the layout. `shooter` numbers its steps and calls
+ * through to here; `crm-shots`, `record-shots` and `hr-payroll-shots` build
+ * their own names — they pass `fullPage`, which `shooter` does not — and call it
+ * directly, so all four produce the same shape and a rename here moves the whole
+ * set at once.
+ */
+export function shotPath(vertical: string, journey: string, name: string): string {
+  return `${ROOT}/${vertical}/${journey}-${name}.png`;
+}
+
 export type Shooter = {
   /** Photograph the current page as the next numbered step. */
   (page: Page, name: string): Promise<string>;
-  /** Where this shooter is writing, for a log line. */
+  /** The folder this shooter is writing into, for a log line. */
   dir: string;
+  /**
+   * A path in this journey for a shot this shooter cannot take itself.
+   *
+   * `schools-import-shots` photographs an *element* — the dry-run report sits in
+   * the shell's scroll container, so a viewport shot stops above the table that
+   * is the point of the screen — and Playwright's element screenshot does not go
+   * through `shot()`. It used to build `${shot.dir}/04-rejections.png` by hand,
+   * which was right while `dir` was the journey's own directory and silently
+   * wrong the moment the journey became a filename prefix. Going through here
+   * means there is no path in the suite that the layout rule does not reach.
+   */
+  file: (name: string) => string;
 };
 
 /**
  * A numbered camera for one journey.
  *
  *   const shot = shooter("retail", "trading-day")
- *   await shot(page, "till-open")     // …/retail/trading-day/01-till-open.png
+ *   await shot(page, "till-open")     // …/retail/trading-day-01-till-open.png
  *
  * The counter is per-shooter and not module-global on purpose: Playwright gives
  * each test its own module scope, so one shared counter restarts at 1 in the
@@ -85,12 +123,12 @@ export type Shooter = {
  * was live in `retail-workflows.spec.ts` until it grew a per-test prefix.
  */
 export function shooter(vertical: string, journey: string): Shooter {
-  const dir = `${ROOT}/${vertical}/${journey}`;
+  const dir = `${ROOT}/${vertical}`;
   let step = 0;
 
   const shot = async (page: Page, name: string): Promise<string> => {
     step += 1;
-    const path = `${dir}/${String(step).padStart(2, "0")}-${name}.png`;
+    const path = shotPath(vertical, journey, `${String(step).padStart(2, "0")}-${name}`);
     await freeze(page);
     await settle(page);
     await page.screenshot({ path, fullPage: false });
@@ -98,6 +136,7 @@ export function shooter(vertical: string, journey: string): Shooter {
   };
 
   shot.dir = dir;
+  shot.file = (name: string) => shotPath(vertical, journey, name);
   return shot as Shooter;
 }
 

@@ -14,11 +14,11 @@ import { cn } from "@/lib/utils";
  * The lifecycle a journal actually has.
  *
  * `JournalEntryRecord.status` is still typed DRAFT | POSTED in lib/api.ts, but
- * the schema's JournalStatus enum has four states and the reverse endpoint
- * writes the third of them — reversing a posted entry leaves it REVERSED. Read
- * through this type, a reversed journal is drawn as itself; read through the
- * narrower one it came back as "not posted", which is to say as a draft.
- * Widening the shared record type belongs in lib/api.ts, not here.
+ * the schema's JournalStatus enum has four states. Reversed is read off
+ * `reversedAt`: a reversal leaves the original POSTED — every ledger report
+ * counts POSTED entries, and the original and its mirror have to cancel there
+ * (see lib/accounting/journals.ts). Entries reversed before that change still
+ * carry status REVERSED, and read the same.
  */
 export type JournalStatus = "DRAFT" | "POSTED" | "REVERSED" | "VOIDED";
 
@@ -43,7 +43,7 @@ export const journalStatusTone: Record<JournalStatus, "warn" | "ok" | "mute" | "
 };
 
 export const journalStatusOf = (entry: JournalEntryRecord): JournalStatus =>
-  entry.status as JournalStatus;
+  entry.reversedAt ? "REVERSED" : (entry.status as JournalStatus);
 
 /**
  * One journal entry, opened.

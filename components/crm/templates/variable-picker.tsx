@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Search } from "@/lib/icons";
+import { Plus, Search } from "@/lib/icons";
 import { groupedVariables } from "@/lib/crm/template-variables";
+
+import styles from "./builder.module.css";
 
 /**
  * The list of things a template can fill in, and a way to put one in.
@@ -42,9 +43,12 @@ export function VariablePicker({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" className="text-[var(--text-muted)]">
+        {/* The inspector's own 32px rung, not the DS's 36px one — beside a
+            field label at 12px a 36px button reads as the page's verb. */}
+        <button type="button" className={styles.btn}>
+          <Plus aria-hidden="true" />
           {label}
-        </Button>
+        </button>
       </PopoverTrigger>
 
       <PopoverContent align="start" className="w-80 p-0">
@@ -65,19 +69,17 @@ export function VariablePicker({
         <div className="max-h-80 overflow-y-auto p-1">
           {groups.map((group) => (
             <section key={group.group}>
-              <p className="px-2 pb-0.5 pt-2 text-sm font-medium text-[var(--text-subtle)]">
-                {group.label}
-              </p>
+              <p className={styles.pickerGroup}>{group.label}</p>
               <ul>
                 {group.entries.map((entry) => (
                   <li key={entry.key}>
                     <button
                       type="button"
                       onClick={() => onPick(`{{${entry.key}}}`)}
-                      className="flex w-full flex-col items-start rounded-[var(--radius-sm)] px-2 py-1.5 text-left hover:bg-[var(--surface-subtle)]"
+                      className={styles.pickerItem}
                     >
-                      <span className="text-sm">{entry.label}</span>
-                      <span className="font-mono text-sm text-[var(--text-muted)]">
+                      <span className={styles.pickerLabel}>{entry.label}</span>
+                      <span className={styles.pickerKey}>
                         {`{{${entry.key}}}`} · {entry.example}
                       </span>
                     </button>
@@ -88,9 +90,7 @@ export function VariablePicker({
           ))}
 
           {groups.length === 0 ? (
-            <p className="px-2 py-4 text-center text-sm text-[var(--text-muted)]">
-              Nothing matches that.
-            </p>
+            <p className={styles.pickerEmpty}>Nothing matches that.</p>
           ) : null}
         </div>
       </PopoverContent>

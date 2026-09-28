@@ -4,12 +4,12 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { Alert } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Block } from "@/lib/crm/blocks";
 import { sampleValues } from "@/lib/crm/template-variables";
 
 import { BlockRenderer } from "./block-renderer";
+import styles from "./public-form.module.css";
 
 type PublicForm = {
   name: string;
@@ -58,19 +58,23 @@ export function PublicTemplateForm({ token }: { token: string }) {
 
   if (formQuery.isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 p-6">
-        <Skeleton className="h-8 w-2/3" />
-        <Skeleton className="h-64 w-full" />
+      <div className={styles.page}>
+        <div className={styles.sheet}>
+          <Skeleton className="h-7 w-2/3" />
+          <Skeleton className="mt-5 h-64 w-full" />
+        </div>
       </div>
     );
   }
 
   if (formQuery.error || !formQuery.data) {
     return (
-      <div className="mx-auto max-w-2xl p-6">
-        <Alert tone="danger" title="This form is not available">
-          The link may have expired, or the form may have been taken down.
-        </Alert>
+      <div className={styles.page}>
+        <div className={styles.sheet}>
+          <Alert tone="danger" title="This form is not available">
+            The link may have expired, or the form may have been taken down.
+          </Alert>
+        </div>
       </div>
     );
   }
@@ -79,59 +83,69 @@ export function PublicTemplateForm({ token }: { token: string }) {
 
   if (done) {
     return (
-      <div className="mx-auto max-w-2xl p-6">
-        <Alert tone="success" title="Thank you">
-          {form.companyName} has your answers and will be in touch.
-        </Alert>
+      <div className={styles.page}>
+        <div className={styles.sheet}>
+          <Alert tone="success" title="Thank you">
+            {form.companyName} has your answers and will be in touch.
+          </Alert>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 p-6">
-      <header className="space-y-1">
-        <p className="text-sm text-[var(--text-muted)]">{form.companyName}</p>
-        <h1 className="text-xl font-semibold">
-          {form.attributes?.emoji ? <span className="mr-2">{form.attributes.emoji}</span> : null}
+    <div className={styles.page}>
+      <div className={styles.sheet}>
+        {/* Whose form this is, then what it is called. Rule 4: no third line
+            of prose explaining the form to the person already reading it. */}
+        <p className={styles.company}>{form.companyName}</p>
+        <h1 className={styles.title}>
+          {form.attributes?.emoji ? (
+            <span className={styles.emoji} aria-hidden="true">
+              {form.attributes.emoji}
+            </span>
+          ) : null}
           {form.name}
         </h1>
-        {form.attributes?.description ? (
-          <p className="text-sm text-[var(--text-muted)]">{form.attributes.description}</p>
+
+        {error ? (
+          <div className={styles.alert}>
+            <Alert tone="danger" title="Not sent">
+              {error}
+            </Alert>
+          </div>
         ) : null}
-      </header>
 
-      {error ? (
-        <Alert tone="danger" title="Not sent">
-          {error}
-        </Alert>
-      ) : null}
-
-      <form
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError(null);
-          submit.mutate();
-        }}
-      >
-        <BlockRenderer
-          blocks={form.blocks}
-          context={{
-            mode: "fill",
-            // Variables in a public form's prose still resolve — the company's
-            // own details are the ones that appear, and they are not secret.
-            values: sampleValues(),
-            answers,
-            onAnswer: (key, value) =>
-              setAnswers((current) => ({ ...current, [key]: value })),
-            uploadUrl: `/api/public/crm/template/${token}/upload`,
+        <form
+          className={styles.form}
+          onSubmit={(event) => {
+            event.preventDefault();
+            setError(null);
+            submit.mutate();
           }}
-        />
+        >
+          <BlockRenderer
+            blocks={form.blocks}
+            context={{
+              mode: "fill",
+              // Variables in a public form's prose still resolve — the
+              // company's own details are the ones that appear, and they are
+              // not secret.
+              values: sampleValues(),
+              answers,
+              onAnswer: (key, value) =>
+                setAnswers((current) => ({ ...current, [key]: value })),
+              uploadUrl: `/api/public/crm/template/${token}/upload`,
+            }}
+          />
 
-        <Button type="submit" disabled={submit.isPending}>
-          {submit.isPending ? "Sending…" : "Send"}
-        </Button>
-      </form>
+          <div className={styles.foot}>
+            <button type="submit" className={styles.send} disabled={submit.isPending}>
+              {submit.isPending ? "Sending…" : "Send"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

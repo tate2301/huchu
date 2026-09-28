@@ -321,13 +321,15 @@ async function main() {
       publicToken: "demo-crm-intake-request-a-quote",
       headline: "Tell us what you need",
       description: "We answer within one working day.",
-      fields: [
-        { key: "name", label: "Your name", fieldType: "text", required: true },
-        { key: "email", label: "Email", fieldType: "email", required: true },
-        { key: "phone", label: "Phone", fieldType: "phone", required: false },
-        { key: "brief", label: "What do you need done?", fieldType: "longText", required: true },
+      // Name, email and phone are asked by every intake form already; asking
+      // them here too drew each of them twice.
+      fields: [{ key: "brief", label: "What do you need done?", type: "longText", required: true }],
+      services: [
+        { id: "branding", label: "Branding" },
+        { id: "print", label: "Print" },
+        { id: "signage", label: "Signage" },
+        { id: "web", label: "Web" },
       ],
-      services: ["Branding", "Print", "Signage", "Web"],
       successMessage: "Thank you — we will come back to you within a day.",
       defaultAssigneeId: assignedToId,
       createdById: assignedToId,
@@ -426,6 +428,7 @@ async function main() {
   const workOrders = [
     {
       no: "CRMW-0001",
+      deal: 0,
       title: "Install shopfront signage — Borrowdale",
       status: "SCHEDULED" as const,
       site: 0,
@@ -435,6 +438,7 @@ async function main() {
     },
     {
       no: "CRMW-0002",
+      deal: 2,
       title: "Depot yard re-branding",
       status: "IN_PROGRESS" as const,
       site: 3,
@@ -444,6 +448,7 @@ async function main() {
     },
     {
       no: "CRMW-0003",
+      deal: 3,
       title: "Block C wayfinding survey",
       status: "COMPLETED" as const,
       site: 4,
@@ -456,13 +461,15 @@ async function main() {
   for (const spec of workOrders) {
     const order = await prisma.crmWorkOrder.upsert({
       where: { companyId_workOrderNo: { companyId: company.id, workOrderNo: spec.no } },
-      update: { title: spec.title, status: spec.status },
+      // Every job delivers a deal — the one it is invoiced against.
+      update: { title: spec.title, status: spec.status, dealId: deals[spec.deal].id },
       create: {
         companyId: company.id,
         workOrderNo: spec.no,
         title: spec.title,
         status: spec.status,
         priority: "NORMAL",
+        dealId: deals[spec.deal].id,
         clientId: clients[spec.client].id,
         siteId: sites[spec.site].id,
         scheduledStart: days(spec.start),

@@ -56,7 +56,7 @@ import { settle, shooter, VIEWPORT } from "./_support/shots";
  * product in the demo tenant. Both are harmless and both persist.
  *
  * Screenshots land where every other harness suite's do —
- * `docs/screenshots/retail/shelf-photo/` — rather than the old
+ * `docs/screenshots/retail/shelf-photo-*` — rather than the old
  * `docs/retail/screenshots/workflows`. See the note in `_support/shots.ts` on
  * why there is one root.
  */

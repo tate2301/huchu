@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import type { ExportTargetType, UniversalDocumentPayload } from "@/lib/documents/types";
+import {
+  DOCUMENT_RESOURCES_SELECT,
+  documentResourceLinks,
+  resourcesHeading,
+} from "@/lib/crm/resources";
+import type {
+  DocumentLinkBlock,
+  ExportTargetType,
+  UniversalDocumentPayload,
+} from "@/lib/documents/types";
 import {
   isSchoolDocumentSourceKey,
   resolveSchoolDocument,
@@ -9,12 +18,38 @@ import {
   isHrDocumentSourceKey,
   resolveHrDocumentSource,
 } from "@/lib/documents/hr-sources";
+import {
+  isCrmRegisterSourceKey,
+  resolveCrmRegisterSource,
+  summarizeCrmRegisterSource,
+} from "@/lib/documents/crm-register-sources";
+
+const LIST_COLUMN_KINDS = [
+  "text",
+  "code",
+  "email",
+  "phone",
+  "relation",
+  "date",
+  "datetime",
+  "number",
+  "money",
+  "percent",
+  "status",
+  "boolean",
+] as const;
 
 const sourceInputSchema = z.object({
   target: z.enum(["LIST", "RECORD", "DASHBOARD"]),
   sourceKey: z.string().min(1),
   recordId: z.string().uuid().optional(),
   filters: z.record(z.string(), z.string()).optional(),
+  /** A list export narrowed to these records — the rows somebody ticked. */
+  ids: z.array(z.string().uuid()).min(1).max(500).optional(),
+  /** A list export's columns, in order. Absent: the list's own choice. */
+  columns: z.array(z.string().trim().min(1).max(80)).min(1).max(80).optional(),
+  /** What the export is called — the view it was taken from. */
+  title: z.string().trim().min(1).max(200).optional(),
   payload: z
     .object({
       title: z.string().min(1),
@@ -23,7 +58,15 @@ const sourceInputSchema = z.object({
       meta: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
       list: z
         .object({
-          columns: z.array(z.object({ key: z.string(), label: z.string() })).optional(),
+          columns: z
+            .array(
+              z.object({
+                key: z.string(),
+                label: z.string(),
+                kind: z.enum(LIST_COLUMN_KINDS).optional(),
+              }),
+            )
+            .optional(),
           rows: z.array(z.record(z.string(), z.unknown())),
         })
         .optional(),
@@ -56,6 +99,19 @@ const sourceInputSchema = z.object({
 });
 
 export type SourceResolutionInput = z.infer<typeof sourceInputSchema>;
+
+/**
+ * Who the document is being made for. A record's own paper — an invoice, a
+ * payslip — does not depend on it; a list export does, because a list is
+ * whatever its reader is allowed to see.
+ */
+export type SourceContext = { actorId: string | null };
+
+export type SourceSummary = Pick<SourceResolution, "targetType" | "documentType" | "sourceKey"> & {
+  rowCount: number;
+  /** What the rows are, for the sentence that refuses an export too big to make. */
+  noun?: { one: string; many: string };
+};
 
 export type SourceResolution = {
   targetType: ExportTargetType;
@@ -137,12 +193,28 @@ function applyDateFilter(dateField: string, filters: Record<string, string> | un
   return { [dateField]: dateFilter };
 }
 
+/**
+ * The resources a CRM document offered, as the block the PDF prints last.
+ *
+ * An invoice or quotation raised in Accounting has no CRM document behind it
+ * and prints no block. One raised from a deal has exactly one — the unique
+ * `(companyId, invoiceId)` on `CrmLeadDocument` — so the first is the only.
+ */
+function crmResourceBlock(
+  documentType: "QUOTATION" | "INVOICE",
+  crmDocuments: Array<{ resources: Parameters<typeof documentResourceLinks>[0] }>,
+): DocumentLinkBlock | undefined {
+  const items = documentResourceLinks(crmDocuments[0]?.resources ?? []);
+  return items.length > 0 ? { heading: resourcesHeading(documentType), items } : undefined;
+}
+
 async function resolveInvoice(companyId: string, recordId: string): Promise<SourceResolution> {
   const invoice = await prisma.salesInvoice.findUnique({
     where: { id: recordId },
     include: {
       customer: true,
       lines: true,
+      crmLeadDocuments: { where: { companyId }, select: { resources: DOCUMENT_RESOURCES_SELECT } },
     },
   });
 
@@ -197,6 +269,7 @@ async function resolveInvoice(companyId: string, recordId: string): Promise<Sour
       parties: [customerParty("Bill To", invoice.customer)],
       totals,
       notes: invoice.notes ? [invoice.notes] : [],
+      links: crmResourceBlock("INVOICE", invoice.crmLeadDocuments),
       record: {
         sections: [],
         lineColumns: FINANCIAL_LINE_COLUMNS,
@@ -213,6 +286,7 @@ async function resolveQuotation(companyId: string, recordId: string): Promise<So
     include: {
       customer: true,
       lines: true,
+      crmLeadDocuments: { where: { companyId }, select: { resources: DOCUMENT_RESOURCES_SELECT } },
     },
   });
 
@@ -259,6 +333,7 @@ async function resolveQuotation(companyId: string, recordId: string): Promise<So
           ? [`This quotation is valid until ${isoDate(quotation.validUntil)}.`]
           : []),
       ],
+      links: crmResourceBlock("QUOTATION", quotation.crmLeadDocuments),
       record: {
         sections: [],
         lineColumns: FINANCIAL_LINE_COLUMNS,
@@ -582,11 +657,42 @@ async function resolveDashboardSummary(companyId: string): Promise<SourceResolut
   };
 }
 
+/**
+ * What a source will produce and how many rows, without building it where
+ * that can be avoided. Used to decide whether an export is made now or by a
+ * job, and whether it is made at all.
+ */
+export async function summarizeSource(
+  companyId: string,
+  rawInput: SourceResolutionInput,
+  context: SourceContext = { actorId: null },
+): Promise<SourceSummary> {
+  // A CRM list counts its rows with one query rather than building them all.
+  if (isCrmRegisterSourceKey(rawInput.sourceKey)) {
+    const input = sourceInputSchema.parse(rawInput);
+    return summarizeCrmRegisterSource(companyId, input, context.actorId);
+  }
+  const source = await resolveSourcePayload(companyId, rawInput, context);
+  return {
+    targetType: source.targetType,
+    documentType: source.documentType,
+    sourceKey: source.sourceKey,
+    rowCount: source.rowsForCsv?.length ?? source.payload.list?.rows?.length ?? 0,
+  };
+}
+
 export async function resolveSourcePayload(
   companyId: string,
   rawInput: SourceResolutionInput,
+  context: SourceContext = { actorId: null },
 ): Promise<SourceResolution> {
   const input = sourceInputSchema.parse(rawInput);
+
+  // A CRM list is only ever built here, from the reader's own filters: a
+  // payload handed in with the request is not an export of the list.
+  if (isCrmRegisterSourceKey(input.sourceKey)) {
+    return resolveCrmRegisterSource(companyId, input, context.actorId);
+  }
 
   if (input.payload) {
     return {

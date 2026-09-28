@@ -1,0 +1,28 @@
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: huchu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: huchu
+      POSTGRES_PASSWORD: huchu_dev
+      POSTGRES_DB: huchu_mines
+    ports:
+      # Override with POSTGRES_PORT when 5432 is already taken on this machine,
+      # and change DATABASE_URL in .env to match.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `docker compose up --wait` and `pnpm dev:up` both block on this, so the
+      # schema push and the server never open a connection to a server that has
+      # accepted the port but not yet finished recovery.
+      test: ["CMD-SHELL", "pg_isready -U huchu -d huchu_mines"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  pgdata:

@@ -59,7 +59,36 @@ describe("crmIntakeFormConfigSchema", () => {
       ],
       services: [],
     };
-    expect(() => crmIntakeFormConfigSchema.parse(bad)).toThrow(/Duplicate field key/);
+    expect(() => crmIntakeFormConfigSchema.parse(bad)).toThrow(/Two questions save to/);
+  });
+
+  it("offers the app's full question vocabulary, not a separate one", () => {
+    const richer = {
+      fields: [
+        { key: "work_email", label: "Work email", type: "email", required: true },
+        { key: "urgency", label: "How urgent", type: "rating", required: false, max: 5 },
+        { key: "site_plan", label: "Site plan", type: "file", required: false },
+      ],
+      services: [],
+    };
+    expect(() => crmIntakeFormConfigSchema.parse(richer)).not.toThrow();
+  });
+
+  it("no longer knows intake's old type names — the migration renames them", () => {
+    for (const type of ["textarea", "multiselect"]) {
+      const old = { fields: [{ key: "a", label: "A", type, required: false }], services: [] };
+      expect(() => crmIntakeFormConfigSchema.parse(old)).toThrow();
+    }
+  });
+
+  it("holds an intake form to 40 questions", () => {
+    const fields = Array.from({ length: 41 }, (_, index) => ({
+      key: `q_${index}`,
+      label: `Question ${index}`,
+      type: "text",
+      required: false,
+    }));
+    expect(() => crmIntakeFormConfigSchema.parse({ fields, services: [] })).toThrow(/up to 40/);
   });
 
   it("rejects duplicate service ids", () => {
@@ -104,6 +133,12 @@ describe("buildSubmissionSchema", () => {
   it("rejects an unlisted service", () => {
     expect(() =>
       schema.parse({ contactName: "Jane", selectedServices: ["not-a-service"], answers: { area_sqm: 5 } }),
+    ).toThrow();
+  });
+
+  it("rejects an answer outside the question's choices", () => {
+    expect(() =>
+      schema.parse({ contactName: "Jane", answers: { area_sqm: 5, surface: "marble" } }),
     ).toThrow();
   });
 

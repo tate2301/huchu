@@ -23,8 +23,38 @@ type RGB = {
 export type BrandingFontOption = {
   key: BrandingFontKey;
   label: string;
+  /** For the app, where the design system's CSS variables are in scope. */
   fontFamily: string;
+  /**
+   * For a generated document, where they are not.
+   *
+   * A PDF is rendered from a standalone HTML string in a headless browser: no
+   * stylesheet of ours is loaded, so `var(--font-sans)` resolves to nothing —
+   * and an unresolved `var()` makes the whole `font-family` declaration
+   * invalid, taking its fallback stack down with it. Every tenant's document
+   * therefore printed in Chromium's default face whatever they had chosen.
+   * These two fields are what a document needs instead: a stack that names
+   * real families, and the webfont to fetch so the container actually has one.
+   */
+  documentFontFamily: string;
+  /** The Google Fonts stylesheet for `documentFontFamily`, or null for a system stack. */
+  documentFontImportUrl: string | null;
 };
+
+/**
+ * The monospace face documents set figures in — the same one the app uses, so
+ * a total on screen and the same total on paper are the same shape.
+ */
+export const DOCUMENT_MONO_FONT_FAMILY =
+  '"Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
+const GOOGLE_FONTS = "https://fonts.googleapis.com/css2";
+/** Loaded alongside every option, because `.mono` is used on every document. */
+const MONO_SPEC = "family=Atkinson+Hyperlegible+Mono:wght@400..700";
+
+function googleFontUrl(familySpec: string): string {
+  return `${GOOGLE_FONTS}?family=${familySpec}&${MONO_SPEC}&display=swap`;
+}
 
 export type EffectiveBranding = {
   companyId: string | null;
@@ -34,6 +64,12 @@ export type EffectiveBranding = {
   fontFamily: string;
   brandingEnabled: boolean;
   customDomainEnabled: boolean;
+  /**
+   * The workspace's own logo, from Branding → Assets. Drawn as the workspace
+   * mark in the app's rail and served as the favicon. Null when branding is
+   * off or no logo is set, and the generated initial stands in.
+   */
+  logoUrl: string | null;
   colors: {
     primary: string;
     secondary: string;
@@ -49,30 +85,44 @@ export const BRANDING_FONT_OPTIONS: BrandingFontOption[] = [
     key: "huchu",
     label: `${PLATFORM_BRAND_NAME} Sans`,
     fontFamily: "var(--font-sans)",
+    // The face `app/globals.css` loads for the app itself, named in full
+    // so a document matches the website rather than approximating it.
+    documentFontFamily:
+      '"Atkinson Hyperlegible Next", "Atkinson Hyperlegible", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Atkinson+Hyperlegible+Next:wght@200..800"),
   },
   {
     key: "inter",
     label: "Inter",
     fontFamily:
       'var(--font-brand-inter), "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontFamily: '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Inter:wght@400;500;600;700"),
   },
   {
     key: "poppins",
     label: "Poppins",
     fontFamily:
       'var(--font-brand-poppins), "Poppins", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontFamily: '"Poppins", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Poppins:wght@400;500;600;700"),
   },
   {
     key: "source-sans-3",
     label: "Source Sans 3",
     fontFamily:
       'var(--font-brand-source-sans-3), "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontFamily: '"Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Source+Sans+3:wght@400;500;600;700"),
   },
   {
     key: "lato",
     label: "Lato",
     fontFamily:
       'var(--font-brand-lato), "Lato", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    // Lato ships 400/700/900 — asking for 500 or 600 returns nothing for them.
+    documentFontFamily: '"Lato", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    documentFontImportUrl: googleFontUrl("Lato:wght@400;700"),
   },
 ];
 
@@ -94,6 +144,7 @@ const DEFAULT_BRANDING: EffectiveBranding = {
   fontFamily: BRANDING_FONT_OPTIONS[0].fontFamily,
   brandingEnabled: false,
   customDomainEnabled: false,
+  logoUrl: null,
   colors: {
     primary: "#0B5DF0",
     secondary: "#E8EFFE",
@@ -192,6 +243,16 @@ function toFontFamilyKey(value: string | null | undefined): BrandingFontKey {
     : DEFAULT_BRANDING.fontFamilyKey;
 }
 
+/** The document-safe stack and webfont for a font key. */
+export function getDocumentFontByKey(key: BrandingFontKey): {
+  fontFamily: string;
+  importUrl: string | null;
+} {
+  const option =
+    BRANDING_FONT_OPTIONS.find((font) => font.key === key) ?? BRANDING_FONT_OPTIONS[0];
+  return { fontFamily: option.documentFontFamily, importUrl: option.documentFontImportUrl };
+}
+
 export function getFontFamilyByKey(fontKey: BrandingFontKey): string {
   return (
     BRANDING_FONT_OPTIONS.find((font) => font.key === fontKey)?.fontFamily ??
@@ -222,6 +283,24 @@ export function isReservedCustomDomain(hostname: string): boolean {
   return rootHosts.includes(normalized);
 }
 
+/**
+ * A logo URL fit to put in an `<img src>` and a `<link rel="icon">`: an
+ * absolute http(s) URL or a same-origin path. The settings field takes any
+ * string up to 500 characters, so anything else — a `javascript:` URL, a typo
+ * with no scheme — is dropped rather than drawn as a broken image.
+ */
+function normalizeLogoUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getEffectiveBrandingForCompany(companyId: string): Promise<EffectiveBranding> {
   const normalizedCompanyId = companyId.trim();
   if (!normalizedCompanyId) {
@@ -238,6 +317,7 @@ export async function getEffectiveBrandingForCompany(companyId: string): Promise
           branding: {
             select: {
               displayName: true,
+              logoUrl: true,
               primaryColor: true,
               secondaryColor: true,
               accentColor: true,
@@ -281,6 +361,7 @@ export async function getEffectiveBrandingForCompany(companyId: string): Promise
       customDomainEnabled,
       fontFamilyKey,
       fontFamily: getFontFamilyByKey(fontFamilyKey),
+      logoUrl: brandingEnabled ? normalizeLogoUrl(company.branding?.logoUrl) : null,
       colors: {
         primary,
         secondary,

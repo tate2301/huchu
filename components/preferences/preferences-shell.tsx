@@ -1,124 +1,59 @@
 "use client";
 
 import * as React from "react";
-import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { PageChrome } from "@/components/layout/page-chrome";
-import { NavRail } from "@/components/ui/nav-rail";
-import { NavGroup, NavItem } from "@/components/ui/settings-rail";
 
-import {
-  ACCOUNT_PREFERENCES_ITEMS,
-  ORGANIZATION_PREFERENCES_ITEMS,
-  canViewPreferenceItem,
-  type PreferencesNavItem,
-} from "@/lib/preferences/nav";
-import {
-  Bell,
-  Building2,
-  Coins,
-  Grid3x3,
-  MedusaBookOpenIcon,
-  MedusaCircleSlidersIcon,
-  MedusaIdBadgeIcon,
-  Palette,
-  UserRound,
-  Users,
-} from "@/lib/icons";
+import { SettingsFrame } from "@/components/settings/management-shell";
 
-type PreferencesShellProps = {
-  title: string;
+export type PreferencesShellProps = {
+  /** The fallback title line. A converted page puts its own `RecordHeader` in `children` instead. */
+  title?: string;
+  /**
+   * Rule 1: never rendered. This shell used to draw it as a muted paragraph at
+   * the top of the content, which is exactly the descriptive helper text the
+   * design review deleted. Kept in the type so the pages still passing one
+   * keep compiling while their owners remove them.
+   */
   description?: string;
+  /** The page's one verb, drawn in the fallback title line rather than teleported into the app bar. */
   actions?: React.ReactNode;
+  /** Counts for the rail, keyed by nav entry id. See `SettingsFrame`. */
+  railCounts?: Record<string, number>;
+  railAttention?: string[];
   children: React.ReactNode;
 };
 
-const itemIcons: Record<string, React.ElementType> = {
-  profile: UserRound,
-  notifications: Bell,
-  appearance: Palette,
-  organization: Building2,
-  users: MedusaIdBadgeIcon,
-  sites: Grid3x3,
-  departments: Users,
-  branding: MedusaCircleSlidersIcon,
-  templates: MedusaBookOpenIcon,
-  billing: Coins,
-};
-
-function isActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function renderNavItems(items: PreferencesNavItem[], pathname: string) {
-  return items.map((item) => {
-    const Icon = itemIcons[item.id];
-    return (
-      <NavItem
-        key={item.id}
-        to={item.href}
-        active={isActive(pathname, item.href)}
-        icon={Icon ? <Icon className="size-4" aria-hidden="true" /> : undefined}
-      >
-        {item.label}
-      </NavItem>
-    );
-  });
-}
-
+/**
+ * Account and organization preferences.
+ *
+ * This is `SettingsFrame` under its other name. The two shells drew the same
+ * surface with different chrome and two different rails — Account/Organization
+ * here, Settings/<area> there — and Branding and Templates rendered the
+ * management one from inside a `/preferences` route, so the rail swapped out
+ * mid-surface. `Rail.dc.html` draws one rail for both: People, Operations,
+ * Compliance, Company, School, My account.
+ *
+ * The name stays because every `/preferences` page imports it and those pages
+ * belong to other people. What it renders is the shared surface.
+ *
+ * Nothing about access changed. The rail's `/preferences` entries are still
+ * filtered by `canViewPreferenceItem`, item id for item id, and every page
+ * behind them still runs `requirePreferencesAccess` on the server.
+ */
 export function PreferencesShell({
   title,
-  description,
   actions,
+  railCounts,
+  railAttention,
   children,
 }: PreferencesShellProps) {
-  const pathname = usePathname();
-  const { data: session } = useSession();
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
-
-  const accountItems = ACCOUNT_PREFERENCES_ITEMS;
-  const organizationItems = React.useMemo(
-    () =>
-      ORGANIZATION_PREFERENCES_ITEMS.filter((item) =>
-        canViewPreferenceItem(item.id, { role, enabledFeatures }),
-      ),
-    [enabledFeatures, role],
-  );
-
   return (
-    <div className="settings-layout container mx-auto w-full">
-      {/* Same trade as the management shell: a rail beside the content on a
-          desktop, a scrolling strip above it on a phone. */}
-      <NavRail
-        className="settings-rail"
-        label="Preferences navigation"
-        orientation="responsive"
-      >
-        <NavGroup label="Account">
-          {renderNavItems(accountItems, pathname)}
-        </NavGroup>
-        {organizationItems.length > 0 ? (
-          <NavGroup label="Organization">
-            {renderNavItems(organizationItems, pathname)}
-          </NavGroup>
-        ) : null}
-      </NavRail>
-
-      {/* Title and actions to the app bar, the same as the management shell
-          and every module beside it. Drawn in the page, the title was the
-          second copy of a word the bar was already showing, and it cost about
-          a hundred and ten pixels of a 844px screen to say it again. */}
-      <PageChrome title={title}>{actions}</PageChrome>
-
-      <main className="settings-content">
-        {description ? (
-          <p className="t-body t-muted max-w-[var(--content-max)]">
-            {description}
-          </p>
-        ) : null}
-        <div className="space-y-4">{children}</div>
-      </main>
-    </div>
+    <SettingsFrame
+      title={title}
+      actions={actions}
+      railCounts={railCounts}
+      railAttention={railAttention}
+    >
+      {children}
+    </SettingsFrame>
   );
 }

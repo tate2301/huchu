@@ -108,6 +108,7 @@ export const CRM_FIELD_ENTITY_LABELS: Record<CrmFieldEntity, string> = {
   DEAL: "Deals",
   SITE: "Sites",
   WORK_ORDER: "Work orders",
+  PROJECT: "Projects",
   // S-4.4 — school record types. This map is the record-type discriminator's
   // labels, so it is the one place the six of them genuinely belong.
   STUDENT: "Student",

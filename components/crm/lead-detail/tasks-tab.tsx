@@ -20,7 +20,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { updateCrmFollowUp } from "@/lib/crm/crm-v2";
 import { cn } from "@/lib/utils";
 
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import type { ActivityTarget } from "./activity-composer";
 import { isOverdue } from "@/components/crm/leads/stage-config";
 import type { LeadFollowUp } from "./lead-types";
@@ -42,7 +42,7 @@ export function TasksTab({
 }: {
   target: ActivityTarget;
   followUps: LeadFollowUp[];
-  owners: LeadFilterOwner[];
+  owners: CrmLeadOwner[];
   currentUserId?: string;
 }) {
   const queryClient = useQueryClient();

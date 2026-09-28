@@ -35,6 +35,7 @@ export type LeadAppointment = {
   assignedToId: string;
   outcomeNotes: string | null;
   reportCompletedAt: string | null;
+  _count?: { visitPhotos: number };
 };
 
 export type LeadIntakeSubmission = {

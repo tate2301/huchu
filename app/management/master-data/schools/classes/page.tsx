@@ -1,17 +1,14 @@
 "use client";
 
-import { ManagementShell } from "@/components/settings/management-shell";
-import { SchoolsClassesContent } from "@/components/schools/classes/schools-classes-content";
+import { ClassesRegister } from "./classes-register";
 
-/** The year-group ladder and the streams inside each one. */
+/**
+ * The year-group ladder and the streams inside each one.
+ *
+ * The register draws its own shell, its own header and its own two columns, so
+ * the route is the route and nothing else. No `description`: rule 1 deletes the
+ * helper line and rule 4 deletes the band it sat in.
+ */
 export default function SchoolsClassesMasterDataPage() {
-  return (
-    <ManagementShell
-      area="master-data"
-      title="Classes and streams"
-      description="the year-group ladder and the streams inside each one"
-    >
-      <SchoolsClassesContent />
-    </ManagementShell>
-  );
+  return <ClassesRegister />;
 }

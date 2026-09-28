@@ -11,6 +11,7 @@ import {
   Phone,
   Plus,
   Send,
+  Work,
   Wrench,
   type LucideIcon,
 } from "@/lib/icons";
@@ -40,6 +41,8 @@ const STEP_ICON: Record<NextStepAction, LucideIcon> = {
   chase: Send,
   payment: Payments,
   job: Wrench,
+  project: Work,
+  "open-project": Work,
   convert: ArrowRight,
   deal: Plus,
   email: Mail,

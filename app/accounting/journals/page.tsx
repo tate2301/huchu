@@ -17,7 +17,6 @@ import {
   journalStatusTone,
   type JournalStatus,
 } from "@/components/accounting/journal-detail-panel";
-import { BandChip } from "@/components/accounting/band-chip";
 import { AccountingEditableListView } from "@/components/accounting/listview/accounting-editable-list-view";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -216,14 +215,6 @@ export default function JournalsPage() {
     [accounts],
   );
 
-  /**
-   * Drafts across the whole ledger, not the filtered view.
-   *
-   * The band chip is a standing fact about the books — "there are three
-   * journals nobody has posted" — and it would be worse than useless if it
-   * changed to zero the moment somebody filtered the list to Posted.
-   */
-  const draftCount = statusCounts.DRAFT;
 
   /*
     Five columns, because a journal row answers five questions: which entry,
@@ -420,7 +411,7 @@ export default function JournalsPage() {
     Reversing writes a second journal rather than editing the first.
 
     A posted entry is a fact about the books and stays one, so the ledger
-    cancels it with a mirror posting and marks the original REVERSED. Both
+    cancels it with a mirror posting and stamps the original reversed. Both
     journals then appear in the list, which is why cancelling the prompt has to
     abort: this is not a filter, it leaves two permanent entries behind.
   */
@@ -626,14 +617,6 @@ export default function JournalsPage() {
     <AccountingShell
       activeTab="journals"
       title="Journals"
-      description="every posting into the ledger, and where it came from"
-      bandSlot={
-        draftCount > 0 ? (
-          <BandChip label="In draft" value={String(draftCount)} tone="warn" />
-        ) : (
-          <BandChip label="In draft" value="0" tone="ok" />
-        )
-      }
       actions={
         <AccountingNewButton
           label="New journal"
@@ -672,8 +655,9 @@ export default function JournalsPage() {
             /* The shared list view bands its rows by status whether or not it
                is asked to, so the order is stated rather than left to fall out
                alphabetically: work still to do comes before work already
-               done. */
-            groupBy="status"
+               done. Banded by the lifecycle rather than the stored column,
+               which says POSTED for an entry a mirror has since reversed. */
+            groupBy={journalStatusOf}
             groupOrder={[...lifecycle]}
             searchPlaceholder="Search journals"
             searchSubmitLabel="Search"

@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button } from "@corelithzw/react";
+import { Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import {
@@ -117,6 +118,15 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
             },
           ]}
         />
+        {/* Rehoused off the band. It prints the statement this page is about,
+            so it belongs beside the verb that captures it. */}
+        {page ? (
+          <PrintDocumentButton
+            sourceKey="schools.report-card"
+            filters={{ seriesId }}
+            label="Print the statement"
+          />
+        ) : null}
       </PageChrome>
 
       {/* The caption names the series and stops there. How many sat it is the

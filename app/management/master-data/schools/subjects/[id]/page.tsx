@@ -1,11 +1,15 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { ManagementShell } from "@/components/settings/management-shell";
-import { SubjectRecordPage } from "@/components/schools/records/subject-record-page";
 import { authOptions } from "@/lib/auth";
 
-/** One subject, as a record, inside the management shell its list lives in. */
+import { SubjectsRegister } from "../subjects-register";
+
+/**
+ * One subject, as a record, with the catalogue still beside it.
+ *
+ * The session gate is untouched.
+ */
 export default async function SubjectRecordMasterDataRoute({
   params,
 }: {
@@ -18,9 +22,5 @@ export default async function SubjectRecordMasterDataRoute({
 
   const { id } = await params;
 
-  return (
-    <ManagementShell area="master-data" title="Subjects">
-      <SubjectRecordPage subjectId={id} />
-    </ManagementShell>
-  );
+  return <SubjectsRegister selectedId={id} />;
 }

@@ -16,6 +16,16 @@ export const uploadPolicies = {
     maxBytes: 5 * MB,
     folder: "employee-national-ids",
   },
+  // A signed-in person's own avatar. Its own context rather than a reuse of
+  // `employee-passport`: the allowances happen to match today, but an avatar is
+  // a small square that gets scaled to 32px and a passport photo is an identity
+  // document somebody may have to audit. Filing one in the other's folder makes
+  // both harder to reason about later.
+  "user-avatar": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp"],
+    maxBytes: 2 * MB,
+    folder: "user-avatars",
+  },
   "scrap-purchase-ticket-photo": {
     allowedTypes: ["image/jpeg", "image/png", "image/webp"],
     maxBytes: 8 * MB,
@@ -31,10 +41,28 @@ export const uploadPolicies = {
     maxBytes: 8 * MB,
     folder: "crm-intake-photos",
   },
+  // A file a stranger gives in answer to an intake form's Upload question — a
+  // site plan, a quote from someone else. Not a photo, so not the photo
+  // policy, and kept in its own folder for the same reason template answers
+  // are: anything a stranger uploaded should be identifiable as such.
+  "crm-intake-answer": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+    maxBytes: 10 * MB,
+    folder: "crm-intake-answers",
+  },
   "crm-attachment": {
     allowedTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
     maxBytes: 10 * MB,
     folder: "crm-attachments",
+  },
+  // A photograph of a till slip, or the PDF a supplier emailed. Its own folder
+  // rather than `crm-attachment`'s because these are the evidence behind the
+  // money figures, and an auditor asking for last month's receipts should be
+  // handed a folder of receipts, not every file anybody attached to a lead.
+  "crm-receipt": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+    maxBytes: 10 * MB,
+    folder: "crm-receipts",
   },
   // A file question on a public form. Same allowance as an attachment, but a
   // separate folder — anything a stranger uploaded should be identifiable as

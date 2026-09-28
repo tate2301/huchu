@@ -1,38 +1,41 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 
+import { Badge, Button } from "@corelithzw/react";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordMark } from "@/components/records/record-mark";
-import { Building2, Calendar, Checklist, Coins, Funnel, Users } from "@/lib/icons";
+import { Building2, Calendar, Checklist, Coins, Funnel, MapPin, UserRound, Users } from "@/lib/icons";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ClientDate } from "@/components/ui/client-date";
-import { Badge } from "@/components/ui/badge";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { useDebounced } from "@/hooks/use-debounced";
-import { fetchCrmDeals, fetchCrmPipelines, type CrmDealRecord } from "@/lib/crm/crm-v2";
-import { isDealStale } from "@/lib/crm/pipelines";
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
-
-import { DealsBoard } from "./deals-board";
-import { BoardFieldsProvider, DEAL_CARD_FIELDS } from "./board-fields";
 import { ColumnPicker } from "@/components/ui/column-picker";
-import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
-import { DealFormSheet } from "./deal-form-sheet";
-import { PipelineSwitcher } from "./pipeline-switcher";
-import { RecordListShell } from "./record-list-shell";
-import { RecordList, RecordListPager } from "@/components/records/record-list";
+import type { CrmDealRecord } from "@/lib/crm/crm-v2";
+import { isDealStale } from "@/lib/crm/pipelines";
+import { DEAL_STATUS_OPTIONS, FORECAST_OPTIONS, optionLabel } from "@/lib/crm/record-labels";
+import { DEAL_REGISTER } from "@/lib/crm/registers/defs/deal";
+import { useVisibleColumns } from "@/lib/ui/visible-columns";
+import type { CanonicalUiStatus } from "@/lib/ui/status-map";
+import { RecordList, RecordListPager, type RecordListRow } from "@/components/records/record-list";
+import { GroupedRecordList } from "@/components/records/record-list-groups";
+import { RecordCell, RecordTable, RecordTableName, recordCellTone } from "@/components/records/record-table";
+import { DirectoryCell } from "@/components/records/people-directory";
+import { NothingMatched } from "@/components/records/states";
+import { RegisterShell } from "@/components/crm/registers/register-shell";
+import { REGISTER_PAGE_SIZE, useRegister } from "@/components/crm/registers/use-register";
 import {
-  RecordTable,
-  RecordTableName,
-  type RecordTableColumn,
-} from "@/components/records/record-table";
-import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
+  emptyState,
+  groupSections,
+  registerColumns,
+  tableSort,
+  type ColumnRenderer,
+} from "@/components/crm/registers/table-helpers";
 
-const PAGE_SIZE = 50;
+import { BoardFieldsProvider, DEAL_CARD_FIELDS } from "./board-fields";
+import { DealFormSheet } from "./deal-form-sheet";
+import { DealsBoard } from "./deals-board";
+
+type Deal = CrmDealRecord;
 
 const STATUS_PRESENTATION: Record<string, CanonicalUiStatus> = {
   OPEN: "in_progress",
@@ -45,312 +48,278 @@ function formatMoney(value: number | null, currency: string): string {
   return `${currency} ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
-/** Every column the deals table knows how to draw, for the picker. */
-const DEAL_TABLE_COLUMNS: ColumnOption[] = [
-  { id: "deal", label: "Deal", required: true },
-  { id: "company", label: "Company" },
-  { id: "stage", label: "Stage" },
-  { id: "value", label: "Value" },
-  { id: "close", label: "Expected close" },
-  { id: "owner", label: "Owner" },
-  { id: "next", label: "Next task" },
-];
+function StageCell({ deal }: { deal: Deal }) {
+  const stale = isDealStale(
+    { stageEnteredAt: deal.stageEnteredAt, status: deal.status },
+    { inactivityDays: deal.stage.inactivityDays, status: deal.stage.status },
+  );
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <StatusChip status={STATUS_PRESENTATION[deal.stage.status] ?? "pending"} label={deal.stage.name} />
+      {/* The same words as the filter that finds them. */}
+      {stale ? (
+        <Badge tone="warn" size="sm">
+          Gone quiet
+        </Badge>
+      ) : null}
+    </span>
+  );
+}
 
-export function DealsContent({
-  openCreate = false,
-  pipelineId: pipelineIdProp,
-  onPickPipeline,
-}: {
-  openCreate?: boolean;
-  /** Set by the unified workspace, which owns which pipeline is showing. */
-  pipelineId?: string;
-  onPickPipeline?: (target: "leads" | string) => void;
-}) {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"OPEN" | "WON" | "LOST" | "ALL">("OPEN");
-  const [page, setPage] = useState(1);
+/** A relation to another record, or the faint dash that says there is none. */
+function RelationCell({ href, name }: { href: string | null; name: string | null | undefined }) {
+  return href && name ? (
+    <span className="block truncate">
+      <EntityLink href={href} className={recordCellTone("relation")}>
+        {name}
+      </EntityLink>
+    </span>
+  ) : (
+    <RecordCell value={null} />
+  );
+}
+
+/**
+ * Deals: the pipeline, on the list engine.
+ *
+ * Opens on the board, because working the pipeline is what the page is for;
+ * the views that answer a question — mine, closing this month, gone quiet —
+ * are tables. Every filter, the search, the sort and the layout live in the
+ * address bar, and a board is the pipeline filter's pipeline (the default one
+ * when none is chosen) read with the same filters as the table.
+ */
+export function DealsContent({ openCreate = false }: { openCreate?: boolean }) {
+  const register = useRegister<Deal>(DEAL_REGISTER);
+  const { rows: deals, layout } = register;
   const [createOpen, setCreateOpen] = useState(openCreate);
-  const debouncedSearch = useDebounced(search, 300);
-
-  // Which pipeline, and whether to work it as a board or read it as a list.
-  // Both live in state rather than the URL because they are how you are
-  // looking at the page, not what the page is.
-  // Arriving from the leads page's pipeline menu lands on ?pipeline=<id>.
-  const requestedPipeline = useSearchParams().get("pipeline");
-  const [ownPipelineId, setOwnPipelineId] = useState<string | null>(requestedPipeline);
-  // The parent wins when there is one: the unified workspace holds the choice
-  // so the menu can cross to leads, which this component knows nothing about.
-  const pipelineId = pipelineIdProp ?? ownPipelineId;
-  const setPipelineId = (next: string) =>
-    onPickPipeline ? onPickPipeline(next) : setOwnPipelineId(next);
-  const [layout, setLayout] = useState<RecordLayout>("BOARD");
-
-  const pipelinesQuery = useQuery({
-    queryKey: ["crm", "pipelines"],
-    queryFn: () => fetchCrmPipelines(),
-  });
-
-  const dealsQuery = useQuery({
-    queryKey: ["crm", "deals", debouncedSearch, statusFilter, page],
-    queryFn: () =>
-      fetchCrmDeals({
-        filters: {
-          q: debouncedSearch,
-          statuses: statusFilter === "ALL" ? undefined : [statusFilter],
-        },
-        page,
-        limit: PAGE_SIZE,
-      }),
-    placeholderData: (previous) => previous,
-  });
-
-  const rows = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);
-  const total = dealsQuery.data?.pagination?.total ?? rows.length;
-  const pipelines = useMemo(() => pipelinesQuery.data?.data ?? [], [pipelinesQuery.data]);
-  // Nothing chosen means the default one, which is what the board falls back
-  // to server-side; naming it here keeps the picker's label honest.
-  const activePipeline =
-    pipelines.find((pipeline) => pipeline.id === pipelineId) ??
-    pipelines.find((pipeline) => pipeline.isDefault) ??
-    pipelines[0] ??
-    null;
-
-  const tableColumns = useVisibleColumns("crm.deals.table", DEAL_TABLE_COLUMNS);
   const boardFields = useVisibleColumns("crm.deals.board", DEAL_CARD_FIELDS);
 
-  const columns = useMemo<RecordTableColumn<CrmDealRecord>[]>(
-    () => [
-      {
-        id: "deal",
-        label: "Deal",
+  const renderers = useMemo<Record<string, ColumnRenderer<Deal>>>(
+    () => ({
+      name: {
         icon: Coins,
         cell: (deal) => (
           <RecordTableName
-            leading={<RecordMark kind="deal" name={deal.title} size="sm" />}
+            leading={<RecordMark kind="deal" name={deal.title} emoji={deal.emoji} avatarUrl={deal.avatarUrl} size="sm" />}
             title={deal.title}
             subtitle={<span className="font-mono">{deal.dealNo}</span>}
           />
         ),
       },
-      {
-        id: "company",
-        label: "Company",
+      ref: { width: "8rem", cell: (deal) => <RecordCell kind="code" value={deal.dealNo} /> },
+      company: {
         icon: Building2,
         width: "13rem",
         cell: (deal) => (
-          // `block truncate` on the cell, not on the link: a company called
-          // "Chitungwiza Medical Centre" wrapped to two lines and made its row
-          // twice as tall as its neighbours, which is what turns a table back
-          // into a list.
-          <span className="block truncate">
-            {deal.client ? (
-              <EntityLink href={`/crm/companies/${deal.client.id}`}>{deal.client.name}</EntityLink>
-            ) : (
-              <span className="text-[var(--text-subtle)]">—</span>
-            )}
-          </span>
+          <RelationCell href={deal.client ? `/crm/companies/${deal.client.id}` : null} name={deal.client?.name} />
         ),
       },
-      {
-        id: "stage",
-        label: "Stage",
-        icon: Funnel,
-        width: "14rem",
-        cell: (deal) => {
-          const stale = isDealStale(
-            { stageEnteredAt: deal.stageEnteredAt, status: deal.status },
-            { inactivityDays: deal.stage.inactivityDays, status: deal.stage.status },
-          );
-          return (
-            <span className="flex flex-wrap items-center gap-1.5">
-              <StatusChip
-                status={STATUS_PRESENTATION[deal.stage.status] ?? "pending"}
-                label={deal.stage.name}
-              />
-              {stale ? (
-                <Badge variant="outline" className="text-sm text-[var(--status-warning-text)]">
-                  Stale
-                </Badge>
-              ) : null}
-            </span>
-          );
-        },
-      },
-      {
-        id: "value",
-        label: "Value",
+      stage: { icon: Funnel, width: "14rem", cell: (deal) => <StageCell deal={deal} /> },
+      value: {
         icon: Coins,
         width: "10rem",
         align: "end",
-        cell: (deal) => (
-          // Nowrap, or "USD 36,000" breaks after the currency and the column
-          // reads as two stacked half-facts.
-          <NumericCell className="whitespace-nowrap">
-            {formatMoney(deal.value, deal.currency)}
-          </NumericCell>
-        ),
+        // Nowrap, or "USD 36,000" breaks after the currency and reads as two
+        // stacked half-facts.
+        cell: (deal) => <NumericCell className="whitespace-nowrap">{formatMoney(deal.value, deal.currency)}</NumericCell>,
       },
-      {
-        id: "close",
-        label: "Expected close",
+      close: {
         icon: Calendar,
         width: "9rem",
         cell: (deal) => (
-          <span className="text-[var(--text-muted)]">
-            {deal.expectedCloseDate ? (
-              <ClientDate value={deal.expectedCloseDate} mode="date" />
-            ) : (
-              "—"
-            )}
+          <span className="font-mono tabular-nums text-[var(--text-muted)]">
+            <ClientDate value={deal.expectedCloseDate} mode="date" />
           </span>
         ),
       },
-      {
-        id: "owner",
-        label: "Owner",
+      owner: {
         icon: Users,
         width: "10rem",
-        cell: (deal) => (
-          <span className="block truncate">
-            {deal.assignedTo?.name ?? <span className="text-[var(--text-subtle)]">Unassigned</span>}
-          </span>
-        ),
+        cell: (deal) => <DirectoryCell value={deal.assignedTo?.name} missing="Unassigned" />,
       },
-      {
-        id: "next",
-        label: "Next task",
+      next: {
         icon: Checklist,
         width: "12rem",
         cell: (deal) =>
           deal.nextFollowUp ? (
             <span className="block min-w-0">
               <span className="block truncate">{deal.nextFollowUp.title}</span>
-              <span className="block truncate text-sm text-[var(--text-muted)]">
+              <span className="block truncate font-mono text-sm tabular-nums text-[var(--text-muted)]">
                 <ClientDate value={deal.nextFollowUp.dueAt} />
               </span>
             </span>
           ) : (
-            <span className="text-[var(--text-subtle)]">—</span>
+            <RecordCell value={null} />
           ),
       },
-    ],
+      status: {
+        width: "7rem",
+        cell: (deal) => (
+          <StatusChip
+            status={STATUS_PRESENTATION[deal.status] ?? "pending"}
+            label={optionLabel(DEAL_STATUS_OPTIONS, deal.status)}
+          />
+        ),
+      },
+      pipeline: { width: "12rem", cell: (deal) => <RecordCell value={deal.pipeline.name} /> },
+      probability: {
+        width: "7rem",
+        align: "end",
+        cell: (deal) => <RecordCell kind="number" value={deal.probability === null ? null : `${deal.probability}%`} />,
+      },
+      forecast: {
+        width: "8rem",
+        cell: (deal) => <RecordCell value={optionLabel(FORECAST_OPTIONS, deal.forecastCategory)} />,
+      },
+      contact: {
+        icon: UserRound,
+        width: "12rem",
+        cell: (deal) => (
+          <RelationCell
+            href={deal.primaryContact ? `/crm/people/${deal.primaryContact.id}` : null}
+            name={deal.primaryContact?.fullName}
+          />
+        ),
+      },
+      site: {
+        icon: MapPin,
+        width: "12rem",
+        cell: (deal) => <RelationCell href={deal.site ? `/crm/sites/${deal.site.id}` : null} name={deal.site?.name} />,
+      },
+      entered: {
+        width: "8.5rem",
+        cell: (deal) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={deal.stageEnteredAt} mode="date" />
+          </span>
+        ),
+      },
+      created: {
+        width: "8.5rem",
+        cell: (deal) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={deal.createdAt} mode="date" />
+          </span>
+        ),
+      },
+      updated: {
+        width: "10rem",
+        cell: (deal) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={deal.updatedAt} />
+          </span>
+        ),
+      },
+    }),
     [],
   );
 
-  const visibleColumns = useMemo(
-    () => columns.filter((column) => tableColumns.isVisible(column.id)),
-    [columns, tableColumns],
+  const columns = registerColumns(register, renderers);
+
+  // On a phone, and in the List layout, the same deals come back as the rows
+  // every other CRM surface uses: two lines, the value beside the title.
+  const rows = useMemo<RecordListRow[]>(
+    () =>
+      deals.map((deal) => ({
+        id: deal.id,
+        href: `/crm/deals/${deal.id}`,
+        leading: <RecordMark kind="deal" name={deal.title} emoji={deal.emoji} avatarUrl={deal.avatarUrl} size="md" />,
+        title: deal.title,
+        subtitle: `${deal.dealNo} · ${deal.client?.name ?? "No company"}`,
+        status: <StatusChip status={STATUS_PRESENTATION[deal.stage.status] ?? "pending"} label={deal.stage.name} />,
+        facts: [
+          { value: formatMoney(deal.value, deal.currency), mono: true, primary: true },
+          { label: "Owner", value: deal.assignedTo?.name ?? "Unassigned" },
+        ],
+      })),
+    [deals],
   );
 
+  const empty = emptyState(register, {
+    none: "No deals yet",
+    noneBody: "Convert a qualified lead, or add a deal of your own.",
+  });
+  const emptyAction =
+    empty.kind === "none" ? (
+      <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+        Add the first deal
+      </Button>
+    ) : empty.kind === "filtered" ? (
+      <Button variant="secondary" size="sm" onClick={register.clearFilters}>
+        Clear the filters
+      </Button>
+    ) : undefined;
+
+  const list = register.groups ? (
+    <GroupedRecordList
+      sections={groupSections(register.groups, rows)}
+      isLoading={register.isLoading}
+      emptyTitle={empty.title}
+      emptyBody={empty.body}
+      emptyAction={emptyAction}
+    />
+  ) : (
+    <RecordList
+      rows={rows}
+      isLoading={register.isLoading}
+      emptyTitle={empty.title}
+      emptyBody={empty.body}
+      emptyAction={emptyAction}
+    />
+  );
+
+  // The stage and status filters choose a board's columns as well as its
+  // cards, so they can leave it with none at all.
+  const noColumns = layout === "BOARD" && register.board.query.data?.columns.length === 0;
+
   return (
-    <RecordListShell
+    <RegisterShell
+      register={register}
       title="Deals"
-      search={search}
-      onSearchChange={(value) => {
-        setSearch(value);
-        setPage(1);
-      }}
-      searchPlaceholder="Search deals by title, number or company"
       createLabel="New deal"
       onCreate={() => setCreateOpen(true)}
-      error={dealsQuery.error}
-      count={`${rows.length} of ${total}`}
-      // Below `sm` the status control is behind one button, and this list opens
-      // narrowed to OPEN — so a business whose deals are all won or lost sees an
-      // empty page with nothing on it to explain why. The default counts for
-      // exactly that reason: it is hiding rows, and the reader cannot see it.
-      // The pipeline is not counted; it swaps the set rather than narrowing it.
-      filterCount={statusFilter === "ALL" ? 0 : 1}
       display={
-        <ColumnPicker
-          columns={layout === "BOARD" ? DEAL_CARD_FIELDS : DEAL_TABLE_COLUMNS}
-          state={layout === "BOARD" ? boardFields : tableColumns}
-          label={layout === "BOARD" ? "Fields" : "Columns"}
-        />
+        layout === "BOARD" ? (
+          <ColumnPicker columns={DEAL_CARD_FIELDS} state={boardFields} label="Fields" size="sm" />
+        ) : undefined
       }
-      filters={
-        <>
-          <SegmentedControl
-            value={statusFilter}
-            onValueChange={(value) => {
-              setStatusFilter(value as typeof statusFilter);
-              setPage(1);
-            }}
-            ariaLabel="Filter by status"
-            options={[
-              { value: "OPEN", label: "Open" },
-              { value: "WON", label: "Won" },
-              { value: "LOST", label: "Lost" },
-              { value: "ALL", label: "All" },
-            ]}
-          />
-          {/* A pipeline is a different shape of work, not a filter over one
-              shape — supply-only and supply-and-fit do not share stages — so
-              picking one swaps the board rather than narrowing it. */}
-          <PipelineSwitcher
-            active={activePipeline?.id ?? null}
-            onPick={onPickPipeline}
-            onPickPipeline={setPipelineId}
-          />
-
-        </>
-      }
-      layout={<LayoutSwitch value={layout} onChange={setLayout} options={["BOARD", "TABLE"]} />}
     >
       {layout === "BOARD" ? (
-        <BoardFieldsProvider hidden={boardFields.hidden}>
-          <DealsBoard
-            pipelineId={activePipeline?.id ?? null}
-            search={debouncedSearch}
-            className="min-h-[24rem]"
-          />
-        </BoardFieldsProvider>
+        noColumns ? (
+          <NothingMatched what="stages" onClear={register.clearFilters} />
+        ) : (
+          <BoardFieldsProvider hidden={boardFields.hidden}>
+            <DealsBoard register={register} />
+          </BoardFieldsProvider>
+        )
+      ) : layout === "TABLE" ? (
+        <RecordTable
+          rows={deals}
+          columns={columns}
+          rowHref={(deal) => `/crm/deals/${deal.id}`}
+          isLoading={register.isLoading}
+          selection={{ selectedIds: register.selection.ids, onChange: register.selection.set }}
+          sort={tableSort(register)}
+          groups={register.groups}
+          emptyTitle={empty.title}
+          emptyBody={empty.body}
+          emptyAction={emptyAction}
+          mobile={list}
+        />
       ) : (
-        <>
-          <RecordTable
-            rows={rows}
-            columns={visibleColumns}
-            rowHref={(deal) => `/crm/deals/${deal.id}`}
-            isLoading={dealsQuery.isLoading}
-            emptyTitle={
-              statusFilter === "OPEN" ? "No open deals" : "No deals match this filter"
-            }
-            emptyBody={
-              statusFilter === "OPEN" ? "Convert a qualified lead to start one." : undefined
-            }
-            // On a phone the same deals come back as the rows every other CRM
-            // surface uses: two lines, and the value on the right of the title
-            // rather than on a third line of its own.
-            mobile={
-              <RecordList
-                isLoading={dealsQuery.isLoading}
-                rows={rows.map((row) => ({
-                  id: row.id,
-                  href: `/crm/deals/${row.id}`,
-                  title: row.title,
-                  subtitle: `${row.dealNo} · ${row.client?.name ?? "No company"}`,
-                  status: (
-                    <StatusChip
-                      status={STATUS_PRESENTATION[row.stage.status] ?? "pending"}
-                      label={row.stage.name}
-                    />
-                  ),
-                  facts: [
-                    { value: formatMoney(row.value, row.currency), mono: true, primary: true },
-                  ],
-                }))}
-                emptyTitle={
-                  statusFilter === "OPEN" ? "No open deals" : "No deals match this filter"
-                }
-              />
-            }
-          />
+        list
+      )}
 
-          <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
-        </>
+      {layout === "BOARD" ? null : (
+        <RecordListPager
+          page={register.page}
+          pageSize={REGISTER_PAGE_SIZE}
+          total={register.total}
+          onPageChange={register.setPage}
+        />
       )}
 
       <DealFormSheet open={createOpen} onOpenChange={setCreateOpen} />
-    </RecordListShell>
+    </RegisterShell>
   );
 }

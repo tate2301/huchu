@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { LessonPlansPageContent } from "@/components/schools/timetable/lesson-plans-page-content";
 import { authOptions } from "@/lib/auth";
 
@@ -22,7 +22,7 @@ export default async function SchoolsLessonPlansPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Lesson plans" />
+      <PageChrome title="Lesson plans" />
       <LessonPlansPageContent />
     </div>
   );

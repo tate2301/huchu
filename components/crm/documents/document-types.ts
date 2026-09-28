@@ -1,4 +1,5 @@
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
+import { invoiceEditLock, quoteEditLock, quoteReviseLock } from "@/lib/crm/document-edit";
 
 export type CrmDocumentKind = "QUOTATION" | "INVOICE" | "RECEIPT";
 
@@ -43,6 +44,10 @@ export type LeadDocument = {
     amountPaid: number;
     creditTotal: number;
     writeOffTotal: number;
+    /** What `invoiceEditLock` judges an edit on; sent by the lead and deal routes. */
+    fiscalStatus?: string | null;
+    fiscalReceipt?: { id: string } | null;
+    _count?: { receipts: number; creditNotes: number; writeOffs: number };
   } | null;
   receipt: {
     id: string;
@@ -66,6 +71,42 @@ export const DOCUMENT_SOURCE_KEYS: Record<CrmDocumentKind, string> = {
   RECEIPT: "accounting.sales.receipt",
 };
 
+/**
+ * Why this quote or invoice cannot be edited in place, or null when it can.
+ * Both are edited until the client answers them; a receipt never is.
+ */
+export function documentEditLock(doc: LeadDocument): string | null {
+  const approvalStatus = doc.approval?.status ?? null;
+  if (doc.type === "QUOTATION") {
+    return doc.quotation
+      ? quoteEditLock({ status: doc.quotation.status, approvalStatus })
+      : "Not a quote this page can edit";
+  }
+  if (doc.type === "INVOICE" && doc.invoice) {
+    return invoiceEditLock({
+      status: doc.invoice.status,
+      amountPaid: doc.invoice.amountPaid,
+      creditTotal: doc.invoice.creditTotal,
+      writeOffTotal: doc.invoice.writeOffTotal,
+      receiptCount: doc.invoice._count?.receipts,
+      creditNoteCount: doc.invoice._count?.creditNotes,
+      writeOffCount: doc.invoice._count?.writeOffs,
+      fiscalised: Boolean(doc.invoice.fiscalReceipt) || doc.invoice.fiscalStatus === "SUCCESS",
+      approvalStatus,
+    });
+  }
+  return "Receipts are not edited";
+}
+
+/** Whether a quote is revised as its next version — only once the client has declined it. */
+export function canReviseQuote(doc: LeadDocument): boolean {
+  return (
+    doc.type === "QUOTATION" &&
+    Boolean(doc.quotation) &&
+    quoteReviseLock({ status: doc.quotation!.status, approvalStatus: doc.approval?.status ?? null }) === null
+  );
+}
+
 /** What still has to be collected on an invoice, after credits and write-offs. */
 export function invoiceOutstanding(invoice: NonNullable<LeadDocument["invoice"]>): number {
   const balance =
@@ -80,6 +121,12 @@ export function documentNumber(doc: LeadDocument): string {
     doc.receipt?.receiptNumber ??
     "—"
   );
+}
+
+/** The document's own page: `/crm/quotes/<id>`, `/crm/invoices/<id>`, `/crm/receipts/<id>`. */
+export function documentHref(doc: { id: string; type: CrmDocumentKind | string }): string {
+  const list = doc.type === "QUOTATION" ? "quotes" : doc.type === "INVOICE" ? "invoices" : "receipts";
+  return `/crm/${list}/${doc.id}`;
 }
 
 export function documentRecordId(doc: LeadDocument): string | null {

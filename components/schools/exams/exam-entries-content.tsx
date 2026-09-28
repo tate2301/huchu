@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button } from "@corelithzw/react";
+import { Alert, Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import {
@@ -145,6 +146,9 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
               onSelect: () => invoice.mutate(),
             },
             {
+              // Rehoused off the band it used to hang from. Still not a
+              // submission — it writes a file and hands it to you — so it
+              // stays last, behind the two verbs that change the record.
               label: "Build the entry file",
               action: "enter",
               loading: build.isPending,

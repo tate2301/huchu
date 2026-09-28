@@ -22,7 +22,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
-import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 
 function defaultStart(): string {
   const start = new Date();
@@ -69,7 +69,7 @@ export function VisitScheduleSheet({
   onOpenChange: (open: boolean) => void;
   subject: VisitSubject;
   defaultLocation?: string | null;
-  owners: LeadFilterOwner[];
+  owners: CrmLeadOwner[];
   currentUserId?: string;
   onScheduled?: () => void;
 }) {

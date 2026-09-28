@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
+import { recordActivityWrite } from '@/lib/activity/record'
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
@@ -35,13 +37,29 @@ function createPrismaClient(): PrismaClient {
       : new Pool(poolConfig)
     const adapter = new PrismaPg(pool)
 
-    return new PrismaClient({
+    const client = new PrismaClient({
       adapter,
       transactionOptions: {
         maxWait: parseNumber(process.env.PRISMA_TX_MAX_WAIT_MS, 10000),
         timeout: parseNumber(process.env.PRISMA_TX_TIMEOUT_MS, 60000),
       },
     })
+
+    // The activity log's recorder: every write, once it has succeeded, is
+    // offered to the request it was made in (`lib/activity/record.ts`). Reads
+    // pass straight through. The cast is honest — a query-only extension adds
+    // nothing to the client's API — and keeps the annotation above nominal.
+    return client.$extends({
+      query: {
+        $allModels: {
+          async $allOperations({ model, operation, args, query }) {
+            const result = await query(args)
+            recordActivityWrite({ model, operation, queryArgs: args, result })
+            return result
+          },
+        },
+      },
+    }) as unknown as PrismaClient
   } catch (error) {
     console.error('Failed to create Prisma client adapter:', error)
     throw error

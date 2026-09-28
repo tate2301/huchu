@@ -46,6 +46,7 @@ import {
   Tag,
   User,
   Users,
+  Work,
   Wrench,
   XCircle,
 } from "@/lib/icons";
@@ -61,6 +62,7 @@ import { jobNextStep, type JobAct } from "./job-next-step";
 import { JobStageRail } from "./job-stage-rail";
 import { jobWindow, type JobInvoicePreview, type JobRecord, type JobStatus } from "./job-types";
 import { useJobActions, type InvoiceLineInput } from "./use-job-actions";
+import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 
 /** The stored enum, in the words somebody would say. */
 const PRIORITY_LABELS: Record<string, string> = {
@@ -132,7 +134,7 @@ function paperworkRows(job: JobRecord): PaperworkRow[] {
  * to the invoice it earned.
  *
  * Held to the same template as every other record, so the shape is already
- * learned: identity in the band with the lifecycle rail beside it, sections
+ * learned: identity in the app bar, the lifecycle rail in the toolbar, sections
  * down the left, and the rail on the right carrying the properties, the
  * progress and the single next move.
  */
@@ -224,6 +226,14 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
 
   const subtitle = (
     <>
+      {/* The project first: it is what this day's work is part of, and the
+          customer and site are the project's too. */}
+      {job.project ? (
+        <EntityLink href={`/crm/projects/${job.project.id}`} muted>
+          {job.project.name}
+        </EntityLink>
+      ) : null}
+      {job.project && (job.client || job.site) ? " · " : null}
       {job.client ? (
         <EntityLink href={`/crm/companies/${job.client.id}`} muted>
           {job.client.name}
@@ -405,6 +415,8 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
     <>
       <RecordPageShell
         icon={Wrench}
+        // Which groups it is in, from the record itself.
+        toolbar={<RecordGroupsControl entity="WORK_ORDER" recordId={job.id} />}
         backHref="/crm/work-orders"
         backLabel="All jobs"
         title={job.title}
@@ -417,7 +429,7 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
           label: WORK_ORDER_STATUS_LABELS[job.status],
         }}
         subtitle={subtitle}
-        bandValue={job.items.length > 0 ? `${job.completionPercent}%` : undefined}
+        figure={job.items.length > 0 ? `${job.completionPercent}%` : undefined}
         actions={[
           // Asking the customer to sign is not a stage — the job is still on
           // site while it waits — so it lives here rather than on the rail.
@@ -448,7 +460,7 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
               ]
             : []),
         ]}
-        beforeTabs={
+        stage={
           <JobStageRail
             status={job.status}
             allowed={job.allowedTransitions}
@@ -459,6 +471,15 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
         related={
           <RecordRelated
             items={[
+              ...(job.project
+                ? [
+                    {
+                      href: `/crm/projects/${job.project.id}`,
+                      label: job.project.name,
+                      dot: "bg-[var(--badge-ok-fg)]",
+                    },
+                  ]
+                : []),
               ...(job.deal
                 ? [
                     {
@@ -492,6 +513,38 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
         attributes={
           <RecordAttributes
             attributes={[
+              // The deal first: every job delivers one, and it is what the job
+              // is invoiced against. It can be changed here — a job raised
+              // before every job named its deal can be given one — but never
+              // taken away. A job raised before that rule with none is the
+              // row somebody opened it to fix, so the blank is red.
+              {
+                id: "deal",
+                label: "Deal",
+                icon: Coins,
+                tone: job.deal ? "link" : "alert",
+                display: (
+                  <RelationAttribute
+                    value={job.deal?.title ?? null}
+                    href={job.deal ? `/crm/deals/${job.deal.id}` : null}
+                    types={["DEAL"]}
+                    placeholder="No deal to invoice against"
+                    searchPlaceholder="Search deals"
+                    onPick={(record) => edit.save.mutate({ dealId: record.id })}
+                  />
+                ),
+              },
+              // Then the project it is part of, when its deal has one.
+              {
+                id: "project",
+                label: "Project",
+                icon: Work,
+                display: job.project ? (
+                  <EntityLink href={`/crm/projects/${job.project.id}`}>{job.project.name}</EntityLink>
+                ) : undefined,
+                value: job.project ? job.project.name : null,
+                placeholder: "Its deal has no project",
+              },
               {
                 id: "status",
                 label: "Status",
@@ -561,28 +614,6 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
                 ) : undefined,
                 value: job.client ? job.client.name : null,
                 placeholder: "Not attached",
-              },
-              {
-                id: "deal",
-                label: "Deal",
-                icon: Coins,
-                // A job with no deal cannot be invoiced, which makes this
-                // blank a problem rather than an omission — and, until it
-                // could be set here, a permanent one: a callout logged against
-                // a site alone had no way of ever acquiring the deal the
-                // invoice route insists on.
-                tone: job.deal ? "link" : "alert",
-                display: (
-                  <RelationAttribute
-                    value={job.deal?.title ?? null}
-                    href={job.deal ? `/crm/deals/${job.deal.id}` : null}
-                    types={["DEAL"]}
-                    placeholder="Nothing to bill against"
-                    searchPlaceholder="Search deals"
-                    onPick={(record) => edit.save.mutate({ dealId: record.id })}
-                    onClear={() => edit.save.mutate({ dealId: null })}
-                  />
-                ),
               },
               {
                 id: "contact",

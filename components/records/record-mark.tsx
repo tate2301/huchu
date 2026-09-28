@@ -17,6 +17,7 @@ import {
   Receipt,
   UserRound,
   Users,
+  Work,
   Wrench,
   type LucideIcon,
 } from "@/lib/icons";
@@ -58,7 +59,8 @@ export type RecordKind =
   | "teacher"
   | "class"
   | "subject"
-  | "hostel";
+  | "hostel"
+  | "project";
 
 const KIND_ICON: Record<RecordKind, LucideIcon> = {
   person: Users,
@@ -78,6 +80,7 @@ const KIND_ICON: Record<RecordKind, LucideIcon> = {
   class: TableRows,
   subject: MedusaBookOpenIcon,
   hostel: Home,
+  project: Work,
 };
 
 /**
@@ -103,6 +106,7 @@ export const KIND_EMOJI: Record<RecordKind, string> = {
   class: "🪧",
   subject: "📐",
   hostel: "🏠",
+  project: "🏗️",
 };
 
 const AVATAR_SIZE = { sm: "sm", md: "sm", lg: "md" } as const;

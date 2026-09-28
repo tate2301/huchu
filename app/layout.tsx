@@ -20,10 +20,7 @@ import {
   PLATFORM_BRAND_NAME,
   PLATFORM_MARKETING_TAGLINE,
 } from "@/lib/platform/brand";
-import {
-  getBrandingCssVariables,
-  getEffectiveBrandingForHost,
-} from "@/lib/platform/branding";
+import { getBrandingCssVariables } from "@/lib/platform/branding";
 import { authOptions } from "@/lib/auth";
 import { getSiteUrl } from "@/lib/site-url";
 import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@/lib/platform/tenant";
@@ -80,20 +77,22 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
     },
     manifest: buildWorkspaceManifestHref(identity),
+    // The workspace's own icon: its logo contained on a square, or its initial
+    // on its colour when it has no logo. Never the logo file itself — most
+    // logos are wordmarks, and a tab crops a wordmark to a smear.
     icons: {
-      icon: [
+      icon: [32, 192, 512].map((size) => ({
+        url: buildWorkspaceIconHref(identity, { size }),
+        sizes: `${size}x${size}`,
+        type: "image/png",
+      })),
+      apple: [
         {
-          url: buildWorkspaceIconHref(identity, { size: 192 }),
-          sizes: "192x192",
-          type: "image/svg+xml",
-        },
-        {
-          url: buildWorkspaceIconHref(identity, { size: 512 }),
-          sizes: "512x512",
-          type: "image/svg+xml",
+          url: buildWorkspaceIconHref(identity, { size: 180, purpose: "apple" }),
+          sizes: "180x180",
+          type: "image/png",
         },
       ],
-      apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
     },
     appleWebApp: {
       capable: true,
@@ -117,7 +116,14 @@ export default async function RootLayout({
 }>) {
   const requestHeaders = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
-  const branding = await getEffectiveBrandingForHost(hostHeader);
+  // The host's workspace, or the signed-in one's on a shared host — the same
+  // resolution the favicon and title use, so the rail's logo, the tab's icon
+  // and the page's colours all describe one workspace.
+  const identity = await resolveWorkspaceIdentityForHost(hostHeader);
+  const branding = identity.branding;
+  const workspaceBrand = identity.companyId
+    ? { name: identity.workspaceName, logoUrl: identity.logoUrl }
+    : null;
   const hostContext = getPlatformHostContext(hostHeader);
   const brandingVars = getBrandingCssVariables(branding);
 
@@ -160,7 +166,10 @@ export default async function RootLayout({
         <div className="app-root">
           <AppProviders session={session}>
             <Suspense fallback={<div className="min-h-screen bg-background" />}>
-              <AppShell hostPortalPath={hostContext.portalPath}>
+              <AppShell
+                hostPortalPath={hostContext.portalPath}
+                workspaceBrand={workspaceBrand}
+              >
                 {children}
               </AppShell>
             </Suspense>

@@ -36,6 +36,7 @@ export function RecordListShell({
   createLabel,
   onCreate,
   error,
+  notice,
   width = "full",
   children,
 }: {
@@ -78,6 +79,12 @@ export function RecordListShell({
   onCreate?: () => void;
   error?: unknown;
   /**
+   * A standing instruction about the whole list — the site-visit list's "take
+   * geotagged photos". Drawn above the toolbar rather than between it and the
+   * rows, because the toolbar's hairline is the seam the rows hang off.
+   */
+  notice?: ReactNode;
+  /**
    * "narrow" caps the whole surface at max-w-3xl. A register of one-line
    * items — tasks, receipts, work orders — reads as a column, and stretching
    * it across a wide screen just puts air between the title and its facts.
@@ -116,6 +123,8 @@ export function RecordListShell({
       }
     >
       <PageChrome title={title}>{actions}</PageChrome>
+
+      {notice ? <div className="mb-3">{notice}</div> : null}
 
       <ViewToolbar
         layout={layout}

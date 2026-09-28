@@ -313,10 +313,9 @@ export function DealStageBar({
  * real requirements are enforced by the server on the move, which is what the
  * blockers dialog reports.
  *
- * Split out of `DealStageBar` because the stage control moved to the band,
- * where a stack of checkboxes has nowhere to go: 44px, and the band is shared
- * with the identity and the figure. The checklist belongs in the column, which
- * is the shape that stacks.
+ * Split out of `DealStageBar` because the stage control opens from the record's
+ * toolbar, where a stack of checkboxes has nowhere to go. The checklist belongs
+ * in the column, which is the shape that stacks.
  */
 export function StageChecklist({
   checklist,

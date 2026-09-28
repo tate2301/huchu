@@ -1,154 +1,167 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Badge, Button } from "@corelithzw/react";
 import { EntityLink } from "@/components/records/entity-link";
-import { Building2, Coins, Funnel, Mail, UserRound, Users } from "@/lib/icons";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Building2, Calendar, Coins, Funnel, Mail, MapPin, Phone, Tag, UserRound, Users } from "@/lib/icons";
 import { useToast } from "@/components/ui/use-toast";
+import { ClientDate } from "@/components/ui/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CONTACT_TYPE_COLOR, stageColor } from "@/lib/crm/tones";
-import { fetchCrmPeople } from "@/lib/crm/crm-v2";
-import { useDebounced } from "@/hooks/use-debounced";
+import type { CrmPersonRecord } from "@/lib/crm/crm-v2";
+import { CONTACT_TYPE_OPTIONS, PREFERRED_CHANNEL_OPTIONS, optionLabel } from "@/lib/crm/record-labels";
+import { PERSON_REGISTER } from "@/lib/crm/registers/defs/person";
 
 import { PersonFormSheet } from "./person-form-sheet";
 import { RecordListPager, type RecordListRow } from "@/components/records/record-list";
-import {
-  RecordCell,
-  RecordTable,
-  recordCellTone,
-  type RecordTableColumn,
-} from "@/components/records/record-table";
-import { ViewToolbarChip } from "@/components/records/view-toolbar";
-import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
+import { RecordCell, RecordTable, recordCellTone } from "@/components/records/record-table";
 import { RecordMark } from "@/components/records/record-mark";
-import {
-  DirectoryCell,
-  DirectoryName,
-} from "@/components/records/people-directory";
+import { DirectoryCell, DirectoryName } from "@/components/records/people-directory";
+import { BoardCardFace } from "./board-card-face";
 import { RecordBoard } from "./record-board";
-import { ColumnPicker } from "@/components/ui/column-picker";
-import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
+import { GroupedRecordList, bucketByLetter, type RecordListSection } from "@/components/records/record-list-groups";
+import { RegisterShell } from "@/components/crm/registers/register-shell";
+import { REGISTER_PAGE_SIZE, useRegister } from "@/components/crm/registers/use-register";
 import {
-  GroupedRecordList,
-  bucketByLetter,
-  type RecordListSection,
-} from "@/components/records/record-list-groups";
-import { RecordListShell } from "./record-list-shell";
+  emptyState,
+  groupSections,
+  registerColumns,
+  tableSort,
+  type ColumnRenderer,
+} from "@/components/crm/registers/table-helpers";
 
-const PAGE_SIZE = 50;
+type Person = CrmPersonRecord;
 
-const CONTACT_TYPE_LABELS: Record<string, string> = {
-  CUSTOMER: "Customer",
-  DECISION_MAKER: "Decision-maker",
-  SITE_CONTACT: "Site contact",
-  FINANCE_CONTACT: "Finance contact",
-  SUPPLIER_CONTACT: "Supplier",
-  REFERRAL_PARTNER: "Referral partner",
-  OTHER: "Other",
-};
-
-/** What a person's row or card can show, for the picker. */
-const PERSON_FIELDS: ColumnOption[] = [
-  { id: "name", label: "Name", required: true },
-  { id: "role", label: "Job title and company" },
-  { id: "contact", label: "Email or phone" },
-  { id: "type", label: "Contact type" },
-  { id: "deals", label: "Deal count" },
-  { id: "owner", label: "Owner" },
-];
-
+/**
+ * People: the contact directory, on the list engine.
+ *
+ * Every filter, the search, the sort and the layout live in the address bar
+ * (so a link is the list as it was seen, and a saved view keeps all of it);
+ * the table's columns are the reader's to choose and order; ticked rows can
+ * be reassigned, grouped, archived or exported.
+ */
 export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) {
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const register = useRegister<Person>(PERSON_REGISTER);
+  const { state, rows: people } = register;
+  const layout = state.layout ?? "TABLE";
   const [createOpen, setCreateOpen] = useState(openCreate);
-  const debouncedSearch = useDebounced(search, 300);
-  // The two questions a directory is actually narrowed by: what kind of contact
-  // somebody is, and whose they are. The canvas puts them on the search row as
-  // chips rather than in a panel, because "narrow it down" answered in two
-  // places a band apart is the thing the toolbar pass set out to fix.
-  const [contactType, setContactType] = useState<string>("ALL");
-  const [ownerFilter, setOwnerFilter] = useState<string>("ALL");
-
-  const peopleQuery = useQuery({
-    queryKey: ["crm", "people", debouncedSearch, contactType, ownerFilter, page],
-    queryFn: () =>
-      fetchCrmPeople({
-        filters: {
-          q: debouncedSearch,
-          contactTypes: contactType === "ALL" ? undefined : [contactType],
-          assignedToIds:
-            ownerFilter === "ALL" || ownerFilter === "UNASSIGNED" ? undefined : [ownerFilter],
-          unassigned: ownerFilter === "UNASSIGNED",
-        },
-        // By name, because the page below groups by first letter. On the
-        // default `updatedAt` order the headings came out A, S, C, N, F — an
-        // alphabet applied to a list that was not in alphabetical order, which
-        // is worse than no headings at all. Sort first, then group.
-        sort: { field: "fullName", direction: "asc" },
-        page,
-        limit: PAGE_SIZE,
-      }),
-    placeholderData: (previous) => previous,
-  });
-
-  const people = useMemo(() => peopleQuery.data?.data ?? [], [peopleQuery.data]);
-  const total = peopleQuery.data?.pagination?.total ?? people.length;
-
-  const [layout, setLayout] = useState<RecordLayout>("TABLE");
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const teamQuery = useQuery({
-    queryKey: ["crm", "team"],
-    queryFn: () =>
-      fetchJson<{ data: Array<{ id: string; name: string | null }> }>("/api/v2/crm/team"),
-    staleTime: 5 * 60_000,
-  });
+  const shows = register.columns.isVisible;
 
-  const assign = useMutation({
-    mutationFn: ({
-      ids,
-      assignedToId,
-    }: {
-      ids: string[];
-      assignedToId: string | null;
-      clear: () => void;
-    }) =>
-      fetchJson<{ updated: number; skipped: number }>("/api/v2/crm/people/bulk", {
-        method: "POST",
-        body: JSON.stringify({ action: "assign", ids, assignedToId }),
-      }),
-    onSuccess: (result, variables) => {
-      variables.clear();
-      queryClient.invalidateQueries({ queryKey: ["crm", "people"] });
-      toast({
-        title: `${result.updated} ${result.updated === 1 ? "person" : "people"} reassigned`,
-        // Saying what was left alone, rather than letting the count quietly
-        // disagree with what was selected.
-        description:
-          result.skipped > 0
-            ? `${result.skipped} skipped — they belong to someone else.`
-            : undefined,
-      });
-    },
+  const moveContactType = useMutation({
+    mutationFn: ({ id, contactType }: { id: string; contactType: string }) =>
+      fetchJson(`/api/v2/crm/people/${id}`, { method: "PATCH", body: JSON.stringify({ contactType }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crm", "people"] }),
     onError: (error) =>
-      toast({
-        title: "Could not reassign",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
+      toast({ title: "Could not change the contact type", description: getApiErrorMessage(error), variant: "destructive" }),
   });
 
-  const fields = useVisibleColumns("crm.people.fields", PERSON_FIELDS);
+  const renderers = useMemo<Record<string, ColumnRenderer<Person>>>(
+    () => ({
+      name: {
+        icon: UserRound,
+        cell: (person) => (
+          // `code · context`: the reference first, because that is the half
+          // that is unique, then the word that tells two Tendai Moyos apart.
+          <DirectoryName
+            name={person.fullName}
+            photoUrl={person.avatarUrl}
+            subtitle={[person.personNo, shows("jobTitle") ? null : person.jobTitle].filter(Boolean).join(" · ")}
+          />
+        ),
+      },
+      ref: { width: "8rem", cell: (person) => <RecordCell kind="code" value={person.personNo} /> },
+      jobTitle: { width: "11rem", cell: (person) => <RecordCell value={person.jobTitle} /> },
+      company: {
+        icon: Building2,
+        width: "13rem",
+        cell: (person) => (
+          <span className="block truncate">
+            {person.client ? (
+              <EntityLink href={`/crm/companies/${person.client.id}`} className={recordCellTone("relation")}>
+                {person.client.name}
+              </EntityLink>
+            ) : (
+              <span className="text-[var(--text-faint)]">No company</span>
+            )}
+          </span>
+        ),
+      },
+      email: {
+        icon: Mail,
+        width: "14rem",
+        cell: (person) => <DirectoryCell kind="email" value={person.email} missing="no email" />,
+      },
+      phone: {
+        icon: Phone,
+        width: "10rem",
+        cell: (person) => <DirectoryCell kind="phone" value={person.phone} missing="no phone" />,
+      },
+      type: {
+        icon: Funnel,
+        width: "9rem",
+        cell: (person) => (
+          <Badge tone="neutral" size="sm">
+            {optionLabel(CONTACT_TYPE_OPTIONS, person.contactType)}
+          </Badge>
+        ),
+      },
+      deals: {
+        icon: Coins,
+        width: "5.5rem",
+        align: "end",
+        cell: (person) => <RecordCell kind="number" value={person._count?.dealContacts ?? 0} />,
+      },
+      owner: {
+        icon: Users,
+        width: "10rem",
+        cell: (person) => <DirectoryCell value={person.assignedTo?.name} missing="Unassigned" />,
+      },
+      city: { icon: MapPin, width: "8rem", cell: (person) => <RecordCell value={person.city} /> },
+      country: { width: "8rem", cell: (person) => <RecordCell value={person.country} /> },
+      channel: {
+        width: "9rem",
+        cell: (person) => (
+          <RecordCell
+            value={person.preferredChannel ? optionLabel(PREFERRED_CHANNEL_OPTIONS, person.preferredChannel) : null}
+          />
+        ),
+      },
+      tags: { icon: Tag, width: "10rem", cell: (person) => <RecordCell value={person.tags?.join(", ")} /> },
+      contacted: {
+        icon: Calendar,
+        width: "8.5rem",
+        cell: (person) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={person.lastContactedAt} mode="date" fallback="never" />
+          </span>
+        ),
+      },
+      created: {
+        width: "8.5rem",
+        cell: (person) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={person.createdAt} mode="date" />
+          </span>
+        ),
+      },
+      updated: {
+        width: "10rem",
+        cell: (person) => (
+          <span className="font-mono tabular-nums">
+            <ClientDate value={person.updatedAt} />
+          </span>
+        ),
+      },
+    }),
+    [shows],
+  );
+
+  const columns = registerColumns(register, renderers);
 
   const rows = useMemo<RecordListRow[]>(
     () =>
@@ -156,463 +169,134 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
         id: person.id,
         href: `/crm/people/${person.id}`,
         leading: (
-          <RecordMark
-            kind="person"
-            name={person.fullName}
-            emoji={person.emoji}
-            avatarUrl={person.avatarUrl}
-            size="md"
-          />
+          <RecordMark kind="person" name={person.fullName} emoji={person.emoji} avatarUrl={person.avatarUrl} size="md" />
         ),
         title: person.fullName,
         subtitle:
-          [
-            fields.isVisible("role") ? person.jobTitle : null,
-            fields.isVisible("role") ? person.client?.name : null,
-            fields.isVisible("contact") ? person.email ?? person.phone : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || person.personNo,
-        status: fields.isVisible("type") ? (
+          [person.jobTitle, person.client?.name, person.email ?? person.phone].filter(Boolean).join(" · ") ||
+          person.personNo,
+        status: (
           <Badge tone="neutral" size="sm">
-            {CONTACT_TYPE_LABELS[person.contactType] ?? person.contactType}
+            {optionLabel(CONTACT_TYPE_OPTIONS, person.contactType)}
           </Badge>
-        ) : null,
+        ),
         facts: [
-          ...(fields.isVisible("deals")
-            ? [{ label: "Deals", value: person._count?.dealContacts ?? 0, mono: true }]
-            : []),
-          ...(fields.isVisible("owner")
-            ? [{ label: "Owner", value: person.assignedTo?.name ?? "Unassigned" }]
-            : []),
+          { label: "Deals", value: person._count?.dealContacts ?? 0, mono: true },
+          { label: "Owner", value: person.assignedTo?.name ?? "Unassigned" },
         ],
       })),
-    [fields, people],
+    [people],
   );
 
-  // A directory is scanned by name, so it gets the grouped-by-section recipe:
-  // one heading per letter, and a jump strip once the page is long enough for
-  // scrolling to it to be work. A search result is ranked by relevance, not
-  // alphabet, so it stays a flat list.
-  const owners = useMemo(() => teamQuery.data?.data ?? [], [teamQuery.data]);
+  // A directory sorted by name is scanned by name, so it gets a heading per
+  // letter (SHAPE-12: sort first, then group). Any other order, or a search
+  // ranked by relevance, is a flat list.
+  const byName = (state.sort?.key ?? "name") === "name" && (state.sort?.dir ?? "asc") === "asc";
+  const grouped = register.groups;
+  const lettered = !grouped && byName && !state.q;
+  const sections = useMemo<RecordListSection[]>(
+    () =>
+      grouped
+        ? groupSections(grouped, rows)
+        : lettered
+          ? bucketByLetter(rows, (row) => String(row.title ?? "")).map((bucket) => ({
+              id: bucket.id,
+              label: bucket.label,
+              rows: bucket.items,
+            }))
+          : [{ id: "results", label: state.q ? "Results" : "People", rows }],
+    [grouped, lettered, rows, state.q],
+  );
 
-  // A directory is arranged by what kind of contact somebody is, which is the
-  // one attribute on a person worth seeing them sorted into.
   const boardColumns = useMemo(
     () =>
-      Object.entries(CONTACT_TYPE_LABELS).map(([value, label]) => ({
+      CONTACT_TYPE_OPTIONS.map(({ value, label }) => ({
         id: value,
         name: label,
-        color: CONTACT_TYPE_COLOR[value] ?? stageColor(null),
+        dot: (CONTACT_TYPE_COLOR[value] ?? stageColor(null)).dot,
       })),
     [],
   );
-
-  const rowsById = useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows]);
-
   const boardCards = useMemo(
     () =>
       people.map((person) => ({
         id: person.id,
         columnId: person.contactType,
         href: `/crm/people/${person.id}`,
-        // The phone board reuses the list view's row for the same person, so
-        // the two arrangements of these records say the same things.
-        row: (() => {
-          const row = rowsById.get(person.id);
-          if (!row) return undefined;
-          return {
-            leading: row.leading,
-            title: row.title,
-            subtitle: row.subtitle,
-            status: row.status,
-            facts: row.facts,
-          };
-        })(),
+        row: rows.find((row) => row.id === person.id),
+        label: person.fullName,
         content: (
-          <div className="flex items-start gap-2">
-            <RecordMark
-              kind="person"
-              name={person.fullName}
-              emoji={person.emoji}
-              avatarUrl={person.avatarUrl}
-              size="sm"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{person.fullName}</p>
-              {fields.isVisible("role") ? (
-                <p className="truncate text-sm text-[var(--text-muted)]">
-                  {[person.jobTitle, person.client?.name].filter(Boolean).join(" · ") ||
-                    person.personNo}
-                </p>
-              ) : null}
-              {fields.isVisible("contact") && (person.email || person.phone) ? (
-                <p className="mt-1 truncate text-sm text-[var(--text-subtle)]">
-                  {person.email ?? person.phone}
-                </p>
-              ) : null}
-              {fields.isVisible("owner") ? (
-                <p className="mt-1 truncate text-sm text-[var(--text-subtle)]">
-                  {person.assignedTo?.name ?? "Unassigned"}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        ),
-      })),
-    [fields, people, rowsById],
-  );
-
-  const moveContactType = useMutation({
-    mutationFn: ({ id, contactType }: { id: string; contactType: string }) =>
-      fetchJson(`/api/v2/crm/people/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ contactType }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crm", "people"] }),
-    onError: (error) =>
-      toast({
-        title: "Could not change the contact type",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  });
-
-  /**
-   * The same people, arranged as columns.
-   *
-   * The picker's fields drive both arrangements, so hiding "Owner" hides it in
-   * the table and in the rows — otherwise the control means one thing on one
-   * view and nothing on the other. The name column is never hidden; a table of
-   * anonymous rows is not a table.
-   */
-  const columns = useMemo<RecordTableColumn<(typeof people)[number]>[]>(
-    () => [
-      {
-        id: "name",
-        label: "Name",
-        icon: UserRound,
-        cell: (person) => (
-          // The artboard's mono second line is `code · context` — the reference
-          // first, because that is the half that is unique, then the word that
-          // tells two Tendai Moyos apart. The reference alone where there is no
-          // job title, never a blank line under the name.
-          <DirectoryName
-            name={person.fullName}
-            photoUrl={person.avatarUrl}
-            subtitle={
-              [person.personNo, fields.isVisible("role") ? person.jobTitle : null]
-                .filter(Boolean)
-                .join(" · ")
+          <BoardCardFace
+            leading={
+              <RecordMark kind="person" name={person.fullName} emoji={person.emoji} avatarUrl={person.avatarUrl} size="sm" />
             }
-          />
+            title={person.fullName}
+            subtitle={[person.jobTitle, person.client?.name].filter(Boolean).join(" · ") || person.personNo}
+            owner={person.assignedTo?.name ?? null}
+          >
+            {person.email || person.phone ? (
+              <p className="truncate text-sm text-[var(--text-subtle)]">{person.email ?? person.phone}</p>
+            ) : null}
+          </BoardCardFace>
         ),
-      },
-      ...(fields.isVisible("role")
-        ? [
-            {
-              id: "company",
-              label: "Company",
-              icon: Building2,
-              width: "13rem",
-              cell: (person: (typeof people)[number]) => (
-                // `block truncate` on the cell rather than the link: a long
-                // company name wrapped to two lines and made its row twice as
-                // tall as its neighbours.
-                <span className="block truncate">
-                  {person.client ? (
-                    // A related record, so it peeks rather than navigates: the
-                    // point of a directory is to stay in it while you check who
-                    // somebody works for. It takes the relation ink from the
-                    // same resolver the table's own cells use, so the company
-                    // here and a company in any other list are the one blue.
-                    <EntityLink
-                      href={`/crm/companies/${person.client.id}`}
-                      className={recordCellTone("relation")}
-                    >
-                      {person.client.name}
-                    </EntityLink>
-                  ) : (
-                    <span className="text-[var(--text-faint)]">No company</span>
-                  )}
-                </span>
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("contact")
-        ? [
-            {
-              id: "contact",
-              label: "Contact",
-              icon: Mail,
-              width: "14rem",
-              // One column, two kinds. The canvas decides a cell's ink on the
-              // value rather than on the column it landed in, so an address
-              // here is the brand blue and a real `mailto:`, and a number
-              // falls back to mono — which is what makes a column of contacts
-              // scannable for "who can I actually write to".
-              cell: (person: (typeof people)[number]) => (
-                <DirectoryCell
-                  kind={person.email ? "email" : "phone"}
-                  value={person.email ?? person.phone}
-                  missing="no contact on file"
-                />
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("type")
-        ? [
-            {
-              id: "type",
-              label: "Type",
-              icon: Funnel,
-              width: "10rem",
-              cell: (person: (typeof people)[number]) => (
-                <Badge tone="neutral" size="sm">
-                  {CONTACT_TYPE_LABELS[person.contactType] ?? person.contactType}
-                </Badge>
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("deals")
-        ? [
-            {
-              id: "deals",
-              label: "Deals",
-              icon: Coins,
-              width: "6rem",
-              align: "end" as const,
-              cell: (person: (typeof people)[number]) => (
-                <RecordCell kind="number" value={person._count?.dealContacts ?? 0} />
-              ),
-            },
-          ]
-        : []),
-      ...(fields.isVisible("owner")
-        ? [
-            {
-              id: "owner",
-              label: "Owner",
-              icon: Users,
-              width: "11rem",
-              cell: (person: (typeof people)[number]) => (
-                <DirectoryCell value={person.assignedTo?.name} missing="Unassigned" />
-              ),
-            },
-          ]
-        : []),
-    ],
-    [fields],
-  );
-
-  const sections = useMemo<RecordListSection[]>(
-    () =>
-      bucketByLetter(rows, (row) => String(row.title ?? "")).map((bucket) => ({
-        id: bucket.id,
-        label: bucket.label,
-        rows: bucket.items,
       })),
-    [rows],
+    [people, rows],
   );
 
-  // One selection, whichever way the records are arranged. Written once here
-  // rather than inline in each branch, because two copies of a bulk action are
-  // two chances for the table's version to keep working after the list's has
-  // been changed.
-  const selection = {
-    selectedIds,
-    onChange: setSelectedIds,
-    actions: ({ ids, clear }: { ids: string[]; clear: () => void }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="secondary" size="sm">
-            Assign owner
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-          {owners.map((owner) => (
-            <DropdownMenuItem
-              key={owner.id}
-              onClick={() => assign.mutate({ ids, assignedToId: owner.id, clear })}
-            >
-              {owner.name ?? "Unnamed"}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuItem onClick={() => assign.mutate({ ids, assignedToId: null, clear })}>
-            Leave unassigned
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
-  };
+  const empty = emptyState(register, {
+    none: "No people yet",
+    noneBody: "Add someone, or convert a lead and its contact comes with it.",
+  });
+  const emptyAction =
+    empty.kind === "none" ? (
+      <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+        Add the first person
+      </Button>
+    ) : empty.kind === "filtered" ? (
+      <Button variant="secondary" size="sm" onClick={register.clearFilters}>
+        Clear the filters
+      </Button>
+    ) : undefined;
 
-  const ownerLabel =
-    ownerFilter === "ALL"
-      ? "Anyone"
-      : ownerFilter === "UNASSIGNED"
-        ? "Nobody"
-        : (owners.find((owner) => owner.id === ownerFilter)?.name ?? "Someone");
-
-  // The chips say what they are filtered *to*, not merely what they filter.
-  // "Type" alone has to be opened to be read; "Type Customer" is read at a
-  // glance, which is the difference between a row of controls you interrogate
-  // and one you scan.
-  const filters = (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <ViewToolbarChip
-            label="Type"
-            value={contactType === "ALL" ? "All" : (CONTACT_TYPE_LABELS[contactType] ?? contactType)}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem
-            onClick={() => {
-              setContactType("ALL");
-              setPage(1);
-            }}
-          >
-            All types
-          </DropdownMenuItem>
-          {Object.entries(CONTACT_TYPE_LABELS).map(([value, label]) => (
-            <DropdownMenuItem
-              key={value}
-              onClick={() => {
-                setContactType(value);
-                setPage(1);
-              }}
-            >
-              {label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <ViewToolbarChip label="Owner" value={ownerLabel} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-          <DropdownMenuItem
-            onClick={() => {
-              setOwnerFilter("ALL");
-              setPage(1);
-            }}
-          >
-            Anyone
-          </DropdownMenuItem>
-          {/* Worth its own entry rather than being folded into "Anyone": a
-              contact nobody owns is the one this list is most often opened to
-              find. */}
-          <DropdownMenuItem
-            onClick={() => {
-              setOwnerFilter("UNASSIGNED");
-              setPage(1);
-            }}
-          >
-            Unassigned
-          </DropdownMenuItem>
-          {owners.map((owner) => (
-            <DropdownMenuItem
-              key={owner.id}
-              onClick={() => {
-                setOwnerFilter(owner.id);
-                setPage(1);
-              }}
-            >
-              {owner.name ?? "Unnamed"}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
-  );
-
-  const filterCount = (contactType === "ALL" ? 0 : 1) + (ownerFilter === "ALL" ? 0 : 1);
-
-  // An empty list has three different causes and they want three different
-  // sentences. "No people yet" over a list a filter has emptied is a lie that
-  // sends somebody off to add a person they already have — and offering "Add
-  // the first person" there makes it an invitation to create a duplicate.
-  const empty =
-    debouncedSearch
-      ? { title: "No people match that search", body: undefined }
-      : filterCount > 0
-        ? { title: "No people match these filters", body: undefined }
-        : {
-            title: "No people yet",
-            body: "Add someone, or convert a lead and its contact comes with it.",
-          };
-
-  // The rows arrangement, which is also what the table falls back to on a
-  // phone — so it is written once and used twice rather than diverging.
   const directory = (
     <GroupedRecordList
-      selection={selection}
-      sections={debouncedSearch ? [{ id: "results", label: "Results", rows }] : sections}
-      showJumpStrip={!debouncedSearch && rows.length >= 30}
-      isLoading={peopleQuery.isLoading}
+      sections={sections}
+      showJumpStrip={lettered && rows.length >= 30}
+      isLoading={register.query.isLoading}
       emptyTitle={empty.title}
       emptyBody={empty.body}
-      emptyAction={
-        empty.body ? (
-          <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-            Add the first person
-          </Button>
-        ) : undefined
-      }
+      emptyAction={emptyAction}
     />
   );
 
   return (
-    <RecordListShell
+    <RegisterShell
+      register={register}
       title="People"
-      search={search}
-      onSearchChange={(value) => {
-        setSearch(value);
-        setPage(1);
-      }}
-      searchPlaceholder="Search people by name, email or phone"
       createLabel="New person"
       onCreate={() => setCreateOpen(true)}
-      error={peopleQuery.error}
-      count={`${people.length} of ${total}`}
-      filters={filters}
-      filterCount={filterCount}
-      display={
-        <ColumnPicker
-          columns={PERSON_FIELDS}
-          state={fields}
-          label={layout === "BOARD" ? "Fields" : "Columns"}
-        />
-      }
-      layout={
-        <LayoutSwitch value={layout} onChange={setLayout} options={["TABLE", "LIST", "BOARD"]} />
-      }
     >
       {layout === "BOARD" ? (
         <RecordBoard
           columns={boardColumns}
           cards={boardCards}
-          isLoading={peopleQuery.isLoading}
+          isLoading={register.query.isLoading}
           noun={{ one: "person", many: "people" }}
           emptyLabel="No one of this kind"
-          onMove={(id, type) => moveContactType.mutate({ id, contactType: type })}
-          className="min-h-[24rem]"
+          onMove={(id, type) => moveContactType.mutateAsync({ id, contactType: type })}
         />
       ) : layout === "TABLE" ? (
         <RecordTable
           rows={people}
           columns={columns}
           rowHref={(person) => `/crm/people/${person.id}`}
-          isLoading={peopleQuery.isLoading}
-          selection={selection}
+          isLoading={register.query.isLoading}
+          selection={{ selectedIds: register.selection.ids, onChange: register.selection.set }}
+          sort={tableSort(register)}
+          groups={register.groups}
           emptyTitle={empty.title}
           emptyBody={empty.body}
+          emptyAction={emptyAction}
           mobile={directory}
         />
       ) : (
@@ -620,10 +304,15 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
       )}
 
       {layout === "BOARD" ? null : (
-        <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+        <RecordListPager
+          page={register.page}
+          pageSize={REGISTER_PAGE_SIZE}
+          total={register.total}
+          onPageChange={register.setPage}
+        />
       )}
 
       <PersonFormSheet open={createOpen} onOpenChange={setCreateOpen} />
-    </RecordListShell>
+    </RegisterShell>
   );
 }

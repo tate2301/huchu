@@ -18,6 +18,15 @@ const querySchema = z.object({
     .enum(["true", "false"])
     .transform((value) => value === "true")
     .optional(),
+  /**
+   * Retirement, filtered the way the rooms endpoint next door filters it.
+   * Absent means both — the register lists archived periods and draws them
+   * retired, rather than hiding rows an administrator went looking for.
+   */
+  isActive: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional(),
 });
 
 const createSchema = z.object({
@@ -44,6 +53,7 @@ const periodSelect = {
   endMinute: true,
   sequence: true,
   isTeaching: true,
+  isActive: true,
   termId: true,
   term: { select: { id: true, code: true, name: true } },
   _count: { select: { slots: true } },
@@ -64,12 +74,14 @@ export async function GET(request: NextRequest) {
     const query = querySchema.parse({
       termId: searchParams.get("termId") ?? undefined,
       isTeaching: searchParams.get("isTeaching") ?? undefined,
+      isActive: searchParams.get("isActive") ?? undefined,
     });
 
     const where = {
       companyId: session.user.companyId,
       ...(query.termId ? { termId: query.termId } : {}),
       ...(query.isTeaching === undefined ? {} : { isTeaching: query.isTeaching }),
+      ...(query.isActive === undefined ? {} : { isActive: query.isActive }),
     };
 
     const [records, total] = await Promise.all([
