@@ -23,6 +23,15 @@ import {
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, SaleDetail, SaleRow, TenderType } from "./pos-types";
 import { getPaymentSummary, money, round } from "./pos-utils";
+import {
+  formatQuantity,
+  formatRetailDateTime,
+  saleStatusLabel,
+  saleTypeLabel,
+  tenderLabel,
+} from "@/lib/retail/words";
+
+const REFUND_TENDERS: TenderType[] = ["CASH", "CARD", "MOBILE_MONEY", "VOUCHER"];
 
 export function PosHistoryView() {
   const { toast } = useToast();
@@ -85,15 +94,8 @@ export function PosHistoryView() {
         boxShadow: `inset 0 0 0 1px var(--pos-status-warning-ring)`,
       }}
     >
-      <div>
-        <div className="text-sm font-semibold text-[var(--pos-status-warning-text)]">
-          A manager has to approve this
-        </div>
-        <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
-          Reversing a sale is not a till permission. Ask the manager to key their own
-          login here — it approves this one reversal and nothing else, and their name
-          is recorded against it.
-        </p>
+      <div className="text-sm font-semibold text-[var(--pos-status-warning-text)]">
+        A manager has to approve this
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <Input
@@ -102,6 +104,7 @@ export function PosHistoryView() {
           value={approverEmail}
           onChange={(event) => setApproverEmail(event.target.value)}
           placeholder="Manager email"
+          aria-label="Manager email"
           className="h-11"
         />
         <Input
@@ -110,6 +113,7 @@ export function PosHistoryView() {
           value={approverPassword}
           onChange={(event) => setApproverPassword(event.target.value)}
           placeholder="Manager password"
+          aria-label="Manager password"
           className="h-11"
         />
       </div>
@@ -151,7 +155,6 @@ export function PosHistoryView() {
   });
 
   const saleRows = salesQuery.data?.data ?? [];
-  const postedSaleCount = saleRows.filter((sale) => sale.status === "POSTED").length;
 
   const selectedSale = saleDetailQuery.data?.data ?? null;
   const refundTotal = round(
@@ -194,7 +197,7 @@ export function PosHistoryView() {
         }),
       }),
     onSuccess: () => {
-      toast({ title: "Refund posted", variant: "success" });
+      toast({ title: "Refund saved", variant: "success" });
       setRefundDialog(false);
       forgetApproval();
       setRefundReason("");
@@ -207,7 +210,7 @@ export function PosHistoryView() {
     },
     onError: (error) =>
       toast({
-        title: "Unable to post refund",
+        title: "That refund was not saved",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -236,7 +239,7 @@ export function PosHistoryView() {
     },
     onError: (error) =>
       toast({
-        title: "Unable to void sale",
+        title: "That sale was not voided",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -299,39 +302,20 @@ export function PosHistoryView() {
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
       <PosPanel>
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-              Transaction workspace
-            </p>
-            <h2 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--text-strong)]">
-              Sales history
-            </h2>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] })}
-          >
-            <RefreshCcw className="h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-
-        {/* Search + stats row */}
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_160px]">
-          {/* Search bar */}
-          <div className="flex items-center gap-2.5 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3.5 py-2 transition-all focus-within:border-[var(--action-primary-bg)] focus-within:bg-[var(--surface-base)] focus-within:ring-2 focus-within:ring-[var(--action-primary-bg)] focus-within:ring-offset-1">
+        <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3.5 py-2 transition-all focus-within:border-[var(--action-primary-bg)] focus-within:bg-[var(--surface-base)] focus-within:ring-2 focus-within:ring-[var(--action-primary-bg)] focus-within:ring-offset-1">
             <Search className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search receipt, customer, item…"
+              placeholder="Search sale number, customer, product…"
+              aria-label="Search the sales"
               className="h-10 border-none bg-transparent px-0 text-[14px] shadow-none focus-visible:ring-0"
             />
             {search && (
               <button
                 type="button"
+                aria-label="Clear the search"
                 onClick={() => setSearch("")}
                 className="shrink-0 rounded-md p-0.5 text-[var(--text-muted)] hover:text-[var(--text-strong)]"
               >
@@ -339,20 +323,14 @@ export function PosHistoryView() {
               </button>
             )}
           </div>
-          <PosMetricCard
-            icon={History}
-            label="Results"
-            value={String(saleRows.length)}
-            meta="Matching receipts"
-            tone="neutral"
-          />
-          <PosMetricCard
-            icon={RefreshCcw}
-            label="Posted"
-            value={String(postedSaleCount)}
-            meta="Ready for follow-up"
-            tone="success"
-          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] })}
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Refresh the list
+          </Button>
         </div>
       </PosPanel>
 
@@ -361,24 +339,27 @@ export function PosHistoryView() {
           {saleRows.length === 0 ? (
             <PosEmptyState
               icon={History}
-              title="No transactions found"
-              description={
+              title={
                 salesQuery.isLoading
-                  ? "Loading receipt history…"
-                  : "Try a different receipt number, customer, or item name."
+                  ? "Loading the sales…"
+                  : salesQuery.isError
+                    ? "The sales would not load"
+                    : search.trim()
+                      ? "No sales match that search"
+                      : "No sales yet"
               }
             />
           ) : (
             <table className="w-full min-w-[860px] text-sm">
-              <thead className="sticky top-0 z-10 border-b border-[var(--border-subtle)] bg-[var(--surface-base)] text-left text-[10px] uppercase tracking-[0.13em] text-[var(--text-muted)]">
+              <thead className="sticky top-0 z-10 border-b border-[var(--border-subtle)] bg-[var(--surface-base)] text-left text-xs text-[var(--text-muted)]">
                 <tr>
-                  <th className="px-4 py-3">Receipt</th>
+                  <th className="px-4 py-3">Sale</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3 text-center">Items</th>
+                  <th className="px-4 py-3 text-right">Products</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Total</th>
-                  <th className="px-4 py-3">Posted</th>
+                  <th className="px-4 py-3">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-subtle)]">
@@ -397,34 +378,29 @@ export function PosHistoryView() {
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <PosStatusPill tone={isRefund ? "danger" : isVoid ? "warning" : "success"}>
-                          {sale.saleType}
-                        </PosStatusPill>
+                        {isRefund || isVoid ? (
+                          <PosStatusPill tone={isRefund ? "danger" : "warning"}>
+                            {saleTypeLabel(sale.saleType)}
+                          </PosStatusPill>
+                        ) : null}
                       </td>
                       <td className="px-4 py-4 text-[var(--text-muted)]">
                         {sale.customerName ?? "Walk-in"}
                       </td>
-                      <td className="px-4 py-4 text-center text-[var(--text-muted)]">
+                      <td className="px-4 py-4 text-right font-mono text-[var(--text-muted)]">
                         {sale.itemCount}
                       </td>
                       <td className="px-4 py-4">
-                        <PosStatusPill
-                          tone={sale.status === "POSTED" ? "success" : "warning"}
-                        >
-                          {sale.status}
-                        </PosStatusPill>
+                        {sale.status === "POSTED" ? null : (
+                          <PosStatusPill tone="warning">{saleStatusLabel(sale.status)}</PosStatusPill>
+                        )}
                       </td>
                       <td className={`px-4 py-4 text-right font-mono text-[13px] font-black ${isRefund ? "text-red-600" : "text-[var(--text-strong)]"}`}>
                         {isRefund && sale.totalAmount < 0 ? "−" : ""}
                         {money(Math.abs(sale.totalAmount))}
                       </td>
-                      <td className="px-4 py-4 text-xs text-[var(--text-muted)]">
-                        {new Date(sale.postedAt).toLocaleString([], {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                      <td className="px-4 py-4 font-mono text-xs text-[var(--text-muted)]">
+                        {formatRetailDateTime(sale.postedAt)}
                       </td>
                     </tr>
                   );
@@ -441,24 +417,18 @@ export function PosHistoryView() {
             <>
               {/* Receipt header — colored by type */}
               <PosTerminalHeader
-                eyebrow={`Receipt · ${selectedSale.saleType}`}
+                eyebrow={saleTypeLabel(selectedSale.saleType)}
                 title={selectedSale.saleNo}
                 subtitle={[
                   selectedSale.customerName ?? "Walk-in",
-                  selectedSale.postedAt
-                    ? new Date(selectedSale.postedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                    : "Not yet posted",
+                  selectedSale.postedAt ? formatRetailDateTime(selectedSale.postedAt) : "Not saved yet",
                 ].join(" · ")}
                 valuePrimary={money(Math.abs(selectedSale.totalAmount))}
-                valueSecondary={`${selectedSale.lines.length} line${selectedSale.lines.length !== 1 ? "s" : ""}`}
+                valueSecondary={`${selectedSale.lines.length} product${selectedSale.lines.length !== 1 ? "s" : ""}`}
                 pill={
-                  <PosStatusPill
-                    tone={
-                      selectedSale.saleType === "REFUND" ? "danger" : selectedSale.saleType === "VOID" ? "warning" : "success"
-                    }
-                  >
-                    {selectedSale.status}
-                  </PosStatusPill>
+                  selectedSale.status === "POSTED" ? null : (
+                    <PosStatusPill tone="warning">{saleStatusLabel(selectedSale.status)}</PosStatusPill>
+                  )
                 }
               />
 
@@ -467,8 +437,8 @@ export function PosHistoryView() {
                   {/* Line items */}
                   <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] overflow-hidden">
                     <div className="border-b border-[var(--border-subtle)] bg-[var(--surface-base)] px-4 py-3">
-                      <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                        Items sold
+                      <span className="text-[12px] font-bold text-[var(--text-muted)]">
+                        Products
                       </span>
                     </div>
                     <div className="divide-y divide-[var(--border-subtle)]">
@@ -482,7 +452,7 @@ export function PosHistoryView() {
                               {line.itemName}
                             </div>
                             <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">
-                              {line.quantity % 1 === 0 ? line.quantity : line.quantity.toFixed(2)} × {money(line.unitPrice)}
+                              {formatQuantity(line.quantity)} × {money(line.unitPrice)}
                             </div>
                           </div>
                           <span className="shrink-0 font-mono text-[13px] font-bold text-[var(--text-strong)]">
@@ -497,7 +467,7 @@ export function PosHistoryView() {
                     {/* Payments */}
                     <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] overflow-hidden">
                       <div className="border-b border-[var(--border-subtle)] bg-[var(--surface-base)] px-4 py-3">
-                        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                        <span className="text-[12px] font-bold text-[var(--text-muted)]">
                           Tenders
                         </span>
                       </div>
@@ -509,11 +479,11 @@ export function PosHistoryView() {
                           >
                             <div className="min-w-0">
                               <div className="font-semibold text-[var(--text-strong)]">
-                                {payment.tenderType.replaceAll("_", " ")}
+                                {tenderLabel(payment.tenderType)}
                               </div>
                               {payment.reference && (
                                 <div className="truncate text-[11px] text-[var(--text-muted)]">
-                                  Ref: {payment.reference}
+                                  Reference {payment.reference}
                                 </div>
                               )}
                             </div>
@@ -530,13 +500,13 @@ export function PosHistoryView() {
                       <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3 space-y-1 text-sm">
                         {selectedSale.promotionCode && (
                           <div className="flex justify-between text-[var(--text-muted)]">
-                            <span>Promo</span>
+                            <span>Promotion</span>
                             <span className="font-mono font-semibold text-[var(--text-strong)]">{selectedSale.promotionCode}</span>
                           </div>
                         )}
                         {selectedSale.sourceSaleNo && (
                           <div className="flex justify-between text-[var(--text-muted)]">
-                            <span>Source receipt</span>
+                            <span>Original sale</span>
                             <span className="font-mono font-semibold text-[var(--text-strong)]">{selectedSale.sourceSaleNo}</span>
                           </div>
                         )}
@@ -545,13 +515,8 @@ export function PosHistoryView() {
 
                     {/* Actions / reversals */}
                     <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                          Follow-up
-                        </span>
-                        <PosStatusPill tone={canOverride && currentShift ? "success" : "warning"}>
-                          {canOverride && currentShift ? "Allowed" : "Restricted"}
-                        </PosStatusPill>
+                      <div className="mb-3 text-[12px] font-bold text-[var(--text-muted)]">
+                        Refunds and voids
                       </div>
 
                       {(selectedSale.reversals ?? []).length > 0 && (
@@ -563,7 +528,7 @@ export function PosHistoryView() {
                             >
                               <div>
                                 <span className="font-mono font-semibold text-[var(--text-strong)]">{reversal.saleNo}</span>
-                                <span className="ml-2 text-xs text-[var(--text-muted)]">{reversal.saleType}</span>
+                                <span className="ml-2 text-xs text-[var(--text-muted)]">{saleTypeLabel(reversal.saleType)}</span>
                               </div>
                               <span className="font-mono text-sm font-bold text-red-600">
                                 {money(reversal.totalAmount)}
@@ -603,13 +568,11 @@ export function PosHistoryView() {
                             Void
                           </Button>
                         </div>
-                      ) : (
-                        <p className="text-xs text-[var(--text-muted)]">
-                          {(selectedSale.reversals ?? []).length > 0
-                            ? "This sale has already been reversed."
-                            : "No reversals yet. Manager or cashier with override can refund or void."}
-                        </p>
-                      )}
+                      ) : !currentShift ? (
+                        <p className="text-xs text-[var(--text-muted)]">Open a shift first</p>
+                      ) : (selectedSale.reversals ?? []).length === 0 ? (
+                        <p className="text-xs text-[var(--text-muted)]">No refunds or voids</p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -619,8 +582,7 @@ export function PosHistoryView() {
             <div className="p-6">
               <PosEmptyState
                 icon={History}
-                title="Loading receipt…"
-                description="Fetching the transaction details."
+                title={saleDetailQuery.isError ? "That sale would not load" : "Loading the sale…"}
               />
             </div>
           )}
@@ -638,14 +600,12 @@ export function PosHistoryView() {
                 icon={History}
                 label="Refund total"
                 value={money(refundTotal)}
-                meta="Calculated from the quantities you select"
                 tone="warning"
               />
               <PosMetricCard
                 icon={RefreshCcw}
                 label="Tendered"
                 value={money(refundPaymentSummary.tenderedTotal)}
-                meta="Returned across the tenders below"
                 tone={
                   Math.abs(refundPaymentSummary.tenderedTotal - refundTotal) <= 0.01
                     ? "success"
@@ -656,7 +616,6 @@ export function PosHistoryView() {
                 icon={XCircle}
                 label="Balance"
                 value={money(refundTenderGap)}
-                meta="Refunds must balance before posting"
                 tone={Math.abs(refundTenderGap) <= 0.01 ? "success" : "warning"}
               />
             </div>
@@ -664,13 +623,8 @@ export function PosHistoryView() {
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_320px]">
               <div className="space-y-4">
                 <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-[var(--text-strong)]">
-                      Choose items to refund
-                    </div>
-                    <div className="text-xs text-[var(--text-muted)]">
-                      Tap a quantity field, then use the keypad.
-                    </div>
+                  <div className="text-sm font-semibold text-[var(--text-strong)]">
+                    Products to refund
                   </div>
                   <div className="mt-3 space-y-2">
                     {(selectedSale?.lines ?? []).map((line) => (
@@ -683,11 +637,11 @@ export function PosHistoryView() {
                             {line.itemName}
                           </div>
                           <div className="text-xs text-[var(--text-muted)]">
-                            Sold {line.quantity.toFixed(2)} x {money(line.unitPrice)}
+                            Sold {formatQuantity(line.quantity)} × {money(line.unitPrice)}
                           </div>
                         </div>
                         <PosNumericField
-                          label="Refund qty"
+                          label="Quantity"
                           value={refundAmounts[line.id] ?? ""}
                           active={
                             activeRefundNumericTarget?.type === "refund_qty" &&
@@ -725,7 +679,7 @@ export function PosHistoryView() {
                       <Input
                         value={refundReason}
                         onChange={(event) => setRefundReason(event.target.value)}
-                        placeholder="Damaged item, wrong item, customer return..."
+                        placeholder="Damaged, wrong product, customer return"
                         className="h-11"
                       />
                     </div>
@@ -737,7 +691,6 @@ export function PosHistoryView() {
                         value={refundNotes}
                         onChange={(event) => setRefundNotes(event.target.value)}
                         rows={3}
-                        placeholder="Optional context for the manager or audit trail"
                       />
                     </div>
                   </div>
@@ -748,13 +701,11 @@ export function PosHistoryView() {
                     <div className="text-sm font-semibold text-[var(--text-strong)]">
                       Refund tenders
                     </div>
-                    <PosStatusPill
-                      tone={
-                        Math.abs(refundTenderGap) <= 0.01 ? "success" : "warning"
-                      }
-                    >
-                      {Math.abs(refundTenderGap) <= 0.01 ? "Balanced" : "Needs balance"}
-                    </PosStatusPill>
+                    {Math.abs(refundTenderGap) <= 0.01 ? null : (
+                      <PosStatusPill tone="warning">
+                        {refundTenderGap > 0 ? "Over" : "Short"}
+                      </PosStatusPill>
+                    )}
                   </div>
                   <div className="mt-3 space-y-3">
                     {refundPayments.map((payment, index) => (
@@ -772,10 +723,11 @@ export function PosHistoryView() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="CASH">Cash</SelectItem>
-                            <SelectItem value="CARD">Card</SelectItem>
-                            <SelectItem value="MOBILE_MONEY">Mobile money</SelectItem>
-                            <SelectItem value="VOUCHER">Voucher</SelectItem>
+                            {REFUND_TENDERS.map((tender) => (
+                              <SelectItem key={tender} value={tender}>
+                                {tenderLabel(tender)}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <PosNumericField
@@ -801,6 +753,7 @@ export function PosHistoryView() {
                           type="button"
                           variant="outline"
                           className="h-11 px-3"
+                          aria-label="Remove the tender"
                           onClick={() =>
                             setRefundPayments((current) =>
                               current.filter((_, paymentIndex) => paymentIndex !== index),
@@ -825,18 +778,15 @@ export function PosHistoryView() {
                     }
                   >
                     <Plus className="h-4 w-4" />
-                    Add tender
+                    Add a tender
                   </Button>
                 </div>
               </div>
 
               <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
                 <div className="text-sm font-semibold text-[var(--text-strong)]">
-                  Amount keypad
+                  Keypad
                 </div>
-                <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
-                  Use the keypad for refund quantities and tender amounts to keep the flow fast on shared terminals.
-                </p>
                 <div className="mt-4">
                   <PosNumericKeypad onAction={handleRefundKeypadAction} />
                 </div>
@@ -867,7 +817,7 @@ export function PosHistoryView() {
                 !approvalReady
               }
             >
-              Post refund
+              Refund the sale
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -876,7 +826,7 @@ export function PosHistoryView() {
       <Dialog open={voidDialog} onOpenChange={setVoidDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Void sale</DialogTitle>
+            <DialogTitle>Void {selectedSale?.saleNo}?</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div
@@ -884,24 +834,21 @@ export function PosHistoryView() {
               style={{ background: "var(--pos-status-danger-bg)", boxShadow: `inset 0 0 0 1px var(--pos-status-danger-ring)` }}
             >
               <div className="text-sm font-semibold text-[var(--status-error-text)]">
-                Voiding removes the whole sale from the active record.
+                The whole sale is cancelled. To take back part of it, refund it instead.
               </div>
-              <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
-                Use this only when the entire receipt should be cancelled. If the customer is returning part of the sale, post a refund instead.
-              </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Receipt
+                <div className="text-xs font-semibold text-[var(--text-muted)]">
+                  Sale
                 </div>
                 <div className="mt-2 font-mono text-sm font-semibold text-[var(--text-strong)]">
                   {selectedSale?.saleNo ?? "-"}
                 </div>
               </div>
               <div className="rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                <div className="text-xs font-semibold text-[var(--text-muted)]">
                   Total
                 </div>
                 <div className="mt-2 font-mono text-sm font-semibold text-[var(--text-strong)]">
@@ -917,7 +864,7 @@ export function PosHistoryView() {
               <Input
                 value={voidReason}
                 onChange={(event) => setVoidReason(event.target.value)}
-                placeholder="Accidental duplicate, wrong register, test sale..."
+                placeholder="Duplicate, wrong till, test sale"
                 className="h-11"
               />
             </div>
@@ -929,7 +876,6 @@ export function PosHistoryView() {
                 value={voidNotes}
                 onChange={(event) => setVoidNotes(event.target.value)}
                 rows={3}
-                placeholder="Optional context for the audit trail"
               />
             </div>
 
@@ -952,7 +898,7 @@ export function PosHistoryView() {
               onClick={() => voidMutation.mutate()}
               disabled={voidMutation.isPending || !voidReason.trim() || !approvalReady}
             >
-              Void sale
+              Void the sale
             </Button>
           </DialogFooter>
         </DialogContent>

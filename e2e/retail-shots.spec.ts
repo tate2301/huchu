@@ -95,11 +95,10 @@ const RETAIL_SCREENS: Screen[] = [
   { name: "retail-purchasing-orders", path: "/retail/purchasing/orders" },
   { name: "retail-purchasing-receipts", path: "/retail/purchasing/receipts" },
   { name: "retail-reports", path: "/retail/reports" },
-  { name: "retail-setup", path: "/retail/setup" },
   { name: "retail-setup-operations", path: "/retail/setup/operations" },
   { name: "retail-setup-pos-policy", path: "/retail/setup/pos-policy" },
   { name: "retail-setup-accounting", path: "/retail/setup/accounting" },
-  { name: "retail-setup-branding", path: "/retail/setup/branding" },
+  { name: "retail-setup-fiscal", path: "/retail/setup/fiscal" },
 ];
 
 /**
@@ -192,7 +191,7 @@ const VIEWPORTS = viewportFilter
  * matches overlay text, so this regex is still the only guard against it.
  */
 const ERROR_BANNER =
-  /Unable to load|Failed to (fetch|load)|Something went wrong|An error occurred|Build Error|Module not found|Unhandled Runtime Error|Application error/i;
+  /Unable to load|would not load|Failed to (fetch|load)|Something went wrong|An error occurred|Build Error|Module not found|Unhandled Runtime Error|Application error/i;
 
 async function shoot(
   page: Page,

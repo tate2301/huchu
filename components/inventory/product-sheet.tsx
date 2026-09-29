@@ -2,8 +2,19 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, Button, Drawer, Field, Input, Select, TextArea } from "@corelithzw/react";
 
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { FactList, FormField } from "@/components/management/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -31,6 +42,9 @@ type StockOption = {
   siteName: string;
 };
 
+/** No stock item chosen, as a select value — "" would read as nothing chosen. */
+const NOT_STOCKED = "__none";
+
 const EMPTY = {
   code: "",
   name: "",
@@ -46,7 +60,16 @@ const EMPTY = {
   notes: "",
 };
 
-export function ProductSheet({
+const FIELD_ROW = "grid gap-4 sm:grid-cols-2";
+
+/**
+ * New catalogue product, and the same form to edit one.
+ *
+ * It was a drawer from the right, under a sentence about every module selling
+ * it, with a hint under the stock picker and a paragraph standing in for it
+ * when the product was a service. A service simply has no stock field now.
+ */
+export function CatalogueProductDialog({
   open,
   product,
   onOpenChange,
@@ -63,7 +86,7 @@ export function ProductSheet({
   const [errors, setErrors] = useState<string[]>([]);
 
   // Seed from the record during render rather than in an effect, so there is
-  // no flash of the previous item's details.
+  // no flash of the previous product's details.
   const [seededFor, setSeededFor] = useState<string | null>(null);
   const seedKey = open ? (product?.id ?? "new") : null;
   if (seedKey !== seededFor) {
@@ -136,178 +159,234 @@ export function ProductSheet({
           });
     },
     onSuccess: () => {
-      toast({ title: product ? "Saved" : "Added to the catalogue" });
+      toast({
+        title: product ? "Catalogue product saved" : "Catalogue product created",
+        variant: "success",
+      });
       onSaved();
       onOpenChange(false);
     },
-    onError: (err) => setErrors([getApiErrorMessage(err)]),
+    onError: (err) =>
+      setErrors([
+        `${product ? "That catalogue product was not saved" : "That catalogue product was not created"}: ${getApiErrorMessage(err)}`,
+      ]),
   });
 
-  const submit = () => {
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     const found: string[] = [];
-    if (!form.code.trim()) found.push("Give it a code");
-    if (!form.name.trim()) found.push("Give it a name");
+    if (!form.code.trim()) found.push("Give it a code.");
+    if (!form.name.trim()) found.push("Give it a name.");
     if (form.standardPrice === "" || Number.isNaN(Number(form.standardPrice))) {
-      found.push("Give it a standard price");
+      found.push("Give it a price.");
     }
     setErrors(found);
     if (found.length === 0) save.mutate();
   };
 
   return (
-    <Drawer
+    <RecordDialog
       open={open}
-      onClose={() => onOpenChange(false)}
-      position="right"
-      width="34rem"
-      title={product ? product.name : "New catalogue item"}
-      description="Sold by every module — quoted in the CRM, rung up in Retail, billed on a job card."
+      onOpenChange={onOpenChange}
+      title={product ? product.name : "New catalogue product"}
+      size="md"
+      onSubmit={submit}
+      errors={errors}
       footer={
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button variant="primary" loading={save.isPending} onClick={submit}>
-            {product ? "Save" : "Add item"}
+          <Button type="submit" disabled={save.isPending}>
+            {product ? "Save catalogue product" : "Create catalogue product"}
           </Button>
-        </div>
+        </>
       }
     >
-      <div className="space-y-4">
-        {errors.length ? (
-          <Alert tone="danger" title="Fix these first">
-            <ul className="list-disc space-y-1 pl-5">
-              {errors.map((message) => (
-                <li key={message}>{message}</li>
-              ))}
-            </ul>
-          </Alert>
-        ) : null}
+      <FormField label="Name">
+        {(id) => (
+          <Input
+            id={id}
+            value={form.name}
+            onChange={(event) => set("name", event.target.value)}
+            autoFocus={!product}
+          />
+        )}
+      </FormField>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Code or SKU" required>
-            <Input value={form.code} onChange={(event) => set("code", event.target.value)} />
-          </Field>
-          <Select
-            label="Type"
-            value={form.kind}
-            onChange={(event) => set("kind", event.target.value)}
-          >
-            {PRODUCT_KINDS.map((kind) => (
-              <option key={kind} value={kind}>
-                {PRODUCT_KIND_LABELS[kind]}
-              </option>
-            ))}
-          </Select>
-        </div>
+      <div className={FIELD_ROW}>
+        <FormField label="Code">
+          {(id) => (
+            <Input
+              id={id}
+              className="font-mono"
+              value={form.code}
+              onChange={(event) => set("code", event.target.value)}
+            />
+          )}
+        </FormField>
+        <FormField label="Type">
+          {(id) => (
+            <Select value={form.kind} onValueChange={(value) => set("kind", value)}>
+              <SelectTrigger id={id}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRODUCT_KINDS.map((kind) => (
+                  <SelectItem key={kind} value={kind}>
+                    {PRODUCT_KIND_LABELS[kind]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+      </div>
 
-        <Field label="Name" required>
-          <Input value={form.name} onChange={(event) => set("name", event.target.value)} />
-        </Field>
-
-        <Field label="Description">
-          <TextArea
+      <FormField label="Description">
+        {(id) => (
+          <Textarea
+            id={id}
             rows={2}
             value={form.description}
             onChange={(event) => set("description", event.target.value)}
           />
-        </Field>
+        )}
+      </FormField>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Standard price" required>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <FormField label="Price">
+          {(id) => (
             <Input
+              id={id}
               type="number"
               step="0.01"
+              className="font-mono"
               value={form.standardPrice}
               onChange={(event) => set("standardPrice", event.target.value)}
             />
-          </Field>
-          <Field label="Cost price">
+          )}
+        </FormField>
+        <FormField label="Cost">
+          {(id) => (
             <Input
+              id={id}
               type="number"
               step="0.01"
+              className="font-mono"
               value={form.costPrice}
               onChange={(event) => set("costPrice", event.target.value)}
             />
-          </Field>
-          <Field label="Tax %">
+          )}
+        </FormField>
+        <FormField label="VAT %">
+          {(id) => (
             <Input
+              id={id}
               type="number"
               step="0.01"
+              className="font-mono"
               value={form.defaultTaxRate}
               onChange={(event) => set("defaultTaxRate", event.target.value)}
             />
-          </Field>
-        </div>
+          )}
+        </FormField>
+      </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Select
-            label="Sold per"
-            value={form.unit}
-            onChange={(event) => set("unit", event.target.value)}
-          >
-            {UNITS.map((unit) => (
-              <option key={unit} value={unit}>
-                {UNIT_LABELS[unit]}
-              </option>
-            ))}
-          </Select>
-          {form.unit === "OTHER" ? (
-            <Field label="Unit name">
+      <div className={FIELD_ROW}>
+        <FormField label="Sold per">
+          {(id) => (
+            <Select value={form.unit} onValueChange={(value) => set("unit", value)}>
+              <SelectTrigger id={id}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UNITS.map((unit) => (
+                  <SelectItem key={unit} value={unit}>
+                    {UNIT_LABELS[unit]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+        {form.unit === "OTHER" ? (
+          <FormField label="Unit name">
+            {(id) => (
               <Input
+                id={id}
                 value={form.unitLabel}
                 onChange={(event) => set("unitLabel", event.target.value)}
-                placeholder="per pallet"
+                placeholder="pallet"
               />
-            </Field>
-          ) : null}
-          <Field label="Category">
-            <Input value={form.category} onChange={(event) => set("category", event.target.value)} />
-          </Field>
-          <Field label="Max discount %" description="Above this, a manager has to approve.">
+            )}
+          </FormField>
+        ) : null}
+      </div>
+
+      <div className={FIELD_ROW}>
+        <FormField label="Category">
+          {(id) => (
             <Input
+              id={id}
+              value={form.category}
+              onChange={(event) => set("category", event.target.value)}
+            />
+          )}
+        </FormField>
+        <FormField label="Discount before approval %">
+          {(id) => (
+            <Input
+              id={id}
               type="number"
               step="0.1"
+              className="font-mono"
               value={form.maxDiscountPercent}
               onChange={(event) => set("maxDiscountPercent", event.target.value)}
             />
-          </Field>
-        </div>
-
-        {stockable ? (
-          <Select
-            label="Stock item"
-            hint="Optional. Link it and quotes will show what's on hand; leave it and the item simply isn't stocked."
-            value={inventoryItemId}
-            onChange={(event) => setInventoryItemId(event.target.value)}
-          >
-            <option value="">Not stocked</option>
-            {(stockOptions?.data ?? []).map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.name} — {option.siteName} ({option.currentStock})
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <p className="text-sm text-[var(--text-muted)]">
-            {PRODUCT_KIND_LABELS[form.kind as ProductRecord["kind"]]} isn&apos;t something
-            you hold in stock, so there&apos;s nothing to link.
-          </p>
-        )}
-
-        {product?.stock?.sites.length ? (
-          <div className="rounded-[var(--radius-md)] border border-[var(--border)] p-3 text-sm">
-            <p className="font-medium">On hand</p>
-            <ul className="mt-1 space-y-0.5 text-[var(--text-muted)]">
-              {product.stock.sites.map((site) => (
-                <li key={site.siteId}>
-                  {site.siteName}: <span className="font-mono">{site.onHand}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+          )}
+        </FormField>
       </div>
-    </Drawer>
+
+      {stockable ? (
+        <FormField label="Stock item">
+          {(id) => (
+            <Select
+              value={inventoryItemId || NOT_STOCKED}
+              onValueChange={(value) => setInventoryItemId(value === NOT_STOCKED ? "" : value)}
+            >
+              <SelectTrigger id={id}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Leaving it alone sends nothing, so an edit keeps whatever
+                    stock item the product is already linked to. */}
+                <SelectItem value={NOT_STOCKED}>
+                  {product?.stock ? "Keep the one linked now" : "Not stocked"}
+                </SelectItem>
+                {(stockOptions?.data ?? []).map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name} · {option.siteName} · {option.currentStock} on hand
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+      ) : null}
+
+      {product?.stock?.sites.length ? (
+        <FactList
+          maxWidth={null}
+          align="end"
+          items={product.stock.sites.map((site) => ({
+            id: site.siteId,
+            label: `On hand at ${site.siteName}`,
+            value: String(site.onHand),
+            mono: true,
+          }))}
+        />
+      ) : null}
+    </RecordDialog>
   );
 }

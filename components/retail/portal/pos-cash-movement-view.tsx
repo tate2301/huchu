@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Cash drop / pickup, at the till.
+ * Moving cash in and out of the drawer, at the till.
  *
  * S-7.1, and the screen `docs/design-system/portals/pos.html` puts under
  * *Cash → Move cash* (`renderCashDrop`): a mode toggle, the drawer counted by
@@ -14,9 +14,8 @@
  * - **Three modes, not two.** The prototype toggles drop and pickup. It has no
  *   concept of a payout — cash out of the drawer to a supplier on delivery — and a
  *   bottle store does that, so `RetailCashMovementType` has the third value and the
- *   toggle has a third position. The inbound one keeps the prototype's words,
- *   "Pickup from safe", because that is the label a cashier is being trained on;
- *   the enum behind it is `FLOAT_TOP_UP`, where the direction cannot be misread.
+ *   toggle has a third position. The modes read as `cashMovementLabel` words ("To
+ *   the safe", "In from the safe", "Paid out"), the same as the back office.
  * - **The steppers are the till's keys.** The prototype uses bare `<input
  *   type=number>` boxes. This is a touch terminal with a deliberate key style —
  *   raised, with a 3px shadow that collapses on press — and the denomination rows
@@ -42,7 +41,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Coins, Download, Minus, Plus, Upload, type LucideIcon } from "@/lib/icons";
 import {
-  RETAIL_CASH_MOVEMENT_LABELS,
   RETAIL_CASH_MOVEMENT_REASONS,
   RETAIL_CASH_MOVEMENT_REASON_LABELS,
   RETAIL_CASH_MOVEMENT_TYPES,
@@ -51,10 +49,11 @@ import {
   type RetailCashMovementReasonCode,
   type RetailCashMovementTypeName,
 } from "@/lib/retail/cash-movements";
+import { cashMovementLabel } from "@/lib/retail/words";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
-import { PosPanel, PosPanelHeader, PosStatusPill, PosTerminalHeader } from "./pos-primitives";
+import { PosPanel, PosPanelHeader, PosTerminalHeader } from "./pos-primitives";
 import { money, round } from "./pos-utils";
 
 export type PosCashMovement = {
@@ -83,19 +82,12 @@ const MOVEMENT_ICON: Record<RetailCashMovementTypeName, LucideIcon> = {
   PAYOUT: Coins,
 };
 
-/** The prototype's own words for the two modes it has, plus ours for the third. */
-const MOVEMENT_MODE_LABEL: Record<RetailCashMovementTypeName, string> = {
-  DROP_TO_SAFE: "Drop to safe",
-  FLOAT_TOP_UP: "Pickup from safe",
-  PAYOUT: "Pay out",
-};
-
-/** One line of plain language per mode, in the register of the rest of the till. */
-const MOVEMENT_BLURB: Record<RetailCashMovementTypeName, string> = {
-  DROP_TO_SAFE: "Cash out of the drawer to the safe. Comes off what the drawer should hold.",
-  FLOAT_TOP_UP: "Cash in from the safe, usually small notes for change. Adds to it.",
-  PAYOUT: "Cash out to a supplier or from petty cash. Comes off, and it is not coming back.",
-};
+/** The confirm names the act and the amount, so it cannot be pressed by mistake. */
+function confirmLabel(type: RetailCashMovementTypeName, amount: string) {
+  if (type === "DROP_TO_SAFE") return `Move ${amount} to the safe`;
+  if (type === "FLOAT_TOP_UP") return `Bring in ${amount} from the safe`;
+  return `Pay out ${amount}`;
+}
 
 /** The counted bundle, as `{ [denomination]: count }` while it is being keyed. */
 type DenominationCounts = Record<string, number>;
@@ -136,12 +128,7 @@ export function PosCashMovementList({
   expectedCash: number;
 }) {
   if (movements.length === 0) {
-    return (
-      <p className="text-sm text-[var(--text-muted)]">
-        Nothing has left or entered the drawer since it was opened with{" "}
-        {money(openingFloat)}.
-      </p>
-    );
+    return <p className="text-sm text-[var(--text-muted)]">No cash moved yet</p>;
   }
 
   return (
@@ -170,7 +157,7 @@ export function PosCashMovementList({
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-bold text-[var(--text-strong)]">
-                {RETAIL_CASH_MOVEMENT_LABELS[movement.type]}
+                {cashMovementLabel(movement.type)}
                 <span className="ml-2 font-normal text-[var(--text-muted)]">
                   {RETAIL_CASH_MOVEMENT_REASON_LABELS[movement.reasonCode]}
                 </span>
@@ -381,7 +368,7 @@ export function PosCashMovementPanel({
       ),
     onSuccess: (result) => {
       toast({
-        title: `${MOVEMENT_MODE_LABEL[type]} recorded`,
+        title: "Cash moved",
         description: `Expected cash is now ${money(result.shift.expectedCash)}.`,
         variant: "success",
       });
@@ -392,7 +379,7 @@ export function PosCashMovementPanel({
     },
     onError: (error) =>
       toast({
-        title: "Unable to record the movement",
+        title: "That cash movement was not saved",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -408,9 +395,7 @@ export function PosCashMovementPanel({
     <>
       <PosPanel>
         <PosPanelHeader
-          eyebrow="Cash"
-          title="Move cash"
-          description="Take cash out of the drawer to the safe, bring change in from it, or pay something out. Every movement counts against what the drawer should hold at cash-up."
+          title="Cash moved"
           actions={
             <Button
               size="sm"
@@ -440,11 +425,10 @@ export function PosCashMovementPanel({
       >
         <DialogContent className="max-h-[92dvh] overflow-y-auto p-0 sm:max-w-2xl">
           <PosTerminalHeader
-            eyebrow="Cash"
-            title="Cash drop / pickup"
+            title="Move cash"
             subtitle={`${shiftNo} · expected ${money(expectedCash)}`}
             valuePrimary={money(total)}
-            valueSecondary={MOVEMENT_MODE_LABEL[type]}
+            valueSecondary={cashMovementLabel(type)}
           />
 
           <div className="space-y-4 p-5">
@@ -477,18 +461,17 @@ export function PosCashMovementPanel({
                     }
                   >
                     <Icon className="h-4 w-4" />
-                    {MOVEMENT_MODE_LABEL[candidate]}
+                    {cashMovementLabel(candidate)}
                   </button>
                 );
               })}
             </div>
-            <p className="text-xs text-[var(--text-muted)]">{MOVEMENT_BLURB[type]}</p>
 
             {/* Count the bundle */}
             {denominations ? (
               <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
                 <div className="mb-2 flex items-baseline justify-between gap-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                  <p className="text-xs font-bold text-[var(--text-muted)]">
                     Denominations · {currency}
                   </p>
                   <button
@@ -496,7 +479,7 @@ export function PosCashMovementPanel({
                     className="text-[11px] font-semibold text-[var(--text-muted)] underline-offset-2 hover:underline"
                     onClick={() => setCounts({})}
                   >
-                    Clear count
+                    Clear the count
                   </button>
                 </div>
                 {denominations.map((denomination) => (
@@ -511,7 +494,7 @@ export function PosCashMovementPanel({
                 ))}
                 <div className="mt-2 flex items-center justify-between border-t-2 border-[var(--edge-default)] pt-3">
                   <span className="text-[13px] font-bold text-[var(--text-strong)]">
-                    {type === "FLOAT_TOP_UP" ? "Picking up" : "Moving"}
+                    Total
                   </span>
                   <span className="font-mono text-[1.15rem] font-black tabular-nums text-[var(--text-strong)]">
                     {money(total)}
@@ -527,14 +510,12 @@ export function PosCashMovementPanel({
               */
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
                 <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
-                  <p className="mb-1 text-[13px] font-bold text-[var(--text-strong)]">
-                    How much
-                  </p>
-                  <p className="mb-3 text-xs text-[var(--text-muted)]">
-                    No note denominations are set up for {currency}. Count the cash and
-                    key the total.
-                  </p>
-                  <PosNumericField label="Amount" value={keyedAmount} active onActivate={() => {}} />
+                  <PosNumericField
+                    label={`Amount · ${currency}`}
+                    value={keyedAmount}
+                    active
+                    onActivate={() => {}}
+                  />
                 </div>
                 <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
                   <p className="mb-3 text-[13px] font-bold text-[var(--text-strong)]">Keypad</p>
@@ -578,24 +559,17 @@ export function PosCashMovementPanel({
               <Input
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Receipt number for the safe log, etc."
                 className="mt-1 h-11"
               />
             </div>
 
             <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-muted)] px-4 py-3">
-              <span className="text-xs text-[var(--text-muted)]">
-                Expected cash after this
+              <span className="text-xs text-[var(--text-muted)]">Expected after this</span>
+              <span className="font-mono text-sm font-bold tabular-nums text-[var(--text-strong)]">
+                {money(
+                  round(type === "FLOAT_TOP_UP" ? expectedCash + total : expectedCash - total),
+                )}
               </span>
-              <PosStatusPill tone={total > 0 ? "warning" : "neutral"}>
-                <span className="font-mono tabular-nums">
-                  {money(
-                    round(
-                      type === "FLOAT_TOP_UP" ? expectedCash + total : expectedCash - total,
-                    ),
-                  )}
-                </span>
-              </PosStatusPill>
             </div>
           </div>
 
@@ -614,7 +588,7 @@ export function PosCashMovementPanel({
               }}
               className="active:translate-y-[2px] active:shadow-none"
             >
-              {MOVEMENT_MODE_LABEL[type]} {money(total)}
+              {confirmLabel(type, money(total))}
             </Button>
           </DialogFooter>
         </DialogContent>

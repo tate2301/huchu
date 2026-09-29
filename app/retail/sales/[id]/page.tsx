@@ -1,37 +1,27 @@
 "use client";
 
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Skeleton } from "@corelithzw/react";
 
 import { RetailShell } from "@/components/retail/retail-shell";
 import {
   RetailSaleDetailBody,
+  SALE_WIDTH,
   type RetailSaleDetail,
 } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ClipboardList } from "@/lib/icons";
 
 /**
- * One receipt, at its own address.
+ * One sale, at its own address.
  *
- * R-4.3. The sales list has always been able to open a transaction — in a
- * dialog, with no URL. Two things now need one:
- *
- *  - **R-3.3.** Every sale, refund and void writes a `PlatformAuditEvent`
- *    naming `RetailSale` and an id. An audit trail whose rows point at records
- *    nobody can open is a trail you cannot follow.
- *  - **A shopkeeper's Friday.** "Which one was RSL-0042?" is answered by
- *    pasting a link, not by describing which row to scroll to.
- *
- * The body is `RetailSaleDetailBody`, shared with the dialog. Two renderings of
- * one receipt that could disagree about what was sold would be worse than one.
+ * An audit row names a `RetailSale` and an id, and "which one was RSL-0042?"
+ * is answered by pasting a link — so a sale is a record page, and the sales
+ * list's rows open it. The page carries no verb: a sale is refunded or voided
+ * on the till, by the cashier who has the customer in front of them.
  */
-export default function RetailSaleDetailPage() {
+export default function RetailSalePage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const saleId = params?.id ?? "";
 
   const query = useQuery({
@@ -43,44 +33,22 @@ export default function RetailSaleDetailPage() {
   const sale = query.data?.data;
 
   return (
-    <RetailShell
-      area="sales"
-      title={sale?.saleNo ?? "Transaction"}
-      actions={
-        <Button asChild size="sm" variant="outline">
-          <Link href="/retail/sales">
-            <ClipboardList className="h-4 w-4" />
-            All transactions
-          </Link>
-        </Button>
-      }
-    >
+    <RetailShell title={sale?.saleNo ?? "Sale"}>
       {query.isPending ? (
-        <div aria-busy="true" aria-live="polite" className="space-y-4">
-          <span className="sr-only">Fetching the transaction…</span>
-          <Skeleton height={104} />
-          <Skeleton height={280} />
+        <div aria-busy="true" aria-live="polite" className="space-y-3" style={{ maxWidth: SALE_WIDTH }}>
+          <span className="sr-only">Loading the sale</span>
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+          <Skeleton height={44} />
         </div>
       ) : query.isError ? (
-        /*
-          A 404 here is the interesting case and it is worth its own words. The
-          id in the URL came from somewhere — an audit row, a message, a
-          bookmark — and "not found" should say which of those has gone stale
-          rather than implying the shop's data is missing.
-        */
-        <Alert tone="danger" title="That transaction would not open">
+        <Alert tone="danger" title="The sale would not load">
           {getApiErrorMessage(query.error)}
         </Alert>
       ) : !sale ? (
-        <Alert tone="warn" title="No transaction with that reference">
-          The link may be from another shop, or the receipt may since have been
-          removed. Open the transactions list and search for the receipt number.
-        </Alert>
+        <p className="text-sm text-[var(--text-muted)]">There is no sale at this address.</p>
       ) : (
-        <RetailSaleDetailBody
-          sale={sale}
-          onOpenSale={(id) => router.push(`/retail/sales/${id}`)}
-        />
+        <RetailSaleDetailBody sale={sale} />
       )}
     </RetailShell>
   );

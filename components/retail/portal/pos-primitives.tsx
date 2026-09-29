@@ -38,7 +38,7 @@ export function PosTerminalHeader({
         <div className="min-w-0 flex-1">
           {eyebrow ? (
             <p
-              className="truncate text-[10px] font-bold uppercase tracking-[0.18em]"
+              className="truncate text-xs font-bold"
               style={{ color: "var(--pos-amount-label)" }}
             >
               {eyebrow}
@@ -118,42 +118,22 @@ export function PosPanel({ className, children, variant = "section" }: PosPanelP
 /* ── PosPanelHeader ─────────────────────────────────────────────────────── */
 
 type PosPanelHeaderProps = {
-  eyebrow?: string;
   title: string;
-  description?: string;
   actions?: ReactNode;
   className?: string;
 };
 
-export function PosPanelHeader({
-  eyebrow,
-  title,
-  description,
-  actions,
-  className,
-}: PosPanelHeaderProps) {
+export function PosPanelHeader({ title, actions, className }: PosPanelHeaderProps) {
   return (
     <div
       className={cn(
-        "mb-4 flex flex-col gap-3 border-b border-[var(--edge-subtle)] pb-4 sm:flex-row sm:items-start sm:justify-between",
+        "mb-4 flex flex-col gap-3 border-b border-[var(--edge-subtle)] pb-4 sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
     >
-      <div className="min-w-0">
-        {eyebrow ? (
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-            {eyebrow}
-          </p>
-        ) : null}
-        <h2 className="mt-1 text-[1.3rem] font-bold tracking-[-0.025em] text-[var(--text-strong)]">
-          {title}
-        </h2>
-        {description ? (
-          <p className="mt-2 max-w-[58ch] text-sm leading-6 text-[var(--text-muted)]">
-            {description}
-          </p>
-        ) : null}
-      </div>
+      <h2 className="min-w-0 text-[1.3rem] font-bold tracking-[-0.025em] text-[var(--text-strong)]">
+        {title}
+      </h2>
       {actions ? <div className="shrink-0">{actions}</div> : null}
     </div>
   );
@@ -194,7 +174,7 @@ export function PosMetricCard({
         className,
       )}
     >
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+      <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)]">
         <span
           className="inline-flex h-7 w-7 items-center justify-center rounded-full"
           style={{ background: t.bg, color: t.text }}
@@ -218,7 +198,7 @@ export function PosMetricCard({
 type PosEmptyStateProps = {
   icon: LucideIcon;
   title: string;
-  description: string;
+  description?: string;
   action?: ReactNode;
   className?: string;
 };
@@ -243,9 +223,11 @@ export function PosEmptyState({
       <h3 className="mt-4 text-lg font-bold tracking-[-0.02em] text-[var(--text-strong)]">
         {title}
       </h3>
-      <p className="mt-2 max-w-[32rem] text-sm leading-6 text-[var(--text-muted)]">
-        {description}
-      </p>
+      {description ? (
+        <p className="mt-2 max-w-[32rem] text-sm leading-6 text-[var(--text-muted)]">
+          {description}
+        </p>
+      ) : null}
       {action ? <div className="mt-5">{action}</div> : null}
     </div>
   );

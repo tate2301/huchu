@@ -1,35 +1,37 @@
-﻿"use client";
+"use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import type { SearchableOption } from "@/app/gold/types";
-import {
-  AdminDistributionChart,
-  AdminDonutChart,
-} from "@/components/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { ReportChartShell } from "@/components/retail/reports/report-chart-shell";
-import { ReportFilterBar } from "@/components/retail/reports/report-filter-bar";
-import { ReportBigNumber } from "@/components/retail/reports/report-big-number";
+
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { FormField, StatusDot } from "@/components/management/ui";
+import { RecordList } from "@/components/records/record-list";
+import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
+import { RowMenu } from "@/components/retail/row-menu";
+import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchInventoryItems, fetchSites, type InventoryItem } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, ReceiptLong, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import { fetchInventoryItems, fetchSites } from "@/lib/api";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Plus, Trash2 } from "@/lib/icons";
+import { formatQuantity, formatRetailDate, orderStatusLabel } from "@/lib/retail/words";
 
-type PurchaseOrderLine = {
+type OrderLine = {
   inventoryItemId: string | null;
   itemName: string;
   quantity: number;
@@ -38,7 +40,7 @@ type PurchaseOrderLine = {
   receivedQuantity: number;
 };
 
-type PurchaseOrder = {
+type Order = {
   id: string;
   poNo: string;
   siteId: string;
@@ -46,363 +48,499 @@ type PurchaseOrder = {
   status: string;
   expectedDate: string | null;
   notes: string | null;
-  lines: PurchaseOrderLine[];
+  lines: OrderLine[];
   totalValue: number;
   totalQuantity: number;
   receivedQuantity: number;
   site: { id: string; name: string; code: string } | null;
 };
 
+type LineForm = { inventoryItemId: string; itemName: string; quantity: string; unitCost: string };
+
 type OrderForm = {
   supplierName: string;
   siteId: string;
   expectedDate: string;
   notes: string;
-  lines: Array<{
-    inventoryItemId: string;
-    itemName: string;
-    quantity: string;
-    unitCost: string;
-  }>;
+  lines: LineForm[];
 };
 
-function emptyForm(): OrderForm {
-  return { supplierName: "", siteId: "", expectedDate: "", notes: "", lines: [] };
+const STATUS_OPTIONS = new Map(
+  ["DRAFT", "PARTIAL", "RECEIVED"].map((status) => [status, orderStatusLabel(status)]),
+);
+
+function emptyLine(): LineForm {
+  return { inventoryItemId: "", itemName: "", quantity: "", unitCost: "" };
 }
 
-function emptyLine(item?: SearchableOption): OrderForm["lines"][0] {
-  return { inventoryItemId: item?.value ?? "", itemName: item?.label ?? "", quantity: "", unitCost: "" };
-}
-
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
-}
-
-function dateLabel(iso: string | null) {
-  return iso ? new Date(iso).toLocaleDateString() : "—";
+function formFor(order: Order | null): OrderForm {
+  if (!order) {
+    return { supplierName: "", siteId: "", expectedDate: "", notes: "", lines: [emptyLine()] };
+  }
+  return {
+    supplierName: order.supplierName,
+    siteId: order.siteId,
+    expectedDate: order.expectedDate ? order.expectedDate.slice(0, 10) : "",
+    notes: order.notes ?? "",
+    lines: order.lines.map((line) => ({
+      inventoryItemId: line.inventoryItemId ?? "",
+      itemName: line.itemName,
+      quantity: String(line.quantity),
+      unitCost: String(line.unitCost),
+    })),
+  };
 }
 
 /** What the supplier still owes on this order. Zero means there is nothing to receive. */
-function outstandingQuantity(order: PurchaseOrder) {
+function outstandingQuantity(order: Order) {
   return order.totalQuantity - order.receivedQuantity;
 }
 
-export default function PurchaseOrdersPage() {
+/** Delivered is the finished case and draws nothing; the rest are one word. */
+function orderStatusDot(status: string) {
+  if (status === "RECEIVED") return null;
+  return (
+    <StatusDot tone={status === "PARTIAL" ? "warn" : "neutral"} label={orderStatusLabel(status)} />
+  );
+}
+
+/**
+ * Orders — what the shop has asked its suppliers for.
+ *
+ * Drawn as the products list is: the name and the one verb in the app bar, a
+ * toolbar of search and status, and the orders flush under it. The band of
+ * tiles and two charts that sat over the table (order value, drafts, top
+ * suppliers, a status donut) governed nothing on the page and are gone (D3),
+ * with the Export button that exported nothing.
+ */
+export default function RetailOrdersPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<string>(FILTER_ANY);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<PurchaseOrder | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
-  const [form, setForm] = useState<OrderForm>(emptyForm);
+  const [editing, setEditing] = useState<Order | null>(null);
+  // A new key per opening, so the form starts from the order it was opened on.
+  const [opening, setOpening] = useState(0);
 
   const ordersQuery = useQuery({
     queryKey: ["retail-purchase-orders"],
-    queryFn: () => fetchJson<{ data: PurchaseOrder[] }>("/api/v2/retail/purchasing/orders"),
+    queryFn: () => fetchJson<{ data: Order[] }>("/api/v2/retail/purchasing/orders"),
   });
+  const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data]);
+
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return orders.filter((order) => {
+      if (status !== FILTER_ANY && order.status !== status) return false;
+      if (!needle) return true;
+      return [order.poNo, order.supplierName].some((value) => value.toLowerCase().includes(needle));
+    });
+  }, [orders, search, status]);
+
+  const open = (order: Order | null) => {
+    setEditing(order);
+    setOpening((current) => current + 1);
+    setDialogOpen(true);
+  };
+
+  const remove = useMutation({
+    mutationFn: (order: Order) =>
+      fetchJson(`/api/v2/retail/purchasing/orders/${order.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Order removed", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["retail-purchase-orders"] });
+    },
+    onError: (error) =>
+      toast({
+        title: "That order was not removed",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  const confirmRemove = (order: Order) => {
+    void dsConfirm({
+      title: `Remove ${order.poNo}?`,
+      description:
+        "The order and its lines are deleted. Deliveries already received against it stay, and so does their stock.",
+      confirmLabel: "Remove the order",
+      variant: "danger",
+    }).then((confirmed) => {
+      if (confirmed) remove.mutate(order);
+    });
+  };
+
+  // Deliveries arrive short as a matter of course, so this hands the order to
+  // the delivery form to be counted rather than receiving it in full unseen.
+  const receive = (order: Order) => router.push(`/retail/purchasing/receipts?orderId=${order.id}`);
+
+  const menuFor = (order: Order) => (
+    <RowMenu
+      label={`More for ${order.poNo}`}
+      items={[
+        ...(outstandingQuantity(order) > 0
+          ? [{ label: "Receive a delivery", onSelect: () => receive(order) }]
+          : []),
+        { label: "Edit order", onSelect: () => open(order) },
+        { label: "Remove order", onSelect: () => confirmRemove(order), destructive: true },
+      ]}
+    />
+  );
+
+  const delivered = (order: Order) =>
+    `${formatQuantity(order.receivedQuantity)} of ${formatQuantity(order.totalQuantity)}`;
+
+  const emptyTitle = search.trim()
+    ? "No orders match that search"
+    : status !== FILTER_ANY
+      ? "No orders match this filter"
+      : "No orders yet";
+
+  return (
+    <>
+      <RecordListShell
+        title="Orders"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by order number or supplier"
+        filters={
+          <ViewToolbarFilter
+            label="Status"
+            value={status}
+            anyLabel="Any status"
+            options={STATUS_OPTIONS}
+            onChange={setStatus}
+          />
+        }
+        filterCount={status === FILTER_ANY ? 0 : 1}
+        count={ordersQuery.isSuccess ? `${rows.length} of ${orders.length}` : null}
+        createLabel="New order"
+        onCreate={() => open(null)}
+        error={ordersQuery.error}
+      >
+        <RecordTable
+          rows={rows}
+          isLoading={ordersQuery.isPending}
+          emptyTitle={emptyTitle}
+          rowHref={(order) => `/retail/purchasing/orders/${order.id}`}
+          columns={[
+            {
+              id: "order",
+              label: "Order",
+              cell: (order) => <RecordTableName title={order.poNo} subtitle={order.supplierName} />,
+            },
+            {
+              id: "status",
+              label: "Status",
+              width: "9rem",
+              cell: (order) => orderStatusDot(order.status),
+            },
+            {
+              id: "site",
+              label: "Site",
+              width: "10rem",
+              cell: (order) => <RecordCell value={order.site?.name ?? "No site"} />,
+            },
+            {
+              id: "expected",
+              label: "Expected",
+              width: "9rem",
+              cell: (order) => (
+                <RecordCell kind="date" value={formatRetailDate(order.expectedDate) || "No date"} />
+              ),
+            },
+            {
+              id: "delivered",
+              label: "Delivered",
+              align: "end",
+              width: "9rem",
+              cell: (order) => <RecordCell kind="number" value={delivered(order)} />,
+            },
+            {
+              id: "value",
+              label: "Value",
+              align: "end",
+              width: "8rem",
+              cell: (order) => <RecordCell kind="money" value={retailMoney(order.totalValue)} />,
+            },
+            {
+              id: "menu",
+              label: "",
+              width: "3rem",
+              align: "end",
+              cell: menuFor,
+            },
+          ]}
+          mobile={
+            <RecordList
+              rows={rows.map((order) => ({
+                id: order.id,
+                href: `/retail/purchasing/orders/${order.id}`,
+                title: order.poNo,
+                subtitle: order.supplierName,
+                status: orderStatusDot(order.status),
+                facts: [
+                  { label: "Value", value: retailMoney(order.totalValue), kind: "money", primary: true },
+                  { label: "Delivered", value: delivered(order), kind: "number" },
+                ],
+                actions: menuFor(order),
+              }))}
+              isLoading={ordersQuery.isPending}
+              emptyTitle={emptyTitle}
+            />
+          }
+        />
+      </RecordListShell>
+
+      <OrderDialog key={opening} open={dialogOpen} onOpenChange={setDialogOpen} order={editing} />
+    </>
+  );
+}
+
+/**
+ * New order, and the same form to edit one.
+ *
+ * The order number is reserved when the dialog opens and sent with the order;
+ * it is not a field, because nobody types it. The Site field used to carry two
+ * labels — the form's and the picker's own — and now carries one.
+ */
+function OrderDialog({
+  open,
+  onOpenChange,
+  order,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The order to edit, or null for a new one. */
+  order: Order | null;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<OrderForm>(() => formFor(order));
+  const [errors, setErrors] = useState<string[]>([]);
+
   const sitesQuery = useQuery({ queryKey: ["retail-sites"], queryFn: fetchSites });
   const inventoryQuery = useQuery({ queryKey: ["retail-inventory"], queryFn: () => fetchInventoryItems() });
-
-  const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data?.data]);
-  const draftOrders = orders.filter((o) => o.status === "DRAFT");
-  const awaitingOrders = orders.filter((o) => outstandingQuantity(o) > 0);
-
-  const siteOptions: SearchableOption[] = useMemo(
-    () => (sitesQuery.data ?? []).map((s: { id: string; name: string }) => ({ value: s.id, label: s.name })),
-    [sitesQuery.data],
-  );
-  const itemOptions: SearchableOption[] = useMemo(
-    () =>
-      (inventoryQuery.data?.data ?? []).map((item) => ({
-        value: item.id,
-        label: item.name,
-      })),
-    [inventoryQuery.data],
+  const inventory = useMemo(() => inventoryQuery.data?.data ?? [], [inventoryQuery.data]);
+  const productOptions = useMemo<SearchableOption[]>(
+    () => inventory.map((item) => ({ value: item.id, label: item.name, meta: item.itemCode })),
+    [inventory],
   );
 
-  const { reservedId: poNo, isReserving: isReservingPo, error: reservePoError } = useReservedId({
-    entity: "RETAIL_PURCHASE_ORDER", enabled: dialogOpen && !editing,
+  // A shop with one site has nothing to choose: the order goes there.
+  const onlySiteId = sitesQuery.data?.length === 1 ? sitesQuery.data[0].id : "";
+  const siteId = form.siteId || onlySiteId;
+
+  // The number is reserved against the site, as the reservation requires.
+  const { reservedId: poNo } = useReservedId({
+    entity: "RETAIL_PURCHASE_ORDER",
+    enabled: open && !order && Boolean(siteId),
+    siteId: siteId || undefined,
   });
 
-  const totalLines = (f: OrderForm) => f.lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
-  const totalCost = (f: OrderForm) => f.lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitCost) || 0), 0);
-  // The API demands at least one line, a positive quantity, and a real inventory item per line.
-  const hasLineErrors =
-    form.lines.length === 0 ||
-    form.lines.some(
-      (l) => !l.inventoryItemId || !(Number(l.quantity) > 0) || !(Number(l.unitCost) >= 0),
-    );
+  const setLine = (index: number, patch: Partial<LineForm>) =>
+    setForm((current) => ({
+      ...current,
+      lines: current.lines.map((line, at) => (at === index ? { ...line, ...patch } : line)),
+    }));
 
-  const saveMutation = useMutation({
-    mutationFn: async (f: OrderForm) => {
+  const total = form.lines.reduce(
+    (sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.unitCost) || 0),
+    0,
+  );
+
+  const save = useMutation({
+    mutationFn: async () => {
       const body = {
-        ...(editing ? {} : { poNo: poNo || undefined }),
-        supplierName: f.supplierName.trim(), siteId: f.siteId,
-        expectedDate: f.expectedDate ? new Date(f.expectedDate).toISOString() : null,
-        notes: f.notes.trim() || null,
-        lines: f.lines.map((l) => ({
-          inventoryItemId: l.inventoryItemId,
-          itemName: l.itemName || undefined,
-          quantity: Number(l.quantity),
-          unitCost: Number(l.unitCost),
+        ...(order ? {} : { poNo: poNo || undefined }),
+        supplierName: form.supplierName.trim(),
+        siteId,
+        expectedDate: form.expectedDate ? new Date(form.expectedDate).toISOString() : null,
+        notes: form.notes.trim() || null,
+        lines: form.lines.map((line) => ({
+          inventoryItemId: line.inventoryItemId,
+          itemName: line.itemName || undefined,
+          quantity: Number(line.quantity),
+          unitCost: Number(line.unitCost),
         })),
       };
-      if (editing) return fetchJson(`/api/v2/retail/purchasing/orders/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      if (order) {
+        return fetchJson(`/api/v2/retail/purchasing/orders/${order.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      }
       return fetchJson("/api/v2/retail/purchasing/orders", { method: "POST", body: JSON.stringify(body) });
     },
     onSuccess: () => {
-      toast({ title: editing ? "Updated" : "Created", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["retail-purchase-orders"] });
-      setDialogOpen(false); setEditing(null); setForm(emptyForm());
+      toast({ title: order ? "Order saved" : "Order created", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["retail-purchase-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["retail-purchase-order"] });
+      onOpenChange(false);
     },
-    onError: (error) => {
-      toast({ title: editing ? "Update failed" : "Create failed", description: getApiErrorMessage(error), variant: "destructive" });
-    },
+    onError: (error) =>
+      setErrors([
+        `${order ? "That order was not saved" : "That order was not created"}: ${getApiErrorMessage(error)}`,
+      ]),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetchJson(`/api/v2/retail/purchasing/orders/${id}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Removed", variant: "success" }); queryClient.invalidateQueries({ queryKey: ["retail-purchase-orders"] }); setDeleteTarget(null); },
-    onError: (error) => { toast({ title: "Remove failed", description: getApiErrorMessage(error), variant: "destructive" }); },
-  });
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const problems: string[] = [];
+    if (!form.supplierName.trim()) problems.push("Name the supplier.");
+    if (!siteId) problems.push("Choose the site it is delivered to.");
+    if (form.lines.length === 0) problems.push("Add at least one product.");
+    if (form.lines.some((line) => !line.inventoryItemId)) problems.push("Choose a product on every line.");
+    if (form.lines.some((line) => !(Number(line.quantity) > 0)))
+      problems.push("Every product needs a quantity above zero.");
+    if (form.lines.some((line) => line.unitCost.trim() === "" || !(Number(line.unitCost) >= 0)))
+      problems.push("Every product needs a cost, zero or more.");
+    setErrors(problems);
+    if (problems.length === 0) save.mutate();
+  };
 
-  /* chart data */
-  const statusRows = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const o of orders) counts.set(o.status, (counts.get(o.status) ?? 0) + 1);
-    return Array.from(counts.entries()).map(([label, value]) => ({
-      id: label, label, value,
-      tone: label === "RECEIVED" ? ("success" as const) : label === "PARTIAL" ? ("warning" as const) : ("default" as const),
-    }));
-  }, [orders]);
-
-  const supplierRows = useMemo(() => {
-    const supplierTotals = new Map<string, number>();
-    for (const o of orders) supplierTotals.set(o.supplierName, (supplierTotals.get(o.supplierName) ?? 0) + o.totalValue);
-    return Array.from(supplierTotals.entries())
-      .sort(([, a], [, b]) => b - a).slice(0, 8)
-      .map(([label, value]) => ({ id: label, label, value }));
-  }, [orders]);
-
-  const columns = useMemo<ColumnDef<PurchaseOrder>[]>(() => [
-    { id: "poNo", header: "PO", cell: ({ row }) => (
-      <div>
-        <Link
-          href={`/retail/purchasing/orders/${row.original.id}`}
-          className="font-mono font-semibold underline-offset-2 hover:underline"
-        >
-          {row.original.poNo}
-        </Link>
-        <div className="text-xs text-[var(--text-muted)]">{row.original.supplierName}</div>
-      </div>
-    )},
-    { id: "site", header: "Site", cell: ({ row }) => row.original.site?.name ?? "—" },
-    { id: "status", header: "Status", cell: ({ row }) => row.original.status },
-    { id: "totalValue", header: "Value", cell: ({ row }) => <NumericCell>{money(row.original.totalValue)}</NumericCell> },
-    { id: "lines", header: "Lines", cell: ({ row }) => (
-      <div className="text-right text-xs">{row.original.totalQuantity} / {row.original.receivedQuantity} received</div>
-    )},
-    { id: "expectedDate", header: "Expected", cell: ({ row }) => dateLabel(row.original.expectedDate) },
-    { id: "actions", header: "", cell: ({ row }) => (
-      <div className="flex justify-end gap-2">
-        {outstandingQuantity(row.original) > 0 && (
-          // Deliveries arrive short as a matter of course, so this hands the order to the
-          // goods-receipt form to be counted rather than receiving it in full unseen.
-          <Button asChild size="sm" variant="outline">
-            <Link
-              href={`/retail/purchasing/receipts?orderId=${row.original.id}`}
-              aria-label={`Receive against ${row.original.poNo}`}
-              title="Receive against this order"
-            >
-              <ReceiptLong className="h-4 w-4" />
-            </Link>
-          </Button>
-        )}
-        <Button size="sm" variant="outline" aria-label={`Edit ${row.original.poNo}`} onClick={() => { setEditing(row.original); setForm({
-          supplierName: row.original.supplierName, siteId: row.original.siteId,
-          expectedDate: row.original.expectedDate ? row.original.expectedDate.slice(0, 10) : "",
-          notes: row.original.notes ?? "",
-          lines: row.original.lines.map((l) => ({ inventoryItemId: l.inventoryItemId ?? "", itemName: l.itemName, quantity: String(l.quantity), unitCost: String(l.unitCost) })),
-        }); setDialogOpen(true); }}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button size="sm" variant="outline" aria-label={`Remove ${row.original.poNo}`} onClick={() => setDeleteTarget(row.original)}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    )},
-  ], []);
+  const sites = sitesQuery.data ?? [];
 
   return (
-    <RetailShell title="Purchase orders" actions={
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => { setEditing(null); setForm(emptyForm()); setDialogOpen(true); }}><Plus className="h-4 w-4" />New</Button>
-        {/*
-          A "Suppliers" button stood here and linked to
-          /retail/purchasing/suppliers, which has never existed —
-          app/retail/purchasing/ holds orders and receipts. Next prefetches a
-          link as soon as the page renders, so it 404'd on every visit.
+    <RecordDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={order ? order.poNo : "New order"}
+      size="lg"
+      onSubmit={submit}
+      errors={errors}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={save.isPending}>
+            {order ? "Save order" : "Create order"}
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Supplier">
+        {(id) => (
+          <Input
+            id={id}
+            value={form.supplierName}
+            onChange={(event) => setForm((current) => ({ ...current, supplierName: event.target.value }))}
+            placeholder="Delta Beverages"
+            autoFocus={!order}
+          />
+        )}
+      </FormField>
 
-          There is no supplier record to link to: a purchase order carries a
-          free-text `supplierName`, and nothing in the schema models a supplier.
-          Building that page is a real piece of work; pretending it is one click
-          away was not.
-        */}
-      </div>
-    }>
-      <ReportFilterBar onExport={() => {}} />
-
-      <div className="grid gap-5 xl:grid-cols-3">
-        <ReportChartShell title="Order value" sourceTag={{ label: "PO" }}>
-          <ReportBigNumber label="Total" value={money(orders.reduce((s, o) => s + o.totalValue, 0))} />
-        </ReportChartShell>
-        <ReportChartShell title="Draft" sourceTag={{ label: "PO" }}>
-          <ReportBigNumber label="Draft orders" value={draftOrders.length.toString()} dotColor="var(--status-warning-border)" />
-        </ReportChartShell>
-        <ReportChartShell title="Pending" sourceTag={{ label: "PO" }}>
-          <ReportBigNumber label="Awaiting receipt" value={awaitingOrders.length.toString()} dotColor="var(--status-success-border)" />
-        </ReportChartShell>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-        <ReportChartShell title="Top suppliers" sourceTag={{ label: "PO" }}>
-          <AdminDistributionChart rows={supplierRows} valueLabel="Value" valueFormatter={money} height={280} />
-        </ReportChartShell>
-        <ReportChartShell title="Status breakdown" sourceTag={{ label: "PO" }}>
-          <AdminDonutChart rows={statusRows} valueLabel="Orders" valueFormatter={(v) => v.toString()} height={280} />
-        </ReportChartShell>
-      </div>
-
-      {ordersQuery.isPending ? (
-        <div aria-busy="true" aria-live="polite" className="space-y-4">
-          <span className="sr-only">Fetching purchase orders…</span>
-          <Skeleton height={360} />
-        </div>
-      ) : ordersQuery.isError ? (
-        /*
-          R-4.4. An error is not an empty list.
-
-          This table used to fold loading into `emptyState` and have no error
-          branch at all. `data ?? []` on a failed query is an empty array, so a
-          500 rendered as "No orders" — a statement about the shop's business,
-          made because the server fell over. The three states are separate now,
-          and only the third says anything about the data.
-        */
-        <Alert tone="danger" title="Purchase orders would not load">
-          {getApiErrorMessage(ordersQuery.error)}
-        </Alert>
-      ) : orders.length === 0 ? (
-        <EmptyState
-          title="No purchase orders yet"
-          body="A purchase order is what a delivery is received against, so the shop knows what it ordered and at what price. Raise the first one before the next drop-off."
-        />
-      ) : (
-        <DataTable
-          data={orders}
-          columns={columns}
-          features={{ sorting: true, globalFilter: true, pagination: true }}
-          pagination={{ enabled: true, server: false }}
-          searchPlaceholder="Search orders"
-        />
-      )}
-
-      {/* Edit/Create Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[96dvh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader><DialogTitle>{editing ? "Edit order" : "New order"}</DialogTitle></DialogHeader>
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!form.supplierName || !form.siteId) { toast({ title: "Fill required fields", variant: "destructive" }); return; } saveMutation.mutate(form); }}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">PO number</label>
-                <Input value={editing ? editing.poNo : (poNo ?? (isReservingPo ? "Reserving..." : reservePoError ?? ""))} readOnly />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Supplier</label>
-                <Input value={form.supplierName} onChange={(e) => setForm((c) => ({ ...c, supplierName: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Site</label>
-                <SearchableSelect
-                  label="Site"
-                  options={siteOptions}
-                  value={form.siteId}
-                  placeholder="Select site"
-                  onValueChange={(value) => setForm((current) => ({ ...current, siteId: value }))}
-                  searchPlaceholder="Search sites"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Expected date</label>
-                <Input type="date" value={form.expectedDate} onChange={(e) => setForm((c) => ({ ...c, expectedDate: e.target.value }))} />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="block text-sm font-semibold">Notes</label>
-                <Textarea value={form.notes} onChange={(e) => setForm((c) => ({ ...c, notes: e.target.value }))} rows={2} />
-              </div>
-            </div>
-
-            {/* Lines */}
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-semibold">Lines</span>
-                <span className="font-mono text-sm font-semibold">{totalLines(form)} · {money(totalCost(form))}</span>
-              </div>
-              <div className="space-y-2">
-                {form.lines.map((line, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_90px_100px_32px] items-end gap-2">
-                    <div>
-                      <SearchableSelect
-                        label="Item"
-                        options={itemOptions}
-                        value={line.inventoryItemId}
-                        placeholder="Select item"
-                        onValueChange={(value) =>
-                          setForm((current) => {
-                            const next = [...current.lines];
-                            const option = itemOptions.find((item) => item.value === value);
-                            const fullItem = (inventoryQuery.data?.data ?? []).find((item) => item.id === value) as InventoryItem | undefined;
-                            next[idx] = {
-                              ...next[idx],
-                              inventoryItemId: value,
-                              itemName: option?.label ?? "",
-                              unitCost: next[idx].unitCost === "" && fullItem?.unitCost != null ? String(fullItem.unitCost) : next[idx].unitCost,
-                            };
-                            return { ...current, lines: next };
-                          })
-                        }
-                        searchPlaceholder="Search items"
-                      />
-                    </div>
-                    <Input inputMode="decimal" placeholder="Qty" value={line.quantity}
-                      onChange={(e) => setForm((c) => { const next = [...c.lines]; next[idx] = { ...next[idx], quantity: e.target.value }; return { ...c, lines: next }; })} />
-                    <Input inputMode="decimal" placeholder="Cost" value={line.unitCost}
-                      onChange={(e) => setForm((c) => { const next = [...c.lines]; next[idx] = { ...next[idx], unitCost: e.target.value }; return { ...c, lines: next }; })} />
-                    <Button type="button" size="sm" variant="ghost" onClick={() => setForm((c) => ({ ...c, lines: c.lines.filter((_, i) => i !== idx) }))}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Site">
+          {(id) => (
+            <Select
+              value={siteId}
+              onValueChange={(value) => setForm((current) => ({ ...current, siteId: value }))}
+            >
+              <SelectTrigger id={id}>
+                <SelectValue placeholder="Choose a site" />
+              </SelectTrigger>
+              <SelectContent>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.name}
+                  </SelectItem>
                 ))}
-                <Button type="button" size="sm" variant="ghost" onClick={() => setForm((c) => ({ ...c, lines: [...c.lines, emptyLine()] }))}>Add line</Button>
-              </div>
-            </div>
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+        <FormField label="Expected">
+          {(id) => (
+            <Input
+              id={id}
+              type="date"
+              value={form.expectedDate}
+              onChange={(event) => setForm((current) => ({ ...current, expectedDate: event.target.value }))}
+            />
+          )}
+        </FormField>
+      </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saveMutation.isPending || !form.supplierName.trim() || !form.siteId || hasLineErrors}>Save</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <div className="space-y-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_90px_100px_32px] gap-2 text-sm font-medium text-[var(--text-strong)]">
+          <span>Product</span>
+          <span>Quantity</span>
+          <span>Cost</span>
+          <span />
+        </div>
+        {form.lines.map((line, index) => (
+          <div key={index} className="grid grid-cols-[minmax(0,1fr)_90px_100px_32px] items-center gap-2">
+            <SearchableSelect
+              options={productOptions}
+              value={line.inventoryItemId}
+              placeholder="Choose a product"
+              searchPlaceholder="Search products"
+              onValueChange={(value) => {
+                const item = inventory.find((entry) => entry.id === value);
+                setLine(index, {
+                  inventoryItemId: value,
+                  itemName: item?.name ?? "",
+                  unitCost:
+                    line.unitCost === "" && item?.unitCost != null ? String(item.unitCost) : line.unitCost,
+                });
+              }}
+            />
+            <Input
+              aria-label="Quantity"
+              inputMode="decimal"
+              className="font-mono"
+              value={line.quantity}
+              onChange={(event) => setLine(index, { quantity: event.target.value })}
+            />
+            <Input
+              aria-label="Cost"
+              inputMode="decimal"
+              className="font-mono"
+              value={line.unitCost}
+              onChange={(event) => setLine(index, { unitCost: event.target.value })}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-label={`Take ${line.itemName || "this product"} off the order`}
+              onClick={() =>
+                setForm((current) => ({ ...current, lines: current.lines.filter((_, at) => at !== index) }))
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, emptyLine()] }))}
+          >
+            <Plus className="h-4 w-4" />
+            Add a product
+          </Button>
+          <span className="font-mono text-sm font-medium text-[var(--text-strong)]">{retailMoney(total)}</span>
+        </div>
+      </div>
 
-      {/* Delete Dialog */}
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Remove order</DialogTitle></DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button type="button" variant="destructive" onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>Remove</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </RetailShell>
+      <FormField label="Notes">
+        {(id) => (
+          <Textarea
+            id={id}
+            rows={2}
+            value={form.notes}
+            onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+          />
+        )}
+      </FormField>
+    </RecordDialog>
   );
 }

@@ -2,13 +2,17 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, EmptyState, KpiGrid, RowCard, Skeleton, StatHero } from "@corelithzw/react";
 
-import { ClientDate } from "@/components/ui/client-date";
+import { SectionHeading } from "@/components/management/ui";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { ChevronRight } from "@/lib/icons";
+import { formatQuantity, formatRetailDate } from "@/lib/retail/words";
+
+import { movementDelta, movementTypeLabel, stockLevelLabel } from "./stock-words";
 
 /**
  * The stock overview, on the dashboard recipe: one brand-tinted hero carrying
@@ -19,15 +23,17 @@ import { ChevronRight } from "@/lib/icons";
  * it was more important than anything else.
  */
 
-function money(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+/** The shell's own width (max-w-7xl), so a heading's link sits on the rows' right edge. */
+const SECTION_WIDTH = 1280;
+
+const MONEY = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
 
 export function StockOverview({ siteId }: { siteId?: string }) {
+  const router = useRouter();
   const itemsQuery = useQuery({
     queryKey: ["inventory-items", siteId ?? "all", "overview"],
     queryFn: () => fetchInventoryItems({ siteId, limit: 500 }),
@@ -40,6 +46,7 @@ export function StockOverview({ siteId }: { siteId?: string }) {
 
   const items = useMemo(() => itemsQuery.data?.data ?? [], [itemsQuery.data]);
   const movements = useMemo(() => movementsQuery.data?.data ?? [], [movementsQuery.data]);
+  const short = useMemo(() => items.filter((item) => stockLevelLabel(item) !== null), [items]);
 
   const summary = useMemo(() => {
     let value = 0;
@@ -51,10 +58,9 @@ export function StockOverview({ siteId }: { siteId?: string }) {
         value += item.currentStock * item.unitCost;
         priced += 1;
       }
-      if (item.currentStock <= 0) out += 1;
-      else if (item.minStock !== null && item.minStock !== undefined && item.currentStock <= item.minStock) {
-        low += 1;
-      }
+      const level = stockLevelLabel(item);
+      if (level === "Out") out += 1;
+      else if (level === "Low") low += 1;
     }
     return {
       value,
@@ -80,19 +86,14 @@ export function StockOverview({ siteId }: { siteId?: string }) {
 
   if (itemsQuery.error) {
     return (
-      <Alert tone="danger" title="Unable to load stock">
+      <Alert tone="danger" title="The stock would not load">
         {getApiErrorMessage(itemsQuery.error)}
       </Alert>
     );
   }
 
   if (summary.total === 0) {
-    return (
-      <EmptyState
-        title="Nothing in stock yet"
-        body="Receive something in and it shows up here, along with what it is worth and where it is."
-      />
-    );
+    return <EmptyState title="No stock items yet" />;
   }
 
   const needsAttention = summary.low + summary.out;
@@ -100,18 +101,16 @@ export function StockOverview({ siteId }: { siteId?: string }) {
   return (
     <div className="space-y-5">
       <StatHero
-        label="Stock on hand"
-        value={money(summary.value)}
+        label="Value on hand"
+        value={MONEY.format(summary.value)}
         subtitle={
           summary.pricedShare < 1
-            ? `Counted from the ${Math.round(summary.pricedShare * 100)}% of items that have a unit cost recorded.`
-            : `Across ${summary.total} items.`
+            ? `Counted from the ${Math.round(summary.pricedShare * 100)}% of stock items with a unit cost.`
+            : `Across ${summary.total} stock items.`
         }
         trend={needsAttention > 0 ? "down" : "neutral"}
         change={
-          needsAttention > 0
-            ? `${needsAttention} need attention`
-            : "Everything above its minimum"
+          needsAttention > 0 ? `${needsAttention} need attention` : "Everything above its minimum"
         }
       />
 
@@ -119,115 +118,96 @@ export function StockOverview({ siteId }: { siteId?: string }) {
         cols={3}
         items={[
           {
-            label: "Items held",
+            label: "Stock items",
             value: String(summary.total),
             href: "/stores/inventory",
           },
           {
-            label: "Below minimum",
+            label: "Low",
             value: String(summary.low),
             tone: summary.low > 0 ? "warn" : undefined,
-            href: "/stores/inventory?lowStock=true",
+            href: "/stores/inventory?level=low",
           },
           {
             label: "Out of stock",
             value: String(summary.out),
             tone: summary.out > 0 ? "danger" : undefined,
-            href: "/stores/inventory?lowStock=true",
+            href: "/stores/inventory?level=out",
           },
         ]}
       />
 
-      <section aria-labelledby="stock-attention" className="space-y-2">
-        <h2
-          id="stock-attention"
-          className="text-sm font-medium uppercase tracking-wide text-[var(--text-subtle)]"
-        >
+      <section>
+        <SectionHeading count={short.length} maxWidth={SECTION_WIDTH}>
           Running low
-        </h2>
-        {items.filter(
-          (item) =>
-            item.currentStock <= 0 ||
-            (item.minStock !== null &&
-              item.minStock !== undefined &&
-              item.currentStock <= item.minStock),
-        ).length === 0 ? (
+        </SectionHeading>
+        {short.length === 0 ? (
           <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--border-subtle)] px-3 py-4 text-sm text-[var(--text-muted)]">
-            Nothing is below its minimum.
+            Nothing is at or under its minimum.
           </p>
         ) : (
           <div className="space-y-2">
-            {items
-              .filter(
-                (item) =>
-                  item.currentStock <= 0 ||
-                  (item.minStock !== null &&
-                    item.minStock !== undefined &&
-                    item.currentStock <= item.minStock),
-              )
-              .slice(0, 6)
-              .map((item) => (
-                <RowCard
-                  key={item.id}
-                  title={item.name}
-                  subtitle={`${item.site?.name ?? "—"} · ${item.location?.name ?? "—"}`}
-                  status={
-                    <span className="font-mono text-sm tabular-nums">
-                      {item.currentStock} {item.unit}
-                      {item.minStock ? (
-                        <span className="text-[var(--text-subtle)]"> / {item.minStock}</span>
-                      ) : null}
-                    </span>
-                  }
-                  action={<ChevronRight className="size-4 text-[var(--text-subtle)]" />}
-                />
-              ))}
+            {short.slice(0, 6).map((item) => (
+              <RowCard
+                key={item.id}
+                title={item.name}
+                subtitle={`${item.site?.name ?? "No site"} · ${item.location?.name ?? "No location"}`}
+                onClick={() =>
+                  router.push(`/stores/movements?q=${encodeURIComponent(item.itemCode)}`)
+                }
+                status={
+                  <span className="font-mono text-sm tabular-nums">
+                    {formatQuantity(item.currentStock, item.unit)}
+                    {item.minStock ? (
+                      <span className="text-[var(--text-subtle)]"> of {item.minStock}</span>
+                    ) : null}
+                  </span>
+                }
+                action={<ChevronRight className="size-4 text-[var(--text-subtle)]" />}
+              />
+            ))}
           </div>
         )}
       </section>
 
-      <section aria-labelledby="stock-recent" className="space-y-2">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2
-            id="stock-recent"
-            className="text-sm font-medium uppercase tracking-wide text-[var(--text-subtle)]"
-          >
-            Last movements
-          </h2>
-          <Link href="/stores/movements" className="text-sm hover:underline">
-            All movements
-          </Link>
-        </div>
+      <section>
+        <SectionHeading
+          maxWidth={SECTION_WIDTH}
+          action={
+            <Link href="/stores/movements" className="text-sm hover:underline">
+              All movements
+            </Link>
+          }
+        >
+          Last movements
+        </SectionHeading>
 
         {movementsQuery.error ? (
-          <Alert tone="danger" title="Unable to load movements">
+          <Alert tone="danger" title="The movements would not load">
             {getApiErrorMessage(movementsQuery.error)}
           </Alert>
         ) : movements.length === 0 ? (
           <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--border-subtle)] px-3 py-4 text-sm text-[var(--text-muted)]">
-            Nothing has moved yet.
+            No movements yet
           </p>
         ) : (
           <div className="space-y-2">
-            {movements.slice(0, 5).map((movement) => (
-              <RowCard
-                key={movement.id}
-                title={movement.item?.name ?? "Unknown item"}
-                subtitle={
-                  <>
-                    {movement.movementType === "ISSUE" ? "Issued" : "Received"}
-                    {" · "}
-                    <ClientDate value={movement.createdAt} mode="date" />
-                  </>
-                }
-                status={
-                  <span className="font-mono text-sm tabular-nums">
-                    {movement.movementType === "ISSUE" ? "−" : "+"}
-                    {movement.quantity} {movement.unit}
-                  </span>
-                }
-              />
-            ))}
+            {movements.slice(0, 5).map((movement) => {
+              const delta = movementDelta(movement.movementType, movement.quantity);
+              return (
+                <RowCard
+                  key={movement.id}
+                  title={movement.item?.name ?? "Stock item not on file"}
+                  subtitle={`${movementTypeLabel(movement.movementType)} · ${formatRetailDate(movement.createdAt)}`}
+                  status={
+                    <span className="font-mono text-sm tabular-nums">
+                      {delta < 0 ? "−" : "+"}
+                      {formatQuantity(Math.abs(delta), movement.unit)}
+                    </span>
+                  }
+                />
+              );
+            })}
           </div>
         )}
       </section>

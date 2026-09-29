@@ -10,7 +10,7 @@ export default async function StoresLocationsPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <StoresShell activeTab="locations">
+    <StoresShell activeTab="locations" barFromPage>
       <StockLocationsPanel />
     </StoresShell>
   );

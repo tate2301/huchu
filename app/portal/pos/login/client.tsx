@@ -17,7 +17,7 @@ export function PosPortalLoginClient({
   return (
     <div className="pos-terminal flex min-h-[100dvh] items-center justify-center p-4" style={{ background: "var(--surface-canvas)" }}>
       <PortalLoginForm
-        portalTitle="Point of Sale"
+        portalTitle="Till"
         portalDescription="Sign in to continue."
         portalIcon={<ReceiptLong className="h-7 w-7" />}
         companyLabel={companyLabel}

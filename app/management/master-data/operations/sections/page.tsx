@@ -40,7 +40,7 @@ import {
 
 import {
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailGrid,
   DetailRow,
@@ -370,7 +370,7 @@ export default function SectionsManagementPage() {
           />
         )}
 
-        <CreateSheet
+        <CreateDialog
           open={creating}
           onOpenChange={setCreating}
           title="New section"
@@ -420,7 +420,7 @@ export default function SectionsManagementPage() {
               </DetailSelect>
             )}
           </CreateField>
-        </CreateSheet>
+        </CreateDialog>
       </RegisterLayout>
     </ManagementShell>
   );

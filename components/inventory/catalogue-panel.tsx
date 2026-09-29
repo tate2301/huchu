@@ -8,6 +8,8 @@ import { Alert, Button, EmptyState, Input, SegmentedControl, Skeleton } from "@c
 import { ReportTable, amt, badge, node, num, txt } from "@/components/accounting/report-table";
 import { SetupPanel } from "@/components/crm/settings/setup-chrome";
 import { PageActions } from "@/components/layout/page-chrome";
+import { RowMenu } from "@/components/retail/row-menu";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -16,9 +18,9 @@ import {
   UNIT_LABELS,
   isStockable,
 } from "@/lib/inventory/catalogue";
-import { Package, Plus } from "@/lib/icons";
+import { Plus } from "@/lib/icons";
 
-import { ProductSheet, type ProductRecord } from "./product-sheet";
+import { CatalogueProductDialog, type ProductRecord } from "./product-sheet";
 
 type CatalogueResponse = {
   data: ProductRecord[];
@@ -26,7 +28,7 @@ type CatalogueResponse = {
 };
 
 const KIND_FILTERS = [
-  { value: "ALL", label: "All" },
+  { value: "ALL", label: "Any type" },
   ...PRODUCT_KINDS.map((kind) => ({ value: kind, label: PRODUCT_KIND_LABELS[kind] })),
 ];
 
@@ -39,17 +41,19 @@ const KIND_FILTERS = [
  * pricing a service that is never held anywhere or a pump sitting in a yard.
  *
  * No heading of its own. Both places that mount this draw the name directly
- * above it — "Catalogue" in the CRM setup band, the page band in Stock &
- * Inventory — and a second copy inside the panel spent the first screen of a
- * laptop saying the same thing twice before a single item appeared.
+ * above it — "Catalogue" in the CRM setup band, the app bar in Stock — and a
+ * second copy inside the panel spent the first screen of a laptop saying the
+ * same thing twice before a single product appeared. The banner that said the
+ * catalogue is shared went the same way: a row's verbs live behind its menu,
+ * and the form opens in a dialog.
  */
 export function CataloguePanel({
   /**
-   * Put "New item" in the top app bar instead of above the table.
+   * Put "New catalogue product" in the top app bar instead of above the table.
    *
-   * On its own page in Stock & Inventory that is where a primary action goes,
-   * the same as "New person" on the people list. In CRM setup the page band
-   * owns it instead, and passes `createOpen` to drive the sheet from there.
+   * On its own page in Stock that is where a primary action goes, the same as
+   * "New person" on the people list. In CRM setup the page band owns it
+   * instead, and passes `createOpen` to drive the dialog from there.
    */
   actionInBar = false,
   createOpen,
@@ -91,11 +95,28 @@ export function CataloguePanel({
   const archive = useMutation({
     mutationFn: (id: string) => fetchJson(`/api/v2/inventory/products/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast({ title: "Archived", description: "Past quotes and receipts still show it." });
+      toast({ title: "Catalogue product archived", variant: "success" });
       refresh();
     },
-    onError: (err) => toast({ title: getApiErrorMessage(err), variant: "destructive" }),
+    onError: (err) =>
+      toast({
+        title: "That catalogue product was not archived",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      }),
   });
+
+  const confirmArchive = (product: ProductRecord) => {
+    void dsConfirm({
+      title: `Archive ${product.name}?`,
+      description:
+        "It stops being offered on new quotes, sales and job cards. Past ones still name it.",
+      confirmLabel: "Archive catalogue product",
+      variant: "warning",
+    }).then((confirmed) => {
+      if (confirmed) archive.mutate(product.id);
+    });
+  };
 
   const newItem = (
     <Button
@@ -104,7 +125,7 @@ export function CataloguePanel({
       startIcon={<Plus className="size-4" />}
       onClick={() => setCreating(true)}
     >
-      New item
+      New catalogue product
     </Button>
   );
 
@@ -129,7 +150,7 @@ export function CataloguePanel({
             </button>
             {product.line.priceSource !== "STANDARD" ? (
               <span className="acct-badge shrink-0" data-tone="info">
-                list price
+                List price
               </span>
             ) : null}
           </span>,
@@ -144,15 +165,24 @@ export function CataloguePanel({
         // A service has no stock record at all — that is not the same as none
         // left, and must not read as zero.
         !isStockable(product.kind)
-          ? txt("n/a", { align: "right", tone: "dim" })
+          ? txt("Not stocked", { align: "right", tone: "dim" })
           : product.stock
             ? num(String(product.stock.onHand))
-            : txt("not linked", { align: "right", tone: "dim" }),
+            : txt("Not linked", { align: "right", tone: "dim" }),
         node(
           product.isActive ? (
-            <Button variant="ghost" size="sm" onClick={() => archive.mutate(product.id)}>
-              Archive
-            </Button>
+            <RowMenu
+              label={`More for ${product.name}`}
+              items={[
+                { label: "Edit catalogue product", onSelect: () => setEditing(product) },
+                {
+                  label: "Archive catalogue product",
+                  onSelect: () => confirmArchive(product),
+                  destructive: true,
+                  disabled: archive.isPending,
+                },
+              ]}
+            />
           ) : (
             <span className="acct-badge" data-tone="mute">
               Archived
@@ -180,23 +210,13 @@ export function CataloguePanel({
           value={kind}
           onValueChange={setKind}
           size="sm"
-          aria-label="Filter by kind"
+          aria-label="Type"
         />
-        {/* One catalogue, not one per module. Worth saying here because the
-            consequence — editing a price changes what Retail rings up — is not
-            visible from a page that looks like it belongs to the CRM. */}
-        <span className="ml-auto hidden items-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-100)] bg-[var(--brand-soft)] px-2.5 py-1.5 lg:flex">
-          <Package aria-hidden="true" className="size-3.5 shrink-0 text-[var(--brand)]" />
-          <span className="text-sm text-[var(--brand-strong)]">
-            One catalogue, shared with <b className="font-semibold">Stock &amp; Inventory</b> and{" "}
-            <b className="font-semibold">Retail</b>
-          </span>
-        </span>
-        {actionInBar ? null : <div className="w-full sm:w-auto">{newItem}</div>}
+        {actionInBar ? null : <div className="w-full sm:ml-auto sm:w-auto">{newItem}</div>}
       </div>
 
       {error ? (
-        <Alert tone="danger" title="Couldn't load the catalogue">
+        <Alert tone="danger" title="The catalogue would not load">
           {getApiErrorMessage(error)}
         </Alert>
       ) : null}
@@ -205,33 +225,29 @@ export function CataloguePanel({
         <Skeleton height={220} />
       ) : products.length === 0 ? (
         <EmptyState
-          title="Nothing in the catalogue yet"
-          body="Add what you sell once and every module can quote, ring up or bill it."
-          action={
-            <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
-              Add the first item
-            </Button>
+          title={
+            search
+              ? "No catalogue products match that search"
+              : kind !== "ALL"
+                ? "No catalogue products match this filter"
+                : "No catalogue products yet"
           }
         />
       ) : (
         <SetupPanel
-          title="Items"
-          hint={
-            priceList
-              ? `prices from the ${priceList.name} list`
-              : "price and margin drive every quote in the module"
-          }
+          title={priceList ? `Priced from ${priceList.name}` : "Products"}
+          count={products.length}
           flush
         >
           <div className="scroll-rail overflow-x-auto">
             <ReportTable
-              label="Catalogue items"
+              label="Catalogue products"
               className="min-w-[52rem]"
               tracks="110px minmax(0,1fr) 110px 130px 100px 90px 110px 100px"
               columns={[
                 { label: "Code" },
-                { label: "Name" },
-                { label: "Kind" },
+                { label: "Product" },
+                { label: "Type" },
                 { label: "Unit" },
                 { label: "Price", align: "right" },
                 { label: "Margin", align: "right" },
@@ -244,7 +260,7 @@ export function CataloguePanel({
         </SetupPanel>
       )}
 
-      <ProductSheet
+      <CatalogueProductDialog
         open={creating || Boolean(editing)}
         product={editing}
         onOpenChange={(open) => {

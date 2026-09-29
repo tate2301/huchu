@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -58,6 +57,7 @@ import {
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
+import { enumLabel, fiscalStatusLabel, tenderLabel } from "@/lib/retail/words";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
 import { PosEmptyState, PosStatusPill } from "./pos-primitives";
@@ -84,17 +84,6 @@ function requiresReference(tenderType: TenderType, requiredReferenceTenders: Ten
 function roundUp(value: number, step: number) {
   if (value <= 0) return 0;
   return Math.ceil(value / step) * step;
-}
-
-function tenderLabel(tenderType: TenderType) {
-  switch (tenderType) {
-    case "CASH": return "Cash";
-    case "CARD": return "Card";
-    case "MOBILE_MONEY": return "Mobile";
-    case "TRANSFER": return "Transfer";
-    case "VOUCHER": return "Voucher";
-    default: return tenderType;
-  }
 }
 
 function TenderIcon({ type, className }: { type: TenderType; className?: string }) {
@@ -233,7 +222,7 @@ function TenderButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[10px] font-bold uppercase tracking-[0.12em] transition-all duration-75 active:translate-y-[2px] active:shadow-none"
+      className="flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-center text-xs font-bold leading-tight transition-all duration-75 active:translate-y-[2px] active:shadow-none"
       style={selected ? selectedStyle : idleStyle}
     >
       <TenderIcon type={type} className="h-4 w-4" />
@@ -437,9 +426,9 @@ export function PosCheckoutView() {
 
   const blockers = useMemo(() => {
     const next = [...checkoutBaseBlockers];
-    if (nonCashTotal > total + 0.01) next.push("Non-cash tenders cannot exceed sale total.");
-    if (tenderedTotal < total - 0.01) next.push("Tendered amount is below the sale total.");
-    if (hasMissingRequiredReference) next.push("Required tender references are incomplete.");
+    if (nonCashTotal > total + 0.01) next.push("Card and mobile money come to more than the total");
+    if (tenderedTotal < total - 0.01) next.push("Less than the total is tendered");
+    if (hasMissingRequiredReference) next.push("A reference is missing");
     return next;
   }, [checkoutBaseBlockers, hasMissingRequiredReference, nonCashTotal, tenderedTotal, total]);
 
@@ -522,13 +511,13 @@ export function PosCheckoutView() {
   const activeTargetLabel = (() => {
     const numericTarget = getDefaultNumericTarget(activeTarget, cart.length);
     if (!numericTarget) return "Ready";
-    if (numericTarget.type === "order_discount") return "Order discount";
+    if (numericTarget.type === "order_discount") return "Sale discount";
     if (numericTarget.type === "redeem_points") return "Loyalty points";
     if (numericTarget.type === "tender_amount")
-      return `${tenderLabel(payments[numericTarget.index]?.tenderType ?? "CASH")} amount`;
-    if (numericTarget.type === "line_qty") return "Qty";
+      return tenderLabel(payments[numericTarget.index]?.tenderType ?? "CASH");
+    if (numericTarget.type === "line_qty") return "Quantity";
     if (numericTarget.type === "line_price") return "Price";
-    return "Line discount";
+    return "Discount";
   })();
 
   /**
@@ -570,7 +559,7 @@ export function PosCheckoutView() {
     onSuccess: (payload) => {
       selectCustomer({ id: payload.data.id, name: payload.data.name, phone: payload.data.phone, email: payload.data.email, loyaltyPoints: 0, loyaltyTier: "BRONZE" });
       setCustomerSheetOpen(false);
-      toast({ title: "Customer saved", variant: "success" });
+      toast({ title: "Customer created", variant: "success" });
     },
     onError: async (error) => {
       const message = getApiErrorMessage(error);
@@ -593,10 +582,10 @@ export function PosCheckoutView() {
           loyaltyTier: "BRONZE",
         });
         setCustomerSheetOpen(false);
-        toast({ title: "Customer queued offline", description: "Will sync when back online.", variant: "default" });
+        toast({ title: "Customer saved on this till", variant: "default" });
         return;
       }
-      toast({ title: "Unable to save customer", description: message, variant: "destructive" });
+      toast({ title: "That customer was not created", description: message, variant: "destructive" });
     },
   });
 
@@ -611,7 +600,7 @@ export function PosCheckoutView() {
         }),
       }),
     onSuccess: () => {
-      toast({ title: "Cart held", variant: "success" });
+      toast({ title: "Sale held", variant: "success" });
       setHoldDialog(false);
       setHoldLabel("");
       clearCart();
@@ -619,7 +608,7 @@ export function PosCheckoutView() {
       router.push(getPosPortalHref("held", isPosHost));
     },
     onError: (error) =>
-      toast({ title: "Unable to hold cart", description: getApiErrorMessage(error), variant: "destructive" }),
+      toast({ title: "That sale was not held", description: getApiErrorMessage(error), variant: "destructive" }),
   });
 
   const updatePayment = (index: number, next: Partial<PaymentRow>) => {
@@ -663,6 +652,7 @@ export function PosCheckoutView() {
           {search ? (
             <button
               type="button"
+              aria-label="Clear the search"
               onClick={() => { setSearch(""); focusSearchInput(); }}
               className="shrink-0 rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-base)] hover:text-[var(--text-strong)]"
             >
@@ -675,16 +665,9 @@ export function PosCheckoutView() {
           )}
         </div>
 
-        {/* Shift badge */}
+        {/* The shift: its number when open, the way to open one when not. */}
         {currentShift ? (
-          <span
-            className="hidden shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 md:inline-flex"
-            style={{ background: "var(--pos-status-success-bg)", boxShadow: `inset 0 0 0 1px var(--pos-status-success-ring)`, color: "var(--pos-status-success-text)" }}
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{ background: "var(--pos-status-success-text)" }}
-            />
+          <span className="hidden shrink-0 font-mono text-[11px] font-semibold text-[var(--text-muted)] md:inline">
             {currentShift.shiftNo}
           </span>
         ) : (
@@ -714,7 +697,7 @@ export function PosCheckoutView() {
             {syncOfflineSalesPending
               ? <RefreshCcw className="h-3 w-3 animate-spin" />
               : <RefreshCcw className="h-3 w-3" />}
-            {pendingOfflineSales} queued
+            {pendingOfflineSales} waiting to send
           </button>
         ) : null}
 
@@ -729,22 +712,6 @@ export function PosCheckoutView() {
             <ReceiptLong className="h-3.5 w-3.5" />
             Hold
           </Button>
-          <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-strong)]" asChild>
-            <Link href={getPosPortalHref("held", isPosHost)}>
-              <History className="h-3.5 w-3.5" />
-              Recall
-            </Link>
-          </Button>
-        </div>
-
-        {/* Shortcut hint */}
-        <div className="hidden shrink-0 items-center gap-1.5 text-[10px] text-[var(--text-muted)] lg:flex">
-          <span className="rounded bg-[var(--surface-muted)] px-1 py-0.5 font-mono text-[10px]">/</span>
-          <span>search</span>
-          <span className="rounded bg-[var(--surface-muted)] px-1 py-0.5 font-mono text-[10px]">↵</span>
-          <span>add</span>
-          <span className="rounded bg-[var(--surface-muted)] px-1 py-0.5 font-mono text-[10px]">Esc</span>
-          <span>clear</span>
         </div>
       </div>
 
@@ -782,7 +749,7 @@ export function PosCheckoutView() {
                   )}
                 >
                   <CategoryIcon className="h-3.5 w-3.5" />
-                  {category}
+                  {isAll ? category : enumLabel(category)}
                 </button>
               );
             })}
@@ -801,7 +768,7 @@ export function PosCheckoutView() {
                     : "bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--surface-base)]",
                 )}
               >
-                No promo
+                No promotion
               </button>
               {promotions.map((promo) => (
                 <button
@@ -828,7 +795,6 @@ export function PosCheckoutView() {
               <PosEmptyState
                 icon={Clock}
                 title="Open a shift first"
-                description="Start a shift to unlock the register and begin selling."
                 action={
                   <Button size="sm" asChild>
                     <Link href={getPosPortalHref("shift", isPosHost)}>Open shift</Link>
@@ -839,13 +805,17 @@ export function PosCheckoutView() {
             ) : catalogLoading ? (
               <div className="flex min-h-[10rem] items-center justify-center gap-2 text-sm text-[var(--text-muted)]">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading catalog…
+                Loading the products…
               </div>
             ) : catalogItems.length === 0 ? (
               <div className="flex min-h-[10rem] flex-col items-center justify-center gap-2 text-center">
                 <Package className="h-8 w-8 text-[var(--text-muted)]" />
                 <p className="text-sm font-medium text-[var(--text-muted)]">
-                  {search ? "No items match this category" : "Search or pick a category"}
+                  {search
+                    ? "No products match that search"
+                    : selectedCategory
+                      ? "No products match this filter"
+                      : "No products yet"}
                 </p>
                 {(search || selectedCategory) && (
                   <button
@@ -856,7 +826,7 @@ export function PosCheckoutView() {
                     }}
                     className="text-xs text-[var(--action-primary-bg)] underline-offset-2 hover:underline"
                   >
-                    Clear filters
+                    Clear the filters
                   </button>
                 )}
               </div>
@@ -901,25 +871,28 @@ export function PosCheckoutView() {
                         <div className="line-clamp-2 text-[13px] font-semibold leading-[1.3] text-[var(--text-strong)]">
                           {item.name}
                         </div>
-                        <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                        <div className="mt-1 flex items-center gap-1 text-xs font-semibold text-[var(--text-muted)]">
                           {(() => {
                             const CategoryIcon = getCategoryIcon(item.category);
                             return <CategoryIcon className="h-3.5 w-3.5" />;
                           })()}
-                          <span className="truncate">{item.category || "General"}</span>
+                          <span className="truncate">{item.category ? enumLabel(item.category) : "General"}</span>
                         </div>
                         <div className="mt-2 flex items-end justify-between gap-1">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {item.inventoryItem && (
-                              <span className={cn(
-                                "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                                item.inventoryItem.currentStock <= 5
-                                  ? "bg-amber-50 text-amber-700"
-                                  : "bg-emerald-50 text-emerald-700",
-                              )}>
-                                {item.inventoryItem.currentStock.toFixed(0)} {item.inventoryItem.unit}
+                            {/* Stock draws nothing until it is an exception. */}
+                            {item.inventoryItem && item.inventoryItem.currentStock <= 5 ? (
+                              <span
+                                className={cn(
+                                  "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                                  item.inventoryItem.currentStock <= 0
+                                    ? "bg-red-50 text-red-700"
+                                    : "bg-amber-50 text-amber-700",
+                                )}
+                              >
+                                {item.inventoryItem.currentStock <= 0 ? "Out of stock" : "Low"}
                               </span>
-                            )}
+                            ) : null}
                           </div>
                           <div className="shrink-0 text-right">
                             {item.compareAtPrice && item.compareAtPrice > item.unitPrice ? (
@@ -955,199 +928,6 @@ export function PosCheckoutView() {
           </div>
         </div>
 
-        {/* ┄ Column 2 — Cart ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ */}
-        <div className="hidden min-h-0 flex-col overflow-hidden border-r border-[var(--edge-subtle)] bg-[var(--surface-base)]">
-          {/* Cart header */}
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--edge-subtle)] px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-[var(--text-strong)]">Sale</span>
-              {cart.length > 0 ? (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--action-primary-bg)] px-1.5 text-[10px] font-bold text-white">
-                  {cart.length}
-                </span>
-              ) : null}
-              {selectedCustomer ? (
-                <button
-                  type="button"
-                  onClick={() => setCustomerSheetOpen(true)}
-                  className="flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] px-2 py-0.5 text-[10px] font-semibold text-[var(--action-primary-bg)] transition-colors hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_18%,var(--surface-base))]"
-                >
-                  <User className="h-3 w-3" />
-                  {selectedCustomer.name}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setCustomerSheetOpen(true)}
-                  className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-strong)]"
-                >
-                  <User className="h-3 w-3" />
-                  Walk-in
-                </button>
-              )}
-            </div>
-            {cart.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  // eslint-disable-next-line react-hooks/immutability
-                  paymentUserEditedRef.current = false;
-                  clearCart();
-                }}
-                className="rounded-md px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-600"
-              >
-                Clear
-              </button>
-            ) : null}
-          </div>
-
-          {/* Cart items */}
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {cart.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface-muted)]">
-                  <Payments className="h-6 w-6 text-[var(--text-muted)]" />
-                </div>
-                <p className="text-sm font-medium text-[var(--text-muted)]">No items yet</p>
-                <p className="text-xs text-[var(--text-muted)]">Search or scan to add</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-[var(--edge-subtle)]">
-                {cart.map((item) => {
-                  const isSelected = selectedLineId === item.catalogItemId;
-                  const lineTotal = item.quantity * item.unitPrice - (item.lineDiscountAmount ?? 0);
-                  return (
-                    <div
-                      key={item.catalogItemId}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-3.5 transition-colors duration-100",
-                        isSelected
-                          ? "border-l-[3px] border-l-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_5%,var(--surface-base))]"
-                          : "border-l-[3px] border-l-transparent hover:bg-[var(--surface-muted)]",
-                      )}
-                    >
-                      {/* Item info — clickable to select */}
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() => {
-                          setSelectedLineId(item.catalogItemId);
-                          setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
-                        }}
-                      >
-                        <div className="truncate text-[13px] font-semibold leading-tight text-[var(--text-strong)]">
-                          {item.name}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
-                          <span className="font-mono">{money(item.unitPrice)}</span>
-                          {item.lineDiscountAmount ? (
-                            <span className="rounded px-1 font-mono" style={{ background: "var(--pos-status-success-bg)", color: "var(--pos-status-success-text)" }}>−{money(item.lineDiscountAmount)}</span>
-                          ) : null}
-                        </div>
-                      </button>
-
-                      {/* Qty controls */}
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = item.quantity - 1;
-                            if (next <= 0) {
-                              removeFromCart(item.catalogItemId);
-                              if (selectedLineId === item.catalogItemId) {
-                                setSelectedLineId(null);
-                                setActiveTarget(null);
-                              }
-                            } else {
-                              updateQty(item.catalogItemId, next);
-                            }
-                          }}
-                          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-[0.90]"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedLineId(item.catalogItemId);
-                            setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
-                          }}
-                          className={cn(
-                            "min-h-11 min-w-[2.5rem] rounded-lg border px-2 font-mono text-sm font-bold transition-all",
-                            isSelected && activeTarget?.type === "line_qty"
-                              ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,white)] text-[var(--action-primary-bg)]"
-                              : "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-strong)] hover:border-[var(--action-primary-bg)]",
-                          )}
-                        >
-                          {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}
-                          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-all hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] hover:text-[var(--action-primary-bg)] active:scale-[0.90]"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-
-                      {/* Line total */}
-                      <div className="shrink-0 w-[4.75rem] text-right">
-                        <div className={cn(
-                          "font-mono text-sm font-black",
-                          isSelected ? "text-[var(--action-primary-bg)]" : "text-[var(--text-strong)]",
-                        )}>
-                          {money(lineTotal)}
-                        </div>
-                      </div>
-
-                      {/* Remove */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          removeFromCart(item.catalogItemId);
-                          if (selectedLineId === item.catalogItemId) {
-                            setSelectedLineId(null);
-                            setActiveTarget(null);
-                          }
-                        }}
-                        className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Cart summary */}
-          <div className="shrink-0 border-t border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2.5">
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>{cart.length} item{cart.length !== 1 ? "s" : ""}</span>
-                <span className="font-mono">{money(subtotal)}</span>
-              </div>
-              {discountAmount > 0 ? (
-                <div className="flex items-center justify-between text-xs text-emerald-600">
-                  <span>Discount{selectedPromotion ? ` (${selectedPromotion.name})` : ""}</span>
-                  <span className="font-mono">−{money(discountAmount)}</span>
-                </div>
-              ) : null}
-              {taxAmount > 0 ? (
-                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                  <span>Tax</span>
-                  <span className="font-mono">{money(taxAmount)}</span>
-                </div>
-              ) : null}
-            </div>
-            <div className="mt-2 flex items-baseline justify-between border-t border-[var(--edge-subtle)] pt-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Total</span>
-              <span className="font-mono text-xl font-black text-[var(--text-strong)]">{money(total)}</span>
-            </div>
-          </div>
-        </div>
-
         {/* ┄ Column 3 — Payment ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ */}
         <div className="flex min-h-0 flex-col overflow-hidden border-l border-[var(--edge-subtle)] bg-[var(--surface-base)] md:col-start-2">
 
@@ -1163,8 +943,8 @@ export function PosCheckoutView() {
               ? "bg-gradient-to-b from-[color-mix(in_srgb,var(--action-primary-bg)_7%,var(--surface-base))] via-[color-mix(in_srgb,var(--action-primary-bg)_3%,var(--surface-base))] to-[var(--surface-base)]"
               : "bg-[var(--surface-base)]",
           )}>
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              Amount Due
+            <div className="text-xs font-bold text-[var(--text-muted)]">
+              Amount due
             </div>
             <div className={cn(
               "mt-1 font-mono font-black leading-none tracking-tight transition-all duration-150",
@@ -1184,7 +964,6 @@ export function PosCheckoutView() {
                 className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-black ring-1"
                 style={{ background: "var(--pos-change-bg)", color: "var(--pos-change-text)", boxShadow: `inset 0 0 0 1px var(--pos-status-success-ring)` }}
               >
-                <span>↩</span>
                 Change {money(changeAmount)}
               </div>
             ) : tenderedTotal > 0 && tenderedTotal < total ? (
@@ -1212,7 +991,7 @@ export function PosCheckoutView() {
                 className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]"
               >
                 <Sparkles className="h-3 w-3" />
-                Adjust
+                Discount
               </button>
               <button
                 type="button"
@@ -1225,7 +1004,7 @@ export function PosCheckoutView() {
                 )}
               >
                 <Payments className="h-3 w-3" />
-                {splitTenderMode ? "Single" : "Split"}
+                {splitTenderMode ? "One payment" : "Split payment"}
               </button>
               <button
                 type="button"
@@ -1255,9 +1034,11 @@ export function PosCheckoutView() {
                     <div className="truncate text-sm font-semibold text-[var(--text-strong)]">
                       {selectedCustomer?.name ?? "Walk-in customer"}
                     </div>
-                    <div className="truncate text-[11px] text-[var(--text-muted)]">
-                      {selectedCustomer?.phone || selectedCustomer?.email || "Tap to attach customer"}
-                    </div>
+                    {selectedCustomer?.phone || selectedCustomer?.email ? (
+                      <div className="truncate text-[11px] text-[var(--text-muted)]">
+                        {selectedCustomer.phone || selectedCustomer.email}
+                      </div>
+                    ) : null}
                   </div>
                 </button>
                 {cart.length > 0 ? (
@@ -1268,7 +1049,7 @@ export function PosCheckoutView() {
                     }}
                     className="rounded-full px-2 py-1 text-[11px] font-semibold text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-600"
                   >
-                    Clear
+                    Clear the cart
                   </button>
                 ) : null}
               </div>
@@ -1276,7 +1057,7 @@ export function PosCheckoutView() {
               <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)]">
                 <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[var(--text-strong)]">Sale items</span>
+                    <span className="text-sm font-semibold text-[var(--text-strong)]">Products</span>
                     <span className="rounded-full bg-[var(--surface-base)] px-2 py-0.5 text-[10px] font-bold text-[var(--text-muted)]">
                       {cart.length}
                     </span>
@@ -1292,8 +1073,7 @@ export function PosCheckoutView() {
                   {cart.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
                       <Payments className="h-7 w-7 text-[var(--text-muted)]" />
-                      <p className="text-sm font-medium text-[var(--text-muted)]">No items yet</p>
-                      <p className="text-xs text-[var(--text-muted)]">Search or scan to add</p>
+                      <p className="text-sm font-medium text-[var(--text-muted)]">No products yet</p>
                     </div>
                   ) : (
                     <div className="divide-y divide-[var(--border-subtle)]">
@@ -1333,6 +1113,7 @@ export function PosCheckoutView() {
                             <div className="flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-1 py-1">
                               <button
                                 type="button"
+                                aria-label={`One fewer ${item.name}`}
                                 onClick={() => {
                                   const next = item.quantity - 1;
                                   if (next <= 0) {
@@ -1354,6 +1135,7 @@ export function PosCheckoutView() {
                               </span>
                               <button
                                 type="button"
+                                aria-label={`One more ${item.name}`}
                                 onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}
                                 className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_8%,white)] hover:text-[var(--action-primary-bg)]"
                               >
@@ -1367,6 +1149,7 @@ export function PosCheckoutView() {
                               </div>
                               <button
                                 type="button"
+                                aria-label={`Remove ${item.name}`}
                                 onClick={() => {
                                   removeFromCart(item.catalogItemId);
                                   if (selectedLineId === item.catalogItemId) {
@@ -1385,7 +1168,7 @@ export function PosCheckoutView() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-1 border-t border-[var(--border-subtle)] px-3 py-2.5 text-xs">
+                <div className="space-y-1 border-t border-[var(--border-subtle)] px-3 py-2.5 text-xs empty:hidden">
                   {discountAmount > 0 ? (
                     <div className="flex items-center justify-between text-emerald-700">
                       <span>Discount{selectedPromotion ? ` (${selectedPromotion.name})` : ""}</span>
@@ -1394,7 +1177,7 @@ export function PosCheckoutView() {
                   ) : null}
                   {taxAmount > 0 ? (
                     <div className="flex items-center justify-between text-[var(--text-muted)]">
-                      <span>Tax</span>
+                      <span>VAT</span>
                       <span className="font-mono">{money(taxAmount)}</span>
                     </div>
                   ) : null}
@@ -1410,12 +1193,13 @@ export function PosCheckoutView() {
                   <div key={`payment-${index}`} className="space-y-1.5">
                     {splitTenderMode && (
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                        <span className="text-xs font-bold text-[var(--text-muted)]">
                           Payment {index + 1}
                         </span>
                         {payments.length > 1 && (
                           <button
                             type="button"
+                            aria-label={`Remove payment ${index + 1}`}
                             onClick={() => setPayments((cur) => cur.filter((_, i) => i !== index))}
                             className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500"
                           >
@@ -1460,7 +1244,7 @@ export function PosCheckoutView() {
                         <Input
                           value={payment.reference}
                           onChange={(e) => updatePayment(index, { reference: e.target.value })}
-                          placeholder={`Reference (min ${minReferenceLength} chars)`}
+                          placeholder={`Reference, ${minReferenceLength} characters or more`}
                           className={cn(
                             "h-9 text-sm",
                             refMissing ? "border-amber-300 bg-amber-50 focus-visible:ring-amber-400" : "",
@@ -1484,7 +1268,7 @@ export function PosCheckoutView() {
                   className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[var(--border-default)] py-2.5 text-[11px] font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_4%,var(--surface-base))] hover:text-[var(--action-primary-bg)]"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Add payment method
+                  Add a payment
                 </button>
               ) : null}
             </div>
@@ -1511,7 +1295,7 @@ export function PosCheckoutView() {
           >
             {/* What the keys are pointed at, what is in it, and how to empty it. */}
             <div className="mb-2 flex items-center gap-2">
-              <span className="inline-flex shrink-0 items-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--action-primary-bg)]">
+              <span className="inline-flex shrink-0 items-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] px-3 py-1 text-xs font-bold text-[var(--action-primary-bg)]">
                 {activeTargetLabel}
               </span>
               {/*
@@ -1531,9 +1315,9 @@ export function PosCheckoutView() {
                 type="button"
                 onClick={() => handleKeypadAction({ type: "clear" })}
                 disabled={activeTargetValue === null}
-                className="shrink-0 rounded-full border border-[var(--border-default)] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                className="shrink-0 rounded-full border border-[var(--border-default)] px-2.5 py-1 text-xs font-black text-[var(--text-muted)] transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
               >
-                Clear
+                Clear the amount
               </button>
             </div>
 
@@ -1580,7 +1364,7 @@ export function PosCheckoutView() {
               {postSalePending ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Processing…
+                  Charging…
                 </>
               ) : (
                 <>
@@ -1616,7 +1400,7 @@ export function PosCheckoutView() {
                     )}
                   >
                     <CategoryIcon className="h-3.5 w-3.5" />
-                    {category}
+                    {isAll ? category : enumLabel(category)}
                   </button>
                 );
               })}
@@ -1627,7 +1411,9 @@ export function PosCheckoutView() {
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--surface-muted)]">
                   <Search className="h-7 w-7 text-[var(--text-muted)]" />
                 </div>
-                <p className="text-sm font-medium text-[var(--text-muted)]">No items found</p>
+                <p className="text-sm font-medium text-[var(--text-muted)]">
+                  {search ? "No products match that search" : "No products yet"}
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -1680,6 +1466,7 @@ export function PosCheckoutView() {
       {/* Mobile cart FAB */}
       <button
         type="button"
+        aria-label="Open the cart"
         onClick={() => setMobileCartOpen(true)}
         className="fixed right-4 bottom-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--action-primary-bg)] text-white shadow-lg transition-transform active:scale-95 md:hidden"
       >
@@ -1713,7 +1500,7 @@ export function PosCheckoutView() {
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface-muted)]">
                     <Payments className="h-6 w-6 text-[var(--text-muted)]" />
                   </div>
-                  <p className="text-sm font-medium text-[var(--text-muted)]">No items yet</p>
+                  <p className="text-sm font-medium text-[var(--text-muted)]">No products yet</p>
                 </div>
               ) : (
                 <div className="divide-y divide-[var(--edge-subtle)]">
@@ -1721,7 +1508,7 @@ export function PosCheckoutView() {
                     <div key={item.catalogItemId} className="flex items-center gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-semibold text-[var(--text-strong)]">{item.name}</div>
-                        <div className="text-xs text-[var(--text-muted)]">{money(item.unitPrice)} x {item.quantity}</div>
+                        <div className="text-xs text-[var(--text-muted)]">{money(item.unitPrice)} × {item.quantity}</div>
                       </div>
                       <div className="font-mono text-sm font-bold">{money(item.quantity * item.unitPrice - (item.lineDiscountAmount ?? 0))}</div>
                     </div>
@@ -1782,7 +1569,7 @@ export function PosCheckoutView() {
                   ) : (
                     <Zap className="h-5 w-5" />
                   )}
-                  {postSalePending ? "Processing…" : `Charge ${money(total)}`}
+                  {postSalePending ? "Charging…" : `Charge ${money(total)}`}
                 </button>
               </div>
             ) : null}
@@ -1796,17 +1583,19 @@ export function PosCheckoutView() {
 
       {/* ── Customer sheet ──────────────────────────────── */}
       <Sheet open={customerSheetOpen} onOpenChange={setCustomerSheetOpen}>
-        <SheetContent side="right" size="md" tabletBehavior="bottom" className="w-full max-w-[32rem] p-0">
+        <SheetContent
+          side="right"
+          size="md"
+          tabletBehavior="bottom"
+          aria-describedby={undefined}
+          className="w-full max-w-[32rem] p-0"
+        >
           <div className="flex h-full flex-col p-5 sm:p-6">
             <SheetHeader className="border-b border-[var(--border-subtle)] pb-4 pr-10">
-              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                <Users className="h-4 w-4" />
+              <SheetTitle className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-[var(--text-muted)]" />
                 Customer
-              </div>
-              <SheetTitle>Attach customer</SheetTitle>
-              <SheetDescription>
-                Search by name, phone, or email. Save new customers without leaving checkout.
-              </SheetDescription>
+              </SheetTitle>
             </SheetHeader>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4 pr-1">
@@ -1816,7 +1605,8 @@ export function PosCheckoutView() {
                 <Input
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Search by name, phone, or email"
+                  placeholder="Name, phone or email"
+                  aria-label="Search the customers"
                   className="h-8 border-none bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
                 />
               </div>
@@ -1827,11 +1617,11 @@ export function PosCheckoutView() {
                   <div>
                     <div className="text-sm font-bold text-[var(--text-strong)]">{selectedCustomer.name}</div>
                     <div className="text-xs text-[var(--text-muted)]">
-                      {selectedCustomer.phone || selectedCustomer.email || "No contact"}
+                      {selectedCustomer.phone || selectedCustomer.email || "Not on file"}
                     </div>
                   </div>
-                  <PosStatusPill tone="success">
-                    {selectedCustomer.loyaltyPoints} pts
+                  <PosStatusPill tone="neutral">
+                    {selectedCustomer.loyaltyPoints} points
                   </PosStatusPill>
                 </div>
               ) : null}
@@ -1844,7 +1634,7 @@ export function PosCheckoutView() {
                     {customerSearchLoading ? <span>Searching…</span> : null}
                   </div>
                   {customerSearchResults.length === 0 && !customerSearchLoading ? (
-                    <p className="py-4 text-center text-sm text-[var(--text-muted)]">No match — save below</p>
+                    <p className="py-4 text-center text-sm text-[var(--text-muted)]">No customers match that search</p>
                   ) : (
                     customerSearchResults.slice(0, 6).map((c) => (
                       <button
@@ -1860,12 +1650,12 @@ export function PosCheckoutView() {
                           <div className="min-w-0">
                             <div className="truncate text-sm font-semibold">{c.name}</div>
                             <div className="truncate text-xs text-[var(--text-muted)]">
-                              {c.phone || c.email || "No contact"}
+                              {c.phone || c.email || "Not on file"}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-[var(--text-muted)]">{c.loyaltyPoints} pts</span>
+                          <span className="text-xs text-[var(--text-muted)]">{c.loyaltyPoints} points</span>
                           <ArrowRight className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
                         </div>
                       </button>
@@ -1876,12 +1666,13 @@ export function PosCheckoutView() {
 
               {/* Save new customer */}
               <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] p-4">
-                <div className="text-sm font-bold text-[var(--text-strong)]">Save new customer</div>
+                <div className="text-sm font-bold text-[var(--text-strong)]">New customer</div>
                 <div className="mt-3 grid gap-2">
                   <Input
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="Full name"
+                    aria-label="Full name"
                     className="h-9 bg-[var(--surface-base)] text-sm"
                   />
                   <div className="grid grid-cols-2 gap-2">
@@ -1889,12 +1680,14 @@ export function PosCheckoutView() {
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="Phone"
+                      aria-label="Phone"
                       className="h-9 bg-[var(--surface-base)] text-sm"
                     />
                     <Input
                       value={customerEmail}
                       onChange={(e) => setCustomerEmail(e.target.value)}
                       placeholder="Email"
+                      aria-label="Email"
                       className="h-9 bg-[var(--surface-base)] text-sm"
                     />
                   </div>
@@ -1913,7 +1706,7 @@ export function PosCheckoutView() {
                 disabled={!customerName.trim() || createCustomerMutation.isPending}
               >
                 <Save className="h-3.5 w-3.5" />
-                Save customer
+                Create customer
               </Button>
             </SheetFooter>
           </div>
@@ -1924,12 +1717,12 @@ export function PosCheckoutView() {
       <Dialog open={adjustmentsOpen} onOpenChange={setAdjustmentsOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Sale adjustments</DialogTitle>
+            <DialogTitle>Discount</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
             {/* Order discount */}
             <div>
-              <label className="text-xs font-bold text-[var(--text-muted)]">Order discount</label>
+              <label className="text-xs font-bold text-[var(--text-muted)]">Sale discount</label>
               <NumField
                 label="Amount"
                 value={orderDiscountAmount}
@@ -1965,10 +1758,9 @@ export function PosCheckoutView() {
                 <Input
                   value={overrideReason}
                   onChange={(e) => setOverrideReason(e.target.value)}
-                  placeholder="Reason for price/discount override"
+                  aria-label="Override reason"
                   className="mt-1.5 h-9 text-sm"
                 />
-                <PosStatusPill tone="warning" className="mt-1.5">Manager override enabled</PosStatusPill>
               </div>
             ) : null}
 
@@ -2010,7 +1802,7 @@ export function PosCheckoutView() {
             ) : null}
           </div>
           <DialogFooter>
-            <Button onClick={() => setAdjustmentsOpen(false)}>Done</Button>
+            <Button onClick={() => setAdjustmentsOpen(false)}>Apply</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2019,16 +1811,17 @@ export function PosCheckoutView() {
       <Dialog open={holdDialog} onOpenChange={setHoldDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Hold current sale</DialogTitle>
+            <DialogTitle>Hold the sale</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-1">
-            <p className="text-sm text-[var(--text-muted)]">
-              Park this cart and come back to it later from the Held screen.
-            </p>
+          <div className="space-y-1.5 py-1">
+            <label htmlFor="pos-hold-label" className="text-xs font-bold text-[var(--text-muted)]">
+              Name (optional)
+            </label>
             <Input
+              id="pos-hold-label"
               value={holdLabel}
               onChange={(e) => setHoldLabel(e.target.value)}
-              placeholder="Label (optional — e.g. Table 4)"
+              placeholder="Table 4"
               className="h-9"
               autoFocus
             />
@@ -2037,7 +1830,7 @@ export function PosCheckoutView() {
             <Button variant="outline" onClick={() => setHoldDialog(false)}>Cancel</Button>
             <Button onClick={() => holdCartMutation.mutate()} disabled={holdCartMutation.isPending}>
               {holdCartMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptLong className="h-4 w-4" />}
-              Hold sale
+              Hold the sale
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2045,26 +1838,24 @@ export function PosCheckoutView() {
 
       {/* ── Line editor sheet ───────────────────────────── */}
       <Sheet open={Boolean(selectedLine)} onOpenChange={(open) => !open && (setSelectedLineId(null), setActiveTarget(null))}>
-        <SheetContent side="bottom" className="h-auto max-h-[40vh] p-0">
+        <SheetContent side="bottom" aria-describedby={undefined} className="h-auto max-h-[40vh] p-0">
           <div className="flex flex-col p-4 sm:p-5">
             <SheetHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <SheetTitle className="text-base">{selectedLine?.name}</SheetTitle>
                 <button
                   type="button"
+                  aria-label="Close"
                   onClick={() => { setSelectedLineId(null); setActiveTarget(null); }}
                   className="rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-strong)]"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <SheetDescription>
-                Tap a field, then use the keypad to edit.
-              </SheetDescription>
             </SheetHeader>
             <div className="grid grid-cols-3 gap-2 pt-1">
               <NumField
-                label="Qty"
+                label="Quantity"
                 value={String(selectedLine?.quantity ?? 0)}
                 active={activeTarget?.type === "line_qty" && activeTarget.lineId === selectedLine?.catalogItemId}
                 onActivate={() => setActiveTarget({ type: "line_qty", lineId: selectedLine?.catalogItemId ?? "" })}
@@ -2076,7 +1867,7 @@ export function PosCheckoutView() {
                 onActivate={() => setActiveTarget({ type: "line_price", lineId: selectedLine?.catalogItemId ?? "" })}
               />
               <NumField
-                label="Disc"
+                label="Discount"
                 value={String(selectedLine?.lineDiscountAmount ?? 0)}
                 active={activeTarget?.type === "line_discount" && activeTarget.lineId === selectedLine?.catalogItemId}
                 onActivate={() => setActiveTarget({ type: "line_discount", lineId: selectedLine?.catalogItemId ?? "" })}
@@ -2092,7 +1883,7 @@ export function PosCheckoutView() {
           {/* Change amount — the MOST important thing a cashier needs */}
           {(lastCompletedSale?.changeAmount ?? 0) > 0 ? (
             <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 px-6 pt-8 pb-7 text-center text-white">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200">
+              <div className="text-[11px] font-bold text-emerald-200">
                 Change due
               </div>
               <div className="mt-1 font-mono text-[4.5rem] font-black leading-none tracking-tight">
@@ -2108,7 +1899,7 @@ export function PosCheckoutView() {
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 ring-4 ring-white/25">
                 <CheckCircle2 className="h-6 w-6 text-white" />
               </div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-100">
+              <div className="text-[11px] font-bold text-emerald-100">
                 Sale complete
               </div>
               <div className="mt-0.5 font-mono text-lg font-black">
@@ -2122,6 +1913,35 @@ export function PosCheckoutView() {
 
           {/* Secondary info */}
           <div className="px-5 py-4 space-y-3">
+            {/*
+              Where the sale stands with ZIMRA, decided when it was posted. A
+              fiscalised sale shows its number; a sale the shop does not
+              fiscalise (SKIPPED, or no answer at all) draws nothing.
+            */}
+            {lastCompletedSale?.fiscal && lastCompletedSale.fiscal.status !== "SKIPPED" ? (
+              <div
+                data-testid="pos-sale-fiscal"
+                className="flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-sm"
+                style={
+                  lastCompletedSale.fiscal.status === "FAILED"
+                    ? {
+                        background: "var(--pos-status-warning-bg)",
+                        color: "var(--pos-status-warning-text)",
+                      }
+                    : { background: "var(--surface-muted)", color: "var(--text-muted)" }
+                }
+              >
+                <span className="font-semibold">
+                  {fiscalStatusLabel(lastCompletedSale.fiscal.status)}
+                </span>
+                {lastCompletedSale.fiscal.status === "SUCCESS" &&
+                lastCompletedSale.fiscal.fiscalNumber ? (
+                  <span className="truncate font-mono text-[13px] font-bold text-[var(--text-strong)]">
+                    {lastCompletedSale.fiscal.fiscalNumber}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-4 py-3">
               <div>
                 <div className="text-[11px] text-[var(--text-muted)]">Total charged</div>

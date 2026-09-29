@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { SETTINGS_PROVIDER_KEYS } from "@/lib/accounting/fiscal-device-scope";
 import { hasRole } from "@/lib/roles";
 import {
   FISCAL_DAY_STATUS,
@@ -166,7 +167,7 @@ export async function GET(request: NextRequest) {
     const companyId = session.user.companyId;
 
     const providers: ProviderRow[] = await prisma.fiscalisationProviderConfig.findMany({
-      where: { companyId },
+      where: { companyId, providerKey: { notIn: [...SETTINGS_PROVIDER_KEYS] } },
       orderBy: [{ isActive: "desc" }, { providerKey: "asc" }],
       select: { id: true, providerKey: true, deviceId: true, isActive: true, metadataJson: true },
     });

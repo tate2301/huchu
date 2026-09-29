@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import {
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailGrid,
   DetailRow,
@@ -996,7 +996,7 @@ export default function TemplateSettingsPage() {
       {/* No board draws creation, so it follows the group's own create sheet —
           the same label-over-control stack and the same footer every other
           register in this surface opens. */}
-      <CreateSheet
+      <CreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
         title="New template"
@@ -1057,7 +1057,7 @@ export default function TemplateSettingsPage() {
             </DetailSelect>
           )}
         </CreateField>
-      </CreateSheet>
+      </CreateDialog>
 
       {/* ---------------------------------------------------------------- *
           Edit blocks — the schema behind a version

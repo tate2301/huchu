@@ -25,6 +25,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { ColumnDef } from "@tanstack/react-table";
+import { saleTypeLabel, shiftStatusLabel, tenderLabel } from "@/lib/retail/words";
 
 type SaleRow = {
   id: string;
@@ -65,8 +66,8 @@ type StockItem = {
 };
 
 const TABS = [
-  { id: "operations", label: "Operations" },
-  { id: "pos-policy", label: "Checkout" },
+  { id: "operations", label: "The day" },
+  { id: "pos-policy", label: "Sales by type" },
   { id: "reports", label: "Trading" },
   { id: "stock", label: "Stock" },
   { id: "sales", label: "Sales" },
@@ -147,7 +148,7 @@ export default function RetailReportsHubPage() {
         counts.set(t, (counts.get(t) ?? 0) + 1);
       }
     }
-    return Array.from(counts.entries()).map(([label, value]) => ({ id: label, label, value }));
+    return Array.from(counts.entries()).map(([label, value]) => ({ id: label, label: tenderLabel(label), value }));
   }, [sales]);
 
   const typeMix = useMemo(() => {
@@ -190,7 +191,7 @@ export default function RetailReportsHubPage() {
     for (const s of shifts) counts.set(s.status, (counts.get(s.status) ?? 0) + 1);
     return Array.from(counts.entries()).map(([label, value]) => ({
       id: label,
-      label,
+      label: shiftStatusLabel(label),
       value,
       tone: label === "OPEN" ? ("success" as const) : ("default" as const),
     }));
@@ -220,7 +221,7 @@ export default function RetailReportsHubPage() {
     () => [
       {
         id: "ok",
-        label: "OK",
+        label: "Enough",
         value: stockItems.filter((i) => i.currentStock > i.minStock).length,
         tone: "success" as const,
       },
@@ -262,9 +263,9 @@ export default function RetailReportsHubPage() {
         header: "Transaction",
         cell: ({ row }) => <div className="font-mono font-semibold">{row.original.saleNo}</div>,
       },
-      { id: "type", header: "Type", cell: ({ row }) => row.original.saleType },
+      { id: "type", header: "Type", cell: ({ row }) => saleTypeLabel(row.original.saleType) },
       { id: "postedAt", header: "Posted", cell: ({ row }) => dateLabel(row.original.postedAt) },
-      { id: "cashier", header: "Cashier", cell: ({ row }) => row.original.cashierName ?? "-" },
+      { id: "cashier", header: "Cashier", cell: ({ row }) => row.original.cashierName ?? "Not on file" },
       {
         id: "customer",
         header: "Customer",
@@ -293,7 +294,7 @@ export default function RetailReportsHubPage() {
       },
       { id: "register", header: "Register", cell: ({ row }) => row.original.registerName },
       { id: "cashier", header: "Cashier", cell: ({ row }) => row.original.cashierName },
-      { id: "status", header: "Status", cell: ({ row }) => row.original.status },
+      { id: "status", header: "Status", cell: ({ row }) => shiftStatusLabel(row.original.status) },
       {
         id: "sales",
         header: "Sales",
@@ -336,7 +337,7 @@ export default function RetailReportsHubPage() {
 
   if (isPending) {
     return (
-      <RetailShell title="Reports" actions={undefined}>
+      <RetailShell title="Insights" actions={undefined}>
         <div aria-busy="true" aria-live="polite" className="space-y-5">
           <span className="sr-only">Fetching transactions, shifts and stock…</span>
           <Skeleton height={44} />
@@ -354,7 +355,7 @@ export default function RetailReportsHubPage() {
 
   if (failure) {
     return (
-      <RetailShell title="Reports" actions={undefined}>
+      <RetailShell title="Insights" actions={undefined}>
         <Alert tone="danger" title="The reports would not load">
           {getApiErrorMessage(failure)}
         </Alert>
@@ -364,13 +365,13 @@ export default function RetailReportsHubPage() {
 
   const noSales = (
     <EmptyState
-      title="No transactions in this window"
+      title="No sales in this window"
       body="Charts and the transaction list fill in as the tills post sales."
     />
   );
 
   return (
-    <RetailShell title="Reports" actions={actions}>
+    <RetailShell title="Insights" actions={actions}>
       <Tabs value={activeTab} onValueChange={setActiveTab} variant="segmented">
         <TabsList aria-label="Report areas">
           {TABS.map((tab) => (
@@ -388,10 +389,10 @@ export default function RetailReportsHubPage() {
               <div className="grid gap-5 xl:grid-cols-3">
                 <StatCard label="Net sales" value={money(netSales)} footer="After refunds and voids" />
                 <StatCard label="Gross sales" value={money(grossSales)} footer="Before deductions" />
-                <StatCard label="Transactions" value={count(sales.length)} footer="Tickets in this window" />
+                <StatCard label="Sales" value={count(sales.length)} footer="In this window" />
               </div>
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
-                <Card title="Sales trend" subtitle="Sales, refunds and voids by day">
+                <Card title="Sales, refunds and voids">
                   <AdminTrendChart
                     rows={salesTrend}
                     series={[
@@ -404,7 +405,7 @@ export default function RetailReportsHubPage() {
                     yTickFormatter={money}
                   />
                 </Card>
-                <Card title="Transaction mix">
+                <Card title="Sales by type">
                   <AdminDonutChart
                     rows={typeMix}
                     valueLabel="Transactions"
@@ -414,7 +415,7 @@ export default function RetailReportsHubPage() {
                 </Card>
               </div>
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-                <Card title="Tender distribution">
+                <Card title="Tenders">
                   <AdminDistributionChart
                     rows={tenderMix}
                     valueLabel="Count"
@@ -425,7 +426,7 @@ export default function RetailReportsHubPage() {
                 <Card title="Top cashiers">
                   <AdminDistributionChart
                     rows={topCashiers}
-                    valueLabel="Txns"
+                    valueLabel="Sales"
                     valueFormatter={count}
                     height={260}
                   />
@@ -449,8 +450,8 @@ export default function RetailReportsHubPage() {
           ) : (
             <div className="space-y-5">
               <div className="grid gap-5 xl:grid-cols-3">
-                <StatCard label="Transactions" value={count(sales.length)} footer="Tickets in this window" />
-                <StatCard label="Average ticket" value={money(averageTicket)} footer="Per transaction" />
+                <StatCard label="Sales" value={count(sales.length)} footer="In this window" />
+                <StatCard label="Average sale" value={money(averageTicket)} />
                 <StatCard
                   label="Exceptions"
                   value={count(exceptionCount)}
@@ -459,7 +460,7 @@ export default function RetailReportsHubPage() {
                 />
               </div>
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
-                <Card title="Daily volume" subtitle="Tickets rung up per day">
+                <Card title="Sales a day">
                   <AdminTrendChart
                     rows={salesTrend}
                     series={[{ key: "tickets", label: "Tickets", kind: "bar", tone: "default" }]}
@@ -494,7 +495,7 @@ export default function RetailReportsHubPage() {
           ) : (
             <div className="space-y-5">
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
-                <Card title="Sales by day" subtitle="Sales against refunds">
+                <Card title="Sales and refunds by day">
                   <AdminTrendChart
                     rows={salesTrend}
                     series={[
@@ -506,7 +507,7 @@ export default function RetailReportsHubPage() {
                     yTickFormatter={money}
                   />
                 </Card>
-                <Card title="Transaction value">
+                <Card title="Sale values">
                   <AdminDonutChart
                     rows={typeMix}
                     valueLabel="Value"
@@ -516,7 +517,7 @@ export default function RetailReportsHubPage() {
                 </Card>
               </div>
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-                <Card title="Largest tickets" subtitle="Amount against item count">
+                <Card title="Largest sales">
                   <AdminDualBarChart
                     rows={topTickets}
                     primaryLabel="Amount"
@@ -525,7 +526,7 @@ export default function RetailReportsHubPage() {
                     valueFormatter={money}
                   />
                 </Card>
-                <Card title="Tender mix">
+                <Card title="Tenders">
                   <AdminDistributionChart
                     rows={tenderMix}
                     valueLabel="Count"
@@ -574,7 +575,7 @@ export default function RetailReportsHubPage() {
                 />
               </div>
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-                <Card title="Stock gaps" subtitle="How far under reorder each line sits">
+                <Card title="Short of reorder">
                   <AdminDistributionChart
                     rows={stockGap}
                     valueLabel="Shortfall"
@@ -603,10 +604,10 @@ export default function RetailReportsHubPage() {
               <div className="grid gap-5 xl:grid-cols-3">
                 <StatCard label="Gross sales" value={money(grossSales)} footer="Before deductions" />
                 <StatCard label="Net sales" value={money(netSales)} footer="After refunds and voids" />
-                <StatCard label="Ticket count" value={count(sales.length)} footer="Transactions posted" />
+                <StatCard label="Sales" value={count(sales.length)} />
               </div>
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
-                <Card title="Sales trend" subtitle="Sales against refunds">
+                <Card title="Sales and refunds">
                   <AdminTrendChart
                     rows={salesTrend}
                     series={[
@@ -618,7 +619,7 @@ export default function RetailReportsHubPage() {
                     yTickFormatter={money}
                   />
                 </Card>
-                <Card title="Top tickets">
+                <Card title="Largest sales">
                   <AdminDualBarChart
                     rows={topTickets.slice(0, 6)}
                     primaryLabel="Amount"
@@ -663,7 +664,7 @@ export default function RetailReportsHubPage() {
                 />
               </div>
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
-                <Card title="Sales by shift" subtitle="Takings against cash variance">
+                <Card title="Takings and variance by shift">
                   <AdminTrendChart
                     rows={shiftTrend}
                     series={[

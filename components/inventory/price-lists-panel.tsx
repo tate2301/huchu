@@ -2,16 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Badge,
-  Button,
-  EmptyState,
-  Input,
-  Skeleton,
-} from "@corelithzw/react";
+import { Alert, Skeleton } from "@corelithzw/react";
 
-import { Label } from "@/components/ui/label";
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { PageActions } from "@/components/layout/page-chrome";
+import { FormField, StatusDot } from "@/components/management/ui";
+import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import { RowMenu } from "@/components/retail/row-menu";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { dsConfirm } from "@/components/ui/ds-confirm";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -19,15 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Checkbox } from "@/components/ui/checkbox";
-import { FormShell } from "@/components/shared/form-shell";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { PRICE_LIST_KINDS, PRICE_LIST_KIND_LABELS } from "@/lib/inventory/catalogue";
@@ -66,18 +58,17 @@ type CatalogueProduct = {
  * Price lists.
  *
  * The model, the API and the resolver have existed since the catalogue
- * landed — a list holds a price per item, optionally from a minimum quantity,
- * and the highest minimum at or below what was ordered wins. None of it had a
- * screen, so the whole feature was reachable only by writing to the API by
- * hand: you could not see which list was the default, let alone change what
- * anything costs on it.
+ * landed — a list holds a price per product, optionally from a minimum
+ * quantity, and the highest minimum at or below what was ordered wins. Both
+ * forms open in dialogs now, from the bar and from each row's menu, and the
+ * paragraphs that explained them are gone.
  */
 export function PriceListsPanel() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState<PriceListSummary | null>(null);
   const [creating, setCreating] = useState(false);
-  const [openListId, setOpenListId] = useState<string | null>(null);
+  const [pricing, setPricing] = useState<PriceListSummary | null>(null);
 
   const listsQuery = useQuery({
     queryKey: ["price-lists"],
@@ -86,117 +77,122 @@ export function PriceListsPanel() {
 
   const lists = useMemo(() => listsQuery.data?.data ?? [], [listsQuery.data]);
 
-  const remove = useMutation({
+  // Retiring is what the API does with a DELETE: the list stays on file,
+  // inactive, and the default list is refused.
+  const retire = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/inventory/price-lists/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["price-lists"] });
-      toast({ title: "Price list deleted" });
+      toast({ title: "Price list retired", variant: "success" });
     },
     onError: (error) =>
-      toast({ title: getApiErrorMessage(error), variant: "destructive" }),
+      toast({
+        title: "That price list was not retired",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
   });
 
+  const confirmRetire = (list: PriceListSummary) => {
+    void dsConfirm({
+      title: `Retire ${list.name}?`,
+      description:
+        "It stays on file as inactive, and anything that used it falls back to each product's standard price.",
+      confirmLabel: "Retire price list",
+      variant: "warning",
+    }).then((confirmed) => {
+      if (confirmed) retire.mutate(list.id);
+    });
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-[var(--text-muted)]">
-          What things cost, per list. Everything that sells reads the default list
-          unless it was told to use another one.
-        </p>
-        <Button
-          variant="primary"
-          size="sm"
-          startIcon={<Plus className="h-4 w-4" />}
-          onClick={() => setCreating(true)}
-        >
+    <>
+      <PageActions>
+        <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
+          <Plus className="h-4 w-4" />
           New price list
         </Button>
-      </div>
+      </PageActions>
 
       {listsQuery.error ? (
-        <Alert tone="danger" title="Unable to load price lists">
+        <Alert tone="danger" title="The price lists would not load">
           {getApiErrorMessage(listsQuery.error)}
         </Alert>
       ) : null}
 
-      {listsQuery.isLoading ? (
-        <div className="space-y-2" aria-busy="true">
-          <Skeleton height={64} />
-          <Skeleton height={64} />
-        </div>
-      ) : lists.length === 0 ? (
-        <EmptyState
-          title="No price lists yet"
-          body="Make one called Standard and mark it the default. Everything that sells will use it."
-          action={
-            <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
-              Create the first list
-            </Button>
-          }
-        />
-      ) : (
-        <ul className="space-y-1">
-          {lists.map((list) => (
-            <li key={list.id} className="flex items-center gap-3 px-3 py-3">
+      <RecordTable
+        rows={lists}
+        isLoading={listsQuery.isPending}
+        emptyTitle="No price lists yet"
+        columns={[
+          {
+            id: "list",
+            label: "Price list",
+            cell: (list) => (
               <button
                 type="button"
-                onClick={() => setOpenListId(list.id)}
-                className="min-w-0 flex-1 text-left"
+                onClick={() => setPricing(list)}
+                className="min-w-0 text-left hover:underline"
               >
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="truncate text-sm font-medium text-[var(--text-strong)]">
-                    {list.name}
-                  </span>
-                  {list.isDefault ? (
-                    <Badge tone="brand" size="sm">
-                      Default
-                    </Badge>
-                  ) : null}
-                  {!list.isActive ? (
-                    <Badge tone="neutral" size="sm">
-                      Inactive
-                    </Badge>
-                  ) : null}
-                </span>
-                <span className="mt-0.5 block truncate text-sm text-[var(--text-muted)]">
-                  {[
+                <RecordTableName
+                  title={list.name}
+                  subtitle={[
+                    list.isDefault ? "Default" : null,
                     PRICE_LIST_KIND_LABELS[list.kind],
                     list.region,
-                    list.currency,
-                    `${list._count.entries} priced item${list._count.entries === 1 ? "" : "s"}`,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
-                </span>
+                />
               </button>
+            ),
+          },
+          {
+            id: "state",
+            label: "Status",
+            width: "8rem",
+            cell: (list) => (list.isActive ? null : <StatusDot tone="neutral" label="Inactive" />),
+          },
+          {
+            id: "currency",
+            label: "Currency",
+            width: "7rem",
+            cell: (list) => <RecordCell kind="code" value={list.currency} />,
+          },
+          {
+            id: "prices",
+            label: "Prices",
+            align: "end",
+            width: "7rem",
+            cell: (list) => <RecordCell kind="number" value={list._count.entries} />,
+          },
+          {
+            id: "menu",
+            label: "",
+            menu: <span className="sr-only">More</span>,
+            width: "3rem",
+            align: "end",
+            cell: (list) => (
+              <RowMenu
+                label={`More for ${list.name}`}
+                items={[
+                  { label: "Edit prices", onSelect: () => setPricing(list) },
+                  { label: "Edit price list", onSelect: () => setEditing(list) },
+                  {
+                    label: "Retire price list",
+                    onSelect: () => confirmRetire(list),
+                    destructive: true,
+                    disabled: retire.isPending || !list.isActive,
+                  },
+                ]}
+              />
+            ),
+          },
+        ]}
+      />
 
-              <Button size="sm" variant="secondary" onClick={() => setEditing(list)}>
-                Rename
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={`Delete ${list.name}`}
-                disabled={remove.isPending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Delete "${list.name}"? Anything using it falls back to the item's standard price.`,
-                    )
-                  ) {
-                    remove.mutate(list.id);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <PriceListSheet
+      <PriceListDialog
         open={creating || editing !== null}
         list={editing}
         onOpenChange={(next) => {
@@ -207,17 +203,17 @@ export function PriceListsPanel() {
         }}
       />
 
-      <PriceListEntriesSheet
-        listId={openListId}
+      <PriceListEntriesDialog
+        list={pricing}
         onOpenChange={(next) => {
-          if (!next) setOpenListId(null);
+          if (!next) setPricing(null);
         }}
       />
-    </div>
+    </>
   );
 }
 
-function PriceListSheet({
+function PriceListDialog({
   open,
   list,
   onOpenChange,
@@ -275,146 +271,137 @@ function PriceListSheet({
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["price-lists"] });
-      toast({ title: isEdit ? "Price list saved" : "Price list created" });
+      toast({ title: isEdit ? "Price list saved" : "Price list created", variant: "success" });
       onOpenChange(false);
     },
-    onError: (error) => setErrors([getApiErrorMessage(error)]),
+    onError: (error) =>
+      setErrors([
+        `${isEdit ? "That price list was not saved" : "That price list was not created"}: ${getApiErrorMessage(error)}`,
+      ]),
   });
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent size="md" className="w-full overflow-y-auto p-6">
-        <SheetHeader>
-          <SheetTitle>{isEdit ? "Edit price list" : "New price list"}</SheetTitle>
-          <SheetDescription>
-            A named set of prices. Wholesale, Trade, a region of its own — the
-            default is what everything uses when nobody says otherwise.
-          </SheetDescription>
-        </SheetHeader>
+    <RecordDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={list ? list.name : "New price list"}
+      size="sm"
+      errors={errors}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const problems: string[] = [];
+        if (!form.name.trim()) problems.push("Give the price list a name.");
+        if (form.kind === "REGIONAL" && !form.region.trim()) problems.push("Say which region it is for.");
+        setErrors(problems);
+        if (problems.length === 0) save.mutate();
+      }}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={save.isPending}>
+            {isEdit ? "Save price list" : "Create price list"}
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Name">
+        {(id) => (
+          <Input
+            id={id}
+            value={form.name}
+            onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+            placeholder="Wholesale"
+            autoFocus={!isEdit}
+          />
+        )}
+      </FormField>
 
-        <div className="mt-6">
-          <FormShell
-            variant="bare"
-            errors={errors}
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!form.name.trim()) {
-                setErrors(["Give the list a name."]);
-                return;
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Type">
+          {(id) => (
+            <Select
+              value={form.kind}
+              onValueChange={(value) => setForm((prev) => ({ ...prev, kind: value as PriceListKind }))}
+            >
+              <SelectTrigger id={id}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRICE_LIST_KINDS.map((kind) => (
+                  <SelectItem key={kind} value={kind}>
+                    {PRICE_LIST_KIND_LABELS[kind]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+        <FormField label="Currency">
+          {(id) => (
+            <Input
+              id={id}
+              value={form.currency}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, currency: event.target.value.toUpperCase() }))
               }
-              save.mutate();
-            }}
-            actions={
-              <>
-                <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" disabled={save.isPending}>
-                  {save.isPending ? "Saving…" : isEdit ? "Save changes" : "Create list"}
-                </Button>
-              </>
-            }
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="price-list-name">Name *</Label>
-              <Input
-                id="price-list-name"
-                value={form.name}
-                onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="Wholesale"
-              />
-            </div>
+              maxLength={3}
+              className="font-mono"
+            />
+          )}
+        </FormField>
+      </div>
 
-            <div className="space-y-1.5">
-              <Label>Kind</Label>
-              <Select
-                value={form.kind}
-                onValueChange={(value) =>
-                  setForm((prev) => ({ ...prev, kind: value as PriceListKind }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRICE_LIST_KINDS.map((kind) => (
-                    <SelectItem key={kind} value={kind}>
-                      {PRICE_LIST_KIND_LABELS[kind]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      {form.kind === "REGIONAL" ? (
+        <FormField label="Region">
+          {(id) => (
+            <Input
+              id={id}
+              value={form.region}
+              onChange={(event) => setForm((prev) => ({ ...prev, region: event.target.value }))}
+              placeholder="Matabeleland"
+            />
+          )}
+        </FormField>
+      ) : null}
 
-            {form.kind === "REGIONAL" ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="price-list-region">Region *</Label>
-                <Input
-                  id="price-list-region"
-                  value={form.region}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, region: event.target.value }))
-                  }
-                  placeholder="Matabeleland"
-                />
-              </div>
-            ) : null}
+      <label className="flex items-center gap-2 text-sm text-[var(--text-strong)]">
+        <Checkbox
+          checked={form.isDefault}
+          onCheckedChange={(checked) => setForm((prev) => ({ ...prev, isDefault: checked === true }))}
+        />
+        The default list
+      </label>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="price-list-currency">Currency</Label>
-              <Input
-                id="price-list-currency"
-                value={form.currency}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, currency: event.target.value.toUpperCase() }))
-                }
-                maxLength={3}
-                className="font-mono w-24"
-              />
-            </div>
-
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={form.isDefault}
-                onCheckedChange={(checked) =>
-                  setForm((prev) => ({ ...prev, isDefault: checked === true }))
-                }
-              />
-              Use this list when nobody asks for one
-            </label>
-
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={form.isActive}
-                onCheckedChange={(checked) =>
-                  setForm((prev) => ({ ...prev, isActive: checked === true }))
-                }
-              />
-              Active
-            </label>
-          </FormShell>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <label className="flex items-center gap-2 text-sm text-[var(--text-strong)]">
+        <Checkbox
+          checked={form.isActive}
+          onCheckedChange={(checked) => setForm((prev) => ({ ...prev, isActive: checked === true }))}
+        />
+        Active
+      </label>
+    </RecordDialog>
   );
 }
 
 /**
- * What each item costs on one list.
+ * What each product costs on one list.
  *
  * Prices are saved as a set, not row by row, because the API replaces them
  * wholesale — a half-applied change would price things wrongly in a way
  * nobody notices until an invoice goes out.
  */
-function PriceListEntriesSheet({
-  listId,
+function PriceListEntriesDialog({
+  list,
   onOpenChange,
 }: {
-  listId: string | null;
+  list: PriceListSummary | null;
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const listId = list?.id ?? null;
   const open = listId !== null;
   const [rows, setRows] = useState<Array<{ productId: string; minQuantity: string; unitPrice: string }>>([]);
   const [errors, setErrors] = useState<string[]>([]);
@@ -469,137 +456,121 @@ function PriceListEntriesSheet({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["price-lists"] });
       queryClient.invalidateQueries({ queryKey: ["price-list", listId] });
-      toast({ title: "Prices saved" });
+      toast({ title: "Prices saved", variant: "success" });
       onOpenChange(false);
     },
-    onError: (error) => setErrors([getApiErrorMessage(error)]),
+    onError: (error) => setErrors([`Those prices were not saved: ${getApiErrorMessage(error)}`]),
   });
 
   const patchRow = (index: number, next: Partial<(typeof rows)[number]>) =>
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...next } : row)));
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent size="lg" className="w-full overflow-y-auto p-6">
-        <SheetHeader>
-          <SheetTitle>{listQuery.data?.name ?? "Prices"}</SheetTitle>
-          <SheetDescription>
-            One row per price. Give an item two rows with different minimum
-            quantities and you have a volume break — the highest minimum at or
-            below what was ordered is the one that applies.
-          </SheetDescription>
-        </SheetHeader>
+    <RecordDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={list ? `Prices in ${list.name}` : "Prices"}
+      size="lg"
+      errors={errors}
+      onSubmit={(event) => {
+        event.preventDefault();
+        save.mutate();
+      }}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={save.isPending || listQuery.isLoading}>
+            Save prices
+          </Button>
+        </>
+      }
+    >
+      {listQuery.isLoading ? (
+        <Skeleton height={120} />
+      ) : (
+        <div className="space-y-2">
+          {rows.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No prices on this list yet</p>
+          ) : null}
 
-        <div className="mt-6">
-          <FormShell
-            variant="bare"
-            errors={errors}
-            onSubmit={(event) => {
-              event.preventDefault();
-              save.mutate();
-            }}
-            actions={
-              <>
-                <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" disabled={save.isPending}>
-                  {save.isPending ? "Saving…" : "Save prices"}
-                </Button>
-              </>
-            }
-          >
-            {listQuery.isLoading ? (
-              <Skeleton height={120} />
-            ) : (
-              <div className="space-y-2">
-                {rows.map((row, index) => {
-                  const product = products.find((candidate) => candidate.id === row.productId);
-                  return (
-                    <div
-                      key={index}
-                      className="grid grid-cols-[minmax(0,1fr)_5rem_6rem_auto] items-end gap-2"
-                    >
-                      <div className="space-y-1">
-                        {index === 0 ? <Label>Item</Label> : null}
-                        <Select
-                          value={row.productId}
-                          onValueChange={(value) => patchRow(index, { productId: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pick an item" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map((candidate) => (
-                              <SelectItem key={candidate.id} value={candidate.id}>
-                                {candidate.code} · {candidate.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+          {rows.map((row, index) => {
+            const product = products.find((candidate) => candidate.id === row.productId);
+            return (
+              <div
+                key={index}
+                className="grid grid-cols-[minmax(0,1fr)_6rem_6rem_auto] items-end gap-2"
+              >
+                <div className="space-y-1">
+                  {index === 0 ? <span className="text-sm font-medium">Product</span> : null}
+                  <Select
+                    value={row.productId}
+                    onValueChange={(value) => patchRow(index, { productId: value })}
+                  >
+                    <SelectTrigger aria-label="Product">
+                      <SelectValue placeholder="Choose a product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.map((candidate) => (
+                        <SelectItem key={candidate.id} value={candidate.id}>
+                          {candidate.code} · {candidate.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                      <div className="space-y-1">
-                        {index === 0 ? <Label>From qty</Label> : null}
-                        <Input
-                          inputMode="decimal"
-                          className="font-mono"
-                          value={row.minQuantity}
-                          onChange={(event) =>
-                            patchRow(index, { minQuantity: event.target.value })
-                          }
-                        />
-                      </div>
+                <div className="space-y-1">
+                  {index === 0 ? <span className="text-sm font-medium">From quantity</span> : null}
+                  <Input
+                    aria-label="From quantity"
+                    inputMode="decimal"
+                    className="font-mono"
+                    value={row.minQuantity}
+                    onChange={(event) => patchRow(index, { minQuantity: event.target.value })}
+                  />
+                </div>
 
-                      <div className="space-y-1">
-                        {index === 0 ? <Label>Price</Label> : null}
-                        <Input
-                          inputMode="decimal"
-                          className="font-mono"
-                          value={row.unitPrice}
-                          onChange={(event) =>
-                            patchRow(index, { unitPrice: event.target.value })
-                          }
-                          placeholder={product ? String(product.standardPrice) : undefined}
-                        />
-                      </div>
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        aria-label="Remove this price"
-                        onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  );
-                })}
+                <div className="space-y-1">
+                  {index === 0 ? <span className="text-sm font-medium">Price</span> : null}
+                  <Input
+                    aria-label="Price"
+                    inputMode="decimal"
+                    className="font-mono"
+                    value={row.unitPrice}
+                    onChange={(event) => patchRow(index, { unitPrice: event.target.value })}
+                    placeholder={product ? String(product.standardPrice) : undefined}
+                  />
+                </div>
 
                 <Button
                   type="button"
                   size="sm"
-                  variant="secondary"
-                  startIcon={<Plus className="h-4 w-4" />}
-                  onClick={() =>
-                    setRows((prev) => [...prev, { productId: "", minQuantity: "1", unitPrice: "" }])
-                  }
+                  variant="ghost"
+                  aria-label="Remove this price"
+                  onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))}
                 >
-                  Add a price
+                  <Trash2 className="h-4 w-4" />
                 </Button>
-
-                {rows.length === 0 ? (
-                  <p className="text-sm text-[var(--text-muted)]">
-                    Nothing is priced on this list yet, so everything falls back to
-                    its standard price.
-                  </p>
-                ) : null}
               </div>
-            )}
-          </FormShell>
+            );
+          })}
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() =>
+              setRows((prev) => [...prev, { productId: "", minQuantity: "1", unitPrice: "" }])
+            }
+          >
+            <Plus className="h-4 w-4" />
+            Add a price
+          </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      )}
+    </RecordDialog>
   );
 }

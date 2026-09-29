@@ -19,11 +19,17 @@ const operationSchema = z
     defaultSiteId: z.string().uuid(),
     defaultRegisterId: z.string().uuid().optional().nullable(),
     newRegisterName: z.string().trim().max(120).optional().nullable(),
+    /**
+     * False adds a till without moving the shop's default onto it — the
+     * settings surface's New till. Left out, the till becomes the default, as
+     * it always has.
+     */
+    makeDefault: z.boolean().optional(),
   })
   .refine(
     (value) => Boolean(value.defaultRegisterId || value.newRegisterName?.trim()),
     {
-      message: "Choose an existing register or provide a new register name",
+      message: "Choose a till or name a new one",
       path: ["defaultRegisterId"],
     },
   );
@@ -46,7 +52,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("[API] GET /api/v2/retail/setup/operations error:", error);
-    return errorResponse("Failed to fetch retail operations setup");
+    return errorResponse("The tills would not load");
   }
 }
 
@@ -67,7 +73,7 @@ export async function PUT(request: NextRequest) {
       validated.defaultSiteId,
     );
     if (!site) {
-      return errorResponse("Invalid site", 400);
+      return errorResponse("That site is not in this workspace", 400);
     }
 
     const register = validated.defaultRegisterId
@@ -83,7 +89,11 @@ export async function PUT(request: NextRequest) {
         });
 
     if (!register) {
-      return errorResponse("Invalid register", 400);
+      return errorResponse("That till is not at this site", 400);
+    }
+
+    if (validated.makeDefault === false) {
+      return successResponse({ ok: true, profile: await getRetailSetupProfile(session.user.companyId), register });
     }
 
     const profile = {
@@ -104,6 +114,6 @@ export async function PUT(request: NextRequest) {
       return errorResponse("Validation failed", 400, error.issues);
     }
     console.error("[API] PUT /api/v2/retail/setup/operations error:", error);
-    return errorResponse("Failed to save retail operations setup");
+    return errorResponse("The tills were not saved");
   }
 }

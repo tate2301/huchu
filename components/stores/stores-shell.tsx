@@ -19,7 +19,6 @@ import {
   TableRows,
 } from "@/lib/icons";
 import type { LucideIcon } from "@/lib/icons";
-import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 
 import {
@@ -44,41 +43,42 @@ type StoresTabItem = {
 };
 
 /**
- * The module's tabs.
+ * The module's tabs, named as the sidebar names them.
  *
- * Issue and Receive used to sit here, which put two write actions in a row of
- * places to look. They are dialogs opened from the top bar now, so this row is
- * only ever "which view of the stock".
- *
- * "Stock on hand" and "Stores" were also one page doing two jobs: a list of
- * items summed across every store, and a list of stores. Splitting them is
- * what makes "how much of this do we have" and "what is in this store"
- * separately answerable.
+ * They used to take their words from the module's presentation copy, which
+ * still says "Stock on Hand" and "Fuel Ledger" — so the sidebar said "On hand"
+ * and the tab under the bar said "Stock on Hand" for the same page. The labels
+ * here are the sidebar's, and a page's title is its tab's label.
  */
 const storesTabs: StoresTabItem[] = [
   { id: "dashboard", label: "Overview", href: "/stores/dashboard", icon: Home },
-  { id: "inventory", label: "Stock on hand", href: "/stores/inventory", icon: Package },
+  { id: "inventory", label: "On hand", href: "/stores/inventory", icon: Package },
   { id: "locations", label: "Locations", href: "/stores/locations", icon: MapPin },
   { id: "movements", label: "Movements", href: "/stores/movements", icon: History },
   { id: "catalogue", label: "Catalogue", href: "/stores/catalogue", icon: TableRows },
   { id: "price-lists", label: "Price lists", href: "/stores/price-lists", icon: Scale },
-  { id: "fuel", label: "Fuel ledger", href: "/stores/fuel", icon: Fuel },
+  { id: "fuel", label: "Fuel log", href: "/stores/fuel", icon: Fuel },
 ];
+
+/**
+ * The views whose subject is stock moving — where "Receive stock" and "Issue
+ * stock" are the page's verbs. On hand and Locations carry their own create
+ * verb instead ("New stock item", "New location"), and the catalogue and price
+ * lists are about selling, not moving.
+ */
+const MOVEMENT_VIEWS: ReadonlySet<StoresTab> = new Set(["dashboard", "movements", "fuel"]);
 
 type StoresShellProps = {
   activeTab: StoresTab;
-  actions?: React.ReactNode;
+  /**
+   * The page registers its own title and verb with the app bar — a
+   * `RecordListShell` does — so the shell only draws the tabs.
+   */
+  barFromPage?: boolean;
   children: React.ReactNode;
-  title?: string;
-  description?: string;
 };
 
-export function StoresShell({
-  activeTab,
-  actions,
-  children,
-  title,
-}: StoresShellProps) {
+export function StoresShell({ activeTab, barFromPage = false, children }: StoresShellProps) {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const siteId = searchParams.get("siteId");
@@ -101,15 +101,6 @@ export function StoresShell({
       }),
     [enabledFeatures, workspaceProfile],
   );
-  const modulePresentation = useMemo(
-    () =>
-      getWorkspaceModulePresentation({
-        moduleId: "stores",
-        enabledFeatures,
-        workspaceProfile,
-      }),
-    [enabledFeatures, workspaceProfile],
-  );
   const visibleTabs = useMemo(
     () =>
       filterHrefItemsByEnabledFeatures(
@@ -126,49 +117,38 @@ export function StoresShell({
     return `${href}?${params.toString()}`;
   };
 
-  // Issuing and receiving move stock, so they belong on the views about stock
-  // — which is the same split the sidebar already draws between "Stock" and
-  // "What we sell". On the catalogue they were the wrong verbs in the loudest
-  // place on the screen: at 390px the bar showed "Receive" and pushed "Issue"
-  // into an overflow menu, while the page's actual primary action, "New item",
-  // sat down in the body under a heading and a paragraph.
-  const movesStock = activeTab !== "catalogue" && activeTab !== "price-lists";
+  const movesStock = MOVEMENT_VIEWS.has(activeTab);
 
   // Not memoised: the compiler infers a different dependency set than any
   // hand-written one here, and a fresh element per render costs nothing —
-  // `PageChrome` only re-renders the bar, not the page.
+  // `PageChrome` only re-renders the bar, not the page. Left undefined where
+  // the page has no movement verbs, which is how `PageChrome` is told to claim
+  // only the title, so a panel inside can register the bar's action itself.
   const barActions = movesStock ? (
-      <>
-        {actions}
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5"
-          onClick={() => setMovement("RECEIPT")}
-        >
-          <ArrowDownward className="h-4 w-4" />
-          Receive
-        </Button>
-        <Button size="sm" className="gap-1.5" onClick={() => setMovement("ISSUE")}>
-          <ArrowUpward className="h-4 w-4" />
-          Issue
-        </Button>
-      </>
-  ) : (
-    // Left undefined rather than empty when the page has nothing of its own:
-    // that is how `PageChrome` is told to claim only the title, so the panel
-    // inside can register the bar's action itself.
-    actions
-  );
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-1.5"
+        onClick={() => setMovement("RECEIPT")}
+      >
+        <ArrowDownward className="h-4 w-4" />
+        Receive stock
+      </Button>
+      <Button size="sm" className="gap-1.5" onClick={() => setMovement("ISSUE")}>
+        <ArrowUpward className="h-4 w-4" />
+        Issue stock
+      </Button>
+    </>
+  ) : undefined;
 
-  const activeLabel =
-    visibleTabs.find((tab) => tab.id === activeTab)?.label ?? modulePresentation.title;
+  const activeLabel = storesTabs.find((tab) => tab.id === activeTab)!.label;
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageChrome title={title ?? activeLabel}>{barActions}</PageChrome>
+      {barFromPage ? null : <PageChrome title={activeLabel}>{barActions}</PageChrome>}
 
-      <SectionTabs label="Stores navigation">
+      <SectionTabs label="Stock navigation">
         {visibleTabs.map((tab) => (
           <SectionTab
             key={tab.id}
@@ -176,22 +156,24 @@ export function StoresShell({
             active={activeTab === tab.id}
             icon={<tab.icon aria-hidden="true" />}
           >
-            {modulePresentation.tabLabels?.[tab.id] ?? tab.label}
+            {tab.label}
           </SectionTab>
         ))}
       </SectionTabs>
 
       {children}
 
-      <StockMovementDialog
-        // Kept mounted with a null kind rather than unmounted, so the closing
-        // animation has something to animate.
-        kind={movement ?? "ISSUE"}
-        open={movement !== null}
-        onOpenChange={(next) => {
-          if (!next) setMovement(null);
-        }}
-      />
+      {movesStock ? (
+        <StockMovementDialog
+          // Kept mounted with a null kind rather than unmounted, so the closing
+          // animation has something to animate.
+          kind={movement ?? "ISSUE"}
+          open={movement !== null}
+          onOpenChange={(next) => {
+            if (!next) setMovement(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,487 +1,188 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import type { ColumnDef } from "@tanstack/react-table";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import {
-  AdminDistributionChart,
-  AdminDonutChart,
-  AdminTrendChart,
-  AdminDualBarChart,
-} from "@/components/charts/admin-headless-charts";
-import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { RetailSaleDetailBody } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { BarChart3, Package, Payments, ReceiptLong } from "@/lib/icons";
+
+import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { StatusDot } from "@/components/management/ui";
+import { RecordList } from "@/components/records/record-list";
+import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
+import { saleExceptionLabel } from "@/components/retail/sale-detail";
+import { fetchJson } from "@/lib/api-client";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { formatRetailDateTime, formatSignedMoney, tenderLabel } from "@/lib/retail/words";
 
 type SaleRow = {
   id: string;
   saleNo: string;
-  saleType: "SALE" | "REFUND" | "VOID" | string;
+  saleType: string;
   status: string;
-  shiftId: string | null;
-  siteId: string;
   cashierName: string | null;
   customerName: string | null;
   postedAt: string;
-  subtotal: number;
-  discountAmount: number;
-  taxAmount: number;
   totalAmount: number;
-  tenderedAmount: number | null;
-  changeAmount: number | null;
-  promotionCode: string | null;
-  overrideReason: string | null;
-  voidReason: string | null;
-  sourceSaleId: string | null;
-  sourceSaleNo: string | null;
-  itemCount: number;
   tenderTypes: string[];
-  notes: string | null;
 };
 
-type SaleDetail = SaleRow & {
-  payments: Array<{ id: string; tenderType: string; amount: number; reference: string | null }>;
-  lines: Array<{
-    id: string;
-    sourceLineId: string | null;
-    itemName: string;
-    quantity: number;
-    unitPrice: number;
-    discountAmount: number;
-    taxAmount: number;
-    lineTotal: number;
-  }>;
-  sourceSale: { id: string; saleNo: string; saleType: string; totalAmount: number } | null;
-  reversals: Array<{
-    id: string;
-    saleNo: string;
-    saleType: string;
-    status: string;
-    totalAmount: number;
-    postedAt: string | null;
-  }>;
-};
+const TYPE_OPTIONS = new Map([
+  ["SALE", "Sale"],
+  ["REFUND", "Refund"],
+  ["VOID", "Void"],
+]);
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+function SaleState({ sale }: { sale: SaleRow }) {
+  const label = saleExceptionLabel(sale);
+  if (!label) return null;
+  return <StatusDot tone={sale.saleType === "VOID" ? "warn" : "neutral"} label={label} />;
 }
 
-function typeLabel(value: string) {
-  return value.replaceAll("_", " ");
-}
+const tenders = (sale: SaleRow) => sale.tenderTypes.map(tenderLabel).join(", ");
 
+/**
+ * Sales — every sale, refund and void the tills have posted.
+ *
+ * Drawn as the products list is: the name in the app bar, a toolbar of search
+ * and two filters, and the records flush under it. The tiles, the four charts
+ * and the rail of queues that sat over the table are gone (D3); a refund or a
+ * void says so in its own row, and a row opens the sale's own page.
+ */
 export default function RetailSalesPage() {
+  const router = useRouter();
   const { data: session } = useSession();
   const canOpenPos = canAccessPosPortal(session?.user?.role);
-  const [activeView, setActiveView] = useState("posted");
-  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [type, setType] = useState<string>(FILTER_ANY);
+  const [tender, setTender] = useState<string>(FILTER_ANY);
 
   const salesQuery = useQuery({
     queryKey: ["retail-sales-overview"],
-    queryFn: () => fetchJson<{ data: SaleRow[]; summary: Record<string, number> }>("/api/v2/retail/pos/sales?limit=120"),
+    queryFn: () =>
+      fetchJson<{ data: SaleRow[]; summary: Record<string, number> }>("/api/v2/retail/pos/sales?limit=120"),
   });
-
-  const detailQuery = useQuery({
-    queryKey: ["retail-sale-detail", selectedSaleId],
-    queryFn: () => fetchJson<{ data: SaleDetail }>(`/api/v2/retail/pos/sales/${selectedSaleId}`),
-    enabled: Boolean(selectedSaleId),
-  });
-
   const sales = useMemo(() => salesQuery.data?.data ?? [], [salesQuery.data]);
-  const postedSales = sales.filter((sale) => sale.saleType === "SALE");
-  const refunds = sales.filter((sale) => sale.saleType === "REFUND");
-  const exceptions = sales.filter(
-    (sale) => sale.saleType === "VOID" || sale.status === "VOIDED" || Boolean(sale.overrideReason),
-  );
 
-  const trendRows = useMemo(() => {
-    const buckets = new Map<
-      string,
-      { label: string; sales: number; refunds: number; voids: number; tickets: number }
-    >();
-
-    for (const sale of sales) {
-      const day = new Date(sale.postedAt);
-      const key = day.toISOString().slice(0, 10);
-      const label = day.toLocaleDateString([], { month: "short", day: "numeric" });
-      const current = buckets.get(key) ?? { label, sales: 0, refunds: 0, voids: 0, tickets: 0 };
-      current.tickets += 1;
-      if (sale.saleType === "REFUND") current.refunds += Math.abs(sale.totalAmount);
-      else if (sale.saleType === "VOID" || sale.status === "VOIDED") current.voids += Math.abs(sale.totalAmount);
-      else current.sales += sale.totalAmount;
-      buckets.set(key, current);
-    }
-
-    return Array.from(buckets.entries())
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([id, value]) => ({
-        id,
-        label: value.label,
-        sales: value.sales,
-        refunds: value.refunds,
-        voids: value.voids,
-        tickets: value.tickets,
-      }));
+  const tenderOptions = useMemo(() => {
+    const seen = new Set(sales.flatMap((sale) => sale.tenderTypes));
+    return new Map([...seen].sort().map((value) => [value, tenderLabel(value)]));
   }, [sales]);
 
-  const saleMixRows = useMemo(
-    () => [
-      { id: "sale", label: "Sales", value: postedSales.length, tone: "success" as const },
-      { id: "refund", label: "Refunds", value: refunds.length, tone: "warning" as const },
-      { id: "void", label: "Voids", value: exceptions.length, tone: "danger" as const },
-    ],
-    [exceptions.length, postedSales.length, refunds.length],
-  );
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return sales.filter((sale) => {
+      if (type !== FILTER_ANY && sale.saleType !== type) return false;
+      if (tender !== FILTER_ANY && !sale.tenderTypes.includes(tender)) return false;
+      if (!needle) return true;
+      return [sale.saleNo, sale.cashierName ?? "", sale.customerName ?? ""].some((value) =>
+        value.toLowerCase().includes(needle),
+      );
+    });
+  }, [sales, search, type, tender]);
 
-  const valueRows = useMemo(
-    () => [
-      {
-        id: "sale",
-        label: "Sale",
-        value: postedSales.reduce((sum, row) => sum + row.totalAmount, 0),
-        tone: "success" as const,
-      },
-      {
-        id: "refund",
-        label: "Refund",
-        value: refunds.reduce((sum, row) => sum + Math.abs(row.totalAmount), 0),
-        tone: "warning" as const,
-      },
-      {
-        id: "void",
-        label: "Void",
-        value: exceptions.reduce((sum, row) => sum + Math.abs(row.totalAmount), 0),
-        tone: "danger" as const,
-      },
-    ],
-    [exceptions, postedSales, refunds],
-  );
-
-  const topTicketRows = useMemo(
-    () =>
-      sales
-        .slice()
-        .sort((left, right) => right.totalAmount - left.totalAmount)
-        .slice(0, 6)
-        .map((sale) => ({
-          id: sale.id,
-          label: sale.saleNo,
-          primary: sale.totalAmount,
-          secondary: sale.itemCount,
-        })),
-    [sales],
-  );
-
-  const columns = useMemo<ColumnDef<SaleRow>[]>(
-    () => [
-      {
-        id: "saleNo",
-        header: "Transaction",
-        cell: ({ row }) => (
-          <div className="text-left">
-            {/* The receipt number links; the type below it opens the dialog. */}
-            <Link
-              href={`/retail/sales/${row.original.id}`}
-              className="font-mono font-semibold text-[var(--text-strong)] underline-offset-2 hover:underline"
-            >
-              {row.original.saleNo}
-            </Link>
-            <button
-              type="button"
-              className="block text-xs text-[var(--text-muted)] underline-offset-2 hover:underline"
-              onClick={() => setSelectedSaleId(row.original.id)}
-            >
-              {typeLabel(row.original.saleType)}
-            </button>
-          </div>
-        ),
-      },
-      {
-        id: "postedAt",
-        header: "Posted",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {new Date(row.original.postedAt).toLocaleString([], {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </NumericCell>
-        ),
-      },
-      {
-        id: "cashierName",
-        header: "Cashier",
-        cell: ({ row }) => row.original.cashierName ?? "-",
-      },
-      {
-        id: "customerName",
-        header: "Customer",
-        cell: ({ row }) => row.original.customerName ?? "Walk-in",
-      },
-      {
-        id: "itemCount",
-        header: "Items",
-        cell: ({ row }) => <NumericCell>{row.original.itemCount}</NumericCell>,
-      },
-      {
-        id: "tenderTypes",
-        header: "Tender",
-        cell: ({ row }) => row.original.tenderTypes.join(", "),
-      },
-      {
-        id: "totalAmount",
-        header: "Total",
-        cell: ({ row }) => <NumericCell>{money(row.original.totalAmount)}</NumericCell>,
-      },
-    ],
-    [],
-  );
-
-  const actions = (
-    <div className="flex flex-wrap gap-2">
-      {canOpenPos ? (
-        <Button asChild size="sm">
-          <Link href="/portal/pos">
-            <Payments className="h-4 w-4" />
-            Open POS
-          </Link>
-        </Button>
-      ) : (
-        <Button asChild size="sm" variant="outline">
-          <Link href="/retail/shifts">
-            <ReceiptLong className="h-4 w-4" />
-            Shifts & Cash-up
-          </Link>
-        </Button>
-      )}
-      <Button asChild size="sm" variant="outline">
-        <Link href="/retail/catalog">
-          <Package className="h-4 w-4" />
-          Catalog
-        </Link>
-      </Button>
-      <Button asChild size="sm" variant="outline">
-        <Link href="/retail/reports">
-          <BarChart3 className="h-4 w-4" />
-          Reports
-        </Link>
-      </Button>
-    </div>
-  );
-
-  if (salesQuery.isPending) {
-    return (
-      <RetailShell title="Sales" actions={actions}>
-        <div aria-busy="true" aria-live="polite" className="space-y-4">
-          <span className="sr-only">Fetching posted sales…</span>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-          </div>
-          <Skeleton height={340} />
-          <Skeleton height={280} />
-        </div>
-      </RetailShell>
-    );
-  }
-
-  if (salesQuery.isError) {
-    return (
-      <RetailShell title="Sales" actions={actions}>
-        <Alert tone="danger" title="Retail sales would not load">
-          {getApiErrorMessage(salesQuery.error)}
-        </Alert>
-      </RetailShell>
-    );
-  }
-
-  if (sales.length === 0) {
-    return (
-      <RetailShell title="Sales" actions={actions}>
-        <EmptyState
-          title="No sales posted yet"
-          body="Every ticket the till rings up lands here, with its refunds and voids alongside it."
-          action={
-            canOpenPos ? (
-              <Button asChild size="sm">
-                <Link href="/portal/pos">Open the till</Link>
-              </Button>
-            ) : undefined
-          }
-        />
-      </RetailShell>
-    );
-  }
+  const filterCount = (type === FILTER_ANY ? 0 : 1) + (tender === FILTER_ANY ? 0 : 1);
+  const emptyTitle = search.trim()
+    ? "No sales match that search"
+    : filterCount > 0
+      ? "No sales match this filter"
+      : "No sales yet";
 
   return (
-    <RetailShell title="Sales" actions={actions}>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Net sales"
-          value={money(salesQuery.data.summary.netSales ?? 0)}
-          footer="After refunds and voids"
-        />
-        <StatCard
-          label="Gross sales"
-          value={money(salesQuery.data.summary.grossSales ?? 0)}
-          footer={`${postedSales.length} posted ticket${postedSales.length === 1 ? "" : "s"}`}
-        />
-        <StatCard
-          label="Exceptions"
-          value={String(refunds.length + exceptions.length)}
-          tone={refunds.length + exceptions.length > 0 ? "warn" : "neutral"}
-          footer={`${refunds.length} refund${refunds.length === 1 ? "" : "s"}, ${exceptions.length} void${exceptions.length === 1 ? "" : "s"}`}
-        />
-      </div>
-
-      <Card title="Gross, refunds, voids and net movement">
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
-          <AdminTrendChart
-            rows={trendRows}
-            series={[
-              { key: "sales", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
-              { key: "refunds", label: "Refunds", kind: "line", tone: "warning", dashed: true },
-              { key: "voids", label: "Voids", kind: "line", tone: "danger", dashed: true },
-            ]}
-            comparisonSeries={[
-              { key: "tickets", label: "Tickets", kind: "line", tone: "default", hiddenByDefault: true },
-            ]}
-            height={300}
-            valueFormatter={money}
-            yTickFormatter={money}
-            emptyLabel="No sales in this window."
+    <RecordListShell
+      title="Sales"
+      search={search}
+      onSearchChange={setSearch}
+      searchPlaceholder="Search by sale number, cashier or customer"
+      filters={
+        <>
+          <ViewToolbarFilter
+            label="Type"
+            value={type}
+            anyLabel="Any type"
+            options={TYPE_OPTIONS}
+            onChange={setType}
           />
-          <AdminDonutChart
-            rows={saleMixRows}
-            valueLabel="Transactions"
-            valueFormatter={(value) => value.toString()}
-            height={300}
-            emptyLabel="No sale mix to show."
+          <ViewToolbarFilter
+            label="Tender"
+            value={tender}
+            anyLabel="Any tender"
+            options={tenderOptions}
+            onChange={setTender}
           />
-        </div>
-      </Card>
-
-      <Card title="Largest tickets in the current view">
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
-          <AdminDualBarChart
-            rows={topTicketRows}
-            primaryLabel="Amount"
-            secondaryLabel="Items"
-            height={280}
-            valueFormatter={(value) => value.toFixed(0)}
-            emptyLabel="No tickets to rank."
-          />
-          <AdminDistributionChart
-            rows={valueRows}
-            valueLabel="Value"
-            valueFormatter={money}
-            height={280}
-            emptyLabel="No type totals to show."
-          />
-        </div>
-      </Card>
-
-      <VerticalDataViews
-        value={activeView}
-        onValueChange={setActiveView}
-        railLabel="Queues"
-        items={[
-          { id: "posted", label: "Posted sales", count: postedSales.length },
-          { id: "refunds", label: "Refunds", count: refunds.length },
-          { id: "exceptions", label: "Exceptions", count: exceptions.length },
+        </>
+      }
+      filterCount={filterCount}
+      count={salesQuery.isSuccess ? `${rows.length} of ${sales.length}` : null}
+      createLabel={canOpenPos ? "Open the till" : undefined}
+      onCreate={canOpenPos ? () => router.push("/portal/pos") : undefined}
+      error={salesQuery.error}
+    >
+      <RecordTable
+        rows={rows}
+        isLoading={salesQuery.isPending}
+        emptyTitle={emptyTitle}
+        rowHref={(sale) => `/retail/sales/${sale.id}`}
+        columns={[
+          {
+            id: "sale",
+            label: "Sale",
+            cell: (sale) => (
+              <RecordTableName title={sale.saleNo} subtitle={formatRetailDateTime(sale.postedAt)} />
+            ),
+          },
+          {
+            id: "state",
+            label: "Status",
+            width: "7rem",
+            cell: (sale) => <SaleState sale={sale} />,
+          },
+          {
+            id: "cashier",
+            label: "Cashier",
+            cell: (sale) => <RecordCell value={sale.cashierName ?? "Not on file"} />,
+          },
+          {
+            id: "customer",
+            label: "Customer",
+            cell: (sale) => <RecordCell value={sale.customerName ?? "Walk-in"} />,
+          },
+          {
+            id: "tender",
+            label: "Tender",
+            cell: (sale) => <RecordCell value={tenders(sale)} />,
+          },
+          {
+            id: "total",
+            label: "Total",
+            align: "end",
+            width: "8rem",
+            cell: (sale) => <RecordCell kind="money" value={formatSignedMoney(sale.totalAmount)} />,
+          },
         ]}
-      >
-        {activeView === "posted" ? (
-          <DataTable
-            data={postedSales}
-            columns={columns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search posted sales"
-            emptyState="No posted sales match that search."
+        mobile={
+          <RecordList
+            rows={rows.map((sale) => ({
+              id: sale.id,
+              href: `/retail/sales/${sale.id}`,
+              title: sale.saleNo,
+              subtitle: formatRetailDateTime(sale.postedAt),
+              status: <SaleState sale={sale} />,
+              facts: [
+                {
+                  label: "Total",
+                  value: formatSignedMoney(sale.totalAmount),
+                  kind: "money",
+                  primary: true,
+                },
+                { label: "Tender", value: tenders(sale) },
+              ],
+            }))}
+            isLoading={salesQuery.isPending}
+            emptyTitle={emptyTitle}
           />
-        ) : null}
-
-        {activeView === "refunds" ? (
-          <DataTable
-            data={refunds}
-            columns={columns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search refunds"
-            emptyState="No refunds in this window."
-          />
-        ) : null}
-
-        {activeView === "exceptions" ? (
-          <DataTable
-            data={exceptions}
-            columns={columns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search exceptions"
-            emptyState="No voids or overrides in this window."
-          />
-        ) : null}
-      </VerticalDataViews>
-
-      <Dialog open={Boolean(selectedSaleId)} onOpenChange={(open) => !open && setSelectedSaleId(null)}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{detailQuery.data?.data.saleNo ?? "Transaction detail"}</DialogTitle>
-          </DialogHeader>
-          {detailQuery.isPending ? (
-            <div aria-busy="true" className="space-y-3">
-              <Skeleton height={88} />
-              <Skeleton height={160} />
-            </div>
-          ) : detailQuery.isError ? (
-            <Alert tone="danger" title="That transaction would not open">
-              {getApiErrorMessage(detailQuery.error)}
-            </Alert>
-          ) : (
-            /*
-              R-4.3. The same body `/retail/sales/{id}` renders.
-
-              It was 90 lines of markup here and would have been 90 more on the
-              page. A receipt shown two ways that could disagree about what was
-              sold is worse than a receipt shown one way, so it moved to
-              `components/retail/sale-detail.tsx` and both call it.
-
-              `onOpenSale` swaps which sale the dialog shows rather than
-              navigating, because the person using it is scanning a list and
-              should not lose their place to follow a reversal.
-            */
-            <RetailSaleDetailBody
-              sale={detailQuery.data.data}
-              onOpenSale={setSelectedSaleId}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </RetailShell>
+        }
+      />
+    </RecordListShell>
   );
 }

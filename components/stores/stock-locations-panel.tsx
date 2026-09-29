@@ -1,13 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { Alert, Badge, EmptyState, Input, Skeleton } from "@corelithzw/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { StatusDot } from "@/components/management/ui";
+import { RecordList } from "@/components/records/record-list";
+import {
+  RecordCell,
+  RecordTable,
+  RecordTableName,
+  type RecordTableGroup,
+} from "@/components/records/record-table";
+import { RowMenu } from "@/components/retail/row-menu";
+import { dsConfirm } from "@/components/ui/ds-confirm";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { useDebounced } from "@/hooks/use-debounced";
-import { ChevronRight } from "@/lib/icons";
+import { formatSignedMoney } from "@/lib/retail/words";
+
+import { LocationDialog, type EditableLocation } from "./location-dialog";
 
 type LocationRow = {
   id: string;
@@ -22,159 +33,202 @@ type LocationRow = {
   valueComplete: boolean;
 };
 
-function money(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
+/**
+ * What the stock in a location is worth. An item with no unit cost adds
+ * nothing to the total, so where one is missing the figure is a floor and
+ * says so, rather than quietly under-reporting.
+ */
+function valueOf(location: LocationRow): string {
+  const money = formatSignedMoney(location.stockValue);
+  return location.valueComplete ? money : `At least ${money}`;
 }
 
+function stateOf(location: LocationRow) {
+  if (!location.isActive) return <StatusDot tone="neutral" label="Inactive" />;
+  if (location.lowCount > 0) return <StatusDot tone="warn" label={`${location.lowCount} low`} />;
+  return null;
+}
+
+const toEditable = (location: LocationRow): EditableLocation => ({
+  id: location.id,
+  code: location.code,
+  name: location.name,
+  siteId: location.site.id,
+  isActive: location.isActive,
+});
+
 /**
- * Stock locations, grouped by the site they belong to.
+ * Locations — where stock is kept, under the site each belongs to.
  *
- * Split out of "Stock on hand", which was doing two jobs at once: a list of
- * items summed across everywhere, and — implicitly, through a site filter — a
- * list of places. Neither question was answerable without doing the other
- * one's work first.
+ * Making, renaming and closing a location used to happen in a side sheet on
+ * the On hand page, below the stock list, while this page could only read.
+ * The verbs live with the list they act on now: "New location" in the bar,
+ * and Edit and Delete behind each row's menu.
  */
 export function StockLocationsPanel() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const debounced = useDebounced(search, 300);
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<EditableLocation | null>(null);
 
   const locationsQuery = useQuery({
     queryKey: ["inventory-locations"],
     queryFn: () => fetchJson<{ data: LocationRow[] }>("/api/v2/inventory/locations"),
   });
+  const locations = useMemo(() => locationsQuery.data?.data ?? [], [locationsQuery.data]);
 
-  const grouped = useMemo(() => {
-    const needle = debounced.trim().toLowerCase();
-    const rows = (locationsQuery.data?.data ?? []).filter((row) =>
-      needle
-        ? `${row.name} ${row.code} ${row.site.name}`.toLowerCase().includes(needle)
-        : true,
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return locations;
+    return locations.filter((row) =>
+      `${row.name} ${row.code} ${row.site.name}`.toLowerCase().includes(needle),
     );
+  }, [locations, search]);
 
-    // A Map keeps the sites in the order the API sorted them into, rather than
-    // whatever order the object keys happen to come out in.
-    const bySite = new Map<string, { name: string; rows: LocationRow[] }>();
+  // Under a heading per site once there is more than one; the API sorts by
+  // site first, which is the order the groups need.
+  const groups = useMemo<RecordTableGroup[] | null>(() => {
+    const bySite = new Map<string, RecordTableGroup & { ids: string[] }>();
     for (const row of rows) {
-      const bucket = bySite.get(row.site.id);
-      if (bucket) bucket.rows.push(row);
-      else bySite.set(row.site.id, { name: row.site.name, rows: [row] });
+      const group = bySite.get(row.site.id);
+      if (group) {
+        group.ids.push(row.id);
+        group.count += 1;
+      } else {
+        bySite.set(row.site.id, { id: row.site.id, label: row.site.name, count: 1, ids: [row.id] });
+      }
     }
-    return [...bySite.entries()].map(([id, bucket]) => ({ id, ...bucket }));
-  }, [debounced, locationsQuery.data]);
+    return bySite.size > 1 ? [...bySite.values()] : null;
+  }, [rows]);
 
-  if (locationsQuery.isLoading) {
-    return (
-      <div className="space-y-2" aria-busy="true">
-        <Skeleton height={32} />
-        <Skeleton height={72} />
-        <Skeleton height={72} />
-      </div>
-    );
-  }
+  const remove = useMutation({
+    mutationFn: (location: LocationRow) =>
+      fetchJson(`/api/stock-locations/${location.id}` as const, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Location deleted", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["inventory-locations"] });
+      void queryClient.invalidateQueries({ queryKey: ["stock-locations"] });
+    },
+    onError: (error) =>
+      toast({
+        title: "That location was not deleted",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
 
-  if (locationsQuery.error) {
-    return (
-      <Alert tone="danger" title="Unable to load stock locations">
-        {getApiErrorMessage(locationsQuery.error)}
-      </Alert>
-    );
-  }
+  const confirmRemove = (location: LocationRow) => {
+    void dsConfirm({
+      title: `Delete ${location.name}?`,
+      description:
+        "It is removed for good. A location that still has stock items in it cannot be deleted — make it inactive instead.",
+      confirmLabel: "Delete location",
+      variant: "danger",
+    }).then((confirmed) => {
+      if (confirmed) remove.mutate(location);
+    });
+  };
+
+  const menuFor = (location: LocationRow) => (
+    <RowMenu
+      label={`More for ${location.name}`}
+      items={[
+        { label: "Edit location", onSelect: () => setEditing(toEditable(location)) },
+        { label: "Delete location", onSelect: () => confirmRemove(location), destructive: true },
+      ]}
+    />
+  );
+
+  const hrefFor = (location: LocationRow) =>
+    `/stores/inventory?siteId=${location.site.id}&locationId=${location.id}`;
+
+  const emptyTitle = search.trim() ? "No locations match that search" : "No locations yet";
 
   return (
-    <div className="space-y-4">
-      <Input
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search stores and locations"
-        aria-label="Search stores and locations"
-        className="h-9 w-full sm:w-72"
-      />
-
-      {grouped.length === 0 ? (
-        <EmptyState
-          title={debounced ? "Nothing matches that search" : "No stock locations yet"}
-          body={
-            debounced
-              ? undefined
-              : "A location is a place inside a site — a bay, a yard, a locked cage. Stock is held at one."
+    <>
+      <RecordListShell
+        title="Locations"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by location, code or site"
+        count={locationsQuery.isSuccess ? `${rows.length} of ${locations.length}` : null}
+        createLabel="New location"
+        onCreate={() => setCreating(true)}
+        error={locationsQuery.error}
+      >
+        <RecordTable
+          rows={rows}
+          groups={groups}
+          isLoading={locationsQuery.isPending}
+          emptyTitle={emptyTitle}
+          rowHref={hrefFor}
+          columns={[
+            {
+              id: "location",
+              label: "Location",
+              cell: (location) => <RecordTableName title={location.name} subtitle={location.code} />,
+            },
+            {
+              id: "state",
+              label: "Status",
+              width: "8rem",
+              cell: stateOf,
+            },
+            {
+              id: "items",
+              label: "Stock items",
+              align: "end",
+              width: "8rem",
+              cell: (location) => <RecordCell kind="number" value={location.itemCount} />,
+            },
+            {
+              id: "value",
+              label: "Value",
+              align: "end",
+              width: "10rem",
+              cell: (location) => <RecordCell kind="money" value={valueOf(location)} />,
+            },
+            {
+              id: "menu",
+              label: "",
+              menu: <span className="sr-only">More</span>,
+              width: "3rem",
+              align: "end",
+              cell: menuFor,
+            },
+          ]}
+          mobile={
+            <RecordList
+              rows={rows.map((location) => ({
+                id: location.id,
+                href: hrefFor(location),
+                title: location.name,
+                subtitle: `${location.code} · ${location.site.name}`,
+                status: stateOf(location),
+                facts: [
+                  { label: "Value", value: valueOf(location), kind: "money", primary: true },
+                  { label: "Stock items", value: location.itemCount, kind: "number" },
+                ],
+                actions: menuFor(location),
+              }))}
+              isLoading={locationsQuery.isPending}
+              emptyTitle={emptyTitle}
+            />
           }
         />
-      ) : (
-        grouped.map((site) => (
-          <section key={site.id} aria-labelledby={`site-${site.id}`} className="space-y-2">
-            <h3
-              id={`site-${site.id}`}
-              className="sticky top-14 z-10 flex items-baseline gap-2 bg-[var(--canvas)] py-1.5 text-sm font-medium uppercase tracking-wide text-[var(--text-subtle)]"
-            >
-              <span>{site.name}</span>
-              <span className="font-mono normal-case tracking-normal">
-                {site.rows.length}
-              </span>
-            </h3>
+      </RecordListShell>
 
-            <ul className="space-y-1">
-              {site.rows.map((location) => (
-                <li key={location.id}>
-                  <Link
-                    href={`/stores/inventory?siteId=${location.site.id}`}
-                    className="flex items-center gap-3 px-3 py-3 hover:bg-[var(--surface-muted)]"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-medium text-[var(--text-strong)]">
-                          {location.name}
-                        </span>
-                        <span className="font-mono text-sm text-[var(--text-subtle)]">
-                          {location.code}
-                        </span>
-                        {!location.isActive ? (
-                          <Badge tone="neutral" size="sm">
-                            Closed
-                          </Badge>
-                        ) : null}
-                        {location.lowCount > 0 ? (
-                          <Badge tone="warn" size="sm">
-                            {location.lowCount} low
-                          </Badge>
-                        ) : null}
-                      </span>
-                      <span className="mt-0.5 block text-sm text-[var(--text-muted)]">
-                        {location.holdingCount} of {location.itemCount} item
-                        {location.itemCount === 1 ? "" : "s"} in stock
-                      </span>
-                    </span>
-
-                    <span className="hidden text-right sm:block">
-                      <span className="block text-sm uppercase tracking-wide text-[var(--text-subtle)]">
-                        Value
-                      </span>
-                      <span className="block font-mono text-sm tabular-nums">
-                        {money(location.stockValue)}
-                        {/* Say so rather than quietly under-reporting: an item
-                            with no unit cost adds nothing to this total. */}
-                        {location.valueComplete ? "" : "*"}
-                      </span>
-                    </span>
-
-                    <ChevronRight className="size-4 flex-none text-[var(--text-subtle)]" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
-      )}
-
-      {grouped.some((site) => site.rows.some((row) => !row.valueComplete)) ? (
-        <p className="text-sm text-[var(--text-muted)]">
-          * Some items in this location have no unit cost recorded, so the value
-          shown is lower than what is actually there.
-        </p>
-      ) : null}
-    </div>
+      <LocationDialog
+        open={creating || editing !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreating(false);
+            setEditing(null);
+          }
+        }}
+        location={editing}
+      />
+    </>
   );
 }

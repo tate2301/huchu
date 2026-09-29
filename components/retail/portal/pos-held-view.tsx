@@ -9,7 +9,6 @@ import { ArrowRight, Clock, Package, ReceiptLong, RefreshCcw, User } from "@/lib
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
   PosEmptyState,
-  PosMetricCard,
   PosPanel,
   PosPanelHeader,
   PosTerminalHeader,
@@ -19,15 +18,13 @@ import type { HeldCart } from "./pos-types";
 import { money } from "./pos-utils";
 
 /* ─── Elapsed time helper ─────────────────────────────────────────── */
-function elapsedLabel(createdAt: string): { label: string; urgent: boolean } {
+function elapsedLabel(createdAt: string) {
   const ms = Date.now() - new Date(createdAt).getTime();
   const mins = Math.floor(ms / 60_000);
-  if (mins < 1) return { label: "Just held", urgent: false };
-  if (mins < 5) return { label: `${mins}m ago`, urgent: false };
-  if (mins < 15) return { label: `${mins}m ago`, urgent: true };
+  if (mins < 1) return "Just held";
   const hours = Math.floor(mins / 60);
-  if (hours < 1) return { label: `${mins}m ago`, urgent: true };
-  return { label: `${hours}h ${mins % 60}m ago`, urgent: true };
+  if (hours < 1) return `${mins}m ago`;
+  return `${hours}h ${mins % 60}m ago`;
 }
 
 export function PosHeldView() {
@@ -60,7 +57,7 @@ export function PosHeldView() {
     },
     onError: (error) =>
       toast({
-        title: "Unable to recall cart",
+        title: "That sale was not recalled",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -69,14 +66,11 @@ export function PosHeldView() {
   const heldCarts = heldCartsQuery.data?.data ?? [];
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
-
-      {/* ── Header metrics ────────────────────────────────── */}
-      <PosPanel>
+    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)]">
+      {/* ── Cart grid ─────────────────────────────────────── */}
+      <PosPanel className="flex min-h-0 flex-col">
         <PosPanelHeader
-          eyebrow="Parked sales"
-          title="Held carts"
-          description="Recall any cart to instantly resume it at checkout."
+          title={`${heldCarts.length} held sale${heldCarts.length === 1 ? "" : "s"}`}
           actions={
             <Button
               size="sm"
@@ -84,47 +78,19 @@ export function PosHeldView() {
               onClick={() => queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] })}
             >
               <RefreshCcw className="h-4 w-4" />
-              Refresh
+              Refresh the list
             </Button>
           }
         />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <PosMetricCard
-            icon={ReceiptLong}
-            label="Held carts"
-            value={String(heldCarts.length)}
-            meta={heldCarts.length === 0 ? "Queue is clear" : "Waiting to be recalled"}
-            tone={heldCarts.length > 0 ? "warning" : "neutral"}
-          />
-          <PosMetricCard
-            icon={Clock}
-            label="Active shift"
-            value={currentShift?.shiftNo ?? "Not open"}
-            meta={currentShift?.registerName ?? "Open a shift to park carts"}
-            tone={currentShift ? "brand" : "warning"}
-          />
-        </div>
-      </PosPanel>
-
-      {/* ── Cart grid ─────────────────────────────────────── */}
-      <PosPanel className="min-h-0">
-        <div className="h-full min-h-0 overflow-y-auto pr-0.5">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
           {!currentShift ? (
-            <PosEmptyState
-              icon={Clock}
-              title="Open a shift first"
-              description="Held carts are tied to the active register shift. Open a shift to see and recall parked sales."
-            />
+            <PosEmptyState icon={Clock} title="Open a shift first" />
           ) : heldCartsQuery.isLoading ? (
             <div className="flex min-h-[10rem] items-center justify-center text-sm text-[var(--text-muted)]">
-              Loading held carts…
+              Loading held sales…
             </div>
           ) : heldCarts.length === 0 ? (
-            <PosEmptyState
-              icon={ReceiptLong}
-              title="No held carts"
-              description="Use the Hold button at checkout to park a sale. It will appear here for quick recall."
-            />
+            <PosEmptyState icon={ReceiptLong} title="No held sales yet" />
           ) : (
             <div className="grid gap-3 xl:grid-cols-2">
               {heldCarts.map((heldCart) => {
@@ -135,7 +101,7 @@ export function PosHeldView() {
                       sum + item.quantity * item.unitPrice - (item.lineDiscountAmount ?? 0),
                     0,
                   ) ?? 0;
-                const { label: timeLabel, urgent } = elapsedLabel(heldCart.createdAt);
+                const timeLabel = elapsedLabel(heldCart.createdAt);
                 const isRecalling = recallMutation.isPending &&
                   recallMutation.variables?.id === heldCart.id;
 
@@ -149,13 +115,9 @@ export function PosHeldView() {
                     <PosTerminalHeader
                       eyebrow={`Hold · ${heldCart.holdNo}`}
                       title={heldCart.label || heldCart.holdNo}
-                      subtitle={
-                        urgent
-                          ? `⚠ ${timeLabel}`
-                          : timeLabel
-                      }
+                      subtitle={timeLabel}
                       valuePrimary={money(total)}
-                      valueSecondary={`${itemCount} line${itemCount !== 1 ? "s" : ""}`}
+                      valueSecondary={`${itemCount} product${itemCount !== 1 ? "s" : ""}`}
                     />
 
                     {/* Cart details */}
@@ -193,7 +155,7 @@ export function PosHeldView() {
                           "Loading…"
                         ) : (
                           <>
-                            Recall to checkout
+                            Recall the sale
                             <ArrowRight className="h-4 w-4" />
                           </>
                         )}

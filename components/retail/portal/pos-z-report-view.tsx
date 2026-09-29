@@ -53,11 +53,17 @@ import {
   Wallet,
 } from "@/lib/icons";
 import {
-  RETAIL_CASH_MOVEMENT_LABELS,
   RETAIL_CASH_MOVEMENT_REASON_LABELS,
   type RetailCashMovementReasonCode,
   type RetailCashMovementTypeName,
 } from "@/lib/retail/cash-movements";
+import {
+  cashMovementLabel,
+  formatQuantity,
+  formatRetailDate,
+  formatRetailDateTime,
+  tenderLabel,
+} from "@/lib/retail/words";
 import {
   PosEmptyState,
   PosMetricCard,
@@ -66,7 +72,7 @@ import {
   PosStatusPill,
 } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
-import { money } from "./pos-utils";
+import { money, signedMoney } from "./pos-utils";
 import type { TenderType } from "./pos-types";
 
 /* ─── The wire shapes ─────────────────────────────────────────────────────── */
@@ -162,47 +168,12 @@ type ZDayPayload = {
 
 /* ─── Labels ──────────────────────────────────────────────────────────────── */
 
-/**
- * The prototype's own words. "Cash · ZWG / USD" says the thing a Harare shop
- * needs said: one drawer, two currencies, and the figure beside it is in the one
- * the books are kept in.
- */
-const TENDER_LABEL: Record<TenderType, string> = {
-  CASH: "Cash · ZWG / USD",
-  CARD: "Card · machine",
-  MOBILE_MONEY: "EcoCash / OneMoney",
-  TRANSFER: "Bank transfer",
-  VOUCHER: "Voucher · store credit",
-};
-
 /** The prototype leads with seven of these; the row holds ten. */
 const TOP_ITEMS_SHOWN = 7;
 
-function formatMoment(iso: string) {
-  const date = new Date(iso);
-  return `${date.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })} · ${date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
-}
-
+/** A trading day, stored as `YYYY-MM-DD`, read at midday so no zone moves it. */
 function formatDay(day: string) {
-  return new Date(`${day}T00:00:00.000Z`).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-/** Trailing zeros off a `Decimal(12,4)` quantity: `42.0000` reads as `42`. */
-function formatQuantity(value: string) {
-  const asNumber = Number(value);
-  return Number.isFinite(asNumber)
-    ? asNumber.toLocaleString(undefined, { maximumFractionDigits: 4 })
-    : value;
+  return formatRetailDate(`${day}T12:00:00.000Z`);
 }
 
 /** A stored decimal string, rendered. Never re-summed — see the header. */
@@ -255,7 +226,7 @@ function ZTable({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[28rem] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-[var(--edge-default)] text-left text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+          <tr className="border-b border-[var(--edge-default)] text-left text-xs font-bold text-[var(--text-muted)]">
             {head}
           </tr>
         </thead>
@@ -286,7 +257,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
       // the stored figures character for character. A second rendering in the
       // browser is a second chance to disagree with the document.
       const res = await fetch(`/api/v2/retail/z-reports/${report.id}?format=csv`);
-      if (!res.ok) throw new Error("The export could not be fetched");
+      if (!res.ok) throw new Error("The spreadsheet would not download");
       const blob = new Blob([await res.text()], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -299,7 +270,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
       toast({ title: "Spreadsheet saved", variant: "success" });
     } catch (error) {
       toast({
-        title: "Unable to save the spreadsheet",
+        title: "That spreadsheet was not saved",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -318,23 +289,19 @@ function ZReportSheet({ report }: { report: ZReport }) {
         {/* ── Header ─────────────────────────────────────── */}
         <div className="flex flex-col gap-3 border-b border-[var(--edge-subtle)] pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+            <p className="text-xs font-bold text-[var(--text-muted)]">
               {report.reportNo}
             </p>
             <h2 className="mt-1 text-[1.35rem] font-bold tracking-[-0.025em] text-[var(--text-strong)]">
-              Z-report — {formatDay(report.businessDate)}
+              {formatDay(report.businessDate)}
             </h2>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Made on {formatMoment(report.generatedAt)}
-              {report.generatedByName ? ` by ${report.generatedByName}` : ""} · final,
-              can&rsquo;t be changed
+              Taken {formatRetailDateTime(report.generatedAt)}
+              {report.generatedByName ? ` by ${report.generatedByName}` : ""}
             </p>
           </div>
           <div className="shrink-0 sm:text-right">
-            <PosStatusPill tone="success">
-              <Lock className="h-3 w-3" /> Locked in
-            </PosStatusPill>
-            <p className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">
+            <p className="font-mono text-[11px] text-[var(--text-muted)]">
               {report.registerName} · {report.registerCode}
               {report.siteName ? ` · ${report.siteName}` : ""}
             </p>
@@ -356,21 +323,19 @@ function ZReportSheet({ report }: { report: ZReport }) {
           />
           <PosMetricCard
             icon={Receipt}
-            label="Discounts given"
+            label="Discounts"
             value={`− ${money(report.discountTotal)}`}
-            meta="Taken off before VAT"
             tone={report.discountTotal > 0 ? "warning" : "neutral"}
           />
           <PosMetricCard
             icon={Coins}
             label={`VAT ${report.taxRatePercent.toFixed(2)}%`}
             value={money(report.taxTotal)}
-            meta="Carved out of the shelf price, not added to it"
             tone="brand"
           />
           <PosMetricCard
             icon={Wallet}
-            label="Take-home after discounts"
+            label="Takings"
             value={`${report.currency} ${money(report.grossTakings)}`}
             meta={`Net ${money(report.netSales)} + VAT ${money(report.taxTotal)}`}
             tone="success"
@@ -387,15 +352,11 @@ function ZReportSheet({ report }: { report: ZReport }) {
               · {report.refundCount}
             </span>
             <span>
-              Cancelled sales{" "}
+              Voids{" "}
               <span className="font-mono font-bold tabular-nums text-[var(--text-strong)]">
                 {money(report.voidTotal)}
               </span>{" "}
               · {report.voidCount}
-            </span>
-            <span>
-              Already inside the totals above — a cancelled basket and its reversal
-              net to nothing.
             </span>
           </div>
         )}
@@ -403,19 +364,19 @@ function ZReportSheet({ report }: { report: ZReport }) {
         {/* ── How customers paid ─────────────────────────── */}
         <section className="mt-6">
           <h3 className="mb-2 text-[13px] font-bold text-[var(--text-strong)]">
-            How customers paid{" "}
+            Tenders{" "}
             <span className="font-normal text-[var(--text-muted)]">
               {report.saleCount} sale{report.saleCount === 1 ? "" : "s"}
             </span>
           </h3>
           {report.tenderBreakdown.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">Nothing was tendered.</p>
+            <p className="text-sm text-[var(--text-muted)]">No payments</p>
           ) : (
             <ZTable
               head={
                 <>
-                  <th className={CELL}>How they paid</th>
-                  <th className={`${CELL} text-right`}>How many</th>
+                  <th className={CELL}>Tender</th>
+                  <th className={`${CELL} text-right`}>Count</th>
                   <th className={`${CELL} text-right`}>Amount</th>
                   <th className={`${CELL} text-right`}>Share</th>
                 </>
@@ -427,7 +388,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
                   className="border-b border-[var(--edge-subtle)] last:border-b-0"
                 >
                   <td className={`${CELL} text-[var(--text-strong)]`}>
-                    {TENDER_LABEL[tender.tenderType] ?? tender.tenderType}
+                    {tenderLabel(tender.tenderType)}
                   </td>
                   <td className={NUM}>{tender.count}</td>
                   <td className={`${NUM} font-bold text-[var(--text-strong)]`}>
@@ -443,20 +404,20 @@ function ZReportSheet({ report }: { report: ZReport }) {
         {/* ── Best sellers ───────────────────────────────── */}
         <section className="mt-6">
           <h3 className="mb-2 text-[13px] font-bold text-[var(--text-strong)]">
-            Best-selling items{" "}
+            Top products{" "}
             <span className="font-normal text-[var(--text-muted)]">
-              top {Math.min(TOP_ITEMS_SHOWN, report.topItems.length)} of {report.itemCount}
+              {Math.min(TOP_ITEMS_SHOWN, report.topItems.length)} of {report.itemCount}
             </span>
           </h3>
           {report.topItems.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">Nothing left the shelf.</p>
+            <p className="text-sm text-[var(--text-muted)]">No products sold</p>
           ) : (
             <ZTable
               head={
                 <>
                   <th className={CELL}>#</th>
-                  <th className={CELL}>Item</th>
-                  <th className={`${CELL} text-right`}>How many</th>
+                  <th className={CELL}>Product</th>
+                  <th className={`${CELL} text-right`}>Quantity</th>
                   <th className={`${CELL} text-right`}>Total</th>
                 </>
               }
@@ -477,7 +438,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
                       </span>
                     ) : null}
                   </td>
-                  <td className={NUM}>{formatQuantity(item.quantity)}</td>
+                  <td className={NUM}>{formatQuantity(Number(item.quantity))}</td>
                   <td className={`${NUM} font-bold text-[var(--text-strong)]`}>
                     {storedMoney(item.amount)}
                   </td>
@@ -490,20 +451,17 @@ function ZReportSheet({ report }: { report: ZReport }) {
         {/* ── The cash story ─────────────────────────────── */}
         <section className="mt-6">
           <h3 className="mb-2 text-[13px] font-bold text-[var(--text-strong)]">
-            The drawer{" "}
-            <span className="font-normal text-[var(--text-muted)]">
-              float, takings, what moved, what was counted
-            </span>
+            Cash
           </h3>
           <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-3 text-sm">
             <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
               {[
                 ["Opening float", money(report.openingFloat)],
                 ["Cash takings", money(report.cashTakings)],
-                ["To the safe", `− ${money(report.cashDropTotal)}`],
-                ["In from the safe", `+ ${money(report.cashTopUpTotal)}`],
-                ["Paid out", `− ${money(report.cashPayoutTotal)}`],
-                ["Expected in the drawer", money(report.expectedCash)],
+                [cashMovementLabel("DROP_TO_SAFE"), `− ${money(report.cashDropTotal)}`],
+                [cashMovementLabel("FLOAT_TOP_UP"), `+ ${money(report.cashTopUpTotal)}`],
+                [cashMovementLabel("PAYOUT"), `− ${money(report.cashPayoutTotal)}`],
+                ["Expected", money(report.expectedCash)],
                 ["Counted", money(report.countedCash)],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between gap-4 py-0.5">
@@ -518,17 +476,19 @@ function ZReportSheet({ report }: { report: ZReport }) {
               <span className="text-[13px] font-bold text-[var(--text-strong)]">
                 Variance
               </span>
-              <PosStatusPill
-                tone={isBalanced ? "success" : report.cashVariance > 0 ? "warning" : "danger"}
-              >
-                <span className="font-mono tabular-nums">
-                  {isBalanced
-                    ? `Balanced · ${money(0)}`
-                    : `${report.cashVariance > 0 ? "Over" : "Short"} ${money(
-                        Math.abs(report.cashVariance),
-                      )}`}
+              {isBalanced ? (
+                <span className="font-mono text-sm tabular-nums text-[var(--text-strong)]">
+                  {money(0)}
                 </span>
-              </PosStatusPill>
+              ) : (
+                <PosStatusPill tone={report.cashVariance > 0 ? "warning" : "danger"}>
+                  <span className="font-mono tabular-nums">
+                    {`${report.cashVariance > 0 ? "Over" : "Short"} ${money(
+                      Math.abs(report.cashVariance),
+                    )}`}
+                  </span>
+                </PosStatusPill>
+              )}
             </div>
           </div>
 
@@ -537,9 +497,9 @@ function ZReportSheet({ report }: { report: ZReport }) {
               <ZTable
                 head={
                   <>
-                    <th className={CELL}>Cash moved</th>
-                    <th className={CELL}>Why</th>
-                    <th className={`${CELL} text-right`}>How many</th>
+                    <th className={CELL}>Movement</th>
+                    <th className={CELL}>Reason</th>
+                    <th className={`${CELL} text-right`}>Count</th>
                     <th className={`${CELL} text-right`}>Amount</th>
                   </>
                 }
@@ -550,7 +510,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
                     className="border-b border-[var(--edge-subtle)] last:border-b-0"
                   >
                     <td className={`${CELL} text-[var(--text-strong)]`}>
-                      {RETAIL_CASH_MOVEMENT_LABELS[movement.type]}
+                      {cashMovementLabel(movement.type)}
                     </td>
                     <td className={`${CELL} text-[var(--text-muted)]`}>
                       {RETAIL_CASH_MOVEMENT_REASON_LABELS[movement.reasonCode]}
@@ -570,10 +530,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
         {report.shifts.length > 0 && (
           <section className="mt-6">
             <h3 className="mb-2 text-[13px] font-bold text-[var(--text-strong)]">
-              Shift by shift{" "}
-              <span className="font-normal text-[var(--text-muted)]">
-                a variance belongs to a drawer, not to a day
-              </span>
+              Shifts
             </h3>
             <ZTable
               head={
@@ -600,7 +557,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
                     {shift.countedCash ? storedMoney(shift.countedCash) : "—"}
                   </td>
                   <td className={`${NUM} font-bold text-[var(--text-strong)]`}>
-                    {shift.variance ? storedMoney(shift.variance) : "—"}
+                    {shift.variance ? signedMoney(Number(shift.variance)) : "—"}
                   </td>
                 </tr>
               ))}
@@ -631,7 +588,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
             }}
           >
             <Printer className="h-4 w-4" />
-            Print Z-report
+            Print the end-of-day report
           </Button>
         </div>
       </PosPanel>
@@ -644,7 +601,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
 export function PosZReportPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { currentShift, canOverride } = usePosPortalState();
+  const { canOverride } = usePosPortalState();
 
   const [businessDate, setBusinessDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
@@ -690,11 +647,9 @@ export function PosZReportPanel() {
     onSuccess: (result) => {
       toast({
         title: result.created
-          ? `${result.data.reportNo} is locked in`
-          : `${result.data.reportNo} had already been taken`,
-        description: result.created
-          ? "The day's figures are frozen. A reprint will read exactly the same."
-          : "One register, one trading day, one report — this is that one.",
+          ? "End-of-day report taken"
+          : "That end-of-day report was already taken",
+        description: result.data.reportNo,
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["retail-z-report-day", businessDate] });
@@ -702,7 +657,7 @@ export function PosZReportPanel() {
     },
     onError: (error) =>
       toast({
-        title: "Unable to take the end-of-day report",
+        title: "That end-of-day report was not taken",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -711,11 +666,7 @@ export function PosZReportPanel() {
   if (!canOverride) {
     return (
       <PosPanel>
-        <PosEmptyState
-          icon={Lock}
-          title="A manager takes the end-of-day report"
-          description="It shows every cashier's drawer variance and the shop's takings for the whole day, so it sits with cash control rather than with the till. Ask a manager to open it."
-        />
+        <PosEmptyState icon={Lock} title="A manager takes the end-of-day report" />
       </PosPanel>
     );
   }
@@ -724,9 +675,7 @@ export function PosZReportPanel() {
     <div className="space-y-4">
       <PosPanel>
         <PosPanelHeader
-          eyebrow="Reports"
           title="End-of-day report"
-          description="One register, one trading day. Taken once and frozen: a reprint next month reads exactly the same, even if a sale has since been cancelled or a price has moved."
           actions={
             <Input
               type="date"
@@ -742,13 +691,9 @@ export function PosZReportPanel() {
         />
 
         {dayQuery.isLoading ? (
-          <p className="text-sm text-[var(--text-muted)]">Looking at the day…</p>
+          <p className="text-sm text-[var(--text-muted)]">Loading the day…</p>
         ) : registers.length === 0 ? (
-          <PosEmptyState
-            icon={Package}
-            title="No till was opened that day"
-            description="A Z-report closes a register's trading day, so there has to have been one. Pick another date."
-          />
+          <PosEmptyState icon={Package} title="No till was opened that day" />
         ) : (
           <div className="space-y-3">
             {registers.length > 1 && (
@@ -802,20 +747,8 @@ export function PosZReportPanel() {
                     {selected.reportNo ? ` · ${selected.reportNo}` : ""}
                   </p>
                 </div>
-                {selected.reportId ? (
-                  <PosStatusPill tone="success">
-                    <Lock className="h-3 w-3" /> Locked in
-                  </PosStatusPill>
-                ) : selected.openShiftNo ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PosStatusPill tone="warning">
-                      {selected.openShiftNo} is still open
-                    </PosStatusPill>
-                    <span className="text-xs text-[var(--text-muted)]">
-                      Cash up first — a final document over an unfinished day cannot be
-                      withdrawn.
-                    </span>
-                  </div>
+                {selected.reportId ? null : selected.openShiftNo ? (
+                  <PosStatusPill tone="warning">Cash up {selected.openShiftNo} first</PosStatusPill>
                 ) : (
                   <Button
                     size="sm"
@@ -835,12 +768,6 @@ export function PosZReportPanel() {
               </div>
             )}
           </div>
-        )}
-        {currentShift && registers.length > 0 && (
-          <p className="mt-3 text-xs text-[var(--text-muted)]">
-            Your own drawer, {currentShift.shiftNo}, is counted in whichever register it
-            was opened on.
-          </p>
         )}
       </PosPanel>
 

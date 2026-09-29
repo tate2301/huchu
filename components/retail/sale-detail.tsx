@@ -1,24 +1,34 @@
 "use client";
 
-import { Alert, StatCard } from "@corelithzw/react";
-
-import { NumericCell } from "@/components/ui/numeric-cell";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  FactList,
+  SectionHeading,
+  StatusBadge,
+  type FactListItem,
+} from "@/components/management/ui";
+import {
+  fiscalStatusLabel,
+  formatQuantity,
+  formatRetailDateTime,
+  formatSignedMoney,
+  saleTypeLabel,
+  tenderLabel,
+} from "@/lib/retail/words";
 
 /**
- * One posted transaction, rendered the same in a dialog and on a page.
+ * One sale, at its own address — `/retail/sales/{id}`.
  *
- * R-4.3. `/retail/sales` opened a sale in a dialog and there was no URL for it.
- * That was fine until two things needed one:
+ * The sales list used to open a sale in a read-only dialog as well, and this
+ * body was shared between the two so the receipt could not be drawn two ways.
+ * The dialog is gone: the record page is the detail, and a row in the list
+ * opens it. Every sale, refund and void writes a `PlatformAuditEvent` naming
+ * `RetailSale` and an id, so the page is also where an audit row leads.
  *
- *  - **R-3.3.** Every sale, refund and void now writes a `PlatformAuditEvent`
- *    carrying `entityType: "RetailSale"` and an `entityId`. An audit row that
- *    names a record nobody can open is a reference to nothing.
- *  - **A shopkeeper's Friday.** "Which one was RSL-0042?" is answered by pasting
- *    a link, not by describing which row to scroll to.
- *
- * So the body moved here and both surfaces render it. Extracting rather than
- * copying is the whole point: a receipt shown two ways that could disagree about
- * what was sold is worse than a receipt shown one way.
+ * Drawn as a management record — a section heading over fact rows, the lines
+ * and payments as column lists — rather than two bands of tiles.
  */
 
 export type RetailSaleDetail = {
@@ -28,7 +38,7 @@ export type RetailSaleDetail = {
   status: string;
   cashierName: string | null;
   customerName: string | null;
-  postedAt: string;
+  postedAt: string | null;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
@@ -39,6 +49,8 @@ export type RetailSaleDetail = {
   overrideReason: string | null;
   voidReason: string | null;
   notes: string | null;
+  shift: { id: string; shiftNo: string; registerName: string } | null;
+  site: { id: string; name: string; code: string } | null;
   payments: Array<{ id: string; tenderType: string; amount: number; reference: string | null }>;
   lines: Array<{
     id: string;
@@ -48,6 +60,8 @@ export type RetailSaleDetail = {
     lineTotal: number;
   }>;
   sourceSale: { id: string; saleNo: string; saleType: string; totalAmount: number } | null;
+  /** Null when the shop has no fiscal device, or the sale never reached one. */
+  fiscalReceipt: { status: string; fiscalNumber: string | null; lastError: string | null } | null;
   reversals: Array<{
     id: string;
     saleNo: string;
@@ -67,132 +81,171 @@ export function retailMoney(value: number) {
   }).format(value);
 }
 
-export function retailTypeLabel(value: string) {
-  return value.replaceAll("_", " ");
+/** Refund, Void, Voided — the one word a sale that is not a plain sale carries. */
+export function saleExceptionLabel(sale: { saleType: string; status: string }): string | null {
+  if (sale.saleType !== "SALE") return saleTypeLabel(sale.saleType);
+  if (sale.status === "VOIDED") return "Voided";
+  return null;
 }
 
-export function RetailSaleDetailBody({
-  sale,
-  onOpenSale,
-}: {
-  sale: RetailSaleDetail;
-  /**
-   * How to reach another receipt — the sale this one reverses, or a reversal
-   * against it.
-   *
-   * A callback rather than a `<Link>`, because the two surfaces reach it
-   * differently: the page navigates, and the dialog swaps which sale it is
-   * showing without closing. Hard-coding a link would make the dialog navigate
-   * away from the list the user was reading.
-   */
-  onOpenSale?: (saleId: string) => void;
-}) {
-  const reason = sale.overrideReason || sale.voidReason || sale.notes;
+export const SALE_WIDTH = 560;
+
+export function RetailSaleDetailBody({ sale }: { sale: RetailSaleDetail }) {
+  const exception = saleExceptionLabel(sale);
+
+  const details: FactListItem[] = [
+    {
+      label: "Sold",
+      value: formatRetailDateTime(sale.postedAt) || "Not posted",
+      mono: Boolean(sale.postedAt),
+    },
+    { label: "Cashier", value: sale.cashierName ?? "Not on file", tone: sale.cashierName ? "default" : "muted" },
+    { label: "Customer", value: sale.customerName ?? "Walk-in" },
+    sale.shift
+      ? { label: "Shift", value: sale.shift.shiftNo, mono: true, href: `/retail/shifts/${sale.shift.id}` }
+      : { label: "Shift", value: "No shift", tone: "muted" },
+    ...(sale.shift ? [{ label: "Till", value: sale.shift.registerName }] : []),
+    { label: "Site", value: sale.site?.name ?? "No site", tone: sale.site ? "default" : "muted" },
+    {
+      label: "Promotion",
+      value: sale.promotionCode ?? "None",
+      mono: Boolean(sale.promotionCode),
+      tone: sale.promotionCode ? "default" : "muted",
+    },
+    ...(sale.sourceSale
+      ? [
+          {
+            label: `${saleTypeLabel(sale.saleType)} of`,
+            value: sale.sourceSale.saleNo,
+            mono: true,
+            href: `/retail/sales/${sale.sourceSale.id}`,
+          },
+        ]
+      : []),
+    ...(sale.fiscalReceipt
+      ? [
+          {
+            label: "ZIMRA",
+            value:
+              sale.fiscalReceipt.status === "SUCCESS" && sale.fiscalReceipt.fiscalNumber
+                ? `${fiscalStatusLabel("SUCCESS")} · ${sale.fiscalReceipt.fiscalNumber}`
+                : fiscalStatusLabel(sale.fiscalReceipt.status),
+            mono: sale.fiscalReceipt.status === "SUCCESS",
+            tone: sale.fiscalReceipt.status === "SUCCESS" ? ("default" as const) : ("warn" as const),
+          },
+        ]
+      : []),
+    ...(sale.overrideReason ? [{ label: "Override", value: sale.overrideReason }] : []),
+    ...(sale.voidReason ? [{ label: "Void reason", value: sale.voidReason }] : []),
+    ...(sale.notes ? [{ label: "Notes", value: sale.notes }] : []),
+  ];
+
+  const totals: FactListItem[] = [
+    { label: "Subtotal", value: formatSignedMoney(sale.subtotal), mono: true },
+    ...(sale.discountAmount
+      ? [{ label: "Discount", value: formatSignedMoney(-Math.abs(sale.discountAmount)), mono: true }]
+      : []),
+    { label: "VAT", value: formatSignedMoney(sale.taxAmount), mono: true },
+    { label: "Total", value: formatSignedMoney(sale.totalAmount), mono: true },
+    ...(sale.tenderedAmount !== null
+      ? [{ label: "Tendered", value: formatSignedMoney(sale.tenderedAmount), mono: true }]
+      : []),
+    ...(sale.changeAmount !== null
+      ? [{ label: "Change", value: formatSignedMoney(sale.changeAmount), mono: true }]
+      : []),
+  ];
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-4">
-        <StatCard label="Type" value={retailTypeLabel(sale.saleType)} />
-        <StatCard label="Total" value={retailMoney(sale.totalAmount)} />
-        <StatCard label="Promotion" value={sale.promotionCode ?? "None"} />
-        <StatCard label="Source" value={sale.sourceSale?.saleNo ?? "None"} />
-      </div>
-
-      {reason ? (
-        <Alert tone="warn" title="Recorded against this transaction">
-          {sale.overrideReason ? <div>Override: {sale.overrideReason}</div> : null}
-          {sale.voidReason ? <div>Void: {sale.voidReason}</div> : null}
-          {sale.notes ? <div>Notes: {sale.notes}</div> : null}
-        </Alert>
+    <div>
+      {exception ? (
+        <StatusBadge tone={sale.saleType === "VOID" ? "warn" : "neutral"} context="header">
+          {exception}
+        </StatusBadge>
       ) : null}
 
-      <section aria-labelledby="sale-lines">
-        <h3 id="sale-lines" className="t-section t-strong">
-          Lines
-        </h3>
-        <ul className="list-plain mt-2">
-          {sale.lines.map((line) => (
-            <li key={line.id} className="list-item">
-              <span className="lead" aria-hidden="true" />
-              <div>
-                <div className="title bold">{line.itemName}</div>
-                <div className="sub">
-                  {line.quantity.toFixed(2)} × {retailMoney(line.unitPrice)}
-                </div>
-              </div>
-              <NumericCell>{retailMoney(line.lineTotal)}</NumericCell>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <SectionHeading maxWidth={SALE_WIDTH}>Details</SectionHeading>
+      <FactList maxWidth={SALE_WIDTH} items={details} />
 
-      <section aria-labelledby="sale-payments">
-        <h3 id="sale-payments" className="t-section t-strong">
-          Payments
-        </h3>
-        <ul className="list-plain mt-2">
-          {sale.payments.map((payment) => (
-            <li key={payment.id} className="list-item">
-              <span className="lead" aria-hidden="true" />
-              <div>
-                <div className="title bold">{retailTypeLabel(payment.tenderType)}</div>
-                <div className="sub">{payment.reference ?? "No reference"}</div>
-              </div>
-              <NumericCell>{retailMoney(payment.amount)}</NumericCell>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <SectionHeading maxWidth={SALE_WIDTH} count={sale.lines.length}>
+        Lines
+      </SectionHeading>
+      <ColumnList
+        label="Lines"
+        maxWidth={SALE_WIDTH}
+        empty="No lines on this sale"
+        columns={[
+          { id: "product", label: "Product" },
+          { id: "quantity", label: "Quantity", align: "end" },
+          { id: "price", label: "Price", align: "end", hideBelow: "sm" },
+          { id: "total", label: "Total", align: "end" },
+        ]}
+        rows={sale.lines.map((line) => ({
+          id: line.id,
+          cells: {
+            product: <ColumnName name={line.itemName} />,
+            quantity: <ColumnFigure>{formatQuantity(line.quantity)}</ColumnFigure>,
+            price: <ColumnFigure>{formatSignedMoney(line.unitPrice)}</ColumnFigure>,
+            total: <ColumnFigure>{formatSignedMoney(line.lineTotal)}</ColumnFigure>,
+          },
+        }))}
+      />
+
+      <SectionHeading maxWidth={SALE_WIDTH}>Total</SectionHeading>
+      <FactList maxWidth={SALE_WIDTH} align="end" items={totals} />
+
+      <SectionHeading maxWidth={SALE_WIDTH} count={sale.payments.length}>
+        Payments
+      </SectionHeading>
+      <ColumnList
+        label="Payments"
+        maxWidth={SALE_WIDTH}
+        empty="No payments on this sale"
+        columns={[
+          { id: "tender", label: "Tender" },
+          { id: "amount", label: "Amount", align: "end" },
+        ]}
+        rows={sale.payments.map((payment) => ({
+          id: payment.id,
+          cells: {
+            tender: <ColumnName name={tenderLabel(payment.tenderType)} meta={payment.reference} />,
+            amount: <ColumnFigure>{formatSignedMoney(payment.amount)}</ColumnFigure>,
+          },
+        }))}
+      />
 
       {/*
-        A reversal is a new posted sale pointing back at this one, so both
-        directions are worth showing: what this reverses, and what has reversed
-        it. A receipt that has been refunded and does not say so is how a shop
-        pays a refund twice.
+        A reversal is a new posted sale pointing back at this one. A sale that
+        has been refunded and does not say so is how a shop pays a refund twice.
       */}
       {sale.reversals.length > 0 ? (
-        <section aria-labelledby="sale-reversals">
-          <h3 id="sale-reversals" className="t-section t-strong">
-            Reversals
-          </h3>
-          <ul className="list-plain mt-2">
-            {sale.reversals.map((reversal) => (
-              <li key={reversal.id} className="list-item">
-                <span className="lead" aria-hidden="true" />
-                <div>
-                  <div className="title bold">
-                    {onOpenSale ? (
-                      <button
-                        type="button"
-                        className="underline underline-offset-2"
-                        onClick={() => onOpenSale(reversal.id)}
-                      >
-                        {reversal.saleNo}
-                      </button>
-                    ) : (
-                      reversal.saleNo
-                    )}
-                  </div>
-                  <div className="sub">
-                    {retailTypeLabel(reversal.saleType)} · {reversal.status}
-                  </div>
-                </div>
-                <NumericCell>{retailMoney(reversal.totalAmount)}</NumericCell>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <>
+          <SectionHeading maxWidth={SALE_WIDTH} count={sale.reversals.length}>
+            Refunds and voids
+          </SectionHeading>
+          <ColumnList
+            label="Refunds and voids"
+            maxWidth={SALE_WIDTH}
+            columns={[
+              { id: "sale", label: "Sale" },
+              { id: "total", label: "Total", align: "end" },
+            ]}
+            rows={sale.reversals.map((reversal) => ({
+              id: reversal.id,
+              cells: {
+                sale: (
+                  <ColumnName
+                    code={reversal.saleNo}
+                    name={saleTypeLabel(reversal.saleType)}
+                    meta={formatRetailDateTime(reversal.postedAt) || null}
+                    href={`/retail/sales/${reversal.id}`}
+                  />
+                ),
+                total: <ColumnFigure>{formatSignedMoney(reversal.totalAmount)}</ColumnFigure>,
+              },
+            }))}
+          />
+        </>
       ) : null}
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <StatCard label="Subtotal" value={retailMoney(sale.subtotal)} />
-        <StatCard label="Discount" value={retailMoney(sale.discountAmount)} />
-        <StatCard label="Tax" value={retailMoney(sale.taxAmount)} />
-        <StatCard
-          label="Change"
-          value={sale.changeAmount === null ? "—" : retailMoney(sale.changeAmount)}
-        />
-      </div>
     </div>
   );
 }

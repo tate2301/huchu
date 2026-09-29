@@ -15,26 +15,10 @@ import {
 } from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import {
-  BarChart3,
-  Building2,
-  ClipboardList,
-  ChevronDown,
-  Grid3x3,
-  LocalShipping,
-  Package,
-  Payments,
-  Users,
-} from "@/lib/icons";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
+import { Payments } from "@/lib/icons";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { tenderLabel } from "@/lib/retail/words";
 
 type RetailDashboardPayload = {
   summary: {
@@ -148,9 +132,7 @@ function delta(value: number) {
 
 export default function RetailOverviewPage() {
   const { data: session } = useSession();
-  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
   const canOpenPos = canAccessPosPortal(session?.user?.role);
-  const canOpenCustomers = hasTokenFeature(enabledFeatures, "crm.customers");
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["retail-dashboard-owner-overview"],
     queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
@@ -178,7 +160,7 @@ export default function RetailOverviewPage() {
     () =>
       (data?.tenderMix ?? []).map((row) => ({
         id: row.tenderType,
-        label: row.tenderType.replaceAll("_", " "),
+        label: tenderLabel(row.tenderType),
         value: row.amount,
       })),
     [data?.tenderMix],
@@ -208,7 +190,7 @@ export default function RetailOverviewPage() {
       },
       {
         id: "cogs",
-        label: "COGS",
+        label: "Cost of sales",
         value: -(bridge?.cogs ?? 0),
         tone: "warning",
       },
@@ -221,7 +203,7 @@ export default function RetailOverviewPage() {
       },
       {
         id: "opex",
-        label: "OpEx",
+        label: "Running costs",
         value: -(bridge?.operatingExpense ?? 0),
         tone: "warning",
       },
@@ -256,60 +238,16 @@ export default function RetailOverviewPage() {
         <Button asChild size="sm">
           <Link href="/portal/pos">
             <Payments className="h-4 w-4" />
-            POS
+            Open the till
           </Link>
         </Button>
       ) : null}
-      <Button asChild size="sm" variant="outline">
-        <Link href="/retail/sales">
-          <ClipboardList className="h-4 w-4" />
-          Sell
-        </Link>
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="gap-1">
-            <Grid3x3 className="h-4 w-4" />
-            <span className="hidden sm:inline">More</span>
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href="/retail/stock" className="flex items-center gap-2">
-              <Package className="h-4 w-4" /> Stock
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/retail/purchasing/orders" className="flex items-center gap-2">
-              <LocalShipping className="h-4 w-4" /> Buy
-            </Link>
-          </DropdownMenuItem>
-          {canOpenCustomers ? (
-            <DropdownMenuItem asChild>
-              <Link href="/retail/customers" className="flex items-center gap-2">
-                <Users className="h-4 w-4" /> Customers
-              </Link>
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem asChild>
-            <Link href="/retail/reports" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" /> Reports
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/retail/setup" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" /> Setup
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 
   if (isPending) {
     return (
-      <RetailShell title="Business overview" actions={actions}>
+      <RetailShell title="Overview" actions={actions}>
         <div aria-busy="true" aria-live="polite" className="space-y-4">
           <span className="sr-only">Reading the trading figures…</span>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -329,7 +267,7 @@ export default function RetailOverviewPage() {
 
   if (isError) {
     return (
-      <RetailShell title="Business overview" actions={actions}>
+      <RetailShell title="Overview" actions={actions}>
         <Alert tone="danger" title="The trading overview would not load">
           {getApiErrorMessage(error)}
         </Alert>
@@ -339,7 +277,7 @@ export default function RetailOverviewPage() {
 
   if (data.summary.ticketCount === 0) {
     return (
-      <RetailShell title="Business overview" actions={actions}>
+      <RetailShell title="Overview" actions={actions}>
         <EmptyState
           title="No trade recorded yet"
           body="Sales, margin and tender mix appear here once the till has rung up its first sale of the day."
@@ -358,7 +296,7 @@ export default function RetailOverviewPage() {
   const { kpis, momentum, highlights, costBridge } = data.ownerMetrics;
 
   return (
-    <RetailShell title="Business overview" actions={actions}>
+    <RetailShell title="Overview" actions={actions}>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -428,7 +366,7 @@ export default function RetailOverviewPage() {
                 comparisonSeries={[
                   {
                     key: "previousNetProfit",
-                    label: "Prev net profit",
+                    label: "Net profit, previous period",
                     color: "var(--text-muted)",
                     kind: "line",
                     dashed: true,

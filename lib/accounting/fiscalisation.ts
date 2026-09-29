@@ -4,6 +4,7 @@ import type { FiscalDay, FiscalReceipt, FiscalisationProviderConfig } from "@pri
 // in this file uses it only as a type, which is why it was type-only.
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { fiscalDeviceWhere } from "@/lib/accounting/fiscal-device-scope";
 import {
   issueWithFdmsConnector,
   resolveDeviceSigningKey,
@@ -426,7 +427,7 @@ export async function issueFiscalDocument(input: {
   const { companyId, source, idempotencyKey, payload } = input;
 
   const provider = await prisma.fiscalisationProviderConfig.findFirst({
-    where: { companyId, isActive: true },
+    where: fiscalDeviceWhere(companyId),
     orderBy: { updatedAt: "desc" },
   });
   if (!provider) {
@@ -1059,11 +1060,9 @@ export async function syncFiscalReceiptStatus(companyId: string, receiptId: stri
   }
 
   const provider = await prisma.fiscalisationProviderConfig.findFirst({
-    where: {
-      companyId,
-      isActive: true,
-      ...(receipt.providerKey ? { providerKey: receipt.providerKey } : {}),
-    },
+    where: receipt.providerKey
+      ? { companyId, isActive: true, providerKey: receipt.providerKey }
+      : fiscalDeviceWhere(companyId),
     orderBy: { updatedAt: "desc" },
   });
   if (!provider) {

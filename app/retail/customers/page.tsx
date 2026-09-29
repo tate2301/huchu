@@ -1,28 +1,28 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
+import { Alert, Skeleton } from "@corelithzw/react";
+
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import {
-  AdminDistributionChart,
-  AdminDualBarChart,
-  AdminDonutChart,
-} from "@/components/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  FactList,
+  SectionHeading,
+} from "@/components/management/ui";
+import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import { RowMenu } from "@/components/retail/row-menu";
 import { retailMoney } from "@/components/retail/sale-detail";
-import {
-  MobileListCard,
-  MobileListCardHeader,
-  MobileListMetricStrip,
-} from "@/components/ui/mobile-list-card";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { Payments, ReceiptLong, Users } from "@/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  enumLabel,
+  formatQuantity,
+  formatRetailDate,
+  formatSignedMoney,
+} from "@/lib/retail/words";
 
 type CustomerRow = {
   customerId: string | null;
@@ -50,16 +50,29 @@ type CustomerLoyaltyPayload = {
   }>;
 };
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
+/** "+12", "−5" — a points movement is signed, with a true minus. */
+function signedPoints(value: number) {
+  if (value > 0) return `+${value}`;
+  if (value < 0) return `−${Math.abs(value)}`;
+  return "0";
 }
 
+const LEDGER_WIDTH = 560;
+
+const rowId = (customer: CustomerRow) => customer.customerId ?? customer.customerName;
+
+/**
+ * Customers — the named people the tills have sold to, and their points.
+ *
+ * Drawn as the products list is: the name in the app bar, search and the count
+ * in the toolbar, and the records under it. The tiles and the three charts
+ * that sat over the table are gone (D3). A customer's points ledger opens from
+ * the row's menu; there is no customer page to link to yet.
+ */
 export default function RetailCustomersPage() {
+  const [search, setSearch] = useState("");
   const [activeCustomer, setActiveCustomer] = useState<{ id: string; name: string } | null>(null);
+
   const customersQuery = useQuery({
     queryKey: ["retail-customers-overview"],
     queryFn: () =>
@@ -75,297 +88,154 @@ export default function RetailCustomersPage() {
     enabled: Boolean(activeCustomer?.id),
   });
 
-  const customerRows = useMemo<CustomerRow[]>(
-    () => (customersQuery.data?.data ?? []).slice().sort((a, b) => b.totalSpend - a.totalSpend),
-    [customersQuery.data?.data],
-  );
-
-  const spendRows = useMemo(
+  const customers = useMemo(
     () =>
-      customerRows.slice(0, 8).map((c) => ({
-        id: c.customerId ?? c.customerName,
-        label: c.customerName,
-        primary: c.totalSpend,
-        secondary: c.visits,
-      })),
-    [customerRows],
+      (customersQuery.data?.data ?? []).map((customer) => ({ ...customer, id: rowId(customer) })),
+    [customersQuery.data],
   );
 
-  const tierRows = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const c of customerRows) counts.set(c.loyaltyTier, (counts.get(c.loyaltyTier) ?? 0) + 1);
-    return Array.from(counts.entries()).map(([label, value]) => ({ id: label, label, value }));
-  }, [customerRows]);
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    const sorted = customers.slice().sort((a, b) => b.totalSpend - a.totalSpend);
+    if (!needle) return sorted;
+    return sorted.filter((customer) => customer.customerName.toLowerCase().includes(needle));
+  }, [customers, search]);
 
-  const visitRows = useMemo(
-    () =>
-      customerRows
-        .slice()
-        .sort((a, b) => b.visits - a.visits)
-        .slice(0, 8)
-        .map((c) => ({
-          id: c.customerId ?? c.customerName,
-          label: c.customerName,
-          value: c.visits,
-        })),
-    [customerRows],
-  );
+  const emptyTitle = search.trim() ? "No customers match that search" : "No customers yet";
+  const visits = (customer: CustomerRow) => formatQuantity(customer.visits, "visit");
 
-  const columns = useMemo<ColumnDef<CustomerRow>[]>(
-    () => [
-      {
-        id: "customerName",
-        header: "Customer",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.customerName}</div>
-            <div className="t-caption t-muted font-mono">{row.original.lastSaleNo}</div>
-          </div>
-        ),
-      },
-      {
-        id: "visits",
-        header: "Visits",
-        cell: ({ row }) => <NumericCell>{row.original.visits}</NumericCell>,
-      },
-      {
-        id: "totalSpend",
-        header: "Spend",
-        cell: ({ row }) => <NumericCell>{money(row.original.totalSpend)}</NumericCell>,
-      },
-      {
-        id: "loyalty",
-        header: "Loyalty",
-        cell: ({ row }) => <NumericCell>{row.original.loyaltyPoints}</NumericCell>,
-      },
-      { id: "tier", header: "Tier", cell: ({ row }) => row.original.loyaltyTier },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) =>
-          row.original.customerId ? (
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  setActiveCustomer({
-                    id: row.original.customerId!,
-                    name: row.original.customerName,
-                  })
-                }
-              >
-                Ledger
-              </Button>
-            </div>
-          ) : null,
-      },
-    ],
-    [],
-  );
+  const openLedger = (customer: CustomerRow) =>
+    customer.customerId ? setActiveCustomer({ id: customer.customerId, name: customer.customerName }) : undefined;
 
-  const averageSpend = customerRows.length
-    ? customerRows.reduce((total, c) => total + c.totalSpend, 0) / customerRows.length
-    : 0;
-
-  if (customersQuery.isPending) {
-    return (
-      <RetailShell title="Customers" actions={undefined}>
-        <div aria-busy="true" aria-live="polite" className="space-y-5">
-          <span className="sr-only">Fetching the customer list…</span>
-          <div className="grid gap-5 xl:grid-cols-3">
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-          </div>
-          <Skeleton height={340} />
-          <Skeleton height={280} />
-        </div>
-      </RetailShell>
-    );
-  }
-
-  if (customersQuery.isError) {
-    return (
-      <RetailShell title="Customers" actions={undefined}>
-        <Alert tone="danger" title="Customers would not load">
-          {getApiErrorMessage(customersQuery.error)}
-        </Alert>
-      </RetailShell>
-    );
-  }
+  const ledger = loyaltyDetailQuery.data;
 
   return (
-    <RetailShell title="Customers" actions={undefined}>
-      {customerRows.length === 0 ? (
-        <EmptyState
-          title="No named customers yet"
-          body="A customer appears here once a cashier attaches a name or a loyalty number to a sale. Walk-in trade is not listed."
+    <>
+      <RecordListShell
+        title="Customers"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by name"
+        count={customersQuery.isSuccess ? `${rows.length} of ${customers.length}` : null}
+        error={customersQuery.error}
+      >
+        <RecordTable
+          rows={rows}
+          isLoading={customersQuery.isPending}
+          emptyTitle={emptyTitle}
+          columns={[
+            {
+              id: "customer",
+              label: "Customer",
+              cell: (customer) => <RecordTableName title={customer.customerName} subtitle={visits(customer)} />,
+            },
+            {
+              id: "tier",
+              label: "Tier",
+              width: "7rem",
+              cell: (customer) => <RecordCell value={enumLabel(customer.loyaltyTier)} />,
+            },
+            {
+              id: "points",
+              label: "Points",
+              align: "end",
+              width: "7rem",
+              cell: (customer) => <RecordCell kind="number" value={customer.loyaltyPoints} />,
+            },
+            {
+              id: "spend",
+              label: "Spend",
+              align: "end",
+              width: "8rem",
+              cell: (customer) => <RecordCell kind="money" value={retailMoney(customer.totalSpend)} />,
+            },
+            {
+              id: "lastVisit",
+              label: "Last visit",
+              width: "9rem",
+              cell: (customer) => <RecordCell kind="date" value={formatRetailDate(customer.lastPurchaseAt)} />,
+            },
+            {
+              id: "menu",
+              label: "",
+              width: "3rem",
+              align: "end",
+              cell: (customer) =>
+                customer.customerId ? (
+                  <RowMenu
+                    label={`More for ${customer.customerName}`}
+                    items={[{ label: "Open the points ledger", onSelect: () => openLedger(customer) }]}
+                  />
+                ) : null,
+            },
+          ]}
         />
-      ) : (
-        <>
-          <div className="grid gap-5 xl:grid-cols-3">
-            <StatCard
-              label="Named customers"
-              value={String(customersQuery.data.summary.namedCustomerCount)}
-              footer="Walk-in trade excluded"
-            />
-            <StatCard
-              label="Top spend"
-              value={money(customerRows[0]?.totalSpend ?? 0)}
-              footer={customerRows[0]?.customerName ?? "No customer yet"}
-            />
-            <StatCard
-              label="Loyalty points"
-              value={String(customersQuery.data.summary.totalLoyaltyPoints)}
-              footer={`Average spend ${money(averageSpend)}`}
-            />
-          </div>
+      </RecordListShell>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
-            <Card title="Spend against visits" subtitle="The eight biggest accounts">
-              <AdminDualBarChart
-                rows={spendRows}
-                primaryLabel="Spend"
-                secondaryLabel="Visits"
-                height={300}
-                valueFormatter={(v) => v.toFixed(0)}
-                emptyLabel="No customer spend to show."
-              />
-            </Card>
-            <Card title="Loyalty tiers">
-              <AdminDonutChart
-                rows={tierRows}
-                valueLabel="Customers"
-                valueFormatter={(v) => v.toString()}
-                height={300}
-                emptyLabel="No tiers assigned yet."
-              />
-            </Card>
-          </div>
-
-          <Card title="Visit frequency" subtitle="Who comes back most often">
-            <AdminDistributionChart
-              rows={visitRows}
-              valueLabel="Visits"
-              valueFormatter={(v) => v.toString()}
-              height={280}
-              emptyLabel="No visits to show."
-            />
-          </Card>
-
-          <DataTable
-            data={customerRows}
-            columns={columns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search customers"
-            emptyState="No customers match that search."
-            /*
-              R-4.5. Below `md`, the row becomes a card.
-
-              Retail had none of these — twelve tables, zero
-              `mobileCardRenderer`, while ten scrap-metal screens had used the
-              pattern for months. A shopkeeper checking stock is doing it on a
-              phone in the storeroom, which is the one place a horizontally
-              scrolling eight-column table is worst.
-            */
-            mobileCardRenderer={({ row }) => (
-              <MobileListCard>
-                <MobileListCardHeader
-                  title={row.customerName}
-                  subtitle={row.lastSaleNo}
-                  aside={<Badge variant="outline">{row.loyaltyTier}</Badge>}
-                />
-                <MobileListMetricStrip
-                  items={[
-                    { icon: Payments, value: retailMoney(row.totalSpend), srLabel: "Total spend" },
-                    { icon: ReceiptLong, value: `${row.visits} visit(s)`, srLabel: "Visits" },
-                    { icon: Users, value: `${row.loyaltyPoints} pts`, srLabel: "Loyalty points" },
-                  ]}
-                />
-              </MobileListCard>
-            )}
-          />
-        </>
-      )}
-
-      <Dialog
+      <RecordDialog
         open={Boolean(activeCustomer)}
         onOpenChange={(open) => !open && setActiveCustomer(null)}
+        title={activeCustomer?.name ?? "Points ledger"}
+        size="md"
       >
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Loyalty ledger — {activeCustomer?.name}</DialogTitle>
-          </DialogHeader>
-          {loyaltyDetailQuery.isPending ? (
-            <div aria-busy="true" className="space-y-3">
-              <Skeleton height={88} />
-              <Skeleton height={200} />
-            </div>
-          ) : loyaltyDetailQuery.isError ? (
-            <Alert tone="danger" title="The loyalty ledger would not load">
-              {getApiErrorMessage(loyaltyDetailQuery.error)}
-            </Alert>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid gap-3 md:grid-cols-4">
-                <StatCard label="Earned" value={String(loyaltyDetailQuery.data.loyalty.earnedPoints)} />
-                <StatCard
-                  label="Redeemed"
-                  value={String(loyaltyDetailQuery.data.loyalty.redeemedPoints)}
-                />
-                <StatCard label="Balance" value={String(loyaltyDetailQuery.data.loyalty.balance)} />
-                <StatCard label="Tier" value={loyaltyDetailQuery.data.loyalty.tier} />
-              </div>
-              {loyaltyDetailQuery.data.ledger.length === 0 ? (
-                <EmptyState
-                  title="No points movement yet"
-                  body="Points earned and redeemed against this customer will be listed here."
-                />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="table">
-                    <caption className="sr-only">
-                      Points earned and redeemed against {activeCustomer?.name}
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Sale</th>
-                        <th scope="col">Date</th>
-                        <th scope="col" className="num">
-                          Amount
-                        </th>
-                        <th scope="col" className="num">
-                          Earned
-                        </th>
-                        <th scope="col" className="num">
-                          Redeemed
-                        </th>
-                        <th scope="col" className="num">
-                          Net
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loyaltyDetailQuery.data.ledger.map((entry) => (
-                        <tr key={entry.id}>
-                          <td className="font-mono">{entry.saleNo}</td>
-                          <td>{new Date(entry.postedAt).toLocaleDateString()}</td>
-                          <td className="num">{money(entry.amount)}</td>
-                          <td className="num">{entry.earnedPoints}</td>
-                          <td className="num">{entry.redeemedPoints}</td>
-                          <td className="num">{entry.delta}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </RetailShell>
+        {loyaltyDetailQuery.isPending ? (
+          <div aria-busy="true" className="space-y-3">
+            <span className="sr-only">Loading the points ledger</span>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : loyaltyDetailQuery.isError ? (
+          <Alert tone="danger" title="The points ledger would not load">
+            {getApiErrorMessage(loyaltyDetailQuery.error)}
+          </Alert>
+        ) : ledger ? (
+          <div>
+            <FactList
+              maxWidth={null}
+              items={[
+                { label: "Tier", value: enumLabel(ledger.loyalty.tier) },
+                { label: "Balance", value: ledger.loyalty.balance, mono: true },
+                { label: "Earned", value: ledger.loyalty.earnedPoints, mono: true },
+                { label: "Redeemed", value: ledger.loyalty.redeemedPoints, mono: true },
+                {
+                  label: "Phone",
+                  value: ledger.customer.phone ?? "Not on file",
+                  mono: Boolean(ledger.customer.phone),
+                  tone: ledger.customer.phone ? "default" : "muted",
+                },
+              ]}
+            />
+            <SectionHeading maxWidth={LEDGER_WIDTH} count={ledger.ledger.length}>
+              Points ledger
+            </SectionHeading>
+            <ColumnList
+              label="Points ledger"
+              maxWidth={LEDGER_WIDTH}
+              empty="No points earned or redeemed yet"
+              columns={[
+                { id: "sale", label: "Sale" },
+                { id: "amount", label: "Amount", align: "end" },
+                { id: "points", label: "Points", align: "end" },
+              ]}
+              rows={ledger.ledger.map((entry) => ({
+                id: entry.id,
+                cells: {
+                  sale: (
+                    <ColumnName
+                      code={entry.saleNo}
+                      name={formatRetailDate(entry.postedAt)}
+                      href={`/retail/sales/${entry.id}`}
+                    />
+                  ),
+                  amount: <ColumnFigure>{formatSignedMoney(entry.amount)}</ColumnFigure>,
+                  points: <ColumnFigure>{signedPoints(entry.delta)}</ColumnFigure>,
+                },
+              }))}
+            />
+          </div>
+        ) : null}
+      </RecordDialog>
+    </>
   );
 }

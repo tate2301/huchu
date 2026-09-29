@@ -1,21 +1,21 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Card, EmptyState, Skeleton } from "@corelithzw/react";
-import { RetailShell } from "@/components/retail/retail-shell";
+import { Alert } from "@corelithzw/react";
+
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { FactList, FormField } from "@/components/management/ui";
+import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowRightLeft, Scale } from "@/lib/icons";
+import { formatQuantity, formatRetailDateTime } from "@/lib/retail/words";
 
 type InventoryItemRow = {
   id: string;
@@ -30,281 +30,358 @@ type StockLocation = {
   id: string;
   code: string;
   name: string;
+  siteId: string;
 };
 
 type StockMovement = {
   id: string;
   referenceId: string;
-  movementType: string;
   quantity: number;
   unit: string;
   createdAt: string;
   item: {
     name: string;
     itemCode: string;
-    location: { name: string } | null;
+    site: { name: string } | null;
   };
   toLocation: { name: string } | null;
 };
 
-export default function RetailStockTransfersPage() {
+type Site = { id: string; name: string };
+
+/**
+ * Move stock — a product from one stock location at a site to another.
+ *
+ * On hand is held per site, not per location, so a move takes the whole line
+ * (`recordStockMovement` refuses anything else). The quantity field the card
+ * used to ask for had one right answer and refused every other; the dialog
+ * shows that answer instead of asking for it.
+ */
+function MoveStockDialog({
+  open,
+  onOpenChange,
+  sites,
+  locations,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Only the sites with somewhere to move to. */
+  sites: Site[];
+  locations: StockLocation[];
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [siteId, setSiteId] = useState("");
   const [itemId, setItemId] = useState("");
   const [toLocationId, setToLocationId] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [notes, setNotes] = useState("");
+  const [note, setNote] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
 
-  const sitesQuery = useQuery({ queryKey: ["retail-stock-transfer-sites"], queryFn: fetchSites });
-  const activeSiteId = siteId || sitesQuery.data?.[0]?.id || "";
-
+  const activeSiteId = siteId || sites[0]?.id || "";
   const itemsQuery = useQuery({
     queryKey: ["retail-stock-transfer-items", activeSiteId],
-    enabled: Boolean(activeSiteId),
+    enabled: open && Boolean(activeSiteId),
     queryFn: () =>
       fetchJson<{ data: InventoryItemRow[] }>(
         `/api/inventory/items?siteId=${encodeURIComponent(activeSiteId)}&limit=200`,
       ),
   });
+  const items = (itemsQuery.data?.data ?? []).filter((entry) => Number(entry.currentStock) > 0);
+  const item = items.find((entry) => entry.id === itemId);
+  const destinations = locations.filter((location) => location.siteId === activeSiteId);
 
-  const locationsQuery = useQuery({
-    queryKey: ["retail-stock-transfer-locations", activeSiteId],
-    enabled: Boolean(activeSiteId),
-    queryFn: () =>
-      fetchJson<{ data: StockLocation[] }>(
-        `/api/stock-locations?siteId=${encodeURIComponent(activeSiteId)}&active=true&limit=200`,
-      ),
-  });
+  const close = (next: boolean) => {
+    if (!next) {
+      setItemId("");
+      setToLocationId("");
+      setNote("");
+      setErrors([]);
+    }
+    onOpenChange(next);
+  };
 
-  const transfersQuery = useQuery({
-    queryKey: ["retail-stock-transfer-movements", activeSiteId],
-    enabled: Boolean(activeSiteId),
-    queryFn: () =>
-      fetchJson<{ data: StockMovement[] }>(
-        `/api/inventory/movements?siteId=${encodeURIComponent(activeSiteId)}&movementType=TRANSFER&limit=80`,
-      ),
-  });
-
-  const selectedItem = (itemsQuery.data?.data ?? []).find((item) => item.id === itemId);
-  const transferQty = Number(quantity || "0");
-
-  const submitTransferMutation = useMutation({
-    mutationFn: () => {
-      if (!selectedItem) throw new Error("Pick an inventory item first");
-      return fetchJson("/api/v2/retail/stock/transfers", {
+  const move = useMutation({
+    mutationFn: () =>
+      fetchJson("/api/v2/retail/stock/transfers", {
         method: "POST",
         body: JSON.stringify({
           siteId: activeSiteId,
-          itemId: selectedItem.id,
+          itemId,
           toLocationId,
-          quantity: transferQty,
-          notes: notes.trim() || undefined,
+          quantity: Number(item?.currentStock ?? 0),
+          notes: note.trim() || undefined,
         }),
-      });
-    },
+      }),
     onSuccess: () => {
-      toast({ title: "Stock transfer posted", variant: "success" });
-      setQuantity("");
-      setNotes("");
+      toast({ title: "Stock moved", variant: "success" });
       queryClient.invalidateQueries({ queryKey: ["retail-stock-transfer-movements"] });
       queryClient.invalidateQueries({ queryKey: ["retail-stock-transfer-items"] });
       queryClient.invalidateQueries({ queryKey: ["retail-stock-overview"] });
+      close(false);
     },
-    onError: (error) => {
-      toast({
-        title: "Unable to post stock transfer",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
+    onError: (error) => setErrors([`That stock was not moved: ${getApiErrorMessage(error)}`]),
   });
 
-  const columns = useMemo<ColumnDef<StockMovement>[]>(
-    () => [
-      {
-        id: "reference",
-        header: "Reference",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-mono text-xs">{row.original.referenceId}</div>
-            <div className="text-xs text-[var(--text-muted)]">
-              {new Date(row.original.createdAt).toLocaleString()}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "item",
-        header: "Item",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium text-[var(--text-strong)]">{row.original.item.name}</div>
-            <div className="font-mono text-xs text-[var(--text-muted)]">{row.original.item.itemCode}</div>
-          </div>
-        ),
-      },
-      {
-        id: "move",
-        header: "Move",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {row.original.item.location?.name ?? "Source"} {"->"}{" "}
-            {row.original.toLocation?.name ?? "Destination"}
-          </NumericCell>
-        ),
-      },
-      {
-        id: "quantity",
-        header: "Qty",
-        cell: ({ row }) => (
-          <NumericCell>{`${Math.abs(row.original.quantity).toFixed(2)} ${row.original.unit}`}</NumericCell>
-        ),
-      },
-    ],
-    [],
-  );
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const problems: string[] = [];
+    if (!item) problems.push("Pick the product to move.");
+    if (!toLocationId) problems.push("Say where it is going.");
+    setErrors(problems);
+    if (problems.length === 0) move.mutate();
+  };
+
+  const loadErrors = itemsQuery.isError
+    ? [`The products would not load: ${getApiErrorMessage(itemsQuery.error)}`]
+    : [];
 
   return (
-    <RetailShell
-      title="Stock Transfers"
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/stock/count">
-              <Scale className="h-4 w-4" />
-              Stock count
-            </Link>
+    <RecordDialog
+      open={open}
+      onOpenChange={close}
+      title="Move stock"
+      size="sm"
+      onSubmit={submit}
+      errors={[...loadErrors, ...errors]}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => close(false)}>
+            Cancel
           </Button>
-          <Button asChild size="sm" variant="outline">
-              <Link href="/retail/stock">
-              <ArrowRightLeft className="h-4 w-4" />
-              Back to stock
-            </Link>
+          <Button type="submit" disabled={move.isPending}>
+            Move stock
           </Button>
-        </div>
+        </>
       }
     >
-      {itemsQuery.isError || locationsQuery.isError || transfersQuery.isError ? (
-        <Alert tone="danger" title="Transfer data would not load">
-          {getApiErrorMessage(
-            itemsQuery.error ?? locationsQuery.error ?? transfersQuery.error,
-          )}
-        </Alert>
-      ) : null}
-
-      <Card title="Move stock" subtitle="Shift a line from one location in the branch to another.">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Site</Label>
-            <Select value={activeSiteId} onValueChange={setSiteId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select site" />
+      {sites.length > 1 ? (
+        <FormField label="Site">
+          {(id) => (
+            <Select
+              value={activeSiteId}
+              onValueChange={(value) => {
+                setSiteId(value);
+                setItemId("");
+                setToLocationId("");
+              }}
+            >
+              <SelectTrigger id={id}>
+                <SelectValue placeholder="Choose a site" />
               </SelectTrigger>
               <SelectContent>
-                {(sitesQuery.data ?? []).map((site) => (
+                {sites.map((site) => (
                   <SelectItem key={site.id} value={site.id}>
                     {site.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Item</Label>
-            <Select value={itemId} onValueChange={setItemId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select item" />
-              </SelectTrigger>
-              <SelectContent>
-                {(itemsQuery.data?.data ?? []).map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name} ({item.itemCode})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>To location</Label>
-            <Select value={toLocationId} onValueChange={setToLocationId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Destination location" />
-              </SelectTrigger>
-              <SelectContent>
-                {(locationsQuery.data?.data ?? []).map((location) => (
-                  <SelectItem key={location.id} value={location.id}>
-                    {location.name} ({location.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Quantity</Label>
-            <Input value={quantity} onChange={(event) => setQuantity(event.target.value)} inputMode="decimal" placeholder="0.00" />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label>Notes</Label>
-            <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Transfer reason" />
-          </div>
-        </div>
-        {selectedItem && transferQty > selectedItem.currentStock ? (
-          <Alert className="mt-4" tone="warn" title="More than the branch is holding">
-            {selectedItem.name} has {selectedItem.currentStock.toFixed(2)} {selectedItem.unit} on
-            hand. Reduce the quantity before posting.
+          )}
+        </FormField>
+      ) : null}
+
+      <FormField label="Product">
+        {(id) => (
+          <Select value={itemId} onValueChange={setItemId}>
+            <SelectTrigger id={id}>
+              <SelectValue placeholder="Choose a product" />
+            </SelectTrigger>
+            <SelectContent>
+              {items.map((entry) => (
+                <SelectItem key={entry.id} value={entry.id}>
+                  {entry.name} · {entry.itemCode}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </FormField>
+
+      {item ? (
+        <FactList
+          maxWidth={null}
+          items={[
+            { label: "Now in", value: item.location?.name ?? "No location" },
+            { label: "Moves", value: formatQuantity(Number(item.currentStock), item.unit), mono: true },
+          ]}
+        />
+      ) : null}
+
+      <FormField label="To">
+        {(id) => (
+          <Select value={toLocationId} onValueChange={setToLocationId}>
+            <SelectTrigger id={id}>
+              <SelectValue placeholder="Choose a location" />
+            </SelectTrigger>
+            <SelectContent>
+              {destinations.map((location) => (
+                <SelectItem key={location.id} value={location.id}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </FormField>
+
+      <FormField label="Note">
+        {(id) => <Input id={id} value={note} onChange={(event) => setNote(event.target.value)} />}
+      </FormField>
+    </RecordDialog>
+  );
+}
+
+/**
+ * Transfers — stock moved between locations at a site, newest first.
+ *
+ * A site with one stock location has nowhere to move anything, so the verb is
+ * offered only where a move can be made, and a shop with no such site is told
+ * so in the list's own empty state. The sidebar already hides this page on the
+ * same rule; this covers a shop that reaches it by address.
+ */
+export default function RetailStockTransfersPage() {
+  const [moving, setMoving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [site, setSite] = useState<string>(FILTER_ANY);
+
+  const sitesQuery = useQuery({ queryKey: ["retail-stock-transfer-sites"], queryFn: fetchSites });
+  const sites = useMemo<Site[]>(() => sitesQuery.data ?? [], [sitesQuery.data]);
+  const siteOptions = useMemo(() => new Map(sites.map((entry) => [entry.id, entry.name])), [sites]);
+
+  const locationsQuery = useQuery({
+    queryKey: ["retail-stock-transfer-locations"],
+    queryFn: () => fetchJson<{ data: StockLocation[] }>("/api/stock-locations?active=true&limit=200"),
+  });
+  const locations = useMemo(() => locationsQuery.data?.data ?? [], [locationsQuery.data]);
+
+  /** A site can move stock when it has two active locations or more. */
+  const movableSites = useMemo(() => {
+    const perSite = new Map<string, number>();
+    for (const location of locations) perSite.set(location.siteId, (perSite.get(location.siteId) ?? 0) + 1);
+    return sites.filter((entry) => (perSite.get(entry.id) ?? 0) >= 2);
+  }, [locations, sites]);
+  const canMove = movableSites.length > 0;
+
+  const siteId = site === FILTER_ANY ? "" : site;
+  const transfersQuery = useQuery({
+    queryKey: ["retail-stock-transfer-movements", siteId],
+    queryFn: () =>
+      fetchJson<{ data: StockMovement[] }>(
+        `/api/inventory/movements?movementType=TRANSFER&limit=80${
+          siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""
+        }`,
+      ),
+  });
+  const transfers = useMemo(() => transfersQuery.data?.data ?? [], [transfersQuery.data]);
+
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return transfers;
+    return transfers.filter((transfer) =>
+      [transfer.item.name, transfer.item.itemCode, transfer.referenceId].some((value) =>
+        value.toLowerCase().includes(needle),
+      ),
+    );
+  }, [transfers, search]);
+
+  const emptyTitle = search.trim()
+    ? "No transfers match that search"
+    : site !== FILTER_ANY
+      ? "No transfers match this filter"
+      : locationsQuery.isSuccess && !canMove
+        ? "Each site has one stock location, so there is nowhere to move stock to."
+        : "No transfers yet";
+
+  const loadError = transfersQuery.error ?? locationsQuery.error;
+
+  return (
+    <>
+      <RecordListShell
+        title="Transfers"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by product, code or reference"
+        filters={
+          <ViewToolbarFilter
+            label="Site"
+            value={site}
+            anyLabel="Every site"
+            options={siteOptions}
+            onChange={setSite}
+          />
+        }
+        filterCount={site === FILTER_ANY ? 0 : 1}
+        count={transfersQuery.isSuccess ? `${rows.length} of ${transfers.length}` : null}
+        createLabel={canMove ? "Move stock" : undefined}
+        onCreate={canMove ? () => setMoving(true) : undefined}
+      >
+        {loadError ? (
+          <Alert tone="danger" title="The transfers would not load" className="mt-4">
+            {getApiErrorMessage(loadError)}
           </Alert>
-        ) : null}
-        <div className="mt-4">
-          <Button
-            onClick={() => submitTransferMutation.mutate()}
-            disabled={
-              !selectedItem ||
-              !toLocationId ||
-              !Number.isFinite(transferQty) ||
-              transferQty <= 0 ||
-              transferQty > selectedItem.currentStock ||
-              submitTransferMutation.isPending
-            }
-          >
-            Post transfer
-          </Button>
-        </div>
-      </Card>
+        ) : (
+          <RecordTable
+            rows={rows}
+            isLoading={transfersQuery.isPending || locationsQuery.isPending}
+            emptyTitle={emptyTitle}
+            columns={[
+              {
+                id: "product",
+                label: "Product",
+                cell: (transfer) => (
+                  <RecordTableName title={transfer.item.name} subtitle={transfer.item.itemCode} />
+                ),
+              },
+              ...(sites.length > 1
+                ? [
+                    {
+                      id: "site",
+                      label: "Site",
+                      width: "10rem",
+                      cell: (transfer: StockMovement) => (
+                        <RecordCell value={transfer.item.site?.name ?? "No site"} />
+                      ),
+                    },
+                  ]
+                : []),
+              {
+                id: "to",
+                label: "To",
+                width: "11rem",
+                cell: (transfer) => <RecordCell value={transfer.toLocation?.name ?? "No location"} />,
+              },
+              {
+                id: "reference",
+                label: "Reference",
+                width: "10rem",
+                cell: (transfer) => <RecordCell kind="code" value={transfer.referenceId} />,
+              },
+              {
+                id: "date",
+                label: "Moved",
+                width: "11rem",
+                cell: (transfer) => <RecordCell kind="date" value={formatRetailDateTime(transfer.createdAt)} />,
+              },
+              {
+                id: "quantity",
+                label: "Quantity",
+                align: "end",
+                width: "9rem",
+                cell: (transfer) => (
+                  <RecordCell
+                    kind="number"
+                    value={formatQuantity(Math.abs(Number(transfer.quantity)), transfer.unit)}
+                  />
+                ),
+              },
+            ]}
+          />
+        )}
+      </RecordListShell>
 
-      {transfersQuery.isPending ? (
-        <div aria-busy="true" aria-live="polite" className="space-y-4">
-          <span className="sr-only">Fetching transfer history…</span>
-          <Skeleton height={360} />
-        </div>
-      ) : transfersQuery.isError ? (
-        /*
-          R-4.4. An error is not an empty list.
-
-          This table used to fold loading into `emptyState` and have no error
-          branch at all. `data ?? []` on a failed query is an empty array, so a
-          500 rendered as "No orders" — a statement about the shop's business,
-          made because the server fell over. The three states are separate now,
-          and only the third says anything about the data.
-        */
-        <Alert tone="danger" title="The transfer history would not load">
-          {getApiErrorMessage(transfersQuery.error)}
-        </Alert>
-      ) : (transfersQuery.data?.data ?? []).length === 0 ? (
-        <EmptyState
-          title="Nothing has been moved yet"
-          body="A transfer moves a stock line from one location to another at the same branch — the storeroom to the shop floor, say. Post the first one above."
-        />
-      ) : (
-        <DataTable
-          data={transfersQuery.data?.data ?? []}
-          columns={columns}
-          features={{ sorting: true, globalFilter: true, pagination: true }}
-          pagination={{ enabled: true, server: false }}
-          searchPlaceholder="Search transfer history"
-          toolbar={<span className="t-body-sm t-muted">Recent stock transfers</span>}
-        />
-      )}
-    </RetailShell>
+      {canMove ? (
+        <MoveStockDialog open={moving} onOpenChange={setMoving} sites={movableSites} locations={locations} />
+      ) : null}
+    </>
   );
 }

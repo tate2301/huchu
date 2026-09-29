@@ -141,7 +141,7 @@ export function CatalogImageField({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-semibold">Shelf photo</label>
+      <label className="block text-sm font-semibold">Photo</label>
 
       <div className="flex items-start gap-4">
         <div
@@ -174,10 +174,6 @@ export function CatalogImageField({
         </div>
 
         <div className="min-w-0 space-y-2">
-          <p className="text-xs leading-5 text-[var(--text-muted)]">
-            Shown on the till&rsquo;s item grid. PNG, JPEG or WebP, up to 2MB — a photo of the
-            bottle on a plain background reads best at the counter.
-          </p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -187,7 +183,7 @@ export function CatalogImageField({
               onClick={() => inputRef.current?.click()}
             >
               <Upload className="h-4 w-4" />
-              {shown ? "Replace" : "Add photo"}
+              {shown ? "Replace the photo" : "Add a photo"}
             </Button>
             {shown ? (
               <Button
@@ -206,7 +202,7 @@ export function CatalogImageField({
                 }}
               >
                 <Trash2 className="h-4 w-4" />
-                Remove
+                Remove the photo
               </Button>
             ) : null}
           </div>

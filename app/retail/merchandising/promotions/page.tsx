@@ -1,404 +1,454 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AdminDistributionChart,
-  AdminDonutChart,
-} from "@/components/charts/admin-headless-charts";
-import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
-import { RetailShell } from "@/components/retail/retail-shell";
+
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { FormField, StatusDot } from "@/components/management/ui";
+import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
+import { RowMenu } from "@/components/retail/row-menu";
+import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown, Pencil, Plus, Trash2, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { formatRetailDate, promotionStatusLabel, promotionTypeLabel } from "@/lib/retail/words";
 
 type Promotion = {
-  id: string; promoCode: string; name: string; type: string; value: number;
-  startsAt: string | null; endsAt: string | null; status: string; notes: string | null;
+  id: string;
+  promoCode: string;
+  name: string;
+  type: string;
+  value: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  status: string;
+  notes: string | null;
 };
 
 type PromotionForm = {
-  name: string; type: string; value: string; startsAt: string;
-  endsAt: string; status: string; notes: string;
+  name: string;
+  type: string;
+  value: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+  notes: string;
 };
 
-function emptyForm(): PromotionForm {
-  return { name: "", type: "PERCENT", value: "", startsAt: new Date().toISOString().slice(0, 16), endsAt: "", status: "ACTIVE", notes: "" };
+const TYPES = ["PERCENT", "AMOUNT", "BUY_X_GET_Y", "BUNDLE"];
+const STATUSES = ["ACTIVE", "SCHEDULED", "INACTIVE"];
+const STATUS_OPTIONS = new Map(STATUSES.map((status) => [status, promotionStatusLabel(status)]));
+
+/** A stored instant as a `datetime-local` value, in the viewer's own time. */
+function localInput(value: string | Date | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function dateLabel(iso: string | null) {
-  return iso ? new Date(iso).toLocaleDateString() : "—";
+function formFor(promotion: Promotion | null): PromotionForm {
+  if (!promotion) {
+    return {
+      name: "",
+      type: "PERCENT",
+      value: "",
+      startsAt: localInput(new Date()),
+      endsAt: "",
+      status: "ACTIVE",
+      notes: "",
+    };
+  }
+  return {
+    name: promotion.name,
+    type: promotion.type,
+    value: String(promotion.value),
+    startsAt: localInput(promotion.startsAt),
+    endsAt: localInput(promotion.endsAt),
+    status: promotion.status,
+    notes: promotion.notes ?? "",
+  };
 }
 
+/** What the value field holds, named for the type so it needs no explaining. */
+function valueLabel(type: string) {
+  if (type === "PERCENT") return "Percent off";
+  if (type === "AMOUNT") return "Amount off";
+  return "Value";
+}
+
+function valueText(promotion: Promotion) {
+  if (promotion.type === "PERCENT") return `${promotion.value}%`;
+  if (promotion.type === "AMOUNT") return retailMoney(promotion.value);
+  return String(promotion.value);
+}
+
+/** Running is the ordinary case and draws nothing. */
+function promotionStatusDot(status: string) {
+  if (status === "ACTIVE") return null;
+  return <StatusDot tone="neutral" label={promotionStatusLabel(status)} />;
+}
+
+/**
+ * Promotions — the discounts the till applies at checkout.
+ *
+ * The three tiles and three charts that sat over the table (running now, all
+ * campaigns, average value, the eight richest offers, two donuts) governed
+ * nothing on the page and are gone (D3), and so is the Pricing button in the
+ * bar: the sidebar does navigation. The form lost its Advanced options
+ * disclosure — the dates a promotion runs between are part of it, not an
+ * advanced setting.
+ */
 export default function RetailPromotionsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<string>(FILTER_ANY);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Promotion | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null);
-  const [form, setForm] = useState<PromotionForm>(emptyForm);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  // A new key per opening, so the form starts from the promotion it was opened on.
+  const [opening, setOpening] = useState(0);
 
   const promotionsQuery = useQuery({
     queryKey: ["retail-promotions"],
     queryFn: () => fetchJson<{ data: Promotion[] }>("/api/v2/retail/promotions"),
   });
+  const promotions = useMemo(() => promotionsQuery.data?.data ?? [], [promotionsQuery.data]);
 
-  const { reservedId: promoCode, isReserving, error: reserveError } = useReservedId({
-    entity: "RETAIL_PROMOTION", enabled: dialogOpen && !editing,
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return promotions.filter((promotion) => {
+      if (status !== FILTER_ANY && promotion.status !== status) return false;
+      if (!needle) return true;
+      return [promotion.name, promotion.promoCode].some((value) => value.toLowerCase().includes(needle));
+    });
+  }, [promotions, search, status]);
+
+  const open = (promotion: Promotion | null) => {
+    setEditing(promotion);
+    setOpening((current) => current + 1);
+    setDialogOpen(true);
+  };
+
+  const remove = useMutation({
+    mutationFn: (promotion: Promotion) =>
+      fetchJson(`/api/v2/retail/promotions/${promotion.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Promotion removed", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["retail-promotions"] });
+    },
+    onError: (error) =>
+      toast({
+        title: "That promotion was not removed",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
   });
 
-  // Memoised because `?? []` mints a fresh array on every render, which changes
-  // the identity of every `useMemo` below that depends on it — they recompute each
-  // render, and the React Compiler bails out of memoising them at all.
-  const promotions = useMemo(() => promotionsQuery.data?.data ?? [], [promotionsQuery.data]);
-  const activeCount = promotions.filter((p) => p.status === "ACTIVE").length;
+  const confirmRemove = (promotion: Promotion) => {
+    void dsConfirm({
+      title: `Remove ${promotion.name}?`,
+      description:
+        "The till stops applying it at checkout. Sales it has already discounted keep their discount.",
+      confirmLabel: "Remove the promotion",
+      variant: "danger",
+    }).then((confirmed) => {
+      if (confirmed) remove.mutate(promotion);
+    });
+  };
 
-  const saveMutation = useMutation({
-    mutationFn: async (payload: PromotionForm) => {
+  const emptyTitle = search.trim()
+    ? "No promotions match that search"
+    : status !== FILTER_ANY
+      ? "No promotions match this filter"
+      : "No promotions yet";
+
+  return (
+    <>
+      <RecordListShell
+        title="Promotions"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by name or code"
+        filters={
+          <ViewToolbarFilter
+            label="Status"
+            value={status}
+            anyLabel="Any status"
+            options={STATUS_OPTIONS}
+            onChange={setStatus}
+          />
+        }
+        filterCount={status === FILTER_ANY ? 0 : 1}
+        count={promotionsQuery.isSuccess ? `${rows.length} of ${promotions.length}` : null}
+        createLabel="New promotion"
+        onCreate={() => open(null)}
+        error={promotionsQuery.error}
+      >
+        <RecordTable
+          rows={rows}
+          isLoading={promotionsQuery.isPending}
+          emptyTitle={emptyTitle}
+          columns={[
+            {
+              id: "promotion",
+              label: "Promotion",
+              cell: (promotion) => <RecordTableName title={promotion.name} subtitle={promotion.promoCode} />,
+            },
+            {
+              id: "status",
+              label: "Status",
+              width: "8rem",
+              cell: (promotion) => promotionStatusDot(promotion.status),
+            },
+            {
+              id: "type",
+              label: "Type",
+              width: "9rem",
+              cell: (promotion) => <RecordCell value={promotionTypeLabel(promotion.type)} />,
+            },
+            {
+              id: "value",
+              label: "Value",
+              align: "end",
+              width: "7rem",
+              cell: (promotion) => (
+                <RecordCell kind={promotion.type === "AMOUNT" ? "money" : "number"} value={valueText(promotion)} />
+              ),
+            },
+            {
+              id: "starts",
+              label: "Starts",
+              width: "9rem",
+              cell: (promotion) => (
+                <RecordCell kind="date" value={formatRetailDate(promotion.startsAt) || "No start"} />
+              ),
+            },
+            {
+              id: "ends",
+              label: "Ends",
+              width: "9rem",
+              cell: (promotion) => (
+                <RecordCell kind="date" value={formatRetailDate(promotion.endsAt) || "No end"} />
+              ),
+            },
+            {
+              id: "menu",
+              label: "",
+              width: "3rem",
+              align: "end",
+              cell: (promotion) => (
+                <RowMenu
+                  label={`More for ${promotion.name}`}
+                  items={[
+                    { label: "Edit promotion", onSelect: () => open(promotion) },
+                    { label: "Remove promotion", onSelect: () => confirmRemove(promotion), destructive: true },
+                  ]}
+                />
+              ),
+            },
+          ]}
+        />
+      </RecordListShell>
+
+      <PromotionDialog key={opening} open={dialogOpen} onOpenChange={setDialogOpen} promotion={editing} />
+    </>
+  );
+}
+
+/** New promotion, and the same form to edit one. */
+function PromotionDialog({
+  open,
+  onOpenChange,
+  promotion,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The promotion to edit, or null for a new one. */
+  promotion: Promotion | null;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<PromotionForm>(() => formFor(promotion));
+  const [errors, setErrors] = useState<string[]>([]);
+
+  // The code is reserved when the dialog opens and sent with the promotion;
+  // nobody types it, so it is not a field.
+  const { reservedId: promoCode } = useReservedId({
+    entity: "RETAIL_PROMOTION",
+    enabled: open && !promotion,
+  });
+
+  const set = <K extends keyof PromotionForm>(key: K, value: PromotionForm[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
+
+  const save = useMutation({
+    mutationFn: async () => {
       const body = {
-        promoCode: editing ? undefined : promoCode || undefined,
-        name: payload.name, type: payload.type, value: Number(payload.value),
-        startsAt: payload.startsAt ? new Date(payload.startsAt).toISOString() : undefined,
-        endsAt: payload.endsAt ? new Date(payload.endsAt).toISOString() : undefined,
-        status: payload.status, notes: payload.notes.trim() || undefined,
+        promoCode: promotion ? undefined : promoCode || undefined,
+        name: form.name.trim(),
+        type: form.type,
+        value: Number(form.value),
+        startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
+        endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+        status: form.status,
+        notes: form.notes.trim() || null,
       };
-      if (editing) {
-        return fetchJson(`/api/v2/retail/promotions/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      if (promotion) {
+        return fetchJson(`/api/v2/retail/promotions/${promotion.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
       }
       return fetchJson("/api/v2/retail/promotions", { method: "POST", body: JSON.stringify(body) });
     },
     onSuccess: () => {
-      toast({ title: editing ? "Updated" : "Created", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["retail-promotions"] });
-      queryClient.invalidateQueries({ queryKey: ["retail-dashboard"] });
-      setDialogOpen(false); setEditing(null); setForm(emptyForm());
+      toast({ title: promotion ? "Promotion saved" : "Promotion created", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["retail-promotions"] });
+      void queryClient.invalidateQueries({ queryKey: ["retail-dashboard"] });
+      onOpenChange(false);
     },
-    onError: (error) => {
-      toast({ title: editing ? "Update failed" : "Create failed", description: getApiErrorMessage(error), variant: "destructive" });
-    },
+    onError: (error) =>
+      setErrors([
+        `${promotion ? "That promotion was not saved" : "That promotion was not created"}: ${getApiErrorMessage(error)}`,
+      ]),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetchJson(`/api/v2/retail/promotions/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      toast({ title: "Removed", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["retail-promotions"] });
-      setDeleteTarget(null);
-    },
-    onError: (error) => {
-      toast({ title: "Remove failed", description: getApiErrorMessage(error), variant: "destructive" });
-    },
-  });
-
-  /* chart data */
-  const typeRows = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const p of promotions) counts.set(p.type, (counts.get(p.type) ?? 0) + 1);
-    return Array.from(counts.entries()).map(([label, value]) => ({ id: label, label, value }));
-  }, [promotions]);
-
-  const statusRows = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const p of promotions) counts.set(p.status, (counts.get(p.status) ?? 0) + 1);
-    return Array.from(counts.entries()).map(([label, value]) => ({
-      id: label, label, value,
-      tone: label === "ACTIVE" ? ("success" as const) : label === "SCHEDULED" ? ("warning" as const) : ("default" as const),
-    }));
-  }, [promotions]);
-
-  const valueRows = useMemo(
-    () => promotions.slice().sort((a, b) => b.value - a.value).slice(0, 8).map((p) => ({
-      id: p.id, label: p.name, value: p.value,
-      tone: p.type === "PERCENT" ? ("success" as const) : ("default" as const),
-    })),
-    [promotions],
-  );
-
-  const columns = useMemo<ColumnDef<Promotion>[]>(() => [
-    { id: "promoCode", header: "Promo", cell: ({ row }) => (
-      <div><div className="font-medium">{row.original.name}</div><div className="font-mono text-xs text-[var(--text-muted)]">{row.original.promoCode}</div></div>
-    )},
-    { id: "type", header: "Type", cell: ({ row }) => row.original.type },
-    { id: "value", header: "Value", cell: ({ row }) => <NumericCell>{row.original.value.toFixed(2)}</NumericCell> },
-    { id: "window", header: "Window", cell: ({ row }) => (
-      <div className="text-xs">{dateLabel(row.original.startsAt)} – {dateLabel(row.original.endsAt)}</div>
-    )},
-    { id: "status", header: "Status", cell: ({ row }) => row.original.status },
-    { id: "actions", header: "", cell: ({ row }) => (
-      <div className="flex justify-end gap-2">
-        <Button size="sm" variant="outline" aria-label={`Edit ${row.original.name}`} onClick={() => { setEditing(row.original); setForm({
-          name: row.original.name, type: row.original.type, value: String(row.original.value),
-          startsAt: row.original.startsAt ? row.original.startsAt.slice(0, 16) : "",
-          endsAt: row.original.endsAt ? row.original.endsAt.slice(0, 16) : "",
-          status: row.original.status, notes: row.original.notes ?? "",
-        }); setDialogOpen(true); }}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          aria-label={`Remove ${row.original.name}`}
-          onClick={() => setDeleteTarget(row.original)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    )},
-  ], []);
-
-  const newPromotionButton = (
-    <Button
-      size="sm"
-      onClick={() => {
-        setEditing(null);
-        setForm(emptyForm());
-        setDialogOpen(true);
-      }}
-    >
-      <Plus className="h-4 w-4" />
-      New promotion
-    </Button>
-  );
-
-  const actions = (
-    <div className="flex flex-wrap gap-2">
-      {newPromotionButton}
-      <Button asChild size="sm" variant="outline">
-        <Link href="/retail/merchandising/pricing">
-          <Wallet className="h-4 w-4" />
-          Pricing
-        </Link>
-      </Button>
-    </div>
-  );
-
-  if (promotionsQuery.isPending) {
-    return (
-      <RetailShell title="Promotions" actions={actions}>
-        <div aria-busy="true" aria-live="polite" className="space-y-5">
-          <span className="sr-only">Fetching promotions…</span>
-          <div className="grid gap-5 xl:grid-cols-3">
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-          </div>
-          <Skeleton height={300} />
-        </div>
-      </RetailShell>
-    );
-  }
-
-  if (promotionsQuery.isError) {
-    return (
-      <RetailShell title="Promotions" actions={actions}>
-        <Alert tone="danger" title="Promotions would not load">
-          {getApiErrorMessage(promotionsQuery.error)}
-        </Alert>
-      </RetailShell>
-    );
-  }
-
-  const averageValue = promotions.length
-    ? promotions.reduce((s, p) => s + p.value, 0) / promotions.length
-    : 0;
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const problems: string[] = [];
+    if (!form.name.trim()) problems.push("Give the promotion a name.");
+    const value = Number(form.value);
+    if (!form.value.trim() || !(value > 0)) problems.push(`${valueLabel(form.type)} is a number above zero.`);
+    else if (form.type === "PERCENT" && value > 100) problems.push("Percent off is at most 100.");
+    if (form.startsAt && form.endsAt && new Date(form.endsAt) <= new Date(form.startsAt))
+      problems.push("It has to end after it starts.");
+    setErrors(problems);
+    if (problems.length === 0) save.mutate();
+  };
 
   return (
-    <RetailShell title="Promotions" actions={actions}>
-      {promotions.length === 0 ? (
-        <EmptyState
-          title="No promotions set up"
-          body="A promotion is a discount the till applies at checkout — a percentage off a line, a fixed amount off a basket, or a bundle."
-          action={newPromotionButton}
-        />
-      ) : (
+    <RecordDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={promotion ? promotion.name : "New promotion"}
+      size="md"
+      onSubmit={submit}
+      errors={errors}
+      footer={
         <>
-          <div className="grid gap-5 xl:grid-cols-3">
-            <StatCard
-              label="Running now"
-              value={activeCount.toString()}
-              tone={activeCount > 0 ? "success" : "neutral"}
-              footer="Applied by the till at checkout"
-            />
-            <StatCard
-              label="All campaigns"
-              value={promotions.length.toString()}
-              footer={`${new Set(promotions.map((p) => p.type)).size} type${new Set(promotions.map((p) => p.type)).size === 1 ? "" : "s"} in use`}
-            />
-            <StatCard
-              label="Average value"
-              value={averageValue.toFixed(2)}
-              footer="Percent or amount, as configured"
-            />
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-            <Card title="Promotion values" subtitle="The eight richest offers">
-              <AdminDistributionChart
-                rows={valueRows}
-                valueLabel="Value"
-                valueFormatter={(v) => v.toFixed(2)}
-                height={280}
-                emptyLabel="No promotion values to show."
-              />
-            </Card>
-            <Card title="Status">
-              <AdminDonutChart
-                rows={statusRows}
-                valueLabel="Count"
-                valueFormatter={(v) => v.toString()}
-                height={280}
-                emptyLabel="No statuses to show."
-              />
-            </Card>
-          </div>
-
-          <Card title="Type distribution">
-            <AdminDonutChart
-              rows={typeRows}
-              valueLabel="Count"
-              valueFormatter={(v) => v.toString()}
-              height={260}
-              emptyLabel="No types to show."
-            />
-          </Card>
-
-          <DataTable
-            data={promotions}
-            columns={columns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search promotions"
-            emptyState="No promotions match that search."
-          />
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={save.isPending}>
+            {promotion ? "Save promotion" : "Create promotion"}
+          </Button>
         </>
-      )}
+      }
+    >
+      <FormField label="Name">
+        {(id) => (
+          <Input
+            id={id}
+            value={form.name}
+            onChange={(event) => set("name", event.target.value)}
+            placeholder="Month-end braai special"
+            autoFocus={!promotion}
+          />
+        )}
+      </FormField>
 
-      {/* Edit/Create Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader><DialogTitle>{editing ? "Edit promotion" : "New promotion"}</DialogTitle></DialogHeader>
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Name</label>
-                <Input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Type</label>
-                <Select value={form.type} onValueChange={(v) => setForm((c) => ({ ...c, type: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PERCENT">Percent</SelectItem>
-                    <SelectItem value="AMOUNT">Amount</SelectItem>
-                    <SelectItem value="BUY_X_GET_Y">Buy X Get Y</SelectItem>
-                    <SelectItem value="BUNDLE">Bundle</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="block text-sm font-semibold">Value</label>
-                <Input value={form.value} inputMode="decimal" onChange={(e) => setForm((c) => ({ ...c, value: e.target.value }))} />
-                {form.value !== "" && (isNaN(Number(form.value)) || Number(form.value) <= 0) ? (
-                  <p className="t-body-sm text-[color:var(--tone-danger-strong)]">
-                    Value must be greater than 0
-                  </p>
-                ) : null}
-              </div>
-            </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Type">
+          {(id) => (
+            <Select value={form.type} onValueChange={(value) => set("type", value)}>
+              <SelectTrigger id={id}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {promotionTypeLabel(type)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+        <FormField label={valueLabel(form.type)}>
+          {(id) => (
+            <Input
+              id={id}
+              value={form.value}
+              inputMode="decimal"
+              className="font-mono"
+              onChange={(event) => set("value", event.target.value)}
+            />
+          )}
+        </FormField>
+      </div>
 
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
-            >
-              <ChevronDown className={`h-4 w-4 transition-transform${advancedOpen ? " rotate-180" : ""}`} />
-              Advanced options
-            </button>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Starts">
+          {(id) => (
+            <Input
+              id={id}
+              type="datetime-local"
+              value={form.startsAt}
+              onChange={(event) => set("startsAt", event.target.value)}
+            />
+          )}
+        </FormField>
+        <FormField label="Ends">
+          {(id) => (
+            <Input
+              id={id}
+              type="datetime-local"
+              value={form.endsAt}
+              onChange={(event) => set("endsAt", event.target.value)}
+            />
+          )}
+        </FormField>
+      </div>
 
-            {advancedOpen ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Promo code</label>
-                  <Input value={editing ? editing.promoCode : promoCode} readOnly disabled={isReserving && !editing} />
-                  {reserveError && !editing ? (
-                    <Alert tone="danger" title="Could not reserve a promo code">
-                      {getApiErrorMessage(reserveError)}
-                    </Alert>
-                  ) : null}
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Starts</label>
-                  <Input type="datetime-local" value={form.startsAt} onChange={(e) => setForm((c) => ({ ...c, startsAt: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Ends</label>
-                  <Input type="datetime-local" value={form.endsAt} onChange={(e) => setForm((c) => ({ ...c, endsAt: e.target.value }))} placeholder="No end date" />
-                </div>
-                {editing ? (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold">Status</label>
-                    <Select value={form.status} onValueChange={(v) => setForm((c) => ({ ...c, status: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ACTIVE">Active</SelectItem>
-                        <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-                        <SelectItem value="INACTIVE">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
-                <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-semibold">Notes</label>
-                  <Textarea value={form.notes} onChange={(e) => setForm((c) => ({ ...c, notes: e.target.value }))} rows={3} />
-                </div>
-              </div>
-            ) : null}
+      {promotion ? (
+        <FormField label="Status">
+          {(id) => (
+            <Select value={form.status} onValueChange={(value) => set("status", value)}>
+              <SelectTrigger id={id}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {promotionStatusLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+      ) : null}
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saveMutation.isPending || !form.name || !form.value || Number(form.value) <= 0}>Save</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Dialog */}
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Remove {deleteTarget?.name ?? "promotion"}</DialogTitle>
-          </DialogHeader>
-          <p className="t-body t-muted">
-            The till stops applying {deleteTarget?.promoCode ?? "this promotion"} at checkout. Sales
-            already discounted by it keep their discount.
-          </p>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-            >
-              Remove {deleteTarget?.promoCode ?? ""}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </RetailShell>
+      <FormField label="Notes">
+        {(id) => (
+          <Textarea id={id} rows={2} value={form.notes} onChange={(event) => set("notes", event.target.value)} />
+        )}
+      </FormField>
+    </RecordDialog>
   );
 }
