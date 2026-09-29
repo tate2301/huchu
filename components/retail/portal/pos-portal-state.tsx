@@ -13,7 +13,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { useHasFeature } from "@/hooks/use-entitlement";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -27,10 +27,6 @@ import {
   searchOfflineRetailCustomers,
 } from "@/lib/retail/offline-runtime";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
-import {
-  getCachedCategories,
-  searchCatalog as searchOfflineCatalog,
-} from "@/lib/retail/offline-catalog";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
   removeOfflineOperation,
@@ -244,46 +240,32 @@ export function PosPortalProvider({
 
   const catalogQuery = useQuery({
     queryKey: ["retail-pos-catalog", siteId, search, selectedCategory],
-    queryFn: async () => {
-      try {
-        const params = new URLSearchParams({
-          siteId,
-          search,
-        });
-        if (selectedCategory) {
-          params.set("category", selectedCategory);
-        }
-        return await fetchJson<{ data: PosCatalogItem[] }>(
-          `/api/v2/retail/pos/catalog?${params.toString()}`,
-        );
-      } catch (error) {
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-          const data = await searchOfflineCatalog(search, {
-            siteId,
-            category: selectedCategory ?? undefined,
-            inStockOnly: true,
-          });
-          return { data };
-        }
-        throw error;
+    /*
+      Offline, this throws and TanStack keeps the persisted result on screen.
+      It used to catch and answer from a separate IndexedDB catalog that
+      nothing ever filled, so going offline replaced the till's cached
+      catalog with an empty one.
+    */
+    queryFn: () => {
+      const params = new URLSearchParams({
+        siteId,
+        search,
+      });
+      if (selectedCategory) {
+        params.set("category", selectedCategory);
       }
+      return fetchJson<{ data: PosCatalogItem[] }>(
+        `/api/v2/retail/pos/catalog?${params.toString()}`,
+      );
     },
     enabled: Boolean(siteId),
   });
   const categoriesQuery = useQuery({
     queryKey: ["retail-pos-catalog-categories", siteId],
-    queryFn: async () => {
-      try {
-        return await fetchJson<{ data: string[] }>(
-          `/api/v2/retail/pos/catalog/categories?siteId=${encodeURIComponent(siteId)}`,
-        );
-      } catch (error) {
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-          return { data: await getCachedCategories() };
-        }
-        throw error;
-      }
-    },
+    queryFn: () =>
+      fetchJson<{ data: string[] }>(
+        `/api/v2/retail/pos/catalog/categories?siteId=${encodeURIComponent(siteId)}`,
+      ),
     enabled: Boolean(siteId),
     staleTime: 60_000,
   });

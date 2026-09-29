@@ -201,6 +201,27 @@ export async function removeOfflineOperation(operationId: string) {
   emitOfflineOutboxChanged();
 }
 
+/**
+ * Discard every operation still waiting on this device for one tenant.
+ *
+ * Irreversible by design: these have not reached the server. The sync panel
+ * asks before calling it and names how many will go.
+ */
+export async function clearOfflineOutbox(tenantKey: string) {
+  const operations = await listOfflineOperations();
+  await Promise.all(
+    operations
+      .filter(
+        (operation) =>
+          operation.tenantKey === tenantKey && operation.status !== "SYNCED",
+      )
+      .map((operation) =>
+        deleteOfflineRecord(OFFLINE_DB_STORES.outbox, operation.operationId),
+      ),
+  );
+  emitOfflineOutboxChanged();
+}
+
 export async function getOfflineOutboxSummary() {
   return getOfflineOutboxSummaryForTenant();
 }

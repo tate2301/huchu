@@ -1,24 +1,4 @@
-import type { AuthSessionClaims } from "@/lib/auth-core/types";
-
 export type OfflineTenantKey = string;
-
-export type OfflineSessionBootstrap = {
-  id: string;
-  tenantKey: OfflineTenantKey;
-  capturedAt: string;
-  expiresAt?: string | null;
-  user: AuthSessionClaims;
-};
-
-export type PersistedQueryRecord = {
-  id: string;
-  tenantKey: OfflineTenantKey;
-  queryKey: unknown[];
-  data: unknown;
-  updatedAt: number;
-  maxAgeMs: number;
-  moduleId?: string | null;
-};
 
 export type LocalEntityStatus = "LOCAL" | "SYNCED";
 
@@ -127,7 +107,8 @@ export type OfflinePreloadQuery = {
    * Skipped when the session does not hold it. Without this the preloader
    * fetched everything it listed for everybody: a gold clerk took 403s on
    * `/api/sites`, a cashier on `/api/v2/retail/promotions`, on pages that do
-   * not mention either. See `lib/offline/entitlement.ts`.
+   * not mention either. Checked against the session's features by
+   * `prefetchOfflineModuleQueries` in `lib/offline/module-registry.ts`.
    *
    * Only needed where `lib/platform/gating/route-registry.ts` gates the route
    * the fetcher calls. An ungated endpoint needs nothing here.
@@ -142,19 +123,7 @@ export type OfflineRouteDefinition = {
   critical?: boolean;
 };
 
-export type OfflineWarmupBudget = "light" | "standard" | "aggressive";
-
-export type OfflineLifecycleState =
-  | "booting"
-  | "hydrating_cache"
-  | "ready_offline"
-  | "ready_online"
-  | "warming"
-  | "syncing";
-
 export type OfflineWarmupScope = "required" | "snapshot";
-
-export type OfflineMutationPolicy = "offline-safe" | "online-only" | "excluded";
 
 export type OfflineWorkflowCatalogEntry = {
   workflowId: string;
@@ -167,68 +136,16 @@ export type OfflineWorkflowCatalogEntry = {
   excludedRoutes?: string[];
 };
 
-export type OfflineModulePreparationState =
-  | "NOT_PREPARED"
-  | "PREPARING"
-  | "PREPARED";
-
-export type OfflineModulePreparation = {
-  moduleId: string;
-  primaryFlowLabel: string;
-  bootstrapPriority: number;
-  warmupBudget: OfflineWarmupBudget;
-  state: OfflineModulePreparationState;
-  totalRoutes: number;
-  preparedRoutes: string[];
-  totalQueries: number;
-  preparedQueryKeys: string[];
-  lastPreparedAt?: string | null;
-};
-
-export type OfflineBootstrapProgress = {
-  id: string;
-  tenantKey: OfflineTenantKey;
-  phase: "idle" | "preparing" | "complete";
-  currentStepLabel?: string | null;
-  totalSteps: number;
-  completedSteps: number;
-  preparedRoutes: string[];
-  startedAt?: string | null;
-  updatedAt: string;
-  lastPreparedAt?: string | null;
-  lastSyncedAt?: string | null;
-  modules: OfflineModulePreparation[];
-};
-
-export type OfflineUpdateState =
-  | "idle"
-  | "checking"
-  | "downloading"
-  | "ready"
-  | "activating";
-
 export type OfflineModuleDefinition = {
   moduleId: string;
   syncPriority: number;
-  bootstrapPriority: number;
   primaryFlowLabel: string;
-  warmupBudget: OfflineWarmupBudget;
   criticalRoutes: string[];
   warmupRoutes?: string[];
   routes?: OfflineRouteDefinition[];
-  shellAssets?: string[];
   preloadQueries: OfflinePreloadQuery[];
   entityAdapters: OfflineEntityAdapter[];
   mutationAdapters: OfflineMutationAdapter[];
-};
-
-export type OfflineActiveTenantContext = {
-  id: "active";
-  tenantKey: OfflineTenantKey;
-  companySlug?: string | null;
-  workspaceProfile?: string | null;
-  host?: string | null;
-  updatedAt: string;
 };
 
 export type OfflineOutboxSummaryItem = {
@@ -249,7 +166,6 @@ export type OfflineStatus =
   | "ONLINE"
   | "OFFLINE"
   | "PREPARING"
-  | "RECONNECTING"
   | "SYNCING"
   | "ATTENTION"
   | "UPDATE_READY";

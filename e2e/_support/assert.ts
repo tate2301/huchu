@@ -76,9 +76,10 @@ const KNOWN_ISSUES: Array<{ id: string; pattern: RegExp; diagnosis: string }> = 
     - `offline-status-hydration` — was still real, and removing the entry is
       what proved it. It reappeared within one run, was measured for the first
       time by diffing the SSR HTML against the hydrated DOM ("Ready" against
-      "Preparing 50%"), and is fixed at the source: `statusLabel` in
-      `components/providers/offline-provider.tsx` now reports the server's
-      answer until `useHydrated()` says otherwise.
+      "Preparing 50%"). The provider-level gate that followed still leaked,
+      because the navbar hydrates in a later Suspense boundary than the
+      provider; every reader now takes the server's snapshot through
+      `useSyncExternalStore` — see `lib/offline/runtime-store.ts`.
 
     A known-issue list that outlives its bugs is a blindfold: every entry is a
     pattern that also swallows the *next* unknown failure matching it, and the

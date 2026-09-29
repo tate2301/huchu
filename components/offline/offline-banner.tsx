@@ -13,7 +13,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { WifiOff, Wifi, X } from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { SPRING, STATUS_COLORS } from "@/lib/animation/tokens";
 import { offlineBannerVariants, sparkleVariants } from "./animations";
 

@@ -1,6 +1,5 @@
 import {
   CheckCircleSolid,
-  CircleDottedLine,
   CircleHalfDottedClock,
   CircleThreeQuartersSolid,
   ExclamationCircleSolid,
@@ -43,13 +42,6 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
       colorVar: "--action-primary-bg",
       icon: DeployedCodeUpdate,
       text: "Update available",
-    };
-  }
-  if (status === "RECONNECTING") {
-    return {
-      colorVar: "--action-primary-bg",
-      icon: CircleDottedLine,
-      text: "Reconnecting",
     };
   }
   if (status === "SYNCING") {

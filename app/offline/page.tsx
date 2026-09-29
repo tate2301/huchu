@@ -18,8 +18,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { Button } from "@/components/ui/button";
-import { getRecentConnectivityLogs } from "@/lib/offline/db-v2";
 import { RefreshCw, WifiOff } from "@/lib/icons";
 import { getOfflineOutboxSummary } from "@/lib/offline/outbox";
 import type { OfflineOutboxSummaryItem } from "@/lib/offline/types";
@@ -61,27 +61,22 @@ function describeStatus(item: OfflineOutboxSummaryItem) {
 
 export default function OfflineFallbackPage() {
   const [waiting, setWaiting] = useState<OfflineOutboxSummaryItem[] | null>(null);
-  const [lastConnectedAt, setLastConnectedAt] = useState<string | null>(null);
+  // Recorded by the offline runtime the moment the line went, and kept on the
+  // device, so it survives the reload that landed here.
+  const { lastOnlineAt: lastConnectedAt } = useOfflineRuntime();
   const [showSaved, setShowSaved] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryFailed, setRetryFailed] = useState(false);
 
-  // What is actually on this device: the outbox, and the last heartbeat that
-  // came back. Both are best-effort — a browser with IndexedDB blocked still
-  // gets the page, just without the footer line.
+  // What is actually on this device. Best-effort — a browser with IndexedDB
+  // blocked still gets the page, just without the list.
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
-      const [summary, logs] = await Promise.all([
-        getOfflineOutboxSummary().catch(() => null),
-        getRecentConnectivityLogs(50).catch(() => []),
-      ]);
+      const summary = await getOfflineOutboxSummary().catch(() => null);
       if (cancelled) return;
-
       setWaiting(summary?.items ?? []);
-      const lastGood = logs.find((entry) => entry.state !== "offline");
-      setLastConnectedAt(lastGood?.timestamp ?? null);
     })();
 
     return () => {
