@@ -3,12 +3,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, Button, EmptyState, Input, SegmentedControl, Skeleton } from "@corelithzw/react";
+import { Alert, Button, Input, SegmentedControl, Skeleton } from "@corelithzw/react";
 
-import { ReportTable, amt, badge, node, num, txt } from "@/components/accounting/report-table";
-import { SetupPanel } from "@/components/crm/settings/setup-chrome";
 import { PageActions } from "@/components/layout/page-chrome";
-import { RowMenu } from "@/components/retail/row-menu";
+import { ColumnFigure, ColumnList, ColumnName, ColumnText, StatusDot } from "@/components/management/ui";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -27,6 +25,9 @@ type CatalogueResponse = {
   priceList: { id: string; name: string } | null;
 };
 
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
+
 const KIND_FILTERS = [
   { value: "ALL", label: "Any type" },
   ...PRODUCT_KINDS.map((kind) => ({ value: kind, label: PRODUCT_KIND_LABELS[kind] })),
@@ -43,9 +44,11 @@ const KIND_FILTERS = [
  * No heading of its own. Both places that mount this draw the name directly
  * above it — "Catalogue" in the CRM setup band, the app bar in Stock — and a
  * second copy inside the panel spent the first screen of a laptop saying the
- * same thing twice before a single product appeared. The banner that said the
- * catalogue is shared went the same way: a row's verbs live behind its menu,
- * and the form opens in a dialog.
+ * same thing twice before a single product appeared.
+ *
+ * Drawn as a `ColumnList`: the code and name, then price, margin and stock
+ * against the right edge. A catalogue product has no record page, so its name
+ * opens its form; archiving it is in that form's footer.
  */
 export function CataloguePanel({
   /**
@@ -114,7 +117,9 @@ export function CataloguePanel({
       confirmLabel: "Archive catalogue product",
       variant: "warning",
     }).then((confirmed) => {
-      if (confirmed) archive.mutate(product.id);
+      if (!confirmed) return;
+      setEditing(null);
+      archive.mutate(product.id);
     });
   };
 
@@ -129,70 +134,12 @@ export function CataloguePanel({
     </Button>
   );
 
-  const rows = products.map((product) => {
-    const margin =
-      product.costPrice === null || product.costPrice === undefined
-        ? null
-        : product.line.unitPrice - product.costPrice;
-
-    return {
-      id: product.id,
-      cells: [
-        txt(product.code, { mono: true, tone: "subtle" }),
-        node(
-          <span className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setEditing(product)}
-              className="min-w-0 truncate text-left text-sm font-semibold text-[var(--text-strong)] hover:underline"
-            >
-              {product.name}
-            </button>
-            {product.line.priceSource !== "STANDARD" ? (
-              <span className="acct-badge shrink-0" data-tone="info">
-                List price
-              </span>
-            ) : null}
-          </span>,
-        ),
-        badge(PRODUCT_KIND_LABELS[product.kind], "mute"),
-        txt(UNIT_LABELS[product.unit], { tone: "subtle" }),
-        amt(product.line.unitPrice.toFixed(2)),
-        // A margin nobody has costed is not a margin of zero.
-        margin === null
-          ? txt("—", { align: "right", tone: "dim" })
-          : num(margin.toFixed(2), { tone: margin < 0 ? "bad" : "strong", bold: true }),
-        // A service has no stock record at all — that is not the same as none
-        // left, and must not read as zero.
-        !isStockable(product.kind)
-          ? txt("Not stocked", { align: "right", tone: "dim" })
-          : product.stock
-            ? num(String(product.stock.onHand))
-            : txt("Not linked", { align: "right", tone: "dim" }),
-        node(
-          product.isActive ? (
-            <RowMenu
-              label={`More for ${product.name}`}
-              items={[
-                { label: "Edit catalogue product", onSelect: () => setEditing(product) },
-                {
-                  label: "Archive catalogue product",
-                  onSelect: () => confirmArchive(product),
-                  destructive: true,
-                  disabled: archive.isPending,
-                },
-              ]}
-            />
-          ) : (
-            <span className="acct-badge" data-tone="mute">
-              Archived
-            </span>
-          ),
-          { align: "right" },
-        ),
-      ],
-    };
-  });
+  const filtered = Boolean(search) || kind !== "ALL";
+  const empty = search
+    ? "No catalogue product matches that search."
+    : kind !== "ALL"
+      ? "No catalogue product matches this filter."
+      : "No catalogue products yet.";
 
   return (
     <div className="min-w-0">
@@ -222,42 +169,80 @@ export function CataloguePanel({
       ) : null}
 
       {isLoading ? (
-        <Skeleton height={220} />
-      ) : products.length === 0 ? (
-        <EmptyState
-          title={
-            search
-              ? "No catalogue products match that search"
-              : kind !== "ALL"
-                ? "No catalogue products match this filter"
-                : "No catalogue products yet"
-          }
-        />
+        <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+        </div>
       ) : (
-        <SetupPanel
-          title={priceList ? `Priced from ${priceList.name}` : "Products"}
-          count={products.length}
-          flush
-        >
-          <div className="scroll-rail overflow-x-auto">
-            <ReportTable
-              label="Catalogue products"
-              className="min-w-[52rem]"
-              tracks="110px minmax(0,1fr) 110px 130px 100px 90px 110px 100px"
-              columns={[
-                { label: "Code" },
-                { label: "Product" },
-                { label: "Type" },
-                { label: "Unit" },
-                { label: "Price", align: "right" },
-                { label: "Margin", align: "right" },
-                { label: "On hand", align: "right" },
-                { label: "", align: "right" },
-              ]}
-              rows={rows}
-            />
-          </div>
-        </SetupPanel>
+        <div className="space-y-3">
+          <ColumnList
+            label="Catalogue products"
+            maxWidth={WIDTH}
+            empty={empty}
+            columns={[
+              { id: "product", label: "Product" },
+              { id: "status", label: "Status", hideBelow: "sm" },
+              { id: "unit", label: "Unit", hideBelow: "md" },
+              // Which list the prices come from, when it is not the standard.
+              { id: "price", label: priceList ? `${priceList.name} price` : "Price", align: "end" },
+              { id: "margin", label: "Margin", align: "end", hideBelow: "sm" },
+              { id: "onHand", label: "On hand", align: "end", hideBelow: "sm" },
+            ]}
+            rows={products.map((product) => {
+              const margin =
+                product.costPrice === null || product.costPrice === undefined
+                  ? null
+                  : product.line.unitPrice - product.costPrice;
+              return {
+                id: product.id,
+                cells: {
+                  // No record page: the name opens the product's form.
+                  product: (
+                    <button
+                      type="button"
+                      onClick={() => setEditing(product)}
+                      className="min-w-0 max-w-full text-left hover:underline"
+                    >
+                      <ColumnName
+                        code={product.code}
+                        name={product.name}
+                        meta={[
+                          PRODUCT_KIND_LABELS[product.kind],
+                          product.line.priceSource !== "STANDARD" ? "List price" : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      />
+                    </button>
+                  ),
+                  status: product.isActive ? null : <StatusDot tone="neutral" label="Archived" />,
+                  unit: <ColumnText>{UNIT_LABELS[product.unit]}</ColumnText>,
+                  price: <ColumnFigure>{product.line.unitPrice.toFixed(2)}</ColumnFigure>,
+                  // A margin nobody has costed is not a margin of zero.
+                  margin:
+                    margin === null ? (
+                      <ColumnFigure tone="muted">—</ColumnFigure>
+                    ) : (
+                      <ColumnFigure tone={margin < 0 ? "danger" : "default"}>
+                        {margin.toFixed(2)}
+                      </ColumnFigure>
+                    ),
+                  // A service has no stock record at all — that is not the same
+                  // as none left, and must not read as zero.
+                  onHand: !isStockable(product.kind) ? (
+                    <ColumnFigure tone="muted">Not stocked</ColumnFigure>
+                  ) : product.stock ? (
+                    <ColumnFigure>{product.stock.onHand}</ColumnFigure>
+                  ) : (
+                    <ColumnFigure tone="muted">Not linked</ColumnFigure>
+                  ),
+                },
+              };
+            })}
+          />
+          {products.length === 0 && !filtered ? newItem : null}
+        </div>
       )}
 
       <CatalogueProductDialog
@@ -270,6 +255,19 @@ export function CataloguePanel({
           }
         }}
         onSaved={refresh}
+        footerStart={
+          editing?.isActive ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={archive.isPending}
+              onClick={() => confirmArchive(editing)}
+            >
+              Archive catalogue product
+            </Button>
+          ) : null
+        }
       />
     </div>
   );

@@ -1,14 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Skeleton } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageActions } from "@/components/layout/page-chrome";
-import { FormField, StatusDot } from "@/components/management/ui";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
-import { RowMenu } from "@/components/retail/row-menu";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnRowAction,
+  FormField,
+  StatusDot,
+} from "@/components/management/ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { dsConfirm } from "@/components/ui/ds-confirm";
@@ -25,6 +30,9 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { PRICE_LIST_KINDS, PRICE_LIST_KIND_LABELS } from "@/lib/inventory/catalogue";
 import type { PriceListKind } from "@prisma/client";
 import { Plus, Trash2 } from "@/lib/icons";
+
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
 
 type PriceListSummary = {
   id: string;
@@ -59,9 +67,11 @@ type CatalogueProduct = {
  *
  * The model, the API and the resolver have existed since the catalogue
  * landed — a list holds a price per product, optionally from a minimum
- * quantity, and the highest minimum at or below what was ordered wins. Both
- * forms open in dialogs now, from the bar and from each row's menu, and the
- * paragraphs that explained them are gone.
+ * quantity, and the highest minimum at or below what was ordered wins.
+ *
+ * Drawn as a `ColumnList`. A list has no record page, so its name opens its
+ * prices — what is done to a list most — and its one other verb, Edit, is on
+ * the row; retiring it is in the edit form's footer.
  */
 export function PriceListsPanel() {
   const queryClient = useQueryClient();
@@ -102,7 +112,9 @@ export function PriceListsPanel() {
       confirmLabel: "Retire price list",
       variant: "warning",
     }).then((confirmed) => {
-      if (confirmed) retire.mutate(list.id);
+      if (!confirmed) return;
+      setEditing(null);
+      retire.mutate(list.id);
     });
   };
 
@@ -121,80 +133,94 @@ export function PriceListsPanel() {
         </Alert>
       ) : null}
 
-      <RecordTable
-        rows={lists}
-        isLoading={listsQuery.isPending}
-        emptyTitle="No price lists yet"
-        columns={[
-          {
-            id: "list",
-            label: "Price list",
-            cell: (list) => (
-              <button
-                type="button"
-                onClick={() => setPricing(list)}
-                className="min-w-0 text-left hover:underline"
-              >
-                <RecordTableName
-                  title={list.name}
-                  subtitle={[
-                    list.isDefault ? "Default" : null,
-                    PRICE_LIST_KIND_LABELS[list.kind],
-                    list.region,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                />
-              </button>
-            ),
-          },
-          {
-            id: "state",
-            label: "Status",
-            width: "8rem",
-            cell: (list) => (list.isActive ? null : <StatusDot tone="neutral" label="Inactive" />),
-          },
-          {
-            id: "currency",
-            label: "Currency",
-            width: "7rem",
-            cell: (list) => <RecordCell kind="code" value={list.currency} />,
-          },
-          {
-            id: "prices",
-            label: "Prices",
-            align: "end",
-            width: "7rem",
-            cell: (list) => <RecordCell kind="number" value={list._count.entries} />,
-          },
-          {
-            id: "menu",
-            label: "",
-            menu: <span className="sr-only">More</span>,
-            width: "3rem",
-            align: "end",
-            cell: (list) => (
-              <RowMenu
-                label={`More for ${list.name}`}
-                items={[
-                  { label: "Edit prices", onSelect: () => setPricing(list) },
-                  { label: "Edit price list", onSelect: () => setEditing(list) },
-                  {
-                    label: "Retire price list",
-                    onSelect: () => confirmRetire(list),
-                    destructive: true,
-                    disabled: retire.isPending || !list.isActive,
-                  },
-                ]}
-              />
-            ),
-          },
-        ]}
-      />
+      {listsQuery.isPending ? (
+        <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <ColumnList
+            label="Price lists"
+            maxWidth={WIDTH}
+            empty="No price lists yet."
+            columns={[
+              { id: "list", label: "Price list" },
+              { id: "state", label: "Status", hideBelow: "sm" },
+              { id: "currency", label: "Currency", hideBelow: "sm" },
+              { id: "prices", label: "Prices", align: "end" },
+              { id: "act", label: "" },
+            ]}
+            rows={lists.map((list) => ({
+              id: list.id,
+              cells: {
+                // No record page: the name opens the list's prices instead.
+                list: (
+                  <button
+                    type="button"
+                    onClick={() => setPricing(list)}
+                    className="min-w-0 max-w-full text-left hover:underline"
+                  >
+                    <ColumnName
+                      name={list.name}
+                      meta={[
+                        list.isDefault ? "Default" : null,
+                        PRICE_LIST_KIND_LABELS[list.kind],
+                        list.region,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    />
+                  </button>
+                ),
+                state: list.isActive ? null : <StatusDot tone="neutral" label="Inactive" />,
+                currency: <ColumnFigure tone="muted">{list.currency}</ColumnFigure>,
+                prices: (
+                  <ColumnFigure tone={list._count.entries === 0 ? "muted" : "default"}>
+                    {list._count.entries}
+                  </ColumnFigure>
+                ),
+                act: (
+                  <ColumnRowAction>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`Edit ${list.name}`}
+                      onClick={() => setEditing(list)}
+                    >
+                      Edit
+                    </Button>
+                  </ColumnRowAction>
+                ),
+              },
+            }))}
+          />
+          {lists.length === 0 ? (
+            <Button type="button" variant="primary" size="sm" onClick={() => setCreating(true)}>
+              New price list
+            </Button>
+          ) : null}
+        </div>
+      )}
 
       <PriceListDialog
         open={creating || editing !== null}
         list={editing}
+        footerStart={
+          editing?.isActive ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={retire.isPending}
+              onClick={() => confirmRetire(editing)}
+            >
+              Retire price list
+            </Button>
+          ) : null
+        }
         onOpenChange={(next) => {
           if (!next) {
             setCreating(false);
@@ -217,10 +243,13 @@ function PriceListDialog({
   open,
   list,
   onOpenChange,
+  footerStart,
 }: {
   open: boolean;
   list: PriceListSummary | null;
   onOpenChange: (open: boolean) => void;
+  /** Retire, on an existing list — at the footer's left, away from Save. */
+  footerStart?: ReactNode;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -297,6 +326,7 @@ function PriceListDialog({
       }}
       footer={
         <>
+          {footerStart ? <div className="mr-auto flex flex-wrap gap-2">{footerStart}</div> : null}
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

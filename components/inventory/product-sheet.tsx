@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -74,11 +74,17 @@ export function CatalogueProductDialog({
   product,
   onOpenChange,
   onSaved,
+  footerStart,
 }: {
   open: boolean;
   product: ProductRecord | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  /**
+   * The rare verbs on an existing one — Archive — drawn at the footer's left,
+   * away from Save. The list has no record page to put them on.
+   */
+  footerStart?: ReactNode;
 }) {
   const { toast } = useToast();
   const [form, setForm] = useState({ ...EMPTY });
@@ -194,6 +200,7 @@ export function CatalogueProductDialog({
       errors={errors}
       footer={
         <>
+          {footerStart ? <div className="mr-auto flex flex-wrap gap-2">{footerStart}</div> : null}
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

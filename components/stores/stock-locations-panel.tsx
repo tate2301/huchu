@@ -3,16 +3,17 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Button, Skeleton } from "@corelithzw/react";
+
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { StatusDot } from "@/components/management/ui";
-import { RecordList } from "@/components/records/record-list";
 import {
-  RecordCell,
-  RecordTable,
-  RecordTableName,
-  type RecordTableGroup,
-} from "@/components/records/record-table";
-import { RowMenu } from "@/components/retail/row-menu";
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnRowAction,
+  SectionHeading,
+  StatusDot,
+} from "@/components/management/ui";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -43,6 +44,9 @@ function valueOf(location: LocationRow): string {
   return location.valueComplete ? money : `At least ${money}`;
 }
 
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
+
 function stateOf(location: LocationRow) {
   if (!location.isActive) return <StatusDot tone="neutral" label="Inactive" />;
   if (location.lowCount > 0) return <StatusDot tone="warn" label={`${location.lowCount} low`} />;
@@ -60,10 +64,11 @@ const toEditable = (location: LocationRow): EditableLocation => ({
 /**
  * Locations — where stock is kept, under the site each belongs to.
  *
- * Making, renaming and closing a location used to happen in a side sheet on
- * the On hand page, below the stock list, while this page could only read.
- * The verbs live with the list they act on now: "New location" in the bar,
- * and Edit and Delete behind each row's menu.
+ * Drawn as the management registers are: "New location" in the bar, search
+ * in the toolbar, and a `ColumnList` per site — a heading for each once there
+ * is more than one. The name opens what the location holds on the On hand
+ * page; a location has no record page, so Edit is on the row and Delete is in
+ * the edit form's footer.
  */
 export function StockLocationsPanel() {
   const { toast } = useToast();
@@ -88,18 +93,14 @@ export function StockLocationsPanel() {
 
   // Under a heading per site once there is more than one; the API sorts by
   // site first, which is the order the groups need.
-  const groups = useMemo<RecordTableGroup[] | null>(() => {
-    const bySite = new Map<string, RecordTableGroup & { ids: string[] }>();
+  const groups = useMemo(() => {
+    const bySite = new Map<string, { id: string; label: string; rows: LocationRow[] }>();
     for (const row of rows) {
       const group = bySite.get(row.site.id);
-      if (group) {
-        group.ids.push(row.id);
-        group.count += 1;
-      } else {
-        bySite.set(row.site.id, { id: row.site.id, label: row.site.name, count: 1, ids: [row.id] });
-      }
+      if (group) group.rows.push(row);
+      else bySite.set(row.site.id, { id: row.site.id, label: row.site.name, rows: [row] });
     }
-    return bySite.size > 1 ? [...bySite.values()] : null;
+    return [...bySite.values()];
   }, [rows]);
 
   const remove = useMutation({
@@ -126,24 +127,57 @@ export function StockLocationsPanel() {
       confirmLabel: "Delete location",
       variant: "danger",
     }).then((confirmed) => {
-      if (confirmed) remove.mutate(location);
+      if (!confirmed) return;
+      setEditing(null);
+      remove.mutate(location);
     });
   };
-
-  const menuFor = (location: LocationRow) => (
-    <RowMenu
-      label={`More for ${location.name}`}
-      items={[
-        { label: "Edit location", onSelect: () => setEditing(toEditable(location)) },
-        { label: "Delete location", onSelect: () => confirmRemove(location), destructive: true },
-      ]}
-    />
-  );
 
   const hrefFor = (location: LocationRow) =>
     `/stores/inventory?siteId=${location.site.id}&locationId=${location.id}`;
 
-  const emptyTitle = search.trim() ? "No locations match that search" : "No locations yet";
+  const emptyTitle = search.trim() ? "No location matches that search." : "No locations yet.";
+
+  const listFor = (label: string, list: LocationRow[]) => (
+    <ColumnList
+      label={label}
+      maxWidth={WIDTH}
+      empty={emptyTitle}
+      columns={[
+        { id: "location", label: "Location" },
+        { id: "state", label: "Status", hideBelow: "sm" },
+        { id: "items", label: "Stock items", align: "end", hideBelow: "sm" },
+        { id: "value", label: "Value", align: "end" },
+        { id: "act", label: "" },
+      ]}
+      rows={list.map((location) => ({
+        id: location.id,
+        cells: {
+          location: <ColumnName code={location.code} name={location.name} href={hrefFor(location)} />,
+          state: stateOf(location),
+          items: (
+            <ColumnFigure tone={location.itemCount === 0 ? "muted" : "default"}>
+              {location.itemCount}
+            </ColumnFigure>
+          ),
+          value: <ColumnFigure>{valueOf(location)}</ColumnFigure>,
+          act: (
+            <ColumnRowAction>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                aria-label={`Edit ${location.name}`}
+                onClick={() => setEditing(toEditable(location))}
+              >
+                Edit
+              </Button>
+            </ColumnRowAction>
+          ),
+        },
+      }))}
+    />
+  );
 
   return (
     <>
@@ -157,66 +191,35 @@ export function StockLocationsPanel() {
         onCreate={() => setCreating(true)}
         error={locationsQuery.error}
       >
-        <RecordTable
-          rows={rows}
-          groups={groups}
-          isLoading={locationsQuery.isPending}
-          emptyTitle={emptyTitle}
-          rowHref={hrefFor}
-          columns={[
-            {
-              id: "location",
-              label: "Location",
-              cell: (location) => <RecordTableName title={location.name} subtitle={location.code} />,
-            },
-            {
-              id: "state",
-              label: "Status",
-              width: "8rem",
-              cell: stateOf,
-            },
-            {
-              id: "items",
-              label: "Stock items",
-              align: "end",
-              width: "8rem",
-              cell: (location) => <RecordCell kind="number" value={location.itemCount} />,
-            },
-            {
-              id: "value",
-              label: "Value",
-              align: "end",
-              width: "10rem",
-              cell: (location) => <RecordCell kind="money" value={valueOf(location)} />,
-            },
-            {
-              id: "menu",
-              label: "",
-              menu: <span className="sr-only">More</span>,
-              width: "3rem",
-              align: "end",
-              cell: menuFor,
-            },
-          ]}
-          mobile={
-            <RecordList
-              rows={rows.map((location) => ({
-                id: location.id,
-                href: hrefFor(location),
-                title: location.name,
-                subtitle: `${location.code} · ${location.site.name}`,
-                status: stateOf(location),
-                facts: [
-                  { label: "Value", value: valueOf(location), kind: "money", primary: true },
-                  { label: "Stock items", value: location.itemCount, kind: "number" },
-                ],
-                actions: menuFor(location),
-              }))}
-              isLoading={locationsQuery.isPending}
-              emptyTitle={emptyTitle}
-            />
-          }
-        />
+        {locationsQuery.isPending ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : groups.length > 1 ? (
+          groups.map((group, index) => (
+            <section key={group.id}>
+              <SectionHeading
+                count={group.rows.length}
+                maxWidth={WIDTH}
+                className={index === 0 ? "mt-0" : undefined}
+              >
+                {group.label}
+              </SectionHeading>
+              {listFor(group.label, group.rows)}
+            </section>
+          ))
+        ) : (
+          <div className="space-y-3">
+            {listFor("Locations", rows)}
+            {rows.length === 0 && !search.trim() ? (
+              <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+                New location
+              </Button>
+            ) : null}
+          </div>
+        )}
       </RecordListShell>
 
       <LocationDialog
@@ -228,6 +231,22 @@ export function StockLocationsPanel() {
           }
         }}
         location={editing}
+        footerStart={
+          editing ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() => {
+                const row = locations.find((candidate) => candidate.id === editing.id);
+                if (row) confirmRemove(row);
+              }}
+            >
+              Delete location
+            </Button>
+          ) : null
+        }
       />
     </>
   );

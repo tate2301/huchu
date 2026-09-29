@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -76,6 +76,7 @@ export function StockItemDialog({
   item,
   defaultSiteId,
   defaultCategory = "CONSUMABLES",
+  footerStart,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -83,6 +84,11 @@ export function StockItemDialog({
   item: InventoryItem | null;
   defaultSiteId: string;
   defaultCategory?: string;
+  /**
+   * The rare verbs on an existing one — Print a label, Delete — drawn at the footer's left,
+   * away from Save. The list has no record page to put them on.
+   */
+  footerStart?: ReactNode;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -190,6 +196,7 @@ export function StockItemDialog({
       errors={errors}
       footer={
         <>
+          {footerStart ? <div className="mr-auto flex flex-wrap gap-2">{footerStart}</div> : null}
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

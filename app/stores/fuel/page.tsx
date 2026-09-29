@@ -2,11 +2,11 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert } from "@corelithzw/react";
+import { Alert, Skeleton } from "@corelithzw/react";
 
 import { ListSearch } from "@/components/crm/records/list-search";
+import { ColumnFigure, ColumnList, ColumnName, ColumnText } from "@/components/management/ui";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { RecordCell, RecordTable } from "@/components/records/record-table";
 import { ViewToolbar } from "@/components/records/view-toolbar";
 import { movementDelta, movementTypeLabel } from "@/components/stores/stock-words";
 import { StoresShell } from "@/components/stores/stores-shell";
@@ -52,15 +52,21 @@ function authorisedBy(entry: LedgerRow): string {
   return name || "Not on file";
 }
 
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
+
 const signed = (entry: LedgerRow) =>
   `${entry.delta < 0 ? "−" : "+"}${formatQuantity(Math.abs(entry.delta), entry.unit)}`;
 
 /**
  * Fuel log — every litre in and out, with the balance either side of it.
  *
- * The two tiles over the table (current stock, variance against the minimum)
- * and the green "Fuel stock healthy" banner are gone: a healthy balance draws
- * nothing, and one under the minimum is the only thing said above the log.
+ * A `ColumnList` under the search: who the fuel came from or went to, with the
+ * kind of movement and its reference under the name, then the change and the
+ * balance either side of it against the right edge. A movement has no record
+ * page and no verb of its own; Receive stock and Issue stock are in the bar. A
+ * healthy balance draws nothing, and one under the minimum is the only thing
+ * said above the log.
  */
 export default function StoresFuelPage() {
   const fuelPdfRef = useRef<HTMLDivElement | null>(null);
@@ -121,7 +127,7 @@ export default function StoresFuelPage() {
   }, [ledgerRows, search]);
 
   const pageError = inventoryError || movementsError;
-  const emptyTitle = search.trim() ? "No fuel movements match that search" : "No fuel movements yet";
+  const emptyTitle = search.trim() ? "No fuel movement matches that search." : "No fuel movements yet.";
 
   return (
     <StoresShell activeTab="fuel">
@@ -166,61 +172,47 @@ export default function StoresFuelPage() {
           }
         />
 
-        <RecordTable
-          rows={rows}
-          isLoading={movementsLoading}
-          emptyTitle={emptyTitle}
-          columns={[
-            {
-              id: "date",
-              label: "Date",
-              width: "8rem",
-              cell: (entry) => <RecordCell kind="date" value={formatRetailDate(entry.createdAt)} />,
-            },
-            {
-              id: "type",
-              label: "Type",
-              width: "8rem",
-              cell: (entry) => movementTypeLabel(entry.movementType),
-            },
-            {
-              id: "counterparty",
-              label: "To or from",
-              cell: counterparty,
-            },
-            {
-              id: "quantity",
-              label: "Quantity",
-              align: "end",
-              width: "8rem",
-              cell: (entry) => <RecordCell kind="number" value={signed(entry)} />,
-            },
-            {
-              id: "opening",
-              label: "Opening",
-              align: "end",
-              width: "8rem",
-              cell: (entry) => (
-                <RecordCell kind="number" value={formatQuantity(entry.opening, entry.unit)} />
-              ),
-            },
-            {
-              id: "closing",
-              label: "Closing",
-              align: "end",
-              width: "8rem",
-              cell: (entry) => (
-                <RecordCell kind="number" value={formatQuantity(entry.closing, entry.unit)} />
-              ),
-            },
-            {
-              id: "authorised",
-              label: "Authorised by",
-              width: "10rem",
-              cell: authorisedBy,
-            },
-          ]}
-        />
+        {movementsLoading ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : (
+          <ColumnList
+            label="Fuel log"
+            maxWidth={WIDTH}
+            empty={emptyTitle}
+            columns={[
+              { id: "counterparty", label: "To or from" },
+              { id: "date", label: "Date" },
+              { id: "quantity", label: "Quantity", align: "end" },
+              { id: "opening", label: "Opening", align: "end", hideBelow: "md" },
+              { id: "closing", label: "Closing", align: "end", hideBelow: "sm" },
+              { id: "authorised", label: "Authorised by", hideBelow: "md" },
+            ]}
+            rows={rows.map((entry) => ({
+              id: entry.id,
+              cells: {
+                counterparty: (
+                  <ColumnName
+                    name={counterparty(entry)}
+                    meta={[movementTypeLabel(entry.movementType), entry.referenceId]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  />
+                ),
+                date: <ColumnFigure tone="muted">{formatRetailDate(entry.createdAt)}</ColumnFigure>,
+                quantity: <ColumnFigure>{signed(entry)}</ColumnFigure>,
+                opening: (
+                  <ColumnFigure tone="muted">{formatQuantity(entry.opening, entry.unit)}</ColumnFigure>
+                ),
+                closing: <ColumnFigure>{formatQuantity(entry.closing, entry.unit)}</ColumnFigure>,
+                authorised: <ColumnText>{authorisedBy(entry)}</ColumnText>,
+              },
+            }))}
+          />
+        )}
       </div>
 
       <div className="absolute left-[-9999px] top-0">

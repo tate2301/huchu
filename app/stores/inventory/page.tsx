@@ -4,14 +4,21 @@ import { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Button, Skeleton } from "@corelithzw/react";
+
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { FactList, StatusDot } from "@/components/management/ui";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnRowAction,
+  ColumnText,
+  FactList,
+  StatusDot,
+} from "@/components/management/ui";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { RecordList } from "@/components/records/record-list";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
 import { FILTER_ANY, ViewToolbarChip, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { RowMenu } from "@/components/retail/row-menu";
 import { StockItemDialog } from "@/components/stores/stock-item-dialog";
 import {
   STOCK_CATEGORIES,
@@ -19,7 +26,6 @@ import {
   stockLevelLabel,
 } from "@/components/stores/stock-words";
 import { StoresShell } from "@/components/stores/stores-shell";
-import { Button } from "@/components/ui/button";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import {
   DropdownMenu,
@@ -63,6 +69,9 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
+
 const LEVEL_OPTIONS = new Map([
   ["low", "Low or out"],
   ["out", "Out"],
@@ -86,11 +95,12 @@ const movementsHref = (item: InventoryItem) =>
 /**
  * On hand — how much of each stock item a site holds, and where.
  *
- * Drawn as the other lists are: the name in the app bar with its one verb,
- * search and filters in the toolbar, the rows flush under it, and each row's
- * verbs behind one menu. The page used to carry a second table of locations
- * under this one, with its own side sheet; locations are their own page now,
- * and a healthy stock level draws nothing — only Low and Out are written.
+ * Drawn as the management registers are: the name in the app bar with its one
+ * verb, search and filters in the toolbar, and a `ColumnList` under it — the
+ * item and where it is kept, then the figures against the right edge. A stock
+ * item has no record page, so its one common verb, Edit, is on the row; a
+ * label and deleting it are in the edit form's footer. A healthy stock level
+ * draws nothing — only Low and Out are written.
  */
 export default function StoresInventoryPage() {
   const { toast } = useToast();
@@ -204,7 +214,9 @@ export default function StoresInventoryPage() {
       confirmLabel: "Delete stock item",
       variant: "danger",
     }).then((confirmed) => {
-      if (confirmed) deleteInventoryMutation.mutate(item.id);
+      if (!confirmed) return;
+      setEditing(null);
+      deleteInventoryMutation.mutate(item.id);
     });
   };
 
@@ -325,29 +337,13 @@ export default function StoresInventoryPage() {
     printWindow.document.close();
   };
 
-  const menuFor = (item: InventoryItem) => (
-    <RowMenu
-      label={`More for ${item.name}`}
-      items={[
-        { label: "Print a label", onSelect: () => setLabelItem(item) },
-        { label: "Edit stock item", onSelect: () => setEditing(item) },
-        {
-          label: "Delete stock item",
-          onSelect: () => confirmDelete(item),
-          destructive: true,
-          disabled: deleteInventoryMutation.isPending,
-        },
-      ]}
-    />
-  );
-
   const filtering =
     selectedCategory !== "all" || locationFilter !== FILTER_ANY || level !== FILTER_ANY;
   const emptyTitle = search.trim()
-    ? "No stock items match that search"
+    ? "No stock item matches that search."
     : filtering
-      ? "No stock items match this filter"
-      : "No stock items yet";
+      ? "No stock item matches this filter."
+      : "No stock items yet.";
   const isLoading = sitesLoading || inventoryLoading;
 
   const siteChip =
@@ -427,93 +423,84 @@ export default function StoresInventoryPage() {
         onCreate={() => setCreating(true)}
         error={sitesError || inventoryError}
       >
-        <RecordTable
-          rows={rows}
-          isLoading={isLoading}
-          emptyTitle={emptyTitle}
-          rowHref={movementsHref}
-          columns={[
-            {
-              id: "item",
-              label: "Stock item",
-              cell: (item) => <RecordTableName title={item.name} subtitle={item.itemCode} />,
-            },
-            {
-              id: "level",
-              label: "Level",
-              width: "6rem",
-              cell: levelDot,
-            },
-            {
-              id: "category",
-              label: "Category",
-              width: "8rem",
-              cell: (item) => stockCategoryLabel(item.category),
-            },
-            {
-              id: "location",
-              label: "Location",
-              width: "10rem",
-              cell: (item) => item.location?.name ?? "No location",
-            },
-            {
-              id: "onHand",
-              label: "On hand",
-              align: "end",
-              width: "9rem",
-              cell: (item) => (
-                <RecordCell kind="number" value={formatQuantity(item.currentStock, item.unit)} />
-              ),
-            },
-            {
-              id: "minimum",
-              label: "Minimum",
-              align: "end",
-              width: "8rem",
-              cell: (item) => <RecordCell kind="number" value={minimumOf(item) ?? "—"} />,
-            },
-            {
-              id: "value",
-              label: "Value",
-              align: "end",
-              width: "8rem",
-              cell: (item) => {
+        {isLoading ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* The name opens the item's movements; Edit opens its form, and
+                the rarer verbs — a label, deleting it — sit in that form's
+                footer rather than behind a menu on every row. */}
+            <ColumnList
+              label="On hand"
+              maxWidth={WIDTH}
+              empty={emptyTitle}
+              columns={[
+                { id: "item", label: "Stock item" },
+                { id: "level", label: "Level", hideBelow: "sm" },
+                { id: "category", label: "Category", hideBelow: "md" },
+                { id: "location", label: "Location", hideBelow: "md" },
+                { id: "onHand", label: "On hand", align: "end" },
+                { id: "minimum", label: "Minimum", align: "end", hideBelow: "md" },
+                { id: "value", label: "Value", align: "end", hideBelow: "sm" },
+                { id: "act", label: "" },
+              ]}
+              rows={rows.map((item) => {
                 const value = valueOf(item);
-                return <RecordCell kind="money" value={value === null ? "No cost" : formatSignedMoney(value)} />;
-              },
-            },
-            {
-              id: "menu",
-              label: "",
-              menu: <span className="sr-only">More</span>,
-              width: "3rem",
-              align: "end",
-              cell: menuFor,
-            },
-          ]}
-          mobile={
-            <RecordList
-              rows={rows.map((item) => ({
-                id: item.id,
-                href: movementsHref(item),
-                title: item.name,
-                subtitle: [item.itemCode, item.location?.name].filter(Boolean).join(" · "),
-                status: levelDot(item),
-                facts: [
-                  {
-                    label: "On hand",
-                    value: formatQuantity(item.currentStock, item.unit),
-                    kind: "number",
-                    primary: true,
+                const minimum = minimumOf(item);
+                const level = stockLevelLabel(item);
+                return {
+                  id: item.id,
+                  cells: {
+                    item: (
+                      <ColumnName
+                        code={item.itemCode}
+                        name={item.name}
+                        meta={item.location?.name ?? "No location"}
+                        href={movementsHref(item)}
+                      />
+                    ),
+                    level: levelDot(item),
+                    category: <ColumnText>{stockCategoryLabel(item.category)}</ColumnText>,
+                    location: <ColumnText>{item.location?.name ?? "No location"}</ColumnText>,
+                    onHand: (
+                      <ColumnFigure tone={level === "Out" ? "danger" : level ? "warn" : "default"}>
+                        {formatQuantity(item.currentStock, item.unit)}
+                      </ColumnFigure>
+                    ),
+                    minimum: <ColumnFigure tone="muted">{minimum ?? "—"}</ColumnFigure>,
+                    value: (
+                      <ColumnFigure tone={value === null ? "muted" : "default"}>
+                        {value === null ? "No cost" : formatSignedMoney(value)}
+                      </ColumnFigure>
+                    ),
+                    act: (
+                      <ColumnRowAction>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          aria-label={`Edit ${item.name}`}
+                          onClick={() => setEditing(item)}
+                        >
+                          Edit
+                        </Button>
+                      </ColumnRowAction>
+                    ),
                   },
-                ],
-                actions: menuFor(item),
-              }))}
-              isLoading={isLoading}
-              emptyTitle={emptyTitle}
+                };
+              })}
             />
-          }
-        />
+            {rows.length === 0 && !search.trim() && !filtering ? (
+              <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+                New stock item
+              </Button>
+            ) : null}
+          </div>
+        )}
       </RecordListShell>
 
       <StockItemDialog
@@ -527,6 +514,33 @@ export default function StoresInventoryPage() {
         item={editing}
         defaultSiteId={activeSiteId}
         defaultCategory={selectedCategory === "all" ? "CONSUMABLES" : selectedCategory}
+        footerStart={
+          editing ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  const item = editing;
+                  setEditing(null);
+                  setLabelItem(item);
+                }}
+              >
+                Print a label
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={deleteInventoryMutation.isPending}
+                onClick={() => confirmDelete(editing)}
+              >
+                Delete stock item
+              </Button>
+            </>
+          ) : null
+        }
       />
 
       <RecordDialog
@@ -537,7 +551,7 @@ export default function StoresInventoryPage() {
         title={labelItem ? `Label for ${labelItem.name}` : "Print a label"}
         size="sm"
         footer={
-          <Button type="button" onClick={handleLabelPrint}>
+          <Button type="button" variant="primary" onClick={handleLabelPrint}>
             Print label
           </Button>
         }
