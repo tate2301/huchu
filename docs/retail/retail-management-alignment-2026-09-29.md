@@ -181,6 +181,26 @@ Every item below is done in this change unless it says otherwise.
 13. `e2e/retail-journeys.spec.ts` walks the workflows above against `acme` and
     photographs every step into `docs/screenshots/retail/journey-w*`.
 
+### Phase E — drawn with the management layer, not beside it
+
+The first pass matched the management *rules* but drew retail's lists with the
+CRM's older `RecordTable` (capitalised headers, a chevron and a "⋯" on every
+row) and its records with two labelled verbs in the app bar. Set side by side
+with the management surface (Users, Sections, Downtime codes) and the CRM money
+pages that already use its layer (Projects, Requisitions, Team, Money in and
+out), they still read as a different product. The second pass draws retail with
+`components/management/ui` itself:
+
+| Shape | Management layer | Retail screens |
+|---|---|---|
+| A list | `RecordListShell` toolbar over a `ColumnList` at 960px: `ColumnName` (mono code, name, one line under it, the link), `StatusDot` only for an exception, `ColumnFigure` against the right edge | Products, Prices, Promotions, Customers, Stock counts, Moves, Orders, Deliveries, Sales, Shifts; On hand, Locations, Price lists, Catalogue, Fuel log |
+| A row's verb | None when the row has a record — its verbs are on the record. One `ColumnRowAction` when it has none; the rarer verbs in the left of that verb's dialog footer | Change price, Edit, Points ledger; Delete, Retire, Archive, Remove in their dialogs |
+| A record | `RecordHeader`: the mark, the number or name, a badge only for an exception, one `HeaderAction`, the rest behind "…"; then `SectionHeading` over `FactList` | Product (Change price · Edit, Remove), Order (Receive a delivery · Edit, Remove), Sale, Shift (Close shift) |
+| An overview | The finance page: Needs action as a heading and a list or one sentence; each figure once, what it is made of under it; lists, not tiles | Overview; Insights keeps its tabs and charts without card chrome |
+
+`RowMenu` and three report components nothing drew any more are deleted.
+"EBITDA" is named for what it is: operating profit.
+
 ---
 
 ## 6. Found on the way
