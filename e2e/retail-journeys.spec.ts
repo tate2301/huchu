@@ -180,8 +180,11 @@ test.describe("the back office", () => {
     await page.getByPlaceholder(/search by order number/i).first().fill(RUN);
     await settle(page, SETTLE);
     // New orders are numbered RPO-; the seed's own is PO-00001.
-    await page.getByRole("button", { name: /^More for RPO-/ }).first().click();
-    await page.getByRole("menuitem", { name: "Receive a delivery" }).click();
+    await page.getByRole("link", { name: /RPO-/ }).first().click();
+    await expect(page.getByRole("heading", { name: /^RPO-/ })).toBeVisible({ timeout: 60_000 });
+    await settle(page, SETTLE);
+    await shot(page, "the-order");
+    await page.getByRole("button", { name: "Receive a delivery" }).click();
     dialog = await dialogNamed(page, /Receive against R?PO-/);
     await shot(page, "receive-against-the-order");
     await dialog.getByRole("button", { name: "Save delivery" }).click();

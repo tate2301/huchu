@@ -6,7 +6,6 @@ import {
   ColumnName,
   FactList,
   SectionHeading,
-  StatusBadge,
   type FactListItem,
 } from "@/components/management/ui";
 import {
@@ -27,8 +26,9 @@ import {
  * opens it. Every sale, refund and void writes a `PlatformAuditEvent` naming
  * `RetailSale` and an id, so the page is also where an audit row leads.
  *
- * Drawn as a management record — a section heading over fact rows, the lines
- * and payments as column lists — rather than two bands of tiles.
+ * The page draws the record header — the sale number, and a badge only for a
+ * refund, a void or a voided sale; this is the body under it: section headings
+ * over fact rows, the lines and payments as column lists.
  */
 
 export type RetailSaleDetail = {
@@ -91,8 +91,6 @@ export function saleExceptionLabel(sale: { saleType: string; status: string }): 
 export const SALE_WIDTH = 560;
 
 export function RetailSaleDetailBody({ sale }: { sale: RetailSaleDetail }) {
-  const exception = saleExceptionLabel(sale);
-
   const details: FactListItem[] = [
     {
       label: "Sold",
@@ -157,13 +155,9 @@ export function RetailSaleDetailBody({ sale }: { sale: RetailSaleDetail }) {
 
   return (
     <div>
-      {exception ? (
-        <StatusBadge tone={sale.saleType === "VOID" ? "warn" : "neutral"} context="header">
-          {exception}
-        </StatusBadge>
-      ) : null}
-
-      <SectionHeading maxWidth={SALE_WIDTH}>Details</SectionHeading>
+      <SectionHeading maxWidth={SALE_WIDTH} className="mt-0">
+        Details
+      </SectionHeading>
       <FactList maxWidth={SALE_WIDTH} items={details} />
 
       <SectionHeading maxWidth={SALE_WIDTH} count={sale.lines.length}>
@@ -172,7 +166,7 @@ export function RetailSaleDetailBody({ sale }: { sale: RetailSaleDetail }) {
       <ColumnList
         label="Lines"
         maxWidth={SALE_WIDTH}
-        empty="No lines on this sale"
+        empty="No lines on this sale."
         columns={[
           { id: "product", label: "Product" },
           { id: "quantity", label: "Quantity", align: "end" },
@@ -199,7 +193,7 @@ export function RetailSaleDetailBody({ sale }: { sale: RetailSaleDetail }) {
       <ColumnList
         label="Payments"
         maxWidth={SALE_WIDTH}
-        empty="No payments on this sale"
+        empty="No payments on this sale."
         columns={[
           { id: "tender", label: "Tender" },
           { id: "amount", label: "Amount", align: "end" },

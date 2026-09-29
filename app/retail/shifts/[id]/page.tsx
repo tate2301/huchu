@@ -1,20 +1,30 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Skeleton } from "@corelithzw/react";
 
+import { RecordDialog } from "@/components/crm/records/record-dialog";
 import {
   ColumnFigure,
   ColumnList,
   ColumnName,
   FactList,
+  FormField,
+  HeaderAction,
+  RecordHeader,
   SectionHeading,
   StatusBadge,
 } from "@/components/management/ui";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney } from "@/components/retail/sale-detail";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Lock, ReceiptLong } from "@/lib/icons";
 import {
   cashMovementLabel,
   formatRetailDateTime,
@@ -31,6 +41,10 @@ import {
  * counted — and then the lists behind it in the order somebody checking would
  * read them: cash in and out first, because a short drawer is far more often a
  * drop to the safe nobody recorded than a hundred sales adding up wrong.
+ *
+ * Drawn as a management record: the header with the shift number, a badge
+ * only when the drawer came up short or over, and the one verb — Close shift,
+ * while the shift is still open — then section headings over fact rows.
  */
 
 type ShiftDetail = {
@@ -76,9 +90,22 @@ type ShiftDetail = {
 
 const WIDTH = 560;
 
+function amount(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export default function RetailShiftPage() {
   const params = useParams<{ id: string }>();
   const shiftId = params?.id ?? "";
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [closing, setClosing] = useState(false);
+  const [closeCash, setCloseCash] = useState("");
+  const [closeNotes, setCloseNotes] = useState("");
+  const [closeErrors, setCloseErrors] = useState<string[]>([]);
 
   const query = useQuery({
     queryKey: ["retail-shift", shiftId],
@@ -90,8 +117,43 @@ export default function RetailShiftPage() {
   const tenders = Object.entries(shift?.tenderMix ?? {}).sort(([a], [b]) => a.localeCompare(b));
   const till = shift?.registerName ?? shift?.registerCode ?? null;
 
+  const closeMutation = useMutation({
+    mutationFn: async () =>
+      fetchJson(`/api/v2/retail/shifts/${shiftId}/close`, {
+        method: "POST",
+        body: JSON.stringify({
+          countedCash: Number(closeCash || 0),
+          notes: closeNotes.trim() || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Shift closed", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["retail-shift", shiftId] });
+      void queryClient.invalidateQueries({ queryKey: ["retail-shifts"] });
+      void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
+      void queryClient.invalidateQueries({ queryKey: ["retail-dashboard"] });
+      setClosing(false);
+      setCloseCash("");
+      setCloseNotes("");
+    },
+    onError: (error) => {
+      toast({
+        title: "That shift was not closed",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const startClosing = () => {
+    setCloseCash("");
+    setCloseNotes("");
+    setCloseErrors([]);
+    setClosing(true);
+  };
+
   return (
-    <RetailShell title={shift?.shiftNo ?? "Shift"}>
+    <RetailShell title="Shifts">
       {query.isPending ? (
         <div aria-busy="true" aria-live="polite" className="space-y-3" style={{ maxWidth: WIDTH }}>
           <span className="sr-only">Loading the shift</span>
@@ -106,148 +168,217 @@ export default function RetailShiftPage() {
       ) : !shift ? (
         <p className="text-sm text-[var(--text-muted)]">There is no shift at this address.</p>
       ) : (
-        <div>
-          {shift.variance ? (
-            <StatusBadge tone="warn" context="header">
-              {shift.variance < 0 ? "Short" : "Over"}
-            </StatusBadge>
-          ) : null}
-
-          <SectionHeading maxWidth={WIDTH}>Details</SectionHeading>
-          <FactList
-            maxWidth={WIDTH}
-            items={[
-              { label: "Site", value: shift.site?.name ?? "No site", tone: shift.site ? "default" : "muted" },
-              { label: "Till", value: till ?? "Not on file", tone: till ? "default" : "muted" },
-              {
-                label: "Cashier",
-                value: shift.cashierName ?? "Not on file",
-                tone: shift.cashierName ? "default" : "muted",
-              },
-              { label: "Opened", value: formatRetailDateTime(shift.openedAt), mono: true },
-              {
-                label: "Closed",
-                value: formatRetailDateTime(shift.closedAt) || "Still open",
-                mono: Boolean(shift.closedAt),
-                tone: shift.closedAt ? "default" : "muted",
-              },
-              ...(shift.notes ? [{ label: "Notes", value: shift.notes }] : []),
-            ]}
+        <div className="space-y-6" style={{ maxWidth: WIDTH }}>
+          <RecordHeader
+            icon={ReceiptLong}
+            title={shift.shiftNo}
+            badge={
+              shift.variance ? (
+                <StatusBadge tone="warn" context="header">
+                  {shift.variance < 0 ? "Short" : "Over"}
+                </StatusBadge>
+              ) : null
+            }
+            action={
+              shift.status === "OPEN" ? (
+                <HeaderAction icon={Lock} onClick={startClosing}>
+                  Close shift
+                </HeaderAction>
+              ) : null
+            }
           />
 
-          <SectionHeading maxWidth={WIDTH}>Cash up</SectionHeading>
-          <FactList
-            maxWidth={WIDTH}
-            align="end"
-            items={[
-              { label: "Opening float", value: retailMoney(shift.openingFloat), mono: true },
-              { label: "Takings", value: formatSignedMoney(shift.salesValue), mono: true },
-              { label: "Expected", value: retailMoney(shift.expectedCash), mono: true },
-              {
-                label: "Counted",
-                value: shift.countedCash === null ? "Not counted yet" : retailMoney(shift.countedCash),
-                mono: shift.countedCash !== null,
-                tone: shift.countedCash === null ? "muted" : "default",
-              },
-              {
-                label: "Variance",
-                value: shift.variance === null ? "Not counted yet" : formatSignedMoney(shift.variance),
-                mono: shift.variance !== null,
-                tone: shift.variance === null ? "muted" : shift.variance !== 0 ? "warn" : "default",
-              },
-            ]}
-          />
+          <div>
+            <SectionHeading maxWidth={WIDTH} className="mt-0">
+              Details
+            </SectionHeading>
+            <FactList
+              maxWidth={WIDTH}
+              items={[
+                { label: "Site", value: shift.site?.name ?? "No site", tone: shift.site ? "default" : "muted" },
+                { label: "Till", value: till ?? "Not on file", tone: till ? "default" : "muted" },
+                {
+                  label: "Cashier",
+                  value: shift.cashierName ?? "Not on file",
+                  tone: shift.cashierName ? "default" : "muted",
+                },
+                { label: "Opened", value: formatRetailDateTime(shift.openedAt), mono: true },
+                {
+                  label: "Closed",
+                  value: formatRetailDateTime(shift.closedAt) || "Still open",
+                  mono: Boolean(shift.closedAt),
+                  tone: shift.closedAt ? "default" : "muted",
+                },
+                ...(shift.notes ? [{ label: "Notes", value: shift.notes }] : []),
+              ]}
+            />
 
-          <SectionHeading maxWidth={WIDTH} count={shift.cashMovements.length}>
-            Cash in and out
-          </SectionHeading>
-          <ColumnList
-            label="Cash in and out"
-            maxWidth={WIDTH}
-            empty="No cash moved in or out"
-            columns={[
-              { id: "movement", label: "Movement" },
-              { id: "amount", label: "Amount", align: "end" },
-            ]}
-            rows={shift.cashMovements.map((movement) => ({
-              id: movement.id,
-              cells: {
-                movement: (
-                  <ColumnName
-                    name={cashMovementLabel(movement.type)}
-                    meta={[
-                      movement.reason ?? movement.reasonCode,
-                      movement.recordedByName,
-                      formatRetailDateTime(movement.createdAt),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  />
-                ),
-                amount: (
-                  <ColumnFigure>
-                    {movement.currency === "USD"
-                      ? retailMoney(movement.amount)
-                      : `${movement.amount.toFixed(2)} ${movement.currency}`}
-                  </ColumnFigure>
-                ),
-              },
-            }))}
-          />
+            <SectionHeading maxWidth={WIDTH}>Cash up</SectionHeading>
+            <FactList
+              maxWidth={WIDTH}
+              align="end"
+              items={[
+                { label: "Opening float", value: retailMoney(shift.openingFloat), mono: true },
+                { label: "Takings", value: formatSignedMoney(shift.salesValue), mono: true },
+                { label: "Expected", value: retailMoney(shift.expectedCash), mono: true },
+                {
+                  label: "Counted",
+                  value: shift.countedCash === null ? "Not counted yet" : retailMoney(shift.countedCash),
+                  mono: shift.countedCash !== null,
+                  tone: shift.countedCash === null ? "muted" : "default",
+                },
+                {
+                  label: "Variance",
+                  value: shift.variance === null ? "Not counted yet" : formatSignedMoney(shift.variance),
+                  mono: shift.variance !== null,
+                  tone: shift.variance === null ? "muted" : shift.variance !== 0 ? "warn" : "default",
+                },
+              ]}
+            />
 
-          <SectionHeading maxWidth={WIDTH} count={tenders.length}>
-            Tender mix
-          </SectionHeading>
-          <ColumnList
-            label="Tender mix"
-            maxWidth={WIDTH}
-            empty="No sales on this shift yet"
-            columns={[
-              { id: "tender", label: "Tender" },
-              { id: "amount", label: "Amount", align: "end" },
-            ]}
-            rows={tenders.map(([tender, value]) => ({
-              id: tender,
-              cells: {
-                tender: <ColumnName name={tenderLabel(tender)} />,
-                amount: <ColumnFigure>{formatSignedMoney(value)}</ColumnFigure>,
-              },
-            }))}
-          />
+            <SectionHeading maxWidth={WIDTH} count={shift.cashMovements.length}>
+              Cash in and out
+            </SectionHeading>
+            <ColumnList
+              label="Cash in and out"
+              maxWidth={WIDTH}
+              empty="No cash moved in or out."
+              columns={[
+                { id: "movement", label: "Movement" },
+                { id: "amount", label: "Amount", align: "end" },
+              ]}
+              rows={shift.cashMovements.map((movement) => ({
+                id: movement.id,
+                cells: {
+                  movement: (
+                    <ColumnName
+                      name={cashMovementLabel(movement.type)}
+                      meta={[
+                        movement.reason ?? movement.reasonCode,
+                        movement.recordedByName,
+                        formatRetailDateTime(movement.createdAt),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    />
+                  ),
+                  amount: (
+                    <ColumnFigure>
+                      {movement.currency === "USD"
+                        ? retailMoney(movement.amount)
+                        : `${movement.amount.toFixed(2)} ${movement.currency}`}
+                    </ColumnFigure>
+                  ),
+                },
+              }))}
+            />
 
-          <SectionHeading maxWidth={WIDTH} count={shift.sales.length}>
-            Sales
-          </SectionHeading>
-          <ColumnList
-            label="Sales"
-            maxWidth={WIDTH}
-            empty="No sales on this shift yet"
-            columns={[
-              { id: "sale", label: "Sale" },
-              { id: "total", label: "Total", align: "end" },
-            ]}
-            rows={shift.sales.map((sale) => ({
-              id: sale.id,
-              cells: {
-                sale: (
-                  <ColumnName
-                    code={sale.saleNo}
-                    name={sale.customerName ?? "Walk-in"}
-                    meta={[
-                      sale.saleType === "SALE" ? null : saleTypeLabel(sale.saleType),
-                      formatRetailDateTime(sale.postedAt),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    href={`/retail/sales/${sale.id}`}
-                  />
-                ),
-                total: <ColumnFigure>{formatSignedMoney(sale.totalAmount)}</ColumnFigure>,
-              },
-            }))}
-          />
+            <SectionHeading maxWidth={WIDTH} count={tenders.length}>
+              Tender mix
+            </SectionHeading>
+            <ColumnList
+              label="Tender mix"
+              maxWidth={WIDTH}
+              empty="No sales on this shift yet."
+              columns={[
+                { id: "tender", label: "Tender" },
+                { id: "amount", label: "Amount", align: "end" },
+              ]}
+              rows={tenders.map(([tender, value]) => ({
+                id: tender,
+                cells: {
+                  tender: <ColumnName name={tenderLabel(tender)} />,
+                  amount: <ColumnFigure>{formatSignedMoney(value)}</ColumnFigure>,
+                },
+              }))}
+            />
+
+            <SectionHeading maxWidth={WIDTH} count={shift.sales.length}>
+              Sales
+            </SectionHeading>
+            <ColumnList
+              label="Sales"
+              maxWidth={WIDTH}
+              empty="No sales on this shift yet."
+              columns={[
+                { id: "sale", label: "Sale" },
+                { id: "total", label: "Total", align: "end" },
+              ]}
+              rows={shift.sales.map((sale) => ({
+                id: sale.id,
+                cells: {
+                  sale: (
+                    <ColumnName
+                      code={sale.saleNo}
+                      name={sale.customerName ?? "Walk-in"}
+                      meta={[
+                        sale.saleType === "SALE" ? null : saleTypeLabel(sale.saleType),
+                        formatRetailDateTime(sale.postedAt),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      href={`/retail/sales/${sale.id}`}
+                    />
+                  ),
+                  total: <ColumnFigure>{formatSignedMoney(sale.totalAmount)}</ColumnFigure>,
+                },
+              }))}
+            />
+          </div>
         </div>
       )}
+
+      <RecordDialog
+        open={closing}
+        onOpenChange={setClosing}
+        title={shift ? `Close ${shift.shiftNo}` : "Close shift"}
+        size="sm"
+        errors={closeErrors}
+        onSubmit={(event) => {
+          event.preventDefault();
+          const counted = amount(closeCash);
+          const problems = counted === null || counted < 0 ? ["Give the cash counted in the drawer."] : [];
+          setCloseErrors(problems);
+          if (problems.length === 0) closeMutation.mutate();
+        }}
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setClosing(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={closeMutation.isPending}>
+              Close shift
+            </Button>
+          </>
+        }
+      >
+        {shift ? (
+          <FactList
+            maxWidth={null}
+            items={[
+              { label: "Till", value: till ?? "Not on file", tone: till ? "default" : "muted" },
+              { label: "Expected cash", value: retailMoney(shift.expectedCash), mono: true },
+            ]}
+          />
+        ) : null}
+        <FormField label="Counted cash">
+          {(id) => (
+            <Input
+              id={id}
+              value={closeCash}
+              inputMode="decimal"
+              className="font-mono"
+              autoFocus
+              onChange={(event) => setCloseCash(event.target.value)}
+            />
+          )}
+        </FormField>
+        <FormField label="Notes">
+          {(id) => (
+            <Textarea id={id} value={closeNotes} rows={3} onChange={(event) => setCloseNotes(event.target.value)} />
+          )}
+        </FormField>
+      </RecordDialog>
     </RetailShell>
   );
 }

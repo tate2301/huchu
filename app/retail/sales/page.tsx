@@ -4,11 +4,10 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { Button, Skeleton } from "@corelithzw/react";
 
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { StatusDot } from "@/components/management/ui";
-import { RecordList } from "@/components/records/record-list";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import { ColumnFigure, ColumnList, ColumnName, ColumnText, StatusDot } from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { saleExceptionLabel } from "@/components/retail/sale-detail";
 import { fetchJson } from "@/lib/api-client";
@@ -41,13 +40,17 @@ function SaleState({ sale }: { sale: SaleRow }) {
 
 const tenders = (sale: SaleRow) => sale.tenderTypes.map(tenderLabel).join(", ");
 
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
+
 /**
  * Sales — every sale, refund and void the tills have posted.
  *
  * Drawn as the products list is: the name in the app bar, a toolbar of search
- * and two filters, and the records flush under it. The tiles, the four charts
- * and the rail of queues that sat over the table are gone (D3); a refund or a
- * void says so in its own row, and a row opens the sale's own page.
+ * and two filters with the count, and a `ColumnList` under it — the sale
+ * number, the customer and when, then the cashier, the tender and the total. A
+ * refund or a void says so in its own row; the sale number opens the sale's
+ * own page. Sales are rung on the till, so the list's one verb opens it.
  */
 export default function RetailSalesPage() {
   const router = useRouter();
@@ -82,11 +85,12 @@ export default function RetailSalesPage() {
   }, [sales, search, type, tender]);
 
   const filterCount = (type === FILTER_ANY ? 0 : 1) + (tender === FILTER_ANY ? 0 : 1);
-  const emptyTitle = search.trim()
-    ? "No sales match that search"
+  const narrowed = Boolean(search.trim()) || filterCount > 0;
+  const empty = search.trim()
+    ? "No sale matches that search."
     : filterCount > 0
-      ? "No sales match this filter"
-      : "No sales yet";
+      ? "No sale matches this filter."
+      : "No sales yet.";
 
   return (
     <RecordListShell
@@ -118,71 +122,52 @@ export default function RetailSalesPage() {
       onCreate={canOpenPos ? () => router.push("/portal/pos") : undefined}
       error={salesQuery.error}
     >
-      <RecordTable
-        rows={rows}
-        isLoading={salesQuery.isPending}
-        emptyTitle={emptyTitle}
-        rowHref={(sale) => `/retail/sales/${sale.id}`}
-        columns={[
-          {
-            id: "sale",
-            label: "Sale",
-            cell: (sale) => (
-              <RecordTableName title={sale.saleNo} subtitle={formatRetailDateTime(sale.postedAt)} />
-            ),
-          },
-          {
-            id: "state",
-            label: "Status",
-            width: "7rem",
-            cell: (sale) => <SaleState sale={sale} />,
-          },
-          {
-            id: "cashier",
-            label: "Cashier",
-            cell: (sale) => <RecordCell value={sale.cashierName ?? "Not on file"} />,
-          },
-          {
-            id: "customer",
-            label: "Customer",
-            cell: (sale) => <RecordCell value={sale.customerName ?? "Walk-in"} />,
-          },
-          {
-            id: "tender",
-            label: "Tender",
-            cell: (sale) => <RecordCell value={tenders(sale)} />,
-          },
-          {
-            id: "total",
-            label: "Total",
-            align: "end",
-            width: "8rem",
-            cell: (sale) => <RecordCell kind="money" value={formatSignedMoney(sale.totalAmount)} />,
-          },
-        ]}
-        mobile={
-          <RecordList
+      {salesQuery.isPending ? (
+        <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* A plain sale draws no state (rule 5); a refund, a void and a
+              voided sale each say so in one word. */}
+          <ColumnList
+            label="Sales"
+            maxWidth={WIDTH}
+            empty={empty}
+            columns={[
+              { id: "sale", label: "Sale" },
+              { id: "state", label: "Status", hideBelow: "sm" },
+              { id: "cashier", label: "Cashier", hideBelow: "md" },
+              { id: "tender", label: "Tender", hideBelow: "sm" },
+              { id: "total", label: "Total", align: "end" },
+            ]}
             rows={rows.map((sale) => ({
               id: sale.id,
-              href: `/retail/sales/${sale.id}`,
-              title: sale.saleNo,
-              subtitle: formatRetailDateTime(sale.postedAt),
-              status: <SaleState sale={sale} />,
-              facts: [
-                {
-                  label: "Total",
-                  value: formatSignedMoney(sale.totalAmount),
-                  kind: "money",
-                  primary: true,
-                },
-                { label: "Tender", value: tenders(sale) },
-              ],
+              cells: {
+                sale: (
+                  <ColumnName
+                    code={sale.saleNo}
+                    name={sale.customerName ?? "Walk-in"}
+                    meta={formatRetailDateTime(sale.postedAt)}
+                    href={`/retail/sales/${sale.id}`}
+                  />
+                ),
+                state: <SaleState sale={sale} />,
+                cashier: <ColumnText>{sale.cashierName ?? "Not on file"}</ColumnText>,
+                tender: <ColumnText>{tenders(sale)}</ColumnText>,
+                total: <ColumnFigure>{formatSignedMoney(sale.totalAmount)}</ColumnFigure>,
+              },
             }))}
-            isLoading={salesQuery.isPending}
-            emptyTitle={emptyTitle}
           />
-        }
-      />
+          {rows.length === 0 && !narrowed && canOpenPos ? (
+            <Button variant="primary" size="sm" onClick={() => router.push("/portal/pos")}>
+              Open the till
+            </Button>
+          ) : null}
+        </div>
+      )}
     </RecordListShell>
   );
 }

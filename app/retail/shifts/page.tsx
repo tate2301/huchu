@@ -2,13 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button as DsButton, Skeleton } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { FactList, FormField, StatusDot } from "@/components/management/ui";
-import { RecordList } from "@/components/records/record-list";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
-import { RowMenu } from "@/components/retail/row-menu";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnText,
+  FormField,
+  StatusDot,
+} from "@/components/management/ui";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +68,9 @@ type ShiftContextSite = {
   }>;
 };
 
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
+
 const EMPTY_FORM: ShiftForm = { siteId: "", registerId: "", openingFloat: "0", notes: "" };
 
 function amount(value: string): number | null {
@@ -86,10 +94,10 @@ const tillLine = (shift: Shift) =>
  * Shifts — every drawer the tills have opened, and what it came to.
  *
  * Drawn as the products list is: the name in the app bar with its one verb,
- * search and the count in the toolbar, and the records under it. The tiles and
- * the four charts that sat over the table are gone (D3); a drawer that did not
- * balance says Short or Over in its own row. Closing a shift is the row's verb,
- * behind its menu.
+ * search and the count in the toolbar, and a `ColumnList` under it — the shift
+ * number, the cashier and the till, then when it ran, its takings and its
+ * variance. A till still trading says Open and a drawer that did not balance
+ * says Short or Over in its own row. Closing a shift is on its record.
  */
 export default function RetailShiftsPage() {
   const { toast } = useToast();
@@ -97,10 +105,6 @@ export default function RetailShiftsPage() {
   const [search, setSearch] = useState("");
   const [openDialog, setOpenDialog] = useState(false);
   const [openErrors, setOpenErrors] = useState<string[]>([]);
-  const [closeTarget, setCloseTarget] = useState<Shift | null>(null);
-  const [closeCash, setCloseCash] = useState("");
-  const [closeNotes, setCloseNotes] = useState("");
-  const [closeErrors, setCloseErrors] = useState<string[]>([]);
   const [form, setForm] = useState<ShiftForm>(EMPTY_FORM);
 
   const shiftContextQuery = useQuery({
@@ -207,45 +211,14 @@ export default function RetailShiftsPage() {
     },
   });
 
-  const closeMutation = useMutation({
-    mutationFn: async (shift: Shift) =>
-      fetchJson(`/api/v2/retail/shifts/${shift.id}/close`, {
-        method: "POST",
-        body: JSON.stringify({
-          countedCash: Number(closeCash || 0),
-          notes: closeNotes.trim() || undefined,
-        }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Shift closed", variant: "success" });
-      invalidateShifts();
-      setCloseTarget(null);
-      setCloseCash("");
-      setCloseNotes("");
-    },
-    onError: (error) => {
-      toast({
-        title: "That shift was not closed",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
   const startOpening = () => {
     setForm(EMPTY_FORM);
     setOpenErrors([]);
     setOpenDialog(true);
   };
 
-  const startClosing = (shift: Shift) => {
-    setCloseCash("");
-    setCloseNotes("");
-    setCloseErrors([]);
-    setCloseTarget(shift);
-  };
-
-  const emptyTitle = search.trim() ? "No shifts match that search" : "No shifts yet";
+  const narrowed = Boolean(search.trim());
+  const empty = narrowed ? "No shift matches that search." : "No shifts yet.";
 
   return (
     <>
@@ -259,93 +232,56 @@ export default function RetailShiftsPage() {
         onCreate={startOpening}
         error={shiftsQuery.error}
       >
-        <RecordTable
-          rows={rows}
-          isLoading={shiftsQuery.isPending}
-          emptyTitle={emptyTitle}
-          rowHref={(shift) => `/retail/shifts/${shift.id}`}
-          columns={[
-            {
-              id: "shift",
-              label: "Shift",
-              cell: (shift) => <RecordTableName title={shift.shiftNo} subtitle={tillLine(shift)} />,
-            },
-            {
-              id: "state",
-              label: "Status",
-              width: "7rem",
-              cell: (shift) => <ShiftState shift={shift} />,
-            },
-            {
-              id: "cashier",
-              label: "Cashier",
-              cell: (shift) => <RecordCell value={shift.cashierName} />,
-            },
-            {
-              id: "opened",
-              label: "Opened",
-              width: "11rem",
-              cell: (shift) => <RecordCell kind="date" value={formatRetailDateTime(shift.openedAt)} />,
-            },
-            {
-              id: "closed",
-              label: "Closed",
-              width: "11rem",
-              cell: (shift) => <RecordCell kind="date" value={formatRetailDateTime(shift.closedAt)} />,
-            },
-            {
-              id: "takings",
-              label: "Takings",
-              align: "end",
-              width: "8rem",
-              cell: (shift) => <RecordCell kind="money" value={retailMoney(shift.salesValue)} />,
-            },
-            {
-              id: "variance",
-              label: "Variance",
-              align: "end",
-              width: "8rem",
-              cell: (shift) => (
-                <RecordCell
-                  kind="money"
-                  value={shift.variance === null ? "—" : formatSignedMoney(shift.variance)}
-                />
-              ),
-            },
-            {
-              id: "menu",
-              label: "",
-              width: "3rem",
-              align: "end",
-              cell: (shift) =>
-                shift.status === "OPEN" ? (
-                  <RowMenu
-                    label={`More for ${shift.shiftNo}`}
-                    items={[{ label: "Close shift", onSelect: () => startClosing(shift) }]}
-                  />
-                ) : null,
-            },
-          ]}
-          mobile={
-            <RecordList
+        {shiftsQuery.isPending ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <ColumnList
+              label="Shifts"
+              maxWidth={WIDTH}
+              empty={empty}
+              columns={[
+                { id: "shift", label: "Shift" },
+                { id: "state", label: "Status", hideBelow: "sm" },
+                { id: "opened", label: "Opened", hideBelow: "md" },
+                { id: "closed", label: "Closed", hideBelow: "md" },
+                { id: "takings", label: "Takings", align: "end" },
+                { id: "variance", label: "Variance", align: "end", hideBelow: "sm" },
+              ]}
               rows={rows.map((shift) => ({
                 id: shift.id,
-                href: `/retail/shifts/${shift.id}`,
-                title: shift.shiftNo,
-                subtitle: tillLine(shift),
-                status: <ShiftState shift={shift} />,
-                facts: [
-                  { label: "Takings", value: retailMoney(shift.salesValue), kind: "money", primary: true },
-                  ...(shift.variance
-                    ? [{ label: "Variance", value: formatSignedMoney(shift.variance), kind: "money" as const }]
-                    : []),
-                ],
+                cells: {
+                  shift: (
+                    <ColumnName
+                      code={shift.shiftNo}
+                      name={shift.cashierName}
+                      meta={tillLine(shift)}
+                      href={`/retail/shifts/${shift.id}`}
+                    />
+                  ),
+                  state: <ShiftState shift={shift} />,
+                  opened: <ColumnText>{formatRetailDateTime(shift.openedAt)}</ColumnText>,
+                  closed: <ColumnText>{formatRetailDateTime(shift.closedAt) || "Still open"}</ColumnText>,
+                  takings: <ColumnFigure>{retailMoney(shift.salesValue)}</ColumnFigure>,
+                  variance: (
+                    <ColumnFigure tone={shift.variance === null ? "muted" : shift.variance ? "warn" : "default"}>
+                      {shift.variance === null ? "Not counted" : formatSignedMoney(shift.variance)}
+                    </ColumnFigure>
+                  ),
+                },
               }))}
-              isLoading={shiftsQuery.isPending}
-              emptyTitle={emptyTitle}
             />
-          }
-        />
+            {rows.length === 0 && !narrowed ? (
+              <DsButton variant="primary" size="sm" onClick={startOpening}>
+                Open shift
+              </DsButton>
+            ) : null}
+          </div>
+        )}
       </RecordListShell>
 
       <RecordDialog
@@ -450,57 +386,6 @@ export default function RetailShiftsPage() {
         </FormField>
       </RecordDialog>
 
-      <RecordDialog
-        open={Boolean(closeTarget)}
-        onOpenChange={(open) => !open && setCloseTarget(null)}
-        title={closeTarget ? `Close ${closeTarget.shiftNo}` : "Close shift"}
-        size="sm"
-        errors={closeErrors}
-        onSubmit={(event) => {
-          event.preventDefault();
-          const counted = amount(closeCash);
-          const problems = counted === null || counted < 0 ? ["Give the cash counted in the drawer."] : [];
-          setCloseErrors(problems);
-          if (problems.length === 0 && closeTarget) closeMutation.mutate(closeTarget);
-        }}
-        footer={
-          <>
-            <Button type="button" variant="outline" onClick={() => setCloseTarget(null)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={closeMutation.isPending}>
-              Close shift
-            </Button>
-          </>
-        }
-      >
-        {closeTarget ? (
-          <FactList
-            maxWidth={null}
-            items={[
-              { label: "Till", value: closeTarget.registerName },
-              { label: "Expected cash", value: retailMoney(closeTarget.expectedCash), mono: true },
-            ]}
-          />
-        ) : null}
-        <FormField label="Counted cash">
-          {(id) => (
-            <Input
-              id={id}
-              value={closeCash}
-              inputMode="decimal"
-              className="font-mono"
-              autoFocus
-              onChange={(event) => setCloseCash(event.target.value)}
-            />
-          )}
-        </FormField>
-        <FormField label="Notes">
-          {(id) => (
-            <Textarea id={id} value={closeNotes} rows={3} onChange={(event) => setCloseNotes(event.target.value)} />
-          )}
-        </FormField>
-      </RecordDialog>
     </>
   );
 }

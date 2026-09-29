@@ -2,13 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { Alert } from "@corelithzw/react";
+import { Alert, Button as DsButton, Skeleton } from "@corelithzw/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { FormField } from "@/components/management/ui";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import { ColumnFigure, ColumnList, ColumnName, ColumnText, FormField } from "@/components/management/ui";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +32,7 @@ type Delivery = {
   id: string;
   receiptNo: string;
   siteId: string;
+  purchaseOrderId: string | null;
   supplierName: string;
   createdAt: string;
   notes: string | null;
@@ -73,6 +73,9 @@ type DeliveryForm = {
 };
 
 const NO_ORDER = "";
+
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
 
 function emptyLine(): LineForm {
   return { inventoryItemId: "", quantity: "1", unitCost: "" };
@@ -115,10 +118,12 @@ function formFromOrder(order: Order, fallbackSiteId: string): DeliveryForm {
  * Deliveries — goods arriving from a supplier, which put stock on the shelf
  * and set what it cost.
  *
- * This page was "Receipts", which is what the customer takes home; a delivery
- * keeps its GRN- number. The Purchase Orders and Stock Movements buttons in
- * the bar were navigation and are gone — the sidebar does that — leaving the
- * one verb.
+ * Drawn as the products list is: the name in the app bar with the one verb,
+ * search and the count in the toolbar, and a `ColumnList` under it — the GRN-
+ * number, the supplier, and the site and order it came against, then when it
+ * arrived and what it came to. A delivery has no record page and no verb of
+ * its own once received. Arriving from an order's "Receive a delivery" opens
+ * the form already filled with what that order is still owed.
  */
 export default function RetailDeliveriesPage() {
   const { toast } = useToast();
@@ -263,7 +268,17 @@ export default function RetailDeliveriesPage() {
     if (problems.length === 0) save.mutate(form);
   };
 
-  const emptyTitle = search.trim() ? "No deliveries match that search" : "No deliveries yet";
+  const openBlank = () => {
+    if (orderIdParam) router.replace("/retail/purchasing/receipts");
+    setForm(emptyForm(sites[0]?.id ?? ""));
+    setErrors([]);
+    setDialogOpen(true);
+  };
+
+  const orderNo = useMemo(() => new Map(orders.map((order) => [order.id, order.poNo])), [orders]);
+
+  const narrowed = Boolean(search.trim());
+  const empty = narrowed ? "No delivery matches that search." : "No deliveries yet.";
 
   return (
     <>
@@ -274,56 +289,58 @@ export default function RetailDeliveriesPage() {
         searchPlaceholder="Search by delivery number or supplier"
         count={deliveriesQuery.isSuccess ? `${rows.length} of ${deliveries.length}` : null}
         createLabel="Receive a delivery"
-        onCreate={() => {
-          if (orderIdParam) router.replace("/retail/purchasing/receipts");
-          setForm(emptyForm(sites[0]?.id ?? ""));
-          setErrors([]);
-          setDialogOpen(true);
-        }}
+        onCreate={openBlank}
         error={deliveriesQuery.error}
         notice={
           unknownOrderRequested ? <Alert tone="warn" title="That order is not on file" /> : null
         }
       >
-        <RecordTable
-          rows={rows}
-          isLoading={deliveriesQuery.isPending}
-          emptyTitle={emptyTitle}
-          columns={[
-            {
-              id: "delivery",
-              label: "Delivery",
-              cell: (delivery) => (
-                <RecordTableName title={delivery.receiptNo} subtitle={delivery.site?.name ?? "No site"} />
-              ),
-            },
-            {
-              id: "supplier",
-              label: "Supplier",
-              cell: (delivery) => <RecordCell value={delivery.supplierName} />,
-            },
-            {
-              id: "received",
-              label: "Received",
-              width: "9rem",
-              cell: (delivery) => <RecordCell kind="date" value={formatRetailDate(delivery.createdAt)} />,
-            },
-            {
-              id: "quantity",
-              label: "Quantity",
-              align: "end",
-              width: "8rem",
-              cell: (delivery) => <RecordCell kind="number" value={formatQuantity(delivery.totalQuantity)} />,
-            },
-            {
-              id: "value",
-              label: "Value",
-              align: "end",
-              width: "8rem",
-              cell: (delivery) => <RecordCell kind="money" value={retailMoney(delivery.totalValue)} />,
-            },
-          ]}
-        />
+        {deliveriesQuery.isPending ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <ColumnList
+              label="Deliveries"
+              maxWidth={WIDTH}
+              empty={empty}
+              columns={[
+                { id: "delivery", label: "Delivery" },
+                { id: "received", label: "Received", hideBelow: "sm" },
+                { id: "quantity", label: "Quantity", align: "end", hideBelow: "md" },
+                { id: "value", label: "Value", align: "end" },
+              ]}
+              rows={rows.map((delivery) => ({
+                id: delivery.id,
+                cells: {
+                  delivery: (
+                    <ColumnName
+                      code={delivery.receiptNo}
+                      name={delivery.supplierName}
+                      meta={[
+                        delivery.site?.name ?? "No site",
+                        delivery.purchaseOrderId ? orderNo.get(delivery.purchaseOrderId) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    />
+                  ),
+                  received: <ColumnText>{formatRetailDate(delivery.createdAt)}</ColumnText>,
+                  quantity: <ColumnFigure>{formatQuantity(delivery.totalQuantity)}</ColumnFigure>,
+                  value: <ColumnFigure>{retailMoney(delivery.totalValue)}</ColumnFigure>,
+                },
+              }))}
+            />
+            {rows.length === 0 && !narrowed ? (
+              <DsButton variant="primary" size="sm" onClick={openBlank}>
+                Receive a delivery
+              </DsButton>
+            ) : null}
+          </div>
+        )}
       </RecordListShell>
 
       <RecordDialog
