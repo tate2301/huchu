@@ -3,16 +3,10 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { FormField } from "@/components/management/ui";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -21,30 +15,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FormShell } from "@/components/shared/form-shell";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import { formatQuantity } from "@/lib/retail/words";
 
 export type StockMovementKind = "ISSUE" | "RECEIPT";
 
-const COPY: Record<
-  StockMovementKind,
-  { title: string; description: string; submit: string; done: string }
-> = {
-  ISSUE: {
-    title: "Issue stock",
-    description: "Take something out of a store and say where it went.",
-    submit: "Issue stock",
-    done: "Stock issued",
-  },
-  RECEIPT: {
-    title: "Receive stock",
-    description: "Book something in, with what it cost and who it came from.",
-    submit: "Receive stock",
-    done: "Stock received",
-  },
+const COPY: Record<StockMovementKind, { title: string; done: string; failed: string }> = {
+  ISSUE: { title: "Issue stock", done: "Stock issued", failed: "That stock was not issued" },
+  RECEIPT: { title: "Receive stock", done: "Stock received", failed: "That stock was not received" },
 };
 
 type FormState = {
@@ -80,7 +61,8 @@ function emptyForm(): FormState {
 }
 
 /**
- * Issuing and receiving stock, as a dialog.
+ * Issuing and receiving stock, as a dialog. The title and the submit are the
+ * same words as the button that opened it.
  *
  * Both were full pages you navigated away to, filled in, and were redirected
  * out of — which is the wrong shape for a thirty-second job you do while
@@ -153,7 +135,7 @@ export function StockMovementDialog({
       toast({ title: COPY[kind].done, variant: "success" });
       onOpenChange(false);
     },
-    onError: (error) => setErrors([getApiErrorMessage(error)]),
+    onError: (error) => setErrors([`${COPY[kind].failed}: ${getApiErrorMessage(error)}`]),
   });
 
   const patch = (next: Partial<FormState>) => setForm((prev) => ({ ...prev, ...next }));
@@ -161,21 +143,25 @@ export function StockMovementDialog({
   const validate = (): string[] => {
     const found: string[] = [];
     const item = items.find((candidate) => candidate.id === form.itemId);
-    if (!item) found.push("Pick the item this movement is about.");
+    if (!item) found.push("Choose the stock item.");
 
     const quantity = Number(form.quantity);
     if (!Number.isFinite(quantity) || quantity <= 0) {
       found.push("Enter a quantity greater than zero.");
     }
     if (!reservedId) {
-      found.push(reserveError ?? "Still reserving a reference number — one moment.");
+      found.push(
+        reserveError
+          ? `No reference was reserved for it: ${reserveError}`
+          : "Its reference is still being reserved.",
+      );
     }
 
     if (kind === "ISSUE") {
       if (!form.issuedTo.trim()) found.push("Say who the stock went to.");
-      if (!nameOf(form.requestedById)) found.push("Pick who asked for it.");
+      if (!nameOf(form.requestedById)) found.push("Choose who asked for it.");
     } else if (!nameOf(form.requestedById)) {
-      found.push("Pick who took delivery.");
+      found.push("Choose who took it in.");
     }
 
     return found;
@@ -232,155 +218,180 @@ export function StockMovementDialog({
   const copy = COPY[kind];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{copy.title}</DialogTitle>
-          <DialogDescription>{copy.description}</DialogDescription>
-        </DialogHeader>
+    <RecordDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={copy.title}
+      size="md"
+      onSubmit={submit}
+      errors={errors}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={save.isPending || isReserving}>
+            {copy.title}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Date">
+          {(id) => (
+            <Input
+              id={id}
+              type="date"
+              value={form.date}
+              onChange={(event) => patch({ date: event.target.value })}
+            />
+          )}
+        </FormField>
+        <FormField label="Reference">
+          {(id) => (
+            <Input
+              id={id}
+              value={reservedId || (isReserving ? "Reserving…" : "")}
+              readOnly
+              className="font-mono"
+            />
+          )}
+        </FormField>
+      </div>
 
-        <FormShell
-          variant="bare"
-          errors={errors}
-          onSubmit={submit}
-          requiredHint="Everything marked * has to be filled in."
-          actions={
-            <>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={save.isPending || isReserving}>
-                {save.isPending ? "Saving…" : copy.submit}
-              </Button>
-            </>
-          }
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="movement-date">Date *</Label>
-              <Input
-                id="movement-date"
-                type="date"
-                value={form.date}
-                onChange={(event) => patch({ date: event.target.value })}
+      <FormField label="Site">
+        {(id) => (
+          <Select
+            value={activeSiteId}
+            onValueChange={(value) => patch({ siteId: value, itemId: "" })}
+          >
+            <SelectTrigger id={id}>
+              <SelectValue placeholder={sitesQuery.isLoading ? "Loading…" : "Choose a site"} />
+            </SelectTrigger>
+            <SelectContent>
+              {sites.map((site) => (
+                <SelectItem key={site.id} value={site.id}>
+                  {site.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </FormField>
+
+      <FormField label="Stock item">
+        {(id) => (
+          <Select value={form.itemId} onValueChange={(value) => patch({ itemId: value })}>
+            <SelectTrigger id={id}>
+              <SelectValue
+                placeholder={inventoryQuery.isLoading ? "Loading…" : "Choose a stock item"}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="movement-reference">Reference</Label>
+            </SelectTrigger>
+            <SelectContent>
+              {items.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name} · {formatQuantity(item.currentStock, item.unit)} on hand
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </FormField>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Quantity">
+          {(id) => (
+            <Input
+              id={id}
+              inputMode="decimal"
+              className="font-mono"
+              value={form.quantity}
+              onChange={(event) => patch({ quantity: event.target.value })}
+            />
+          )}
+        </FormField>
+        {kind === "RECEIPT" ? (
+          <FormField label="Unit cost">
+            {(id) => (
               <Input
-                id="movement-reference"
-                value={reservedId ?? (isReserving ? "Reserving…" : "")}
-                readOnly
-                className="font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Store *</Label>
-            <Select
-              value={activeSiteId}
-              onValueChange={(value) => patch({ siteId: value, itemId: "" })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={sitesQuery.isLoading ? "Loading…" : "Pick a store"} />
-              </SelectTrigger>
-              <SelectContent>
-                {sites.map((site) => (
-                  <SelectItem key={site.id} value={site.id}>
-                    {site.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Item *</Label>
-            <Select value={form.itemId} onValueChange={(value) => patch({ itemId: value })}>
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={inventoryQuery.isLoading ? "Loading…" : "Pick an item"}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {items.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name} · {item.currentStock} {item.unit} on hand
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="movement-quantity">Quantity *</Label>
-              <Input
-                id="movement-quantity"
+                id={id}
                 inputMode="decimal"
                 className="font-mono"
-                value={form.quantity}
-                onChange={(event) => patch({ quantity: event.target.value })}
+                value={form.unitCost}
+                onChange={(event) => patch({ unitCost: event.target.value })}
               />
-            </div>
-            {kind === "RECEIPT" ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="movement-cost">Unit cost</Label>
-                <Input
-                  id="movement-cost"
-                  inputMode="decimal"
-                  className="font-mono"
-                  value={form.unitCost}
-                  onChange={(event) => patch({ unitCost: event.target.value })}
-                />
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label htmlFor="movement-to">Issued to *</Label>
-                <Input
-                  id="movement-to"
-                  value={form.issuedTo}
-                  onChange={(event) => patch({ issuedTo: event.target.value })}
-                  placeholder="Crew, machine or department"
-                />
-              </div>
             )}
-          </div>
+          </FormField>
+        ) : (
+          <FormField label="Issued to">
+            {(id) => (
+              <Input
+                id={id}
+                value={form.issuedTo}
+                onChange={(event) => patch({ issuedTo: event.target.value })}
+                placeholder="Night shift crew"
+              />
+            )}
+          </FormField>
+        )}
+      </div>
 
-          {kind === "RECEIPT" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="movement-supplier">Supplier</Label>
-                <Input
-                  id="movement-supplier"
-                  value={form.supplier}
-                  onChange={(event) => patch({ supplier: event.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="movement-invoice">Invoice no.</Label>
-                <Input
-                  id="movement-invoice"
-                  className="font-mono"
-                  value={form.invoiceNo}
-                  onChange={(event) => patch({ invoiceNo: event.target.value })}
-                />
-              </div>
-            </div>
-          ) : null}
+      {kind === "RECEIPT" ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Supplier">
+            {(id) => (
+              <Input
+                id={id}
+                value={form.supplier}
+                onChange={(event) => patch({ supplier: event.target.value })}
+              />
+            )}
+          </FormField>
+          <FormField label="Invoice number">
+            {(id) => (
+              <Input
+                id={id}
+                className="font-mono"
+                value={form.invoiceNo}
+                onChange={(event) => patch({ invoiceNo: event.target.value })}
+              />
+            )}
+          </FormField>
+        </div>
+      ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>{kind === "ISSUE" ? "Requested by *" : "Received by *"}</Label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label={kind === "ISSUE" ? "Requested by" : "Received by"}>
+          {(id) => (
+            <Select
+              value={form.requestedById}
+              onValueChange={(value) => patch({ requestedById: value })}
+            >
+              <SelectTrigger id={id}>
+                <SelectValue
+                  placeholder={employeesQuery.isLoading ? "Loading…" : "Choose someone"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((employee) => (
+                  <SelectItem key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+
+        {kind === "ISSUE" ? (
+          <FormField label="Approved by">
+            {(id) => (
               <Select
-                value={form.requestedById}
-                onValueChange={(value) => patch({ requestedById: value })}
+                value={form.approvedById}
+                onValueChange={(value) => patch({ approvedById: value })}
               >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={employeesQuery.isLoading ? "Loading…" : "Pick someone"}
-                  />
+                <SelectTrigger id={id}>
+                  <SelectValue placeholder="Nobody yet" />
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map((employee) => (
@@ -390,41 +401,21 @@ export function StockMovementDialog({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            )}
+          </FormField>
+        ) : null}
+      </div>
 
-            {kind === "ISSUE" ? (
-              <div className="space-y-1.5">
-                <Label>Approved by</Label>
-                <Select
-                  value={form.approvedById}
-                  onValueChange={(value) => patch({ approvedById: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Optional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="movement-notes">Notes</Label>
-            <Textarea
-              id="movement-notes"
-              rows={2}
-              value={form.notes}
-              onChange={(event) => patch({ notes: event.target.value })}
-            />
-          </div>
-        </FormShell>
-      </DialogContent>
-    </Dialog>
+      <FormField label="Notes">
+        {(id) => (
+          <Textarea
+            id={id}
+            rows={2}
+            value={form.notes}
+            onChange={(event) => patch({ notes: event.target.value })}
+          />
+        )}
+      </FormField>
+    </RecordDialog>
   );
 }

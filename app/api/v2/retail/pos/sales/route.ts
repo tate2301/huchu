@@ -26,6 +26,7 @@ import {
   requireRetailSession,
 } from "../../_helpers";
 import { createRetailSaleTransaction } from "../../_services";
+import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 
 const saleLineSchema = z.object({
   /**
@@ -908,6 +909,18 @@ export async function POST(request: NextRequest) {
     const loyaltyPointsRedeemed = parseLoyaltyRedeemPoints(sale.notes);
     const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
 
+    /*
+      The online sale goes onto the fiscal chain here, after it has committed —
+      the same drain the offline queue gets in `pos/sync`. This path used to
+      skip it entirely, so a shop with a registered ZIMRA device fiscalised only
+      the sales rung while the network was down. Never fails the sale: a shop
+      with no device gets SKIPPED, and a refusal is a row somebody can replay.
+    */
+    const fiscal = await fiscaliseAfterPosting({
+      companyId: session.user.companyId,
+      saleId: sale.id,
+    });
+
     return successResponse({
       id: sale.id,
       saleNo: sale.saleNo,
@@ -932,6 +945,7 @@ export async function POST(request: NextRequest) {
       notes: sale.notes,
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,
+      fiscal,
       customerPhone: capturedCustomer?.phone ?? customerPhone,
       customerEmail: capturedCustomer?.email ?? customerEmail,
       loyalty:

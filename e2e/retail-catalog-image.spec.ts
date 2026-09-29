@@ -123,11 +123,14 @@ test.describe("the back office", () => {
     await settle(page, SETTLE_MS);
     await shot(page, "the-range");
 
-    // The pencil on the first row. Opening an existing item rather than making
-    // one keeps this about the photograph and nothing else.
-    const edit = page.getByRole("button", { name: /edit/i }).first();
-    await expect(edit, "no way to edit an item on the range").toBeVisible({ timeout: 30_000 });
-    await edit.click();
+    // The first product's record. Opening an existing item rather than making
+    // one keeps this about the photograph and nothing else. Edit product is
+    // behind the record's "…", beside its one verb.
+    await page.locator("table a").first().click();
+    const menu = page.getByRole("button", { name: "More actions" }).first();
+    await expect(menu, "no way to edit a product").toBeVisible({ timeout: 30_000 });
+    await menu.click();
+    await page.getByRole("menuitem", { name: "Edit product" }).click();
     await settle(page, 4000);
 
     const dialog = page.getByRole("dialog");
@@ -138,7 +141,7 @@ test.describe("the back office", () => {
       "Advanced options" for one commit and that is exactly how a feature ships
       and never gets used.
     */
-    const field = dialog.getByText("Shelf photo", { exact: true });
+    const field = dialog.getByText("Photo", { exact: true });
     await expect(field, "the shelf photo field is not visible without expanding anything").toBeVisible();
     await shot(page, "no-photo-yet");
 
@@ -172,7 +175,7 @@ test.describe("the back office", () => {
       the dialog (Save is disabled while an upload is in flight) and this asserts
       the fix rather than sleeping past the problem.
     */
-    const save = dialog.getByRole("button", { name: /save changes|create item/i }).last();
+    const save = dialog.getByRole("button", { name: /save product|create product/i }).last();
     await expect(save, "Save stayed enabled during an upload — the photo can be lost").toBeDisabled({
       timeout: 15_000,
     });
@@ -198,7 +201,8 @@ test.describe("the back office", () => {
       closes is the failure this catches — the form held the URL but the save
       never carried it.
     */
-    await page.getByRole("button", { name: /edit/i }).first().click();
+    await page.getByRole("button", { name: "More actions" }).first().click();
+    await page.getByRole("menuitem", { name: "Edit product" }).click();
     await settle(page, 4000);
     const reopened = page.getByRole("dialog");
     await expect(

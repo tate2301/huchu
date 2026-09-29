@@ -5,12 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { fetchJson } from "@/lib/api-client";
 import { Search, User, Users } from "@/lib/icons";
-import {
-  PosEmptyState,
-  PosPanel,
-  PosPanelHeader,
-  PosStatusPill,
-} from "./pos-primitives";
+import { enumLabel } from "@/lib/retail/words";
+import { PosEmptyState, PosPanel, PosStatusPill } from "./pos-primitives";
 
 type CustomerLookupResult = {
   id: string;
@@ -41,12 +37,6 @@ export function PosCustomersView() {
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
       <PosPanel>
-        <PosPanelHeader
-          eyebrow="Customer utility"
-          title="Customer directory"
-          description="This stays a fast lookup surface for leads and exceptions, while checkout handles most customer attachment inline."
-        />
-
         <div
           className="flex items-center gap-3 rounded-xl border px-4 py-3"
           style={{ background: "var(--pos-lcd-bg)", borderColor: "var(--pos-lcd-border)" }}
@@ -57,7 +47,7 @@ export function PosCustomersView() {
           />
           <div className="min-w-0 flex-1">
             <div
-              className="text-[10px] font-bold uppercase tracking-[0.18em]"
+              className="text-xs font-bold"
               style={{ color: "var(--pos-lcd-label)" }}
             >
               Search
@@ -74,27 +64,18 @@ export function PosCustomersView() {
       </PosPanel>
 
       <PosPanel className="min-h-0">
-        <PosPanelHeader
-          eyebrow="Results"
-          title="Customer matches"
-          description="Show the essentials only: identity, contact, and loyalty context."
-        />
-
         <div className="h-full min-h-0 overflow-y-auto pr-1">
           {search.trim().length < 2 ? (
-            <PosEmptyState
-              icon={Users}
-              title="Start with at least 2 characters"
-              description="Type a name, phone number, or email address to pull customer matches into this directory."
-            />
+            <PosEmptyState icon={Users} title="Type at least two letters to search" />
           ) : customers.length === 0 ? (
             <PosEmptyState
               icon={User}
-              title="No matching customers"
-              description={
+              title={
                 query.isLoading
-                  ? "Searching customer records now."
-                  : "There are no customer records matching that search yet."
+                  ? "Searching…"
+                  : query.isError
+                    ? "The customers would not load"
+                    : "No customers match that search"
               }
             />
           ) : (
@@ -117,17 +98,17 @@ export function PosCustomersView() {
                       </div>
                       <div className="mt-1 truncate text-sm text-[var(--text-muted)]">
                         {[customer.phone, customer.email].filter(Boolean).join(" / ") ||
-                          "No contact details"}
+                          "Not on file"}
                       </div>
                     </div>
                   </div>
 
                   <div className="text-right">
                     <div className="flex justify-end">
-                      <PosStatusPill tone="brand">{customer.loyaltyTier}</PosStatusPill>
+                      <PosStatusPill tone="neutral">{enumLabel(customer.loyaltyTier)}</PosStatusPill>
                     </div>
                     <div className="mt-2 font-mono text-sm font-black tabular-nums text-[var(--text-strong)]">
-                      {customer.loyaltyPoints.toLocaleString()} pts
+                      {customer.loyaltyPoints.toLocaleString("en-GB")} points
                     </div>
                   </div>
                 </div>

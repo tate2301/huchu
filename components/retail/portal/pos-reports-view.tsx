@@ -28,12 +28,16 @@ import { usePosPortalState } from "./pos-portal-state";
 import { money, round } from "./pos-utils";
 import type { SaleRow } from "./pos-types";
 import { cn } from "@/lib/utils";
+import { tenderLabel } from "@/lib/retail/words";
 
 /* ─── Helpers ─────────────────────────────────────────────────────── */
 
-function formatDateLabel(date: Date) {
-  return date.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
-}
+/** "Tue 29" — day first, in the shop's own zone, short enough for a chart axis. */
+const DAY_LABEL = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  timeZone: "Africa/Harare",
+});
 
 function startOfDay(date: Date) {
   const d = new Date(date);
@@ -47,11 +51,9 @@ function endOfDay(date: Date) {
   return d;
 }
 
+/** "14:00" — the 24-hour clock the rest of retail writes times in. */
 function formatHour(hour: number) {
-  if (hour === 0) return "12am";
-  if (hour < 12) return `${hour}am`;
-  if (hour === 12) return "12pm";
-  return `${hour - 12}pm`;
+  return `${String(hour).padStart(2, "0")}:00`;
 }
 
 type Period = "today" | "week" | "zreport";
@@ -262,7 +264,7 @@ export function PosReportsView() {
       .sort((a, b) => b[1] - a[1])
       .map(([label, value], i) => ({
         id: label,
-        label: label.replace(/_/g, " "),
+        label: tenderLabel(label),
         value: round(value),
         color: paymentPalette[i % paymentPalette.length],
       }));
@@ -331,7 +333,7 @@ export function PosReportsView() {
     const trendRows = Object.entries(days)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, value]) => ({
-        label: formatDateLabel(new Date(date + "T12:00:00")),
+        label: DAY_LABEL.format(new Date(date + "T12:00:00")),
         sales: round(value),
       }));
 
@@ -340,7 +342,7 @@ export function PosReportsView() {
       .sort((a, b) => b[1] - a[1])
       .map(([label, value], i) => ({
         id: label,
-        label: label.replace(/_/g, " "),
+        label: tenderLabel(label),
         value: round(value),
         color: paymentPalette[i % paymentPalette.length],
       }));
@@ -390,8 +392,8 @@ export function PosReportsView() {
         {/* ── Period tabs ──────────────────────────────────── */}
         <div className="flex gap-1 rounded-xl bg-[var(--surface-muted)] p-1">
           <PeriodTab label="Today" active={period === "today"} onClick={() => setPeriod("today")} />
-          <PeriodTab label="This week" active={period === "week"} onClick={() => setPeriod("week")} />
-          <PeriodTab label="End of day" active={period === "zreport"} onClick={() => setPeriod("zreport")} />
+          <PeriodTab label="Last 7 days" active={period === "week"} onClick={() => setPeriod("week")} />
+          <PeriodTab label="End-of-day report" active={period === "zreport"} onClick={() => setPeriod("zreport")} />
         </div>
 
         {/* ══ ERROR / LOADING ════════════════════════════════ */}
@@ -408,17 +410,13 @@ export function PosReportsView() {
         <>
         {salesQuery.isError ? (
           <PosPanel>
-            <PosEmptyState
-              icon={RefreshCcw}
-              title="Unable to load reports"
-              description="There was a problem fetching your sales data. Please try again later."
-            />
+            <PosEmptyState icon={RefreshCcw} title="The sales would not load" />
           </PosPanel>
         ) : salesQuery.isLoading ? (
           <>
             <PosPanel>
               <div className="flex min-h-[8rem] items-center justify-center text-sm text-[var(--text-muted)]">
-                Loading reports…
+                Loading the sales…
               </div>
             </PosPanel>
           </>
@@ -431,30 +429,26 @@ export function PosReportsView() {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <PosMetricCard
                   icon={Wallet}
-                  label="Revenue today"
+                  label="Takings"
                   value={money(todayMetrics.totalRevenue)}
-                  meta={currentShift ? `Shift ${currentShift.shiftNo}` : "Current day"}
                   tone="success"
                 />
                 <PosMetricCard
                   icon={Package}
-                  label="Transactions"
+                  label="Sales"
                   value={String(todayMetrics.txCount)}
-                  meta="Completed sales"
                   tone="brand"
                 />
                 <PosMetricCard
                   icon={BarChart3}
-                  label="Avg. basket"
+                  label="Average sale"
                   value={money(todayMetrics.avgBasket)}
-                  meta="Per transaction"
                   tone="neutral"
                 />
                 <PosMetricCard
                   icon={RefreshCcw}
                   label="Refunds"
                   value={money(todayMetrics.refundSum)}
-                  meta="Returned today"
                   tone={todayMetrics.refundSum > 0 ? "danger" : "neutral"}
                 />
               </div>
@@ -465,34 +459,24 @@ export function PosReportsView() {
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_12%,var(--surface-base))] text-[var(--action-primary-bg)]">
                     <Clock className="h-4 w-4" />
                   </div>
-                  <div>
-                    <div className="text-[12px] font-bold text-[var(--text-strong)]">
-                      Peak hour: <span className="text-[var(--action-primary-bg)]">{formatHour(todayMetrics.peakHour)}</span>
-                    </div>
-                    <div className="text-[11px] text-[var(--text-muted)]">
-                      Busiest period so far today
-                    </div>
+                  <div className="text-[12px] font-bold text-[var(--text-strong)]">
+                    Busiest hour{" "}
+                    <span className="font-mono text-[var(--action-primary-bg)]">
+                      {formatHour(todayMetrics.peakHour)}
+                    </span>
                   </div>
                 </div>
               )}
 
               {!todayHasData ? (
                 <PosPanel>
-                  <PosEmptyState
-                    icon={BarChart3}
-                    title="No sales yet today"
-                    description="Complete a transaction to see today's performance metrics and hourly breakdown."
-                  />
+                  <PosEmptyState icon={BarChart3} title="No sales yet today" />
                 </PosPanel>
               ) : (
                 <>
                   {/* Hourly trend */}
                   <PosPanel className="min-h-0">
-                    <PosPanelHeader
-                      eyebrow="Hourly"
-                      title="Sales by hour"
-                      description="Transaction revenue broken down by hour of day."
-                    />
+                    <PosPanelHeader title="Sales by hour" />
                     <AdminTrendChart
                       rows={todayMetrics.hourRows}
                       series={[{ key: "sales", label: "Sales", kind: "bar", tone: "success" }]}
@@ -506,33 +490,25 @@ export function PosReportsView() {
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]">
                     {/* Payment methods */}
                     <PosPanel className="min-h-0">
-                      <PosPanelHeader
-                        eyebrow="Today"
-                        title="Payment methods"
-                        description="How customers paid today."
-                      />
+                      <PosPanelHeader title="Tenders" />
                       <AdminDonutChart
                         rows={todayMetrics.paymentRows}
                         height={240}
                         valueLabel="Total"
                         valueFormatter={(v) => money(v)}
-                        emptyLabel="No payment data"
+                        emptyLabel="No payments yet"
                       />
                     </PosPanel>
 
                     {/* Top items */}
                     <PosPanel className="min-h-0">
-                      <PosPanelHeader
-                        eyebrow="Today"
-                        title="Top items"
-                        description="Best sellers today."
-                      />
+                      <PosPanelHeader title="Top products" />
                       <AdminDistributionChart
                         rows={todayMetrics.topItemRows}
                         height={240}
-                        valueLabel="Revenue"
+                        valueLabel="Sales"
                         valueFormatter={(v) => money(v)}
-                        emptyLabel="No item data"
+                        emptyLabel="No products sold yet"
                       />
                     </PosPanel>
                   </div>
@@ -550,55 +526,41 @@ export function PosReportsView() {
                   label="Net sales"
                   value={money(weekMetrics.netSales)}
                   meta={
-                    <span className="flex items-center gap-1">
-                      Last 7 days
-                      {weekMetrics.weekTrend !== 0 && (
-                        <TrendChip value={weekMetrics.weekTrend} label="vs prior" />
-                      )}
-                    </span>
+                    weekMetrics.weekTrend !== 0 ? (
+                      <TrendChip value={weekMetrics.weekTrend} label="vs the first three days" />
+                    ) : null
                   }
                   tone="success"
                 />
                 <PosMetricCard
                   icon={Package}
-                  label="Transactions"
+                  label="Sales"
                   value={String(weekMetrics.txCount)}
-                  meta="Completed sales"
                   tone="brand"
                 />
                 <PosMetricCard
                   icon={BarChart3}
-                  label="Avg. basket"
+                  label="Average sale"
                   value={money(weekMetrics.avgBasket)}
-                  meta="Per transaction"
                   tone="neutral"
                 />
                 <PosMetricCard
                   icon={RefreshCcw}
                   label="Refunds"
                   value={money(weekMetrics.refundSum)}
-                  meta="Total refund value"
                   tone={weekMetrics.refundSum > 0 ? "danger" : "neutral"}
                 />
               </div>
 
               {!hasData ? (
                 <PosPanel>
-                  <PosEmptyState
-                    icon={BarChart3}
-                    title="No sales data this week"
-                    description="There are no transactions in the last 7 days to report on."
-                  />
+                  <PosEmptyState icon={BarChart3} title="No sales in the last 7 days" />
                 </PosPanel>
               ) : (
                 <>
                   {/* Daily trend */}
                   <PosPanel className="min-h-0">
-                    <PosPanelHeader
-                      eyebrow="Trend"
-                      title="Daily sales"
-                      description="Sales value per day over the last 7 days."
-                    />
+                    <PosPanelHeader title="Sales by day" />
                     <AdminTrendChart
                       rows={weekMetrics.trendRows}
                       series={[{ key: "sales", label: "Sales", kind: "bar", tone: "success" }]}
@@ -612,33 +574,25 @@ export function PosReportsView() {
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]">
                     {/* Payment methods */}
                     <PosPanel className="min-h-0">
-                      <PosPanelHeader
-                        eyebrow="Composition"
-                        title="Payment methods"
-                        description="How customers paid this week."
-                      />
+                      <PosPanelHeader title="Tenders" />
                       <AdminDonutChart
                         rows={weekMetrics.paymentRows}
                         height={260}
                         valueLabel="Total"
                         valueFormatter={(v) => money(v)}
-                        emptyLabel="No payment data"
+                        emptyLabel="No payments yet"
                       />
                     </PosPanel>
 
                     {/* Top items */}
                     <PosPanel className="min-h-0">
-                      <PosPanelHeader
-                        eyebrow="Products"
-                        title="Top selling items"
-                        description="Highest revenue items this week."
-                      />
+                      <PosPanelHeader title="Top products" />
                       <AdminDistributionChart
                         rows={weekMetrics.topItemRows}
                         height={260}
-                        valueLabel="Revenue"
+                        valueLabel="Sales"
                         valueFormatter={(v) => money(v)}
-                        emptyLabel="No item data"
+                        emptyLabel="No products sold yet"
                       />
                     </PosPanel>
                   </div>

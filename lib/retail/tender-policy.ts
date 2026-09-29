@@ -14,7 +14,7 @@ export const DEFAULT_RETAIL_TENDER_POLICY: RetailTenderPolicy = {
   referencePattern: "^[A-Za-z0-9][A-Za-z0-9\\-/_ ]*$",
 };
 
-const POLICY_PROVIDER_KEY = "RETAIL_TENDER_POLICY";
+export const POLICY_PROVIDER_KEY = "RETAIL_TENDER_POLICY";
 
 export async function getRetailTenderPolicy(companyId: string): Promise<RetailTenderPolicy> {
   const record = await prisma.fiscalisationProviderConfig.findFirst({

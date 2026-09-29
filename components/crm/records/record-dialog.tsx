@@ -69,7 +69,7 @@ export function RecordDialog({
       <div className={cn("min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4", bodyClassName)}>
         {errors && errors.length > 0 ? (
           <Alert variant="destructive">
-            <AlertTitle>Please fix this before saving</AlertTitle>
+            <AlertTitle>Fix this before saving</AlertTitle>
             <AlertDescription>
               <ul className="list-disc space-y-1 pl-5">
                 {errors.map((error, index) => (

@@ -41,7 +41,7 @@ import {
 import {
   CommitInput,
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailGrid,
   DetailRow,
@@ -407,7 +407,7 @@ export function SitesRegister() {
           />
         )}
 
-        <CreateSheet
+        <CreateDialog
           open={creating}
           onOpenChange={setCreating}
           title="New site"
@@ -479,7 +479,7 @@ export function SitesRegister() {
               </DetailSelect>
             )}
           </CreateField>
-        </CreateSheet>
+        </CreateDialog>
       </RegisterLayout>
     </PreferencesShell>
   );

@@ -46,7 +46,7 @@ const viewLabels: Record<string, Record<string, string>> = {
   },
   stores: {
     dashboard: "Dashboard",
-    inventory: "Stock on Hand",
+    inventory: "On hand",
     movements: "Action Log",
     fuel: "Fuel Ledger",
     issue: "Issue Stock",

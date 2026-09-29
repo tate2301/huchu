@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { fetchJson } from "@/lib/api-client";
 import { Package, QrCode, ReceiptLong, Search } from "@/lib/icons";
+import { formatQuantity } from "@/lib/retail/words";
 import {
   PosEmptyState,
   PosPanel,
@@ -34,12 +35,6 @@ export function PosPriceCheckView() {
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
       <PosPanel>
-        <PosPanelHeader
-          eyebrow="Speed lookup"
-          title="Price check"
-          description="Scan-first, glanceable. Answers price, code, and stock in seconds."
-        />
-
         {/* LCD search input */}
         <div
           className="flex items-center gap-3 rounded-xl border px-4 py-3"
@@ -51,15 +46,15 @@ export function PosPriceCheckView() {
           />
           <div className="min-w-0 flex-1">
             <div
-              className="text-[10px] font-bold uppercase tracking-[0.18em]"
+              className="text-xs font-bold"
               style={{ color: "var(--pos-lcd-label)" }}
             >
-              Scanner-ready
+              Scan or search
             </div>
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Scan barcode or search product"
+              placeholder="Scan barcode or search…"
               className="mt-0.5 h-9 border-none bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
               style={{ color: "var(--pos-lcd-text)" }}
             />
@@ -74,26 +69,17 @@ export function PosPriceCheckView() {
       <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,1.08fr)]">
         {/* Featured result hero panel */}
         <PosPanel className="flex min-h-0 flex-col">
-          <PosPanelHeader
-            eyebrow="Featured result"
-            title="Best match"
-            description="Price, code, and stock at a glance."
-          />
-
           {!currentShift ? (
-            <PosEmptyState
-              icon={ReceiptLong}
-              title="Open a shift to use price check"
-              description="Price check is tied to the active selling site."
-            />
+            <PosEmptyState icon={ReceiptLong} title="Open a shift first" />
           ) : !featuredItem ? (
             <PosEmptyState
               icon={Package}
-              title="No product selected yet"
-              description={
+              title={
                 catalogQuery.isLoading
-                  ? "Loading product matches."
-                  : "Scan a barcode or type a product name."
+                  ? "Loading the products…"
+                  : catalogQuery.isError
+                    ? "The products would not load"
+                    : "No products match that search"
               }
             />
           ) : (
@@ -105,18 +91,11 @@ export function PosPriceCheckView() {
               }}
             >
               <div>
-                <div className="flex items-center gap-2">
-                  <PosStatusPill tone="brand">Top match</PosStatusPill>
-                  {featuredItem.inventoryItem ? (
-                    <PosStatusPill
-                      tone={featuredItem.inventoryItem.currentStock > 0 ? "success" : "danger"}
-                    >
-                      {featuredItem.inventoryItem.currentStock > 0 ? "In stock" : "Out of stock"}
-                    </PosStatusPill>
-                  ) : null}
-                </div>
+                {featuredItem.inventoryItem && featuredItem.inventoryItem.currentStock <= 0 ? (
+                  <PosStatusPill tone="danger">Out of stock</PosStatusPill>
+                ) : null}
                 <h2
-                  className="mt-4 text-[1.8rem] font-bold tracking-[-0.04em]"
+                  className="mt-2 text-[1.8rem] font-bold tracking-[-0.04em]"
                   style={{ color: "var(--pos-amount-text)" }}
                 >
                   {featuredItem.name}
@@ -139,10 +118,10 @@ export function PosPriceCheckView() {
                   }}
                 >
                   <div
-                    className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                    className="text-xs font-bold"
                     style={{ color: "var(--pos-amount-label)" }}
                   >
-                    Barcode / SKU
+                    {featuredItem.barcode ? "Barcode" : "SKU"}
                   </div>
                   <div
                     className="mt-1 font-mono text-sm font-semibold tabular-nums"
@@ -159,18 +138,21 @@ export function PosPriceCheckView() {
                   }}
                 >
                   <div
-                    className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                    className="text-xs font-bold"
                     style={{ color: "var(--pos-amount-label)" }}
                   >
-                    Stock
+                    On hand
                   </div>
                   <div
                     className="mt-1 text-sm font-medium"
                     style={{ color: "var(--pos-amount-text)" }}
                   >
                     {featuredItem.inventoryItem
-                      ? `${featuredItem.inventoryItem.currentStock.toFixed(2)} ${featuredItem.inventoryItem.unit}`
-                      : "No stock data"}
+                      ? formatQuantity(
+                          featuredItem.inventoryItem.currentStock,
+                          featuredItem.inventoryItem.unit,
+                        )
+                      : "Not tracked"}
                   </div>
                 </div>
               </div>
@@ -180,32 +162,25 @@ export function PosPriceCheckView() {
 
         {/* Match list */}
         <PosPanel className="min-h-0">
-          <PosPanelHeader
-            eyebrow="Matches"
-            title="Lookup results"
-            description="Dense and scannable. First result is the best match."
-          />
+          <PosPanelHeader title={`${rows.length} ${rows.length === 1 ? "product" : "products"}`} />
 
           <div className="h-full min-h-0 overflow-y-auto pr-1">
             {!currentShift ? (
-              <PosEmptyState
-                icon={ReceiptLong}
-                title="Price check is waiting on an open shift"
-                description="Once the register is active, product matches appear here."
-              />
+              <PosEmptyState icon={ReceiptLong} title="Open a shift first" />
             ) : rows.length === 0 ? (
               <PosEmptyState
                 icon={Package}
-                title="No matching products"
-                description={
+                title={
                   catalogQuery.isLoading
-                    ? "Loading products now."
-                    : "Try a barcode, SKU, or a shorter item name."
+                    ? "Loading the products…"
+                    : catalogQuery.isError
+                      ? "The products would not load"
+                      : "No products match that search"
                 }
               />
             ) : (
               <div className="space-y-2">
-                {rows.map((item, index) => (
+                {rows.map((item) => (
                   <div
                     key={item.id}
                     className="flex min-h-[4.5rem] items-center justify-between gap-4 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3 ring-1 ring-transparent transition-all hover:ring-[var(--pos-status-info-ring)]"
@@ -218,11 +193,8 @@ export function PosPriceCheckView() {
                         <Package className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="truncate text-[15px] font-semibold text-[var(--text-strong)]">
-                            {item.name}
-                          </div>
-                          {index === 0 ? <PosStatusPill tone="brand">Best</PosStatusPill> : null}
+                        <div className="truncate text-[15px] font-semibold text-[var(--text-strong)]">
+                          {item.name}
                         </div>
                         <div className="mt-0.5 font-mono text-xs text-[var(--text-muted)]">
                           {item.barcode || item.sku}
@@ -233,10 +205,10 @@ export function PosPriceCheckView() {
                       <div className="font-mono text-lg font-black tabular-nums text-[var(--text-strong)]">
                         {money(item.unitPrice)}
                       </div>
-                      <div className="mt-0.5 text-xs text-[var(--text-muted)]">
+                      <div className="mt-0.5 font-mono text-xs text-[var(--text-muted)]">
                         {item.inventoryItem
-                          ? `${item.inventoryItem.currentStock.toFixed(2)} ${item.inventoryItem.unit}`
-                          : "No stock"}
+                          ? formatQuantity(item.inventoryItem.currentStock, item.inventoryItem.unit)
+                          : "Not tracked"}
                       </div>
                     </div>
                   </div>

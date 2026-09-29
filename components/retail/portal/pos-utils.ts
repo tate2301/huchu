@@ -9,6 +9,11 @@ export function money(value: number) {
   });
 }
 
+/** A variance or a refund, with a true minus: a hyphen reads as a dash in a column. */
+export function signedMoney(value: number) {
+  return value < 0 ? `−${money(Math.abs(value))}` : money(value);
+}
+
 export function round(value: number) {
   return Number(value.toFixed(2));
 }

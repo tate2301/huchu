@@ -1,509 +1,255 @@
-﻿"use client";
+"use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
-import { AdminDualBarChart, AdminDonutChart } from "@/components/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
+import * as React from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+import {
+  FactList,
+  HeaderAction,
+  ListColumn,
+  ListRow,
+  RecordHeader,
+  RegisterLayout,
+  SectionHeading,
+  StatusBadge,
+  type ListColumnState,
+} from "@/components/management/ui";
+import { SHOP_SETUP_KEY, ShopSettingsShell, useShopSetup } from "@/components/retail/shop-settings";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import type { SearchableOption } from "@/components/ui/searchable-select";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowRight, Building2, CheckCircle, Plus, ReceiptLong, Server } from "@/lib/icons";
+import { SelectItem } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import type { RetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { CashRegister, CheckCircle, SlidersHorizontal } from "@/lib/icons";
 
-type SetupOverviewResponse = RetailSetupSnapshot;
-type OperationsSaveResponse = {
-  ok: boolean;
-  profile: {
-    defaultSiteId: string | null;
-    defaultRegisterId: string | null;
-    defaultRegisterName: string | null;
-    defaultRegisterCode: string | null;
-  };
-};
+import {
+  CreateDialog,
+  CreateField,
+  DETAIL_CONTROL_CLASS,
+  DetailSelect,
+  NoRecord,
+} from "@/app/management/master-data/operations/_components/register-fields";
 
-type OperationForm = {
+type SaveTill = {
   defaultSiteId: string;
-  defaultRegisterId: string;
-  newRegisterName: string;
+  defaultRegisterId?: string | null;
+  newRegisterName?: string | null;
+  makeDefault?: boolean;
 };
 
-const EMPTY_FORM: OperationForm = {
-  defaultSiteId: "",
-  defaultRegisterId: "",
-  newRegisterName: "",
-};
-const OPERATIONS_DRAFT_KEY = "retail.setup.operations.draft.v1";
-
-export default function RetailSetupOperationsPage() {
+/**
+ * Tills — the machines a shift is opened on, and the one a cashier lands on.
+ *
+ * Settings → Shop. This was "Operations setup": three tiles, a coverage chart,
+ * a donut, a provisioning card and a list of links onward, to do two things —
+ * add a till, and say which one is the default. It is a register now, like
+ * Sites and Sections: the tills down the left, the one you picked on the right,
+ * and those two verbs on it.
+ */
+export default function RetailTillsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const overviewQuery = useQuery({
-    queryKey: ["retail-setup-overview"],
-    queryFn: () => fetchJson<SetupOverviewResponse>("/api/v2/retail/setup/overview"),
-  });
-  const [draft, setDraft] = useState<OperationForm | null>(() => {
-    if (typeof window === "undefined") {
-      return null;
-    }
-    const raw = window.localStorage.getItem(OPERATIONS_DRAFT_KEY);
-    if (!raw) {
-      return null;
-    }
-    try {
-      const parsed = JSON.parse(raw) as Partial<OperationForm>;
-      return {
-        defaultSiteId: parsed.defaultSiteId ?? "",
-        defaultRegisterId: parsed.defaultRegisterId ?? "",
-        newRegisterName: parsed.newRegisterName ?? "",
-      };
-    } catch {
-      window.localStorage.removeItem(OPERATIONS_DRAFT_KEY);
-      return null;
-    }
-  });
+  const setup = useShopSetup();
+  const snapshot = setup.data;
 
-  const snapshot = overviewQuery.data;
+  const [search, setSearch] = React.useState("");
+  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [creating, setCreating] = React.useState(false);
+  const [draftName, setDraftName] = React.useState("");
+  const [draftSiteId, setDraftSiteId] = React.useState("");
 
-  const initialDraft = useMemo<OperationForm>(() => {
-    if (!snapshot) {
-      return EMPTY_FORM;
-    }
+  const tills = React.useMemo(() => snapshot?.registers ?? [], [snapshot]);
+  const sites = React.useMemo(() => (snapshot?.sites ?? []).filter((site) => site.isActive), [snapshot]);
+  const defaultId = snapshot?.setupProfile.defaultRegisterId ?? null;
 
-    const defaultSiteId = snapshot.setupProfile.defaultSiteId ?? snapshot.sites.find((site) => site.isActive)?.id ?? "";
-    const selectedSite = snapshot.sites.find((site) => site.id === defaultSiteId) ?? snapshot.sites[0] ?? null;
+  const rows = React.useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return tills;
+    return tills.filter((till) =>
+      [till.name, till.code, till.site?.name ?? ""].some((value) => value.toLowerCase().includes(needle)),
+    );
+  }, [tills, search]);
 
-    return {
-      defaultSiteId,
-      defaultRegisterId:
-        selectedSite && snapshot.setupProfile.defaultRegisterId
-          ? snapshot.registers.some(
-              (register) =>
-                register.id === snapshot.setupProfile.defaultRegisterId &&
-                register.siteId === selectedSite.id,
-            )
-            ? snapshot.setupProfile.defaultRegisterId
-            : ""
-          : "",
-      newRegisterName:
-        snapshot.setupProfile.defaultRegisterId || !selectedSite
-          ? ""
-          : snapshot.setupProfile.defaultRegisterName ??
-            `${selectedSite.name} POS`,
-    };
-  }, [snapshot]);
+  const selected = tills.find((till) => till.id === selectedId) ?? rows[0] ?? null;
+  const selectedSite = snapshot?.sites.find((site) => site.id === selected?.siteId) ?? null;
 
-  const rawDraft = draft ?? initialDraft;
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (!draft) {
-      window.localStorage.removeItem(OPERATIONS_DRAFT_KEY);
-      return;
-    }
-    window.localStorage.setItem(OPERATIONS_DRAFT_KEY, JSON.stringify(draft));
-  }, [draft]);
-
-  const selectedSite = useMemo(
-    () => snapshot?.sites.find((site) => site.id === rawDraft.defaultSiteId) ?? null,
-    [rawDraft.defaultSiteId, snapshot],
-  );
-  const selectedSiteRegisters = useMemo(
-    () =>
-      (snapshot?.registers ?? []).filter(
-        (register) => register.siteId === rawDraft.defaultSiteId,
-      ),
-    [rawDraft.defaultSiteId, snapshot?.registers],
-  );
-
-  /**
-   * A register that does not belong to the chosen branch is not a choice, so it is
-   * dropped here during render rather than cleared out of state by an effect one
-   * render later. `saveMutation` is handed this draft, so the correction reaches
-   * the write as well as the screen — the effect only ever fixed what was shown.
-   */
-  const effectiveDraft = useMemo(() => {
-    const registerBelongsToSite =
-      !rawDraft.defaultRegisterId ||
-      selectedSiteRegisters.some((register) => register.id === rawDraft.defaultRegisterId);
-    return registerBelongsToSite ? rawDraft : { ...rawDraft, defaultRegisterId: "" };
-  }, [rawDraft, selectedSiteRegisters]);
-
-  const siteOptions = useMemo<SearchableOption[]>(
-    () =>
-      (snapshot?.sites ?? []).map((site) => ({
-        value: site.id,
-        label: site.name,
-        description: site.location ?? undefined,
-        meta: `${site.code} · ${site.registerCount} register${site.registerCount === 1 ? "" : "s"}`,
-      })),
-    [snapshot],
-  );
-  const registerOptions = useMemo<SearchableOption[]>(
-    () =>
-      selectedSiteRegisters.map((register) => ({
-        value: register.id,
-        label: register.name,
-        meta: register.code,
-      })),
-    [selectedSiteRegisters],
-  );
-
-  const saveMutation = useMutation({
-    mutationFn: (payload: OperationForm) =>
-      fetchJson<OperationsSaveResponse>("/api/v2/retail/setup/operations", {
+  const save = useMutation({
+    mutationFn: (body: SaveTill) =>
+      fetchJson<{ register: { id: string } }>("/api/v2/retail/setup/operations", {
         method: "PUT",
-        body: JSON.stringify({
-          defaultSiteId: payload.defaultSiteId,
-          defaultRegisterId: payload.defaultRegisterId || null,
-          newRegisterName: payload.newRegisterName || null,
-        }),
+        body: JSON.stringify(body),
       }),
-    onSuccess: async () => {
-      toast({ title: "Retail operations saved", variant: "success" });
-      setDraft(null);
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(OPERATIONS_DRAFT_KEY);
-      }
-      await queryClient.invalidateQueries({ queryKey: ["retail-setup-overview"] });
-    },
-    onError: (error) =>
+    onSuccess: async (result, body) => {
       toast({
-        title: "Unable to save retail operations",
+        title: body.newRegisterName ? "Till created" : "Default till saved",
+        variant: "success",
+      });
+      if (body.newRegisterName) {
+        setCreating(false);
+        setDraftName("");
+        setSelectedId(result.register.id);
+      }
+      await queryClient.invalidateQueries({ queryKey: SHOP_SETUP_KEY });
+    },
+    onError: (error, body) =>
+      toast({
+        title: body.newRegisterName ? "That till was not created" : "The default till was not saved",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
   });
 
-  const siteRows = useMemo(
-    () =>
-      (snapshot?.sites ?? []).map((site) => ({
-        id: site.id,
-        label: site.name,
-        primary: site.registerCount,
-        secondary: site.openShiftCount,
-      })),
-    [snapshot],
-  );
-
-  const readinessRows = useMemo(
-    () => [
-      {
-        id: "configured-sites",
-        label: "Sites ready",
-        value: snapshot?.sites.filter((site) => site.registerCount > 0).length ?? 0,
-      },
-      {
-        id: "sites-missing-registers",
-        label: "Sites missing registers",
-        value: snapshot ? snapshot.sites.filter((site) => site.registerCount === 0).length : 0,
-      },
-    ],
-    [snapshot],
-  );
-
-  const actions = (
-    <div className="flex flex-wrap gap-2">
-      <Button asChild size="sm" variant="outline">
-        <Link href="/retail/setup">
-          <ReceiptLong className="h-4 w-4" />
-          Overview
-        </Link>
-      </Button>
-      <Button asChild size="sm" variant="outline">
-        <Link href="/retail/setup/pos-policy">
-          <CheckCircle className="h-4 w-4" />
-          POS policy
-        </Link>
-      </Button>
-      <Button asChild size="sm" variant="outline">
-        <Link href="/management/master-data">
-          <Building2 className="h-4 w-4" />
-          Master data
-        </Link>
-      </Button>
-    </div>
-  );
-
-
-  if (overviewQuery.isPending) {
-    return (
-      <RetailShell title="Operations setup" actions={actions}>
-        <div aria-busy="true" aria-live="polite" className="space-y-4">
-          <span className="sr-only">Reading branches and registers…</span>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-          </div>
-          <Skeleton height={340} />
-          <Skeleton height={280} />
-        </div>
-      </RetailShell>
-    );
-  }
-
-  if (overviewQuery.isError) {
-    return (
-      <RetailShell title="Operations setup" actions={actions}>
-        <Alert tone="danger" title="Branches and registers would not load">
-          {getApiErrorMessage(overviewQuery.error)}
-        </Alert>
-      </RetailShell>
-    );
-  }
-
-  const readySites = overviewQuery.data.sites.filter((site) => site.registerCount > 0).length;
+  const state: ListColumnState = setup.isLoading
+    ? "loading"
+    : setup.isError
+      ? "failed"
+      : rows.length
+        ? "ready"
+        : search.trim()
+          ? "no-matches"
+          : "empty";
 
   return (
-    <RetailShell title="Operations setup" actions={actions}>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Branches ready"
-          value={`${readySites}/${overviewQuery.data.sites.length}`}
-          tone={readySites === overviewQuery.data.sites.length ? "success" : "warn"}
-          footer="With at least one register"
-        />
-        <StatCard
-          label="Registers"
-          value={String(overviewQuery.data.registers.length)}
-          footer="Terminals a cashier can pick"
-        />
-        <StatCard
-          label="Open shifts"
-          value={String(overviewQuery.data.counts.openShifts)}
-          footer="Tills trading right now"
-        />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
-        <div className="space-y-6">
-          <Card
-            title="Branch to register coverage"
-            subtitle="Every branch needs a known register, so nobody has to decide at the counter."
+    <ShopSettingsShell>
+      <RegisterLayout
+        hasSelection={Boolean(selected)}
+        list={
+          <ListColumn
+            title="Tills"
+            noun="till"
+            count={tills.length}
+            state={state}
+            columns={{ row: "Till", value: "Site" }}
+            search={{ value: search, onChange: setSearch, placeholder: "Name, code or site" }}
+            onNew={() => {
+              setDraftName("");
+              setDraftSiteId(snapshot?.setupProfile.defaultSiteId ?? sites[0]?.id ?? "");
+              setCreating(true);
+            }}
+            onRetry={() => void setup.refetch()}
           >
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.65fr)]">
-              <AdminDualBarChart
-                rows={siteRows}
-                primaryLabel="Registers"
-                secondaryLabel="Open shifts"
-                height={300}
-                valueFormatter={(value) => value.toString()}
-                emptyLabel="No branches to chart."
+            {rows.map((till) => (
+              <ListRow
+                key={till.id}
+                name={till.name}
+                value={till.site?.code ?? ""}
+                selected={till.id === selected?.id}
+                onSelect={() => setSelectedId(till.id)}
               />
-              <AdminDonutChart
-                rows={readinessRows}
-                valueLabel="Sites"
-                valueFormatter={(value) => value.toString()}
-                height={300}
-                emptyLabel="No branch readiness to show."
-              />
-            </div>
-          </Card>
-
-          <Card
-            title="Provision the default terminal"
-            actions={<Badge tone="neutral">Saves to provider config</Badge>}
-          >
-            <form
-              className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!effectiveDraft.defaultSiteId) {
-                  toast({ title: "Choose a site first", variant: "destructive" });
-                  return;
-                }
-                if (
-                  !effectiveDraft.defaultRegisterId &&
-                  !effectiveDraft.newRegisterName.trim()
-                ) {
-                  toast({
-                    title: "Choose or create a register",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                saveMutation.mutate(effectiveDraft);
-              }}
-            >
-              <div className="space-y-4">
-                <SearchableSelect
-                  label="Default branch"
-                  value={effectiveDraft.defaultSiteId}
-                  options={siteOptions}
-                  placeholder="Select a branch"
-                  searchPlaceholder="Search branches"
-                  onValueChange={(value) =>
-                    setDraft((current) => ({
-                      ...(current ?? EMPTY_FORM),
-                      defaultSiteId: value,
-                      defaultRegisterId: "",
-                    }))
-                  }
-                />
-
-                <SearchableSelect
-                  label="Default register"
-                  value={effectiveDraft.defaultRegisterId || undefined}
-                  options={registerOptions}
-                  placeholder={
-                    !selectedSite
-                      ? "Select a branch first"
-                      : registerOptions.length > 0
-                        ? "Choose an existing register"
-                        : "No registers on this branch yet"
-                  }
-                  searchPlaceholder="Search registers"
-                  onValueChange={(value) =>
-                    setDraft((current) => ({
-                      ...(current ?? EMPTY_FORM),
-                      defaultRegisterId: value,
-                      newRegisterName: "",
-                    }))
-                  }
-                  disabled={!selectedSite || registerOptions.length === 0}
-                />
-
-                <div className="space-y-2">
-                  <Label>New register name</Label>
-                  <Input
-                    value={effectiveDraft.newRegisterName}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...(current ?? EMPTY_FORM),
-                        newRegisterName: event.target.value,
-                        defaultRegisterId: "",
-                      }))
-                    }
-                    placeholder="Front till"
-                    className="h-12"
-                  />
-                  <p className="t-caption t-muted">
-                    Leave this blank if you are choosing one of the existing
-                    registers above.
-                  </p>
-                </div>
-
-                <div className="flex items-start gap-3 border-t border-[color:var(--border-subtle)] pt-4">
-                  <Server className="mt-1 h-5 w-5 text-[color:var(--text-muted)]" />
-                  <div>
-                    <p className="t-body-sm font-medium text-[color:var(--text-strong)]">
-                      What this saves
-                    </p>
-                    <p className="t-body-sm t-muted mt-1">
-                      Cashiers will only pick from the registers provisioned here. Register codes
-                      are generated automatically behind the scenes.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <p className="t-eyebrow t-muted">Preview</p>
-                  <p className="t-section t-strong mt-2">{selectedSite?.name ?? "Choose a branch"}</p>
-                  <p className="t-body-sm t-muted">
-                    {selectedSite
-                      ? `${selectedSite.code}${selectedSite.location ? ` · ${selectedSite.location}` : ""}`
-                      : "The register will follow the chosen branch."}
-                  </p>
-                  <p className="t-body-sm t-muted mt-2">
-                    {selectedSite
-                      ? `${selectedSite.registerCount} register${selectedSite.registerCount === 1 ? "" : "s"} · ${selectedSite.openShiftCount} open shift${selectedSite.openShiftCount === 1 ? "" : "s"}`
-                      : "No branch selected yet"}
-                  </p>
-                </div>
-
-                <StatCard
-                  label="Terminal label"
-                  value={
-                    selectedSiteRegisters.find(
-                      (register) => register.id === effectiveDraft.defaultRegisterId,
-                    )?.name ||
-                    effectiveDraft.newRegisterName ||
-                    "Not chosen"
-                  }
-                  footer="What the cashier will see"
-                />
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="submit"
-                    disabled={
-                      saveMutation.isPending ||
-                      !effectiveDraft.defaultSiteId ||
-                      (!effectiveDraft.defaultRegisterId &&
-                        !effectiveDraft.newRegisterName.trim())
+            ))}
+          </ListColumn>
+        }
+      >
+        {selected ? (
+          <>
+            <RecordHeader
+              title={selected.name}
+              icon={CashRegister}
+              badge={
+                selected.isActive ? null : (
+                  <StatusBadge tone="neutral" context="header">
+                    Inactive
+                  </StatusBadge>
+                )
+              }
+              action={
+                selected.id === defaultId ? null : (
+                  <HeaderAction
+                    icon={CheckCircle}
+                    disabled={save.isPending}
+                    onClick={() =>
+                      save.mutate({ defaultSiteId: selected.siteId, defaultRegisterId: selected.id })
                     }
                   >
-                    <Plus className="h-4 w-4" />
-                    Save register setup
-                  </Button>
-                  {draft ? <Badge tone="warn">Unsaved changes</Badge> : null}
-                </div>
-              </div>
-            </form>
-          </Card>
-        </div>
+                    Make default
+                  </HeaderAction>
+                )
+              }
+            />
 
-        <aside className="space-y-4">
-          <Card title="Known branches and registers" flush>
-            {overviewQuery.data.registers.length === 0 ? (
-              <div className="p-4">
-                <EmptyState
-                  title="No registers provisioned yet"
-                  body="Create one on the left and cashiers will have a terminal to open a shift on."
-                />
-              </div>
-            ) : (
-              <ul className="list-plain">
-                {overviewQuery.data.registers.map((register) => (
-                  <li key={register.id} className="list-item">
-                    <span className="lead" aria-hidden="true" />
-                    <div>
-                      <div className="title bold">{register.name}</div>
-                      <div className="sub">{register.site?.name ?? "Unknown branch"}</div>
-                    </div>
-                    <div className="meta">
-                      {overviewQuery.data.setupProfile.defaultRegisterId === register.id ? (
-                        <Badge tone="info">Default</Badge>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+            <SectionHeading icon={SlidersHorizontal} tone="brand">
+              Details
+            </SectionHeading>
+            <FactList
+              items={[
+                { label: "Code", value: selected.code, mono: true },
+                { label: "Site", value: selectedSite?.name ?? "No site" },
+                {
+                  label: "Default",
+                  value: selected.id === defaultId ? "Cashiers land on this till" : "No",
+                  tone: selected.id === defaultId ? "default" : "muted",
+                },
+                {
+                  label: "Open shifts",
+                  value: String(selectedSite?.openShiftCount ?? 0),
+                  mono: true,
+                },
+              ]}
+            />
+          </>
+        ) : (
+          <NoRecord
+            label={
+              setup.isLoading
+                ? "Loading the tills"
+                : setup.isError
+                  ? `The tills would not load. ${getApiErrorMessage(setup.error)}`
+                  : search.trim()
+                    ? "No till matches that search."
+                    : "No tills yet."
+            }
+          />
+        )}
+
+        <CreateDialog
+          open={creating}
+          onOpenChange={setCreating}
+          title="New till"
+          submitLabel="Create till"
+          busy={save.isPending}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!draftName.trim() || !draftSiteId) {
+              toast({
+                title: "That till was not created",
+                description: draftSiteId ? "Give the till a name." : "Say which site it is at.",
+                variant: "destructive",
+              });
+              return;
+            }
+            save.mutate({
+              defaultSiteId: draftSiteId,
+              newRegisterName: draftName.trim(),
+              // The first till a shop makes is where its cashiers land.
+              makeDefault: !defaultId,
+            });
+          }}
+        >
+          <CreateField label="Name">
+            {(id) => (
+              <Input
+                id={id}
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                placeholder="Front till"
+                className={DETAIL_CONTROL_CLASS}
+              />
             )}
-          </Card>
-
-          <Card title="Continue the setup flow" flush>
-            <ul className="list-plain">
-              {[
-                { label: "Receipt branding", href: "/retail/setup/branding" },
-                { label: "POS policy", href: "/retail/setup/pos-policy" },
-                { label: "Accounting mapping", href: "/retail/setup/accounting" },
-              ].map((item) => (
-                <li key={item.label}>
-                  <Link href={item.href} className="list-item">
-                    <span className="lead" aria-hidden="true" />
-                    <div className="title bold">{item.label}</div>
-                    <div className="meta">
-                      <ArrowRight className="chev h-4 w-4" />
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </aside>
-      </div>
-    </RetailShell>
+          </CreateField>
+          {sites.length > 1 ? (
+            <CreateField label="Site">
+              {(id) => (
+                <DetailSelect id={id} value={draftSiteId} onValueChange={setDraftSiteId}>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.name}
+                    </SelectItem>
+                  ))}
+                </DetailSelect>
+              )}
+            </CreateField>
+          ) : null}
+        </CreateDialog>
+      </RegisterLayout>
+    </ShopSettingsShell>
   );
 }
-

@@ -37,7 +37,7 @@ import {
 import {
   CommitInput,
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailGrid,
   DetailRow,
@@ -297,7 +297,7 @@ export default function GoldExpenseTypesManagementPage() {
           />
         )}
 
-        <CreateSheet
+        <CreateDialog
           open={creating}
           onOpenChange={setCreating}
           title="New settlement type"
@@ -327,7 +327,7 @@ export default function GoldExpenseTypesManagementPage() {
               />
             )}
           </CreateField>
-        </CreateSheet>
+        </CreateDialog>
       </RegisterLayout>
     </ManagementShell>
   );

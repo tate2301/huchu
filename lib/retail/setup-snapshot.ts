@@ -196,7 +196,7 @@ export async function getRetailSetupSnapshot(companyId: string) {
     {
       id: "branding",
       label: "Branding",
-      href: "/retail/setup/branding",
+      href: "/preferences/organization/branding",
       total: brandingChecks.length,
       completed: brandingCompleted,
       missing: Math.max(brandingChecks.length - brandingCompleted, 0),

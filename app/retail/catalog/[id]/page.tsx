@@ -1,211 +1,240 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { Alert, Skeleton, StatCard } from "@corelithzw/react";
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Alert, Skeleton } from "@corelithzw/react";
 
+import {
+  FactList,
+  HeaderAction,
+  RecordHeader,
+  SectionHeading,
+  StatusBadge,
+} from "@/components/management/ui";
+import {
+  ChangePriceDialog,
+  ProductDialog,
+  useInvalidateProducts,
+  type RetailProduct,
+} from "@/components/retail/product-dialogs";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { dsConfirm } from "@/components/ui/ds-confirm";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Coins, TableRows } from "@/lib/icons";
+import { enumLabel, formatQuantity, formatRetailDate } from "@/lib/retail/words";
 
-/**
- * One line on the range, and where its price comes from.
- *
- * R-4.3. The catalogue list opens an item in an edit dialog, which shows the
- * fields you can change. It does not show the thing a shopkeeper asks about a
- * price, which is **why it is that number** — the shelf list it resolved off,
- * when that entry last moved, and whether it fell back to `standardPrice`
- * because the list has no row.
- *
- * S-3 put `priceSource`, `priceListName` and `pricedAt` on every listing for
- * exactly this, and until now nothing rendered them. A till charging $1.20 when
- * the pricing screen says $1.35 is answered here in one look.
- */
-
-type ListingDetail = {
-  id: string;
+type ProductDetail = RetailProduct & {
   productId: string;
-  sku: string;
-  name: string;
-  description: string | null;
-  barcode: string | null;
-  imageUrl: string | null;
   ageRestricted: boolean;
-  status: string;
-  unitPrice: number;
-  compareAtPrice: number | null;
-  taxPercent: number;
   taxInclusive: boolean;
-  currency: string;
-  priceListId: string | null;
   priceSource: string;
   pricedAt: string | null;
   category: string | null;
-  inventoryItem: {
-    id: string;
-    itemCode: string;
-    name: string;
-    currentStock: number;
-    unit: string;
-  } | null;
-  site: { id: string; name: string; code: string } | null;
 };
 
-/** What the resolver did, in words a shopkeeper can act on. */
+/** Where the till's price comes from, in words a shopkeeper can act on. */
 function priceSourceLabel(source: string) {
-  if (source === "PRICE_LIST") return "The shelf price list";
-  if (source === "STANDARD") return "The item's fallback price";
-  if (source === "LISTING") return "The listing's own columns";
-  return source;
+  if (source === "PRICE_LIST") return "The shop's price list";
+  if (source === "STANDARD") return "The product's own price";
+  return "The product's own price";
 }
 
-export default function RetailCatalogItemPage() {
+const WIDTH = 560;
+
+/**
+ * One product: what it sells for and what is on hand. Drawn as a management
+ * record: the header with the product's one verb (Change price) and the rare
+ * ones behind its "…" (Edit, Remove), a badge only when the product is not
+ * simply on sale, then section headings over 44px fact rows.
+ *
+ * The page still answers "why is the till charging that": the price's source
+ * and when it last changed are facts in the list, not an alert over it.
+ */
+export default function RetailProductPage() {
   const params = useParams<{ id: string }>();
   const productId = params?.id ?? "";
+  const [editing, setEditing] = useState(false);
+  const [pricing, setPricing] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
+  const invalidate = useInvalidateProducts();
 
   const query = useQuery({
     queryKey: ["retail-catalog-item", productId],
     enabled: Boolean(productId),
-    queryFn: () => fetchJson<ListingDetail>(`/api/v2/retail/catalog/${productId}`),
+    queryFn: () => fetchJson<ProductDetail>(`/api/v2/retail/catalog/${productId}`),
   });
 
-  const item = query.data;
+  const product = query.data;
+  const editable = product ? ({ ...product, inventoryItemId: product.inventoryItem?.id ?? "" } as RetailProduct) : null;
+
+  const remove = useMutation({
+    mutationFn: () => fetchJson(`/api/v2/retail/catalog/${productId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Product removed", variant: "success" });
+      invalidate();
+      router.push("/retail/catalog");
+    },
+    onError: (error) =>
+      toast({
+        title: "That product was not removed",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  const confirmRemove = () => {
+    if (!product) return;
+    void dsConfirm({
+      title: `Remove ${product.name}?`,
+      description: "It stops appearing on the till. Its stock stays on hand, and past sales keep its name.",
+      confirmLabel: "Remove the product",
+      variant: "danger",
+    }).then((confirmed) => {
+      if (confirmed) remove.mutate();
+    });
+  };
+
+  const exception = !product
+    ? null
+    : product.status !== "ACTIVE"
+      ? { tone: "neutral" as const, label: "Off sale" }
+      : (product.inventoryItem?.currentStock ?? 0) <= 0
+        ? { tone: "warn" as const, label: "Out of stock" }
+        : null;
 
   return (
-    <RetailShell
-      area="range"
-      title={item?.name ?? "Catalogue item"}
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/catalog">
-              <TableRows className="h-4 w-4" />
-              The range
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/merchandising/pricing">
-              <Coins className="h-4 w-4" />
-              Pricing
-            </Link>
-          </Button>
-        </div>
-      }
-    >
+    <RetailShell title="Products">
       {query.isPending ? (
-        <div aria-busy="true" aria-live="polite" className="space-y-4">
-          <span className="sr-only">Fetching the catalogue item…</span>
-          <Skeleton height={104} />
-          <Skeleton height={240} />
+        <div aria-busy="true" aria-live="polite" className="space-y-3" style={{ maxWidth: WIDTH }}>
+          <span className="sr-only">Loading the product</span>
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+          <Skeleton height={44} />
         </div>
       ) : query.isError ? (
-        <Alert tone="danger" title="That item would not open">
+        <Alert tone="danger" title="The product would not load">
           {getApiErrorMessage(query.error)}
         </Alert>
-      ) : !item ? (
-        <Alert tone="warn" title="No item with that reference">
-          The link may be from another shop, or the line may since have been
-          archived off the range.
-        </Alert>
+      ) : !product ? (
+        <p className="text-sm text-[var(--text-muted)]">There is no product at this address.</p>
       ) : (
-        <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
-            <StatCard
-              label="Shelf price"
-              value={retailMoney(item.unitPrice)}
-              footer={item.taxInclusive ? "VAT included" : "VAT added at the till"}
+        <div className="space-y-6" style={{ maxWidth: WIDTH + 232 }}>
+          <RecordHeader
+            icon={TableRows}
+            title={product.name}
+            badge={
+              exception ? (
+                <StatusBadge tone={exception.tone} context="header">
+                  {exception.label}
+                </StatusBadge>
+              ) : null
+            }
+            action={
+              <HeaderAction icon={Coins} onClick={() => setPricing(true)}>
+                Change price
+              </HeaderAction>
+            }
+            overflow={
+              <>
+                <DropdownMenuItem onSelect={() => setEditing(true)}>Edit product</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={confirmRemove}
+                  className="text-[var(--tone-danger-strong)]"
+                >
+                  Remove product
+                </DropdownMenuItem>
+              </>
+            }
+          />
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,560px)_200px]">
+          <div>
+            <SectionHeading maxWidth={WIDTH} className="mt-0">Price</SectionHeading>
+            <FactList
+              maxWidth={WIDTH}
+              items={[
+                { label: "Price", value: retailMoney(product.unitPrice), mono: true },
+                {
+                  label: "Was",
+                  value: product.compareAtPrice ? retailMoney(product.compareAtPrice) : "No old price",
+                  mono: Boolean(product.compareAtPrice),
+                  tone: product.compareAtPrice ? "default" : "muted",
+                },
+                {
+                  label: "VAT",
+                  value: `${product.taxPercent}% ${product.taxInclusive ? "included" : "added at the till"}`,
+                },
+                { label: "Priced from", value: priceSourceLabel(product.priceSource) },
+                {
+                  label: "Changed",
+                  value: formatRetailDate(product.pricedAt) || "Never",
+                  mono: Boolean(product.pricedAt),
+                },
+              ]}
             />
-            <StatCard
-              label="On hand"
-              value={
-                item.inventoryItem
-                  ? `${item.inventoryItem.currentStock} ${item.inventoryItem.unit}`
-                  : "Not stocked"
-              }
-              tone={(item.inventoryItem?.currentStock ?? 0) > 0 ? "success" : "warn"}
+
+            <SectionHeading maxWidth={WIDTH}>Stock</SectionHeading>
+            <FactList
+              maxWidth={WIDTH}
+              items={[
+                {
+                  label: "On hand",
+                  value: product.inventoryItem
+                    ? formatQuantity(product.inventoryItem.currentStock, product.inventoryItem.unit)
+                    : "No stock line",
+                  mono: Boolean(product.inventoryItem),
+                  tone: (product.inventoryItem?.currentStock ?? 0) > 0 ? "default" : "warn",
+                },
+                { label: "Site", value: product.site?.name ?? "No site" },
+              ]}
             />
-            <StatCard label="Tax rate" value={`${item.taxPercent.toFixed(2)}%`} />
-            <StatCard
-              label="Was price"
-              value={item.compareAtPrice === null ? "—" : retailMoney(item.compareAtPrice)}
-              footer={item.compareAtPrice === null ? "Nothing struck through" : "Shown struck through"}
+
+            <SectionHeading maxWidth={WIDTH}>Details</SectionHeading>
+            <FactList
+              maxWidth={WIDTH}
+              items={[
+                { label: "Code", value: product.sku, mono: true },
+                {
+                  label: "Barcode",
+                  value: product.barcode ?? "Not on file",
+                  mono: Boolean(product.barcode),
+                  tone: product.barcode ? "default" : "muted",
+                },
+                { label: "Category", value: product.category ? enumLabel(product.category) : "None" },
+                { label: "Check ID", value: product.ageRestricted ? "Yes" : "No" },
+                ...(product.description ? [{ label: "Description", value: product.description }] : []),
+              ]}
             />
           </div>
 
-          {/*
-            The answer to "why is the till charging that". `STANDARD` here means
-            the shelf list has no entry for this product and the resolver fell
-            back — which is not an error, but it is the state a price edit
-            silently lands in when it writes the product and not the list.
-          */}
-          <Alert
-            tone={item.priceSource === "PRICE_LIST" ? "info" : "warn"}
-            title={`Priced from: ${priceSourceLabel(item.priceSource)}`}
-          >
-            {item.priceSource === "PRICE_LIST"
-              ? `Resolved off the shelf list${
-                  item.pricedAt ? ` · last changed ${new Date(item.pricedAt).toLocaleString()}` : ""
-                }.`
-              : "The shelf price list has no entry for this line, so the till is charging the item's fallback price. Set a price on the pricing screen to change that."}
-          </Alert>
-
-          {item.ageRestricted ? (
-            <Alert tone="warn" title="Age restricted">
-              The counter is told to check identification before this is rung up.
-            </Alert>
-          ) : null}
-
-          <div className="grid gap-4 md:grid-cols-[200px_minmax(0,1fr)]">
-            <div>
-              {item.imageUrl ? (
-                <Image
-                  src={item.imageUrl}
-                  alt=""
-                  width={200}
-                  height={200}
-                  className="rounded-lg border border-[var(--border-subtle)] object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-[var(--border-subtle)] p-4 text-center">
-                  <span className="t-body-sm t-muted">
-                    No shelf photo. The till draws a placeholder for this line.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <dl className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <dt className="t-body-sm t-muted">SKU</dt>
-                <dd className="font-mono text-sm">{item.sku}</dd>
+          <div>
+            {product.imageUrl ? (
+              <Image
+                src={product.imageUrl}
+                alt={product.name}
+                width={200}
+                height={200}
+                className="rounded-lg border border-[var(--border-subtle)] object-cover"
+                unoptimized
+              />
+            ) : (
+              <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-[var(--border-subtle)] p-4 text-center text-sm text-[var(--text-muted)]">
+                No photo
               </div>
-              <div>
-                <dt className="t-body-sm t-muted">Barcode</dt>
-                <dd className="font-mono text-sm">{item.barcode ?? "Not scanned"}</dd>
-              </div>
-              <div>
-                <dt className="t-body-sm t-muted">Category</dt>
-                <dd className="text-sm">{item.category ?? "Uncategorised"}</dd>
-              </div>
-              <div>
-                <dt className="t-body-sm t-muted">Stock line</dt>
-                <dd className="font-mono text-sm">{item.inventoryItem?.itemCode ?? "—"}</dd>
-              </div>
-              {item.description ? (
-                <div className="sm:col-span-2">
-                  <dt className="t-body-sm t-muted">Description</dt>
-                  <dd className="text-sm">{item.description}</dd>
-                </div>
-              ) : null}
-            </dl>
+            )}
           </div>
         </div>
+        </div>
       )}
+
+      <ProductDialog open={editing} onOpenChange={setEditing} product={editable} />
+      <ChangePriceDialog product={pricing ? editable : null} onOpenChange={(open) => !open && setPricing(false)} />
     </RetailShell>
   );
 }

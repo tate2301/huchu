@@ -27,23 +27,23 @@ test.describe.configure({ timeout: 900_000 });
 test.use({ tenant: RETAIL, as: "manager" });
 
 const ROUTES: readonly Route[] = [
-  { path: "/retail", name: "Retail overview" },
+  { path: "/retail", name: "Overview" },
   { path: "/retail/sales", name: "Sales" },
   { path: "/retail/shifts", name: "Shifts" },
   { path: "/retail/customers", name: "Customers" },
-  { path: "/retail/catalog", name: "Catalogue", expect: /Castle|Lager|340ml|ml\b/i },
-  { path: "/retail/merchandising/pricing", name: "Pricing" },
+  { path: "/retail/catalog", name: "Products", expect: /Castle|Lager|340ml|ml\b/i },
+  { path: "/retail/merchandising/pricing", name: "Prices" },
   { path: "/retail/merchandising/promotions", name: "Promotions" },
   { path: "/retail/stock", name: "Stock" },
-  { path: "/retail/stock/count", name: "Stock count" },
-  { path: "/retail/stock/transfers", name: "Stock transfers" },
-  { path: "/retail/purchasing/orders", name: "Purchase orders" },
-  { path: "/retail/purchasing/receipts", name: "Goods receipts" },
-  { path: "/retail/reports", name: "Reports" },
-  { path: "/retail/setup/operations", name: "Setup — operations" },
-  { path: "/retail/setup/pos-policy", name: "Setup — POS policy" },
-  { path: "/retail/setup/accounting", name: "Setup — accounting" },
-  { path: "/retail/setup/branding", name: "Setup — branding" },
+  { path: "/retail/stock/count", name: "Stock counts" },
+  { path: "/retail/stock/transfers", name: "Transfers" },
+  { path: "/retail/purchasing/orders", name: "Orders" },
+  { path: "/retail/purchasing/receipts", name: "Deliveries" },
+  { path: "/retail/reports", name: "Insights" },
+  { path: "/retail/setup/operations", name: "Settings — tills" },
+  { path: "/retail/setup/pos-policy", name: "Settings — till rules" },
+  { path: "/retail/setup/accounting", name: "Settings — posting" },
+  { path: "/retail/setup/fiscal", name: "Settings — fiscal device" },
 ];
 
 /*

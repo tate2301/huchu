@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { fiscalDeviceWhere } from "@/lib/accounting/fiscal-device-scope";
 
 const configSchema = z.object({
   providerKey: z.string().min(1).max(50),
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     const [provider, settings] = await Promise.all([
       prisma.fiscalisationProviderConfig.findFirst({
-        where: { companyId: session.user.companyId, isActive: true },
+        where: fiscalDeviceWhere(session.user.companyId),
         orderBy: { updatedAt: "desc" },
       }),
       prisma.accountingSettings.findUnique({

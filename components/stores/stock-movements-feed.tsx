@@ -2,22 +2,34 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Input, Skeleton } from "@corelithzw/react";
+import { Alert, Skeleton } from "@corelithzw/react";
 
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { HistoryFeed, type HistoryEvent } from "@/components/crm/records/history-feed";
+import { ListSearch } from "@/components/crm/records/list-search";
+import { FILTER_ANY, ViewToolbar, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { useDebounced } from "@/hooks/use-debounced";
 import { fetchSites, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { HistoryFeed, type HistoryEvent } from "@/components/crm/records/history-feed";
+import { formatQuantity } from "@/lib/retail/words";
+
+import { movementDelta, movementTypeLabel } from "./stock-words";
 
 const PAGE_LIMIT = 200;
+
+const TYPE_OPTIONS = new Map([
+  ["RECEIPT", "Received"],
+  ["ISSUE", "Issued"],
+  ["TRANSFER", "Transferred"],
+  ["ADJUSTMENT", "Adjusted"],
+]);
+
+/** Which way the stock went, as the sentence says it. */
+const PREPOSITION: Record<string, string> = {
+  RECEIPT: "into",
+  ISSUE: "from",
+  TRANSFER: "from",
+  ADJUSTMENT: "at",
+};
 
 /**
  * The stock movement log, as a history feed rather than a table.
@@ -28,16 +40,28 @@ const PAGE_LIMIT = 200;
  * which is the whole reason anybody opened the table version.
  *
  * Read-only by design: a movement is corrected by recording another movement,
- * never by editing the one that happened.
+ * never by editing the one that happened. Each is named by what it was —
+ * received, issued, transferred or adjusted — rather than everything that was
+ * not an issue reading as received.
  */
-export function StockMovementsFeed({ siteId }: { siteId?: string }) {
+export function StockMovementsFeed({
+  siteId,
+  initialSearch = "",
+}: {
+  siteId?: string;
+  /** What the search box starts with — a stock item's code, from On hand. */
+  initialSearch?: string;
+}) {
   const [site, setSite] = useState(siteId ?? "");
-  const [direction, setDirection] = useState<"ALL" | "ISSUE" | "RECEIPT">("ALL");
-  const [search, setSearch] = useState("");
+  const [direction, setDirection] = useState<string>("ALL");
+  const [search, setSearch] = useState(initialSearch);
   const debounced = useDebounced(search, 300);
 
   const sitesQuery = useQuery({ queryKey: ["sites"], queryFn: fetchSites });
-  const sites = useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
+  const siteOptions = useMemo(
+    () => new Map((sitesQuery.data ?? []).map((candidate) => [candidate.id, candidate.name])),
+    [sitesQuery.data],
+  );
 
   const movementsQuery = useQuery({
     queryKey: ["stock-movements", site || "all", direction],
@@ -55,24 +79,28 @@ export function StockMovementsFeed({ siteId }: { siteId?: string }) {
     return (movementsQuery.data?.data ?? [])
       .filter((movement) =>
         needle
-          ? `${movement.item?.name ?? ""} ${movement.referenceId} ${movement.issuedTo ?? ""}`
+          ? `${movement.item?.name ?? ""} ${movement.item?.itemCode ?? ""} ${movement.referenceId} ${
+              movement.issuedTo ?? ""
+            }`
               .toLowerCase()
               .includes(needle)
           : true,
       )
       .map((movement) => {
-        const issued = movement.movementType === "ISSUE";
+        const label = movementTypeLabel(movement.movementType);
+        const delta = movementDelta(movement.movementType, movement.quantity);
         const where = movement.item?.location?.name ?? movement.item?.site?.name;
+        const preposition = PREPOSITION[movement.movementType] ?? "at";
         return {
           id: movement.id,
-          action: movement.movementType,
-          verb: `${issued ? "issued" : "received"} ${movement.quantity} ${movement.unit} of ${
-            movement.item?.name ?? "an item"
-          }${where ? ` ${issued ? "from" : "into"} ${where}` : ""}`,
+          action: label,
+          verb: `${label.toLowerCase()} ${formatQuantity(Math.abs(movement.quantity), movement.unit)} of ${
+            movement.item?.name ?? "a stock item"
+          }${where ? ` ${preposition} ${where}` : ""}`,
           // The log records a name typed into the form, not a linked user, so
           // that string is the actor — there is nothing better to use.
           actorId: null,
-          actorName: movement.requestedBy ?? movement.issuedBy?.name ?? "Unrecorded",
+          actorName: movement.requestedBy ?? movement.issuedBy?.name ?? "Someone",
           occurredAt: movement.createdAt,
           note: [
             movement.issuedTo ? `To ${movement.issuedTo}` : null,
@@ -86,7 +114,7 @@ export function StockMovementsFeed({ siteId }: { siteId?: string }) {
             {
               field: "Quantity",
               from: null,
-              to: `${issued ? "−" : "+"}${movement.quantity} ${movement.unit}`,
+              to: `${delta < 0 ? "−" : "+"}${formatQuantity(Math.abs(delta), movement.unit)}`,
             },
             ...(movement.item?.site?.name
               ? [{ field: "Site", from: null, to: movement.item.site.name }]
@@ -96,44 +124,46 @@ export function StockMovementsFeed({ siteId }: { siteId?: string }) {
       });
   }, [debounced, movementsQuery.data]);
 
+  const emptyMessage = debounced.trim()
+    ? "No movements match that search"
+    : site || direction !== "ALL"
+      ? "No movements match this filter"
+      : "No movements yet";
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by item, reference or who it went to"
-          aria-label="Search movements"
-          className="h-9 w-full sm:w-72"
-        />
-
-        <SegmentedControl
-          value={direction}
-          onValueChange={(value) => setDirection(value as typeof direction)}
-          options={[
-            { value: "ALL", label: "All" },
-            { value: "RECEIPT", label: "In" },
-            { value: "ISSUE", label: "Out" },
-          ]}
-        />
-
-        <Select value={site} onValueChange={setSite}>
-          <SelectTrigger className="h-9 w-44">
-            <SelectValue placeholder="Every site" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Every site</SelectItem>
-            {sites.map((candidate) => (
-              <SelectItem key={candidate.id} value={candidate.id}>
-                {candidate.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <ViewToolbar
+        search={
+          <ListSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by stock item, code, reference or who it went to"
+            noun="movements"
+          />
+        }
+        start={
+          <>
+            <ViewToolbarFilter
+              label="Type"
+              value={direction === "ALL" ? FILTER_ANY : direction}
+              anyLabel="Any type"
+              options={TYPE_OPTIONS}
+              onChange={(next) => setDirection(next === FILTER_ANY ? "ALL" : next)}
+            />
+            <ViewToolbarFilter
+              label="Site"
+              value={site || FILTER_ANY}
+              anyLabel="Any site"
+              options={siteOptions}
+              onChange={(next) => setSite(next === FILTER_ANY ? "" : next)}
+            />
+          </>
+        }
+        filterCount={[direction !== "ALL", Boolean(site)].filter(Boolean).length}
+      />
 
       {movementsQuery.error ? (
-        <Alert tone="danger" title="Unable to load movements">
+        <Alert tone="danger" title="The movements would not load">
           {getApiErrorMessage(movementsQuery.error)}
         </Alert>
       ) : null}
@@ -145,11 +175,7 @@ export function StockMovementsFeed({ siteId }: { siteId?: string }) {
           <Skeleton height={64} />
         </div>
       ) : (
-        <HistoryFeed
-          events={events}
-          emptyMessage="Nothing has moved yet."
-          exportName="stock-movements"
-        />
+        <HistoryFeed events={events} emptyMessage={emptyMessage} exportName="stock-movements" />
       )}
     </div>
   );

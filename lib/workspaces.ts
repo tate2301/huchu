@@ -586,7 +586,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
     sections: [
       {
         id: "retail-floor",
-        title: "Run the Floor",
+        title: "The floor",
         refs: [
           { moduleId: "retail", href: "/retail" },
           { moduleId: "retail", href: "/portal/pos" },
@@ -626,7 +626,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
        */
       {
         id: "retail-range",
-        title: "Range & Stock",
+        title: "Products and stock",
         groups: [
           { id: "selling", label: "What we sell" },
           { id: "stock", label: "Stock" },
@@ -653,14 +653,10 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
       },
       {
         id: "retail-control",
-        title: "Controls & Growth",
+        title: "Insights",
         refs: [
           { moduleId: "retail", href: "/retail/reports" },
           { moduleId: "reporting", href: "/reports" },
-          { moduleId: "retail", href: "/retail/setup" },
-          { moduleId: "retail", href: "/retail/setup/operations" },
-          { moduleId: "retail", href: "/retail/setup/pos-policy" },
-          { moduleId: "retail", href: "/retail/setup/accounting" },
         ],
       },
     ],

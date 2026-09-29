@@ -1,755 +1,173 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import type { SearchableOption } from "@/components/ui/searchable-select";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { CatalogImageField } from "@/components/retail/catalog-image-field";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import { Button, Skeleton } from "@corelithzw/react";
+
+import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { ColumnFigure, ColumnList, ColumnName, StatusDot } from "@/components/management/ui";
+import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
+import { ProductDialog, type RetailProduct } from "@/components/retail/product-dialogs";
 import { retailMoney } from "@/components/retail/sale-detail";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
-import { fetchInventoryItems, fetchSites, fetchStockLocations, type InventoryItem } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown, Grid3x3, Package, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
-import {
-  MobileListCard,
-  MobileListCardHeader,
-  MobileListMetricStrip,
-} from "@/components/ui/mobile-list-card";
+import { fetchJson } from "@/lib/api-client";
+import { formatQuantity, productStatusLabel } from "@/lib/retail/words";
 
-type CatalogItem = {
-  id: string;
-  inventoryItemId: string;
-  siteId: string;
-  name: string;
-  sku: string;
-  barcode: string | null;
-  description: string | null;
-  unitPrice: number;
-  compareAtPrice: number | null;
-  taxPercent: number;
-  imageUrl: string | null;
-  status: string;
-  inventoryItem: {
-    id: string;
-    itemCode: string;
-    name: string;
-    currentStock: number;
-    unit: string;
-  } | null;
-  site: {
-    id: string;
-    name: string;
-    code: string;
-  } | null;
-};
+const STATUS_OPTIONS = new Map([
+  ["ACTIVE", "On sale"],
+  ["INACTIVE", "Off sale"],
+]);
 
-type CatalogForm = {
-  inventoryItemId: string;
-  name: string;
-  sku: string;
-  barcode: string;
-  description: string;
-  unitPrice: string;
-  compareAtPrice: string;
-  taxPercent: string;
-  /** The uploaded shelf photo's URL, or an empty string for none. */
-  imageUrl: string;
-  status: string;
-};
+/** A register's measure: wide enough for its figures, not the whole window. */
+const WIDTH = 960;
 
-function emptyForm(): CatalogForm {
-  return {
-    inventoryItemId: "",
-    name: "",
-    sku: "",
-    barcode: "",
-    description: "",
-    unitPrice: "",
-    compareAtPrice: "",
-    taxPercent: "0",
-    imageUrl: "",
-    status: "ACTIVE",
-  };
+/** The rate most of the range carries — what a new product starts at. */
+function commonVat(products: RetailProduct[]): number {
+  const counts = new Map<number, number>();
+  for (const product of products) counts.set(product.taxPercent, (counts.get(product.taxPercent) ?? 0) + 1);
+  let best = 15;
+  let seen = 0;
+  for (const [rate, count] of counts) {
+    if (count > seen) {
+      best = rate;
+      seen = count;
+    }
+  }
+  return best;
 }
 
-export default function RetailCatalogPage() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [addAnother, setAddAnother] = useState(false);
-  const [editing, setEditing] = useState<CatalogItem | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CatalogItem | null>(null);
-  const [form, setForm] = useState<CatalogForm>(emptyForm);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  /*
-    Held while a shelf photo is on its way up. The preview appears the moment
-    a file is picked and the upload runs behind it, so without this a
-    shopkeeper who picks a photo and saves straight away stores an item with
-    no photo and no warning — the form still had an empty `imageUrl`.
-  */
-  const [imageUploading, setImageUploading] = useState(false);
+/**
+ * Products — what the till sells.
+ *
+ * Drawn as the management surface's registers and the CRM's money pages are:
+ * the name in the app bar with the one verb beside it, a toolbar of search and
+ * a status filter with the count, and a `ColumnList` under it — the name and
+ * one line, then the figures against the right edge. A product that is out of
+ * stock says so in its own row; what you can do to a product is on its record.
+ */
+export default function RetailProductsPage() {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<string>(FILTER_ANY);
+  const [creating, setCreating] = useState(false);
 
-  // Quick-create stock item sub-dialog
-  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
-  const [quickForm, setQuickForm] = useState({
-    name: "", category: "CONSUMABLES", unit: "pcs", siteId: "", locationId: "", unitCost: "",
-  });
-
-  const catalogQuery = useQuery({
+  const productsQuery = useQuery({
     queryKey: ["retail-catalog"],
-    queryFn: () => fetchJson<{ data: CatalogItem[] }>("/api/v2/retail/catalog"),
+    queryFn: () => fetchJson<{ data: RetailProduct[] }>("/api/v2/retail/catalog"),
   });
-  const inventoryQuery = useQuery({
-    queryKey: ["retail-catalog-inventory-items"],
-    queryFn: () => fetchInventoryItems({ limit: 500 }),
-  });
-  const sitesQuery = useQuery({ queryKey: ["retail-catalog-sites"], queryFn: fetchSites });
-  const locationsQuery = useQuery({
-    queryKey: ["retail-catalog-locations", quickForm.siteId],
-    queryFn: () => fetchStockLocations({ siteId: quickForm.siteId, active: true, limit: 100 }),
-    enabled: Boolean(quickForm.siteId),
-  });
+  const products = useMemo(() => productsQuery.data?.data ?? [], [productsQuery.data]);
 
-  const inventoryItems = useMemo(() => inventoryQuery.data?.data ?? [], [inventoryQuery.data]);
-  const inventoryOptions = useMemo<SearchableOption[]>(
-    () =>
-      inventoryItems.map((item) => ({
-        value: item.id,
-        label: item.name,
-        description: `${item.currentStock.toFixed(2)} ${item.unit} on hand`,
-        meta: item.itemCode,
-      })),
-    [inventoryItems],
-  );
-  const priceIsInvalid = form.unitPrice !== "" && (isNaN(Number(form.unitPrice)) || Number(form.unitPrice) <= 0);
-  const saveMutation = useMutation({
-    mutationFn: async (payload: CatalogForm) => {
-      const body = {
-        inventoryItemId: payload.inventoryItemId,
-        name: payload.name.trim() || undefined,
-        sku: payload.sku.trim() || undefined,
-        barcode: payload.barcode.trim() || undefined,
-        description: payload.description.trim() || undefined,
-        unitPrice: Number(payload.unitPrice || 0),
-        compareAtPrice: payload.compareAtPrice ? Number(payload.compareAtPrice) : undefined,
-        taxPercent: Number(payload.taxPercent || 0),
-        // Null clears the photo; the API leaves it alone when undefined.
-        imageUrl: payload.imageUrl.trim() || null,
-        status: payload.status,
-      };
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return products.filter((product) => {
+      if (status !== FILTER_ANY && product.status !== status) return false;
+      if (!needle) return true;
+      return [product.name, product.sku, product.barcode ?? ""].some((value) =>
+        value.toLowerCase().includes(needle),
+      );
+    });
+  }, [products, search, status]);
 
-      if (editing) {
-        return fetchJson(`/api/v2/retail/catalog/${editing.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(body),
-        });
-      }
+  const onHand = (product: RetailProduct) =>
+    product.inventoryItem
+      ? formatQuantity(product.inventoryItem.currentStock, product.inventoryItem.unit)
+      : null;
 
-      return fetchJson("/api/v2/retail/catalog", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-    },
-    onSuccess: () => {
-      toast({ title: editing ? "Catalog item updated" : "Catalog item created", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["retail-catalog"] });
-      if (addAnother && !editing) {
-        setForm(emptyForm());
-        setAdvancedOpen(false);
-      } else {
-        setDialogOpen(false);
-        setEditing(null);
-        setForm(emptyForm());
-        setAdvancedOpen(false);
-      }
-      setAddAnother(false);
-    },
-    onError: (error) => {
-      toast({
-        title: editing ? "Unable to update item" : "Unable to create item",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const quickCreateMutation = useMutation({
-    mutationFn: (payload: typeof quickForm) =>
-      fetchJson<{ id: string; name: string; unit: string; unitCost: number | null; siteId: string }>("/api/inventory/items", {
-        method: "POST",
-        body: JSON.stringify({
-          name: payload.name.trim(),
-          category: payload.category,
-          unit: payload.unit.trim(),
-          siteId: payload.siteId,
-          locationId: payload.locationId,
-          unitCost: payload.unitCost ? Number(payload.unitCost) : undefined,
-        }),
-      }),
-    onSuccess: (created) => {
-      toast({ title: "Stock item created", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["retail-catalog-inventory-items"] });
-      setQuickCreateOpen(false);
-      setQuickForm({ name: "", category: "CONSUMABLES", unit: "pcs", siteId: "", locationId: "", unitCost: "" });
-      setForm((current) => ({
-        ...current,
-        inventoryItemId: created.id,
-        name: current.name || created.name,
-        unitPrice: current.unitPrice === "" && created.unitCost != null ? String(created.unitCost) : current.unitPrice,
-      }));
-    },
-    onError: (error) => {
-      toast({ title: "Unable to create stock item", description: getApiErrorMessage(error), variant: "destructive" });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetchJson(`/api/v2/retail/catalog/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      toast({ title: "Catalog item removed", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["retail-catalog"] });
-      setDeleteTarget(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to remove item",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const columns = useMemo<ColumnDef<CatalogItem>[]>(
-    () => [
-      {
-        id: "item",
-        header: "Item",
-        cell: ({ row }) => (
-          <div>
-            <Link
-              href={`/retail/catalog/${row.original.id}`}
-              className="font-medium underline-offset-2 hover:underline"
-            >
-              {row.original.name}
-            </Link>
-            <div className="font-mono text-xs text-[var(--text-muted)]">{row.original.sku}</div>
-          </div>
-        ),
-      },
-      {
-        id: "sku",
-        header: "SKU",
-        cell: ({ row }) => <span className="font-mono text-xs">{row.original.sku}</span>,
-      },
-      {
-        id: "stock",
-        header: "Stock",
-        cell: ({ row }) => (
-          <NumericCell>
-            {row.original.inventoryItem
-              ? `${row.original.inventoryItem.currentStock.toFixed(2)} ${row.original.inventoryItem.unit}`
-              : "-"}
-          </NumericCell>
-        ),
-      },
-      {
-        id: "price",
-        header: "Sell price",
-        cell: ({ row }) => <NumericCell>{row.original.unitPrice.toFixed(2)}</NumericCell>,
-      },
-      {
-        id: "tax",
-        header: "Tax %",
-        cell: ({ row }) => <NumericCell>{row.original.taxPercent.toFixed(2)}</NumericCell>,
-      },
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => row.original.status,
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label={`Edit ${row.original.name}`}
-              onClick={() => {
-                setEditing(row.original);
-                setForm({
-                  inventoryItemId: row.original.inventoryItemId,
-                  name: row.original.name,
-                  sku: row.original.sku,
-                  barcode: row.original.barcode ?? "",
-                  description: row.original.description ?? "",
-                  unitPrice: String(row.original.unitPrice),
-                  compareAtPrice: row.original.compareAtPrice ? String(row.original.compareAtPrice) : "",
-                  taxPercent: String(row.original.taxPercent),
-                  imageUrl: row.original.imageUrl ?? "",
-                  status: row.original.status,
-                });
-                setDialogOpen(true);
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label={`Remove ${row.original.name}`}
-              onClick={() => setDeleteTarget(row.original)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ),
-      },
-    ],
-    [],
-  );
-
-  const newItemButton = (
-    <Button
-      size="sm"
-      onClick={() => {
-        setEditing(null);
-        setForm(emptyForm());
-        setDialogOpen(true);
-      }}
-    >
-      <Plus className="h-4 w-4" />
-      New item
-    </Button>
-  );
-
-  const actions = (
-    <div className="flex flex-wrap gap-2">
-      {newItemButton}
-      <Button asChild size="sm" variant="outline">
-        <Link href="/retail/merchandising/pricing">
-          <Wallet className="h-4 w-4" />
-          Pricing
-        </Link>
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="gap-1">
-            <Grid3x3 className="h-4 w-4" />
-            <span className="hidden sm:inline">More</span>
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href="/retail/merchandising/promotions" className="flex items-center gap-2">
-              <ReceiptLong className="h-4 w-4" /> Promotions
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/retail/purchasing/orders" className="flex items-center gap-2">
-              <ReceiptLong className="h-4 w-4" /> Purchase orders
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-
-  const catalogItems = catalogQuery.data?.data ?? [];
-  const activeItems = catalogItems.filter((item) => item.status === "ACTIVE").length;
-  const outOfStock = catalogItems.filter(
-    (item) => (item.inventoryItem?.currentStock ?? 0) <= 0,
-  ).length;
+  const narrowed = Boolean(search.trim()) || status !== FILTER_ANY;
+  const empty = search.trim()
+    ? "No product matches that search."
+    : status !== FILTER_ANY
+      ? "No product matches this filter."
+      : "No products yet.";
 
   return (
-    <RetailShell title="Catalog" actions={actions}>
-      {catalogQuery.isPending ? (
-        <div aria-busy="true" aria-live="polite" className="space-y-4">
-          <span className="sr-only">Fetching the catalogue…</span>
-          <div className="grid gap-4 md:grid-cols-3">
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-          </div>
-          <Skeleton height={360} />
-        </div>
-      ) : catalogQuery.isError ? (
-        <Alert tone="danger" title="The catalogue would not load">
-          {getApiErrorMessage(catalogQuery.error)}
-        </Alert>
-      ) : catalogItems.length === 0 ? (
-        <EmptyState
-          title="Nothing is on the shelf yet"
-          body="A catalogue item links a stock line to a shelf price, which is what the till sells. Add the first one to start trading."
-          action={newItemButton}
-        />
-      ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <StatCard label="Sellable lines" value={String(catalogItems.length)} footer="In the catalogue" />
-            <StatCard
-              label="Active"
-              value={String(activeItems)}
-              footer="Rung up by the till today"
-            />
-            <StatCard
-              label="Out of stock"
-              value={String(outOfStock)}
-              tone={outOfStock > 0 ? "warn" : "success"}
-              footer="Priced but nothing on hand"
-            />
-          </div>
-          <DataTable
-            data={catalogItems}
-            columns={columns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search catalog"
-            emptyState="No catalogue lines match that search."
-            toolbar={<span className="t-body-sm t-muted">Sellable retail items</span>}
-            /*
-              R-4.5. Below `md`, the row becomes a card.
-
-              Retail had none of these — twelve tables, zero
-              `mobileCardRenderer`, while ten scrap-metal screens had used the
-              pattern for months. A shopkeeper checking stock is doing it on a
-              phone in the storeroom, which is the one place a horizontally
-              scrolling eight-column table is worst.
-            */
-            mobileCardRenderer={({ row }) => (
-              <MobileListCard>
-                <MobileListCardHeader
-                  title={row.name}
-                  subtitle={row.sku}
-                  aside={
-                    <Badge variant={row.status === "ACTIVE" ? "default" : "outline"}>
-                      {row.status}
-                    </Badge>
-                  }
-                />
-                <MobileListMetricStrip
-                  items={[
-                    { icon: Wallet, value: retailMoney(row.unitPrice), srLabel: "Shelf price" },
-                    {
-                      icon: Package,
-                      value: `${row.inventoryItem?.currentStock?.toFixed(2) ?? "0.00"} ${row.inventoryItem?.unit ?? ""}`,
-                      srLabel: "On hand",
-                    },
-                    { icon: ReceiptLong, value: `${row.taxPercent.toFixed(2)}%`, srLabel: "Tax rate" },
-                  ]}
-                />
-              </MobileListCard>
-            )}
+    <>
+      <RecordListShell
+        title="Products"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by name, code or barcode"
+        filters={
+          <ViewToolbarFilter
+            label="Status"
+            value={status}
+            anyLabel="Any status"
+            options={STATUS_OPTIONS}
+            onChange={setStatus}
           />
-        </>
-      )}
-
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) {
-            setEditing(null);
-            setForm(emptyForm());
-            setAdvancedOpen(false);
-          }
-        }}
+        }
+        filterCount={status === FILTER_ANY ? 0 : 1}
+        count={productsQuery.isSuccess ? `${rows.length} of ${products.length}` : null}
+        createLabel="New product"
+        onCreate={() => setCreating(true)}
+        error={productsQuery.error}
       >
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit catalog item" : "New catalog item"}</DialogTitle>
-            <DialogDescription>Link a sellable retail item to shared stock.</DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              saveMutation.mutate(form);
-            }}
-          >
-            <SearchableSelect
-              label="Stock item"
-              value={form.inventoryItemId}
-              options={inventoryOptions}
-              placeholder="Select stock item"
-              onValueChange={(value) => {
-                const item = inventoryItems.find((entry) => entry.id === value);
-                setForm((current) => ({
-                  ...current,
-                  inventoryItemId: value,
-                  name: current.name || item?.name || "",
-                  unitPrice: current.unitPrice === "" && (item as InventoryItem | undefined)?.unitCost != null ? String((item as InventoryItem).unitCost) : current.unitPrice,
-                }));
-              }}
-              onAddOption={() => {
-                const firstSite = sitesQuery.data?.[0];
-                setQuickForm((q) => ({ ...q, siteId: firstSite?.id ?? "", locationId: "" }));
-                setQuickCreateOpen(true);
-              }}
-              addLabel="Quick-create stock item"
+        {productsQuery.isPending ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* The code and barcode ride under the name; the columns are the
+                ones scanned down. A product's state is a dot and a word, and
+                only when it is not simply on sale (rule 5). Its verbs are on
+                its record, not in a menu on every row. */}
+            <ColumnList
+              label="Products"
+              maxWidth={WIDTH}
+              empty={empty}
+              columns={[
+                { id: "product", label: "Product" },
+                { id: "status", label: "Status", hideBelow: "sm" },
+                { id: "onHand", label: "On hand", align: "end", hideBelow: "sm" },
+                { id: "price", label: "Price", align: "end" },
+                { id: "vat", label: "VAT", align: "end", hideBelow: "md" },
+              ]}
+              rows={rows.map((product) => {
+                const off = productStatusLabel(product.status);
+                const out = (product.inventoryItem?.currentStock ?? 0) <= 0;
+                const stock = onHand(product);
+                return {
+                  id: product.id,
+                  cells: {
+                    product: (
+                      <ColumnName
+                        name={product.name}
+                        meta={[product.sku, product.barcode].filter(Boolean).join(" · ")}
+                        href={`/retail/catalog/${product.id}`}
+                      />
+                    ),
+                    status: off ? (
+                      <StatusDot tone="neutral" label={off} />
+                    ) : out ? (
+                      <StatusDot tone="warn" label="Out of stock" />
+                    ) : null,
+                    onHand: (
+                      <ColumnFigure tone={stock ? (out ? "warn" : "default") : "muted"}>
+                        {stock ?? "No stock line"}
+                      </ColumnFigure>
+                    ),
+                    price: <ColumnFigure>{retailMoney(product.unitPrice)}</ColumnFigure>,
+                    vat: <ColumnFigure tone="muted">{`${product.taxPercent}%`}</ColumnFigure>,
+                  },
+                };
+              })}
             />
-
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold">Sell price</label>
-              <Input value={form.unitPrice} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, unitPrice: event.target.value }))} />
-              {priceIsInvalid ? (
-                <p className="t-body-sm text-[color:var(--tone-danger-strong)]">
-                  Price must be greater than 0
-                </p>
-              ) : null}
-            </div>
-
-            {/*
-              Above the fold, not under "Advanced options".
-
-              A shelf photo is the single most visible attribute an item has —
-              it is what a cashier navigates the till grid by. Filing it behind
-              a collapsed toggle would mean the range stays a wall of grey
-              boxes because nobody found the control.
-            */}
-            <CatalogImageField
-              value={form.imageUrl}
-              onChange={(next) => setForm((current) => ({ ...current, imageUrl: next }))}
-              productId={editing?.id}
-              onUploadingChange={setImageUploading}
-            />
-
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
-            >
-              <ChevronDown className={`h-4 w-4 transition-transform${advancedOpen ? " rotate-180" : ""}`} />
-              Advanced options
-            </button>
-
-            {advancedOpen ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Display name</label>
-                  <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold">SKU</label>
-                  <Input value={form.sku} onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))} placeholder="Generated from code when blank" />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Barcode</label>
-                  <Input value={form.barcode} onChange={(event) => setForm((current) => ({ ...current, barcode: event.target.value }))} />
-                </div>
-                {editing ? (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold">Status</label>
-                    <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ACTIVE">Active</SelectItem>
-                        <SelectItem value="INACTIVE">Inactive</SelectItem>
-                        <SelectItem value="DISCONTINUED">Discontinued</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Compare at</label>
-                  <Input value={form.compareAtPrice} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, compareAtPrice: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Tax percent</label>
-                  <Input value={form.taxPercent} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, taxPercent: event.target.value }))} />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-semibold">Notes</label>
-                  <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
-                </div>
-              </div>
+            {rows.length === 0 && !narrowed ? (
+              <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+                New product
+              </Button>
             ) : null}
+          </div>
+        )}
+      </RecordListShell>
 
-            <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              {!editing ? (
-                <Button
-                  type="submit"
-                  variant="outline"
-                  disabled={saveMutation.isPending || imageUploading || !form.inventoryItemId || !form.unitPrice || Number(form.unitPrice) <= 0}
-                  onClick={() => setAddAnother(true)}
-                >
-                  Save and add another
-                </Button>
-              ) : null}
-              <Button
-                type="submit"
-                disabled={saveMutation.isPending || imageUploading || !form.inventoryItemId || !form.unitPrice || Number(form.unitPrice) <= 0}
-                onClick={() => setAddAnother(false)}
-              >
-                {editing ? "Save changes" : "Create item"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Quick-create stock item */}
-      <Dialog open={quickCreateOpen} onOpenChange={(open) => { setQuickCreateOpen(open); if (!open) setQuickForm({ name: "", category: "CONSUMABLES", unit: "pcs", siteId: "", locationId: "", unitCost: "" }); }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Quick-create stock item</DialogTitle>
-            <DialogDescription>Create a new stock item and add it to the catalog in one step.</DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!quickForm.name.trim() || !quickForm.siteId || !quickForm.locationId) return;
-              quickCreateMutation.mutate(quickForm);
-            }}
-          >
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold">Item name</label>
-              <Input
-                value={quickForm.name}
-                onChange={(e) => setQuickForm((q) => ({ ...q, name: e.target.value }))}
-                placeholder="e.g. Bottled water 500ml"
-                autoFocus
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Category</label>
-                <Select value={quickForm.category} onValueChange={(v) => setQuickForm((q) => ({ ...q, category: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CONSUMABLES">Consumables</SelectItem>
-                    <SelectItem value="SPARES">Spares</SelectItem>
-                    <SelectItem value="PPE">PPE</SelectItem>
-                    <SelectItem value="FUEL">Fuel</SelectItem>
-                    <SelectItem value="REAGENTS">Reagents</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Unit</label>
-                <Input
-                  value={quickForm.unit}
-                  onChange={(e) => setQuickForm((q) => ({ ...q, unit: e.target.value }))}
-                  placeholder="pcs, kg, L …"
-                  list="unit-presets"
-                />
-                <datalist id="unit-presets">
-                  {["pcs", "kg", "L", "g", "mL", "box", "pair", "roll", "bag"].map((u) => (
-                    <option key={u} value={u} />
-                  ))}
-                </datalist>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Site</label>
-                <Select
-                  value={quickForm.siteId}
-                  onValueChange={(v) => setQuickForm((q) => ({ ...q, siteId: v, locationId: "" }))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select site" /></SelectTrigger>
-                  <SelectContent>
-                    {(sitesQuery.data ?? []).map((site: { id: string; name: string }) => (
-                      <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Location</label>
-                <Select
-                  value={quickForm.locationId}
-                  onValueChange={(v) => setQuickForm((q) => ({ ...q, locationId: v }))}
-                  disabled={!quickForm.siteId}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                  <SelectContent>
-                    {(locationsQuery.data?.data ?? []).map((loc: { id: string; name: string }) => (
-                      <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="block text-sm font-semibold">Unit cost (optional)</label>
-                <Input
-                  value={quickForm.unitCost}
-                  inputMode="decimal"
-                  onChange={(e) => setQuickForm((q) => ({ ...q, unitCost: e.target.value }))}
-                  placeholder="0.00 — will pre-fill sell price"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setQuickCreateOpen(false)}>Cancel</Button>
-              <Button
-                type="submit"
-                disabled={quickCreateMutation.isPending || !quickForm.name.trim() || !quickForm.siteId || !quickForm.locationId}
-              >
-                {quickCreateMutation.isPending ? "Creating…" : "Create and select"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Remove {deleteTarget?.name ?? "catalogue item"}</DialogTitle>
-            <DialogDescription>
-              {deleteTarget?.sku} stops appearing on the till. The stock line behind it is
-              left alone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-            >
-              Remove {deleteTarget?.sku ?? ""}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </RetailShell>
+      <ProductDialog
+        open={creating}
+        onOpenChange={setCreating}
+        product={null}
+        defaultVat={commonVat(products)}
+      />
+    </>
   );
 }

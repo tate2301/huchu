@@ -45,7 +45,7 @@ import {
 import {
   CommitInput,
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailGrid,
   DetailRow,
@@ -482,7 +482,7 @@ export default function JobGradesManagementPage() {
           />
         )}
 
-        <CreateSheet
+        <CreateDialog
           open={creating}
           onOpenChange={(open) => (open ? setCreating(true) : closeCreate())}
           title="New job grade"
@@ -523,7 +523,7 @@ export default function JobGradesManagementPage() {
               />
             )}
           </CreateField>
-        </CreateSheet>
+        </CreateDialog>
       </RegisterLayout>
     </ManagementShell>
   );

@@ -33,6 +33,8 @@ import {
   resetOfflineOperationToQueued,
 } from "@/lib/offline/outbox";
 import type { OfflineOutboxOperation } from "@/lib/offline/types";
+// Type-only: erased at build, so the server module never reaches the client bundle.
+import type { TillFiscalStatus } from "@/lib/retail/fiscalisation";
 import type {
   CartItem,
   CurrentShift,
@@ -58,6 +60,8 @@ type CompletedSale = {
     pointsBalance: number;
     tier: string;
   } | null;
+  /** The sale's place on the ZIMRA chain, decided the moment it was posted. */
+  fiscal?: TillFiscalStatus | null;
 };
 
 type CustomerLookupResult = {
@@ -553,7 +557,7 @@ export function PosPortalProvider({
       }
 
       toast({
-        title: "Unable to post sale",
+        title: "That sale was not saved",
         description: message,
         variant: "destructive",
       });
@@ -675,8 +679,8 @@ export function PosPortalProvider({
     },
     postSalePending: saleMutation.isPending,
     checkoutBaseBlockers: [
-      ...(currentShift ? [] : ["Open a shift before checkout."]),
-      ...(cart.length > 0 ? [] : ["Add at least one item to continue."]),
+      ...(currentShift ? [] : ["Open a shift first"]),
+      ...(cart.length > 0 ? [] : ["Add a product first"]),
     ],
     pendingOfflineSales,
     queuedOfflineSales,

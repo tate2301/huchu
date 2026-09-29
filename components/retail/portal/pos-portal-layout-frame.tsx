@@ -70,16 +70,16 @@ type PosPortalLayoutFrameProps = {
  * button for it.
  */
 const POS_PORTAL_LINKS: PosPortalLink[] = [
-  { label: "Checkout", icon: Payments, publicHref: "/", internalHref: "/portal/pos", onPhone: true },
+  { label: "Till", icon: Payments, publicHref: "/", internalHref: "/portal/pos", onPhone: true },
   // Mid-sale, and the reason this list was wrong.
   {
-    label: "Price",
+    label: "Price check",
     icon: Search,
     publicHref: "/price-check",
     internalHref: "/portal/pos/price-check",
     onPhone: true,
   },
-  { label: "Held", icon: Package, publicHref: "/held", internalHref: "/portal/pos/held", onPhone: true },
+  { label: "Held sales", icon: Package, publicHref: "/held", internalHref: "/portal/pos/held", onPhone: true },
   {
     label: "Customers",
     icon: Users,
@@ -128,47 +128,22 @@ const POS_PORTAL_LINKS: PosPortalLink[] = [
 const POS_PORTAL_MENU_LINKS: PosPortalLink[] = [
   { label: "Activity", icon: FileText, publicHref: "/activity", internalHref: "/portal/pos/activity" },
   { label: "Till settings", icon: Settings2, publicHref: "/settings", internalHref: "/portal/pos/settings" },
-  { label: "Help & shortcuts", icon: Keyboard, publicHref: "/help", internalHref: "/portal/pos/help" },
+  { label: "Help", icon: Keyboard, publicHref: "/help", internalHref: "/portal/pos/help" },
 ];
 
-const ROUTE_CONFIG: Record<string, { title: string; description?: string; fillHeight?: boolean }> = {
-  "/portal/pos": { title: "Point of Sale", fillHeight: true },
-  "/": { title: "Point of Sale", fillHeight: true },
-  "/held": { title: "Held Carts" },
-  "/portal/pos/held": { title: "Held Carts" },
-  "/history": { title: "Sales History" },
-  "/portal/pos/history": { title: "Sales History" },
-  "/reports": { title: "Reports", description: "Your sales at a glance" },
-  "/portal/pos/reports": { title: "Reports", description: "Your sales at a glance" },
-  "/shift": { title: "Shift Management" },
-  "/portal/pos/shift": { title: "Shift Management" },
-  "/offline": { title: "Offline queue", description: "Waiting to reach the server" },
-  "/portal/pos/offline": {
-    title: "Offline queue",
-    description: "Waiting to reach the server",
-  },
-  "/price-check": { title: "Price check", description: "Scan or search for an item" },
-  "/portal/pos/price-check": {
-    title: "Price check",
-    description: "Scan or search for an item",
-  },
-  "/customers": { title: "Customers" },
-  "/portal/pos/customers": { title: "Customers" },
-  "/overview": { title: "Today", description: "Your shift so far" },
-  "/portal/pos/overview": { title: "Today", description: "Your shift so far" },
-  "/activity": { title: "Activity", description: "What this till has done" },
-  "/portal/pos/activity": { title: "Activity", description: "What this till has done" },
-  "/settings": { title: "Till settings", description: "How this terminal is set up" },
-  "/portal/pos/settings": {
-    title: "Till settings",
-    description: "How this terminal is set up",
-  },
-  "/help": { title: "Help", description: "Keys, everyday jobs, and what to do when it goes wrong" },
-  "/portal/pos/help": {
-    title: "Help",
-    description: "Keys, everyday jobs, and what to do when it goes wrong",
-  },
-};
+/**
+ * A screen's name is its rail label — one name per screen, read in the rail,
+ * the tooltip and the page heading alike.
+ */
+const ROUTE_TITLES = new Map(
+  [...POS_PORTAL_LINKS, ...POS_PORTAL_MENU_LINKS].flatMap((link) => [
+    [link.publicHref, link.label] as const,
+    [link.internalHref, link.label] as const,
+  ]),
+);
+
+/** The till's own screen fills the frame; every other screen scrolls. */
+const FILL_HEIGHT_ROUTES = new Set(["/", "/portal/pos"]);
 
 function BottomTabBar({
   links,
@@ -207,7 +182,7 @@ function BottomTabBar({
               />
             )}
             <item.icon className="h-5 w-5 shrink-0" />
-            <span className="text-[9px] font-bold uppercase tracking-wide leading-none">
+            <span className="text-[10px] font-bold leading-none">
               {item.label}
             </span>
           </Link>
@@ -221,7 +196,7 @@ function BottomTabBar({
         style={{ color: "var(--pos-rail-text-idle)" }}
       >
         <LogOut className="h-5 w-5 shrink-0" />
-        <span className="text-[9px] font-bold uppercase tracking-wide leading-none">Exit</span>
+        <span className="text-[10px] font-bold leading-none">Log out</span>
       </button>
     </nav>
   );
@@ -248,7 +223,8 @@ export function PosPortalLayoutFrame({
     return <>{children}</>;
   }
 
-  const config = ROUTE_CONFIG[pathname] ?? { title: "Point of Sale" };
+  const title = ROUTE_TITLES.get(pathname) ?? "Till";
+  const fillHeight = FILL_HEIGHT_ROUTES.has(pathname);
   const renderedLinks = isPosHost
     ? POS_PORTAL_LINKS.map((item) => ({ ...item, href: item.publicHref }))
     : POS_PORTAL_LINKS.map((item) => ({ ...item, href: item.internalHref }));
@@ -425,26 +401,18 @@ export function PosPortalLayoutFrame({
               >
                 {workspaceInitial}
               </div>
-              <div className="min-w-0">
-                <div
-                  className="truncate text-[10px] font-bold uppercase tracking-[0.18em]"
-                  style={{ color: "var(--pos-amount-label)" }}
-                >
-                  POS Terminal
-                </div>
-                <div
-                  className="truncate text-sm font-bold"
-                  style={{ color: "var(--pos-amount-text)" }}
-                >
-                  {config.title}
-                </div>
-              </div>
+              <h1
+                className="min-w-0 truncate text-sm font-bold"
+                style={{ color: "var(--pos-amount-text)" }}
+              >
+                {title}
+              </h1>
             </div>
             {/* Below `lg` the rail is gone, so the phone header carries it. */}
             <OfflineStatusButton className="shrink-0 text-[var(--pos-amount-label)] [--offline-dot-ring:var(--pos-amount-bg)] hover:bg-[var(--pos-rail-active-bg)] hover:text-[var(--pos-amount-text)]" />
           </header>
 
-          {config.fillHeight ? (
+          {fillHeight ? (
             <main className="flex-1 overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
               {children}
             </main>
@@ -456,19 +424,9 @@ export function PosPortalLayoutFrame({
               )}
             >
               <div className="mx-auto w-full max-w-[1320px] 3xl:max-w-[1680px]">
-                <div className="mb-5 hidden lg:block">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                    POS Terminal
-                  </div>
-                  <h1 className="mt-1 text-[1.45rem] font-bold tracking-[-0.03em] text-[var(--text-strong)]">
-                    {config.title}
-                  </h1>
-                  {config.description ? (
-                    <p className="mt-2 max-w-[56ch] text-sm text-[var(--text-muted)]">
-                      {config.description}
-                    </p>
-                  ) : null}
-                </div>
+                <h1 className="mb-5 hidden text-[1.45rem] font-bold tracking-[-0.03em] text-[var(--text-strong)] lg:block">
+                  {title}
+                </h1>
                 {children}
               </div>
             </main>
