@@ -22,7 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
-import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {

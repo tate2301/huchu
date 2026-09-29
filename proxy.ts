@@ -683,7 +683,7 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api|_next/static|_next/image|favicon.ico|manifest.json|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf|eot|js|json|webmanifest|txt|xml)).*)",
+    "/((?!api/auth|api|_next/static|_next/image|favicon.ico|manifest.json|manifest.webmanifest|serwist|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf|eot|js|json|webmanifest|txt|xml)).*)",
     "/api/platform-admin/:path*",
     "/api/gold/:path*",
     "/api/payroll/:path*",

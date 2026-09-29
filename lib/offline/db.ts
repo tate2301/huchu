@@ -1,15 +1,23 @@
 const OFFLINE_DB_NAME = "huchu-offline";
-const OFFLINE_DB_VERSION = 3;
+const OFFLINE_DB_VERSION = 4;
 
 export const OFFLINE_DB_STORES = {
-  offlineContext: "offlineContext",
-  sessionBootstrap: "sessionBootstrap",
-  bootstrapState: "bootstrapState",
-  queryCache: "queryCache",
   entityStore: "entityStore",
   outbox: "outbox",
-  attachmentStore: "attachmentStore",
 } as const;
+
+/**
+ * Stores this database used to hold. Query results now persist through
+ * TanStack Query, page readiness is read from the service worker's caches,
+ * and the tenant comes from the session, so their contents are dead weight.
+ */
+const RETIRED_STORES = [
+  "offlineContext",
+  "sessionBootstrap",
+  "bootstrapState",
+  "queryCache",
+  "attachmentStore",
+];
 
 type StoreName = (typeof OFFLINE_DB_STORES)[keyof typeof OFFLINE_DB_STORES];
 
@@ -34,39 +42,9 @@ function createStores(
   database: IDBDatabase,
   transaction?: IDBTransaction | null,
 ) {
-  if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.offlineContext)) {
-    database.createObjectStore(OFFLINE_DB_STORES.offlineContext, {
-      keyPath: "id",
-    });
-  }
-
-  if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.sessionBootstrap)) {
-    database.createObjectStore(OFFLINE_DB_STORES.sessionBootstrap, {
-      keyPath: "id",
-    });
-  }
-
-  if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.bootstrapState)) {
-    database.createObjectStore(OFFLINE_DB_STORES.bootstrapState, {
-      keyPath: "id",
-    });
-  }
-
-  if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.queryCache)) {
-    const store = database.createObjectStore(OFFLINE_DB_STORES.queryCache, {
-      keyPath: "id",
-    });
-    store.createIndex("updatedAt", "updatedAt");
-    store.createIndex("tenantKey", "tenantKey");
-  } else {
-    const store = transaction?.objectStore(OFFLINE_DB_STORES.queryCache);
-    if (store) {
-      if (!store.indexNames.contains("updatedAt")) {
-        store.createIndex("updatedAt", "updatedAt");
-      }
-      if (!store.indexNames.contains("tenantKey")) {
-        store.createIndex("tenantKey", "tenantKey");
-      }
+  for (const storeName of RETIRED_STORES) {
+    if (database.objectStoreNames.contains(storeName)) {
+      database.deleteObjectStore(storeName);
     }
   }
 
@@ -96,18 +74,6 @@ function createStores(
     store.createIndex("tenantKey", "tenantKey");
   } else {
     const store = transaction?.objectStore(OFFLINE_DB_STORES.outbox);
-    if (store && !store.indexNames.contains("tenantKey")) {
-      store.createIndex("tenantKey", "tenantKey");
-    }
-  }
-
-  if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.attachmentStore)) {
-    const store = database.createObjectStore(OFFLINE_DB_STORES.attachmentStore, {
-      keyPath: "attachmentId",
-    });
-    store.createIndex("tenantKey", "tenantKey");
-  } else {
-    const store = transaction?.objectStore(OFFLINE_DB_STORES.attachmentStore);
     if (store && !store.indexNames.contains("tenantKey")) {
       store.createIndex("tenantKey", "tenantKey");
     }
@@ -178,12 +144,4 @@ export async function findOfflineRecordByIndex<T>(
   const result = await promisifyRequest(store.index(indexName).get(key));
   await waitForTransaction(transaction);
   return (result ?? null) as T | null;
-}
-
-export async function clearOfflineStore(storeName: StoreName) {
-  const database = await openOfflineDatabase();
-  const transaction = database.transaction(storeName, "readwrite");
-  const store = transaction.objectStore(storeName);
-  await promisifyRequest(store.clear());
-  await waitForTransaction(transaction);
 }

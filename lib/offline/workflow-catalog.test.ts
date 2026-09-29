@@ -31,11 +31,8 @@ import { describe, expect, it } from "vitest";
 import { OFFLINE_MODULES } from "@/lib/offline/module-registry";
 import {
   OFFLINE_WORKFLOW_CATALOG,
-  getOfflineExcludedRouteReason,
   getOfflineWarmupModuleIds,
   getOfflineWarmupRoutes,
-  getRouteOfflineMutationPolicy,
-  isRouteWarmedForOffline,
   resolveOfflineWorkflowCatalog,
 } from "@/lib/offline/workflow-catalog";
 
@@ -128,14 +125,6 @@ describe("who a workflow warms for", () => {
     expect(warmRoutes).toContain("/people");
     expect(warmRoutes).not.toContain("/gold/settlement/approvals");
     expect(warmRoutes).not.toContain("/accounting");
-  });
-
-  it("reports offline availability and mutation policy", () => {
-    expect(isRouteWarmedForOffline("/people", HR_FEATURES)).toBe(true);
-    expect(getRouteOfflineMutationPolicy("/people")).toBe("online-only");
-
-    expect(getOfflineExcludedRouteReason("/accounting/journals")).toMatch(/excluded/i);
-    expect(getRouteOfflineMutationPolicy("/accounting/journals")).toBe("excluded");
   });
 
   it("warms nothing", () => {

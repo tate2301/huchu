@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSerwist } from "@serwist/turbopack";
 
 /** The brotli-packed Chromium that `@sparticuz/chromium` unpacks at runtime. */
 const CHROMIUM_BINARY_FILES = [
@@ -122,4 +123,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Keeps esbuild, which builds the service worker in `app/serwist`, out of the
+// server bundle.
+export default withSerwist(nextConfig);
