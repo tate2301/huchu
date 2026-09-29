@@ -13,7 +13,6 @@ import {
   FactList,
   SectionHeading,
 } from "@/components/management/ui";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
@@ -61,11 +60,11 @@ const WIDE = 760;
 /**
  * Stock — what needs attention.
  *
- * The products at or under their reorder point, most short first, then what
- * is on order and the last deliveries. The tile band and the three charts
- * that sat over the watchlist restated its own rows as shapes (D3), and the
- * bar's Receive stock and More were navigation (D5): the one verb here is
- * counting, which opens the stock counts page with its dialog up.
+ * Drawn as the CRM's finance page is — section headings over lists and facts,
+ * no tiles: the products at or under their reorder point as a `ColumnList`,
+ * most short first, then what is on order and the last deliveries. The one
+ * verb, Count stock, is in the app bar and opens the stock counts page with
+ * its dialog up.
  */
 export default function RetailStockPage() {
   const overview = useQuery({
@@ -111,11 +110,11 @@ export default function RetailStockPage() {
   if (overview.isPending) {
     return (
       <RetailShell title="Stock" actions={actions}>
-        <div aria-busy="true" aria-live="polite" className="space-y-2">
+        <div aria-busy="true" aria-live="polite" className="space-y-1.5" style={{ maxWidth: WIDE }}>
           <span className="sr-only">Loading the stock</span>
-          <Skeleton height={36} />
-          <Skeleton height={36} />
-          <Skeleton height={36} />
+          <Skeleton height={44} />
+          <Skeleton height={44} />
+          <Skeleton height={44} />
         </div>
       </RetailShell>
     );
@@ -135,45 +134,38 @@ export default function RetailStockPage() {
 
   return (
     <RetailShell title="Stock" actions={actions}>
-      <SectionHeading maxWidth={WIDE} count={summary.lowStockCount}>
+      <SectionHeading maxWidth={WIDE} count={summary.lowStockCount} className="mt-0">
         Running low
       </SectionHeading>
-      <div style={{ maxWidth: WIDE }}>
-        <RecordTable
-          rows={watch}
-          emptyTitle="Nothing is running low"
-          columns={[
-            {
-              id: "product",
-              label: "Product",
-              cell: (row) => <RecordTableName title={row.name} subtitle={row.itemCode} />,
-            },
-            {
-              id: "onHand",
-              label: "On hand",
-              align: "end",
-              width: "9rem",
-              cell: (row) => <RecordCell kind="number" value={formatQuantity(row.onHand, row.unit)} />,
-            },
-            {
-              id: "reorderAt",
-              label: "Reorder at",
-              align: "end",
-              width: "9rem",
-              cell: (row) => <RecordCell kind="number" value={formatQuantity(row.reorderAt, row.unit)} />,
-            },
-            {
-              id: "shortBy",
-              label: "Short by",
-              align: "end",
-              width: "9rem",
-              cell: (row) => (
-                <RecordCell kind="number" value={row.shortBy > 0 ? formatQuantity(row.shortBy, row.unit) : "—"} />
+      <ColumnList
+        label="Running low"
+        maxWidth={WIDE}
+        empty="Nothing is running low."
+        columns={[
+          { id: "product", label: "Product" },
+          { id: "onHand", label: "On hand", align: "end" },
+          { id: "reorderAt", label: "Reorder at", align: "end", hideBelow: "sm" },
+          { id: "shortBy", label: "Short by", align: "end" },
+        ]}
+        rows={watch.map((row) => ({
+          id: row.id,
+          cells: {
+            product: <ColumnName name={row.name} meta={row.itemCode} />,
+            onHand: (
+              <ColumnFigure tone={row.onHand <= 0 ? "danger" : "default"}>
+                {formatQuantity(row.onHand, row.unit)}
+              </ColumnFigure>
+            ),
+            reorderAt: <ColumnFigure tone="muted">{formatQuantity(row.reorderAt, row.unit)}</ColumnFigure>,
+            shortBy:
+              row.shortBy > 0 ? (
+                <ColumnFigure tone="warn">{formatQuantity(row.shortBy, row.unit)}</ColumnFigure>
+              ) : (
+                <ColumnFigure tone="muted">—</ColumnFigure>
               ),
-            },
-          ]}
-        />
-      </div>
+          },
+        }))}
+      />
 
       <SectionHeading maxWidth={WIDTH}>Orders</SectionHeading>
       <FactList
@@ -199,7 +191,7 @@ export default function RetailStockPage() {
         <ColumnList
           label="Last deliveries"
           maxWidth={WIDTH}
-          empty="No deliveries yet"
+          empty="No deliveries yet."
           columns={[
             { id: "delivery", label: "Delivery" },
             { id: "date", label: "Date", hideBelow: "sm" },

@@ -38,9 +38,9 @@ const PRODUCT = `Mazoe Orange 2L ${RUN}`;
 const FAKE_FDMS = process.env.E2E_FAKE_FDMS_URL ?? "http://127.0.0.1:9911";
 const SETTLE = 2_500;
 
-/** Open a row's menu by the product or record it belongs to, and pick a verb. */
-async function rowVerb(page: Page, name: string, verb: string) {
-  await page.getByRole("button", { name: `More for ${name}` }).first().click();
+/** A record's rare verb: the "…" beside its one labelled verb, then the item. */
+async function moreVerb(page: Page, verb: string) {
+  await page.getByRole("button", { name: "More actions" }).first().click();
   await page.getByRole("menuitem", { name: verb }).click();
 }
 
@@ -100,8 +100,12 @@ test.describe("the back office", () => {
     const shot = shooter("retail", "journey-w04-edit-a-product");
     await visitSettled(page, "/retail/catalog");
     await page.getByPlaceholder(/search by name/i).first().fill(RUN);
+    await page.getByRole("link", { name: new RegExp(PRODUCT) }).first().click();
+    await expect(page.getByRole("heading", { name: PRODUCT })).toBeVisible({ timeout: 60_000 });
+    await settle(page, SETTLE);
+    await shot(page, "the-product");
 
-    await rowVerb(page, PRODUCT, "Edit product");
+    await moreVerb(page, "Edit product");
     let dialog = await dialogNamed(page, PRODUCT);
     await shot(page, "edit-product");
     await dialog.getByLabel("On sale").click();
@@ -110,7 +114,7 @@ test.describe("the back office", () => {
     await expect(page.getByText("Off sale").first()).toBeVisible({ timeout: 30_000 });
     await shot(page, "off-sale");
 
-    await rowVerb(page, PRODUCT, "Edit product");
+    await moreVerb(page, "Edit product");
     dialog = await dialogNamed(page, PRODUCT);
     await dialog.getByLabel("On sale").click();
     await dialog.getByRole("button", { name: "Save product" }).click();
@@ -127,7 +131,10 @@ test.describe("the back office", () => {
     await expect(page.getByText(PRODUCT).first()).toBeVisible({ timeout: 60_000 });
     await shot(page, "prices");
 
-    await rowVerb(page, PRODUCT, "Change price");
+    // The row's own verb, drawn on the row the pointer is over.
+    const row = page.getByRole("row", { name: new RegExp(PRODUCT) }).first();
+    await row.hover();
+    await row.getByRole("button", { name: "Change price" }).click();
     const dialog = await dialogNamed(page, /Change the price/);
     await dialog.getByLabel("Price").fill("3.75");
     await dialog.getByLabel("Was").fill("3.50");

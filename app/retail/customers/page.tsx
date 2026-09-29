@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Skeleton } from "@corelithzw/react";
+import { Alert, Button, Skeleton } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
@@ -10,11 +10,11 @@ import {
   ColumnFigure,
   ColumnList,
   ColumnName,
+  ColumnRowAction,
+  ColumnText,
   FactList,
   SectionHeading,
 } from "@/components/management/ui";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
-import { RowMenu } from "@/components/retail/row-menu";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -57,6 +57,7 @@ function signedPoints(value: number) {
   return "0";
 }
 
+const WIDTH = 960;
 const LEDGER_WIDTH = 560;
 
 const rowId = (customer: CustomerRow) => customer.customerId ?? customer.customerName;
@@ -64,10 +65,11 @@ const rowId = (customer: CustomerRow) => customer.customerId ?? customer.custome
 /**
  * Customers — the named people the tills have sold to, and their points.
  *
- * Drawn as the products list is: the name in the app bar, search and the count
- * in the toolbar, and the records under it. The tiles and the three charts
- * that sat over the table are gone (D3). A customer's points ledger opens from
- * the row's menu; there is no customer page to link to yet.
+ * Drawn as the products list is: search and the count in the toolbar, and a
+ * `ColumnList` under it — the name and visits, tier, last visit, then points
+ * and spend against the right edge. There is no customer page yet, so the
+ * row's one verb, Points ledger, sits at its end and opens the ledger in a
+ * dialog.
  */
 export default function RetailCustomersPage() {
   const [search, setSearch] = useState("");
@@ -101,7 +103,7 @@ export default function RetailCustomersPage() {
     return sorted.filter((customer) => customer.customerName.toLowerCase().includes(needle));
   }, [customers, search]);
 
-  const emptyTitle = search.trim() ? "No customers match that search" : "No customers yet";
+  const empty = search.trim() ? "No customer matches that search." : "No customers yet.";
   const visits = (customer: CustomerRow) => formatQuantity(customer.visits, "visit");
 
   const openLedger = (customer: CustomerRow) =>
@@ -119,57 +121,48 @@ export default function RetailCustomersPage() {
         count={customersQuery.isSuccess ? `${rows.length} of ${customers.length}` : null}
         error={customersQuery.error}
       >
-        <RecordTable
-          rows={rows}
-          isLoading={customersQuery.isPending}
-          emptyTitle={emptyTitle}
-          columns={[
-            {
-              id: "customer",
-              label: "Customer",
-              cell: (customer) => <RecordTableName title={customer.customerName} subtitle={visits(customer)} />,
-            },
-            {
-              id: "tier",
-              label: "Tier",
-              width: "7rem",
-              cell: (customer) => <RecordCell value={enumLabel(customer.loyaltyTier)} />,
-            },
-            {
-              id: "points",
-              label: "Points",
-              align: "end",
-              width: "7rem",
-              cell: (customer) => <RecordCell kind="number" value={customer.loyaltyPoints} />,
-            },
-            {
-              id: "spend",
-              label: "Spend",
-              align: "end",
-              width: "8rem",
-              cell: (customer) => <RecordCell kind="money" value={retailMoney(customer.totalSpend)} />,
-            },
-            {
-              id: "lastVisit",
-              label: "Last visit",
-              width: "9rem",
-              cell: (customer) => <RecordCell kind="date" value={formatRetailDate(customer.lastPurchaseAt)} />,
-            },
-            {
-              id: "menu",
-              label: "",
-              width: "3rem",
-              align: "end",
-              cell: (customer) =>
-                customer.customerId ? (
-                  <RowMenu
-                    label={`More for ${customer.customerName}`}
-                    items={[{ label: "Open the points ledger", onSelect: () => openLedger(customer) }]}
-                  />
+        {customersQuery.isPending ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : (
+          <ColumnList
+            label="Customers"
+            maxWidth={WIDTH}
+            empty={empty}
+            columns={[
+              { id: "customer", label: "Customer" },
+              { id: "tier", label: "Tier", hideBelow: "md" },
+              { id: "lastVisit", label: "Last visit", hideBelow: "md" },
+              { id: "points", label: "Points", align: "end", hideBelow: "sm" },
+              { id: "spend", label: "Spend", align: "end" },
+              { id: "act", label: "" },
+            ]}
+            rows={rows.map((customer) => ({
+              id: customer.id,
+              cells: {
+                customer: <ColumnName name={customer.customerName} meta={visits(customer)} />,
+                tier: <ColumnText>{enumLabel(customer.loyaltyTier)}</ColumnText>,
+                lastVisit: <ColumnFigure tone="muted">{formatRetailDate(customer.lastPurchaseAt)}</ColumnFigure>,
+                points: (
+                  <ColumnFigure tone={customer.loyaltyPoints ? "default" : "muted"}>
+                    {customer.loyaltyPoints}
+                  </ColumnFigure>
+                ),
+                spend: <ColumnFigure>{retailMoney(customer.totalSpend)}</ColumnFigure>,
+                act: customer.customerId ? (
+                  <ColumnRowAction>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => openLedger(customer)}>
+                      Points ledger
+                    </Button>
+                  </ColumnRowAction>
                 ) : null,
-            },
-          ]}
-        />
+              },
+            }))}
+          />
+        )}
       </RecordListShell>
 
       <RecordDialog
@@ -212,7 +205,7 @@ export default function RetailCustomersPage() {
             <ColumnList
               label="Points ledger"
               maxWidth={LEDGER_WIDTH}
-              empty="No points earned or redeemed yet"
+              empty="No points earned or redeemed yet."
               columns={[
                 { id: "sale", label: "Sale" },
                 { id: "amount", label: "Amount", align: "end" },

@@ -2,15 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Skeleton } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { FormField, StatusDot } from "@/components/management/ui";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnRowAction,
+  ColumnText,
+  FormField,
+  StatusDot,
+} from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { RowMenu } from "@/components/retail/row-menu";
 import { retailMoney } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
 import {
@@ -51,6 +57,8 @@ type PromotionForm = {
 const TYPES = ["PERCENT", "AMOUNT", "BUY_X_GET_Y", "BUNDLE"];
 const STATUSES = ["ACTIVE", "SCHEDULED", "INACTIVE"];
 const STATUS_OPTIONS = new Map(STATUSES.map((status) => [status, promotionStatusLabel(status)]));
+
+const WIDTH = 960;
 
 /** A stored instant as a `datetime-local` value, in the viewer's own time. */
 function localInput(value: string | Date | null): string {
@@ -106,12 +114,11 @@ function promotionStatusDot(status: string) {
 /**
  * Promotions — the discounts the till applies at checkout.
  *
- * The three tiles and three charts that sat over the table (running now, all
- * campaigns, average value, the eight richest offers, two donuts) governed
- * nothing on the page and are gone (D3), and so is the Pricing button in the
- * bar: the sidebar does navigation. The form lost its Advanced options
- * disclosure — the dates a promotion runs between are part of it, not an
- * advanced setting.
+ * A `ColumnList` under the toolbar: the code and name, a dot only when the
+ * promotion is not running, its type and dates, and its value against the
+ * right edge. A promotion has no record page, so Edit sits on its row and
+ * Remove is in the dialog Edit opens. The dates a promotion runs between are
+ * part of its form, not an advanced setting.
  */
 export default function RetailPromotionsPage() {
   const { toast } = useToast();
@@ -171,11 +178,12 @@ export default function RetailPromotionsPage() {
     });
   };
 
-  const emptyTitle = search.trim()
-    ? "No promotions match that search"
+  const narrowed = Boolean(search.trim()) || status !== FILTER_ANY;
+  const empty = search.trim()
+    ? "No promotion matches that search."
     : status !== FILTER_ANY
-      ? "No promotions match this filter"
-      : "No promotions yet";
+      ? "No promotion matches this filter."
+      : "No promotions yet.";
 
   return (
     <>
@@ -199,73 +207,71 @@ export default function RetailPromotionsPage() {
         onCreate={() => open(null)}
         error={promotionsQuery.error}
       >
-        <RecordTable
-          rows={rows}
-          isLoading={promotionsQuery.isPending}
-          emptyTitle={emptyTitle}
-          columns={[
-            {
-              id: "promotion",
-              label: "Promotion",
-              cell: (promotion) => <RecordTableName title={promotion.name} subtitle={promotion.promoCode} />,
-            },
-            {
-              id: "status",
-              label: "Status",
-              width: "8rem",
-              cell: (promotion) => promotionStatusDot(promotion.status),
-            },
-            {
-              id: "type",
-              label: "Type",
-              width: "9rem",
-              cell: (promotion) => <RecordCell value={promotionTypeLabel(promotion.type)} />,
-            },
-            {
-              id: "value",
-              label: "Value",
-              align: "end",
-              width: "7rem",
-              cell: (promotion) => (
-                <RecordCell kind={promotion.type === "AMOUNT" ? "money" : "number"} value={valueText(promotion)} />
-              ),
-            },
-            {
-              id: "starts",
-              label: "Starts",
-              width: "9rem",
-              cell: (promotion) => (
-                <RecordCell kind="date" value={formatRetailDate(promotion.startsAt) || "No start"} />
-              ),
-            },
-            {
-              id: "ends",
-              label: "Ends",
-              width: "9rem",
-              cell: (promotion) => (
-                <RecordCell kind="date" value={formatRetailDate(promotion.endsAt) || "No end"} />
-              ),
-            },
-            {
-              id: "menu",
-              label: "",
-              width: "3rem",
-              align: "end",
-              cell: (promotion) => (
-                <RowMenu
-                  label={`More for ${promotion.name}`}
-                  items={[
-                    { label: "Edit promotion", onSelect: () => open(promotion) },
-                    { label: "Remove promotion", onSelect: () => confirmRemove(promotion), destructive: true },
-                  ]}
-                />
-              ),
-            },
-          ]}
-        />
+        {promotionsQuery.isPending ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* A promotion has no record page, so its one verb is on its row;
+                Remove is in the dialog that verb opens. */}
+            <ColumnList
+              label="Promotions"
+              maxWidth={WIDTH}
+              empty={empty}
+              columns={[
+                { id: "promotion", label: "Promotion" },
+                { id: "status", label: "Status", hideBelow: "sm" },
+                { id: "type", label: "Type", hideBelow: "md" },
+                { id: "starts", label: "Starts", hideBelow: "md" },
+                { id: "ends", label: "Ends", hideBelow: "md" },
+                { id: "value", label: "Value", align: "end" },
+                { id: "act", label: "" },
+              ]}
+              rows={rows.map((promotion) => ({
+                id: promotion.id,
+                cells: {
+                  promotion: <ColumnName code={promotion.promoCode} name={promotion.name} />,
+                  status: promotionStatusDot(promotion.status),
+                  type: <ColumnText>{promotionTypeLabel(promotion.type)}</ColumnText>,
+                  starts: (
+                    <ColumnFigure tone="muted">{formatRetailDate(promotion.startsAt) || "No start"}</ColumnFigure>
+                  ),
+                  ends: (
+                    <ColumnFigure tone="muted">{formatRetailDate(promotion.endsAt) || "No end"}</ColumnFigure>
+                  ),
+                  value: <ColumnFigure>{valueText(promotion)}</ColumnFigure>,
+                  act: (
+                    <ColumnRowAction>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => open(promotion)}>
+                        Edit
+                      </Button>
+                    </ColumnRowAction>
+                  ),
+                },
+              }))}
+            />
+            {rows.length === 0 && !narrowed ? (
+              <Button variant="primary" size="sm" onClick={() => open(null)}>
+                New promotion
+              </Button>
+            ) : null}
+          </div>
+        )}
       </RecordListShell>
 
-      <PromotionDialog key={opening} open={dialogOpen} onOpenChange={setDialogOpen} promotion={editing} />
+      <PromotionDialog
+        key={opening}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        promotion={editing}
+        onRemove={(promotion) => {
+          setDialogOpen(false);
+          confirmRemove(promotion);
+        }}
+      />
     </>
   );
 }
@@ -275,11 +281,14 @@ function PromotionDialog({
   open,
   onOpenChange,
   promotion,
+  onRemove,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The promotion to edit, or null for a new one. */
   promotion: Promotion | null;
+  /** Remove lives here: a promotion has no record page to carry it. */
+  onRemove: (promotion: Promotion) => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -351,10 +360,20 @@ function PromotionDialog({
       errors={errors}
       footer={
         <>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          {promotion ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="mr-auto text-[var(--tone-danger-strong)]"
+              onClick={() => onRemove(promotion)}
+            >
+              Remove promotion
+            </Button>
+          ) : null}
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={save.isPending}>
+          <Button type="submit" variant="primary" disabled={save.isPending}>
             {promotion ? "Save promotion" : "Create promotion"}
           </Button>
         </>

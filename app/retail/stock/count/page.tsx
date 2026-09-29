@@ -3,14 +3,19 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert } from "@corelithzw/react";
+import { Button, Skeleton } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { FactList, FormField } from "@/components/management/ui";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnText,
+  FactList,
+  FormField,
+} from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
@@ -41,6 +46,8 @@ type StockCount = {
 };
 
 type Site = { id: string; name: string };
+
+const WIDTH = 960;
 
 /** "+3 bottles", "−2 bottles": a count moves on hand either way. */
 function signedQuantity(value: number, unit: string) {
@@ -144,10 +151,10 @@ function CountStockDialog({
       errors={[...loadErrors, ...errors]}
       footer={
         <>
-          <Button type="button" variant="outline" onClick={() => close(false)}>
+          <Button type="button" variant="secondary" onClick={() => close(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={save.isPending}>
+          <Button type="submit" variant="primary" disabled={save.isPending}>
             Save count
           </Button>
         </>
@@ -234,9 +241,11 @@ function CountStockDialog({
 }
 
 /**
- * Stock counts — every count saved, newest first, with the verb to take
- * another in the bar. A count is written to the stock ledger as an
- * adjustment, so this is the adjustments at the chosen site.
+ * Stock counts — every count saved, newest first, as a `ColumnList`: the
+ * reference, product and code, where, when and by whom, and the change to on
+ * hand against the right edge. Count stock is the one verb, in the bar. A
+ * count is written to the stock ledger as an adjustment, so this is the
+ * adjustments at the chosen site.
  *
  * The stock page's Count stock sends people here with `?new=1`, which opens
  * the dialog straight away.
@@ -279,11 +288,12 @@ export default function RetailStockCountPage() {
     if (!open && searchParams.get("new")) router.replace("/retail/stock/count");
   };
 
-  const emptyTitle = search.trim()
-    ? "No stock counts match that search"
+  const narrowed = Boolean(search.trim()) || site !== FILTER_ANY;
+  const empty = search.trim()
+    ? "No stock count matches that search."
     : site !== FILTER_ANY
-      ? "No stock counts match this filter"
-      : "No stock counts yet";
+      ? "No stock count matches this filter."
+      : "No stock counts yet.";
 
   return (
     <>
@@ -305,61 +315,53 @@ export default function RetailStockCountPage() {
         count={historyQuery.isSuccess ? `${rows.length} of ${counts.length}` : null}
         createLabel="Count stock"
         onCreate={() => openCount(true)}
+        error={historyQuery.error}
       >
-        {historyQuery.isError ? (
-          <Alert tone="danger" title="The stock counts would not load" className="mt-4">
-            {getApiErrorMessage(historyQuery.error)}
-          </Alert>
-        ) : (
-          <RecordTable
-            rows={rows}
-            isLoading={historyQuery.isPending}
-            emptyTitle={emptyTitle}
-            columns={[
-              {
-                id: "product",
-                label: "Product",
-                cell: (count) => <RecordTableName title={count.item.name} subtitle={count.item.itemCode} />,
-              },
-              ...(sites.length > 1
-                ? [
-                    {
-                      id: "site",
-                      label: "Site",
-                      width: "10rem",
-                      cell: (count: StockCount) => <RecordCell value={count.item.site?.name ?? "No site"} />,
-                    },
-                  ]
-                : []),
-              {
-                id: "reference",
-                label: "Reference",
-                width: "10rem",
-                cell: (count) => <RecordCell kind="code" value={count.referenceId} />,
-              },
-              {
-                id: "date",
-                label: "Counted",
-                width: "11rem",
-                cell: (count) => <RecordCell kind="date" value={formatRetailDateTime(count.createdAt)} />,
-              },
-              {
-                id: "change",
-                label: "Change",
-                align: "end",
-                width: "9rem",
-                cell: (count) => (
-                  <RecordCell kind="number" value={signedQuantity(Number(count.quantity), count.unit)} />
-                ),
-              },
-              {
-                id: "by",
-                label: "By",
-                width: "10rem",
-                cell: (count) => <RecordCell value={count.issuedBy?.name ?? "Not on file"} />,
-              },
-            ]}
-          />
+        {historyQuery.isPending ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : historyQuery.isError ? null : (
+          <div className="space-y-3">
+            <ColumnList
+              label="Stock counts"
+              maxWidth={WIDTH}
+              empty={empty}
+              columns={[
+                { id: "product", label: "Product" },
+                ...(sites.length > 1 ? [{ id: "site", label: "Site", hideBelow: "md" as const }] : []),
+                { id: "date", label: "Counted", hideBelow: "sm" },
+                { id: "by", label: "By", hideBelow: "md" },
+                { id: "change", label: "Change", align: "end" },
+              ]}
+              rows={rows.map((count) => {
+                const change = Number(count.quantity);
+                return {
+                  id: count.id,
+                  cells: {
+                    product: (
+                      <ColumnName code={count.referenceId} name={count.item.name} meta={count.item.itemCode} />
+                    ),
+                    site: <ColumnText>{count.item.site?.name ?? "No site"}</ColumnText>,
+                    date: <ColumnFigure tone="muted">{formatRetailDateTime(count.createdAt)}</ColumnFigure>,
+                    by: <ColumnText>{count.issuedBy?.name ?? "Not on file"}</ColumnText>,
+                    change: (
+                      <ColumnFigure tone={change < 0 ? "warn" : "default"}>
+                        {signedQuantity(change, count.unit)}
+                      </ColumnFigure>
+                    ),
+                  },
+                };
+              })}
+            />
+            {rows.length === 0 && !narrowed ? (
+              <Button variant="primary" size="sm" onClick={() => openCount(true)}>
+                Count stock
+              </Button>
+            ) : null}
+          </div>
         )}
       </RecordListShell>
 

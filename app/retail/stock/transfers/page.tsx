@@ -2,14 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert } from "@corelithzw/react";
+import { Button, Skeleton } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { FactList, FormField } from "@/components/management/ui";
-import { RecordCell, RecordTable, RecordTableName } from "@/components/records/record-table";
+import {
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnText,
+  FactList,
+  FormField,
+} from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
@@ -48,6 +53,8 @@ type StockMovement = {
 };
 
 type Site = { id: string; name: string };
+
+const WIDTH = 960;
 
 /**
  * Move stock — a product from one stock location at a site to another.
@@ -145,10 +152,10 @@ function MoveStockDialog({
       errors={[...loadErrors, ...errors]}
       footer={
         <>
-          <Button type="button" variant="outline" onClick={() => close(false)}>
+          <Button type="button" variant="secondary" onClick={() => close(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={move.isPending}>
+          <Button type="submit" variant="primary" disabled={move.isPending}>
             Move stock
           </Button>
         </>
@@ -232,7 +239,9 @@ function MoveStockDialog({
 }
 
 /**
- * Transfers — stock moved between locations at a site, newest first.
+ * Transfers — stock moved between locations at a site, newest first, as a
+ * `ColumnList`: the reference, product and code, where it went and when, and
+ * the quantity against the right edge. Move stock is the one verb, in the bar.
  *
  * A site with one stock location has nowhere to move anything, so the verb is
  * offered only where a move can be made, and a shop with no such site is told
@@ -284,13 +293,14 @@ export default function RetailStockTransfersPage() {
     );
   }, [transfers, search]);
 
-  const emptyTitle = search.trim()
-    ? "No transfers match that search"
+  const narrowed = Boolean(search.trim()) || site !== FILTER_ANY;
+  const empty = search.trim()
+    ? "No transfer matches that search."
     : site !== FILTER_ANY
-      ? "No transfers match this filter"
+      ? "No transfer matches this filter."
       : locationsQuery.isSuccess && !canMove
         ? "Each site has one stock location, so there is nowhere to move stock to."
-        : "No transfers yet";
+        : "No transfers yet.";
 
   const loadError = transfersQuery.error ?? locationsQuery.error;
 
@@ -314,68 +324,54 @@ export default function RetailStockTransfersPage() {
         count={transfersQuery.isSuccess ? `${rows.length} of ${transfers.length}` : null}
         createLabel={canMove ? "Move stock" : undefined}
         onCreate={canMove ? () => setMoving(true) : undefined}
+        error={loadError}
       >
-        {loadError ? (
-          <Alert tone="danger" title="The transfers would not load" className="mt-4">
-            {getApiErrorMessage(loadError)}
-          </Alert>
-        ) : (
-          <RecordTable
-            rows={rows}
-            isLoading={transfersQuery.isPending || locationsQuery.isPending}
-            emptyTitle={emptyTitle}
-            columns={[
-              {
-                id: "product",
-                label: "Product",
-                cell: (transfer) => (
-                  <RecordTableName title={transfer.item.name} subtitle={transfer.item.itemCode} />
-                ),
-              },
-              ...(sites.length > 1
-                ? [
-                    {
-                      id: "site",
-                      label: "Site",
-                      width: "10rem",
-                      cell: (transfer: StockMovement) => (
-                        <RecordCell value={transfer.item.site?.name ?? "No site"} />
-                      ),
-                    },
-                  ]
-                : []),
-              {
-                id: "to",
-                label: "To",
-                width: "11rem",
-                cell: (transfer) => <RecordCell value={transfer.toLocation?.name ?? "No location"} />,
-              },
-              {
-                id: "reference",
-                label: "Reference",
-                width: "10rem",
-                cell: (transfer) => <RecordCell kind="code" value={transfer.referenceId} />,
-              },
-              {
-                id: "date",
-                label: "Moved",
-                width: "11rem",
-                cell: (transfer) => <RecordCell kind="date" value={formatRetailDateTime(transfer.createdAt)} />,
-              },
-              {
-                id: "quantity",
-                label: "Quantity",
-                align: "end",
-                width: "9rem",
-                cell: (transfer) => (
-                  <RecordCell
-                    kind="number"
-                    value={formatQuantity(Math.abs(Number(transfer.quantity)), transfer.unit)}
-                  />
-                ),
-              },
-            ]}
-          />
+        {transfersQuery.isPending || locationsQuery.isPending ? (
+          <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        ) : loadError ? null : (
+          <div className="space-y-3">
+            <ColumnList
+              label="Transfers"
+              maxWidth={WIDTH}
+              empty={empty}
+              columns={[
+                { id: "product", label: "Product" },
+                ...(sites.length > 1 ? [{ id: "site", label: "Site", hideBelow: "md" as const }] : []),
+                { id: "to", label: "To", hideBelow: "sm" },
+                { id: "date", label: "Moved", hideBelow: "md" },
+                { id: "quantity", label: "Quantity", align: "end" },
+              ]}
+              rows={rows.map((transfer) => ({
+                id: transfer.id,
+                cells: {
+                  product: (
+                    <ColumnName
+                      code={transfer.referenceId}
+                      name={transfer.item.name}
+                      meta={transfer.item.itemCode}
+                    />
+                  ),
+                  site: <ColumnText>{transfer.item.site?.name ?? "No site"}</ColumnText>,
+                  to: <ColumnText>{transfer.toLocation?.name ?? "No location"}</ColumnText>,
+                  date: <ColumnFigure tone="muted">{formatRetailDateTime(transfer.createdAt)}</ColumnFigure>,
+                  quantity: (
+                    <ColumnFigure>
+                      {formatQuantity(Math.abs(Number(transfer.quantity)), transfer.unit)}
+                    </ColumnFigure>
+                  ),
+                },
+              }))}
+            />
+            {rows.length === 0 && !narrowed && canMove ? (
+              <Button variant="primary" size="sm" onClick={() => setMoving(true)}>
+                Move stock
+              </Button>
+            ) : null}
+          </div>
         )}
       </RecordListShell>
 
