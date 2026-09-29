@@ -2,21 +2,30 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Skeleton } from "@corelithzw/react";
 
-import { FactList, SectionHeading, StatusBadge } from "@/components/management/ui";
+import {
+  FactList,
+  HeaderAction,
+  RecordHeader,
+  SectionHeading,
+  StatusBadge,
+} from "@/components/management/ui";
 import {
   ChangePriceDialog,
   ProductDialog,
+  useInvalidateProducts,
   type RetailProduct,
 } from "@/components/retail/product-dialogs";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { dsConfirm } from "@/components/ui/ds-confirm";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Coins, Pencil } from "@/lib/icons";
+import { Coins, TableRows } from "@/lib/icons";
 import { enumLabel, formatQuantity, formatRetailDate } from "@/lib/retail/words";
 
 type ProductDetail = RetailProduct & {
@@ -38,9 +47,10 @@ function priceSourceLabel(source: string) {
 const WIDTH = 560;
 
 /**
- * One product: what it sells for, what is on hand, and the two verbs that
- * change it. Drawn as a management record — a section heading over 44px fact
- * rows — rather than four tiles and a paragraph.
+ * One product: what it sells for and what is on hand. Drawn as a management
+ * record: the header with the product's one verb (Change price) and the rare
+ * ones behind its "…" (Edit, Remove), a badge only when the product is not
+ * simply on sale, then section headings over 44px fact rows.
  *
  * The page still answers "why is the till charging that": the price's source
  * and when it last changed are facts in the list, not an alert over it.
@@ -50,6 +60,9 @@ export default function RetailProductPage() {
   const productId = params?.id ?? "";
   const [editing, setEditing] = useState(false);
   const [pricing, setPricing] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
+  const invalidate = useInvalidateProducts();
 
   const query = useQuery({
     queryKey: ["retail-catalog-item", productId],
@@ -60,24 +73,43 @@ export default function RetailProductPage() {
   const product = query.data;
   const editable = product ? ({ ...product, inventoryItemId: product.inventoryItem?.id ?? "" } as RetailProduct) : null;
 
+  const remove = useMutation({
+    mutationFn: () => fetchJson(`/api/v2/retail/catalog/${productId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Product removed", variant: "success" });
+      invalidate();
+      router.push("/retail/catalog");
+    },
+    onError: (error) =>
+      toast({
+        title: "That product was not removed",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  const confirmRemove = () => {
+    if (!product) return;
+    void dsConfirm({
+      title: `Remove ${product.name}?`,
+      description: "It stops appearing on the till. Its stock stays on hand, and past sales keep its name.",
+      confirmLabel: "Remove the product",
+      variant: "danger",
+    }).then((confirmed) => {
+      if (confirmed) remove.mutate();
+    });
+  };
+
+  const exception = !product
+    ? null
+    : product.status !== "ACTIVE"
+      ? { tone: "neutral" as const, label: "Off sale" }
+      : (product.inventoryItem?.currentStock ?? 0) <= 0
+        ? { tone: "warn" as const, label: "Out of stock" }
+        : null;
+
   return (
-    <RetailShell
-      title={product?.name ?? "Product"}
-      actions={
-        product ? (
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setPricing(true)}>
-              <Coins className="h-4 w-4" />
-              Change price
-            </Button>
-            <Button size="sm" onClick={() => setEditing(true)}>
-              <Pencil className="h-4 w-4" />
-              Edit product
-            </Button>
-          </div>
-        ) : null
-      }
-    >
+    <RetailShell title="Products">
       {query.isPending ? (
         <div aria-busy="true" aria-live="polite" className="space-y-3" style={{ maxWidth: WIDTH }}>
           <span className="sr-only">Loading the product</span>
@@ -92,21 +124,38 @@ export default function RetailProductPage() {
       ) : !product ? (
         <p className="text-sm text-[var(--text-muted)]">There is no product at this address.</p>
       ) : (
+        <div className="space-y-6" style={{ maxWidth: WIDTH + 232 }}>
+          <RecordHeader
+            icon={TableRows}
+            title={product.name}
+            badge={
+              exception ? (
+                <StatusBadge tone={exception.tone} context="header">
+                  {exception.label}
+                </StatusBadge>
+              ) : null
+            }
+            action={
+              <HeaderAction icon={Coins} onClick={() => setPricing(true)}>
+                Change price
+              </HeaderAction>
+            }
+            overflow={
+              <>
+                <DropdownMenuItem onSelect={() => setEditing(true)}>Edit product</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={confirmRemove}
+                  className="text-[var(--tone-danger-strong)]"
+                >
+                  Remove product
+                </DropdownMenuItem>
+              </>
+            }
+          />
         <div className="grid gap-8 lg:grid-cols-[minmax(0,560px)_200px]">
           <div>
-            <div className="flex flex-wrap gap-2">
-              {product.status !== "ACTIVE" ? (
-                <StatusBadge tone="neutral" context="header">
-                  Off sale
-                </StatusBadge>
-              ) : null}
-              {(product.inventoryItem?.currentStock ?? 0) <= 0 ? (
-                <StatusBadge tone="warn">Out of stock</StatusBadge>
-              ) : null}
-              {product.ageRestricted ? <StatusBadge tone="warn">Check ID</StatusBadge> : null}
-            </div>
-
-            <SectionHeading maxWidth={WIDTH}>Price</SectionHeading>
+            <SectionHeading maxWidth={WIDTH} className="mt-0">Price</SectionHeading>
             <FactList
               maxWidth={WIDTH}
               items={[
@@ -158,6 +207,7 @@ export default function RetailProductPage() {
                   tone: product.barcode ? "default" : "muted",
                 },
                 { label: "Category", value: product.category ? enumLabel(product.category) : "None" },
+                { label: "Check ID", value: product.ageRestricted ? "Yes" : "No" },
                 ...(product.description ? [{ label: "Description", value: product.description }] : []),
               ]}
             />
@@ -179,6 +229,7 @@ export default function RetailProductPage() {
               </div>
             )}
           </div>
+        </div>
         </div>
       )}
 

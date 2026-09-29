@@ -123,10 +123,11 @@ test.describe("the back office", () => {
     await settle(page, SETTLE_MS);
     await shot(page, "the-range");
 
-    // The pencil on the first row. Opening an existing item rather than making
-    // one keeps this about the photograph and nothing else.
-    // A product's verbs sit behind its row menu.
-    const menu = page.getByRole("button", { name: /^More for /i }).first();
+    // The first product's record. Opening an existing item rather than making
+    // one keeps this about the photograph and nothing else. Edit product is
+    // behind the record's "…", beside its one verb.
+    await page.locator("table a").first().click();
+    const menu = page.getByRole("button", { name: "More actions" }).first();
     await expect(menu, "no way to edit a product").toBeVisible({ timeout: 30_000 });
     await menu.click();
     await page.getByRole("menuitem", { name: "Edit product" }).click();
@@ -200,7 +201,7 @@ test.describe("the back office", () => {
       closes is the failure this catches — the form held the URL but the save
       never carried it.
     */
-    await page.getByRole("button", { name: /^More for /i }).first().click();
+    await page.getByRole("button", { name: "More actions" }).first().click();
     await page.getByRole("menuitem", { name: "Edit product" }).click();
     await settle(page, 4000);
     const reopened = page.getByRole("dialog");

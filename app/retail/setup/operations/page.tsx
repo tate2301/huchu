@@ -130,7 +130,6 @@ export default function RetailTillsPage() {
             {rows.map((till) => (
               <ListRow
                 key={till.id}
-                code={till.code}
                 name={till.name}
                 value={till.site?.code ?? ""}
                 selected={till.id === selected?.id}
