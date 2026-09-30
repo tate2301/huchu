@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 import styles from "./register-fields.module.css";
@@ -267,17 +267,22 @@ export function NoRecord({ label }: { label: string }) {
  * ------------------------------------------------------------------ */
 
 /**
- * The sheet the `+ New` verb opens.
+ * The dialog the `+ New` verb opens — and the one a record's own form verbs
+ * (Reset password) open.
  *
  * No board draws creation, so this is the one surface in the group with no
  * pixel to match. It follows the contract's form page instead — a label-over-
  * control stack at `gap 7 / margin-bottom 22`, and Submit/Cancel at the bottom
  * above a `#EEF0F4` rule, which rule 2 says is the only place a button may sit
- * at the bottom of anything. It stays a sheet rather than becoming a blank
- * record in the right-hand column because a half-made record in a register is
- * a row the list cannot show.
+ * at the bottom of anything. It is not a blank record in the right-hand column
+ * because a half-made record in a register is a row the list cannot show.
+ *
+ * It was a sheet sliding in from the right. A form is a short, self-contained
+ * question, not more of the record beside it, so it opens where every other
+ * form in the product opens — centred, over the surface — which is the reason
+ * the CRM's forms moved into `RecordDialog`.
  */
-export function CreateSheet({
+export function CreateDialog({
   open,
   onOpenChange,
   title,
@@ -295,24 +300,18 @@ export function CreateSheet({
   children: React.ReactNode;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent size="md" className="w-full p-6">
-        <SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="md" className="p-6">
+        <DialogHeader>
           {/* Rule 4: the title, then the content. No lede under it. */}
-          <SheetTitle className="text-[17px] font-semibold leading-[1.25] tracking-[-0.012em] text-[#16181D]">
+          <DialogTitle className="text-[17px] font-semibold leading-[1.25] tracking-[-0.012em] text-[#16181D]">
             {title}
-          </SheetTitle>
-        </SheetHeader>
-        <form onSubmit={onSubmit} className="mt-6">
+          </DialogTitle>
+          <DialogDescription className="sr-only">{title}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="mt-4">
           {children}
-          <div className="mt-9 flex items-center gap-2 border-t border-[#EEF0F4] pt-[22px]">
-            <button
-              type="submit"
-              disabled={busy}
-              className="inline-flex h-[34px] items-center rounded-lg border border-[#0B5DF0] bg-[#0B5DF0] px-3 text-[13px] font-medium leading-[1.4] text-white disabled:opacity-60"
-            >
-              {submitLabel}
-            </button>
+          <div className="mt-6 flex items-center justify-end gap-2 border-t border-[#EEF0F4] pt-[18px]">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -320,10 +319,17 @@ export function CreateSheet({
             >
               Cancel
             </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="inline-flex h-[34px] items-center rounded-lg border border-[#0B5DF0] bg-[#0B5DF0] px-3 text-[13px] font-medium leading-[1.4] text-white disabled:opacity-60"
+            >
+              {submitLabel}
+            </button>
           </div>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 

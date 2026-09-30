@@ -133,6 +133,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/schools/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "page", prefix: "/schools", featureKey: "schools.core" },
 
+  { scope: "page", prefix: "/retail/setup/fiscal", featureKey: "accounting.zimra.fiscalisation" },
   { scope: "page", prefix: "/retail/customers", featureKey: "crm.customers" },
   { scope: "page", prefix: "/retail/catalog", featureKey: "retail.catalog" },
   { scope: "page", prefix: "/retail/purchasing", featureKey: "retail.purchasing" },

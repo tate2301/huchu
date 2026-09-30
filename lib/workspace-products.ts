@@ -151,11 +151,11 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
     description: "",
     tabLabels: {
       dashboard: "Overview",
-      inventory: "Stock on Hand",
-      movements: "Stock Movements",
-      fuel: "Fuel Ledger",
-      issue: "Issue Stock",
-      receive: "Receive Stock",
+      inventory: "On hand",
+      movements: "Movements",
+      fuel: "Fuel log",
+      issue: "Issue stock",
+      receive: "Receive stock",
     },
   },
   maintenance: {

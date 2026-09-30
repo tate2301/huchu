@@ -96,6 +96,7 @@
 import type { RetailSale, RetailSaleLine } from "@prisma/client";
 import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { fiscalDeviceWhere } from "@/lib/accounting/fiscal-device-scope";
 import {
   FiscalMappingError,
   centsFromMoneyLike,
@@ -803,7 +804,7 @@ export function buildRetailSalePayload(input: {
  *  therefore SKIPPED and silent, not FAILED. */
 async function hasFiscalDevice(companyId: string): Promise<boolean> {
   const provider = await prisma.fiscalisationProviderConfig.findFirst({
-    where: { companyId, isActive: true },
+    where: fiscalDeviceWhere(companyId),
     select: { id: true },
   });
   return Boolean(provider);
@@ -1014,4 +1015,45 @@ export async function fiscaliseRetailSales(input: {
   }
 
   return results;
+}
+
+/**
+ * What a till is told about a sale it has just posted: whether the sale is on
+ * the fiscal chain, the number to print, and the QR to print under it.
+ */
+export type TillFiscalStatus = {
+  status: RetailFiscalStatus;
+  fiscalNumber: string | null;
+  qrCodeData: string | null;
+  error: string | null;
+};
+
+/**
+ * Fiscalise one sale the moment it is posted online — a sale, a refund or a
+ * void — and answer in the till's terms.
+ *
+ * The online routes used to skip fiscalisation entirely; only the offline
+ * queue drained onto the chain (`pos/sync`). Never throws: the money has been
+ * taken, and a sale that did not reach ZIMRA is a row the replay picks up.
+ */
+export async function fiscaliseAfterPosting(input: {
+  companyId: string;
+  saleId: string;
+}): Promise<TillFiscalStatus> {
+  try {
+    const result = await fiscaliseRetailSale(input);
+    return {
+      status: result.fiscalStatus,
+      fiscalNumber: result.fiscalNumber,
+      qrCodeData: result.qrCodeData,
+      error: result.fiscalStatus === "SKIPPED" ? null : result.fiscalError,
+    };
+  } catch (error) {
+    return {
+      status: "FAILED",
+      fiscalNumber: null,
+      qrCodeData: null,
+      error: error instanceof Error ? error.message : "The sale was not fiscalised",
+    };
+  }
 }

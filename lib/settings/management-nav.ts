@@ -20,7 +20,10 @@ import {
   MedusaCircleStackIcon,
   MedusaIdBadgeIcon,
   Palette,
+  ReceiptLong,
   RefreshCcw,
+  Scale,
+  Storefront,
   ShieldCheck,
   SlidersHorizontal,
   UserCheck,
@@ -295,6 +298,7 @@ export type SettingsRailGroupId =
   | "compliance"
   | "company"
   | "school"
+  | "shop"
   | "my-account";
 
 /**
@@ -333,6 +337,7 @@ export const SETTINGS_RAIL_GROUP_LABELS: Record<SettingsRailGroupId, string> = {
   compliance: "Compliance",
   company: "Company",
   school: "School",
+  shop: "Shop",
   "my-account": "My account",
 };
 
@@ -353,6 +358,7 @@ const SETTINGS_RAIL_GROUP_ORDER: SettingsRailGroupId[] = [
   "people",
   "operations",
   "school",
+  "shop",
   "compliance",
   "company",
   "my-account",
@@ -478,6 +484,46 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     label: "School records",
     href: "/management/master-data/schools/identity",
     icon: MedusaIdBadgeIcon,
+    gate: { kind: "feature" },
+  },
+
+  /*
+    A shop's setup is master data like a school's: set up once, and the till
+    runs off it. It was five pages in the working sidebar, filed under
+    Insights, each drawn with charts of its own checkboxes. The routes stay
+    where they are — `/retail/setup/**`, gated by retail's own keys — and draw
+    themselves inside this surface.
+  */
+  {
+    id: "retail-tills",
+    group: "shop",
+    label: "Tills",
+    href: "/retail/setup/operations",
+    icon: Storefront,
+    gate: { kind: "feature" },
+  },
+  {
+    id: "retail-till-rules",
+    group: "shop",
+    label: "Till rules",
+    href: "/retail/setup/pos-policy",
+    icon: SlidersHorizontal,
+    gate: { kind: "feature" },
+  },
+  {
+    id: "retail-posting",
+    group: "shop",
+    label: "Posting",
+    href: "/retail/setup/accounting",
+    icon: Scale,
+    gate: { kind: "feature" },
+  },
+  {
+    id: "retail-fiscal-device",
+    group: "shop",
+    label: "Fiscal device",
+    href: "/retail/setup/fiscal",
+    icon: ReceiptLong,
     gate: { kind: "feature" },
   },
 

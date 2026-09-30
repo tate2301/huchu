@@ -1,75 +1,30 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
-import { retailRailFor, type RetailAreaId } from "@/lib/retail/areas";
 
 type RetailShellProps = {
   /** The page's name, for the app bar. */
   title: string;
+  /** The page's one verb. Navigation is the sidebar's job, not the bar's. */
   actions?: ReactNode;
-  /**
-   * The area this page belongs to, for a route the rail cannot resolve on its
-   * own — `/retail/sales/{id}` and the other three detail pages. A list screen
-   * never needs it: its own path is the answer.
-   */
-  area?: RetailAreaId;
   children: ReactNode;
 };
 
 /**
- * The retail page frame.
+ * The retail page frame, drawn to the management contract.
  *
- * The page names itself once, in the app bar, with its actions beside it.
- * There is no heading block or lede under the bar repeating the name.
- *
- * ── R-4.7: the rail ────────────────────────────────────────────────────────
- *
- * "`RetailShell` earns its name — tab rail, like `GoldShell` and
- * `PayrollShell`." Until now it was a title and a slot. S-5 had already banded
- * the sidebar, so this is not rescuing a flat list — it is the second click:
- * moving between POS policy and Accounting Setup meant finding the group,
- * expanding it, and reading five entries.
- *
- * The rail is **derived**, not declared. `lib/retail/areas.ts` groups the hrefs
- * `lib/navigation.ts` already owns, and a test asserts the two agree in both
- * directions. That matters: R-4.6 deleted `RETAIL_TABS` because retail had two
- * navigation definitions that could disagree, and a rail built from its own
- * list would have put the second one straight back.
- *
- * No rail is shown for a single-screen area. One tab is not navigation — it is
- * a label the app bar already carries, and on a laptop it costs a row of
- * the vertical space the tables below need.
- *
- * ── Actions ────────────────────────────────────────────────────────────────
- *
- * The composition contract allows at most three, exactly one primary. This
- * shell cannot enforce that from a `ReactNode`, and pretending otherwise with a
- * `Children.count` check would refuse a legitimate fragment while missing a
- * `<div>` holding six buttons. `lib/retail/areas.test.ts` counts them in the
- * source instead, where a fragment and a wrapper look the same.
+ * The page names itself once, in the app bar, with its verb beside it. There
+ * is no heading block or lede under the bar, and no tab rail: the sidebar
+ * already lists a page's siblings, and a rail under the bar listed them a
+ * second time under different names — Products, Prices, Promotions in the
+ * sidebar; Catalog, Pricing, Promotions in the rail.
  */
-export function RetailShell({ title, actions, area, children }: RetailShellProps) {
-  const pathname = usePathname();
-  const rail = retailRailFor(pathname ?? "", area);
-
+export function RetailShell({ title, actions, children }: RetailShellProps) {
   return (
     <div className="w-full space-y-4">
       <PageChrome title={title}>{actions}</PageChrome>
-
-      {rail ? (
-        <SectionTabs label={`${rail.area.label} navigation`}>
-          {rail.area.screens.map((screen) => (
-            <SectionTab key={screen.href} to={screen.href} active={screen.href === rail.activeHref}>
-              {screen.label}
-            </SectionTab>
-          ))}
-        </SectionTabs>
-      ) : null}
-
       <div className="space-y-4">{children}</div>
     </div>
   );

@@ -37,6 +37,9 @@ export async function GET(
     include: {
       lines: true,
       payments: true,
+      // Whether ZIMRA has this sale, and under what number — the fact a
+      // manager holding a customer's slip asks first.
+      fiscalReceipt: { select: { status: true, fiscalNumber: true, lastError: true } },
     },
   });
 

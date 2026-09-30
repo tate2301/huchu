@@ -1,13 +1,3 @@
-import {
-  bumpOfflineRetry,
-  enqueueOfflineItem,
-  failOfflineItem,
-  loadOfflineQueue,
-  markOfflineItemQueued,
-  removeOfflineItem,
-  type OfflineQueueEntry,
-} from "@/lib/offline/client-storage";
-
 export type PosSalePaymentInput = {
   tenderType: "CASH" | "CARD" | "MOBILE_MONEY" | "TRANSFER" | "VOUCHER";
   amount: number;
@@ -57,27 +47,6 @@ export type PosSaleQueuePayload = {
   payments: PosSalePaymentInput[];
 };
 
-export type PosQueuedSale = OfflineQueueEntry<PosSaleQueuePayload> & {
-  status: "QUEUED" | "RETRYING" | "FAILED";
-};
-
-const POS_QUEUE_KEY = "retail_pos_offline_sales_queue_v2";
-
-/**
- * A legacy entry is still a sale, and still somebody's money.
- *
- * S-7.7 renamed this payload's key from `saleNo` to `clientRef`. A cashier who
- * upgrades mid-shift with sales still queued would have had them silently
- * dropped by a validity check that only knew the new name — the one failure
- * this queue exists to prevent. Both shapes are accepted, and `pos/sync` falls
- * back to `saleNo` for the key when `clientRef` is absent, so an old entry
- * replays with exactly the idempotency it was written with.
- */
-function isValidPayload(payload: PosSaleQueuePayload) {
-  const legacy = payload as unknown as { saleNo?: string };
-  return Boolean(payload?.clientRef || legacy?.saleNo);
-}
-
 /**
  * What to call a sale that has not reached the server yet.
  *
@@ -96,40 +65,4 @@ export function queuedSaleLabel(payload: PosSaleQueuePayload): string {
   const ref = payload.clientRef ?? "";
   const tag = ref.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
   return tag ? `Unsent · ${tag}` : "Unsent sale";
-}
-
-export function loadQueuedPosSales(): PosQueuedSale[] {
-  return loadOfflineQueue<PosSaleQueuePayload>({
-    key: POS_QUEUE_KEY,
-    isValid: isValidPayload,
-  }).map((entry) => ({
-    ...entry,
-    status: entry.status ?? "QUEUED",
-  }));
-}
-
-export function queuePosSale(payload: PosSaleQueuePayload): PosQueuedSale {
-  const queued = enqueueOfflineItem<PosSaleQueuePayload>(POS_QUEUE_KEY, payload, {
-    dedupe: (existing, incoming) => existing.payload.clientRef === incoming.clientRef,
-  });
-  return {
-    ...queued,
-    status: queued.status ?? "QUEUED",
-  };
-}
-
-export function removeQueuedPosSale(id: string) {
-  removeOfflineItem<PosSaleQueuePayload>(POS_QUEUE_KEY, id);
-}
-
-export function bumpQueuedPosSaleRetry(id: string) {
-  bumpOfflineRetry<PosSaleQueuePayload>(POS_QUEUE_KEY, id);
-}
-
-export function failQueuedPosSale(id: string, message: string) {
-  failOfflineItem<PosSaleQueuePayload>(POS_QUEUE_KEY, id, message);
-}
-
-export function markQueuedPosSaleQueued(id: string) {
-  markOfflineItemQueued<PosSaleQueuePayload>(POS_QUEUE_KEY, id);
 }

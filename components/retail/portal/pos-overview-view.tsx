@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import { BarChart3, Clock, History, Package, Payments, Wallet } from "@/lib/icons";
-import { getPosPortalHref } from "@/lib/retail/pos-host";
+import { BarChart3, History, Package, Payments, Wallet } from "@/lib/icons";
+import { formatRetailTime, saleTypeLabel } from "@/lib/retail/words";
 import {
   PosEmptyState,
   PosMetricCard,
@@ -17,16 +16,13 @@ import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart, SaleRow } from "./pos-types";
 import { money } from "./pos-utils";
 
-/* ── Sale type style helpers ──────────────────────────────────────── */
-function saleTypeTone(saleType: string): "success" | "danger" | "warning" | "neutral" {
-  if (saleType === "SALE") return "success";
-  if (saleType === "REFUND") return "danger";
-  if (saleType === "VOID") return "warning";
-  return "neutral";
+/** A sale is the ordinary row and draws nothing; a refund or a void is the exception. */
+function saleTypeTone(saleType: string): "danger" | "warning" {
+  return saleType === "REFUND" ? "danger" : "warning";
 }
 
 export function PosOverviewView() {
-  const { currentShift, isPosHost } = usePosPortalState();
+  const { currentShift } = usePosPortalState();
 
   const heldCartsQuery = useQuery({
     queryKey: ["retail-held-carts", currentShift?.id],
@@ -47,27 +43,19 @@ export function PosOverviewView() {
   const heldCount = heldCartsQuery.data?.data?.length ?? 0;
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4">
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
 
       {/* ── Shift & metrics ───────────────────────────────── */}
       <PosPanel>
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              Operational snapshot
-            </p>
-            <h2 className="mt-1 text-[1.3rem] font-bold tracking-[-0.025em] text-[var(--text-strong)]">
-              {currentShift
-                ? `Shift ${currentShift.shiftNo} · ${currentShift.registerName}`
-                : "No active shift"}
-            </h2>
-            {currentShift?.site?.name && (
-              <p className="mt-0.5 text-sm text-[var(--text-muted)]">{currentShift.site.name}</p>
-            )}
-          </div>
-          <PosStatusPill tone={currentShift ? "success" : "warning"}>
-            {currentShift ? "Shift open" : "Shift closed"}
-          </PosStatusPill>
+        <div className="mb-4">
+          <h2 className="text-[1.3rem] font-bold tracking-[-0.025em] text-[var(--text-strong)]">
+            {currentShift
+              ? `Shift ${currentShift.shiftNo} · ${currentShift.registerName}`
+              : "No shift open"}
+          </h2>
+          {currentShift?.site?.name && (
+            <p className="mt-0.5 text-sm text-[var(--text-muted)]">{currentShift.site.name}</p>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -75,21 +63,19 @@ export function PosOverviewView() {
             icon={Wallet}
             label="Net sales"
             value={money(currentShift?.netSalesValue ?? 0)}
-            meta={`${currentShift?.saleCount ?? 0} transaction${(currentShift?.saleCount ?? 0) !== 1 ? "s" : ""}`}
+            meta={`${currentShift?.saleCount ?? 0} sale${(currentShift?.saleCount ?? 0) !== 1 ? "s" : ""}`}
             tone={currentShift ? "success" : "neutral"}
           />
           <PosMetricCard
             icon={Payments}
             label="Cash sales"
             value={money(currentShift?.cashSales ?? 0)}
-            meta="Cash tendered this shift"
             tone="brand"
           />
           <PosMetricCard
             icon={Package}
-            label="Held carts"
+            label="Held sales"
             value={String(heldCount)}
-            meta={heldCount > 0 ? "Parked sales waiting" : "No carts on hold"}
             tone={heldCount > 0 ? "warning" : "neutral"}
           />
           <PosMetricCard
@@ -102,116 +88,21 @@ export function PosOverviewView() {
         </div>
       </PosPanel>
 
-      {/* ── Quick actions ──────────────────────────────────── */}
-      <PosPanel>
-        <PosPanelHeader
-          eyebrow="Navigate"
-          title="Quick actions"
-          className="mb-3"
-        />
-        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-          <Link
-            href={getPosPortalHref("checkout", isPosHost)}
-            className="group flex items-center gap-3.5 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3.5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:shadow-sm hover:ring-[var(--pos-status-info-ring)]"
-            style={{ boxShadow: "0 2px 0 var(--pos-cta-shadow)" }}
-          >
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-              style={{ background: "var(--pos-cta-bg)", color: "var(--pos-cta-text)" }}
-            >
-              <Payments className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <div className="text-[13px] font-bold text-[var(--text-strong)]">Checkout</div>
-              <div className="text-[11px] text-[var(--text-muted)]">Start a new sale</div>
-            </div>
-          </Link>
-
-          <Link
-            href={getPosPortalHref("held", isPosHost)}
-            className="group flex items-center gap-3.5 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3.5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:shadow-sm hover:ring-[var(--pos-status-warning-ring)]"
-          >
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-              style={{
-                background: heldCount > 0 ? "var(--pos-status-warning-bg)" : "var(--surface-muted)",
-                color: heldCount > 0 ? "var(--pos-status-warning-text)" : "var(--text-muted)",
-              }}
-            >
-              <Package className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <div className="text-[13px] font-bold text-[var(--text-strong)]">
-                Held{heldCount > 0 ? ` (${heldCount})` : ""}
-              </div>
-              <div className="text-[11px] text-[var(--text-muted)]">
-                {heldCount > 0 ? "Recall a parked sale" : "No carts on hold"}
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href={getPosPortalHref("history", isPosHost)}
-            className="group flex items-center gap-3.5 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3.5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:shadow-sm hover:ring-[var(--pos-status-info-ring)]"
-          >
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-              style={{ background: "var(--pos-status-info-bg)", color: "var(--pos-status-info-text)" }}
-            >
-              <History className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <div className="text-[13px] font-bold text-[var(--text-strong)]">History</div>
-              <div className="text-[11px] text-[var(--text-muted)]">Receipts & refunds</div>
-            </div>
-          </Link>
-
-          <Link
-            href={getPosPortalHref("shift", isPosHost)}
-            className="group flex items-center gap-3.5 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3.5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:shadow-sm hover:ring-[var(--pos-status-success-ring)]"
-          >
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-              style={{
-                background: currentShift ? "var(--pos-status-success-bg)" : "var(--pos-status-warning-bg)",
-                color: currentShift ? "var(--pos-status-success-text)" : "var(--pos-status-warning-text)",
-              }}
-            >
-              <Clock className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <div className="text-[13px] font-bold text-[var(--text-strong)]">Shift</div>
-              <div className="text-[11px] text-[var(--text-muted)]">
-                {currentShift ? "Open · manage drawer" : "Open the drawer"}
-              </div>
-            </div>
-          </Link>
-        </div>
-      </PosPanel>
-
       {/* ── Recent sales ──────────────────────────────────── */}
       <PosPanel className="min-h-0">
-        <PosPanelHeader
-          eyebrow="Recent activity"
-          title="Latest receipts"
-          description="Most recent transactions for this session."
-        />
+        <PosPanelHeader title="Recent sales" />
 
         <div className="h-full min-h-0 overflow-auto">
           {recentSales.length === 0 ? (
-            <PosEmptyState
-              icon={History}
-              title="No transactions yet"
-              description="Receipt activity will appear here once you start posting sales."
-            />
+            <PosEmptyState icon={History} title="No sales yet" />
           ) : (
             <table className="w-full min-w-[600px] text-sm">
               <thead
-                className="sticky top-0 z-10 text-left text-[10px] uppercase tracking-[0.13em]"
+                className="sticky top-0 z-10 text-left text-xs"
                 style={{ background: "var(--pos-amount-bg)", color: "rgba(240,249,255,0.7)" }}
               >
                 <tr>
-                  <th className="px-3 py-2.5">Receipt</th>
+                  <th className="px-3 py-2.5">Sale</th>
                   <th className="px-3 py-2.5">Type</th>
                   <th className="px-3 py-2.5">Customer</th>
                   <th className="px-3 py-2.5 text-right">Total</th>
@@ -228,9 +119,11 @@ export function PosOverviewView() {
                       {sale.saleNo}
                     </td>
                     <td className="px-3 py-3.5">
-                      <PosStatusPill tone={saleTypeTone(sale.saleType)}>
-                        {sale.saleType}
-                      </PosStatusPill>
+                      {sale.saleType === "SALE" ? null : (
+                        <PosStatusPill tone={saleTypeTone(sale.saleType)}>
+                          {saleTypeLabel(sale.saleType)}
+                        </PosStatusPill>
+                      )}
                     </td>
                     <td className="px-3 py-3.5 text-[var(--text-muted)]">
                       {sale.customerName ?? "Walk-in"}
@@ -238,11 +131,8 @@ export function PosOverviewView() {
                     <td className="px-3 py-3.5 text-right font-mono text-[13px] font-black text-[var(--text-strong)]">
                       {money(sale.totalAmount)}
                     </td>
-                    <td className="px-3 py-3.5 text-xs text-[var(--text-muted)]">
-                      {new Date(sale.postedAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                    <td className="px-3 py-3.5 font-mono text-xs text-[var(--text-muted)]">
+                      {formatRetailTime(sale.postedAt)}
                     </td>
                   </tr>
                 ))}

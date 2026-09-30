@@ -9,7 +9,7 @@ export default function StoresDashboardPage() {
   const siteId = useSearchParams().get("siteId") ?? undefined;
 
   return (
-    <StoresShell activeTab="dashboard" title="Stock overview">
+    <StoresShell activeTab="dashboard">
       <StockOverview siteId={siteId} />
     </StoresShell>
   );

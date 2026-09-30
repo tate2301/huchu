@@ -46,7 +46,7 @@ import {
 
 import {
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailGrid,
   DetailRow,
@@ -627,7 +627,7 @@ export function DepartmentsRegister() {
           />
         )}
 
-        <CreateSheet
+        <CreateDialog
           open={creating}
           onOpenChange={(open) => (open ? setCreating(true) : closeCreate())}
           title="New department"
@@ -657,9 +657,9 @@ export function DepartmentsRegister() {
               />
             )}
           </CreateField>
-        </CreateSheet>
+        </CreateDialog>
 
-        <CreateSheet
+        <CreateDialog
           open={addingSection}
           onOpenChange={(open) => (open ? openAddSection() : closeAddSection())}
           title="New section"
@@ -705,7 +705,7 @@ export function DepartmentsRegister() {
               </DetailSelect>
             )}
           </CreateField>
-        </CreateSheet>
+        </CreateDialog>
       </RegisterLayout>
     </PreferencesShell>
   );

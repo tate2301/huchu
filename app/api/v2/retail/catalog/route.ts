@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { loadShelfListings, upsertShelfListing } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";
-import { ensureInventoryItemAccess, requireRetailSession } from "../_helpers";
+import { ensureInventoryItemAccess, requireRetailSession, resolveRetailSite } from "../_helpers";
 
 /**
  * The back-office range.
@@ -38,7 +38,15 @@ const catalogQuery = z.object({
 });
 
 const catalogItemSchema = z.object({
-  inventoryItemId: z.string().uuid(),
+  /**
+   * The stock line this product sells from. Left out, the product gets a stock
+   * line of its own at the shop's site — the ordinary case, and the reason a
+   * shopkeeper adding a product never has to meet a "stock item" first.
+   */
+  inventoryItemId: z.string().uuid().optional(),
+  /** What one of it is called — "bottle", "case". Only read for a new stock line. */
+  unit: z.string().trim().min(1).max(40).optional(),
+  siteId: z.string().uuid().optional(),
   name: z.string().min(1).max(200).optional(),
   sku: z.string().min(1).max(80).optional(),
   barcode: z.string().max(80).optional().nullable(),
@@ -94,13 +102,18 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = catalogItemSchema.parse(body);
+
+    if (!input.inventoryItemId) {
+      return createWithOwnStockLine(session.user.companyId, input);
+    }
+
     const inventoryItem = await ensureInventoryItemAccess(
       session.user.companyId,
       input.inventoryItemId,
     );
 
     if (!inventoryItem) {
-      return errorResponse("Invalid inventory item", 400);
+      return errorResponse("That stock line is not in this workspace", 400);
     }
 
     // A stock row already sold under another product cannot be re-pointed here:
@@ -114,7 +127,7 @@ export async function POST(request: NextRequest) {
       });
       if (claimed && !claimed.archivedAt) {
         return errorResponse(
-          `${inventoryItem.name} is already ranged as ${claimed.name} (${claimed.code})`,
+          `${inventoryItem.name} is already sold as ${claimed.name} (${claimed.code})`,
           409,
         );
       }
@@ -125,7 +138,7 @@ export async function POST(request: NextRequest) {
     // catalogue code used to provide, without a second sequence to maintain.
     const sku = normalizeSku(input.sku ?? inventoryItem.itemCode);
     if (!sku) {
-      return errorResponse("Give the item a SKU — its stock code has no usable characters", 400);
+      return errorResponse("Give the product a code — its stock code has no usable characters", 400);
     }
 
     try {
@@ -150,7 +163,7 @@ export async function POST(request: NextRequest) {
       return successResponse(created ?? { id: productId, productId }, 201);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        return errorResponse(`SKU ${sku} already exists`, 409);
+        return errorResponse(`Another product already has the code ${sku}`, 409);
       }
       throw error;
     }
@@ -159,6 +172,86 @@ export async function POST(request: NextRequest) {
       return errorResponse("Validation failed", 400, error.issues);
     }
     console.error("[API] POST /api/v2/retail/catalog error:", error);
-    return errorResponse("Failed to create catalog item");
+    return errorResponse("The product was not created");
+  }
+}
+
+type CatalogItemInput = z.infer<typeof catalogItemSchema>;
+
+/**
+ * A new product with a stock line of its own.
+ *
+ * The line is made at the shop's site, in its first stock location (a site
+ * with none gets "Shop floor"), coded with the product's own code so the two
+ * cannot be told apart by a shopkeeper who never sees the stock screens. If the
+ * product then fails to save, the line is taken back out rather than left as
+ * an orphan nobody asked for.
+ */
+async function createWithOwnStockLine(companyId: string, input: CatalogItemInput) {
+  const name = input.name?.trim();
+  if (!name) return errorResponse("Give the product a name", 400);
+
+  const sku = normalizeSku(input.sku ?? name);
+  if (!sku) return errorResponse("Give the product a code — its name has no usable characters", 400);
+
+  const { site, response } = await resolveRetailSite(companyId, input.siteId);
+  if (response) return response;
+  if (!site) return errorResponse("This workspace has no site to keep stock at", 400);
+
+  const location =
+    (await prisma.stockLocation.findFirst({
+      where: { siteId: site.id, isActive: true },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    })) ??
+    (await prisma.stockLocation.create({
+      data: { siteId: site.id, code: "SHOP-FLOOR", name: "Shop floor" },
+      select: { id: true },
+    }));
+
+  let stockLineId: string;
+  try {
+    const line = await prisma.inventoryItem.create({
+      data: {
+        itemCode: sku,
+        name,
+        category: "CONSUMABLES",
+        unit: input.unit?.trim() || "each",
+        siteId: site.id,
+        locationId: location.id,
+      },
+      select: { id: true },
+    });
+    stockLineId = line.id;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse(`Another product already has the code ${sku}`, 409);
+    }
+    throw error;
+  }
+
+  try {
+    const productId = await upsertShelfListing({
+      companyId,
+      productId: null,
+      sku,
+      name,
+      inventoryItemId: stockLineId,
+      unitPrice: input.unitPrice,
+      taxPercent: input.taxPercent ?? 0,
+      description: input.description?.trim() || null,
+      barcode: input.barcode?.trim() || null,
+      imageUrl: input.imageUrl ?? null,
+      compareAtPrice: input.compareAtPrice ?? null,
+      isActive: (input.status ?? "ACTIVE") === "ACTIVE",
+    });
+    const [created] = await loadShelfListings(companyId, { productIds: [productId] });
+    return successResponse(created ?? { id: productId, productId }, 201);
+  } catch (error) {
+    await prisma.inventoryItem.delete({ where: { id: stockLineId } }).catch(() => {});
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse(`Another product already has the code ${sku}`, 409);
+    }
+    throw error;
   }
 }

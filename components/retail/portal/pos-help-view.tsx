@@ -87,16 +87,12 @@ export function PosHelpView() {
   return (
     <div className="space-y-4">
       <PosPanel>
-        <PosPanelHeader
-          eyebrow="Help"
-          title="Working this till"
-          description="The keys, the everyday jobs, and what to do when something does not go to plan."
-        />
+        <PosPanelHeader title="Keys and scanner" />
 
         <div className="grid gap-4 lg:grid-cols-2">
           {/* ── Keys ───────────────────────────────────────────────── */}
           <div>
-            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold text-[var(--text-muted)]">
               <Keyboard className="h-3.5 w-3.5" />
               On a keyboard
             </div>
@@ -104,9 +100,9 @@ export function PosHelpView() {
             <Shortcut keys={<Key>/</Key>} does="Jump to the search box" />
             <Shortcut
               keys={<Key>↵</Key>}
-              does="With the search box focused, add the first result to the sale"
+              does="With the search box focused, add the first product to the sale"
             />
-            <Shortcut keys={<Key>Esc</Key>} does="Clear the search, or deselect the picked line" />
+            <Shortcut keys={<Key>Esc</Key>} does="Clear the search, or let go of the picked product" />
             <Shortcut
               keys={
                 <>
@@ -139,19 +135,19 @@ export function PosHelpView() {
 
           {/* ── Barcode scanner ────────────────────────────────────── */}
           <div>
-            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold text-[var(--text-muted)]">
               <Search className="h-3.5 w-3.5" />
               With a scanner
             </div>
             <p className="text-sm leading-6 text-[var(--text-muted)]">
-              A barcode scanner types the code and presses Enter for you, so scanning an item onto
+              A barcode scanner types the code and presses Enter for you, so scanning a product onto
               the sale needs nothing else — as long as the search box has the cursor in it. It
               starts there when the page opens. If a scan does nothing, press{" "}
               <Key>/</Key> to put the cursor back and scan again.
             </p>
             <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">
               To answer &ldquo;how much is this?&rdquo; without starting a sale, use{" "}
-              <span className="font-semibold text-[var(--text-strong)]">Price</span> in the side
+              <span className="font-semibold text-[var(--text-strong)]">Price check</span> in the side
               bar and scan there instead.
             </p>
           </div>
@@ -161,7 +157,7 @@ export function PosHelpView() {
       {/* ── The everyday jobs ────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
         <PosPanel>
-          <PosPanelHeader eyebrow="Every day" title="The usual jobs" />
+          <PosPanelHeader title="The usual jobs" />
 
           <Job icon={Clock} title="Starting the day">
             Open <span className="font-medium">Shift</span>, count the float in the drawer and key
@@ -169,44 +165,40 @@ export function PosHelpView() {
             a person and a drawer.
           </Job>
           <Job icon={Payments} title="Ringing a sale">
-            Scan or search each item, pick the tender, key the amount the customer hands over — the
+            Scan or search each product, pick the tender, key the amount the customer hands over — the
             keypad is always at the bottom right, it never scrolls away — and press Charge. Change
             due appears above the keypad as soon as the amount covers the total.
           </Job>
           <Job icon={Package} title="Putting a sale aside">
-            <span className="font-medium">Hold</span> parks the basket under a name so you can
-            serve the next customer; <span className="font-medium">Held</span> brings it back. Use
-            it when someone goes to fetch one more thing.
+            <span className="font-medium">Hold</span> sets the sale aside under a name so you can
+            serve the next customer; <span className="font-medium">Held sales</span> brings it back.
+            Use it when someone goes to fetch one more thing.
           </Job>
           {/*
-            Corrected in S-7.7. This used to tell a cashier the buttons were
-            there and might ask for a manager's password. `RUN_A_TILL` grants
-            neither `refund` nor `void`, so the buttons never render at the
-            till, and there is no approval dialog to produce them. Sending
-            somebody hunting for a control that cannot appear, with a customer
-            waiting, is the worst thing a help screen can do.
+            The refund and void buttons render for whoever has the shift open,
+            and a cashier is asked for a manager's login inside the dialog —
+            see the S-7.7 note in `pos-history-view.tsx`.
           */}
           <Job icon={Receipt} title="Refunding or cancelling">
-            You can look a receipt up under <span className="font-medium">History</span>, but
-            reversing one is not a till job — the manager does refunds and voids in the back
-            office, and the stock and the books move with them. Find the receipt, read the number
-            out, and let the manager take it from there.
+            Find the sale under <span className="font-medium">History</span> and press Refund or
+            Void. A manager keys their own login to approve it, and their name is recorded against
+            it.
           </Job>
           <Job icon={Coins} title="Money in or out of the drawer">
-            <span className="font-medium">Shift</span> → cash drop when the drawer is getting full,
-            or a top-up when you are short of change. Record it as it happens; a drop done from
-            memory at closing time is how a drawer comes up short.
+            <span className="font-medium">Shift</span> → Move cash: to the safe when the drawer is
+            getting full, or in from the safe when you are short of change. Record it as it happens;
+            a movement done from memory at closing time is how a drawer comes up short.
           </Job>
           <Job icon={Clock} title="Closing up">
             <span className="font-medium">Shift</span> → cash up. Count the drawer honestly and key
-            what is actually there, not what the screen expects. Then take the Z-report from{" "}
-            <span className="font-medium">Reports</span>. Once a Z-report is run for a shift it
-            cannot be run again with different numbers.
+            what is actually there, not what the screen expects. Then take the end-of-day report
+            from <span className="font-medium">Reports</span>. Once it is taken it cannot be taken
+            again with different numbers.
           </Job>
         </PosPanel>
 
         <PosPanel>
-          <PosPanelHeader eyebrow="When it goes wrong" title="Fixing it yourself" />
+          <PosPanelHeader title="Fixing it yourself" />
 
           <Job icon={CloudOff} title="The internet is down">
             Keep selling. The till stores each sale on the tablet and the top bar shows how many are
@@ -229,9 +221,9 @@ export function PosHelpView() {
             tablet&rsquo;s own print dialog, so if nothing appears at all it is the tablet&rsquo;s
             printer setting rather than the till.
           </Job>
-          <Job icon={Search} title="An item will not scan">
+          <Job icon={Search} title="A product will not scan">
             Search by name or type the code by hand. If it is genuinely not there, the shop has not
-            received it into stock yet — the till can only sell what this branch holds. Tell the
+            received it into stock yet — the till can only sell what this site holds. Tell the
             manager rather than ringing it up as something else.
           </Job>
         </PosPanel>

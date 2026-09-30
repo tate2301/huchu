@@ -189,7 +189,7 @@ test.describe("Retail records", () => {
       path: "/retail/purchasing",
       name: "Purchasing index",
       redirectsTo: "/retail/purchasing/orders",
-      expect: /Purchase orders/i,
+      expect: /Orders/,
     },
   ];
 
@@ -210,14 +210,15 @@ test.describe("Retail records", () => {
       path: (id) => `/retail/sales/${id}`,
       find: async () =>
         (await db.retailSale.findFirst({ where: { companyId: await retailCompanyId() }, select: { id: true } }))?.id ?? null,
-      expect: /RSL-\d{4}/,
+      // The till numbers its sales RSL-; the demo seed numbers its history S-.
+      expect: /(RSL|S)-\d{4}/,
     },
     {
       name: "One shift",
       path: (id) => `/retail/shifts/${id}`,
       find: async () =>
         (await db.retailShift.findFirst({ where: { companyId: await retailCompanyId() }, select: { id: true } }))?.id ?? null,
-      expect: /RSH-\d{4}/,
+      expect: /(RSH|SH)-\d{4}/,
     },
     {
       name: "One purchase order",

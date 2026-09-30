@@ -26,18 +26,17 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api-client";
 import {
   Check,
-  Clock,
   Coins,
   Info,
   Lock,
   Percent,
-  Printer,
   Receipt,
   Shield,
   Storefront,
   X,
 } from "@/lib/icons";
 import type { TillCapability } from "@/lib/retail/till-settings";
+import { tenderLabel } from "@/lib/retail/words";
 import { cn } from "@/lib/utils";
 
 import {
@@ -177,28 +176,16 @@ export function PosTillSettingsView() {
   if (!settings) {
     return (
       <PosPanel>
-        <PosPanelHeader
-          eyebrow="This terminal"
-          title="Till settings"
-          description="How this till is configured, and what you are allowed to do at it."
-        />
         {/*
-          "Unable to load" deliberately, and not only for the reader: it is the
-          phrase `e2e/retail-shots.spec.ts` fails a screenshot run on, so a
-          broken settings read shows up as a red test rather than as a tidy
-          picture of an empty screen.
+          A failed read says so in the load-failure sentence ("would not load"),
+          never as a tidy picture of an empty screen.
         */}
         <PosEmptyState
           icon={Info}
           title={
             settingsQuery.isLoading
-              ? "Reading this till's settings"
-              : "Unable to load these settings"
-          }
-          description={
-            settingsQuery.isLoading
-              ? "One moment."
-              : "The till could not read its configuration. It can still sell — the rules below are enforced by the server either way."
+              ? "Loading the till settings…"
+              : "The till settings would not load"
           }
         />
       </PosPanel>
@@ -213,43 +200,30 @@ export function PosTillSettingsView() {
       {/* ── Identity ─────────────────────────────────────────────────── */}
       <PosPanel>
         <PosPanelHeader
-          eyebrow="This terminal"
-          title="Till settings"
-          description="Everything here is read-only at the till. The shop manager changes it in the back office; this screen is so you know what the till will do before it does it."
+          title="This till"
           actions={
-            identity.shiftNo ? (
-              <PosStatusPill tone="success">
-                <Clock className="h-3 w-3" />
-                {identity.shiftNo} open
-              </PosStatusPill>
-            ) : (
-              <PosStatusPill tone="warning">No shift open</PosStatusPill>
-            )
+            identity.shiftNo ? null : <PosStatusPill tone="warning">No shift open</PosStatusPill>
           }
         />
 
         <div className="grid gap-x-8 gap-y-0 sm:grid-cols-2">
-          <Row label="Shop" value={identity.companyName} />
-          <Row label="Branch" value={identity.branchName} />
-          <Row label="Branch code" value={identity.branchCode} />
-          <Row label="Location" value={identity.branchLocation} />
-          <Row label="Register" value={identity.registerName} />
-          <Row label="Register code" value={identity.registerCode} />
+          <Row label="Company" value={identity.companyName} />
+          <Row label="Site" value={identity.branchName} />
+          <Row label="Site code" value={identity.branchCode} />
+          <Row label="Address" value={identity.branchLocation} />
+          <Row label="Till" value={identity.registerName} />
+          <Row label="Till code" value={identity.registerCode} />
         </div>
       </PosPanel>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* ── Currency & tax ─────────────────────────────────────────── */}
         <PosPanel>
-          <PosPanelHeader
-            eyebrow="Currency & tax"
-            title="What the shelf price means"
-            description="Counted off the shelf, not typed into a settings box."
-          />
+          <PosPanelHeader title="Prices and VAT" />
 
           <div className="mb-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-2.5">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-muted)]">
                 <Coins className="h-3.5 w-3.5" />
                 Books kept in
               </div>
@@ -258,9 +232,9 @@ export function PosTillSettingsView() {
               </div>
             </div>
             <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-2.5">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-muted)]">
                 <Percent className="h-3.5 w-3.5" />
-                Standard rate
+                VAT
               </div>
               <div className="mt-1.5 font-mono text-lg font-black text-[var(--text-strong)]">
                 {tax.standardRatePercent === null ? "—" : `${tax.standardRatePercent}%`}
@@ -289,24 +263,24 @@ export function PosTillSettingsView() {
             <Info className="mt-0.5 h-4 w-4 shrink-0" />
             <p className="text-sm font-medium leading-5">
               {money.taxInclusive === null
-                ? "No shelf price list exists yet, so the till has nothing to sell from."
+                ? "No price list yet"
                 : money.taxInclusive
-                  ? "The price on the shelf is what the customer pays. VAT is already inside it, and the receipt breaks it back out."
-                  : "The price on the shelf is before VAT. The till adds it at the counter."}
+                  ? "Prices include VAT"
+                  : "Prices exclude VAT; the till adds it"}
             </p>
           </div>
 
-          <Row label="Selling from" value={money.priceListName} />
-          <Row label="Priced in" value={money.priceListCurrency} />
+          <Row label="Price list" value={money.priceListName} />
+          <Row label="Currency" value={money.priceListCurrency} />
           <Row
-            label="Products priced"
+            label="Products"
             value={tax.productCount === 0 ? null : String(tax.productCount)}
           />
 
           {tax.mixed ? (
             <div className="mt-3">
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                More than one rate is in use
+              <div className="mb-1.5 text-xs font-bold text-[var(--text-muted)]">
+                VAT rates in use
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {tax.rates.map((rate) => (
@@ -321,11 +295,7 @@ export function PosTillSettingsView() {
 
         {/* ── Rules at the counter ───────────────────────────────────── */}
         <PosPanel>
-          <PosPanelHeader
-            eyebrow="At the counter"
-            title="What the till will ask you for"
-            description="These are enforced by the server, not by this screen."
-          />
+          <PosPanelHeader title="Till rules" />
 
           <Rule
             on={rules.discountsNeedApproval}
@@ -344,8 +314,8 @@ export function PosTillSettingsView() {
           />
           <Rule
             on={rules.voidRequiresReason}
-            when="Voiding a receipt needs a reason typed in."
-            otherwise="Voiding a receipt does not need a reason."
+            when="Voiding a sale needs a reason typed in."
+            otherwise="Voiding a sale does not need a reason."
           />
           <Rule
             on={rules.splitTenderEnabled}
@@ -355,13 +325,13 @@ export function PosTillSettingsView() {
 
           {rules.requiredReferenceTenders.length > 0 ? (
             <div className="mt-3 rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-2.5">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              <div className="text-xs font-bold text-[var(--text-muted)]">
                 Needs a reference number, at least {rules.minReferenceLength} characters
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {rules.requiredReferenceTenders.map((tender) => (
                   <PosStatusPill key={tender} tone="warning">
-                    {tender.replace(/_/g, " ").toLowerCase()}
+                    {tenderLabel(tender)}
                   </PosStatusPill>
                 ))}
               </div>
@@ -372,9 +342,7 @@ export function PosTillSettingsView() {
         {/* ── Capabilities ───────────────────────────────────────────── */}
         <PosPanel>
           <PosPanelHeader
-            eyebrow="Your account"
             title="What you may do"
-            description="Read off the same permission matrix the server gates on, so it cannot disagree with what happens when you press the button."
             actions={<Shield className="h-5 w-5 text-[var(--text-muted)]" />}
           />
           {capabilities.map((capability) => (
@@ -385,9 +353,7 @@ export function PosTillSettingsView() {
         {/* ── Receipt ────────────────────────────────────────────────── */}
         <PosPanel>
           <PosPanelHeader
-            eyebrow="Receipt"
-            title="What prints on the slip"
-            description="Taken from the shop's branding record."
+            title="Receipt"
             actions={<Receipt className="h-5 w-5 text-[var(--text-muted)]" />}
           />
 
@@ -399,20 +365,6 @@ export function PosTillSettingsView() {
           <Row label="Address" value={receipt.physicalAddress} />
           <Row label="Footer" value={receipt.footerText} />
 
-          {/*
-            The prototype has a "Printer name" field. Nothing in this repository
-            stores or reads one: the till prints through the browser's own
-            dialog. A box that configured nothing would be a control a cashier
-            trusts on the day the receipts stop coming out, so the screen says
-            what actually happens instead.
-          */}
-          <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-2.5">
-            <Printer className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)]" />
-            <p className="text-xs leading-5 text-[var(--text-muted)]">
-              Receipts print through this device&rsquo;s own print dialog — whichever printer the
-              tablet is set to. There is no printer to choose here.
-            </p>
-          </div>
         </PosPanel>
       </div>
 
@@ -427,16 +379,9 @@ export function PosTillSettingsView() {
               Changing any of this
             </h3>
             <p className="mt-1 max-w-[62ch] text-sm leading-6 text-[var(--text-muted)]">
-              These settings belong to the shop, not to the till, so they are changed once in the
-              back office and every register picks them up. Ask the manager for{" "}
-              <span className="font-medium text-[var(--text-strong)]">
-                Retail → Setup → Operations
-              </span>{" "}
-              for registers and branches,{" "}
-              <span className="font-medium text-[var(--text-strong)]">POS policy</span> for the
-              rules above, and{" "}
-              <span className="font-medium text-[var(--text-strong)]">Branding</span> for the
-              receipt. Your own unlock PIN is yours and is set on the lock screen.
+              A manager changes these in the back office under{" "}
+              <span className="font-medium text-[var(--text-strong)]">Settings → Shop</span>. Your
+              unlock PIN is set on the lock screen.
             </p>
           </div>
         </div>

@@ -25,7 +25,7 @@ import {
 
 import {
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailSelect,
   NoRecord,
@@ -288,7 +288,7 @@ export function UsersRegister({ selectedId }: { selectedId?: string }) {
           />
         )}
 
-        <CreateSheet
+        <CreateDialog
           open={createOpen}
           onOpenChange={(open) => (open ? setCreateOpen(true) : closeCreate())}
           title="New user"
@@ -369,7 +369,7 @@ export function UsersRegister({ selectedId }: { selectedId?: string }) {
               </DetailSelect>
             )}
           </CreateField>
-        </CreateSheet>
+        </CreateDialog>
       </RegisterLayout>
     </PreferencesShell>
   );

@@ -8,10 +8,8 @@
  * `lib/retail/till-activity.ts` for why that is a derived view rather than an
  * audit trail, and for the two sign traps it exists to avoid.
  *
- * The screen states that limit out loud at the bottom. A log that quietly
- * implies completeness is worse than no log: a shop investigating a shortfall
- * would read "nothing here" as "nothing happened", when what it means is
- * "nothing that writes a row happened".
+ * A failed read never renders as an empty log: a shop investigating a
+ * shortfall would read "nothing here" as "nothing happened".
  */
 
 import { useMemo, useState } from "react";
@@ -19,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import { Clock, Coins, Info, Percent, Receipt, ReceiptLong, XCircle } from "@/lib/icons";
+import { formatRetailDateTime } from "@/lib/retail/words";
 /*
   `till-activity-shared`, never `till-activity`. The latter imports `lib/money`
   → `lib/prisma` → `pg` → `dns`, and importing it here failed the build with
@@ -27,7 +26,6 @@ import { Clock, Coins, Info, Percent, Receipt, ReceiptLong, XCircle } from "@/li
 */
 import {
   TILL_ACTIVITY_FILTERS,
-  TILL_ACTIVITY_LABELS,
   filterTillActivity,
   type TillActivityEntry,
   type TillActivityKind,
@@ -35,7 +33,7 @@ import {
 import type { LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
-import { PosEmptyState, PosPanel, PosPanelHeader, PosStatusPill } from "./pos-primitives";
+import { PosEmptyState, PosPanel } from "./pos-primitives";
 
 type ActivityPayload = {
   entries: TillActivityEntry[];
@@ -68,18 +66,6 @@ const TONE_SWATCH: Record<string, { bg: string; text: string }> = {
   danger: { bg: "var(--pos-status-danger-bg)", text: "var(--pos-status-danger-text)" },
   neutral: { bg: "var(--surface-muted)", text: "var(--text-muted)" },
 };
-
-/** `2026-08-17T14:10:00.000Z` → `Sun 17 Aug, 16:10` in the reader's own zone. */
-function when(iso: string) {
-  const date = new Date(iso);
-  return date.toLocaleString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 /**
  * The amount, exactly as the server signed it.
@@ -114,25 +100,11 @@ export function PosTillActivityView() {
   const payload = activityQuery.data?.data ?? null;
   const entries = useMemo(() => payload?.entries ?? [], [payload?.entries]);
   const shown = useMemo(() => filterTillActivity(entries, kind), [entries, kind]);
+  const filterLabel = TILL_ACTIVITY_FILTERS.find((filter) => filter.id === kind)?.label ?? "";
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
       <PosPanel>
-        <PosPanelHeader
-          eyebrow="This till"
-          title="Activity"
-          description={
-            payload
-              ? `Everything you have rung, reversed, moved or counted in the last ${payload.windowDays} days.`
-              : "Everything you have rung, reversed, moved or counted recently."
-          }
-          actions={
-            <PosStatusPill tone="neutral">
-              {entries.length} {entries.length === 1 ? "event" : "events"}
-            </PosStatusPill>
-          }
-        />
-
         {/* Filter chips. Counts included so an empty filter is visibly empty
             rather than looking like a screen that failed to load. */}
         <div className="flex flex-wrap gap-1.5">
@@ -182,21 +154,12 @@ export function PosTillActivityView() {
               icon={Info}
               title={
                 activityQuery.isError
-                  ? "Unable to load this till's activity"
+                  ? "The activity would not load"
                   : activityQuery.isLoading
-                    ? "Reading this till's activity"
+                    ? "Loading the activity…"
                     : kind === "all"
-                      ? "Nothing recorded yet"
-                      : `No ${TILL_ACTIVITY_LABELS[kind].toLowerCase()} events`
-              }
-              description={
-                activityQuery.isError
-                  ? "This is a loading failure, not an empty log — do not read it as nothing having happened. Try again in a moment."
-                  : activityQuery.isLoading
-                    ? "One moment."
-                    : kind === "all"
-                      ? "Sales, refunds, voids, cash moves and shift openings appear here as they happen."
-                      : "Try another filter, or All."
+                      ? "No activity yet"
+                      : `No ${filterLabel.toLowerCase()} yet`
               }
             />
           ) : (
@@ -230,7 +193,7 @@ export function PosTillActivityView() {
                         </p>
                       ) : null}
                       <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
-                        {when(entry.at)}
+                        {formatRetailDateTime(entry.at)}
                         {entry.actor ? ` · ${entry.actor}` : ""}
                       </p>
                     </div>
@@ -247,19 +210,6 @@ export function PosTillActivityView() {
           )}
         </div>
 
-        {/*
-          The caveat, on the screen rather than only in the source. What this
-          list can and cannot see decides whether a manager reading it draws the
-          right conclusion from a gap in it.
-        */}
-        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-2.5">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)]" />
-          <p className="text-xs leading-5 text-[var(--text-muted)]">
-            This is built from the sales, cash movements and shifts themselves, so it shows
-            everything that left a record — and only that. A cart cleared before payment, a
-            refused manager override or a wrong PIN write nothing and cannot appear here.
-          </p>
-        </div>
       </PosPanel>
     </div>
   );

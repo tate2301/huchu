@@ -1,40 +1,41 @@
 "use client";
 
+/**
+ * Overview — how the shop is trading this month, and what needs somebody.
+ *
+ * Drawn as the CRM's finance page is, with the management contract's pieces
+ * (`components/management/ui`): "Needs action" first, carrying its count, or
+ * one sentence when nothing is waiting; then each figure as a heading, one
+ * large mono number, a muted line against last month, and what the figure is
+ * made of as rows under it — the profit walk from sales to net profit, read
+ * top to bottom rather than drawn as a waterfall. Tenders are a list with
+ * their share, and the one chart kept is sales by month against the year
+ * before, which nothing else on the page says. The till is the page's verb.
+ */
+
 import Link from "next/link";
 import { useMemo } from "react";
-import { Alert, Badge, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
+import { Alert, Skeleton } from "@corelithzw/react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { AdminTrendChart, type TrendChartRow } from "@/components/charts/admin-headless-charts";
 import {
-  AdminDonutChart,
-  AdminTrendChart,
-  AdminWaterfallChart,
-  type DistributionRow,
-  type TrendChartRow,
-  type WaterfallRow,
-} from "@/components/charts/admin-headless-charts";
+  ColumnFigure,
+  ColumnList,
+  ColumnName,
+  ColumnText,
+  FactList,
+  SectionHeading,
+  type FactListItem,
+} from "@/components/management/ui";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import {
-  BarChart3,
-  Building2,
-  ClipboardList,
-  ChevronDown,
-  Grid3x3,
-  LocalShipping,
-  Package,
-  Payments,
-  Users,
-} from "@/lib/icons";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
+import { Payments } from "@/lib/icons";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { formatRetailDate, formatSignedMoney, tenderLabel } from "@/lib/retail/words";
+
+type ProfitKey = "netRevenue" | "grossProfit" | "ebitda" | "netProfit";
 
 type RetailDashboardPayload = {
   summary: {
@@ -42,31 +43,16 @@ type RetailDashboardPayload = {
     netSales: number;
     refundValue: number;
     voidValue: number;
-    discountValue: number;
-    taxValue: number;
-    goodsReceivedValue: number;
-    openOrderValue: number;
-    activeCatalogCount: number;
-    activePromotionCount: number;
-    openShiftCount: number;
     lowStockCount: number;
     ticketCount: number;
-    averageTicket: number;
-    sevenDaySales: number;
   };
   ownerMetrics: {
     model: "ACCOUNTING_POSTED" | "ESTIMATED_FROM_OPERATIONS";
-    period: { start: string; end: string };
-    previousPeriod: { start: string; end: string };
     kpis: {
-      grossProfit: number;
       grossMarginPct: number;
-      ebitda: number;
+      /** Gross profit less running costs: before depreciation, interest and tax. */
       ebitdaMarginPct: number;
-      netProfit: number;
       netMarginPct: number;
-      monthlyRunRateRevenue: number;
-      inventoryPressurePct: number;
     };
     momentum: {
       revenueDeltaPct: number;
@@ -74,28 +60,8 @@ type RetailDashboardPayload = {
       ebitdaDeltaPct: number;
       netProfitDeltaPct: number;
     };
-    highlights: Array<{
-      id: string;
-      title: string;
-      value: number | string;
-      deltaPct: number;
-      detail: string;
-      tone: "default" | "success" | "warning" | "danger";
-    }>;
-    trend: Array<{
-      id: string;
-      label: string;
-      netRevenue: number;
-      grossProfit: number;
-      ebitda: number;
-      netProfit: number;
-      averageTicket: number;
-      previousNetRevenue: number;
-      previousGrossProfit: number;
-      previousEbitda: number;
-      previousNetProfit: number;
-      previousAverageTicket: number;
-    }>;
+    /** Twelve months, this one last, each beside the same month a year earlier. */
+    trend: Array<{ id: string; label: string; previousNetRevenue: number } & Record<ProfitKey, number>>;
     costBridge: {
       revenue: number;
       cogs: number;
@@ -108,49 +74,48 @@ type RetailDashboardPayload = {
     };
   };
   tenderMix: Array<{ tenderType: string; amount: number }>;
-  topItems: Array<{ itemName: string; quantity: number; value: number }>;
-  lowStock: Array<{
+  /** Oldest first, at most eight. */
+  openShifts: Array<{
     id: string;
-    itemCode: string;
-    name: string;
-    currentStock: number;
-    minStock: number;
-    unit: string;
+    shiftNo: string;
+    registerName: string;
+    cashierName: string;
+    openedAt: string;
   }>;
 };
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value || 0);
+/** The measure the figures and short lists share with their headings. */
+const LIST_WIDTH = 560;
+const WIDE = 960;
+
+/** The shop's own calendar day, so a shift opened at 23:50 in Harare is yesterday's. */
+const DAY_KEY = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare" });
+
+function plural(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
-function pct(value: number) {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+/** "34.2%", "−3.1%" — with a true minus. */
+function percent(value: number) {
+  const text = `${Math.abs(value).toFixed(1)}%`;
+  return value < 0 ? `−${text}` : text;
 }
 
 /**
- * A momentum reading for `StatCard`'s delta slot.
- *
- * The direction — not a colour written here — is what tints it. The tile that
- * this replaced carried its own emerald/rose pill with hard-coded Tailwind
- * palette classes, which is the thing that made retail look like a second
- * design system.
+ * The month against the last, in words. `previous` is read from the trend so
+ * a month with nothing to compare against says so, rather than the "up 100%"
+ * the server reports for any rise from zero.
  */
-function delta(value: number) {
-  return {
-    direction: value >= 0 ? ("up" as const) : ("down" as const),
-    label: `${pct(value)} on the previous period`,
-  };
+function change(deltaPct: number, previous: number | undefined) {
+  if (!previous) return "Nothing last month to compare with";
+  const size = Math.round(Math.abs(deltaPct));
+  if (size === 0) return "Level with last month";
+  return `${deltaPct > 0 ? "Up" : "Down"} ${size}% on last month`;
 }
 
 export default function RetailOverviewPage() {
   const { data: session } = useSession();
-  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
   const canOpenPos = canAccessPosPortal(session?.user?.role);
-  const canOpenCustomers = hasTokenFeature(enabledFeatures, "crm.customers");
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["retail-dashboard-owner-overview"],
     queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
@@ -161,167 +126,27 @@ export default function RetailOverviewPage() {
       (data?.ownerMetrics.trend ?? []).map((row) => ({
         label: row.label,
         netRevenue: row.netRevenue,
-        grossProfit: row.grossProfit,
-        ebitda: row.ebitda,
-        netProfit: row.netProfit,
-        averageTicket: row.averageTicket,
         previousNetRevenue: row.previousNetRevenue,
-        previousGrossProfit: row.previousGrossProfit,
-        previousEbitda: row.previousEbitda,
-        previousNetProfit: row.previousNetProfit,
-        previousAverageTicket: row.previousAverageTicket,
       })),
     [data?.ownerMetrics.trend],
   );
 
-  const tenderRows = useMemo<DistributionRow[]>(
-    () =>
-      (data?.tenderMix ?? []).map((row) => ({
-        id: row.tenderType,
-        label: row.tenderType.replaceAll("_", " "),
-        value: row.amount,
-      })),
-    [data?.tenderMix],
-  );
-
-  /**
-   * The P&L as a walk from revenue to the bottom line.
-   *
-   * Every row is a **delta** except the ones marked `isSubtotal`, which restate
-   * where the walk has got to. Mixing the two was the bug: EBITDA and Net were
-   * passed as running totals and the chart added them like movements, so it
-   * counted the same money three times and closed at about $2,900 on a month
-   * whose net profit was $719.
-   *
-   * The steps have to reconcile or the picture lies, so `belowEbitda` — the
-   * depreciation, interest and tax between EBITDA and net — is derived on the
-   * server as `ebitda − netProfit` rather than re-summed here.
-   */
-  const bridgeRows = useMemo<WaterfallRow[]>(() => {
-    const bridge = data?.ownerMetrics.costBridge;
-    return [
-      {
-        id: "revenue",
-        label: "Revenue",
-        value: bridge?.revenue ?? 0,
-        tone: "success",
-      },
-      {
-        id: "cogs",
-        label: "COGS",
-        value: -(bridge?.cogs ?? 0),
-        tone: "warning",
-      },
-      {
-        id: "gross-profit",
-        label: "Gross profit",
-        value: bridge?.grossProfit ?? 0,
-        tone: "default",
-        isSubtotal: true,
-      },
-      {
-        id: "opex",
-        label: "OpEx",
-        value: -(bridge?.operatingExpense ?? 0),
-        tone: "warning",
-      },
-      {
-        id: "ebitda",
-        label: "EBITDA",
-        value: bridge?.ebitda ?? 0,
-        tone: "default",
-        isSubtotal: true,
-      },
-      {
-        // Depreciation, interest and tax, as one step. Named for what it is
-        // rather than "Other", so nobody has to guess what the shop paid.
-        id: "below-ebitda",
-        label: "D&A, interest, tax",
-        value: -(bridge?.belowEbitda ?? 0),
-        tone: "warning",
-      },
-      {
-        id: "net",
-        label: "Net profit",
-        value: bridge?.netProfit ?? 0,
-        tone: (bridge?.netProfit ?? 0) >= 0 ? "success" : "danger",
-        isSubtotal: true,
-      },
-    ];
-  }, [data]);
-
-  const actions = (
-    <div className="flex items-center gap-2">
-      {canOpenPos ? (
-        <Button asChild size="sm">
-          <Link href="/portal/pos">
-            <Payments className="h-4 w-4" />
-            POS
-          </Link>
-        </Button>
-      ) : null}
-      <Button asChild size="sm" variant="outline">
-        <Link href="/retail/sales">
-          <ClipboardList className="h-4 w-4" />
-          Sell
-        </Link>
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="gap-1">
-            <Grid3x3 className="h-4 w-4" />
-            <span className="hidden sm:inline">More</span>
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href="/retail/stock" className="flex items-center gap-2">
-              <Package className="h-4 w-4" /> Stock
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/retail/purchasing/orders" className="flex items-center gap-2">
-              <LocalShipping className="h-4 w-4" /> Buy
-            </Link>
-          </DropdownMenuItem>
-          {canOpenCustomers ? (
-            <DropdownMenuItem asChild>
-              <Link href="/retail/customers" className="flex items-center gap-2">
-                <Users className="h-4 w-4" /> Customers
-              </Link>
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem asChild>
-            <Link href="/retail/reports" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" /> Reports
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/retail/setup" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" /> Setup
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
+  const actions = canOpenPos ? (
+    <Button asChild size="sm">
+      <Link href="/portal/pos">
+        <Payments className="h-4 w-4" />
+        Open the till
+      </Link>
+    </Button>
+  ) : null;
 
   if (isPending) {
     return (
-      <RetailShell title="Business overview" actions={actions}>
-        <div aria-busy="true" aria-live="polite" className="space-y-4">
-          <span className="sr-only">Reading the trading figures…</span>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-            <Skeleton height={104} />
-          </div>
-          <Skeleton height={320} />
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Skeleton height={300} />
-            <Skeleton height={300} />
-          </div>
+      <RetailShell title="Overview" actions={actions}>
+        <div aria-busy="true" className="space-y-3" style={{ maxWidth: LIST_WIDTH }}>
+          <Skeleton height={120} />
+          <Skeleton height={160} />
+          <Skeleton height={140} />
         </div>
       </RetailShell>
     );
@@ -329,7 +154,7 @@ export default function RetailOverviewPage() {
 
   if (isError) {
     return (
-      <RetailShell title="Business overview" actions={actions}>
+      <RetailShell title="Overview" actions={actions}>
         <Alert tone="danger" title="The trading overview would not load">
           {getApiErrorMessage(error)}
         </Alert>
@@ -337,181 +162,238 @@ export default function RetailOverviewPage() {
     );
   }
 
-  if (data.summary.ticketCount === 0) {
-    return (
-      <RetailShell title="Business overview" actions={actions}>
-        <EmptyState
-          title="No trade recorded yet"
-          body="Sales, margin and tender mix appear here once the till has rung up its first sale of the day."
-          action={
-            canOpenPos ? (
-              <Button asChild size="sm">
-                <Link href="/portal/pos">Open the till</Link>
-              </Button>
-            ) : undefined
-          }
-        />
-      </RetailShell>
-    );
-  }
-
-  const { kpis, momentum, highlights, costBridge } = data.ownerMetrics;
+  const { trend } = data.ownerMetrics;
+  // The month before this one, for the line under each figure.
+  const lastMonth = trend.length > 1 ? trend[trend.length - 2] : undefined;
 
   return (
-    <RetailShell title="Business overview" actions={actions}>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <StatCard
-              label="Gross profit"
-              value={money(kpis.grossProfit)}
-              delta={delta(momentum.grossProfitDeltaPct)}
-              footer={`Margin ${kpis.grossMarginPct.toFixed(1)}%`}
-            />
-            <StatCard
-              label="EBITDA"
-              value={money(kpis.ebitda)}
-              delta={delta(momentum.ebitdaDeltaPct)}
-              footer={`Margin ${kpis.ebitdaMarginPct.toFixed(1)}%`}
-            />
-            <StatCard
-              label="Net profit"
-              value={money(kpis.netProfit)}
-              delta={delta(momentum.netProfitDeltaPct)}
-              footer={`Margin ${kpis.netMarginPct.toFixed(1)}%`}
-            />
-          </div>
-
-          <Card
-            title="Volume"
-            subtitle={`Revenue run-rate ${money(kpis.monthlyRunRateRevenue)} a month`}
-          >
-            <AdminTrendChart
-              rows={trendRows}
-              series={[
-                {
-                  key: "netRevenue",
-                  label: "Net revenue",
-                  color: "var(--primary-500)",
-                  kind: "line",
-                },
-              ]}
-              comparisonSeries={[
-                {
-                  key: "previousNetRevenue",
-                  label: "Previous period",
-                  color: "var(--text-muted)",
-                  kind: "line",
-                  dashed: true,
-                },
-              ]}
-              emptyLabel="No revenue trend for this period."
-              valueFormatter={money}
-              yTickFormatter={money}
-              xTickInterval={0}
-              height={260}
-            />
-          </Card>
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            <Card
-              title="Performance"
-              subtitle={`Gross margin ${kpis.grossMarginPct.toFixed(1)}%`}
-            >
-              <AdminTrendChart
-                rows={trendRows}
-                series={[
-                  { key: "grossProfit", label: "Gross profit", color: "var(--success-500)" },
-                  { key: "ebitda", label: "EBITDA", color: "var(--primary-500)" },
-                  { key: "netProfit", label: "Net profit", color: "var(--accent-500)" },
-                ]}
-                comparisonSeries={[
-                  {
-                    key: "previousNetProfit",
-                    label: "Prev net profit",
-                    color: "var(--text-muted)",
-                    kind: "line",
-                    dashed: true,
-                  },
-                ]}
-                emptyLabel="No profitability trend for this period."
-                valueFormatter={money}
-                yTickFormatter={money}
-                xTickInterval={0}
-                height={250}
-              />
-            </Card>
-
-            <Card
-              title="Profit bridge"
-              subtitle={`Net profit ${money(costBridge.netProfit)}`}
-            >
-              <AdminWaterfallChart
-                rows={bridgeRows}
-                emptyLabel="No bridge data for this period."
-                valueFormatter={money}
-                yTickFormatter={money}
-                height={250}
-              />
-            </Card>
-          </div>
-        </div>
-
-        <aside className="space-y-4">
-          <Card title="Priorities" subtitle={`${highlights.length} to look at`}>
-            {highlights.length === 0 ? (
-              <EmptyState
-                title="Nothing needs attention"
-                body="Anomalies and wins appear here as the day trades."
-              />
-            ) : (
-              <ul className="space-y-3">
-                {highlights.map((highlight) => (
-                  <li
-                    key={highlight.id}
-                    className="border-b border-[color:var(--border-subtle)] pb-3 last:border-b-0 last:pb-0"
-                  >
-                    <div className="flex items-baseline justify-between gap-3">
-                      <h3 className="t-body-sm t-strong font-semibold">{highlight.title}</h3>
-                      <Badge tone={highlight.deltaPct >= 0 ? "success" : "danger"}>
-                        {pct(highlight.deltaPct)}
-                      </Badge>
-                    </div>
-                    <p className="t-strong mt-1 font-mono text-base font-semibold tabular-nums">
-                      {typeof highlight.value === "string" ? highlight.value : money(highlight.value)}
-                    </p>
-                    <p className="t-caption t-muted mt-1">{highlight.detail}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card title="Cash and demand mix">
-            <AdminDonutChart
-              rows={tenderRows}
-              emptyLabel="No tender mix yet."
-              valueLabel="Tender amount"
-              valueFormatter={money}
-              height={250}
-            />
-          </Card>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <StatCard
-              label="Seven-day sales"
-              value={money(data.summary.sevenDaySales)}
-              footer="Rolling week, tills combined"
-            />
-            <StatCard
-              label="Inventory pressure"
-              value={`${kpis.inventoryPressurePct.toFixed(1)}%`}
-              footer={`${data.summary.lowStockCount} lines at or under reorder`}
-              tone={kpis.inventoryPressurePct > 50 ? "warn" : "neutral"}
-            />
-          </div>
-        </aside>
+    <RetailShell title="Overview" actions={actions}>
+      <div className="pb-10">
+        <NeedsAction data={data} />
+        {data.summary.ticketCount === 0 ? (
+          <section aria-labelledby="overview-month">
+            <SectionHeading maxWidth={LIST_WIDTH}>
+              <span id="overview-month">Sales this month</span>
+            </SectionHeading>
+            <p className="text-[13px] text-[var(--text-muted)]">No sales yet this month.</p>
+          </section>
+        ) : (
+          <>
+            <Figures data={data} lastMonth={lastMonth} />
+            <Tenders rows={data.tenderMix} />
+            <section aria-labelledby="overview-by-month">
+              <SectionHeading maxWidth={WIDE}>
+                <span id="overview-by-month">Sales by month</span>
+              </SectionHeading>
+              <div style={{ maxWidth: WIDE }}>
+                <AdminTrendChart
+                  rows={trendRows}
+                  series={[
+                    { key: "netRevenue", label: "Sales", color: "var(--primary-500)", kind: "line" },
+                  ]}
+                  comparisonSeries={[
+                    {
+                      key: "previousNetRevenue",
+                      label: "A year earlier",
+                      color: "var(--text-muted)",
+                      kind: "line",
+                      dashed: true,
+                    },
+                  ]}
+                  emptyLabel="No sales in the last year."
+                  valueFormatter={formatSignedMoney}
+                  yTickFormatter={formatSignedMoney}
+                  xTickInterval={0}
+                  height={260}
+                />
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </RetailShell>
+  );
+}
+
+/**
+ * What needs somebody, each a link to where it is dealt with. Only what has
+ * something in it is drawn, and the heading counts it; nothing waiting is said
+ * once. A shift still open from an earlier day is a drawer nobody cashed up.
+ */
+function NeedsAction({ data }: { data: RetailDashboardPayload }) {
+  const today = DAY_KEY.format(new Date());
+  const stale = data.openShifts.filter((shift) => DAY_KEY.format(new Date(shift.openedAt)) < today);
+  const low = data.summary.lowStockCount;
+
+  const rows: Array<{ id: string; name: string; meta?: string; href: string; count: string }> = [];
+  if (stale.length > 0) {
+    const [oldest] = stale;
+    rows.push({
+      id: "not-cashed-up",
+      name: "Shifts not cashed up",
+      meta:
+        stale.length === 1
+          ? `${oldest.registerName} · opened ${formatRetailDate(oldest.openedAt)}`
+          : `Oldest opened ${formatRetailDate(oldest.openedAt)}`,
+      href: stale.length === 1 ? `/retail/shifts/${oldest.id}` : "/retail/shifts",
+      count: plural(stale.length, "shift", "shifts"),
+    });
+  }
+  if (low > 0) {
+    rows.push({
+      id: "low-stock",
+      name: "Low stock",
+      href: "/retail/stock",
+      count: plural(low, "product", "products"),
+    });
+  }
+
+  return (
+    <section aria-labelledby="overview-needs-action">
+      <SectionHeading count={rows.length} maxWidth={LIST_WIDTH} className="mt-0">
+        <span id="overview-needs-action">Needs action</span>
+      </SectionHeading>
+      <ColumnList
+        label="Needs action"
+        maxWidth={LIST_WIDTH}
+        empty="Nothing is waiting on anybody."
+        columns={[
+          { id: "what", label: "What" },
+          { id: "count", label: "How many", align: "end" },
+        ]}
+        rows={rows.map((row) => ({
+          id: row.id,
+          cells: {
+            what: <ColumnName name={row.name} meta={row.meta} href={row.href} />,
+            count: <ColumnText>{row.count}</ColumnText>,
+          },
+        }))}
+      />
+    </section>
+  );
+}
+
+/**
+ * Sales down to net profit, a figure at a time, each made of the one above it
+ * less what came off. Where no accounts are posted the server estimates the
+ * costs below gross profit, and those rows say so.
+ */
+function Figures({
+  data,
+  lastMonth,
+}: {
+  data: RetailDashboardPayload;
+  lastMonth: Record<ProfitKey, number> | undefined;
+}) {
+  const { summary } = data;
+  const { kpis, momentum, costBridge: bridge, model } = data.ownerMetrics;
+  const estimated = model === "ESTIMATED_FROM_OPERATIONS" ? ", estimated" : "";
+  const fact = (label: string, value: number): FactListItem => ({
+    label,
+    value: formatSignedMoney(value),
+    mono: true,
+  });
+  const margin = (value: number): FactListItem => ({ label: "Margin", value: percent(value), mono: true });
+
+  return (
+    <section aria-label="This month's figures" className="grid gap-x-12 md:grid-cols-2">
+      <Headline
+        heading="Sales this month"
+        value={bridge.revenue}
+        change={change(momentum.revenueDeltaPct, lastMonth?.netRevenue)}
+        facts={[
+          fact("Rung up", summary.grossSales),
+          fact("Refunds", -summary.refundValue),
+          fact("Voids", -summary.voidValue),
+        ]}
+      />
+      <Headline
+        heading="Gross profit"
+        value={bridge.grossProfit}
+        change={change(momentum.grossProfitDeltaPct, lastMonth?.grossProfit)}
+        facts={[fact("Sales", bridge.revenue), fact("Cost of sales", -bridge.cogs), margin(kpis.grossMarginPct)]}
+      />
+      <Headline
+        heading="Operating profit"
+        value={bridge.ebitda}
+        change={change(momentum.ebitdaDeltaPct, lastMonth?.ebitda)}
+        facts={[
+          fact("Gross profit", bridge.grossProfit),
+          fact(`Running costs${estimated}`, -bridge.operatingExpense),
+          margin(kpis.ebitdaMarginPct),
+        ]}
+      />
+      <Headline
+        heading="Net profit"
+        value={bridge.netProfit}
+        change={change(momentum.netProfitDeltaPct, lastMonth?.netProfit)}
+        facts={[
+          fact("Operating profit", bridge.ebitda),
+          fact(`Depreciation, interest and tax${estimated}`, -bridge.belowEbitda),
+          margin(kpis.netMarginPct),
+        ]}
+      />
+    </section>
+  );
+}
+
+function Headline({
+  heading,
+  value,
+  change: against,
+  facts,
+}: {
+  heading: string;
+  value: number;
+  change: string;
+  facts: FactListItem[];
+}) {
+  return (
+    <div className="min-w-0">
+      <SectionHeading maxWidth={LIST_WIDTH}>{heading}</SectionHeading>
+      <p className="font-mono text-[28px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-[var(--text-strong)]">
+        {formatSignedMoney(value)}
+      </p>
+      <p className="mb-2 mt-1 text-[13px] text-[var(--text-muted)]">{against}</p>
+      <FactList items={facts} align="end" maxWidth={LIST_WIDTH} labelWidth={240} />
+    </div>
+  );
+}
+
+/** What this month was paid with, largest first, and each tender's share of it. */
+function Tenders({ rows }: { rows: RetailDashboardPayload["tenderMix"] }) {
+  const sorted = rows.slice().sort((a, b) => b.amount - a.amount);
+  const total = sorted.reduce((sum, row) => sum + row.amount, 0);
+  const share = (amount: number) => (total > 0 ? `${Math.round((amount / total) * 100)}%` : "—");
+
+  return (
+    <section aria-labelledby="overview-tenders">
+      <SectionHeading maxWidth={LIST_WIDTH}>
+        <span id="overview-tenders">Tenders</span>
+      </SectionHeading>
+      <ColumnList
+        label="Tenders"
+        maxWidth={LIST_WIDTH}
+        empty="No tenders taken this month."
+        columns={[
+          { id: "tender", label: "Tender" },
+          { id: "share", label: "Share", align: "end" },
+          { id: "amount", label: "Amount", align: "end" },
+        ]}
+        rows={sorted.map((row) => ({
+          id: row.tenderType,
+          cells: {
+            tender: <ColumnName name={tenderLabel(row.tenderType)} />,
+            share: <ColumnFigure tone="muted">{share(row.amount)}</ColumnFigure>,
+            amount: <ColumnFigure>{formatSignedMoney(row.amount)}</ColumnFigure>,
+          },
+        }))}
+        total={
+          sorted.length > 1
+            ? { tender: "Total", share: null, amount: <ColumnFigure>{formatSignedMoney(total)}</ColumnFigure> }
+            : undefined
+        }
+      />
+    </section>
   );
 }

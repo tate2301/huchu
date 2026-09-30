@@ -40,7 +40,7 @@ import {
 import {
   CommitInput,
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailGrid,
   DetailRow,
@@ -355,7 +355,7 @@ export default function DowntimeCodesManagementPage() {
           />
         )}
 
-        <CreateSheet
+        <CreateDialog
           open={creating}
           onOpenChange={setCreating}
           title="New downtime code"
@@ -417,7 +417,7 @@ export default function DowntimeCodesManagementPage() {
               />
             )}
           </CreateField>
-        </CreateSheet>
+        </CreateDialog>
       </RegisterLayout>
     </ManagementShell>
   );

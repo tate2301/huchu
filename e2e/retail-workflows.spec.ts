@@ -186,12 +186,12 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
     ledger, the Z-report — is arithmetic on nothing. This is the assertion that
     S-3 and S-4b actually landed.
   */
-  const amountDue = page.locator('text="Amount Due"').locator("..");
+  const amountDue = page.locator('text="Amount due"').locator("..");
   const dueText = (await amountDue.innerText()).replace(/\s+/g, " ");
   expect(
     dueText,
     `amount due stayed at zero after adding ${productName} — no price resolved`,
-  ).not.toMatch(/Amount Due\s+0\.00/i);
+  ).not.toMatch(/Amount due\s+0\.00/i);
 
   /*
     Pay. The presets are exact / round up to 5 / round up to 10, which is how a
@@ -237,7 +237,8 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
     — see the follow-up on giving the customer-facing one a human size.
   */
   const receiptText = await receipt.innerText();
-  expect(receiptText, "the receipt names no sale number").toMatch(/\b(?:RSL|S)-\d+/);
+  expect(receiptText, "the receipt names no sale number").toMatch(/(?:RSL|S)-\d+/);
+  const saleNumber = receiptText.match(/(?:RSL|S)-\d+/)?.[0] ?? "";
 
   await page.keyboard.press("Escape");
   await settle(page, 3000);
@@ -273,7 +274,9 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
   await visitSettled(page, "/history");
   await settle(page, PAGE_SETTLE_MS);
 
-  await page.locator("tbody tr").first().click();
+  // This sale's row, not the newest one: another spec may have voided a sale
+  // since, and a void carries no Refund.
+  await page.locator("tbody tr").filter({ hasText: new RegExp(`${saleNumber}(?!\\d)`) }).first().click();
   await settle(page, 4000);
 
   const detail = page.getByRole("dialog");
@@ -311,7 +314,7 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
   await settle(page, 1500);
   await shot(page, "manager-approves-at-the-counter");
 
-  const postRefund = refundDialog.getByRole("button", { name: /post refund/i });
+  const postRefund = refundDialog.getByRole("button", { name: /refund the sale/i });
   await expect(postRefund).toBeEnabled();
   await postRefund.click();
 
@@ -394,7 +397,7 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
   await shot(page, "two-notes-to-the-safe");
 
   // The confirm names the amount it is about to move — "Drop to safe 20.00".
-  const confirmDrop = drop.getByRole("button", { name: /drop to safe/i }).last();
+  const confirmDrop = drop.getByRole("button", { name: /to the safe/i }).last();
   await expect(confirmDrop).toBeEnabled();
   await confirmDrop.click();
   await settle(page, 7000);

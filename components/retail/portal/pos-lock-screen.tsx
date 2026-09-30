@@ -309,17 +309,17 @@ function PosLockScreen({ onUnlocked }: { onUnlocked: () => void }) {
             <Lock className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+            <p className="text-xs font-bold text-[var(--text-muted)]">
               Till locked
             </p>
             <p className="truncate text-[15px] font-bold text-[var(--text-strong)]">
               {operatorName}
             </p>
-            <p className="truncate text-xs text-[var(--text-muted)]">
-              {currentShift
-                ? `${currentShift.shiftNo} · ${currentShift.registerName}`
-                : "Still signed in"}
-            </p>
+            {currentShift ? (
+              <p className="truncate text-xs text-[var(--text-muted)]">
+                {`${currentShift.shiftNo} · ${currentShift.registerName}`}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -335,7 +335,7 @@ function PosLockScreen({ onUnlocked }: { onUnlocked: () => void }) {
                     ? ` ${attemptsRemaining} ${attemptsRemaining === 1 ? "try" : "tries"} left.`
                     : ""
                 }`
-              : "Type your four-digit PIN to carry on."}
+              : null}
           </p>
         </div>
 
@@ -359,10 +359,6 @@ function PosLockScreen({ onUnlocked }: { onUnlocked: () => void }) {
           <LogOut className="h-4 w-4" />
           Sign in with your password instead
         </button>
-        <p className="mt-3 text-center text-[11px] leading-4 text-[var(--text-muted)]">
-          The PIN only unlocks this screen. It cannot approve a price override or a
-          refund — a manager still types their password for those.
-        </p>
       </div>
     </div>
   );

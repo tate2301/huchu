@@ -48,7 +48,7 @@ import {
 
 import {
   CreateField,
-  CreateSheet,
+  CreateDialog,
   DETAIL_CONTROL_CLASS,
   DetailGrid,
   DetailRow,
@@ -452,7 +452,7 @@ export function UserRecord({ userId }: { userId: string }) {
         />
       )}
 
-      <CreateSheet
+      <CreateDialog
         open={resetOpen}
         onOpenChange={(open) => {
           setResetOpen(open);
@@ -479,7 +479,7 @@ export function UserRecord({ userId }: { userId: string }) {
             />
           )}
         </CreateField>
-      </CreateSheet>
+      </CreateDialog>
     </>
   );
 }

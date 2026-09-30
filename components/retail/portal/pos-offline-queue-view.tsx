@@ -40,7 +40,8 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { dsConfirm } from "@/components/ui/ds-confirm";
+import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { fetchJson } from "@/lib/api-client";
 import {
   AlertTriangle,
@@ -50,7 +51,6 @@ import {
   Trash2,
   Upload,
   Wallet,
-  Wifi,
 } from "@/lib/icons";
 import {
   classifyQueuedSale,
@@ -58,13 +58,8 @@ import {
   type QueuedSaleVerdict,
 } from "@/lib/retail/offline-queue-verdict";
 import { queuedSaleLabel } from "@/lib/retail/pos-offline-queue";
-import {
-  PosEmptyState,
-  PosMetricCard,
-  PosPanel,
-  PosPanelHeader,
-  PosStatusPill,
-} from "./pos-primitives";
+import { formatRetailDateTime } from "@/lib/retail/words";
+import { PosEmptyState, PosPanel, PosPanelHeader, PosStatusPill } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { SaleRow } from "./pos-types";
 import { money, round } from "./pos-utils";
@@ -72,15 +67,7 @@ import { money, round } from "./pos-utils";
 type ReplayedSale = SaleRow & { notes: string | null };
 
 function formatTime(value: string | null | undefined) {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  return parsed.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatRetailDateTime(value) || "—";
 }
 
 const VERDICT_ICON = {
@@ -157,13 +144,12 @@ function VerdictRow({
 export function PosOfflineQueueView() {
   const {
     queuedOfflineSales,
-    pendingOfflineSales,
     retryOfflineSale,
     removeOfflineSale,
     syncOfflineSales,
     syncOfflineSalesPending,
   } = usePosPortalState();
-  const { isOffline, operations, lastSyncedAt, statusLabel } = useOfflineRuntime();
+  const { isOffline, operations } = useOfflineRuntime();
 
   /**
    * The outbox summary carries the dependency state — whether this sale is stuck
@@ -200,8 +186,6 @@ export function PosOfflineQueueView() {
     [blockedBy, queuedOfflineSales],
   );
 
-  const queueValue = round(rows.reduce((sum, row) => sum + row.total, 0));
-  const needsSomebody = rows.filter((row) => !row.verdict.retryable).length;
 
   /**
    * Replays that already landed. `scope=mine` is the cashier's own, which is the
@@ -226,50 +210,10 @@ export function PosOfflineQueueView() {
 
   return (
     <div className="space-y-4">
-      {/* ══ Status ══════════════════════════════════════════════ */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <PosMetricCard
-          icon={isOffline ? CloudOff : Wifi}
-          label="Connection"
-          value={isOffline ? "Offline" : "Online"}
-          meta={isOffline ? "Sales are being saved on this till" : statusLabel}
-          tone={isOffline ? "warning" : "success"}
-        />
-        <PosMetricCard
-          icon={Upload}
-          label="Waiting to go up"
-          value={String(pendingOfflineSales)}
-          meta={pendingOfflineSales === 1 ? "sale" : "sales"}
-          tone={pendingOfflineSales > 0 ? "brand" : "neutral"}
-        />
-        <PosMetricCard
-          icon={Wallet}
-          label="Queue value"
-          value={money(queueValue)}
-          meta="Taken over the counter, not yet on the system"
-          tone={queueValue > 0 ? "brand" : "neutral"}
-        />
-        <PosMetricCard
-          icon={needsSomebody > 0 ? AlertTriangle : CheckCircle2}
-          label="Needs somebody"
-          value={String(needsSomebody)}
-          meta={
-            needsSomebody > 0
-              ? "will not clear on their own"
-              : lastSyncedAt
-                ? `Last sync ${formatTime(lastSyncedAt)}`
-                : "Nothing stuck"
-          }
-          tone={needsSomebody > 0 ? "danger" : "success"}
-        />
-      </div>
-
       {/* ══ The queue ═══════════════════════════════════════════ */}
       <PosPanel>
         <PosPanelHeader
-          eyebrow="Offline"
-          title="Waiting to sync"
-          description="Sales this till took while the line was down. They go up on their own as soon as it is back — these are here so you can see what is outstanding, and so nothing that needs a person gets lost in the pile."
+          title={`${rows.length} ${rows.length === 1 ? "sale" : "sales"} waiting`}
           actions={
             <Button
               size="sm"
@@ -279,17 +223,13 @@ export function PosOfflineQueueView() {
               onClick={() => syncOfflineSales()}
             >
               <RefreshCw className="h-4 w-4" />
-              {syncOfflineSalesPending ? "Syncing…" : "Sync now"}
+              {syncOfflineSalesPending ? "Sending…" : "Send now"}
             </Button>
           }
         />
 
         {rows.length === 0 ? (
-          <PosEmptyState
-            icon={CheckCircle2}
-            title="Nothing waiting"
-            description="Every sale this till has taken is on the shop's system. If the line goes down, sales carry on here and appear on this screen until they go up."
-          />
+          <PosEmptyState icon={CheckCircle2} title="No sales waiting" />
         ) : (
           <div className="space-y-2">
             {rows.map(({ operation, total, lineCount, verdict }) => (
@@ -297,7 +237,7 @@ export function PosOfflineQueueView() {
                 key={operation.operationId}
                 verdict={verdict}
                 title={queuedSaleLabel(operation.payload)}
-                meta={`${lineCount} ${lineCount === 1 ? "line" : "lines"} · rung ${formatTime(operation.createdAt)}${
+                meta={`${lineCount} ${lineCount === 1 ? "product" : "products"} · rung ${formatTime(operation.createdAt)}${
                   operation.payload.customerName ? ` · ${operation.payload.customerName}` : ""
                 }`}
                 amount={money(total)}
@@ -311,7 +251,7 @@ export function PosOfflineQueueView() {
                       onClick={() => retryOfflineSale(operation.operationId)}
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
-                      Try again
+                      Send again
                     </Button>
                     {/*
                       Removing is destructive in the worst way — the shop took this
@@ -327,17 +267,19 @@ export function PosOfflineQueueView() {
                         className="h-9 px-3 text-xs"
                         style={{ color: "var(--pos-status-danger-text)" }}
                         onClick={() => {
-                          if (
-                            window.confirm(
-                              `Drop ${queuedSaleLabel(operation.payload)} from the queue? The money is already in the drawer and this sale will never reach the system.`,
-                            )
-                          ) {
-                            removeOfflineSale(operation.operationId);
-                          }
+                          void dsConfirm({
+                            title: `Discard ${queuedSaleLabel(operation.payload)}?`,
+                            description:
+                              "The money stays in the drawer, and this sale never reaches the shop's system.",
+                            confirmLabel: "Discard the sale",
+                            variant: "danger",
+                          }).then((confirmed) => {
+                            if (confirmed) removeOfflineSale(operation.operationId);
+                          });
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        Drop
+                        Discard
                       </Button>
                     ) : null}
                   </div>
@@ -351,11 +293,7 @@ export function PosOfflineQueueView() {
       {/* ══ What a superseded price did ═════════════════════════ */}
       {replays.length > 0 ? (
         <PosPanel>
-          <PosPanelHeader
-            eyebrow="Offline"
-            title="Replays that went up"
-            description="Sales this till took offline and has since sent. A sale rung at a price the shop changed afterwards posts at the price the customer was actually charged — which is right, and worth knowing about, because it is not the price on the shelf today."
-          />
+          <PosPanelHeader title="Sent after the line came back" />
           <div className="space-y-2">
             {replays.map(({ sale, verdict }) => (
               <div
@@ -367,12 +305,12 @@ export function PosOfflineQueueView() {
                     <span className="font-mono text-[13px] font-bold text-[var(--text-strong)]">
                       {sale.saleNo}
                     </span>
-                    <PosStatusPill tone={verdict.tone === "success" ? "success" : "warning"}>
-                      {verdict.label}
-                    </PosStatusPill>
+                    {verdict.tone === "success" ? null : (
+                      <PosStatusPill tone="warning">{verdict.label}</PosStatusPill>
+                    )}
                   </div>
                   <div className="mt-0.5 text-xs text-[var(--text-muted)]">
-                    Rung {formatTime(verdict.soldAt)} · posted {formatTime(sale.postedAt)}
+                    Rung {formatTime(verdict.soldAt)} · sent {formatTime(sale.postedAt)}
                   </div>
                   {verdict.kind === "MATCHED" ? null : (
                     <>
@@ -437,28 +375,14 @@ export function OfflineCashLimitationNotice() {
           <Wallet className="h-4 w-4" />
         </span>
         <div className="min-w-0">
-          <h3 className="text-[15px] font-bold text-[var(--text-strong)]">
-            Cash drops do not queue
+          <h3 className="flex flex-wrap items-center gap-2 text-[15px] font-bold text-[var(--text-strong)]">
+            Moving cash needs the line
+            {isOffline ? <PosStatusPill tone="warning">Offline</PosStatusPill> : null}
           </h3>
           <p className="mt-1.5 max-w-[68ch] text-sm leading-6 text-[var(--text-muted)]">
-            Sales keep working with no connection. <strong>Moving cash does not.</strong> If
-            you drop money to the safe, take a float in, or pay a supplier out of the
-            drawer while the till is offline, the till cannot record it —
-            <em> Move cash</em> on the Shift screen needs the line.
+            Write cash moved while offline on the safe log, and enter it on Shift before
+            you cash up.
           </p>
-          <p className="mt-2 max-w-[68ch] text-sm leading-6 text-[var(--text-muted)]">
-            Write it on the safe log at the time, and enter it on the Shift screen
-            as soon as the connection is back — <strong>before you cash up</strong>. If
-            you do not, the drawer will count short by exactly what was moved, and
-            the shortfall will be against your name.
-          </p>
-          {isOffline ? (
-            <div className="mt-3">
-              <PosStatusPill tone="warning">
-                The line is down now — anything you move, write down
-              </PosStatusPill>
-            </div>
-          ) : null}
         </div>
       </div>
     </PosPanel>

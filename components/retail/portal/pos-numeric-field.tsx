@@ -43,7 +43,7 @@ export function PosNumericField({
       }
     >
       <span
-        className="text-[10px] font-bold uppercase tracking-[0.18em]"
+        className="text-xs font-bold"
         style={{ color: "var(--pos-lcd-label)" }}
       >
         {label}

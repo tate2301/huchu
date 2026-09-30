@@ -96,7 +96,6 @@ function clearKeyStyle() {
     color: "var(--pos-key-clear-text)",
     fontSize: "13px",
     fontWeight: 900,
-    letterSpacing: "0.08em",
   } as React.CSSProperties;
 }
 
@@ -159,12 +158,12 @@ export function PosNumericKeypad({
           {key.label}
         </button>
       ))}
-      <button type="button" className={base} style={backspaceKeyStyle()} onClick={() => onAction({ type: "backspace" })}>
+      <button type="button" aria-label="Delete the last digit" className={base} style={backspaceKeyStyle()} onClick={() => onAction({ type: "backspace" })}>
         <Delete className="h-5 w-5" />
       </button>
       {clear ? (
-        <button type="button" className={base} style={clearKeyStyle()} onClick={() => onAction({ type: "clear" })}>
-          CLR
+        <button type="button" aria-label="Clear the amount" className={base} style={clearKeyStyle()} onClick={() => onAction({ type: "clear" })}>
+          Clear
         </button>
       ) : null}
     </div>

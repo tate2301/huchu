@@ -103,7 +103,7 @@ test("a manager approves a void at the counter", async ({ page }) => {
     failed is worse than no setup step.
   */
   await expect(
-    page.getByText("DRAWER CONTROL").first(),
+    page.getByRole("heading", { name: /^(No shift open|Shift )/ }).first(),
     "the till's shift screen did not load — check the POS host and the session",
   ).toBeVisible({ timeout: 30_000 });
 
@@ -131,7 +131,7 @@ test("a manager approves a void at the counter", async ({ page }) => {
 
     // The drawer is either open now or this spec has nothing to test.
     await expect(
-      page.getByText("DRAWER CONTROL").first(),
+      page.getByRole("heading", { name: /^Shift / }).first(),
       "opened a shift but the drawer did not come up",
     ).toBeVisible({ timeout: 30_000 });
     await expect(
@@ -221,9 +221,9 @@ test("a manager approves a void at the counter", async ({ page }) => {
   const dialog = page.getByRole("dialog").last();
   // The heading, explicitly. "Void sale" is also the confirm button's label, so
   // a bare text match resolves to two elements and fails strict mode.
-  await expect(dialog.getByRole("heading", { name: "Void sale" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: /^Void RSL-\d+\?$/ })).toBeVisible();
 
-  await dialog.getByPlaceholder(/accidental duplicate/i).fill("Rung on the wrong till");
+  await dialog.getByPlaceholder(/duplicate, wrong till/i).fill("Rung on the wrong till");
 
   /*
     Voiding is not a till permission either — `RUN_A_TILL` withholds `void` the
@@ -240,7 +240,7 @@ test("a manager approves a void at the counter", async ({ page }) => {
   await settle(page, 1_500);
   await shot(page, "manager-approves-the-void");
 
-  const confirm = dialog.getByRole("button", { name: "Void sale", exact: true });
+  const confirm = dialog.getByRole("button", { name: "Void the sale", exact: true });
   await expect(confirm).toBeEnabled();
   await confirm.click();
 

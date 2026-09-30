@@ -145,7 +145,7 @@ export function RecordListShell({
       {error ? (
         <Alert
           tone="danger"
-          title={`Unable to load ${title.toLowerCase()}`}
+          title={`The ${title.toLowerCase()} would not load`}
           className="mt-4"
         >
           {getApiErrorMessage(error)}

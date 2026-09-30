@@ -70,33 +70,33 @@ const TILL: readonly Route[] = [
       the register is unlocked. Whitespace is tolerated rather than assumed,
       which is the part that had been quietly wrong.
     */
-    expect: /Recall\s*\/\s*search/i,
+    expect: /Charge/,
   },
   {
     path: "/portal/pos/overview",
     name: "Till overview",
     redirectsTo: "/overview",
-    expect: /Your shift so far/i,
+    expect: /Today/,
   },
   {
     path: "/portal/pos/held",
-    name: "Held carts",
+    name: "Held sales",
     redirectsTo: "/held",
-    expect: /Recall any cart to instantly resume it at checkout/i,
+    expect: /Held sales/,
   },
   {
     path: "/portal/pos/history",
-    name: "Sales history",
+    name: "History",
     redirectsTo: "/history",
     // The seed's receipt numbering. 120 matching receipts on this fixture, so
     // an empty history here is a real failure rather than a quiet tenant.
-    expect: /RSL-\d{4}/,
+    expect: /(RSL|S)-\d{4}/,
   },
   {
     path: "/portal/pos/activity",
     name: "Till activity log",
     redirectsTo: "/activity",
-    expect: /Everything you have rung, reversed, moved or counted/i,
+    expect: /Activity/,
   },
   {
     path: "/portal/pos/shift",
@@ -110,13 +110,13 @@ const TILL: readonly Route[] = [
       left the till mid-shift. "No active shift" is the correct rendering of a
       closed drawer and not a failure of this screen.
     */
-    expect: /Drawer control/i,
+    expect: /Shift/,
   },
   {
     path: "/portal/pos/price-check",
     name: "Price check",
     redirectsTo: "/price-check",
-    expect: /Scan-first, glanceable/i,
+    expect: /Price check/,
   },
   {
     path: "/portal/pos/reports",
@@ -134,25 +134,25 @@ const TILL: readonly Route[] = [
       Whether a sale can be rung is `retail-workflows`' job to prove. This one
       proves the reports screen renders.
     */
-    expect: /Your sales at a glance/i,
+    expect: /Reports/,
   },
   {
     path: "/portal/pos/settings",
     name: "Till settings",
     redirectsTo: "/settings",
-    expect: /Everything here is read-only at the till/i,
+    expect: /Till settings/,
   },
   {
     path: "/portal/pos/help",
     name: "Till help",
     redirectsTo: "/help",
-    expect: /The keys, the everyday jobs, and what to do when something does not go to plan/i,
+    expect: /Help/,
   },
   {
     path: "/portal/pos/offline",
     name: "Offline queue",
     redirectsTo: "/offline",
-    expect: /Sales this till took while the line was down/i,
+    expect: /Offline/,
   },
   {
     path: "/portal/pos/customers",
@@ -160,7 +160,7 @@ const TILL: readonly Route[] = [
     redirectsTo: "/customers",
     // Was /access-blocked for every cashier until `crm.customers` was added to
     // the till role templates. See the header note.
-    expect: /Start with at least 2 characters/i,
+    expect: /Type at least two letters to search/i,
   },
 ];
 
@@ -213,7 +213,7 @@ test("every till screen is inside the lock provider", async ({ page, console_ })
     await expect(
       page.locator("body"),
       `${path} should render inside the POS frame, which carries the lock`,
-    ).toContainText(/POS TERMINAL/i, { timeout: 15_000 });
+    ).toContainText(/Log out/, { timeout: 15_000 });
   }
   await expectHealthyPage(page, console_);
 });

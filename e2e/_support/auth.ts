@@ -48,8 +48,12 @@ async function submitLogin(
   await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => {});
   await page.waitForTimeout(HYDRATION_MS);
 
-  await page.fill(fields.email, who.email);
-  await page.fill(fields.password, who.password);
+  // A portal host may serve the workspace's own sign-in form rather than the
+  // portal's (the till does, on a nominated host) — use whichever is there.
+  const portalForm = fields === PORTAL_FIELDS && (await page.locator(PORTAL_FIELDS.email).count()) > 0;
+  const form = fields === PORTAL_FIELDS && !portalForm ? MAIN_FIELDS : fields;
+  await page.fill(form.email, who.email);
+  await page.fill(form.password, who.password);
   await page.click('button[type="submit"]');
 
   /*
