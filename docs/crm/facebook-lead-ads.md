@@ -1,165 +1,127 @@
-# Facebook Lead Ads → CRM
+# Facebook Lead Ads — deployment setup
 
-How a lead someone fills in on a Facebook or Instagram ad becomes a lead in the
-CRM pipeline, and how to set that up end to end.
+One Meta app serves every workspace. You set it up once; after that a customer
+connects their Page by pressing a button and choosing it from a list.
 
----
-
-## Why the API key you already made will not work
-
-The CRM already has a generic lead webhook — `POST /api/public/crm/webhook/leads`
-with an `x-api-key` header — and its API keys even offer "Facebook Lead Ads" as
-an example source label. That endpoint is for a system you control: your own
-website form, a Zapier step, an n8n flow.
-
-Meta is not that system. Three things make Lead Ads its own integration:
-
-1. **No custom headers.** Meta posts its own envelope to one callback URL per
-   app. There is nowhere to put `x-api-key`.
-2. **Signatures, not tokens.** A delivery authenticates with
-   `X-Hub-Signature-256`: an HMAC-SHA256 of the exact bytes delivered, keyed by
-   your Meta **app secret**. So the credential is a signing key that has to be
-   stored and replayed, not a token that can be stored as a hash and compared.
-3. **The payload has no lead in it.** A delivery carries a `leadgen_id` and the
-   ids around it. The name, email, phone and every answer come back out of the
-   Graph API afterwards, authenticated with a **Page access token**.
-
-So there is a dedicated endpoint, `/api/public/crm/webhook/facebook/{token}`,
-and a dedicated settings section: **CRM → Settings → Facebook ads**.
-
-> If you would rather not manage a Meta app at all, Zapier or Make can sit in
-> between: have them watch the lead form and POST to the generic
-> `/api/public/crm/webhook/leads` endpoint with the API key you already
-> generated. You lose the ad, ad set and campaign attribution that the native
-> path captures, and you gain a monthly bill and a second thing that can break.
+For the guide you hand a customer, see
+[`facebook-lead-ads-customer-guide.md`](./facebook-lead-ads-customer-guide.md).
 
 ---
 
-## What you need before you start
+## Why one app and not one per customer
 
-| Thing | Where it comes from |
+The first cut of this integration asked each tenant for a Meta app id, an app
+secret and a long-lived Page access token. Getting the third means running three
+Graph API calls by hand. That is a wall, not a learning curve, for the people
+this feature is for — and it put an app secret in a form field, which is the
+wrong place for one.
+
+Facebook Login does those same three calls server-side, but only if one app
+serves everyone: an OAuth client id is deployment config, not something a
+customer types. It also moves Meta's app review from every customer to us,
+once — `leads_retrieval` needs Advanced Access before an app may read a
+stranger's lead, and no small business is going to film a screencast and wait a
+week for Meta.
+
+The cost is one constraint: a Meta app has exactly **one** webhook URL, so a
+delivery is routed by the only id it carries — `entry[].id`, the Page. That is
+why `CrmFacebookConnection.pageId` is globally unique. Two workspaces claiming
+one Page would make a lead's owner a coin toss, so connecting a Page another
+workspace holds is refused.
+
+---
+
+## One-time setup
+
+### 1. Create the Meta app
+
+**developers.facebook.com** → **My Apps** → **Create app** → business type.
+Then **App settings → Basic** for the **App ID** and **App secret**.
+
+### 2. Set four environment variables
+
+```
+FACEBOOK_APP_ID=...
+FACEBOOK_APP_SECRET=...
+FACEBOOK_WEBHOOK_VERIFY_TOKEN=...        # any random string you choose
+CRM_INTEGRATION_ENCRYPTION_KEY=...       # openssl rand -base64 32
+```
+
+The last one encrypts stored Page tokens and the short-lived connect cookie.
+Without it — or without the other three — the settings screen hides the Connect
+button and says why, rather than offering one that 503s.
+
+Rotating `CRM_INTEGRATION_ENCRYPTION_KEY` makes every stored token unreadable.
+Customers reconnect in one click, but they do have to.
+
+### 3. Add Facebook Login and register the redirect
+
+**Products → Facebook Login → Settings.** Under **Valid OAuth Redirect URIs**:
+
+```
+https://<your-host>/api/v2/crm/integrations/facebook/callback
+```
+
+Meta compares this string to the one we send on both the dialog and the code
+exchange, and refuses a mismatch. It must match exactly — scheme, host, path,
+no trailing slash.
+
+### 4. Point the webhook at the CRM
+
+**Products → Webhooks → Page → Subscribe to this object.**
+
+| Field | Value |
 |---|---|
-| A Facebook **Page** | The Page the ads run from. You need an admin role on it. |
-| A Meta **app** | developers.facebook.com → My Apps → Create App → **Business** |
-| **App ID** and **App secret** | App dashboard → App settings → Basic |
-| A long-lived **Page access token** | Graph API Explorer, then extended — see below |
-| `leads_retrieval` and `pages_manage_metadata` permissions | Requested on the app |
-| `CRM_INTEGRATION_ENCRYPTION_KEY` set on the deployment | `openssl rand -base64 32` |
+| Callback URL | `https://<your-host>/api/public/crm/webhook/facebook` |
+| Verify Token | whatever you set `FACEBOOK_WEBHOOK_VERIFY_TOKEN` to |
 
-The last one is ours, not Meta's. The app secret and Page access token are
-stored encrypted (AES-256-GCM), and without that key the deployment refuses to
-save a connection rather than storing a token it cannot protect. The settings
-panel says so before you type anything.
+Press **Verify and Save**, then tick the **`leadgen`** field.
 
----
+There is no per-customer URL to configure. Every tenant's Pages deliver here.
 
-## Step 1 — Get a long-lived Page access token
+### 5. Get Advanced Access for `leads_retrieval`
 
-A token from the Graph API Explorer lasts about an hour, which is long enough to
-pass the setup and short enough to fail silently the next morning. Extend it.
+**App Review → Permissions and Features.** Request **Advanced Access** for
+`leads_retrieval` and `pages_manage_metadata`, then switch the app to **Live**.
 
-1. **Graph API Explorer** (developers.facebook.com/tools/explorer), pick your
-   app, then **Get Token → Get User Access Token**. Tick `leads_retrieval`,
-   `pages_show_list`, `pages_read_engagement` and `pages_manage_metadata`.
-2. Exchange the short-lived user token for a long-lived one:
+Until this is done the app can only read leads from people who have a role on
+it. Your own test leads work; a real customer's lead comes back as a permissions
+error. This is the single most common reason a setup looks finished and produces
+nothing.
 
-   ```
-   GET https://graph.facebook.com/v23.0/oauth/access_token
-       ?grant_type=fb_exchange_token
-       &client_id={app-id}
-       &client_secret={app-secret}
-       &fb_exchange_token={short-lived-user-token}
-   ```
+### 6. Run the migration
 
-3. Use that long-lived **user** token to fetch the **Page** token, which does
-   not expire as long as the user token was long-lived:
-
-   ```
-   GET https://graph.facebook.com/v23.0/me/accounts
-       ?access_token={long-lived-user-token}
-   ```
-
-   The response lists your Pages. Take the `access_token` of the right one, and
-   note its `id` — that is the Page ID you will need.
-
-4. Sanity check what you have:
-
-   ```
-   GET https://graph.facebook.com/v23.0/debug_token
-       ?input_token={page-token}
-       &access_token={app-id}|{app-secret}
-   ```
-
-   `expires_at: 0` means it does not expire. Anything else, go back to step 2 —
-   you extended the wrong token.
+`20260913090000_crm_facebook_platform_app`. It drops the per-tenant credential
+columns and deletes any connections made under the old flow — their tokens were
+issued to a different Meta app and would fail signature verification on the
+first delivery. Better a customer presses one button than a row that looks
+connected and is not. The delivery ledger is kept.
 
 ---
 
-## Step 2 — Connect the Page in the CRM
+## What a customer then does
 
-**CRM → Settings → Facebook ads → Connect Page.** Fill in the Page ID, app ID,
-app secret and the Page access token from step 1, and pick the channel these
-leads should be attributed to (**Paid ads** is the default).
+1. **CRM → Settings → Facebook ads → Connect Facebook**
+2. Approve Facebook's permission screen
+3. Pick their Page from the list
 
-Saving generates two values, shown at the top of the panel with copy buttons:
+That is the whole flow. Behind the button:
 
-- a **callback URL** — `https://your-workspace/api/public/crm/webhook/facebook/{token}`
-- a **verify token**
+| Step | What happens |
+|---|---|
+| Connect | Signed `state` carrying the workspace; redirect to Facebook |
+| Callback | Code → user token → long-lived user token → `/me/accounts` |
+| Picker | Pages listed by name; already-connected ones marked |
+| Pick | Page token encrypted and stored, Page subscribed to `leadgen` |
 
-Both go into Meta next. Nothing is verified yet, and the panel says
-*Awaiting Meta* until it is.
-
----
-
-## Step 3 — Point the Meta app at the callback URL
-
-In the app dashboard: **Products → + Add product → Webhooks → Page → Subscribe
-to this object.**
-
-- **Callback URL** — paste the callback URL from step 2.
-- **Verify Token** — paste the verify token from step 2.
-- **Verify and Save.**
-
-Meta immediately sends a `GET` with `hub.mode=subscribe`, `hub.verify_token` and
-`hub.challenge`. The endpoint compares the token and echoes the challenge back
-as plain text. If it fails, see *When it does not work* below.
-
-Then, in the Page webhook's field list, **subscribe to `leadgen`**. This is a
-separate tick from saving the callback URL, and it is the one people miss.
+The subscribe happens while the customer is still watching. A connection that
+reports success and quietly receives nothing is the failure this flow exists to
+prevent — an app can have a verified webhook and a perfectly good token and
+still receive nothing, because a Page delivers no leads until it is subscribed.
 
 ---
 
-## Step 4 — Subscribe the Page, and prove it works
-
-Back in **CRM → Settings → Facebook ads**, press **Check** on the connection.
-
-That one button does three things, in order: reads the Page with the saved
-token (proving the token works and that it belongs to that Page), checks whether
-the Page is subscribed to your app's `leadgen` field, and subscribes it if not.
-It reports exactly what Meta said.
-
-This step exists because the failure it prevents is invisible otherwise. An app
-webhook pointed at a verified callback URL shows a green tick in the Meta
-dashboard whether or not any Page is subscribed to it — so the dashboard looks
-finished, the test button works, and no real lead ever arrives.
-
----
-
-## Step 5 — Send a test lead
-
-Use Meta's **Lead Ads Testing Tool**
-(developers.facebook.com/tools/lead-ads-testing): pick the Page and the form,
-press **Create lead**.
-
-Within a second or two the lead should appear in **CRM → Leads**, stage **New**.
-The delivery shows in **Settings → Facebook ads → Deliveries** as `ingested`.
-
-> Leads created by the testing tool are real rows in your CRM. Archive them when
-> you are done, or they will sit in the pipeline as enquiries nobody can call.
-
----
-
-## What arrives, and where it lands
+## What arrives
 
 | Facebook form field | CRM lead |
 |---|---|
@@ -169,94 +131,84 @@ The delivery shows in **Settings → Facebook ads → Deliveries** as `ingested`
 | `company_name`, `job_title`, address parts | Lead details |
 | Any custom question | Lead details, and the activity body, as "Question — answer" |
 
-Attribution is captured from the ad, not guessed:
-
 | CRM field | Value |
 |---|---|
 | Source | the connection's source label, default "Facebook Lead Ads" |
-| Channel | **Paid ads**, or **Social media** when the lead is organic (`is_organic`) |
-| UTM source | `facebook`, or `instagram` when the form was filled on Instagram |
+| Channel | **Paid ads**, or **Social media** when the lead is organic |
+| UTM source | `facebook`, or `instagram` when filled on Instagram |
 | UTM medium | `paid_social`, or `social` for an organic lead |
-| UTM campaign | The campaign name, falling back to its id |
-| UTM content | The ad name, falling back to its id |
-| UTM term | The lead form id |
-
-A lead whose email or phone already belongs to a client is attached to that
-client rather than creating a second one. The assignee, if the connection sets
-a default, is notified; otherwise every CRM manager is.
+| UTM campaign / content / term | campaign name, ad name, lead form id |
 
 ---
 
-## What happens to a delivery
+## How a delivery is handled
 
-Every delivery is recorded before it is acted on, and the ledger is in
-**Settings → Facebook ads → Deliveries**.
+**Verify, route, record, deduplicate, only then fetch and apply.**
+
+Verifying is first: the URL is public, so an unsigned POST costs one hash and
+never reaches the database. Routing is by Page. Recording precedes the Graph
+call so a fetch that fails leaves a retryable row rather than a lead nobody ever
+saw. The unique key on `(pageId, leadgenId)` makes Meta's retries a no-op.
+
+Everything past a verified signature answers `200`, including a lead we failed
+to fetch — Meta disables a webhook that keeps erroring, and losing the
+subscription would cost every later lead too.
 
 | Status | Meaning |
 |---|---|
-| `ingested` | A lead was created. |
-| `duplicate` | Meta re-sent a submission that was already handled. Nothing changed. |
-| `ignored` | The delivery was for a Page or a form this connection does not accept. |
-| `failed` | The answers could not be fetched or the lead could not be created. **Retry** is available. |
+| `INGESTED` | A lead was created. |
+| `DUPLICATE` | Meta re-sent a submission already handled. |
+| `IGNORED` | Unconnected Page, paused connection, or a form outside the allow-list. |
+| `FAILED` | Graph fetch or lead creation failed. **Retry** is available. |
 
-The order matters and it is deliberate: **route, verify, record, deduplicate,
-only then fetch and apply.** A delivery whose Graph call fails leaves a `failed`
-row with the reason, which can be retried once the cause is fixed — rather than
-being a lead a customer filled in that nobody ever saw.
-
-**Retry within 90 days.** Meta stops serving a lead's answers after that, and a
-retry then returns nothing.
+**Retry within 90 days.** Meta stops serving a lead's answers after that.
 
 ---
 
 ## When it does not work
 
-**"The URL couldn't be validated" when saving the webhook in Meta.**
-Meta could not reach the callback URL, or the verify token did not match. The
-URL has to be publicly reachable over HTTPS with a valid certificate — a
-localhost or preview URL behind auth will not do. Copy both values again from
-the panel rather than retyping them.
+**"The URL couldn't be validated" when saving the webhook.**
+`FACEBOOK_WEBHOOK_VERIFY_TOKEN` is unset or does not match what you typed in
+Meta. The endpoint answers 500 for unset and 403 for mismatched — check which.
 
-**The callback verified, but no leads arrive.**
-Almost always the Page is not subscribed to `leadgen`. Press **Check**. If it
-reports the Page is subscribed and leads still do not arrive, confirm the ad is
-actually running and that the lead form belongs to the Page you connected.
+**"URL blocked" on the permission screen.**
+The redirect URI is not registered on the app, or does not match exactly.
 
-**Deliveries show, but every one is `failed` with an auth error.**
-The Page access token expired or was revoked — someone changed their password,
-removed the app, or the token was never extended in the first place. Redo step 1
-and use **Connect Page**'s edit to paste the new token, then **Retry** the failed
-deliveries.
+**Everything green, no leads.**
+Almost always Advanced Access (step 5). Confirm the app is Live and that
+`leads_retrieval` shows Advanced Access, not Standard.
 
-**The connection shows a signature error.**
-The app secret saved in the CRM is not the one the app is signing with. This is
-what a rotated app secret looks like. Paste the current secret and the error
-clears.
+**Deliveries all `failed` with an auth error.**
+The customer's Page token expired or was revoked — a password change, or the app
+removed from the Page. They reconnect, then **Retry** the failed deliveries.
 
-**Leads arrive with the name "Facebook lead".**
-The form does not ask for a name. The lead still has the email or phone, and the
-answers are on the record — but the form is worth fixing.
+**A customer cannot connect their Page: "already connected to another workspace".**
+Working as designed — `pageId` is globally unique. Whoever holds it disconnects
+first.
 
 ---
 
-## How it is built
+## Where the code lives
 
 | File | Does |
 |---|---|
-| `app/api/public/crm/webhook/facebook/[token]/route.ts` | The public endpoint. Raw bytes, headers, status codes — nothing else. |
-| `lib/crm/facebook/webhook.ts` | Route, verify, record, deduplicate, fetch, apply. Plus retry. |
+| `lib/crm/facebook/app.ts` | The deployment's Meta app config and OAuth scopes. |
+| `lib/crm/facebook/oauth.ts` | Signed state, code exchange, token extension, Page listing. |
+| `lib/crm/facebook/connect-session.ts` | The encrypted cookie holding the user token between callback and pick. |
+| `lib/crm/facebook/webhook.ts` | Verify, route, record, deduplicate, fetch, apply. Plus retry. |
 | `lib/crm/facebook/signature.ts` | `X-Hub-Signature-256` and the `hub.verify_token` handshake. |
-| `lib/crm/facebook/graph.ts` | The four Graph calls: read a leadgen, read a Page, list forms, subscribe. |
+| `lib/crm/facebook/graph.ts` | Read a leadgen, read a Page, list forms, subscribe. |
 | `lib/crm/facebook/field-mapping.ts` | Meta's `field_data` → a CRM lead. |
-| `lib/crm/facebook/secrets.ts` | AES-256-GCM at rest for the app secret and Page token. |
-| `lib/crm/facebook/connections.ts` | The settings-screen side: callback URLs, the credential check. |
+| `lib/crm/facebook/secrets.ts` | AES-256-GCM at rest. |
+| `app/api/public/crm/webhook/facebook/route.ts` | The one public callback. |
+| `app/api/v2/crm/integrations/facebook/**` | Connect, callback, page picker, settings. |
 | `components/crm/settings/facebook-panel.tsx` | The settings section. |
 
 Two notes for anyone changing this:
 
-- The route reads `request.text()`, never `request.json()`. The signature is
-  over the bytes as delivered, and re-serialising a parsed body changes them —
-  which fails every real delivery while still passing for nothing.
+- The webhook route reads `request.text()`, never `request.json()`. The
+  signature is over the bytes as delivered, and re-serialising a parsed body
+  changes them — which fails every real delivery while still passing for
+  nothing.
 - The `GET` handshake answers `text/plain`, not the JSON envelope every other
-  route here uses. Meta compares the body to `hub.challenge` byte for byte, so a
-  JSON wrapper fails the handshake with a `200`.
+  route here uses. Meta compares the body to `hub.challenge` byte for byte.

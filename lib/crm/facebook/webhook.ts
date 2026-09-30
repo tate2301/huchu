@@ -1,13 +1,20 @@
 /**
  * The inbound half of the Facebook Lead Ads seam.
  *
- * Order of operations, and it is the whole design: **route, verify, record,
+ * Order of operations, and it is the whole design: **verify, route, record,
  * deduplicate, only then fetch and apply.**
  *
- * Routing comes before verifying because the app secret that verifies a
- * delivery is per-tenant — it lives on the connection the callback token
- * names, so there is nothing to check a signature against until the row is
- * loaded. Recording before fetching is what makes a Graph call that fails
+ * Verifying comes first now that one Meta app serves every tenant: the secret
+ * that authenticates a delivery is the deployment's, so a signature can be
+ * checked before anything is looked up. Nothing that follows touches the
+ * database until the bytes are proven to be Meta's.
+ *
+ * Routing is then by Page. A delivery names its Page in `entry[].id` and
+ * carries no other id, which is why `CrmFacebookConnection.pageId` is globally
+ * unique — with one callback URL for the whole deployment, two workspaces
+ * claiming one Page would make a lead's owner a coin toss.
+ *
+ * Recording before fetching is what makes a Graph call that fails
  * halfway visible: the `CrmFacebookLeadEvent` row exists with its error and
  * can be retried, instead of being a lead a customer filled in that nobody
  * ever saw. And the unique key on (pageId, leadgenId) is what makes Meta's
@@ -24,6 +31,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ingestLead } from "@/lib/crm/intake-ingest";
 
+import { facebookAppConfig } from "./app";
 import { mapLeadFields } from "./field-mapping";
 import { GraphApiError, fetchLeadgen, type LeadgenRecord } from "./graph";
 import { decryptSecret } from "./secrets";
@@ -36,9 +44,7 @@ type ResolvedConnection = {
   id: string;
   companyId: string;
   pageId: string;
-  appSecret: string;
   pageAccessToken: string;
-  verifyToken: string;
   formIds: string[];
   defaultChannel: string;
   defaultSourceLabel: string | null;
@@ -50,9 +56,7 @@ const CONNECTION_SELECT = {
   id: true,
   companyId: true,
   pageId: true,
-  appSecretEnc: true,
   pageAccessTokenEnc: true,
-  verifyToken: true,
   formIds: true,
   defaultChannel: true,
   defaultSourceLabel: true,
@@ -64,9 +68,7 @@ type ConnectionRow = {
   id: string;
   companyId: string;
   pageId: string;
-  appSecretEnc: string;
   pageAccessTokenEnc: string;
-  verifyToken: string;
   formIds: string[];
   defaultChannel: string;
   defaultSourceLabel: string | null;
@@ -79,9 +81,7 @@ function resolve(row: ConnectionRow): ResolvedConnection {
     id: row.id,
     companyId: row.companyId,
     pageId: row.pageId,
-    appSecret: decryptSecret(row.appSecretEnc),
     pageAccessToken: decryptSecret(row.pageAccessTokenEnc),
-    verifyToken: row.verifyToken,
     formIds: row.formIds,
     defaultChannel: row.defaultChannel,
     defaultSourceLabel: row.defaultSourceLabel,
@@ -90,9 +90,11 @@ function resolve(row: ConnectionRow): ResolvedConnection {
   };
 }
 
-async function loadConnection(callbackToken: string): Promise<ResolvedConnection | null> {
+/** The one lookup a delivery gets. `pageId` is unique across the deployment,
+ *  so this either finds the workspace that owns the Page or nobody does. */
+async function loadConnectionByPage(pageId: string): Promise<ResolvedConnection | null> {
   const row = await prisma.crmFacebookConnection.findUnique({
-    where: { callbackToken },
+    where: { pageId },
     select: CONNECTION_SELECT,
   });
   return row ? resolve(row as ConnectionRow) : null;
@@ -110,7 +112,7 @@ function noteConnectionError(connectionId: string, error: string): void {
 
 export type VerificationResult =
   | { ok: true; challenge: string }
-  | { ok: false; status: 400 | 403 | 404; error: string };
+  | { ok: false; status: 400 | 403 | 500; error: string };
 
 /**
  * Answer `hub.challenge` with the challenge itself, as plain text.
@@ -118,41 +120,32 @@ export type VerificationResult =
  * Meta compares the response body byte for byte, so a JSON wrapper — the house
  * shape for every other route here — fails the handshake with a 200. The route
  * returns text for this one reason.
+ *
+ * One app, one webhook, one handshake: this runs once when the callback URL is
+ * saved in the Meta dashboard, and again whenever somebody re-verifies it. It
+ * has nothing to do with any particular tenant.
  */
-export async function verifyWebhookSubscription(input: {
-  callbackToken: string;
+export function verifyWebhookSubscription(input: {
   mode: string | null;
   verifyToken: string | null;
   challenge: string | null;
-}): Promise<VerificationResult> {
-  const connection = await loadConnectionForVerification(input.callbackToken);
-  if (!connection) return { ok: false, status: 404, error: "Unknown callback URL" };
+}): VerificationResult {
+  let expected: string;
+  try {
+    expected = facebookAppConfig().webhookVerifyToken;
+  } catch (error) {
+    // Ours to fix, not Meta's. 500 so the dashboard shows a failure an
+    // operator can act on rather than a silent refusal.
+    return { ok: false, status: 500, error: error instanceof Error ? error.message : "Facebook app is not configured" };
+  }
 
   if (input.mode !== "subscribe") return { ok: false, status: 400, error: "Unsupported hub.mode" };
   if (!input.challenge) return { ok: false, status: 400, error: "Missing hub.challenge" };
-
-  if (!verifyTokenMatches(input.verifyToken, connection.verifyToken)) {
-    noteConnectionError(connection.id, "Verification failed: the token Meta sent did not match this connection's verify token.");
+  if (!verifyTokenMatches(input.verifyToken, expected)) {
     return { ok: false, status: 403, error: "Verify token mismatch" };
   }
 
-  await prisma.crmFacebookConnection.update({
-    where: { id: connection.id },
-    data: { verifiedAt: new Date(), lastError: null, lastErrorAt: null },
-  });
-
   return { ok: true, challenge: input.challenge };
-}
-
-/** The handshake needs the verify token and nothing encrypted, so it does not
- *  pay for a decryption that would fail loudly on a half-configured row. */
-async function loadConnectionForVerification(
-  callbackToken: string,
-): Promise<{ id: string; verifyToken: string } | null> {
-  return prisma.crmFacebookConnection.findUnique({
-    where: { callbackToken },
-    select: { id: true, verifyToken: true },
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -178,53 +171,35 @@ export type DeliveryOutcome = {
 
 export type WebhookResult = {
   httpStatus: number;
-  outcome: "UNKNOWN_CALLBACK" | "INACTIVE" | "UNVERIFIED" | "UNREADABLE" | "PROCESSED";
+  outcome: "UNVERIFIED" | "UNREADABLE" | "PROCESSED";
   results: DeliveryOutcome[];
   error?: string;
 };
 
 export async function handleFacebookWebhook(input: {
-  callbackToken: string;
   /** The bytes as delivered. The signature is over these; re-serialising a
    *  parsed body changes them and fails every real delivery. */
   rawBody: string;
   headers: Record<string, string>;
 }): Promise<WebhookResult> {
-  let connection: ResolvedConnection | null;
+  let appSecret: string;
   try {
-    connection = await loadConnection(input.callbackToken);
+    appSecret = facebookAppConfig().appSecret;
   } catch (error) {
-    // Decryption failed — the encryption key was rotated out from under a
-    // stored secret. 500 so Meta retries once it is fixed, rather than
-    // treating a real lead as refused.
+    // Our deployment is misconfigured, not Meta's delivery. 500 so Meta
+    // retries once somebody sets the variable, instead of a real lead being
+    // refused and forgotten.
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[facebook-webhook] connection could not be read:", message);
+    console.error("[facebook-webhook] app is not configured:", message);
     return { httpStatus: 500, outcome: "UNREADABLE", results: [], error: message };
   }
 
-  if (!connection) {
-    return { httpStatus: 404, outcome: "UNKNOWN_CALLBACK", results: [], error: "Unknown callback URL" };
-  }
-
-  const check = verifySignature(input.rawBody, input.headers[SIGNATURE_HEADER], connection.appSecret);
+  // Nothing below this line touches the database until the bytes are proven
+  // to be Meta's. The URL is public, so an unsigned POST must cost a hash and
+  // nothing else — no lookup, no row, no write.
+  const check = verifySignature(input.rawBody, input.headers[SIGNATURE_HEADER], appSecret);
   if (!check.ok) {
-    // Deliberately not recorded as an event row, unlike the payment webhook's
-    // unverified deliveries: this endpoint's URL is public, so a row per
-    // unsigned POST is a table anybody can fill. The connection carries the
-    // signal instead — a rotated app secret reads as a standing error here,
-    // which is the case that matters.
-    noteConnectionError(
-      connection.id,
-      `Signature check failed (${check.reason}). The app secret saved here may not match the Meta app sending deliveries.`,
-    );
     return { httpStatus: 401, outcome: "UNVERIFIED", results: [], error: `Signature ${check.reason.toLowerCase()}` };
-  }
-
-  if (!connection.isActive) {
-    // Verified, so it is genuinely Meta — but this Page was paused here. 200,
-    // because erroring would have Meta retry and eventually unsubscribe a
-    // connection somebody intends to switch back on.
-    return { httpStatus: 200, outcome: "INACTIVE", results: [] };
   }
 
   let payload: { object?: string; entry?: Array<{ id?: string; changes?: Array<{ field?: string; value?: LeadgenChangeValue }> }> };
@@ -235,6 +210,10 @@ export async function handleFacebookWebhook(input: {
   }
 
   const results: DeliveryOutcome[] = [];
+  /** One delivery can carry several entries for the same Page; resolving each
+   *  Page once keeps a batch to one lookup and one decryption per Page. */
+  const byPage = new Map<string, ResolvedConnection | null>();
+
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       if (change.field !== "leadgen") continue;
@@ -242,33 +221,63 @@ export async function handleFacebookWebhook(input: {
       const leadgenId = String(value.leadgen_id ?? "").trim();
       if (!leadgenId) continue;
 
-      results.push(await processDelivery(connection, entry.id ?? null, leadgenId, value, input.rawBody));
+      const pageId = String(value.page_id ?? entry.id ?? "").trim();
+      if (!pageId) {
+        results.push({ leadgenId, status: "IGNORED", error: "Delivery named no Page" });
+        continue;
+      }
+
+      if (!byPage.has(pageId)) {
+        try {
+          byPage.set(pageId, await loadConnectionByPage(pageId));
+        } catch (error) {
+          // Decryption failed — the encryption key was rotated out from under
+          // a stored token. 500 so Meta retries once it is fixed.
+          const message = error instanceof Error ? error.message : String(error);
+          console.error("[facebook-webhook] connection could not be read:", message);
+          return { httpStatus: 500, outcome: "UNREADABLE", results: [], error: message };
+        }
+      }
+
+      const connection = byPage.get(pageId) ?? null;
+      if (!connection) {
+        // Genuinely from Meta, for a Page nobody here has connected — a Page
+        // subscribed to the app and then disconnected in the CRM, most often.
+        // Answered 200: erroring would have Meta retry forever over a lead
+        // that has no owner to give it to.
+        results.push({ leadgenId, status: "IGNORED", error: `No workspace has connected page ${pageId}` });
+        continue;
+      }
+
+      if (!connection.isActive) {
+        // Paused here on purpose. Also 200, so Meta does not eventually
+        // unsubscribe a Page somebody intends to switch back on.
+        results.push({ leadgenId, status: "IGNORED", error: "This Page is paused" });
+        continue;
+      }
+
+      results.push(await processDelivery(connection, pageId, leadgenId, value, input.rawBody));
     }
   }
 
-  await prisma.crmFacebookConnection
-    .update({ where: { id: connection.id }, data: { lastEventAt: new Date() } })
-    .catch(() => {});
+  const touched = [...byPage.values()].filter((c): c is ResolvedConnection => c !== null);
+  if (touched.length) {
+    await prisma.crmFacebookConnection
+      .updateMany({ where: { id: { in: touched.map((c) => c.id) } }, data: { lastEventAt: new Date() } })
+      .catch(() => {});
+  }
 
   return { httpStatus: 200, outcome: "PROCESSED", results };
 }
 
 async function processDelivery(
   connection: ResolvedConnection,
-  entryPageId: string | null,
+  pageId: string,
   leadgenId: string,
   value: LeadgenChangeValue,
   rawBody: string,
 ): Promise<DeliveryOutcome> {
-  const pageId = String(value.page_id ?? entryPageId ?? connection.pageId);
   const formId = value.form_id != null ? String(value.form_id) : null;
-
-  // The signature proves the app sent it; it does not prove the app only ever
-  // sends this tenant's Pages. One app can serve several, so a delivery for a
-  // Page this connection does not own is filed against nobody's CRM.
-  if (pageId !== connection.pageId) {
-    return { leadgenId, status: "IGNORED", error: `Delivery is for page ${pageId}, which this connection does not own` };
-  }
 
   let event: { id: string };
   try {
@@ -325,7 +334,7 @@ async function ingestDelivery(
   try {
     record = await fetchLeadgen(leadgenId, {
       accessToken: connection.pageAccessToken,
-      appSecret: connection.appSecret,
+      appSecret: facebookAppConfig().appSecret,
     });
   } catch (error) {
     const message =
