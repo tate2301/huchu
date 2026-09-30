@@ -26,6 +26,15 @@ const sales: ReportDefinition = {
     { key: "total", label: "Total", kind: "money", total: "sum" },
   ],
   defaults: { sort: [{ column: "date", dir: "desc" }] },
+  layout: {
+    blocks: [
+      { id: "figures", type: "figures" },
+      { id: "over-time", type: "chart", form: "trend", by: "date", measure: { column: "total", fn: "sum" }, limit: 8, title: "Takings over time" },
+      { id: "by-cashier", type: "chart", form: "bars", by: "cashier", measure: { column: "total", fn: "sum" }, limit: 8, title: "By cashier", half: true },
+      { id: "by-shop", type: "chart", form: "bars", by: "site", measure: { column: "total", fn: "sum" }, limit: 8, title: "By shop", half: true },
+      { id: "table", type: "table" },
+    ],
+  },
 };
 
 const itemsSold: ReportDefinition = {
@@ -46,6 +55,14 @@ const itemsSold: ReportDefinition = {
     { key: "margin", label: "Margin", kind: "money", total: "sum" },
   ],
   defaults: { sort: [{ column: "revenue", dir: "desc" }], groupBy: "item" },
+  layout: {
+    blocks: [
+      { id: "figures", type: "figures" },
+      { id: "best-sellers", type: "chart", form: "bars", by: "item", measure: { column: "revenue", fn: "sum" }, limit: 10, title: "Best sellers", half: true },
+      { id: "over-time", type: "chart", form: "trend", by: "date", measure: { column: "revenue", fn: "sum" }, limit: 8, title: "Revenue over time", half: true },
+      { id: "table", type: "table" },
+    ],
+  },
 };
 
 const stock: ReportDefinition = {

@@ -14,6 +14,8 @@ import type { ReportContext, ReportLoader, ReportParams } from "@/lib/reports/ty
  */
 function signedBy(saleType: string, value: Parameters<typeof num>[0]): number {
   const size = Math.abs(num(value) ?? 0);
+  // Zero is not negative: a void with no discount took off nothing, not "−0".
+  if (size === 0) return 0;
   return saleType === "SALE" ? size : -size;
 }
 

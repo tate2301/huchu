@@ -101,6 +101,13 @@ export const ORGANIZATION_PREFERENCES_ITEMS: PreferencesNavItem[] = [
     description: "Document template library.",
   },
   {
+    id: "reports",
+    group: "organization",
+    label: "Reports",
+    href: "/preferences/organization/reports",
+    description: "Which reports are offered, and how each opens.",
+  },
+  {
     id: "billing",
     group: "organization",
     label: "Billing",
@@ -137,6 +144,9 @@ export function canViewPreferenceItem(
   // The log covers every module, so it answers to the workspace's admins on
   // every plan — the same people `/api/activity` serves.
   if (itemId === "activity") return isOrgAdminRole(role);
+  // Which reports are offered and how they open is a workspace decision, made
+  // by the same people who decide who works here.
+  if (itemId === "reports") return isOrgAdminRole(role);
   if (itemId === "users") {
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.user-management.directory");
   }

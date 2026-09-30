@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
@@ -20,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ChevronDown, Download, MagnifyingGlass, MoreHorizontal } from "@/lib/icons";
 import {
   EXPORT_TEMPLATE_LABELS,
@@ -28,9 +30,10 @@ import {
   type ExportTemplateId,
 } from "@/lib/reports/export-layouts";
 import { formatTotal } from "@/lib/reports/format";
-import type { ReportColumnKind, ReportParam, ReportRow } from "@/lib/reports/types";
+import type { ReportColumnKind, ReportParam, ReportRow, ReportView } from "@/lib/reports/types";
 import { aggregate, applyView } from "@/lib/reports/view";
 
+import { ReportBlocks } from "./report-blocks";
 import { ReportColumns } from "./report-columns";
 import { ReportFilters } from "./report-filters";
 import { ReportRowActions } from "./report-row-actions";
@@ -169,6 +172,7 @@ function ParamControls({
 
 export function ReportScreen({ reportKey }: { reportKey: string }) {
   const { toast } = useToast();
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const { query, meta, view, params, setView, resetView, setParams, customised } = useReport(reportKey);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -188,7 +192,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
     return new Set([...selected].filter((id) => shown.has(id)));
   }, [applied, selected]);
 
-  const runExport = async (format: "csv" | "xlsx" | "pdf", onlySelected: boolean, template: ExportTemplateId = "register") => {
+  const runExport = async (format: "csv" | "xlsx" | "pdf", onlySelected: boolean, template: ExportTemplateId = "layout") => {
     if (!view) return;
     setExporting(true);
     try {
@@ -208,6 +212,26 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["reports", reportKey] });
 
+  // Managers set up reports for everybody; the API checks this again.
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const manager = role === "SUPERADMIN" || role === "MANAGER";
+
+  /** Everyone's starting view: this one, or (null) the report's own again. */
+  const saveStartingView = async (next: ReportView | null) => {
+    try {
+      await fetchJson(`/api/v2/reports/${encodeURIComponent(reportKey)}/settings`, {
+        method: "PATCH",
+        body: JSON.stringify({ view: next }),
+      });
+      toast({ title: next ? "Everyone now starts from this view" : "Back to the report's own view", variant: "success" });
+      // The saved view is now the default, so this one no longer needs the URL.
+      resetView();
+      refresh();
+    } catch (error) {
+      toast({ title: "Not saved", description: getApiErrorMessage(error), variant: "destructive" });
+    }
+  };
+
   const chrome = (
     <PageChrome title={meta?.title ?? "Report"} backHref="/reports" backLabel="Reports">
       {meta && applied ? (
@@ -224,7 +248,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
               <ExportChoices onChoose={(format, template) => void runExport(format, false, template)} />
             </DropdownMenuContent>
           </DropdownMenu>
-          {customised ? (
+          {customised || manager ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label="More">
@@ -232,7 +256,25 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={resetView}>Reset the view</DropdownMenuItem>
+                {customised ? <DropdownMenuItem onSelect={resetView}>Reset the view</DropdownMenuItem> : null}
+                {manager ? (
+                  <>
+                    {customised ? <DropdownMenuSeparator /> : null}
+                    <DropdownMenuItem asChild>
+                      <Link href={`/reports/${reportKey}/arrange`}>Arrange the page</Link>
+                    </DropdownMenuItem>
+                    {customised && view ? (
+                      <DropdownMenuItem onSelect={() => void saveStartingView(view)}>
+                        Make this everyone&apos;s starting view
+                      </DropdownMenuItem>
+                    ) : null}
+                    {meta.defaultView ? (
+                      <DropdownMenuItem onSelect={() => void saveStartingView(null)}>
+                        Clear the starting view
+                      </DropdownMenuItem>
+                    ) : null}
+                  </>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
@@ -279,6 +321,25 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
   const rowActionsFor = meta.rowActions?.length
     ? (row: ReportRow) => <ReportRowActions row={row} actions={meta.rowActions!} onChanged={refresh} />
     : null;
+  const worksheet = isPhone ? (
+    <ReportRowList
+      applied={applied}
+      view={view}
+      selectedIds={visibleSelection}
+      onSelect={setSelected}
+      rowActions={rowActionsFor}
+    />
+  ) : (
+    <ReportTable
+      applied={applied}
+      view={view}
+      onViewChange={setView}
+      selectedIds={visibleSelection}
+      onSelect={setSelected}
+      rowActions={rowActionsFor}
+    />
+  );
+
   const figures = applied.columns.filter((column) => column.kind === "money");
 
   return (
@@ -336,22 +397,14 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
                 </Button>
               }
             />
-          ) : isPhone ? (
-            <ReportRowList
-              applied={applied}
-              view={view}
-              selectedIds={visibleSelection}
-              onSelect={setSelected}
-              rowActions={rowActionsFor}
-            />
           ) : (
-            <ReportTable
-              applied={applied}
+            <ReportBlocks
+              blocks={meta.layout?.blocks ?? [{ id: "table", type: "table" }]}
+              table={worksheet}
+              meta={meta}
               view={view}
-              onViewChange={setView}
-              selectedIds={visibleSelection}
-              onSelect={setSelected}
-              rowActions={rowActionsFor}
+              params={params}
+              applied={applied}
             />
           )}
         </div>

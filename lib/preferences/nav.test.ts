@@ -29,6 +29,7 @@ describe("preferences navigation", () => {
       "departments",
       "branding",
       "templates",
+      "reports",
       "billing",
       "activity",
     ]);
@@ -43,6 +44,7 @@ describe("preferences navigation", () => {
       "users",
       "sites",
       "departments",
+      "reports",
       "billing",
       "activity",
     ]);

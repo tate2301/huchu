@@ -123,6 +123,7 @@ model Company {
   accountingIntegrationEvents   AccountingIntegrationEvent[]
   accountingSeedExecutions      AccountingSeedExecution[]
   documentTemplates             DocumentTemplate[]
+  reportSettings                ReportSetting[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
   idSequences                   IdSequence[]
@@ -6583,6 +6584,30 @@ model FiscalReceipt {
   @@unique([companyId, providerKey, receiptGlobalNo])
   @@index([companyId, status])
   @@index([fiscalDayId])
+}
+
+/// How a workspace has set up one report: whether it is offered, how it is
+/// laid out as a page, and the view people open it with. One row per report
+/// the workspace has changed; a report with no row is on, laid out and viewed
+/// the way its definition says (`lib/reports/definitions`).
+model ReportSetting {
+  id          String   @id @default(uuid())
+  companyId   String
+  /// The report's key in the registry, e.g. `crm-deals`. Not a foreign key:
+  /// reports are code, and a key a release removes leaves a row nobody reads.
+  reportKey   String
+  enabled     Boolean  @default(true)
+  /// A `ReportLayout` (`lib/reports/layout.ts`). Null keeps the definition's.
+  layout      Json?
+  /// A `ReportView` (`lib/reports/types.ts`). Null keeps the definition's.
+  view        Json?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, reportKey])
 }
 
 model DocumentTemplate {

@@ -58,6 +58,14 @@ const attendance: ReportDefinition = {
   href: "/reports/attendance",
   profiles: PROFILES,
   params: [...periodParams(7), SITE],
+  layout: {
+    blocks: [
+      { id: "figures", type: "figures" },
+      { id: "by-mark", type: "chart", form: "bars", by: "status", limit: 8, title: "Marks", half: true },
+      { id: "by-site", type: "chart", form: "bars", by: "site", limit: 8, title: "By site", half: true },
+      { id: "table", type: "table" },
+    ],
+  },
   columns: [
     { key: "date", label: "Date", kind: "date" },
     { key: "employee", label: "Employee", kind: "text" },
@@ -156,6 +164,14 @@ const downtime: ReportDefinition = {
     { key: "notes", label: "Notes", kind: "text" },
   ],
   defaults: { sort: [{ column: "hours", dir: "desc" }], groupBy: "cause" },
+  layout: {
+    blocks: [
+      { id: "figures", type: "figures" },
+      { id: "by-cause", type: "chart", form: "bars", by: "cause", measure: { column: "hours", fn: "sum" }, limit: 10, title: "Hours lost by cause" },
+      { id: "over-time", type: "chart", form: "trend", by: "date", measure: { column: "hours", fn: "sum" }, limit: 8, title: "Hours lost over time" },
+      { id: "table", type: "table" },
+    ],
+  },
 };
 
 const goldChain: ReportDefinition = {

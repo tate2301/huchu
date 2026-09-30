@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { reportCatalog } from "@/lib/reports/catalog";
 import { REPORT_DEFINITIONS } from "@/lib/reports/registry";
+import { disabledReportKeys } from "@/lib/reports/settings";
 
 /** The reports this person can open, arranged for their workspace's industry. */
 export async function GET(request: NextRequest) {
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
         REPORT_DEFINITIONS,
         { role: session.user.role, enabledFeatures: session.user.enabledFeatures },
         session.user.workspaceProfile,
+        await disabledReportKeys(session.user.companyId),
       ),
     });
   } catch (error) {

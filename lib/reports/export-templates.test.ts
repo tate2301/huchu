@@ -69,6 +69,34 @@ describe("exportDocument", () => {
     expect(document.content).not.toContain("<b>");
   });
 
+  it("report prints the default layout: figures, the chart, then the rows", () => {
+    const content = exportDocument("layout", input()).content;
+    // No date column, so no trend: one chart, full width.
+    expect(content.match(/<svg /g)).toHaveLength(1);
+    expect(content).toContain("Value by stage");
+    expect(content).not.toContain("rp-columns");
+    expect(content.indexOf("rp-figures")).toBeLessThan(content.indexOf("rp-chart"));
+    expect(content.indexOf("rp-chart")).toBeLessThan(content.indexOf("rp-table-block"));
+  });
+
+  it("report follows a declared layout, and leaves out what it does not have", () => {
+    const declared: ReportMeta = {
+      ...META,
+      layout: {
+        blocks: [
+          { id: "h", type: "heading", text: "Pipeline <review>", level: 1 },
+          { id: "b", type: "breakdown", limit: 5 },
+          { id: "gone", type: "chart", form: "bars", by: "vanished", limit: 8 },
+        ],
+      },
+    };
+    const content = exportDocument("layout", { ...input(), meta: declared }).content;
+    expect(content).toContain("Pipeline &lt;review&gt;");
+    expect(content).toContain("By stage");
+    expect(content).not.toContain("<svg ");
+    expect(content).not.toContain("rp-table-block");
+  });
+
   it("register prints every row, a subtotal per group and the total", () => {
     const content = exportDocument("register", input({ ...defaultView(META), groupBy: "stage" })).content;
     expect(content.match(/<tr class="rp-group">/g)).toHaveLength(2);

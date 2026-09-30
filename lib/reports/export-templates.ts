@@ -4,11 +4,24 @@ import { describeCondition, formatDate, formatTotal, formatValue, totalCaption }
 import type { Aggregate, ReportColumn, ReportMeta, ReportParams, ReportRow, ReportValue, ReportView } from "@/lib/reports/types";
 import {
   EXPORT_TEMPLATE_LABELS,
+  orientationFor,
   type ExportTemplateId,
 } from "@/lib/reports/export-layouts";
+import { barsSvg, seriesBy, timeSeries, trendSvg, type ChartColors } from "@/lib/reports/charts";
+import {
+  breakdownBy,
+  defaultLayout,
+  fitLayout,
+  DEFAULT_BREAKDOWN_LIMIT,
+  DEFAULT_CHART_LIMIT,
+  layoutRows,
+  measureLabel,
+  type ChartBlock,
+  type LayoutBlock,
+} from "@/lib/reports/layout";
 import { applyView, isNumeric, totalsFor, type AppliedView } from "@/lib/reports/view";
 
-export { EXPORT_TEMPLATE_LABELS, EXPORT_TEMPLATE_ORIENTATION, EXPORT_TEMPLATES } from "@/lib/reports/export-layouts";
+export { EXPORT_TEMPLATE_LABELS, EXPORT_TEMPLATES, orientationFor } from "@/lib/reports/export-layouts";
 export type { ExportTemplateId } from "@/lib/reports/export-layouts";
 
 /**
@@ -421,6 +434,14 @@ const REPORT_CSS = `
   .rp-bar span { display: block; height: 100%; background: var(--accent); }
   .rp-break { break-before: page; }
 
+  .rp-heading-1 { font-size: 15px; }
+  .rp-text { margin: 10px 0 0; color: var(--ink-soft); white-space: pre-line; max-width: 70ch; }
+  .rp-chart { break-inside: avoid; }
+  .rp-chart-body { margin-top: 10px; }
+  .rp-chart-body svg { font-family: inherit; }
+  .rp-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
+  .rp-columns > div { min-width: 0; }
+
   .rp-sheet { margin-top: 16px; padding: 12px 0 4px; border-top: 1px solid var(--ink); break-inside: avoid; }
   .rp-sheet-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
   .rp-sheet-title { font-size: 12.5px; font-weight: 700; color: var(--ink); }
@@ -431,7 +452,86 @@ const REPORT_CSS = `
   .rp-pair-value { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
 `;
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Report: the page as it is laid out
+   ────────────────────────────────────────────────────────────────────────── */
+
+/** Chart ink from the paper's own variables, so the tenant's colour draws the marks. */
+const PAPER_COLORS: ChartColors = {
+  mark: "var(--accent)",
+  grid: "var(--rule)",
+  text: "var(--ink-soft)",
+  muted: "var(--ink-muted)",
+  surface: "#ffffff",
+};
+
+function chartBlock(input: ExportInput, block: ChartBlock, width: number): string {
+  const by = input.meta.columns.find((column) => column.key === block.by);
+  if (!by) return "";
+  const measureColumn = block.measure ? input.meta.columns.find((column) => column.key === block.measure!.column) : null;
+  const format = (value: number) =>
+    measureColumn && block.measure && block.measure.fn !== "count" && block.measure.fn !== "distinct"
+      ? formatTotal(value, measureColumn, block.measure.fn)
+      : value.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  const title =
+    block.title ??
+    `${measureLabel(block.measure, input.meta.columns)} ${block.form === "bars" ? `by ${by.label.toLowerCase()}` : "over time"}`;
+  const svg =
+    block.form === "bars"
+      ? barsSvg(seriesBy(input.applied.rows, by, block.measure, input.meta.columns, block.limit ?? DEFAULT_CHART_LIMIT, (value) => formatValue(value, by)), {
+          width,
+          colors: PAPER_COLORS,
+          format,
+        })
+      : trendSvg(
+          timeSeries(input.applied.rows, by, block.measure, input.meta.columns, {
+            from: input.params.from || undefined,
+            to: input.params.to || undefined,
+          }).points,
+          { width, height: 190, colors: PAPER_COLORS, format },
+        );
+  return `<section class="rp-chart">${heading(title)}<div class="rp-chart-body">${svg}</div></section>`;
+}
+
+function leafBlock(input: ExportInput, block: Exclude<LayoutBlock, { type: "table" }>, width: number): string {
+  switch (block.type) {
+    case "heading":
+      return block.level === 1 ? `<h2 class="rp-heading rp-heading-1">${esc(block.text)}</h2>` : heading(block.text);
+    case "text":
+      return `<p class="rp-text">${esc(block.text)}</p>`;
+    case "figures":
+      return keyFigures(input);
+    case "chart":
+      return chartBlock(input, block, width);
+    case "breakdown": {
+      const by = breakdownBy(block, input.view, input.meta.columns);
+      return by ? heading(`By ${by.label.toLowerCase()}`) + breakdownTable(input, by, block.limit ?? DEFAULT_BREAKDOWN_LIMIT) : "";
+    }
+  }
+}
+
+function layout(input: ExportInput): string {
+  const blocks = fitLayout(input.meta.layout ?? defaultLayout(input.meta), input.meta.columns).blocks;
+  const wide = orientationFor("layout", input.applied.columns.length) === "landscape";
+  const full = wide ? 960 : 640;
+  return [
+    narrowingBlock(input),
+    ...layoutRows(blocks).map((row) => {
+      const [first, second] = row;
+      if (second && first!.type !== "table" && second.type !== "table") {
+        const half = Math.floor(full / 2) - 16;
+        return `<section class="rp-columns"><div>${leafBlock(input, first!, half)}</div><div>${leafBlock(input, second, half)}</div></section>`;
+      }
+      if (first!.type === "table") {
+        return `<section class="rp-table-block">${heading("Rows", input.applied.rows.length)}${registerTable(input)}</section>`;
+      }
+      return leafBlock(input, first!, full);
+    }),
+  ].join("");
+}
+
 const RENDERERS: Record<ExportTemplateId, (input: ExportInput) => string> = {
+  layout,
   register,
   summary,
   pack,
@@ -441,7 +541,10 @@ const RENDERERS: Record<ExportTemplateId, (input: ExportInput) => string> = {
 export function exportDocument(template: ExportTemplateId, input: ExportInput): ExportDocument {
   const when = period(input.meta, input.params);
   return {
-    title: template === "register" || template === "sheets" ? input.meta.title : `${input.meta.title} · ${EXPORT_TEMPLATE_LABELS[template].toLowerCase()}`,
+    title:
+      template === "layout" || template === "register" || template === "sheets"
+        ? input.meta.title
+        : `${input.meta.title} · ${EXPORT_TEMPLATE_LABELS[template].toLowerCase()}`,
     subtitle: when,
     stamp: stampFor(input),
     content: RENDERERS[template](input),
