@@ -556,8 +556,8 @@ function CartesianChart({
                             data={item.points}
                             x={(point) => point.x}
                             yScale={yScale}
-                            y0={(point) => point.y0}
-                            y1={(point) => point.y1}
+                            y0={(point) => yScale(point.y0)}
+                            y1={(point) => yScale(point.y1)}
                             fill={item.color}
                             fillOpacity={item.fillOpacity ?? 0.14}
                             curve={curveMonotoneX}
@@ -585,8 +585,8 @@ function CartesianChart({
                               data={item.points}
                               x={(point) => point.x}
                               yScale={yScale}
-                              y0={0}
-                              y1={(point) => point.value}
+                              y0={yScale(0)}
+                              y1={(point) => yScale(point.value)}
                               fill={item.color}
                               fillOpacity={item.fillOpacity ?? 0.12}
                               curve={curveMonotoneX}

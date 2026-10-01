@@ -349,51 +349,6 @@ export function medianDaysInStage(
   return result;
 }
 
-export type ShareSlice = { key: string; label: string; value: number; share: number };
-
-/**
- * The top slices of a total, with everything else folded into one.
- *
- * A pie with nineteen slivers is a legend, not a chart. Past the limit the
- * remainder becomes a single "Other" so the shares still sum to one — dropping
- * the tail instead would draw a pie that quietly lies about the total.
- *
- * Zero and negative values are excluded: a slice of nothing has no angle, and
- * a negative one would eat somebody else's.
- */
-export function shareSlices(
-  rows: { key: string; label: string; value: number }[],
-  limit = 5,
-): ShareSlice[] {
-  const positive = rows
-    .filter((row) => row.value > 0)
-    .sort((a, b) => b.value - a.value);
-
-  const total = positive.reduce((sum, row) => sum + row.value, 0);
-  if (total <= 0) return [];
-
-  const head = positive.slice(0, limit);
-  const tail = positive.slice(limit);
-  const slices = head.map((row) => ({
-    key: row.key,
-    label: row.label,
-    value: row.value,
-    share: row.value / total,
-  }));
-
-  if (tail.length > 0) {
-    const rest = tail.reduce((sum, row) => sum + row.value, 0);
-    slices.push({
-      key: "__other",
-      label: `Other (${tail.length})`,
-      value: rest,
-      share: rest / total,
-    });
-  }
-
-  return slices;
-}
-
 /** Percent for display, without pretending to precision the data lacks. */
 export function formatRate(value: number): string {
   return `${Math.round(value * 100)}%`;

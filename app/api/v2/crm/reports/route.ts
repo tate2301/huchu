@@ -12,7 +12,6 @@ import {
   medianCycleDays,
   medianDaysInStage,
   rangeToDates,
-  shareSlices,
   summarizeGroups,
   winRate,
   type ReportRange,
@@ -123,13 +122,18 @@ export async function GET(request: NextRequest) {
     // A deal that reached stage 4 also reached stages 1–3, so the funnel counts
     // everything at or past each position. Counting only what sits in a stage
     // right now would show a funnel that widens further down.
+    //
+    // The funnel ends at Won. Lost is where a deal leaves it, not a step after
+    // winning, and counting by position put it there: a "Lost" row under "Won",
+    // and a Won row that counted the lost deals parked past it.
     const funnel = buildFunnel(
-      stages.map((stage) => {
-        const reached = deals.filter(
-          (deal) =>
-            deal.stage.position >= stage.position ||
-            // Anything won has been through every open stage.
-            (stage.status === "OPEN" && deal.wonAt !== null),
+      stages.filter((stage) => stage.status !== "LOST").map((stage) => {
+        const reached = deals.filter((deal) =>
+          stage.status === "WON"
+            ? deal.wonAt !== null
+            : deal.stage.position >= stage.position ||
+              // Anything won has been through every open stage.
+              deal.wonAt !== null,
         );
         return {
           key: stage.id,
@@ -196,10 +200,10 @@ export async function GET(request: NextRequest) {
       label: deal.source ?? "Not recorded",
     }));
 
-    // A year of daily points is 365 pixels of noise; a week of weekly points is
-    // one. The bucket follows the range rather than being a setting nobody
-    // would find.
-    const granularity = range === "12m" ? "week" : "day";
+    // Ninety daily points is a row of spikes with gaps between them, and a
+    // year of them is noise; a week of weekly points is one. The bucket
+    // follows the range rather than being a setting nobody would find.
+    const granularity = range === "90d" || range === "12m" ? "week" : "day";
 
     return successResponse({
       range,
@@ -220,12 +224,6 @@ export async function GET(request: NextRequest) {
       ),
       byOwner,
       bySource,
-      // Where the won money came from, as slices of one total. Value rather
-      // than count: two sources bringing in ten deals each are not equal when
-      // one of them brings in ten times the money.
-      sourceShare: shareSlices(
-        bySource.map((row) => ({ key: row.key, label: row.label, value: row.wonValue })),
-      ),
       // Won business over time, counted and totalled in the same walk so the
       // two lines cannot disagree with each other.
       trend: {
