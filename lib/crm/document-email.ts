@@ -16,6 +16,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { renderDocumentSync } from "@/lib/documents/service";
+import { syncAccountingCustomer } from "@/lib/crm/accounting-bridge";
 import { getOrCreateApproval } from "@/lib/crm/approvals";
 import {
   DOCUMENT_RESOURCES_SELECT,
@@ -46,6 +47,8 @@ export type RecipientSources = {
   customerEmail?: string | null;
   /** The CRM client the lead or deal belongs to. */
   clientEmail?: string | null;
+  /** The person named as the deal's primary contact. */
+  primaryContactEmail?: string | null;
   /** The named contact on the lead, before it became a client. */
   contactEmail?: string | null;
 };
@@ -58,7 +61,12 @@ export type RecipientSources = {
  * has been set up is how a bill reaches the wrong desk.
  */
 export function resolveRecipient(sources: RecipientSources): string | null {
-  for (const candidate of [sources.customerEmail, sources.clientEmail, sources.contactEmail]) {
+  for (const candidate of [
+    sources.customerEmail,
+    sources.clientEmail,
+    sources.primaryContactEmail,
+    sources.contactEmail,
+  ]) {
     const trimmed = candidate?.trim();
     if (trimmed) return trimmed;
   }
@@ -167,6 +175,20 @@ export async function emailDocumentToClient(params: {
   companyId: string;
   leadDocumentId: string;
 }): Promise<SentDocument> {
+  // The customer on the document is a copy of the company, made when it was
+  // first billed. Bring it up to date before reading the address off it and
+  // printing it under "Bill To", or an edited company email never arrives.
+  const owner = await prisma.crmLeadDocument.findFirst({
+    where: { id: params.leadDocumentId, companyId: params.companyId },
+    select: { deal: { select: { clientId: true } }, lead: { select: { clientId: true } } },
+  });
+  const clientId = owner?.deal?.clientId ?? owner?.lead?.clientId;
+  if (clientId) {
+    await prisma.$transaction((tx) =>
+      syncAccountingCustomer(tx, { companyId: params.companyId, clientId }),
+    );
+  }
+
   const doc = await prisma.crmLeadDocument.findFirst({
     where: { id: params.leadDocumentId, companyId: params.companyId },
     select: {
@@ -182,7 +204,13 @@ export async function emailDocumentToClient(params: {
       invoice: { select: { invoiceNumber: true, customer: { select: { email: true } } } },
       receipt: { select: { receiptNumber: true } },
       lead: { select: { id: true, contactEmail: true, client: { select: { email: true } } } },
-      deal: { select: { id: true, client: { select: { email: true } } } },
+      deal: {
+        select: {
+          id: true,
+          client: { select: { email: true } },
+          primaryContact: { select: { email: true } },
+        },
+      },
       resources: DOCUMENT_RESOURCES_SELECT,
     },
   });
@@ -194,6 +222,7 @@ export async function emailDocumentToClient(params: {
   const to = resolveRecipient({
     customerEmail: doc.quotation?.customer?.email ?? doc.invoice?.customer?.email,
     clientEmail: doc.deal?.client?.email ?? doc.lead?.client?.email,
+    primaryContactEmail: doc.deal?.primaryContact?.email,
     contactEmail: doc.lead?.contactEmail,
   });
   if (!to) throw new NoRecipientError();
