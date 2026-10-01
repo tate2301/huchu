@@ -6,15 +6,20 @@ import { QuestionSetsRegister } from "@/components/crm/settings/question-sets-re
 import { PageChrome } from "@/components/layout/page-chrome";
 import { authOptions } from "@/lib/auth";
 
-/** The questions a rep is asked on site: the sections, none open yet. */
-export default async function CrmSiteVisitQuestionsPage() {
+/** One section of the site-visit questions, open beside the others. */
+export default async function CrmSiteVisitQuestionSetPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
+  const { id } = await params;
 
   return (
     <CrmPage>
       <PageChrome title="Site visit questions" />
-      <QuestionSetsRegister />
+      <QuestionSetsRegister selectedId={id} />
     </CrmPage>
   );
 }

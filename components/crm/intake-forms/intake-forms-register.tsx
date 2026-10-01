@@ -35,14 +35,9 @@ import {
 } from "@/app/management/master-data/operations/_components/register-fields";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { FieldDefinition } from "@/lib/forms/fields";
-import { CopyLink, ListBullets, NoteAdd, SlidersHorizontal, Tray } from "@/lib/icons";
+import { CopyLink, NoteAdd, SlidersHorizontal, Tray } from "@/lib/icons";
 
-import {
-  IntakeFormQuestions,
-  type SaveState,
-  type ServiceDraft,
-} from "./intake-form-questions";
-import styles from "./intake-forms.module.css";
+import { IntakeFormContentSections, type ServiceDraft } from "./intake-form-content";
 
 type IntakeForm = {
   id: string;
@@ -71,13 +66,6 @@ type Submission = {
 const INDEX_HREF = "/crm/forms";
 const PHOTO_LIMITS = [1, 3, 5, 10, 20];
 
-const SAVE_LABELS: Record<SaveState, string | null> = {
-  saved: null,
-  saving: "Saving…",
-  unsaved: "Unsaved",
-  blocked: "Not saved — see below",
-};
-
 function publicPath(form: IntakeForm) {
   return `/f/${form.publicToken}`;
 }
@@ -91,8 +79,8 @@ function shortDate(iso: string) {
  * list, and the open one beside it as a record.
  *
  * The record carries everything a form is — its name in the header, the few
- * settings that are not words on the form under Details, the form itself
- * edited in place, and what it has brought in. The list page of cards and the
+ * settings that are not words on the form under Details, its words, services
+ * and questions, and what it has brought in. The list page of cards and the
  * separate editor page it replaces split those across two screens and hid the
  * settings behind a menu, so a form read as something you could look at but
  * not change.
@@ -108,7 +96,6 @@ export function IntakeFormsRegister({ selectedId }: { selectedId?: string }) {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [saveState, setSaveState] = useState<SaveState>("saved");
 
   const formsQuery = useQuery({
     queryKey: ["crm-forms"],
@@ -192,13 +179,12 @@ export function IntakeFormsRegister({ selectedId }: { selectedId?: string }) {
     }),
   );
 
-  const saveLabel = SAVE_LABELS[saveState];
-
   return (
-    <div className={styles.frame} data-open={selectedId ? "" : undefined}>
+    <>
       <RegisterLayout
-        className={styles.register}
+        page
         hasSelection={Boolean(selectedId)}
+        collapseList
         list={
           <ListColumn
             title="Intake forms"
@@ -304,30 +290,19 @@ export function IntakeFormsRegister({ selectedId }: { selectedId?: string }) {
               </DetailRow>
             </DetailGrid>
 
-            <SectionHeading
-              icon={ListBullets}
-              count={(record.fields ?? []).length}
-              action={saveLabel ? <span className={styles.saveState}>{saveLabel}</span> : undefined}
-            >
-              Questions
-            </SectionHeading>
-            <div className="mb-8">
-              <IntakeFormQuestions
-                key={record.id}
-                formId={record.id}
-                name={record.name}
-                allowPhotos={record.allowPhotos}
-                onSaveState={setSaveState}
-                onSaved={invalidate}
-                initial={{
-                  headline: record.headline,
-                  description: record.description,
-                  successMessage: record.successMessage,
-                  fields: record.fields ?? [],
-                  services: record.services ?? [],
-                }}
-              />
-            </div>
+            <IntakeFormContentSections
+              key={record.id}
+              formId={record.id}
+              name={record.name}
+              onSaved={invalidate}
+              initial={{
+                headline: record.headline,
+                description: record.description,
+                successMessage: record.successMessage,
+                fields: record.fields ?? [],
+                services: record.services ?? [],
+              }}
+            />
 
             <SectionHeading icon={Tray} count={record.submissionCount}>
               Submissions
@@ -393,6 +368,6 @@ export function IntakeFormsRegister({ selectedId }: { selectedId?: string }) {
           </p>
         ) : null}
       </CreateDialog>
-    </div>
+    </>
   );
 }

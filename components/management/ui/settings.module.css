@@ -468,6 +468,41 @@
     .registerRecord[data-has-selection="false"] {
       display: none;
     }
+
+    .register[data-collapse-list="true"] > .registerList {
+      display: none;
+    }
+
+    /* One column: the seam between list and record has nothing to divide. */
+    .registerList {
+      border-right: 0;
+    }
+  }
+
+  /* On a page: the surface's white, filling what `.record-shell` gives it. */
+  .registerPage > .register {
+    height: 100%;
+    background: var(--s-page);
+  }
+
+  /* Below `.record-shell`'s breakpoint the page scrolls as a page, and the
+     register still meets the edges rather than floating in the gutter. */
+  @media (max-width: 47.99rem) {
+    .registerPage {
+      margin-inline: calc(var(--content-gutter-x) * -1);
+      margin-top: calc(var(--content-lede) * -1);
+    }
+
+    .registerPage > .register {
+      min-height: var(--content-viewport);
+    }
+  }
+
+  /* A phone's record keeps the page gutter, not the desktop's 40px. */
+  @media (max-width: 639px) {
+    .register > .registerRecord {
+      padding: 16px 16px 32px;
+    }
   }
 
   .registerList {

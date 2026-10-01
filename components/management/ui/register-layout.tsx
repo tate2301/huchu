@@ -16,6 +16,18 @@ export type RegisterLayoutProps = {
    * caller from having to think about it.
    */
   hasSelection?: boolean;
+  /**
+   * Below 900px, hide the list while a record is open. For a register whose
+   * open record is the route, so the record carries its own way back
+   * (`BackToList`) and the list is one tap away rather than stacked above it.
+   */
+  collapseList?: boolean;
+  /**
+   * Drawn on a page rather than inside the management surface's dialog: the
+   * page's whole width and height under the app bar, edge to edge, as a
+   * record page takes it (`.record-shell`).
+   */
+  page?: boolean;
   className?: string;
 };
 
@@ -35,10 +47,15 @@ export function RegisterLayout({
   list,
   children,
   hasSelection = true,
+  collapseList = false,
+  page = false,
   className,
 }: RegisterLayoutProps) {
-  return (
-    <div className={cn(styles.register, className)}>
+  const register = (
+    <div
+      className={cn(styles.register, className)}
+      data-collapse-list={collapseList && hasSelection ? "true" : undefined}
+    >
       <div className={styles.registerList}>{list}</div>
       <div
         className={styles.registerRecord}
@@ -48,4 +65,5 @@ export function RegisterLayout({
       </div>
     </div>
   );
+  return page ? <div className={cn("record-shell", styles.registerPage)}>{register}</div> : register;
 }
