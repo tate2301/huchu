@@ -18,6 +18,12 @@ export type ActivityRequest = {
   actorName: string | null;
   actorRole: string | null;
   changes: ActivityChange[];
+  /**
+   * The CRM timeline entries the request wrote — a call logged, a stage moved,
+   * a field edited. Kept apart from `changes`, which leaves them out as
+   * bookkeeping, because they are what a record's members are told about.
+   */
+  crmActivityIds: string[];
   /** An error response was built for this request; its writes are not logged. */
   failed: boolean;
   /** The handler wrote its own audit event, which already says what happened. */
@@ -28,7 +34,21 @@ export type ActivityRequest = {
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-const storage = new AsyncLocalStorage<ActivityRequest>();
+/**
+ * One store for the whole process, kept on `globalThis` as the Prisma client
+ * is.
+ *
+ * Next bundles each route on its own, so this module can be loaded more than
+ * once, and each copy would make its own store. The Prisma client is one
+ * global, made by whichever bundle loaded first, and its extension reads the
+ * store from *that* bundle's copy. A route from any other bundle opened its
+ * request in a store the extension never looked at, so its writes were never
+ * recorded.
+ */
+const globalForActivity = globalThis as unknown as {
+  activityStorage: AsyncLocalStorage<ActivityRequest> | undefined;
+};
+const storage = (globalForActivity.activityStorage ??= new AsyncLocalStorage<ActivityRequest>());
 
 /**
  * Open the activity record for a request, or return the one already open.
@@ -70,6 +90,7 @@ export function beginActivityRequest(request: {
     actorName: null,
     actorRole: null,
     changes: [],
+    crmActivityIds: [],
     failed: false,
     explicit: false,
     flushed: false,

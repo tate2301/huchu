@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { beginActivityRequest, currentActivityRequest } from "./context";
 
@@ -70,5 +70,39 @@ describe("activity request context", () => {
       });
     });
     expect(result.second).toBe(result.first);
+  });
+});
+
+describe("the store across copies of this module", () => {
+  /*
+    Next bundles each route on its own, so this module can be loaded more than
+    once, while the Prisma client — whose extension reads the store — is one
+    global made by whichever bundle loaded first. With a store per copy, a
+    route opened its request where the extension never looked, and none of
+    its writes were recorded.
+  */
+  it("is one store, so a request opened by one copy is seen by another", async () => {
+    vi.resetModules();
+    const first = await import("./context");
+    vi.resetModules();
+    const second = await import("./context");
+    expect(first).not.toBe(second);
+
+    const record = {
+      method: "POST",
+      path: "/api/v2/crm/activities",
+      companyId: null,
+      actorId: null,
+      actorName: null,
+      actorRole: null,
+      changes: [],
+      crmActivityIds: [],
+      failed: false,
+      explicit: false,
+      flushed: false,
+    };
+    first.runWithActivityRequest(record, () => {
+      expect(second.currentActivityRequest()).toBe(record);
+    });
   });
 });

@@ -2007,6 +2007,8 @@ model UserNotificationPreference {
   hrEnabled      Boolean  @default(true)
   opsEnabled     Boolean  @default(true)
   crmEnabled     Boolean  @default(true)
+  /// Every notification is also emailed unless this is off.
+  emailEnabled   Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -3003,6 +3005,7 @@ enum NotificationType {
   CRM_REQUISITION_SUBMITTED
   CRM_REQUISITION_DECIDED
   CRM_DAILY_REPORT_READY
+  CRM_RECORD_ACTIVITY
   /// What a school sends its families and staff. The audience is part of the
   /// type because a notice is addressed before it is written — "the Form 2
   /// parents" is the first decision the office makes, not a filter applied
@@ -3038,6 +3041,8 @@ enum NotificationEntityType {
   CRM_REQUISITION
   CRM_PROJECT
   CRM_DAILY_REPORT
+  /// A lead, deal, company, person or site; which one is in the payload's view path.
+  CRM_RECORD
 }
 
 enum HrIncidentCategory {
