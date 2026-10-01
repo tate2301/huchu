@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { OnboardingDialog } from "@/components/onboarding/onboarding-dialog";
@@ -16,7 +16,6 @@ type OnboardingStatus = {
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const queryClient = useQueryClient();
-  const [showDialog, setShowDialog] = useState(false);
 
   const user = session?.user as { role?: string } | undefined;
   // Only the workspace's owner and admins can set it up, so only they are asked to.
@@ -36,11 +35,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     refetchOnReconnect: false,
   });
 
-  useEffect(() => {
-    if (onboardingStatus?.needsOnboarding) {
-      setShowDialog(true);
-    }
-  }, [onboardingStatus]);
+  // Open whenever the latest status says the workspace still needs setting up,
+  // until that status is dismissed. Derived rather than copied into state by an
+  // effect: a fresh status — after a refetch — asks again, as it always has.
+  const [dismissed, setDismissed] = useState<OnboardingStatus | null>(null);
+  const showDialog = Boolean(onboardingStatus?.needsOnboarding) && dismissed !== onboardingStatus;
+  const setShowDialog = (open: boolean) => setDismissed(open ? null : onboardingStatus ?? null);
 
   const handleComplete = () => {
     queryClient.invalidateQueries({ queryKey: ["onboarding"] });
