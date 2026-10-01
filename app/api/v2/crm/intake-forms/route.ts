@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -104,6 +105,10 @@ export async function POST(request: NextRequest) {
     return successResponse(form, 201);
   } catch (error) {
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
+    // Names are unique per company (`@@unique([companyId, name])`).
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("There is already a form with that name", 409);
+    }
     console.error("[API] POST /api/v2/crm/intake-forms error:", error);
     return errorResponse("Failed to create intake form");
   }
