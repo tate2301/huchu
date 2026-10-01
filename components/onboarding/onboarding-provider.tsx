@@ -19,6 +19,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const [showDialog, setShowDialog] = useState(false);
 
   const user = session?.user as { role?: string } | undefined;
+  // Only the workspace's owner and admins can set it up, so only they are asked to.
   const isEligibleRole = user?.role === "SUPERADMIN" || user?.role === "MANAGER";
 
   const { data: onboardingStatus } = useQuery<OnboardingStatus>({
