@@ -9,6 +9,7 @@ import "./globals.css";
 import "@rtcamp/frappe-ui-react/theme";
 import "./themes/corelith-bridge.css";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
@@ -163,6 +164,7 @@ export default async function RootLayout({
         style={brandingVars as React.CSSProperties}
       >
         <Analytics />
+        <SpeedInsights />
         <div className="app-root">
           <AppProviders session={session}>
             <Suspense fallback={<div className="min-h-screen bg-background" />}>
