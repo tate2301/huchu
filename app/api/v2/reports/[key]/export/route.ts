@@ -9,9 +9,9 @@ import { renderPdfFromHtml } from "@/lib/documents/pdf-renderer";
 import { resolveTemplate } from "@/lib/documents/template-resolver";
 import { exportFileName, exportRows } from "@/lib/reports/export";
 import {
-  EXPORT_TEMPLATE_ORIENTATION,
   EXPORT_TEMPLATES,
   exportDocument,
+  orientationFor,
 } from "@/lib/reports/export-templates";
 import { buildWorkbook } from "@/lib/reports/export-xlsx";
 import { fetchReport } from "@/lib/reports/request";
@@ -20,7 +20,7 @@ import { applyView, reportViewSchema } from "@/lib/reports/view";
 const bodySchema = z.object({
   format: z.enum(["csv", "xlsx", "pdf"]),
   /** Which layout a PDF is printed in. */
-  template: z.enum(EXPORT_TEMPLATES).default("register"),
+  template: z.enum(EXPORT_TEMPLATES).default("layout"),
   params: z.record(z.string(), z.string()).default({}),
   view: reportViewSchema,
   /** Only these rows, when somebody exported a selection. */
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // layout reads, under the report's own name rather than the template's.
     const schema = {
       ...template.templateSchema,
-      page: { ...template.templateSchema.page, orientation: EXPORT_TEMPLATE_ORIENTATION[layout] },
+      page: { ...template.templateSchema.page, orientation: orientationFor(layout, applied.columns.length) },
       labels: { ...template.templateSchema.labels, documentTitle: undefined },
     };
     const document = exportDocument(layout, {

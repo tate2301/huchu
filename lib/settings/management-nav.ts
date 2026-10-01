@@ -587,6 +587,14 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     matchPrefixes: ["/settings/templates"],
   },
   {
+    id: "reports",
+    group: "company",
+    label: "Reports",
+    href: "/preferences/organization/reports",
+    icon: FileCheck,
+    gate: { kind: "preference", itemId: "reports" },
+  },
+  {
     id: "billing",
     group: "company",
     label: "Billing",

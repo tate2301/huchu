@@ -1,5 +1,6 @@
 import { canReadReport, canUseAction, type ReportAccess } from "@/lib/reports/access";
-import type { ReportMeta, ReportDefinition } from "@/lib/reports/types";
+import { defaultLayout, fitLayout } from "@/lib/reports/layout";
+import type { ReportMeta, ReportDefinition, SavedReportSetup } from "@/lib/reports/types";
 
 /**
  * The reports a person can open, arranged for the business they are in.
@@ -22,8 +23,10 @@ export function reportCatalog(
   sources: readonly ReportDefinition[],
   access: ReportAccess,
   profile: string | null | undefined,
+  /** Reports this workspace switched off. */
+  disabled: ReadonlySet<string> = new Set(),
 ): CatalogArea[] {
-  const readable = sources.filter((source) => canReadReport(source, access));
+  const readable = sources.filter((source) => !disabled.has(source.key) && canReadReport(source, access));
   const forProfile = (source: ReportDefinition) => (profile ? source.profiles.includes(profile) : false);
 
   const areas = new Map<string, { area: string; ours: boolean; reports: CatalogEntry[] }>();
@@ -44,8 +47,16 @@ export function reportCatalog(
   );
 }
 
-/** The part of a source the browser is told: only the actions this role may use. */
-export function reportMeta(source: ReportDefinition, role: string, params: ReportMeta["params"] = source.params): ReportMeta {
+/**
+ * The part of a source the browser is told: only the actions this role may
+ * use, and the workspace's own layout and starting view where it saved them.
+ */
+export function reportMeta(
+  source: ReportDefinition,
+  role: string,
+  params: ReportMeta["params"] = source.params,
+  saved: SavedReportSetup | null = null,
+): ReportMeta {
   return {
     key: source.key,
     title: source.title,
@@ -54,5 +65,7 @@ export function reportMeta(source: ReportDefinition, role: string, params: Repor
     params,
     defaults: source.defaults,
     rowActions: (source.rowActions ?? []).filter((action) => canUseAction(action, role)),
+    layout: fitLayout(saved?.layout ?? source.layout ?? defaultLayout(source), source.columns),
+    ...(saved?.view ? { defaultView: saved.view } : {}),
   };
 }

@@ -48,7 +48,9 @@ export const AGGREGATE_LABELS: Record<Aggregate, string> = {
    Defaults and repair
    ────────────────────────────────────────────────────────────────────────── */
 
-export function defaultView(meta: Pick<ReportMeta, "columns" | "defaults">): ReportView {
+export function defaultView(meta: Pick<ReportMeta, "columns" | "defaults" | "defaultView">): ReportView {
+  // A view the workspace saved is everyone's starting point, fitted to today's columns.
+  if (meta.defaultView) return fitView(meta.defaultView, meta.columns);
   return {
     columns: meta.columns.map((column) => ({ key: column.key, hidden: column.hidden === true })),
     conditions: [],

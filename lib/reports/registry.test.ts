@@ -4,6 +4,7 @@ import { fieldListSchema } from "@/lib/forms/fields";
 import { getCatalogFeatureKeys } from "@/lib/platform/gating/catalog-utils";
 
 import { reportCatalog } from "./catalog";
+import { fitLayout, reportLayoutSchema } from "./layout";
 import { reportFeatureKey } from "./access";
 import { REPORT_DEFINITIONS } from "./registry";
 import { unpairedReportKeys } from "./server";
@@ -71,4 +72,14 @@ describe("reportCatalog", () => {
     const keys = rep.flatMap((area) => area.reports.map((report) => report.key));
     expect(keys.every((key) => key.startsWith("crm-"))).toBe(true);
   });
+});
+
+describe("layouts", () => {
+  it.each(REPORT_DEFINITIONS.filter((d) => d.layout).map((d) => [d.key, d] as const))(
+    "%s declares a layout that is valid and names its own columns",
+    (_, definition) => {
+      expect(reportLayoutSchema.safeParse(definition.layout).success).toBe(true);
+      expect(fitLayout(definition.layout!, definition.columns)).toEqual(definition.layout);
+    },
+  );
 });

@@ -1,0 +1,103 @@
+/*
+  The arranger's controls, drawn to match the template editor's block toolbar
+  so the two builders read as one product. The row, gutter and toolbar frame
+  are the page editor's own (components/editor/page-editor.module.css).
+*/
+@layer components {
+  .frame {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--stack-top, 0px) - 96px);
+    margin: -16px -24px 0;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .select {
+    height: 26px;
+    padding: 0 26px 0 8px;
+    border-color: transparent;
+    font-weight: 500;
+    font-size: 12px;
+  }
+
+  .select:hover {
+    background: var(--canvas);
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-body);
+    cursor: pointer;
+  }
+
+  .headingInput,
+  .textInput {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    color: var(--text-strong);
+    outline: none;
+  }
+
+  .headingInput {
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  .headingLarge {
+    font-size: 17px;
+    line-height: 1.25;
+    letter-spacing: -0.012em;
+  }
+
+  .textInput {
+    display: block;
+    resize: none;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-body);
+    field-sizing: content;
+    min-height: 3lh;
+  }
+
+  .headingInput::placeholder,
+  .textInput::placeholder {
+    color: var(--text-subtle);
+  }
+
+  .tableStandIn {
+    display: grid;
+    gap: 6px;
+  }
+
+  .tableHead {
+    display: flex;
+    gap: 16px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+    white-space: nowrap;
+  }
+
+  .tableRow {
+    height: 10px;
+    border-radius: 3px;
+    background: var(--surface-muted);
+  }
+
+  .half {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+}

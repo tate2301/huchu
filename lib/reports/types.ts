@@ -1,4 +1,5 @@
 import type { FieldDefinition } from "@/lib/forms/fields";
+import type { ReportLayout } from "@/lib/reports/layout";
 
 /**
  * A report is a source of rows about one kind of thing, and a view over them.
@@ -98,6 +99,30 @@ export type ReportMeta = {
   /** The view someone gets before they change anything. */
   defaults: Partial<Pick<ReportView, "sort" | "groupBy">>;
   rowActions?: ReportRowAction[];
+  /** How the report is laid out as a page. Absent, the default for its columns. */
+  layout?: ReportLayout;
+  /** The view the workspace saved as everyone's starting point, if it saved one. */
+  defaultView?: ReportView;
+};
+
+/** One report as management lists it. */
+export type ReportSettingSummary = {
+  key: string;
+  /** The workspace's row for this report, once it has changed anything. */
+  settingId: string | null;
+  title: string;
+  area: string;
+  enabled: boolean;
+  /** The workspace arranged its own page. */
+  arranged: boolean;
+  /** The workspace saved a starting view. */
+  viewSaved: boolean;
+};
+
+/** What a workspace has saved over a report's own setup. */
+export type SavedReportSetup = {
+  layout: ReportLayout | null;
+  view: ReportView | null;
 };
 
 /**

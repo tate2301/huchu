@@ -120,8 +120,13 @@ export function PageEditor<T>({
   const within = (selector: string) =>
     document.querySelector<HTMLElement>(`[data-editor-page="${window.CSS.escape(pageId)}"] ${selector}`);
 
+  // The item's own first text field — never a control in its toolbar, which
+  // sits ahead of it in the row and would otherwise take a new item's focus.
   const focusFirstIn = (row: Element | null) => {
-    const input = row?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
+    const input = [...(row?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea") ?? [])].find(
+      (candidate) =>
+        !candidate.closest('[role="toolbar"]') && candidate.type !== "checkbox" && candidate.type !== "radio",
+    );
     input?.focus();
     if (input?.value) input.select();
   };
