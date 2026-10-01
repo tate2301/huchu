@@ -1,6 +1,7 @@
 import { after } from "next/server";
 
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
+import { notifyRecordMembers } from "@/lib/crm/record-members";
 
 import type { ActivityRequest } from "./context";
 import { flushActivity } from "./flush";
@@ -8,9 +9,11 @@ import { flushActivity } from "./flush";
 /**
  * Name who is making the request, and write its changes once it is answered.
  *
- * `after()` runs the flush once the response has been sent. Outside a request
- * scope — a test calling a handler directly — it throws, and the changes are
- * simply not written: there is no request to have been made by anybody.
+ * `after()` runs the flush once the response has been sent, then tells the
+ * members of any CRM record the request added to that it happened. Outside a
+ * request scope — a test calling a handler directly — it throws, and the
+ * changes are simply not written: there is no request to have been made by
+ * anybody.
  */
 export function attachActivityActor(record: ActivityRequest, session: AuthenticatedSession) {
   if (record.actorId) return;
@@ -20,7 +23,10 @@ export function attachActivityActor(record: ActivityRequest, session: Authentica
   record.actorRole = session.user.role ?? null;
 
   try {
-    after(() => flushActivity(record));
+    after(async () => {
+      await flushActivity(record);
+      await notifyRecordMembers(record);
+    });
   } catch {
     // Not in a request scope.
   }

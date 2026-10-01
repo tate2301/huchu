@@ -8,6 +8,7 @@ const updatePreferenceSchema = z
   .object({
     inAppEnabled: z.boolean().optional(),
     webPushEnabled: z.boolean().optional(),
+    emailEnabled: z.boolean().optional(),
     hrEnabled: z.boolean().optional(),
     opsEnabled: z.boolean().optional(),
     crmEnabled: z.boolean().optional(),
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
         userId: session.user.id,
         inAppEnabled: true,
         webPushEnabled: false,
+        emailEnabled: true,
         hrEnabled: true,
         opsEnabled: true,
         crmEnabled: true,

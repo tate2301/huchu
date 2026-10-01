@@ -9,6 +9,7 @@ import {
   type ApprovalTargetType,
   type UserNotificationPreference,
 } from "@prisma/client"
+import { emailNotificationAfterResponse } from "@/lib/notification-email"
 import { prisma } from "@/lib/prisma"
 
 type DbClient = Prisma.TransactionClient | PrismaClient
@@ -52,27 +53,27 @@ function isApproverRole(role: string | undefined) {
   return role === "MANAGER" || role === "SUPERADMIN"
 }
 
-function isOpsEnabledForPreference(pref: UserNotificationPreference | undefined) {
+function isCategoryEnabled(pref: UserNotificationPreference | undefined, category: NotificationCategory) {
   if (!pref) return true
-  return pref.inAppEnabled && pref.opsEnabled
+  // Each category reads its own switch. CRM notices previously followed the
+  // ops switch, so turning ops off silently killed them too.
+  if (category === "HR") return pref.hrEnabled
+  if (category === "CRM") return pref.crmEnabled
+  return pref.opsEnabled
 }
 
-function isHrEnabledForPreference(pref: UserNotificationPreference | undefined) {
-  if (!pref) return true
-  return pref.inAppEnabled && pref.hrEnabled
-}
-
-function isCrmEnabledForPreference(pref: UserNotificationPreference | undefined) {
-  if (!pref) return true
-  return pref.inAppEnabled && pref.crmEnabled
-}
-
-async function filterRecipientsForCategory(
+/**
+ * Who hears about it, and how. The topic switches decide whether somebody
+ * hears at all; the channel switches decide where. The two channels are
+ * independent: email off still shows it in the app, and in-app off still
+ * emails it.
+ */
+async function recipientsByChannel(
   db: DbClient,
   input: { companyId: string; userIds: string[]; category: NotificationCategory },
-) {
+): Promise<{ inApp: string[]; email: string[] }> {
   const dedupedUserIds = Array.from(new Set(input.userIds.filter(Boolean)))
-  if (dedupedUserIds.length === 0) return []
+  if (dedupedUserIds.length === 0) return { inApp: [], email: [] }
 
   const activeUsers = await db.user.findMany({
     where: {
@@ -83,33 +84,41 @@ async function filterRecipientsForCategory(
     select: { id: true },
   })
   const activeUserIds = activeUsers.map((user) => user.id)
-  if (activeUserIds.length === 0) return []
+  if (activeUserIds.length === 0) return { inApp: [], email: [] }
 
   const preferences = await db.userNotificationPreference.findMany({
     where: { userId: { in: activeUserIds } },
   })
   const preferenceByUserId = new Map(preferences.map((pref) => [pref.userId, pref]))
 
-  return activeUserIds.filter((userId) => {
-    const preference = preferenceByUserId.get(userId)
-    // Each category reads its own switch. CRM notices previously followed the
-    // ops switch, so turning ops off silently killed them too.
-    if (input.category === "HR") return isHrEnabledForPreference(preference)
-    if (input.category === "CRM") return isCrmEnabledForPreference(preference)
-    return isOpsEnabledForPreference(preference)
-  })
+  const wanted = activeUserIds.filter((userId) =>
+    isCategoryEnabled(preferenceByUserId.get(userId), input.category),
+  )
+  return {
+    inApp: wanted.filter((userId) => preferenceByUserId.get(userId)?.inAppEnabled ?? true),
+    email: wanted.filter((userId) => preferenceByUserId.get(userId)?.emailEnabled ?? true),
+  }
 }
 
 async function createNotification(
   db: DbClient,
   input: CreateNotificationInput,
 ) {
-  const recipientIds = await filterRecipientsForCategory(db, {
+  const recipients = await recipientsByChannel(db, {
     companyId: input.companyId,
     userIds: input.recipientIds,
     category: input.category,
   })
-  if (recipientIds.length === 0) return null
+
+  emailNotificationAfterResponse({
+    companyId: input.companyId,
+    userIds: recipients.email,
+    title: input.title,
+    summary: input.summary,
+    viewPath: payloadViewPath(input.payload ?? null) ?? defaultViewPath(input.entityType, input.entityId),
+  })
+
+  if (recipients.inApp.length === 0) return null
 
   const notification = await db.notification.create({
     data: {
@@ -127,7 +136,7 @@ async function createNotification(
   })
 
   await db.notificationRecipient.createMany({
-    data: recipientIds.map((userId) => ({
+    data: recipients.inApp.map((userId) => ({
       notificationId: notification.id,
       userId,
     })),

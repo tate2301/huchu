@@ -20,6 +20,11 @@ export function recordActivityWrite(args: {
   const open = currentActivityRequest();
   if (!open || open.flushed) return;
 
+  if (args.model === "CrmActivity" && args.operation === "create") {
+    const id = (args.result as { id?: unknown } | null)?.id;
+    if (typeof id === "string") open.crmActivityIds.push(id);
+  }
+
   const change = describeChange(args);
   if (!change) return;
 

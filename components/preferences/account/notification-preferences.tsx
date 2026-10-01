@@ -20,7 +20,7 @@ import styles from "./account.module.css";
 
 type PreferenceKey = keyof Pick<
   UserNotificationPreferences,
-  "inAppEnabled" | "webPushEnabled" | "hrEnabled" | "opsEnabled" | "crmEnabled"
+  "inAppEnabled" | "emailEnabled" | "webPushEnabled" | "hrEnabled" | "opsEnabled" | "crmEnabled"
 >;
 
 type PreferenceDraft = Record<PreferenceKey, boolean>;
@@ -28,13 +28,12 @@ type PreferenceDraft = Record<PreferenceKey, boolean>;
 /**
  * Every switch the data has, grouped the way the board groups them.
  *
- * `lib/notifications.ts` defines exactly two delivery channels
- * (`inAppEnabled`, `webPushEnabled`) and exactly three categories — its
- * `NotificationCategory` union is `"HR" | "OPS" | "CRM"`, and
- * `filterRecipientsForCategory` reads one boolean per category. There is no
- * email channel and no per-event flag anywhere in the model, so the board's
- * "Email" group and its one-row-per-event drawing are reproduced as the rows
- * that actually exist. Every channel and every category is covered.
+ * `lib/notifications.ts` delivers on three channels (`inAppEnabled`,
+ * `emailEnabled`, `webPushEnabled`) and sorts everything into three
+ * categories — its `NotificationCategory` union is `"HR" | "OPS" | "CRM"`. A
+ * topic switch decides whether somebody hears at all, a channel switch where.
+ * There is no per-event flag anywhere in the model, so the board's
+ * one-row-per-event drawing is reproduced as the rows that actually exist.
  *
  * The labels are the whole row — rule 1 deleted the sentence that used to sit
  * under each one, all five of which restated the label.
@@ -45,6 +44,7 @@ const groups: Array<{ id: string; label: string; rows: Array<{ key: PreferenceKe
     label: "Channels",
     rows: [
       { key: "inAppEnabled", label: "In the app" },
+      { key: "emailEnabled", label: "Email" },
       { key: "webPushEnabled", label: "Web push" },
     ],
   },
@@ -64,6 +64,7 @@ const keys = groups.flatMap((group) => group.rows.map((row) => row.key));
 function createDraft(preferences: UserNotificationPreferences | undefined): PreferenceDraft {
   return {
     inAppEnabled: preferences?.inAppEnabled ?? true,
+    emailEnabled: preferences?.emailEnabled ?? true,
     webPushEnabled: preferences?.webPushEnabled ?? false,
     hrEnabled: preferences?.hrEnabled ?? true,
     opsEnabled: preferences?.opsEnabled ?? true,

@@ -26,6 +26,7 @@ function openRequest(overrides: Partial<ActivityRequest> = {}): ActivityRequest 
     changes: [],
     failed: false,
     explicit: false,
+    crmActivityIds: [],
     flushed: false,
     ...overrides,
   };
