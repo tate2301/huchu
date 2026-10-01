@@ -220,6 +220,7 @@ export const CheckCircleSolid = createPhosphorIcon(
 export const CheckIcon = createPhosphorIcon("Check", "CheckIcon");
 export const Checklist = createPhosphorIcon("Checks", "Checklist");
 export const ChevronDown = createPhosphorIcon("CaretDown", "ChevronDown");
+export const ChevronUp = createPhosphorIcon("CaretUp", "ChevronUp");
 export const ChevronDownIcon = createPhosphorIcon(
   "CaretDown",
   "ChevronDownIcon",
