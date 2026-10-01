@@ -49,6 +49,17 @@ export function getApiErrorMessage(error: unknown, fallback = "Something went wr
   return fallback
 }
 
+/**
+ * Whether the server answered and said no — a 4xx it means. Asking again gets
+ * the same answer, so it is not worth a retry. 408 and 429 are the two 4xx
+ * that say "not now" rather than "no".
+ */
+export function isRefusal(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false
+  if (error.status === 408 || error.status === 429) return false
+  return error.status >= 400 && error.status < 500
+}
+
 export function isFeatureDisabledError(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false
   if (error.status !== 403) return false

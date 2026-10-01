@@ -27,6 +27,15 @@ describe("resolveRecipient", () => {
     expect(resolveRecipient({ contactEmail: "e@client.example" })).toBe("e@client.example");
   });
 
+  it("falls back to the deal's primary contact before the lead's enquiry address", () => {
+    expect(
+      resolveRecipient({ primaryContactEmail: "tendai@client.example", contactEmail: "e@client.example" }),
+    ).toBe("tendai@client.example");
+    expect(
+      resolveRecipient({ clientEmail: "office@client.example", primaryContactEmail: "tendai@client.example" }),
+    ).toBe("office@client.example");
+  });
+
   it("treats blank and whitespace as absent rather than sending to nobody", () => {
     expect(resolveRecipient({ customerEmail: "   ", clientEmail: "", contactEmail: null })).toBeNull();
     expect(resolveRecipient({})).toBeNull();

@@ -72,6 +72,9 @@ function computeTotals(lines: CrmDocumentLineInput[]): DocTotals {
 /**
  * Ensure a CrmClient is linked to an accounting Customer, creating one if
  * needed and writing the link back onto the CrmClient. Returns the customerId.
+ *
+ * An existing link is brought up to date on the way through, so every
+ * document raised carries the company's current details.
  */
 export async function ensureAccountingCustomer(
   tx: Tx,
@@ -79,16 +82,20 @@ export async function ensureAccountingCustomer(
 ): Promise<string> {
   const client = await tx.crmClient.findFirst({
     where: { id: params.clientId, companyId: params.companyId },
-    select: { id: true, name: true, phone: true, email: true, customerId: true },
+    select: { id: true, name: true, contactName: true, phone: true, email: true, customerId: true },
   });
   if (!client) throw new Error("CRM client not found");
-  if (client.customerId) return client.customerId;
+  if (client.customerId) {
+    await copyClientOntoCustomer(tx, client.customerId, client);
+    return client.customerId;
+  }
 
   // Reuse an existing accounting customer with the same name before creating.
   const existing = await tx.customer.findFirst({
     where: { companyId: params.companyId, name: client.name },
     select: { id: true },
   });
+  if (existing) await copyClientOntoCustomer(tx, existing.id, client);
   const customerId =
     existing?.id ??
     (
@@ -96,6 +103,7 @@ export async function ensureAccountingCustomer(
         data: {
           companyId: params.companyId,
           name: client.name,
+          contactName: client.contactName ?? undefined,
           phone: client.phone ?? undefined,
           email: client.email ?? undefined,
           isActive: true,
@@ -109,6 +117,51 @@ export async function ensureAccountingCustomer(
     data: { customerId },
   });
   return customerId;
+}
+
+/**
+ * Bring a company's accounting customer up to date with the company.
+ *
+ * The customer is a copy, made the first time the company is billed. The
+ * company is what people edit, so the copy follows it: before this it kept
+ * whatever the company looked like on that first quote, and every quote and
+ * invoice after went to the old address and printed it under "Bill To".
+ *
+ * Called wherever the copy is about to be read — raising a document, sending
+ * one — and when the company is edited. Does nothing for a company that has
+ * never been billed.
+ */
+export async function syncAccountingCustomer(
+  tx: Tx,
+  params: { companyId: string; clientId: string },
+): Promise<void> {
+  const client = await tx.crmClient.findFirst({
+    where: { id: params.clientId, companyId: params.companyId },
+    select: { name: true, contactName: true, phone: true, email: true, customerId: true },
+  });
+  if (client?.customerId) await copyClientOntoCustomer(tx, client.customerId, client);
+}
+
+/**
+ * Only what the company has a value for. A customer reused by name may carry
+ * an address accounting typed in that the company never had, and a blank on
+ * the company is not a reason to lose it.
+ */
+async function copyClientOntoCustomer(
+  tx: Tx,
+  customerId: string,
+  client: { name: string; contactName: string | null; phone: string | null; email: string | null },
+) {
+  const filled = (value: string | null) => value?.trim() || undefined;
+  await tx.customer.update({
+    where: { id: customerId },
+    data: {
+      name: filled(client.name),
+      contactName: filled(client.contactName),
+      phone: filled(client.phone),
+      email: filled(client.email),
+    },
+  });
 }
 
 /** Which record a document is being raised against. */

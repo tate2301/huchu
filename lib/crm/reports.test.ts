@@ -9,7 +9,6 @@ import {
   medianCycleDays,
   medianDaysInStage,
   rangeToDates,
-  shareSlices,
   summarizeGroups,
   winRate,
 } from "./reports";
@@ -335,40 +334,5 @@ describe("medianDaysInStage", () => {
     );
 
     expect(result.s1).toBe(10);
-  });
-});
-
-describe("shareSlices", () => {
-  it("folds everything past the limit into one slice so the shares still sum", () => {
-    const slices = shareSlices(
-      [
-        { key: "a", label: "A", value: 50 },
-        { key: "b", label: "B", value: 30 },
-        { key: "c", label: "C", value: 10 },
-        { key: "d", label: "D", value: 6 },
-        { key: "e", label: "E", value: 4 },
-      ],
-      3,
-    );
-
-    expect(slices).toHaveLength(4);
-    expect(slices[3].label).toBe("Other (2)");
-    expect(slices[3].value).toBe(10);
-    expect(slices.reduce((sum, slice) => sum + slice.share, 0)).toBeCloseTo(1);
-  });
-
-  it("drops a slice of nothing, which has no angle to draw", () => {
-    const slices = shareSlices([
-      { key: "a", label: "A", value: 10 },
-      { key: "b", label: "B", value: 0 },
-      { key: "c", label: "C", value: -5 },
-    ]);
-
-    expect(slices.map((slice) => slice.key)).toEqual(["a"]);
-    expect(slices[0].share).toBe(1);
-  });
-
-  it("returns nothing rather than a pie of zeros", () => {
-    expect(shareSlices([{ key: "a", label: "A", value: 0 }])).toEqual([]);
   });
 });

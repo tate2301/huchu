@@ -1,8 +1,9 @@
 import { getServerSession } from "next-auth";
-import { CrmPage } from "@/components/crm/crm-page";
 import { redirect } from "next/navigation";
+
+import { CrmPage } from "@/components/crm/crm-page";
+import { IntakeFormsRegister } from "@/components/crm/intake-forms/intake-forms-register";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { CrmFormsContent } from "@/components/crm/crm-forms-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function CrmFormsPage() {
@@ -11,7 +12,7 @@ export default async function CrmFormsPage() {
   return (
     <CrmPage>
       <PageChrome title="Intake forms" />
-      <CrmFormsContent />
+      <IntakeFormsRegister />
     </CrmPage>
   );
 }

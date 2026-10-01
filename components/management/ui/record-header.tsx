@@ -220,6 +220,10 @@ export type HeaderActionProps = React.ButtonHTMLAttributes<HTMLButtonElement> & 
 /**
  * The header's one labelled verb: 32px, `#E5E8EE` border, `500 13/1.4`.
  *
+ * In a header narrower than a phone's, a verb with an icon drops to the icon
+ * alone so the record's name keeps the width. The label stays as its
+ * accessible name.
+ *
  * Local rather than `components/ui/button.tsx` because the design system's
  * rungs are 24/30/36/44 and its secondary border is `#D2D7E0` — there is no
  * 32px rung with a `#E5E8EE` edge anywhere in it, and a 36px button in this
@@ -233,9 +237,20 @@ export function HeaderAction({
   ...props
 }: HeaderActionProps) {
   return (
-    <button type={type ?? "button"} className={cn(styles.button, className)} {...props}>
-      {Icon ? <Icon /> : null}
-      {children}
+    <button
+      type={type ?? "button"}
+      className={cn(styles.button, className)}
+      data-icon={Icon ? "" : undefined}
+      {...props}
+    >
+      {Icon ? (
+        <>
+          <Icon />
+          <span className={styles.buttonLabel}>{children}</span>
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 }

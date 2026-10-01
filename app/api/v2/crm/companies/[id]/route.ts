@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { syncAccountingCustomer } from "@/lib/crm/accounting-bridge";
 import { canEditRecord } from "@/lib/crm/permissions";
 import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
 import { extractDomain } from "@/lib/crm/duplicates";
@@ -195,6 +196,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           parent: { select: { id: true, name: true } },
         },
       });
+
+      // Quotes and invoices print the company from its accounting copy, and
+      // are emailed to it. The copy follows the edit.
+      await syncAccountingCustomer(tx, { companyId, clientId: id });
 
       // One row per field that actually moved, written with the change it
       // describes. Outside the transaction, an update that failed still left

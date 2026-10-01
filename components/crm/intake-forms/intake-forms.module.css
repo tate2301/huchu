@@ -1,20 +1,15 @@
 /*
-  The intake form editor: the public form, top to bottom, with its own words
-  editable in place. The fixed parts (contact questions, message, submit) are
+  Intake forms: the register, and the form editor inside a form's record —
+  the public form, top to bottom, with its own words editable in place. The fixed parts (contact questions, message, submit) are
   drawn exactly as a client meets them, on the same 12px/14px inset the
   builder's questions use, so the whole page lines up as one form.
 */
 @layer components {
-  .state {
-    margin: 0;
-    padding: 24px var(--content-gutter-x, 16px);
-    font-weight: 500;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #5e6573;
-  }
-
-  /* The builder is the page: it takes the height under the app bar. */
+  /*
+    The register — the forms beside the open one, as the management surface
+    draws a register — taking the height under the app bar, so the list and
+    the record each scroll on their own.
+  */
   .frame {
     box-sizing: border-box;
     height: calc(100dvh - 3.5rem - var(--content-lede, 16px) - 24px);
@@ -26,61 +21,39 @@
     background: #ffffff;
   }
 
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .register {
+    height: 100%;
   }
 
-  .button {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    height: 32px;
-    padding: 0 12px;
+  /*
+    One column at a time on a phone: the list until a form is open, then the
+    form, which carries the way back. RegisterLayout hides the empty record
+    itself; the list is hidden here because in this register the open form is
+    the route, so "open" is known without a first row standing in for it.
+  */
+  @media (max-width: 899px) {
+    .frame[data-open] .register > :first-child {
+      display: none;
+    }
+
+    .register > :last-child {
+      padding: 16px;
+    }
+  }
+
+  /* The form as a client meets it, set on its own sheet inside the record. */
+  .canvas {
+    max-width: 760px;
     border: 1px solid #e5e8ee;
-    border-radius: 8px;
-    background: #ffffff;
-    font-weight: 500;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #16181d;
-    cursor: pointer;
+    border-radius: 12px;
+    overflow: hidden;
   }
 
-  .primary {
-    border-color: #0b5df0;
-    background: #0b5df0;
-    color: #ffffff;
-  }
-
-  .iconButton {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: #565c69;
-    cursor: pointer;
-  }
-
-  .iconButton svg {
-    width: 17px;
-    height: 17px;
-  }
-
-  .iconButton:hover {
-    background: #f1f3f6;
-  }
-
-  .button:focus-visible,
-  .iconButton:focus-visible,
-  .pillRemove:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  .saveState {
+    font-weight: 400;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #5e6573;
   }
 
   /* The top of the form */
@@ -201,6 +174,11 @@
     opacity: 1;
   }
 
+  .pillRemove:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+  }
+
   .pillRemove:hover {
     background: #eef0f4;
     color: #565c69;
@@ -220,25 +198,8 @@
     border-color: #0b5df0;
   }
 
-  .photosHead {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
 
-  .photosToggle {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-  }
 
-  .photosLimit {
-    width: auto;
-    height: 30px;
-    font-size: 12px;
-  }
 
   .fakeDrop {
     display: flex;
@@ -288,9 +249,5 @@
     font-size: 12px;
     line-height: 1.4;
     color: #565c69;
-  }
-
-  .dialogBody {
-    padding: 8px 0 16px;
   }
 }

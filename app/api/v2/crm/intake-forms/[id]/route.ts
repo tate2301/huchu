@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -21,24 +22,6 @@ const updateSchema = z.object({
   fields: crmIntakeFieldsSchema.optional(),
   services: crmIntakeServicesSchema.optional(),
 });
-
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const sessionResult = await validateSession(request);
-    if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-    const { id } = await params;
-
-    const form = await prisma.crmIntakeForm.findFirst({
-      where: { id, companyId: session.user.companyId },
-    });
-    if (!form) return errorResponse("Intake form not found", 404);
-    return successResponse(form);
-  } catch (error) {
-    console.error("[API] GET /api/v2/crm/intake-forms/[id] error:", error);
-    return errorResponse("Failed to fetch intake form");
-  }
-}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -83,6 +66,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return successResponse(updated);
   } catch (error) {
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
+    // Names are unique per company (`@@unique([companyId, name])`).
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("There is already a form with that name", 409);
+    }
     console.error("[API] PATCH /api/v2/crm/intake-forms/[id] error:", error);
     return errorResponse("Failed to update intake form");
   }

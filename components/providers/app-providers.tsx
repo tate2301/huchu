@@ -13,6 +13,7 @@ import { OfflineChrome } from "@/components/offline/offline-chrome"
 import { OfflineRuntime } from "@/components/offline/offline-runtime"
 import { AppearanceProvider } from "@/components/providers/appearance-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { isRefusal } from "@/lib/api-client"
 
 /** Kept query results live as long as the client keeps them in memory. */
 const PERSISTED_QUERY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
@@ -71,8 +72,8 @@ export function AppProviders({
             gcTime: 30 * 24 * 60 * 60 * 1000,
             staleTime: 60_000,
             refetchOnWindowFocus: false,
-            retry: (failureCount) => {
-              if (browserIsOffline()) {
+            retry: (failureCount, error) => {
+              if (browserIsOffline() || isRefusal(error)) {
                 return false
               }
               return failureCount < 2
@@ -80,8 +81,10 @@ export function AppProviders({
           },
           mutations: {
             networkMode: "offlineFirst",
-            retry: (failureCount) => {
-              if (browserIsOffline()) {
+            // A refused save (a taken name, a failed check) is the server's
+            // answer, not a blip, so only failures that might pass are retried.
+            retry: (failureCount, error) => {
+              if (browserIsOffline() || isRefusal(error)) {
                 return false
               }
               return failureCount < 1
