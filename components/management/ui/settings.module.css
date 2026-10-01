@@ -801,6 +801,28 @@
     gap: 12px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--s-rule);
+    /* Measured by the header's own width, not the viewport's: a record pane
+       can be phone-narrow on a wide screen too. */
+    container: record-header / inline-size;
+  }
+
+  /* A phone-wide header gives the name the room: a verb with an icon becomes
+     a 32px icon button, its label kept for screen readers. */
+  @container record-header (max-width: 479px) {
+    .button[data-icon] {
+      justify-content: center;
+      width: 32px;
+      padding: 0;
+    }
+
+    .button[data-icon] > .buttonLabel {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
   }
 
   .recordMark {
