@@ -19,6 +19,8 @@ import {
   useInvalidateProducts,
   type RetailProduct,
 } from "@/components/retail/product-dialogs";
+import { BreakCaseDialog } from "@/components/retail/break-case-dialog";
+import { useRetailCategories } from "@/components/retail/category-field";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -26,7 +28,7 @@ import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Coins, TableRows } from "@/lib/icons";
-import { enumLabel, formatQuantity, formatRetailDate } from "@/lib/retail/words";
+import { formatQuantity, formatRetailDate } from "@/lib/retail/words";
 
 type ProductDetail = RetailProduct & {
   productId: string;
@@ -60,6 +62,7 @@ export default function RetailProductPage() {
   const productId = params?.id ?? "";
   const [editing, setEditing] = useState(false);
   const [pricing, setPricing] = useState(false);
+  const [opening, setOpening] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const invalidate = useInvalidateProducts();
@@ -88,11 +91,40 @@ export default function RetailProductPage() {
       }),
   });
 
+  const categories = useRetailCategories(Boolean(productId));
+
+  /**
+   * Save one fact. Throws the API's own words, which the field shows under
+   * itself and stays open on.
+   */
+  const save = async (patch: Record<string, unknown>) => {
+    try {
+      await fetchJson(`/api/v2/retail/catalog/${productId}`, { method: "PATCH", body: JSON.stringify(patch) });
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error));
+    }
+    invalidate();
+  };
+
+  /** A figure typed into a fact. Blank becomes null; anything else must be zero or more. */
+  const figureOrNone = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+    const value = Number(trimmed);
+    if (!Number.isFinite(value) || value < 0) throw new Error("Use a figure, zero or more.");
+    return value;
+  };
+  const figure = (text: string) => {
+    const value = figureOrNone(text);
+    if (value === null) throw new Error("Give a figure.");
+    return value;
+  };
+
   const confirmRemove = () => {
     if (!product) return;
     void dsConfirm({
       title: `Remove ${product.name}?`,
-      description: "It stops appearing on the till. Its stock stays on hand, and past sales keep its name.",
+      description: "It goes in the bin and off the till. Its stock stays on hand, and Settings › Bin brings it back.",
       confirmLabel: "Remove the product",
       variant: "danger",
     }).then((confirmed) => {
@@ -143,6 +175,9 @@ export default function RetailProductPage() {
             overflow={
               <>
                 <DropdownMenuItem onSelect={() => setEditing(true)}>Edit product</DropdownMenuItem>
+                {product.packOf ? (
+                  <DropdownMenuItem onSelect={() => setOpening(true)}>Open cases into singles</DropdownMenuItem>
+                ) : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={confirmRemove}
@@ -159,16 +194,39 @@ export default function RetailProductPage() {
             <FactList
               maxWidth={WIDTH}
               items={[
-                { label: "Price", value: retailMoney(product.unitPrice), mono: true },
+                {
+                  label: "Price",
+                  value: retailMoney(product.unitPrice),
+                  mono: true,
+                  edit: {
+                    value: String(product.unitPrice),
+                    kind: "decimal",
+                    onSave: (text) => save({ unitPrice: figure(text) }),
+                  },
+                },
                 {
                   label: "Was",
                   value: product.compareAtPrice ? retailMoney(product.compareAtPrice) : "No old price",
                   mono: Boolean(product.compareAtPrice),
                   tone: product.compareAtPrice ? "default" : "muted",
+                  edit: {
+                    value: product.compareAtPrice ? String(product.compareAtPrice) : "",
+                    kind: "decimal",
+                    onSave: (text) => save({ compareAtPrice: figureOrNone(text) }),
+                  },
                 },
                 {
                   label: "VAT",
                   value: `${product.taxPercent}% ${product.taxInclusive ? "included" : "added at the till"}`,
+                  edit: {
+                    value: String(product.taxPercent),
+                    kind: "decimal",
+                    onSave: (text) => {
+                      const rate = figure(text);
+                      if (rate > 100) throw new Error("VAT is a percentage up to 100.");
+                      return save({ taxPercent: rate });
+                    },
+                  },
                 },
                 { label: "Priced from", value: priceSourceLabel(product.priceSource) },
                 {
@@ -191,7 +249,32 @@ export default function RetailProductPage() {
                   mono: Boolean(product.inventoryItem),
                   tone: (product.inventoryItem?.currentStock ?? 0) > 0 ? "default" : "warn",
                 },
+                {
+                  label: "Reorder at",
+                  value:
+                    product.inventoryItem?.reorderLevel === null || product.inventoryItem?.reorderLevel === undefined
+                      ? "Never asked"
+                      : formatQuantity(product.inventoryItem.reorderLevel, product.inventoryItem.unit),
+                  mono: product.inventoryItem?.reorderLevel !== null && product.inventoryItem?.reorderLevel !== undefined,
+                  tone:
+                    product.inventoryItem?.reorderLevel === null || product.inventoryItem?.reorderLevel === undefined
+                      ? "muted"
+                      : "default",
+                  ...(product.inventoryItem
+                    ? {
+                        edit: {
+                          value:
+                            product.inventoryItem.reorderLevel === null ? "" : String(product.inventoryItem.reorderLevel),
+                          kind: "decimal" as const,
+                          onSave: (text: string) => save({ reorderLevel: figureOrNone(text) }),
+                        },
+                      }
+                    : {}),
+                },
                 { label: "Site", value: product.site?.name ?? "No site" },
+                ...(product.packOf
+                  ? [{ label: "Case of", value: `${product.packSize} × ${product.packOf.name}` }]
+                  : []),
               ]}
             />
 
@@ -199,16 +282,73 @@ export default function RetailProductPage() {
             <FactList
               maxWidth={WIDTH}
               items={[
-                { label: "Code", value: product.sku, mono: true },
+                {
+                  label: "Name",
+                  value: product.name,
+                  edit: {
+                    value: product.name,
+                    onSave: (text) => {
+                      if (!text.trim()) throw new Error("A product needs a name.");
+                      return save({ name: text.trim() });
+                    },
+                  },
+                },
+                {
+                  label: "Code",
+                  value: product.sku,
+                  mono: true,
+                  edit: {
+                    value: product.sku,
+                    onSave: (text) => {
+                      if (!text.trim()) throw new Error("A product needs a code.");
+                      return save({ sku: text.trim() });
+                    },
+                  },
+                },
                 {
                   label: "Barcode",
                   value: product.barcode ?? "Not on file",
                   mono: Boolean(product.barcode),
                   tone: product.barcode ? "default" : "muted",
+                  edit: { value: product.barcode ?? "", onSave: (text) => save({ barcode: text.trim() || null }) },
                 },
-                { label: "Category", value: product.category ? enumLabel(product.category) : "None" },
+                {
+                  label: "Category",
+                  value: product.category ?? "None",
+                  tone: product.category ? "default" : "muted",
+                  edit: {
+                    value: product.categoryId ?? "",
+                    options: [
+                      { value: "", label: "None" },
+                      ...(categories.data?.data ?? []).map((row) => ({ value: row.id, label: row.name })),
+                    ],
+                    onSave: (value) => save({ categoryId: value || null }),
+                  },
+                },
                 { label: "Check ID", value: product.ageRestricted ? "Yes" : "No" },
-                ...(product.description ? [{ label: "Description", value: product.description }] : []),
+                ...(product.returnable
+                  ? [
+                      {
+                        label: "Deposit",
+                        value: product.depositAmount ? retailMoney(product.depositAmount) : "Returnable, no deposit set",
+                        mono: Boolean(product.depositAmount),
+                        edit: {
+                          value: product.depositAmount ? String(product.depositAmount) : "",
+                          kind: "decimal" as const,
+                          onSave: (text: string) => save({ depositAmount: figureOrNone(text) }),
+                        },
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Description",
+                  value: product.description || "None",
+                  tone: product.description ? "default" : "muted",
+                  edit: {
+                    value: product.description ?? "",
+                    onSave: (text) => save({ description: text.trim() || null }),
+                  },
+                },
               ]}
             />
           </div>
@@ -235,6 +375,7 @@ export default function RetailProductPage() {
 
       <ProductDialog open={editing} onOpenChange={setEditing} product={editable} />
       <ChangePriceDialog product={pricing ? editable : null} onOpenChange={(open) => !open && setPricing(false)} />
+      {product?.packOf ? <BreakCaseDialog open={opening} onOpenChange={setOpening} product={product} /> : null}
     </RetailShell>
   );
 }

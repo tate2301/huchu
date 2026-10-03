@@ -188,6 +188,7 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "1200", name: "Inventory", type: "ASSET", category: "Inventory", systemManaged: true },
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2200", name: "VAT Output", type: "LIABILITY", category: "Tax", systemManaged: true },
+  { code: "2240", name: "Bottle Deposits Held", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2210", name: "VAT Input", type: "ASSET", category: "Tax", systemManaged: true },
   { code: "2300", name: "Goods Received Not Invoiced", type: "LIABILITY", category: "Inventory", systemManaged: true },
   ...PAYROLL_CHART_OF_ACCOUNTS,
@@ -819,6 +820,13 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         sortOrder: 30,
       },
       {
+        accountCode: "2240",
+        direction: "CREDIT",
+        valuePath: "depositAmount",
+        memoTemplate: "{description} / bottle deposits",
+        sortOrder: 35,
+      },
+      {
         accountCode: "5000",
         direction: "DEBIT",
         valuePath: "inventory.totalCost",
@@ -866,6 +874,13 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         sortOrder: 30,
       },
       {
+        accountCode: "2240",
+        direction: "CREDIT",
+        valuePath: "depositAmount",
+        memoTemplate: "{description} / bottle deposits",
+        sortOrder: 35,
+      },
+      {
         accountCode: "5000",
         direction: "DEBIT",
         valuePath: "inventory.totalCost",
@@ -911,6 +926,13 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         basis: "TAX",
         memoTemplate: "{description} / output VAT",
         sortOrder: 30,
+      },
+      {
+        accountCode: "2240",
+        direction: "CREDIT",
+        valuePath: "depositAmount",
+        memoTemplate: "{description} / bottle deposits",
+        sortOrder: 35,
       },
       {
         accountCode: "5000",

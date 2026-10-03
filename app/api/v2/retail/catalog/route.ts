@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
+import { productDetailFields, productDetailsProblem, productDetailWrites } from "@/lib/retail/product-details";
 import { loadShelfListings, upsertShelfListing } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";
@@ -56,6 +57,7 @@ const catalogItemSchema = z.object({
   taxPercent: z.number().min(0).max(100).optional(),
   imageUrl: z.string().url().optional().nullable(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+  ...productDetailFields,
 });
 
 function normalizeSku(value: string) {
@@ -102,6 +104,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = catalogItemSchema.parse(body);
+
+    const detailsProblem = await productDetailsProblem(session.user.companyId, input, null);
+    if (detailsProblem) {
+      return errorResponse(detailsProblem, 400);
+    }
 
     if (!input.inventoryItemId) {
       return createWithOwnStockLine(session.user.companyId, input);
@@ -155,7 +162,14 @@ export async function POST(request: NextRequest) {
         imageUrl: input.imageUrl ?? null,
         compareAtPrice: input.compareAtPrice ?? null,
         isActive: (input.status ?? "ACTIVE") === "ACTIVE",
+        ...productDetailWrites(input),
       });
+      if (input.reorderLevel !== undefined) {
+        await prisma.inventoryItem.update({
+          where: { id: inventoryItem.id },
+          data: { minStock: input.reorderLevel },
+        });
+      }
 
       const [created] = await loadShelfListings(session.user.companyId, {
         productIds: [productId],
@@ -215,10 +229,15 @@ async function createWithOwnStockLine(companyId: string, input: CatalogItemInput
       data: {
         itemCode: sku,
         name,
-        category: "CONSUMABLES",
+        // The stores module's mining taxonomy. A shop's product is filed under
+        // the shop's own category (`Product.categoryId`); this column is not
+        // read anywhere in retail.
+        category: "OTHER",
         unit: input.unit?.trim() || "each",
         siteId: site.id,
         locationId: location.id,
+        ...(input.reorderLevel === undefined || input.reorderLevel === null ? {} : { minStock: input.reorderLevel }),
+        ...(input.costPrice === undefined || input.costPrice === null ? {} : { unitCost: input.costPrice }),
       },
       select: { id: true },
     });
@@ -244,6 +263,7 @@ async function createWithOwnStockLine(companyId: string, input: CatalogItemInput
       imageUrl: input.imageUrl ?? null,
       compareAtPrice: input.compareAtPrice ?? null,
       isActive: (input.status ?? "ACTIVE") === "ACTIVE",
+      ...productDetailWrites(input),
     });
     const [created] = await loadShelfListings(companyId, { productIds: [productId] });
     return successResponse(created ?? { id: productId, productId }, 201);

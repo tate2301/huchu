@@ -58,7 +58,11 @@ export function SearchableSelect({
   searchPlaceholder?: string;
   onValueChange: (value: string) => void;
   onAddOption?: (query: string) => void;
-  addLabel?: string;
+  /**
+   * The add row's words. A function gets what was typed, so the row can say
+   * what it will add — "Add ‘Mixers’" — rather than a generic "Add new item".
+   */
+  addLabel?: string | ((query: string) => string);
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -178,7 +182,7 @@ export function SearchableSelect({
                   <CommandSeparator />
                   <CommandGroup>
                     <CommandItem
-                      value={addLabel}
+                      value={`add ${query}`}
                       onMouseDown={(event) => event.preventDefault()}
                       onSelect={() => {
                         onAddOption(query);
@@ -187,7 +191,7 @@ export function SearchableSelect({
                       }}
                     >
                       <Plus className="h-4 w-4" />
-                      {addLabel}
+                      {typeof addLabel === "function" ? addLabel(query) : addLabel}
                     </CommandItem>
                   </CommandGroup>
                 </>

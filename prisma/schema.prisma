@@ -310,6 +310,8 @@ model Company {
   priceLists                    PriceList[]
   productPrices                 ProductPrice[]
   retailRegisters               RetailRegister[]
+  retailShopProfile             RetailShopProfile?
+  retailCategories              RetailCategory[]
   retailPromotions              RetailPromotion[]
   retailPurchaseOrders          RetailPurchaseOrder[]
   retailPurchaseOrderLines      RetailPurchaseOrderLine[]
@@ -1111,6 +1113,7 @@ model Site {
   goldPeriodCloses      GoldPeriodClose[]
   retailRegisters       RetailRegister[]
   retailPurchaseOrders  RetailPurchaseOrder[]
+  crmRequisitions       CrmRequisition[]
   retailGoodsReceipts   RetailGoodsReceipt[]
   retailShifts          RetailShift[]
   retailSales           RetailSale[]
@@ -1358,8 +1361,10 @@ model User {
   crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
+  retailShopProfilesUpdated         RetailShopProfile[]            @relation("RetailShopProfileUpdatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
+  retailPurchaseOrdersClosed        RetailPurchaseOrder[]          @relation("RetailPurchaseOrderClosedBy")
   retailGoodsReceiptsReceived       RetailGoodsReceipt[]           @relation("RetailGoodsReceiptReceivedBy")
   retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
@@ -4351,11 +4356,13 @@ enum RetailHeldCartStatus {
 }
 
 /// `DRAFT` on creation, then driven by receipts: `PARTIAL` while quantities are
-/// outstanding, `RECEIVED` once they are not.
+/// outstanding, `RECEIVED` once they are not. `CLOSED` when the shop stops
+/// waiting for what is left — the supplier ran out, or the rest is not coming.
 enum RetailPurchaseOrderStatus {
   DRAFT
   PARTIAL
   RECEIVED
+  CLOSED
 }
 
 enum RetailGoodsReceiptStatus {
@@ -4389,6 +4396,74 @@ enum RetailTenderType {
   VOUCHER
 }
 
+/// What kind of shop a retail workspace is. It decides the categories a new
+/// shop starts with and which shop-type features exist for the till to use.
+enum RetailBusinessType {
+  GENERAL
+  LIQUOR
+}
+
+/// The shop's own profile: its business type and the features that come with
+/// it. One row per company, written from Settings › General.
+///
+/// A feature is on only when the business type has it *and* its switch is on,
+/// so switching a liquor store to General retail turns every liquor feature
+/// off without losing how they were set. See `lib/retail/shop-profile.ts`.
+model RetailShopProfile {
+  companyId          String             @id
+  businessType       RetailBusinessType @default(GENERAL)
+  /// Liquor: the till asks for an ID check before selling anything that needs one.
+  ageCheck           Boolean            @default(true)
+  /// Liquor: age-restricted lines stop selling outside the licence hours.
+  licenceHours       Boolean            @default(true)
+  /// Licence hours as 24-hour "HH:MM", in the shop's time (Africa/Harare).
+  /// Monday to Saturday share one window; Sunday has its own.
+  weekdayOpensAt     String             @default("08:00")
+  weekdayClosesAt    String             @default("22:00")
+  sundayOpensAt      String             @default("10:00")
+  sundayClosesAt     String             @default("18:00")
+  /// Liquor: returnable bottles carry a deposit that comes back with the empty.
+  emptiesAndDeposits Boolean            @default(true)
+  /// Liquor: a case is sold whole or broken into singles.
+  casesAndSingles    Boolean            @default(true)
+  licenceNumber      String?
+  licenceExpiresOn   DateTime?          @db.Date
+  updatedById        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  updatedBy User?   @relation("RetailShopProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// A shop's product category: Beer, Spirits, Soft drinks. The shop's own list,
+/// seeded from its business type and edited in Products › Categories — not the
+/// stores module's fixed FUEL/SPARES/CONSUMABLES, which describe a mine.
+model RetailCategory {
+  id                  String    @id @default(uuid())
+  companyId           String
+  name                String
+  /// VAT on products in it, as a percentage. 15 is the standard rate.
+  vatRate             Decimal   @default(15) @db.Decimal(5, 2)
+  /// The till asks for an ID check on anything in it, when the shop checks ID.
+  ageRestricted       Boolean   @default(false)
+  /// New products in it start returnable, at this deposit.
+  returnable          Boolean   @default(false)
+  depositAmount       Decimal?  @db.Decimal(14, 2)
+  /// Prices that earn less than this are flagged. A percentage of the price.
+  targetMarginPercent Decimal?  @db.Decimal(5, 2)
+  sortOrder           Int       @default(0)
+  archivedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  products Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId, archivedAt, sortOrder])
+}
+
 model RetailRegister {
   id        String   @id @default(uuid())
   companyId String
@@ -4417,6 +4492,8 @@ model RetailPromotion {
   endsAt    DateTime?
   status    RetailPromotionStatus @default(ACTIVE)
   notes     String?
+  /// In the bin: removed, restorable, and gone from every list and the till.
+  archivedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -4436,6 +4513,10 @@ model RetailPurchaseOrder {
   expectedDate DateTime?
   notes        String?
   createdById  String?
+  /// Who stopped waiting for the rest, when, and why. Set with `CLOSED`.
+  closedAt     DateTime?
+  closedById   String?
+  closeNote    String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -4444,6 +4525,7 @@ model RetailPurchaseOrder {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdBy User?   @relation("RetailPurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  closedBy  User?   @relation("RetailPurchaseOrderClosedBy", fields: [closedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, poNo])
   @@index([companyId, siteId, status])
@@ -4465,6 +4547,7 @@ model RetailPurchaseOrderLine {
   createdAt        DateTime @default(now())
 
   purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  receiptLines  RetailGoodsReceiptLine[]
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -4508,13 +4591,18 @@ model RetailGoodsReceiptLine {
   quantity        Decimal @default(0) @db.Decimal(12, 4)
   unitCost        Decimal @default(0) @db.Decimal(14, 2)
   lineTotal       Decimal @default(0) @db.Decimal(14, 2)
+  /// The order line this delivery filled. Null for a delivery with no order, or
+  /// a line the order did not have.
+  purchaseOrderLineId String?
   createdAt       DateTime @default(now())
 
-  receipt RetailGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  receipt           RetailGoodsReceipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseOrderLine RetailPurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
 
   company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  @@index([purchaseOrderLineId])
   @@index([receiptId])
   @@index([companyId])
 }
@@ -4875,6 +4963,14 @@ model RetailSale {
   voidReason     String?
   status         RetailSaleStatus @default(POSTED)
   notes          String?
+  /// When the cashier confirmed the customer's ID for an age-restricted line.
+  /// Null on a sale with nothing age-restricted in it.
+  idCheckedAt    DateTime?
+  /// Deposits on returnable bottles, net of empties brought back. Not part of
+  /// `totalAmount`, which stays the goods the receipt is signed for: what the
+  /// customer pays is `totalAmount + depositAmount`, and the deposit is a
+  /// liability the shop owes back, not revenue. Negative on a void.
+  depositAmount  Decimal   @default(0) @db.Decimal(14, 2)
   postedAt       DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -12943,7 +13039,14 @@ model Product {
   name               String
   description        String?
   kind               ProductKind   @default(GOODS)
+  /// Free text for the modules that have no category list of their own.
+  /// Retail does: it files a product under `retailCategory` and leaves this
+  /// alone.
   category           String?
+  /// The shop's own category, from Products › Categories. Its VAT rate, ID
+  /// check and deposit are the defaults a new product in it starts from, and
+  /// the till checks ID when either the product or its category asks for it.
+  categoryId         String?
   unit               UnitOfMeasure @default(EACH)
   /// Free text when `unit` is OTHER, e.g. "per pallet".
   unitLabel          String?
@@ -12983,6 +13086,10 @@ model Product {
   /// bottle-store trade, modelled nowhere in this repo before now.
   returnable         Boolean       @default(false)
   depositAmount      Decimal?      @db.Decimal(14, 2)
+  /// A case: the single it breaks into on the shelf, and how many of them.
+  /// Null on everything that is not a case.
+  packOfId           String?
+  packSize           Int?
   imageUrl           String?
   notes              String?
   isActive           Boolean       @default(true)
@@ -12996,6 +13103,9 @@ model Product {
 
   company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy      User?               @relation("ProductCreatedBy", fields: [createdById], references: [id])
+  retailCategory RetailCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  packOf         Product?            @relation("ProductPack", fields: [packOfId], references: [id], onDelete: SetNull)
+  packs          Product[]           @relation("ProductPack")
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
@@ -13005,6 +13115,8 @@ model Product {
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])
   @@index([companyId, category])
+  @@index([categoryId])
+  @@index([packOfId])
   /// The till scans on this and expects an answer before the next item.
   @@index([companyId, barcode])
 }
@@ -13276,6 +13388,9 @@ model CrmRequisition {
 
   /// Null for fuel, airtime and anything else that belongs to no project.
   projectId String?
+  /// The shop it was raised at, for a requisition raised in retail. Null on a
+  /// CRM requisition, which belongs to a project instead.
+  siteId    String?
 
   amount   Decimal @db.Decimal(14, 2)
   currency String  @default("USD")
@@ -13312,6 +13427,7 @@ model CrmRequisition {
 
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   project     CrmProject?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site        Site?               @relation(fields: [siteId], references: [id], onDelete: SetNull)
   requestedBy User                @relation("CrmRequisitionRequestedBy", fields: [requestedById], references: [id])
   approvedBy  User?               @relation("CrmRequisitionApprovedBy", fields: [approvedById], references: [id])
   disbursedBy User?               @relation("CrmRequisitionDisbursedBy", fields: [disbursedById], references: [id])
@@ -13323,6 +13439,7 @@ model CrmRequisition {
   @@index([companyId, status, createdAt])
   @@index([companyId, requestedById, status])
   @@index([companyId, projectId])
+  @@index([companyId, siteId, status])
 }
 
 /// One person's money for one day.

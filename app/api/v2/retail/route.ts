@@ -290,7 +290,7 @@ export async function GET(request: NextRequest) {
       select: { id: true },
     }),
     prisma.retailPromotion.findMany({
-      where: { companyId, status: "ACTIVE" },
+      where: { companyId, status: "ACTIVE", archivedAt: null },
     }),
     prisma.retailPurchaseOrder.findMany({
       where: {

@@ -9,10 +9,10 @@ import { requireRetailSession } from "../../../_helpers";
 /**
  * The category chips above the till's shelf.
  *
- * S-4b — a category belongs to the stock row, and a stock row is on the range
- * when it names a product. That is the whole join now; it used to be a read of
- * `RetailCatalogItem` to collect inventory ids and a second read to get their
- * categories.
+ * The shop's own categories (Products › Categories), in the shop's order, that
+ * have something on sale at this branch. It used to be the distinct
+ * `InventoryItem.category` values — the stores module's FUEL / SPARES /
+ * CONSUMABLES, which is how a bottle store's till came to offer "Consumables".
  */
 /** R-3.1. One optional branch. */
 const categoriesQuery = z.object({ siteId: z.string().uuid().optional() });
@@ -30,23 +30,22 @@ export async function GET(request: NextRequest) {
   const query = parseRetailQuery(request, categoriesQuery);
   if (query.response) return query.response;
 
-  const rows = await prisma.inventoryItem.findMany({
+  const rows = await prisma.retailCategory.findMany({
     where: {
-      site: { companyId: session.user.companyId },
-      ...(query.data.siteId ? { siteId: query.data.siteId } : {}),
-      product: { companyId: session.user.companyId, isActive: true, archivedAt: null },
+      companyId: session.user.companyId,
+      archivedAt: null,
+      products: {
+        some: {
+          companyId: session.user.companyId,
+          isActive: true,
+          archivedAt: null,
+          ...(query.data.siteId ? { inventoryItems: { some: { siteId: query.data.siteId } } } : {}),
+        },
+      },
     },
-    select: { category: true },
-    distinct: ["category"],
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { name: true },
   });
 
-  return successResponse({
-    data: [
-      ...new Set(
-        rows
-          .map((row) => row.category?.trim())
-          .filter((category): category is string => Boolean(category)),
-      ),
-    ].sort((left, right) => left.localeCompare(right)),
-  });
+  return successResponse({ data: rows.map((row) => row.name) });
 }

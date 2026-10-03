@@ -3,19 +3,16 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FormField } from "@/components/management/ui";
 import { CatalogImageField } from "@/components/retail/catalog-image-field";
+import { CategoryField } from "@/components/retail/category-field";
+import { useShopProfile } from "@/components/retail/shop-profile-fields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
@@ -34,12 +31,22 @@ export type RetailProduct = {
   taxPercent: number;
   imageUrl: string | null;
   status: string;
+  /** The shop's own category, from Products › Categories. */
+  categoryId: string | null;
+  category: string | null;
+  ageRestricted: boolean;
+  returnable: boolean;
+  depositAmount: number | null;
+  /** A case: the single it opens into, and how many. */
+  packOf: { id: string; name: string } | null;
+  packSize: number | null;
   inventoryItem: {
     id: string;
     itemCode: string;
     name: string;
     currentStock: number;
     unit: string;
+    reorderLevel: number | null;
   } | null;
   site: { id: string; name: string; code: string } | null;
 };
@@ -54,6 +61,7 @@ export function useInvalidateProducts() {
       ["retail-pricing-catalog"],
       ["retail-dashboard"],
       ["retail-pos-catalog"],
+      ["retail-categories"],
     ]) {
       void queryClient.invalidateQueries({ queryKey: key });
     }
@@ -62,6 +70,7 @@ export function useInvalidateProducts() {
 
 type ProductForm = {
   name: string;
+  categoryId: string | null;
   price: string;
   was: string;
   vat: string;
@@ -72,11 +81,18 @@ type ProductForm = {
   description: string;
   imageUrl: string;
   onSale: boolean;
+  cost: string;
+  reorderLevel: string;
+  returnable: boolean;
+  deposit: string;
+  packOfId: string | null;
+  packSize: string;
 };
 
 function formFor(product: RetailProduct | null, defaultVat: number): ProductForm {
   return {
     name: product?.name ?? "",
+    categoryId: product?.categoryId ?? null,
     price: product ? String(product.unitPrice) : "",
     was: product?.compareAtPrice ? String(product.compareAtPrice) : "",
     vat: String(product?.taxPercent ?? defaultVat),
@@ -87,6 +103,15 @@ function formFor(product: RetailProduct | null, defaultVat: number): ProductForm
     description: product?.description ?? "",
     imageUrl: product?.imageUrl ?? "",
     onSale: product ? product.status === "ACTIVE" : true,
+    cost: "",
+    reorderLevel:
+      product?.inventoryItem?.reorderLevel === null || product?.inventoryItem?.reorderLevel === undefined
+        ? ""
+        : String(product.inventoryItem.reorderLevel),
+    returnable: product?.returnable ?? false,
+    deposit: product?.depositAmount ? String(product.depositAmount) : "",
+    packOfId: product?.packOf?.id ?? null,
+    packSize: product?.packSize ? String(product.packSize) : "",
   };
 }
 
@@ -105,8 +130,13 @@ const FIELD_ROW = "grid gap-4 sm:grid-cols-2";
  * One dialog. A product used to need a stock item first, made in a second
  * dialog opened on top of this one and filed under a mining category (Spares,
  * PPE, Reagents). The API now makes the stock line itself when none is given,
- * so what a shopkeeper fills in is what the till will show: a name, a price,
- * the VAT, a barcode and a photo.
+ * so what a shopkeeper fills in is what the till will show.
+ *
+ * Three fields sell it: a name, the shop's own category (which brings its VAT
+ * and ID check) and a price. Everything else — barcode, code, the site when
+ * there is more than one, cost, reorder level, the deposit on a returnable
+ * bottle — waits folded under "More details". The same form edits a product,
+ * with the details open.
  */
 export function ProductDialog({
   open,
@@ -159,6 +189,21 @@ export function ProductDialog({
   const set = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
+  const shop = useShopProfile(open);
+  const deposits = shop.data?.features.emptiesAndDeposits ?? false;
+  const cases = shop.data?.features.casesAndSingles ?? false;
+  // The singles a case can open into: this shop's products that are not
+  // themselves cases, and not this one.
+  const singlesQuery = useQuery({
+    queryKey: ["retail-catalog"],
+    queryFn: () => fetchJson<{ data: RetailProduct[] }>("/api/v2/retail/catalog"),
+    enabled: open && cases,
+  });
+  const singles = useMemo(
+    () => (singlesQuery.data?.data ?? []).filter((row) => !row.packOf && row.id !== product?.id),
+    [singlesQuery.data, product?.id],
+  );
+
   const save = useMutation({
     mutationFn: async () => {
       const body = {
@@ -171,6 +216,17 @@ export function ProductDialog({
         description: form.description.trim() || null,
         imageUrl: form.imageUrl.trim() || null,
         status: form.onSale ? "ACTIVE" : "INACTIVE",
+        categoryId: form.categoryId,
+        reorderLevel: amount(form.reorderLevel),
+        // Cost is only sent when typed: the form never shows a stored cost to
+        // someone who may not see it, so a blank must not wipe it.
+        ...(form.cost.trim() ? { costPrice: amount(form.cost) } : {}),
+        ...(deposits
+          ? { returnable: form.returnable, depositAmount: form.returnable ? amount(form.deposit) : null }
+          : {}),
+        ...(cases
+          ? { packOfId: form.packOfId, packSize: form.packOfId ? amount(form.packSize) : null }
+          : {}),
       };
       if (product) {
         return fetchJson<RetailProduct>(`/api/v2/retail/catalog/${product.id}`, {
@@ -212,6 +268,17 @@ export function ProductDialog({
     const vat = amount(form.vat);
     if (vat === null || vat < 0 || vat > 100) problems.push("VAT is a percentage between 0 and 100.");
     if (form.was.trim() && amount(form.was) === null) problems.push("Was is a price, or blank.");
+    if (form.cost.trim() && amount(form.cost) === null) problems.push("Cost is a price, or blank.");
+    if (form.reorderLevel.trim() && amount(form.reorderLevel) === null) {
+      problems.push("Reorder level is a number, or blank.");
+    }
+    if (deposits && form.returnable && amount(form.deposit) === null) {
+      problems.push("Give the deposit on a returnable bottle.");
+    }
+    if (cases && form.packOfId) {
+      const size = amount(form.packSize);
+      if (size === null || size < 2 || !Number.isInteger(size)) problems.push("Say how many singles are in the case.");
+    }
     if (!product && sites.length > 1 && !form.siteId) problems.push("Say which site keeps its stock.");
     setErrors(problems);
     if (problems.length === 0) save.mutate();
@@ -261,6 +328,23 @@ export function ProductDialog({
         )}
       </FormField>
 
+      <FormField label="Category">
+        <CategoryField
+          value={form.categoryId}
+          onChange={(category) => {
+            setForm((current) => ({
+              ...current,
+              categoryId: category?.id ?? null,
+              // A category brings its VAT, and a returnable category its deposit.
+              ...(category ? { vat: String(Number(category.vatRate)) } : {}),
+              ...(category?.returnable
+                ? { returnable: true, deposit: category.depositAmount ?? current.deposit }
+                : {}),
+            }));
+          }}
+        />
+      </FormField>
+
       <div className={FIELD_ROW}>
         <FormField label="Price">
           {(id) => (
@@ -287,91 +371,178 @@ export function ProductDialog({
         </FormField>
       </div>
 
-      <div className={FIELD_ROW}>
-        <FormField label="Barcode">
-          {(id) => (
-            <Input
-              id={id}
-              value={form.barcode}
-              className="font-mono"
-              onChange={(event) => set("barcode", event.target.value)}
-            />
-          )}
-        </FormField>
-        <FormField label="Code">
-          {(id) => (
-            <Input
-              id={id}
-              value={form.code}
-              className="font-mono"
-              onChange={(event) => set("code", event.target.value)}
-            />
-          )}
-        </FormField>
-      </div>
+      <Accordion defaultValue={product ? "more" : undefined}>
+        <AccordionItem value="more">
+          <AccordionTrigger>More details</AccordionTrigger>
+          <AccordionContent className="space-y-4 text-[var(--text-strong)]">
+            <div className={FIELD_ROW}>
+              <FormField label="Barcode">
+                {(id) => (
+                  <Input
+                    id={id}
+                    value={form.barcode}
+                    className="font-mono"
+                    onChange={(event) => set("barcode", event.target.value)}
+                  />
+                )}
+              </FormField>
+              <FormField label="Code">
+                {(id) => (
+                  <Input
+                    id={id}
+                    value={form.code}
+                    className="font-mono"
+                    onChange={(event) => set("code", event.target.value)}
+                  />
+                )}
+              </FormField>
+            </div>
 
-      {!product ? (
-        <div className={FIELD_ROW}>
-          <FormField label="Sold by the">
-            {(id) => (
-              <Input
-                id={id}
-                value={form.unit}
-                onChange={(event) => set("unit", event.target.value)}
-                placeholder="bottle"
-              />
-            )}
-          </FormField>
-          {sites.length > 1 ? (
-            <FormField label="Site">
+            <div className={FIELD_ROW}>
+              <FormField label="Cost">
+                {(id) => (
+                  <Input
+                    id={id}
+                    value={form.cost}
+                    inputMode="decimal"
+                    className="font-mono"
+                    placeholder={product ? "Unchanged" : "0.00"}
+                    onChange={(event) => set("cost", event.target.value)}
+                  />
+                )}
+              </FormField>
+              <FormField label="Reorder at">
+                {(id) => (
+                  <Input
+                    id={id}
+                    value={form.reorderLevel}
+                    inputMode="decimal"
+                    className="font-mono"
+                    onChange={(event) => set("reorderLevel", event.target.value)}
+                  />
+                )}
+              </FormField>
+            </div>
+
+            {!product ? (
+              <div className={FIELD_ROW}>
+                <FormField label="Sold by the">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      value={form.unit}
+                      onChange={(event) => set("unit", event.target.value)}
+                      placeholder="bottle"
+                    />
+                  )}
+                </FormField>
+                {sites.length > 1 ? (
+                  <FormField label="Site">
+                    <SearchableSelect
+                      value={form.siteId || undefined}
+                      placeholder="Choose a site"
+                      searchPlaceholder="Search sites"
+                      options={sites.map((site: { id: string; name: string }) => ({
+                        value: site.id,
+                        label: site.name,
+                      }))}
+                      onValueChange={(value) => set("siteId", value)}
+                    />
+                  </FormField>
+                ) : null}
+              </div>
+            ) : null}
+
+            <FormField label="Was">
               {(id) => (
-                <Select value={form.siteId} onValueChange={(value) => set("siteId", value)}>
-                  <SelectTrigger id={id}>
-                    <SelectValue placeholder="Choose a site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sites.map((site: { id: string; name: string }) => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id={id}
+                  value={form.was}
+                  inputMode="decimal"
+                  className="font-mono"
+                  onChange={(event) => set("was", event.target.value)}
+                />
               )}
             </FormField>
-          ) : null}
-        </div>
-      ) : null}
 
-      <FormField label="Was">
-        {(id) => (
-          <Input
-            id={id}
-            value={form.was}
-            inputMode="decimal"
-            className="font-mono"
-            onChange={(event) => set("was", event.target.value)}
-          />
-        )}
-      </FormField>
+            {deposits ? (
+              <div className={FIELD_ROW}>
+                <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--text-strong)]">
+                  <Checkbox
+                    checked={form.returnable}
+                    onCheckedChange={(checked) => set("returnable", checked === true)}
+                  />
+                  Returnable bottle
+                </label>
+                {form.returnable ? (
+                  <FormField label="Deposit">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        value={form.deposit}
+                        inputMode="decimal"
+                        className="font-mono"
+                        onChange={(event) => set("deposit", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                ) : null}
+              </div>
+            ) : null}
 
-      <CatalogImageField
-        value={form.imageUrl}
-        onChange={(next) => set("imageUrl", next)}
-        productId={product?.id}
-        onUploadingChange={setUploading}
-      />
+            {cases ? (
+              <div className={FIELD_ROW}>
+                <FormField label="Case of">
+                  {() => (
+                    <SearchableSelect
+                      value={form.packOfId ?? undefined}
+                      placeholder="Not a case"
+                      searchPlaceholder="Search products"
+                      options={[
+                        { value: "", label: "Not a case" },
+                        ...singles.map((row) => ({ value: row.id, label: row.name, meta: row.sku })),
+                      ]}
+                      onValueChange={(value) => set("packOfId", value || null)}
+                    />
+                  )}
+                </FormField>
+                {form.packOfId ? (
+                  <FormField label="Singles in it">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        value={form.packSize}
+                        inputMode="numeric"
+                        className="font-mono"
+                        placeholder="24"
+                        onChange={(event) => set("packSize", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                ) : null}
+              </div>
+            ) : null}
 
-      <FormField label="Description">
-        {(id) => (
-          <Textarea
-            id={id}
-            rows={2}
-            value={form.description}
-            onChange={(event) => set("description", event.target.value)}
-          />
-        )}
-      </FormField>
+            <CatalogImageField
+              value={form.imageUrl}
+              onChange={(next) => set("imageUrl", next)}
+              productId={product?.id}
+              onUploadingChange={setUploading}
+            />
+
+            <FormField label="Description">
+              {(id) => (
+                <Textarea
+                  id={id}
+                  rows={2}
+                  value={form.description}
+                  onChange={(event) => set("description", event.target.value)}
+                />
+              )}
+            </FormField>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       {product ? (
         <label className="flex items-center gap-2 text-sm text-[var(--text-strong)]">

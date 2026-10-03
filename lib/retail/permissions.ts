@@ -54,6 +54,8 @@ import { errorResponse } from "@/lib/api-response";
  *   signing it off. The back-office half of a shift, not the till's half.
  * - `retail.reports` — the trading dashboard. Takings, margin and cost in one view.
  * - `retail.setup` — registers, trading hours, tender and POS policy.
+ * - `retail.requisitions` — asking for money to spend on the shop, deciding,
+ *   and paying it out. Anybody on staff may ask; the manager decides and pays.
  */
 export const RETAIL_RESOURCES = [
   "retail.sell",
@@ -63,6 +65,7 @@ export const RETAIL_RESOURCES = [
   "retail.cash-control",
   "retail.reports",
   "retail.setup",
+  "retail.requisitions",
 ] as const;
 
 export type RetailResource = (typeof RETAIL_RESOURCES)[number];
@@ -151,7 +154,14 @@ const MANAGE_THE_SHOP: Partial<Record<RetailResource, RetailAction[]>> = {
   "retail.cash-control": ALL,
   "retail.reports": ALL,
   "retail.setup": ALL,
+  "retail.requisitions": ALL,
 };
+
+/**
+ * Ask for money and follow your own request. `view` reaches only the asker's
+ * own requisitions — the route scopes it — and nothing here decides or pays.
+ */
+const ASK_FOR_MONEY: RetailAction[] = ["view", "create"];
 
 type Matrix = Partial<Record<string, Partial<Record<RetailResource, RetailAction[]>>>>;
 
@@ -176,6 +186,7 @@ const MATRIX: Matrix = {
   CASHIER: {
     "retail.sell": RUN_A_TILL,
     "retail.catalog": READ_THE_SHELF,
+    "retail.requisitions": ASK_FOR_MONEY,
   },
 
   // The person with the stock. Counts, transfers, adjustments, and receiving what
@@ -185,6 +196,7 @@ const MATRIX: Matrix = {
     "retail.catalog": READ_THE_SHELF,
     "retail.stock": MOVE_STOCK,
     "retail.purchasing": BOOK_A_DELIVERY_IN,
+    "retail.requisitions": ASK_FOR_MONEY,
   },
 };
 
@@ -210,6 +222,7 @@ const RESOURCE_LABELS: Record<RetailResource, string> = {
   "retail.cash-control": "cash control",
   "retail.reports": "retail reports",
   "retail.setup": "retail setup",
+  "retail.requisitions": "requisitions",
 };
 
 /**

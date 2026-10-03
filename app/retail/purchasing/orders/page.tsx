@@ -27,7 +27,7 @@ type Order = {
 };
 
 const STATUS_OPTIONS = new Map(
-  ["DRAFT", "PARTIAL", "RECEIVED"].map((status) => [status, orderStatusLabel(status)]),
+  ["DRAFT", "PARTIAL", "RECEIVED", "CLOSED"].map((status) => [status, orderStatusLabel(status)]),
 );
 
 /** A register's measure: wide enough for its figures, not the whole window. */

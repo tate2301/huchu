@@ -1332,6 +1332,43 @@ export async function emitCrmNotification(args: {
   }
 }
 
+/**
+ * A retail notice: a requisition waiting on a manager, or decided, or paid.
+ * Filed under operations, the shop's own category, so a shopkeeper's CRM
+ * switch does not silence it.
+ */
+export async function emitRetailNotification(args: {
+  companyId: string
+  recipientIds: string[]
+  type: NotificationType
+  title: string
+  summary: string
+  entityType: NotificationEntityType
+  entityId: string
+  viewPath: string
+  severity?: NotificationSeverity
+}): Promise<void> {
+  try {
+    const recipientIds = args.recipientIds.filter(Boolean)
+    if (recipientIds.length === 0) return
+    await createNotification(prisma, {
+      companyId: args.companyId,
+      type: args.type,
+      title: args.title,
+      summary: args.summary,
+      severity: args.severity ?? NotificationSeverity.INFO,
+      category: "OPS",
+      recipientIds,
+      payload: { viewPath: args.viewPath },
+      entityType: args.entityType,
+      entityId: args.entityId,
+      sourceAction: NotificationSourceAction.STATUS_CHANGE,
+    })
+  } catch (error) {
+    console.error("[Notifications] emitRetailNotification failed:", error)
+  }
+}
+
 export async function getCrmManagerRecipients(companyId: string, excludeId?: string): Promise<string[]> {
   return getManagerIds(companyId, excludeId)
 }

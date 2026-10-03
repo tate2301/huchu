@@ -9,6 +9,7 @@ import {
   upsertShelfListing,
 } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { productDetailFields, productDetailsProblem, productDetailWrites } from "@/lib/retail/product-details";
 import { ensureInventoryItemAccess, requireRetailSession } from "../../_helpers";
 
 /**
@@ -31,6 +32,7 @@ const patchSchema = z.object({
   taxPercent: z.number().min(0).max(100).optional(),
   imageUrl: z.string().url().optional().nullable(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+  ...productDetailFields,
 });
 
 function normalizeSku(value: string) {
@@ -96,6 +98,11 @@ export async function PATCH(
     const body = await request.json();
     const input = patchSchema.parse(body);
 
+    const detailsProblem = await productDetailsProblem(session.user.companyId, input, id);
+    if (detailsProblem) {
+      return errorResponse(detailsProblem, 400);
+    }
+
     let inventoryItemId = existing.inventoryItemId;
     if (input.inventoryItemId && input.inventoryItemId !== existing.inventoryItemId) {
       const inventoryItem = await ensureInventoryItemAccess(
@@ -131,7 +138,17 @@ export async function PATCH(
       ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
       ...(input.compareAtPrice === undefined ? {} : { compareAtPrice: input.compareAtPrice }),
       ...(input.status === undefined ? {} : { isActive: input.status === "ACTIVE" }),
+      ...productDetailWrites(input),
     });
+    if (input.reorderLevel !== undefined || input.costPrice !== undefined) {
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItemId },
+        data: {
+          ...(input.reorderLevel === undefined ? {} : { minStock: input.reorderLevel }),
+          ...(input.costPrice === undefined ? {} : { unitCost: input.costPrice }),
+        },
+      });
+    }
 
     const updated = await loadShelfListing(session.user.companyId, existing.productId);
     return successResponse(updated ?? existing);

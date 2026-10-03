@@ -27,6 +27,9 @@ import {
   searchOfflineRetailCustomers,
 } from "@/lib/retail/offline-runtime";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
+import { depositsDue } from "@/lib/retail/deposits";
+import { liquorSaleRefusal, shopFeatures, type ShopProfile } from "@/lib/retail/shop-profile-rules";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
   removeOfflineOperation,
@@ -123,6 +126,10 @@ type PosPortalStateValue = {
   updateQty: (catalogItemId: string, quantity: number) => void;
   updateItemPrice: (catalogItemId: string, unitPrice: number) => void;
   updateItemDiscount: (catalogItemId: string, discountAmount: number) => void;
+  /** Empties the customer brought back against a returnable line. */
+  updateEmptiesBack: (catalogItemId: string, emptiesBack: number) => void;
+  /** Deposits on returnable bottles, net of empties back. Inside `total`. */
+  depositAmount: number;
   removeFromCart: (catalogItemId: string) => void;
   replaceCartFromHeld: (input: {
     items?: CartItem[];
@@ -153,6 +160,10 @@ type PosPortalStateValue = {
   minReferenceLength: number;
   lastCompletedSale: CompletedSale | null;
   dismissCompletedSale: () => void;
+  /** The basket has alcohol in it and nobody has looked at the customer's ID yet. */
+  needsIdCheck: boolean;
+  /** Ask the cashier to check ID. Resolves true when they have. */
+  checkId: () => Promise<boolean>;
 };
 
 const PosPortalStateContext = createContext<PosPortalStateValue | null>(null);
@@ -210,6 +221,8 @@ export function PosPortalProvider({
   const [queuedOfflineSales, setQueuedOfflineSales] = useState<PosQueuedSale[]>([]);
   const [syncOfflineSalesPending, setSyncOfflineSalesPending] = useState(false);
   const [offlineCustomerResults, setOfflineCustomerResults] = useState<CustomerLookupResult[]>([]);
+  /** The cashier has checked this customer's ID. One check covers the basket. */
+  const [idChecked, setIdChecked] = useState(false);
 
   /*
     Not while the sign-in form is up. This provider wraps the login route too —
@@ -229,6 +242,7 @@ export function PosPortalProvider({
           defaultRegisterId: string | null;
           sites: PosSite[];
           rules: TillRules;
+          shop: ShopProfile;
         };
       }>("/api/v2/retail/pos/context"),
   });
@@ -349,12 +363,60 @@ export function PosPortalProvider({
     [activePromotion, cart, orderDiscountAmount],
   );
 
+  // Deposits sit outside the goods total the receipt is signed for; the
+  // customer pays both.
+  const depositAmount = useMemo(() => depositsDue(cart), [cart]);
+  const amountDue = Number((checkout.total + depositAmount).toFixed(2));
+
   const paymentSummary = useMemo(
-    () => getPaymentSummary(payments, checkout.total),
-    [payments, checkout.total],
+    () => getPaymentSummary(payments, amountDue),
+    [payments, amountDue],
   );
 
+  const shop = posContextQuery.data?.data.shop ?? null;
+  const ageCheckOn = shop ? shopFeatures(shop).ageCheck : false;
+  const depositsOn = shop ? shopFeatures(shop).emptiesAndDeposits : false;
+  const needsIdCheck = ageCheckOn && !idChecked && cart.some((item) => item.ageRestricted);
+
+  const checkId = async (what = "alcohol") => {
+    const checked = await dsConfirm({
+      title: "Check the customer's ID",
+      description: `${what} is for over-18s. Look at their ID before you sell it.`,
+      confirmLabel: "ID checked, over 18",
+      cancelLabel: "Don't sell",
+      variant: "warning",
+    });
+    if (checked) setIdChecked(true);
+    return checked;
+  };
+
+  /**
+   * Put a product in the basket, or say why it can't go in.
+   *
+   * On a liquor store, alcohol outside licence hours is refused here, before
+   * the customer has paid, and the first bottle in a basket asks the cashier to
+   * check ID. The server checks both again on every sale.
+   */
   const addToCart = (item: PosCatalogItem) => {
+    void (async () => {
+      if (item.ageRestricted && shop) {
+        const refusal = liquorSaleRefusal({
+          profile: shop,
+          ageRestricted: [item.name],
+          idChecked: true,
+          at: new Date(),
+        });
+        if (refusal) {
+          toast({ title: "Not in licence hours", description: refusal, variant: "destructive" });
+          return;
+        }
+        if (ageCheckOn && !idChecked && !(await checkId(item.name))) return;
+      }
+      putInCart(item);
+    })();
+  };
+
+  const putInCart = (item: PosCatalogItem) => {
     setCart((current) => {
       const existing = current.find((entry) => entry.catalogItemId === item.id);
       if (existing) {
@@ -376,6 +438,10 @@ export function PosPortalProvider({
           taxInclusive: item.taxInclusive ?? false,
           compareAtPrice: item.compareAtPrice,
           lineDiscountAmount: 0,
+          ageRestricted: item.ageRestricted ?? false,
+          returnable: depositsOn && Boolean(item.returnable),
+          depositAmount: depositsOn ? (item.depositAmount ?? null) : null,
+          emptiesBack: 0,
         },
       ];
     });
@@ -393,6 +459,7 @@ export function PosPortalProvider({
     setOrderDiscountAmount("");
     setOverrideReason("");
     setSelectedPromotionId("");
+    setIdChecked(false);
   };
 
   const refreshOfflineQueue = useCallback(async () => {
@@ -421,6 +488,7 @@ export function PosPortalProvider({
       discountAmount: Number(orderDiscountAmount || "0") || undefined,
       overrideReason: overrideReason.trim() || undefined,
       promotionId: selectedPromotionId || undefined,
+      idChecked: idChecked || undefined,
       /**
        * `productId`, not `catalogItemId`. S-4b, finished.
        *
@@ -449,6 +517,7 @@ export function PosPortalProvider({
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discountAmount: item.lineDiscountAmount ?? 0,
+        ...(item.emptiesBack ? { emptiesBack: item.emptiesBack } : {}),
       })),
       payments: paymentSummary.parsed.map((payment) => ({
         tenderType: payment.tenderType,
@@ -645,6 +714,16 @@ export function PosPortalProvider({
         ),
       );
     },
+    updateEmptiesBack: (catalogItemId, emptiesBack) => {
+      setCart((current) =>
+        current.map((entry) =>
+          entry.catalogItemId === catalogItemId
+            ? { ...entry, emptiesBack: Math.min(Math.max(Math.floor(emptiesBack), 0), Math.floor(entry.quantity)) }
+            : entry,
+        ),
+      );
+    },
+    depositAmount,
     removeFromCart: (catalogItemId) => {
       setCart((current) =>
         current.filter((entry) => entry.catalogItemId !== catalogItemId),
@@ -661,6 +740,8 @@ export function PosPortalProvider({
       setSplitTenderMode(false);
       setOrderDiscountAmount(input.orderDiscountAmount ?? "");
       setSelectedPromotionId(input.selectedPromotionId ?? "");
+      // A recalled basket may be a different customer: check again at Charge.
+      setIdChecked(false);
     },
     clearCart,
     canOverride: isManagerRole(currentShift?.actorRole),
@@ -668,7 +749,7 @@ export function PosPortalProvider({
     subtotal: checkout.subtotal,
     discountAmount: checkout.discountAmount,
     taxAmount: checkout.taxAmount,
-    total: checkout.total,
+    total: amountDue,
     changeAmount: paymentSummary.changeAmount,
     tenderedTotal: paymentSummary.tenderedTotal,
     nonCashTotal: paymentSummary.nonCashTotal,
@@ -682,6 +763,8 @@ export function PosPortalProvider({
       ...(currentShift ? [] : ["Open a shift first"]),
       ...(cart.length > 0 ? [] : ["Add a product first"]),
     ],
+    needsIdCheck,
+    checkId: () => checkId(),
     pendingOfflineSales,
     queuedOfflineSales,
     retryOfflineSale: (id) => {

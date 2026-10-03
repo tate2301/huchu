@@ -18,6 +18,8 @@ import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
+import { depositsDue } from "@/lib/retail/deposits";
+import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   resolveRetailSite,
@@ -37,6 +39,8 @@ const saleLineSchema = z.object({
   quantity: z.number().positive(),
   unitPrice: z.number().min(0).optional(),
   discountAmount: z.number().min(0).optional(),
+  /** Empties the customer brought back for this line, on a shop that takes deposits. */
+  emptiesBack: z.number().int().min(0).optional(),
 });
 
 const salePaymentSchema = z.object({
@@ -91,6 +95,8 @@ const saleSchema = z.object({
    * `reviewReplayedPrices` block below. A live till never sends it.
    */
   offlineCreatedAt: z.string().datetime().optional(),
+  /** The cashier confirmed the customer's ID. A liquor store needs it for alcohol. */
+  idChecked: z.boolean().optional(),
   /** S-3. When the device's price snapshot was resolved, if it carries a stamp. */
   pricedAt: z.string().datetime().optional(),
 });
@@ -477,6 +483,24 @@ export async function POST(request: NextRequest) {
       return errorResponse("One or more catalog items are invalid", 400);
     }
 
+    // A liquor store's licence: no alcohol outside its hours, and none without
+    // an ID check. Judged at the moment of sale, which for a replay is when the
+    // till rang it.
+    const soldAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : new Date();
+    const ageRestricted = [...sellable.values()]
+      .filter((product) => product.ageRestricted)
+      .map((product) => product.name);
+    const shopProfile = await loadShopProfile(session.user.companyId);
+    const refusal = liquorSaleRefusal({
+      profile: shopProfile,
+      ageRestricted,
+      idChecked: input.idChecked === true,
+      at: soldAt,
+    });
+    if (refusal) {
+      return errorResponse(refusal, 409);
+    }
+
     // S-3. *The* resolution point. The shelf price comes out of the core price
     // engine, resolved once for the whole basket — per line, because a volume
     // break depends on how many the customer is buying.
@@ -709,6 +733,22 @@ export async function POST(request: NextRequest) {
     const totalDiscount = checkout.discountAmount;
     const taxAmount = checkout.taxAmount;
     const totalAmount = checkout.total;
+    // Deposits on returnable bottles, priced off the product rather than the
+    // device, and only on a shop that charges them.
+    const depositAmount = shopFeatures(shopProfile).emptiesAndDeposits
+      ? depositsDue(
+          input.items.map((item) => {
+            const product = sellable.get(item.productId)!;
+            return {
+              quantity: item.quantity,
+              returnable: product.returnable,
+              depositAmount: product.depositAmount,
+              emptiesBack: item.emptiesBack,
+            };
+          }),
+        )
+      : 0;
+    const amountDue = round(totalAmount + depositAmount);
     const normalizedPayments = input.payments.map((payment) => ({
       tenderType: payment.tenderType,
       amount: round(payment.amount),
@@ -727,11 +767,11 @@ export async function POST(request: NextRequest) {
         .filter((payment) => payment.tenderType !== "CASH")
         .reduce((total, payment) => total + payment.amount, 0),
     );
-    if (nonCashTotal > totalAmount) {
+    if (nonCashTotal > amountDue) {
       return errorResponse("Non-cash tenders cannot exceed the sale total", 400);
     }
 
-    if (tenderedAmount < totalAmount) {
+    if (tenderedAmount < amountDue) {
       return errorResponse("Tendered amount is below the sale total", 400);
     }
     const customerPhone = normalizePhone(input.customerPhone);
@@ -893,6 +933,8 @@ export async function POST(request: NextRequest) {
       overrideReason: overrideReason ?? null,
       notes: normalizedNotes || null,
       periodOverrideReason: input.periodOverrideReason ?? null,
+      idCheckedAt: input.idChecked && ageRestricted.length > 0 ? soldAt : null,
+      depositAmount,
     });
 
     const customerNetSpend =

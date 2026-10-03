@@ -63,8 +63,17 @@ export type ShelfListing = {
   barcode: string | null;
   description: string | null;
   imageUrl: string | null;
-  /** A liquor licence is not optional. Carried so the counter can be told to ask. */
+  /**
+   * A liquor licence is not optional. Carried so the counter can be told to ask.
+   * True when the product asks for it or its category does.
+   */
   ageRestricted: boolean;
+  /** An empty that comes back for money, and what it is worth. */
+  returnable: boolean;
+  depositAmount: number | null;
+  /** A case: the single it opens into, and how many. Null on a single. */
+  packOf: { id: string; name: string } | null;
+  packSize: number | null;
   status: ShelfListingStatus;
   unitPrice: number;
   compareAtPrice: number | null;
@@ -76,6 +85,8 @@ export type ShelfListing = {
   pricedAt: string | null;
   inventoryItemId: string;
   siteId: string;
+  /** The shop's own category, from Products › Categories. */
+  categoryId: string | null;
   category: string | null;
   inventoryItem: {
     id: string;
@@ -84,6 +95,8 @@ export type ShelfListing = {
     currentStock: number;
     unit: string;
     locationId: string;
+    /** Stock at or below this is low. Null when the shop never set one. */
+    reorderLevel: number | null;
   } | null;
   site: { id: string; name: string; code: string } | null;
 };
@@ -96,6 +109,12 @@ const listingSelect = {
   barcode: true,
   imageUrl: true,
   ageRestricted: true,
+  returnable: true,
+  depositAmount: true,
+  categoryId: true,
+  retailCategory: { select: { name: true, ageRestricted: true } },
+  packSize: true,
+  packOf: { select: { id: true, name: true } },
   isActive: true,
   standardPrice: true,
   compareAtPrice: true,
@@ -133,7 +152,6 @@ export async function loadShelfListings(
   const stockWhere: Prisma.InventoryItemWhereInput = {
     site: { companyId },
     ...(siteId ? { siteId } : {}),
-    ...(category ? { category } : {}),
   };
 
   const where: Prisma.ProductWhereInput = {
@@ -146,6 +164,8 @@ export async function loadShelfListings(
     ...(activeOnly ? { isActive: true } : {}),
     ...(status ? { isActive: status === "ACTIVE" } : {}),
     ...(productIds ? { id: { in: [...productIds] } } : {}),
+    // The till's category chips name the shop's own categories.
+    ...(category ? { retailCategory: { name: category } } : {}),
   };
 
   if (search) {
@@ -176,9 +196,9 @@ export async function loadShelfListings(
       itemCode: true,
       name: true,
       currentStock: true,
+      minStock: true,
       unit: true,
       locationId: true,
-      category: true,
       siteId: true,
       productId: true,
       site: { select: { id: true, name: true, code: true } },
@@ -222,7 +242,11 @@ export async function loadShelfListings(
       barcode: product.barcode,
       description: product.description,
       imageUrl: product.imageUrl,
-      ageRestricted: product.ageRestricted,
+      ageRestricted: product.ageRestricted || Boolean(product.retailCategory?.ageRestricted),
+      returnable: product.returnable,
+      depositAmount: product.depositAmount === null ? null : toNumberOrZero(product.depositAmount),
+      packOf: product.packOf,
+      packSize: product.packOf ? product.packSize : null,
       status: product.isActive ? "ACTIVE" : "INACTIVE",
       unitPrice: shelf?.unitPrice ?? toNumberOrZero(product.standardPrice),
       compareAtPrice:
@@ -235,7 +259,8 @@ export async function loadShelfListings(
       pricedAt: shelf?.pricedAt ?? null,
       inventoryItemId: stock.id,
       siteId: stock.siteId,
-      category: stock.category ?? null,
+      categoryId: product.categoryId,
+      category: product.retailCategory?.name ?? null,
       inventoryItem: {
         id: stock.id,
         itemCode: stock.itemCode,
@@ -247,6 +272,7 @@ export async function loadShelfListings(
         currentStock: toNumberOrZero(stock.currentStock),
         unit: stock.unit,
         locationId: stock.locationId,
+        reorderLevel: stock.minStock === null ? null : toNumberOrZero(stock.minStock),
       },
       site: stock.site,
     });
@@ -307,6 +333,9 @@ export async function loadSellableProducts(input: {
           standardPrice: true,
           defaultTaxRate: true,
           ageRestricted: true,
+          returnable: true,
+          depositAmount: true,
+          retailCategory: { select: { ageRestricted: true } },
         },
       },
     },
@@ -321,7 +350,10 @@ export async function loadSellableProducts(input: {
       name: row.product.name,
       standardPrice: row.product.standardPrice,
       defaultTaxRate: row.product.defaultTaxRate,
-      ageRestricted: row.product.ageRestricted,
+      // The same rule as the shelf: the product, or its category, asks for ID.
+      ageRestricted: row.product.ageRestricted || Boolean(row.product.retailCategory?.ageRestricted),
+      returnable: row.product.returnable,
+      depositAmount: row.product.depositAmount === null ? null : toNumberOrZero(row.product.depositAmount),
       siteId: row.siteId,
       inventoryItem: {
         id: row.id,
@@ -388,11 +420,28 @@ export async function upsertShelfListing(input: {
   compareAtPrice?: MoneyLike | null;
   isActive?: boolean;
   currency?: string;
+  /** The shop's category. `undefined` leaves it alone; `null` takes it out of one. */
+  categoryId?: string | null;
+  /** What the shop pays. `undefined` leaves it alone. */
+  costPrice?: MoneyLike | null;
+  returnable?: boolean;
+  depositAmount?: MoneyLike | null;
+  /** A case's single and size. `undefined` leaves them alone; null makes it a single. */
+  packOfId?: string | null;
+  packSize?: number | null;
 }): Promise<string> {
   const unitPrice = money(input.unitPrice);
   const taxPercent = percent(input.taxPercent);
   const compareAtPrice =
     input.compareAtPrice === undefined ? undefined : moneyOrNull(input.compareAtPrice);
+  const costPrice = input.costPrice === undefined ? undefined : moneyOrNull(input.costPrice);
+  // A deposit only means something on a returnable product.
+  const depositAmount =
+    input.returnable === false
+      ? null
+      : input.depositAmount === undefined
+        ? undefined
+        : moneyOrNull(input.depositAmount);
 
   return prisma.$transaction(async (tx) => {
     const priceList = await tx.priceList.upsert({
@@ -419,6 +468,18 @@ export async function upsertShelfListing(input: {
       ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
       ...(compareAtPrice === undefined ? {} : { compareAtPrice }),
       ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
+      ...(input.categoryId === undefined
+        ? {}
+        : { retailCategory: input.categoryId ? { connect: { id: input.categoryId } } : { disconnect: true } }),
+      ...(costPrice === undefined ? {} : { costPrice }),
+      ...(input.returnable === undefined ? {} : { returnable: input.returnable }),
+      ...(depositAmount === undefined ? {} : { depositAmount }),
+      ...(input.packOfId === undefined
+        ? {}
+        : {
+            packOf: input.packOfId ? { connect: { id: input.packOfId } } : { disconnect: true },
+            packSize: input.packOfId ? (input.packSize ?? null) : null,
+          }),
     } satisfies Prisma.ProductUpdateInput;
 
     const product = input.productId
@@ -442,6 +503,12 @@ export async function upsertShelfListing(input: {
             defaultTaxRate: taxPercent,
             isActive: input.isActive ?? true,
             ...(input.currency ? { currency: input.currency } : {}),
+            categoryId: input.categoryId ?? null,
+            costPrice: costPrice ?? null,
+            returnable: input.returnable ?? false,
+            depositAmount: depositAmount ?? null,
+            packOfId: input.packOfId ?? null,
+            packSize: input.packOfId ? (input.packSize ?? null) : null,
           },
           update: shared,
           select: { id: true },
@@ -508,6 +575,51 @@ export async function archiveShelfListing(input: {
   });
 }
 
+/**
+ * Bring a product back out of the bin.
+ *
+ * Back on the list, but off sale: its shelf price was removed when it went in
+ * the bin, and the figure it comes back with — its last standard price — may
+ * be months old. So it is restored priced at that figure, which keeps the
+ * shelf list and `standardPrice` agreeing, and the owner looks at it and puts
+ * it on sale. Returns false when it is not this company's, or not in the bin.
+ */
+export async function restoreShelfListing(input: { companyId: string; productId: string }): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const product = await tx.product.findFirst({
+      where: { id: input.productId, companyId: input.companyId, archivedAt: { not: null } },
+      select: { id: true, standardPrice: true },
+    });
+    if (!product) return false;
+
+    const priceList = await tx.priceList.findUnique({
+      where: { companyId_name: { companyId: input.companyId, name: SHELF_PRICE_LIST_NAME } },
+      select: { id: true },
+    });
+    if (priceList) {
+      await tx.productPrice.upsert({
+        where: {
+          priceListId_productId_minQuantity: {
+            priceListId: priceList.id,
+            productId: product.id,
+            minQuantity: new Prisma.Decimal(1),
+          },
+        },
+        create: {
+          companyId: input.companyId,
+          priceListId: priceList.id,
+          productId: product.id,
+          minQuantity: new Prisma.Decimal(1),
+          unitPrice: product.standardPrice,
+        },
+        update: { unitPrice: product.standardPrice },
+      });
+    }
+    await tx.product.update({ where: { id: product.id }, data: { archivedAt: null, isActive: false } });
+    return true;
+  });
+}
+
 export type SellableProduct = {
   productId: string;
   sku: string;
@@ -515,6 +627,9 @@ export type SellableProduct = {
   standardPrice: Prisma.Decimal;
   defaultTaxRate: Prisma.Decimal;
   ageRestricted: boolean;
+  /** An empty that comes back for money, and the deposit on it. */
+  returnable: boolean;
+  depositAmount: number | null;
   siteId: string;
   inventoryItem: {
     id: string;

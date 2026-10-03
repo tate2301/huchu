@@ -5,8 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Skeleton } from "@corelithzw/react";
 
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
-import { ColumnFigure, ColumnList, ColumnName, StatusDot } from "@/components/management/ui";
+import { ColumnFigure, ColumnList, ColumnName, ColumnText, StatusDot } from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
+import { useRetailCategories } from "@/components/retail/category-field";
 import { ProductDialog, type RetailProduct } from "@/components/retail/product-dialogs";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { fetchJson } from "@/lib/api-client";
@@ -47,6 +48,7 @@ function commonVat(products: RetailProduct[]): number {
 export default function RetailProductsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>(FILTER_ANY);
+  const [category, setCategory] = useState<string>(FILTER_ANY);
   const [creating, setCreating] = useState(false);
 
   const productsQuery = useQuery({
@@ -54,27 +56,34 @@ export default function RetailProductsPage() {
     queryFn: () => fetchJson<{ data: RetailProduct[] }>("/api/v2/retail/catalog"),
   });
   const products = useMemo(() => productsQuery.data?.data ?? [], [productsQuery.data]);
+  const categories = useRetailCategories();
+  const categoryOptions = useMemo(
+    () => new Map((categories.data?.data ?? []).map((row) => [row.id, row.name])),
+    [categories.data],
+  );
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return products.filter((product) => {
       if (status !== FILTER_ANY && product.status !== status) return false;
+      if (category !== FILTER_ANY && product.categoryId !== category) return false;
       if (!needle) return true;
       return [product.name, product.sku, product.barcode ?? ""].some((value) =>
         value.toLowerCase().includes(needle),
       );
     });
-  }, [products, search, status]);
+  }, [products, search, status, category]);
 
   const onHand = (product: RetailProduct) =>
     product.inventoryItem
       ? formatQuantity(product.inventoryItem.currentStock, product.inventoryItem.unit)
       : null;
 
-  const narrowed = Boolean(search.trim()) || status !== FILTER_ANY;
+  const filtering = status !== FILTER_ANY || category !== FILTER_ANY;
+  const narrowed = Boolean(search.trim()) || filtering;
   const empty = search.trim()
     ? "No product matches that search."
-    : status !== FILTER_ANY
+    : filtering
       ? "No product matches this filter."
       : "No products yet.";
 
@@ -86,15 +95,24 @@ export default function RetailProductsPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Search by name, code or barcode"
         filters={
-          <ViewToolbarFilter
-            label="Status"
-            value={status}
-            anyLabel="Any status"
-            options={STATUS_OPTIONS}
-            onChange={setStatus}
-          />
+          <>
+            <ViewToolbarFilter
+              label="Status"
+              value={status}
+              anyLabel="Any status"
+              options={STATUS_OPTIONS}
+              onChange={setStatus}
+            />
+            <ViewToolbarFilter
+              label="Category"
+              value={category}
+              anyLabel="Any category"
+              options={categoryOptions}
+              onChange={setCategory}
+            />
+          </>
         }
-        filterCount={status === FILTER_ANY ? 0 : 1}
+        filterCount={(status === FILTER_ANY ? 0 : 1) + (category === FILTER_ANY ? 0 : 1)}
         count={productsQuery.isSuccess ? `${rows.length} of ${products.length}` : null}
         createLabel="New product"
         onCreate={() => setCreating(true)}
@@ -118,6 +136,7 @@ export default function RetailProductsPage() {
               empty={empty}
               columns={[
                 { id: "product", label: "Product" },
+                { id: "category", label: "Category", hideBelow: "md" },
                 { id: "status", label: "Status", hideBelow: "sm" },
                 { id: "onHand", label: "On hand", align: "end", hideBelow: "sm" },
                 { id: "price", label: "Price", align: "end" },
@@ -127,6 +146,8 @@ export default function RetailProductsPage() {
                 const off = productStatusLabel(product.status);
                 const out = (product.inventoryItem?.currentStock ?? 0) <= 0;
                 const stock = onHand(product);
+                const reorder = product.inventoryItem?.reorderLevel ?? null;
+                const low = !out && reorder !== null && (product.inventoryItem?.currentStock ?? 0) <= reorder;
                 return {
                   id: product.id,
                   cells: {
@@ -137,10 +158,13 @@ export default function RetailProductsPage() {
                         href={`/retail/catalog/${product.id}`}
                       />
                     ),
+                    category: product.category ? <ColumnText>{product.category}</ColumnText> : null,
                     status: off ? (
                       <StatusDot tone="neutral" label={off} />
                     ) : out ? (
                       <StatusDot tone="warn" label="Out of stock" />
+                    ) : low ? (
+                      <StatusDot tone="warn" label="Running low" />
                     ) : null,
                     onHand: (
                       <ColumnFigure tone={stock ? (out ? "warn" : "default") : "muted"}>

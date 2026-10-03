@@ -30,6 +30,8 @@ import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
+import { depositsDue } from "@/lib/retail/deposits";
+import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   getPosSupportedPromotionTypes,
@@ -363,6 +365,8 @@ async function processCreateSale(
       /** What the device charged. Absent means "whatever the shelf said". */
       unitPrice?: number;
       discountAmount?: number;
+      /** Empties brought back for this line. */
+      emptiesBack?: number;
     }>;
     /** The order-level discount the cashier keyed. */
     discountAmount?: number;
@@ -383,6 +387,8 @@ async function processCreateSale(
     offlineCreatedAt?: string;
     offlineCreated?: boolean;
     deviceId?: string;
+    /** The cashier confirmed the customer's ID at the counter. */
+    idChecked?: boolean;
   };
 
   try {
@@ -408,6 +414,22 @@ async function processCreateSale(
     }
 
     const soldAt = new Date(payload.offlineCreatedAt ?? op.offlineCreatedAt ?? Date.now());
+
+    // The liquor licence, judged when the till rang the sale. A replay is not a
+    // second chance to sell after hours, nor a way round the ID check.
+    const ageRestricted = [...sellable.values()]
+      .filter((product) => product.ageRestricted)
+      .map((product) => product.name);
+    const shopProfile = await loadShopProfile(ctx.companyId);
+    const refusal = liquorSaleRefusal({
+      profile: shopProfile,
+      ageRestricted,
+      idChecked: payload.idChecked === true,
+      at: soldAt,
+    });
+    if (refusal) {
+      return { clientOperationId: op.clientOperationId, status: "failed", error: refusal };
+    }
 
     // S-3 (c), closing 0.3(4). This handler used to persist the device's
     // `unitPrice` verbatim — no catalogue re-check, no override gate — while the
@@ -571,6 +593,22 @@ async function processCreateSale(
         ? `Offline replay from device ${ctx.deviceId ?? payload.deviceId ?? "unknown"}`
         : null,
       postedAt: soldAt,
+      idCheckedAt: payload.idChecked && ageRestricted.length > 0 ? soldAt : null,
+      // Priced off the product, as at the counter. The transaction holds the
+      // tenders to the goods plus this.
+      depositAmount: shopFeatures(shopProfile).emptiesAndDeposits
+        ? depositsDue(
+            payload.items.map((item) => {
+              const product = sellable.get(item.productId)!;
+              return {
+                quantity: item.quantity,
+                returnable: product.returnable,
+                depositAmount: product.depositAmount,
+                emptiesBack: item.emptiesBack,
+              };
+            }),
+          )
+        : 0,
     });
 
     ctx.resolvedIds.set(op.clientOperationId, sale.id);

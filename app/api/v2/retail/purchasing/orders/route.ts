@@ -24,7 +24,6 @@ const purchaseOrderSchema = z.object({
   siteId: z.string().uuid().optional(),
   supplierName: z.string().min(1).max(200),
   expectedDate: z.string().datetime().optional().nullable(),
-  status: z.nativeEnum(RetailPurchaseOrderStatus).optional(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(lineSchema).min(1),
 });
@@ -167,7 +166,8 @@ export async function POST(request: NextRequest) {
             poNo,
             siteId: site.id,
             supplierName: input.supplierName.trim(),
-            status: input.status ?? RetailPurchaseOrderStatus.DRAFT,
+            // Deliveries move it on; nobody sets it by hand.
+            status: RetailPurchaseOrderStatus.DRAFT,
             expectedDate: input.expectedDate ? new Date(input.expectedDate) : null,
             notes: input.notes?.trim() || null,
             createdById: session.user.id,

@@ -596,68 +596,53 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         ],
       },
       /**
-       * The one stock door in a retail workspace.
+       * Products, then Stock, as two modules — what the shop sells, and how
+       * much of it is here.
        *
-       * Retail's range and the core stock module are the same shop from two
-       * angles, and they used to be two entries in the sidebar — "Range & Stock"
-       * and, under More, "Stores & Inventory". A shopkeeper had to know which of
-       * the two owned the answer, and the answer was usually "both": on-hand has
-       * only ever lived in the core `InventoryItem`, and every retail movement
-       * writes a core `StockMovement`.
-       *
-       * What it holds, and why:
-       *  - **What we sell** is retail's own — the range, its shelf prices and its
-       *    promotions. Core's catalogue and price lists are deliberately *not*
-       *    here: they are a second item master and a second price book that no
-       *    retail surface reads today, and offering them beside retail's own
-       *    would be offering the shopkeeper a choice with no right answer. They
-       *    stay entitled, reachable as tabs of the Stores shell, and they get the
-       *    keys (`stores.catalogue`, `stores.price-lists`) that let a tenant be
-       *    given retail's stock without them. S-3 and S-4 collapse the pair; the
-       *    nav follows that, it does not pre-empt it.
-       *  - **Stock** is core's, plus the two retail screens core has no answer
-       *    for. `/retail/stock` carries the on-order and goods-received values
-       *    that come from retail purchase orders and receipts, which the core
-       *    stock overview cannot show. `/retail/stock/count` posts a variance as
-       *    an `ADJUSTMENT`; the Stores module offers Issue and Receive and has no
-       *    adjustment surface at all, so deleting it would lose the stock take.
-       *    `/retail/stock/transfers` is the only `TRANSFER` surface in the
-       *    product, and it hides itself when the shop has nowhere to transfer to.
+       * They used to be one section, "Products and stock", that also reached
+       * into the stores module for On hand, Movements and Locations. Those are
+       * retail pages now (`/retail/stock` is On hand, `/retail/stock/movements`
+       * reads the same feed), so a shopkeeper never lands on a stores screen
+       * with its own tab bar under a retail sidebar. `stores` stays native so
+       * its section does not render beside these.
        */
       {
-        id: "retail-range",
-        title: "Products and stock",
-        groups: [
-          { id: "selling", label: "What we sell" },
-          { id: "stock", label: "Stock" },
-        ],
+        id: "retail-products",
+        title: "Products",
         refs: [
-          { moduleId: "retail", href: "/retail/catalog", group: "selling" },
-          { moduleId: "retail", href: "/retail/merchandising/pricing", group: "selling" },
-          { moduleId: "retail", href: "/retail/merchandising/promotions", group: "selling" },
-          { moduleId: "retail", href: "/retail/stock", group: "stock" },
-          { moduleId: "stores", href: "/stores/inventory", group: "stock" },
-          { moduleId: "stores", href: "/stores/movements", group: "stock" },
-          { moduleId: "stores", href: "/stores/locations", group: "stock" },
-          { moduleId: "retail", href: "/retail/stock/count", group: "stock" },
-          { moduleId: "retail", href: "/retail/stock/transfers", group: "stock" },
+          { moduleId: "retail", href: "/retail/catalog" },
+          { moduleId: "retail", href: "/retail/catalog/categories" },
+          { moduleId: "retail", href: "/retail/merchandising/pricing" },
+          { moduleId: "retail", href: "/retail/merchandising/promotions" },
+        ],
+      },
+      {
+        id: "retail-stock",
+        title: "Stock",
+        refs: [
+          { moduleId: "retail", href: "/retail/stock" },
+          { moduleId: "retail", href: "/retail/stock/movements" },
+          { moduleId: "retail", href: "/retail/stock/count" },
+          { moduleId: "retail", href: "/retail/stock/transfers" },
         ],
       },
       {
         id: "retail-buy",
-        title: "Purchasing",
+        title: "Buying",
         refs: [
           { moduleId: "retail", href: "/retail/purchasing/orders" },
           { moduleId: "retail", href: "/retail/purchasing/receipts" },
+          { moduleId: "retail", href: "/retail/purchasing/requisitions" },
         ],
       },
       {
         id: "retail-control",
         title: "Insights",
-        refs: [
-          { moduleId: "retail", href: "/retail/reports" },
-          { moduleId: "reporting", href: "/reports" },
-        ],
+        // The seven questions an owner asks of the shop, one page each.
+        refs: ["sales", "profit", "products", "stock", "losses", "customers", "money"].map((topic) => ({
+          moduleId: "retail" as const,
+          href: `/retail/insights/${topic}`,
+        })),
       },
     ],
   },

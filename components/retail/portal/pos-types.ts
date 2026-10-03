@@ -28,6 +28,13 @@ export type CartItem = {
   taxInclusive?: boolean;
   compareAtPrice?: number | null;
   lineDiscountAmount?: number;
+  /** Alcohol, on a liquor store: the sale needs the customer's ID checked. */
+  ageRestricted?: boolean;
+  /** A returnable bottle, on a shop that charges deposits, and its deposit. */
+  returnable?: boolean;
+  depositAmount?: number | null;
+  /** Empties the customer brought back against this line. */
+  emptiesBack?: number;
 };
 
 export type CurrentShift = {
@@ -86,6 +93,10 @@ export type PosCatalogItem = {
   sku: string;
   barcode: string | null;
   imageUrl?: string | null;
+  /** The product, or its category, is for over-18s. */
+  ageRestricted?: boolean;
+  returnable?: boolean;
+  depositAmount?: number | null;
   inventoryItem: { currentStock: number; unit: string } | null;
 };
 

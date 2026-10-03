@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
+import { lineDeposit } from "@/lib/retail/deposits";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -272,13 +273,14 @@ export function PosCheckoutView() {
     promotions, canOverride,
     subtotal, discountAmount, taxAmount, total,
     changeAmount, tenderedTotal, nonCashTotal,
-    addToCart, updateQty, updateItemPrice, updateItemDiscount,
+    addToCart, updateQty, updateItemPrice, updateItemDiscount, updateEmptiesBack, depositAmount,
     removeFromCart, clearCart,
     postSale, postSalePending,
     checkoutBaseBlockers,
     pendingOfflineSales, syncOfflineSales, syncOfflineSalesPending,
     requiredReferenceTenders, minReferenceLength,
     lastCompletedSale, dismissCompletedSale,
+    needsIdCheck, checkId,
   } = usePosPortalState();
 
   /* ── Derived state ───────────────────────────── */
@@ -489,6 +491,12 @@ export function PosCheckoutView() {
   }
 
   const handleCharge = () => {
+    // A recalled basket with alcohol in it: the check is asked for here, and
+    // the cashier charges again once it is done.
+    if (needsIdCheck) {
+      void checkId();
+      return;
+    }
     if (blockers.length) return;
     postSale();
   };
@@ -1162,6 +1170,41 @@ export function PosCheckoutView() {
                                 <X className="h-3.5 w-3.5" />
                               </button>
                             </div>
+
+                            {item.returnable && item.depositAmount ? (
+                              <div className="col-span-3 flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+                                <span>
+                                  Deposit <span className="font-mono">{money(item.depositAmount)}</span> a bottle
+                                  {lineDeposit(item) > 0 ? (
+                                    <span className="font-mono text-[var(--text-strong)]"> · {money(lineDeposit(item))}</span>
+                                  ) : null}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  Empties back
+                                  <button
+                                    type="button"
+                                    aria-label={`One fewer empty for ${item.name}`}
+                                    disabled={!item.emptiesBack}
+                                    onClick={() => updateEmptiesBack(item.catalogItemId, (item.emptiesBack ?? 0) - 1)}
+                                    className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-default)] disabled:opacity-40"
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </button>
+                                  <span className="min-w-[1.5rem] text-center font-mono font-bold text-[var(--text-strong)]">
+                                    {item.emptiesBack ?? 0}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    aria-label={`One more empty for ${item.name}`}
+                                    disabled={(item.emptiesBack ?? 0) >= Math.floor(item.quantity)}
+                                    onClick={() => updateEmptiesBack(item.catalogItemId, (item.emptiesBack ?? 0) + 1)}
+                                    className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-default)] disabled:opacity-40"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })}
@@ -1179,6 +1222,12 @@ export function PosCheckoutView() {
                     <div className="flex items-center justify-between text-[var(--text-muted)]">
                       <span>VAT</span>
                       <span className="font-mono">{money(taxAmount)}</span>
+                    </div>
+                  ) : null}
+                  {depositAmount > 0 ? (
+                    <div className="flex items-center justify-between text-[var(--text-muted)]">
+                      <span>Bottle deposits</span>
+                      <span className="font-mono">{money(depositAmount)}</span>
                     </div>
                   ) : null}
                 </div>

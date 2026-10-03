@@ -43,7 +43,18 @@ const CASH_MOVEMENT: Record<string, string> = {
 const ORDER_STATUS: Record<string, string> = {
   DRAFT: "Draft",
   PARTIAL: "Part delivered",
+  CLOSED: "Closed short",
   RECEIVED: "Delivered",
+};
+
+const REQUISITION_STATUS: Record<string, string> = {
+  DRAFT: "Draft",
+  SUBMITTED: "Waiting",
+  APPROVED: "Approved",
+  REJECTED: "Declined",
+  DISBURSED: "Paid",
+  ACQUITTED: "Paid",
+  CANCELLED: "Cancelled",
 };
 
 const PROMOTION_TYPE: Record<string, string> = {
@@ -84,6 +95,7 @@ export const saleStatusLabel = (value: string | null | undefined) => lookup(SALE
 export const shiftStatusLabel = (value: string | null | undefined) => lookup(SHIFT_STATUS, value);
 export const cashMovementLabel = (value: string | null | undefined) => lookup(CASH_MOVEMENT, value);
 export const orderStatusLabel = (value: string | null | undefined) => lookup(ORDER_STATUS, value);
+export const requisitionStatusLabel = (value: string | null | undefined) => lookup(REQUISITION_STATUS, value);
 export const promotionTypeLabel = (value: string | null | undefined) => lookup(PROMOTION_TYPE, value);
 export const promotionStatusLabel = (value: string | null | undefined) =>
   lookup(PROMOTION_STATUS, value);
@@ -178,7 +190,7 @@ export function formatQuantity(value: number, unit?: string | null): string {
   const amount = Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
   const name = (unit ?? "").trim();
   if (!name) return amount;
-  const countable = /^[a-z]+$/i.test(name) && name.length > 2 && !/s$/i.test(name);
+  const countable = /^[a-z]+$/i.test(name) && name.length > 2 && !/s$/i.test(name) && name.toLowerCase() !== "each";
   if (!countable || Math.abs(value) === 1) return `${amount} ${name}`;
   return `${amount} ${/(x|ch|sh)$/i.test(name) ? `${name}es` : `${name}s`}`;
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRetailSession } from "../../_helpers";
 import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { loadShopProfile } from "@/lib/retail/shop-profile";
 import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
 
 export async function GET(request: NextRequest) {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     return errorResponse("POS access denied", 403);
   }
 
-  const [sites, registers, setupProfile, tenderPolicy] = await Promise.all([
+  const [sites, registers, setupProfile, tenderPolicy, shop] = await Promise.all([
     prisma.site.findMany({
       where: {
         companyId: session.user.companyId,
@@ -50,6 +51,13 @@ export async function GET(request: NextRequest) {
      * request that was already in flight.
      */
     getRetailTenderPolicy(session.user.companyId),
+    /**
+     * What kind of shop this is, for the same reason: the till asks for ID and
+     * keeps to licence hours on a liquor store, and `/shop-profile` is gated on
+     * `retail.setup`, which no cashier holds. The server checks every sale
+     * again; this is so the cashier hears it before the customer has paid.
+     */
+    loadShopProfile(session.user.companyId),
   ]);
 
   const registersBySite = registers.reduce<Record<string, typeof registers>>(
@@ -75,6 +83,7 @@ export async function GET(request: NextRequest) {
         requiredReferenceTenders: tenderPolicy.requiredReferenceTenders,
         minReferenceLength: tenderPolicy.minReferenceLength,
       },
+      shop,
     },
   });
 }

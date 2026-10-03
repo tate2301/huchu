@@ -26,6 +26,8 @@ export type PosSaleQueuePayload = {
   discountAmount?: number;
   overrideReason?: string;
   promotionId?: string;
+  /** The cashier confirmed the customer's ID for an age-restricted line. */
+  idChecked?: boolean;
   /**
    * `productId`, matching what `pos/sales` and `pos/sync` both require.
    *
@@ -43,6 +45,7 @@ export type PosSaleQueuePayload = {
     quantity: number;
     unitPrice?: number;
     discountAmount?: number;
+    emptiesBack?: number;
   }>;
   payments: PosSalePaymentInput[];
 };
