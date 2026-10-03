@@ -43,6 +43,7 @@ const CASH_MOVEMENT: Record<string, string> = {
 const ORDER_STATUS: Record<string, string> = {
   DRAFT: "Draft",
   PARTIAL: "Part delivered",
+  CLOSED: "Closed short",
   RECEIVED: "Delivered",
 };
 

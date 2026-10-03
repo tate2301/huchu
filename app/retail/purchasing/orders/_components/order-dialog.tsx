@@ -38,6 +38,7 @@ export type EditableOrder = {
   expectedDate: string | null;
   notes: string | null;
   lines: Array<{
+    id: string;
     inventoryItemId: string | null;
     itemName: string;
     quantity: number;
@@ -45,7 +46,8 @@ export type EditableOrder = {
   }>;
 };
 
-type LineForm = { inventoryItemId: string; itemName: string; quantity: string; unitCost: string };
+/** `id` names a line already on the order, so an edit keeps what has come against it. */
+type LineForm = { id: string | null; inventoryItemId: string; itemName: string; quantity: string; unitCost: string };
 
 type OrderForm = {
   supplierName: string;
@@ -56,7 +58,7 @@ type OrderForm = {
 };
 
 function emptyLine(): LineForm {
-  return { inventoryItemId: "", itemName: "", quantity: "", unitCost: "" };
+  return { id: null, inventoryItemId: "", itemName: "", quantity: "", unitCost: "" };
 }
 
 function formFor(order: EditableOrder | null): OrderForm {
@@ -69,6 +71,7 @@ function formFor(order: EditableOrder | null): OrderForm {
     expectedDate: order.expectedDate ? order.expectedDate.slice(0, 10) : "",
     notes: order.notes ?? "",
     lines: order.lines.map((line) => ({
+      id: line.id,
       inventoryItemId: line.inventoryItemId ?? "",
       itemName: line.itemName,
       quantity: String(line.quantity),
@@ -138,7 +141,8 @@ export function OrderDialog({
         expectedDate: form.expectedDate ? new Date(form.expectedDate).toISOString() : null,
         notes: form.notes.trim() || null,
         lines: form.lines.map((line) => ({
-          inventoryItemId: line.inventoryItemId,
+          ...(order && line.id ? { id: line.id } : {}),
+          inventoryItemId: line.inventoryItemId || null,
           itemName: line.itemName || undefined,
           quantity: Number(line.quantity),
           unitCost: Number(line.unitCost),

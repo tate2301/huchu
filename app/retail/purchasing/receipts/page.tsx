@@ -10,6 +10,7 @@ import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { ColumnFigure, ColumnList, ColumnName, ColumnText, FormField } from "@/components/management/ui";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
 import {
@@ -42,6 +43,7 @@ type Delivery = {
 };
 
 type OrderLine = {
+  id: string;
   inventoryItemId: string | null;
   itemName: string;
   quantity: number;
@@ -62,6 +64,9 @@ type LineForm = {
   inventoryItemId: string;
   quantity: string;
   unitCost: string;
+  /** The order line this row fills, and what that line has had so far. */
+  purchaseOrderLineId: string | null;
+  owed: string | null;
 };
 
 type DeliveryForm = {
@@ -70,6 +75,8 @@ type DeliveryForm = {
   supplierName: string;
   notes: string;
   lines: LineForm[];
+  /** Nothing more is coming on the order: stop waiting for the rest. */
+  closeRest: boolean;
 };
 
 const NO_ORDER = "";
@@ -78,11 +85,11 @@ const NO_ORDER = "";
 const WIDTH = 960;
 
 function emptyLine(): LineForm {
-  return { inventoryItemId: "", quantity: "1", unitCost: "" };
+  return { inventoryItemId: "", quantity: "1", unitCost: "", purchaseOrderLineId: null, owed: null };
 }
 
 function emptyForm(siteId = ""): DeliveryForm {
-  return { siteId, purchaseOrderId: NO_ORDER, supplierName: "", notes: "", lines: [emptyLine()] };
+  return { siteId, purchaseOrderId: NO_ORDER, supplierName: "", notes: "", lines: [emptyLine()], closeRest: false };
 }
 
 function outstandingQuantity(order: Order) {
@@ -103,6 +110,9 @@ function formFromOrder(order: Order, fallbackSiteId: string): DeliveryForm {
       inventoryItemId: line.inventoryItemId ?? "",
       quantity: String(outstanding),
       unitCost: String(line.unitCost),
+      purchaseOrderLineId: line.id,
+      // Named here because a line ordered by name has no product chosen yet.
+      owed: `${line.inventoryItemId ? "" : `${line.itemName}: `}${line.quantity} ordered · ${line.receivedQuantity} came · ${outstanding} still to come`,
     }));
 
   return {
@@ -111,6 +121,7 @@ function formFromOrder(order: Order, fallbackSiteId: string): DeliveryForm {
     supplierName: order.supplierName,
     notes: "",
     lines: lines.length > 0 ? lines : [emptyLine()],
+    closeRest: false,
   };
 }
 
@@ -183,7 +194,7 @@ export default function RetailDeliveriesPage() {
     () => [
       { value: NO_ORDER, label: "No order" },
       ...orders
-        .filter((order) => outstandingQuantity(order) > 0)
+        .filter((order) => (order.status === "DRAFT" || order.status === "PARTIAL") && outstandingQuantity(order) > 0)
         .map((order) => ({ value: order.id, label: order.poNo, description: order.supplierName })),
     ],
     [orders],
@@ -236,7 +247,9 @@ export default function RetailDeliveriesPage() {
             inventoryItemId: line.inventoryItemId,
             quantity: Number(line.quantity),
             unitCost: Number(line.unitCost),
+            purchaseOrderLineId: payload.purchaseOrderId ? line.purchaseOrderLineId : null,
           })),
+          ...(payload.purchaseOrderId && payload.closeRest ? { closeRest: true } : {}),
         }),
       }),
     onSuccess: () => {
@@ -416,7 +429,7 @@ export default function RetailDeliveriesPage() {
             <span />
           </div>
           {form.lines.map((line, index) => (
-            <div key={index} className="grid grid-cols-[minmax(0,1fr)_90px_100px_32px] items-center gap-2">
+            <div key={index} className="grid grid-cols-[minmax(0,1fr)_90px_100px_32px] items-center gap-x-2 gap-y-1">
               <SearchableSelect
                 value={line.inventoryItemId}
                 options={productOptions}
@@ -450,6 +463,9 @@ export default function RetailDeliveriesPage() {
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
+              {line.owed ? (
+                <p className="col-span-4 text-xs text-[var(--text-muted)]">{line.owed}</p>
+              ) : null}
             </div>
           ))}
           <Button
@@ -462,6 +478,16 @@ export default function RetailDeliveriesPage() {
             Add a product
           </Button>
         </div>
+
+        {linkedOrder ? (
+          <label className="flex items-center gap-2 text-sm text-[var(--text-strong)]">
+            <Checkbox
+              checked={form.closeRest}
+              onCheckedChange={(checked) => setForm((current) => ({ ...current, closeRest: checked === true }))}
+            />
+            Nothing more is coming on {linkedOrder.poNo}: close the rest
+          </label>
+        ) : null}
 
         <FormField label="Notes">
           {(id) => (

@@ -74,6 +74,13 @@ export const RETAIL_AUDIT_EVENTS = {
   /** A delivery booked in against a purchase order. */
   goodsReceived: "RETAIL_GOODS.RECEIVED",
   /**
+   * The shop stopped waiting for the rest of an order, or started waiting
+   * again. Carries what was still owed, because a supplier who short-delivers
+   * every month is a conversation the owner needs the figures for.
+   */
+  orderClosed: "RETAIL_PURCHASE_ORDER.CLOSED",
+  orderReopened: "RETAIL_PURCHASE_ORDER.REOPENED",
+  /**
    * The shop's business type or one of its features changed. Carries the type
    * before and after and the categories the change added, because "who turned
    * the age check off" is a question a licence inspector will ask.

@@ -35,6 +35,8 @@ type OrderDetail = {
   expectedDate: string | null;
   notes: string | null;
   createdAt: string;
+  closedAt: string | null;
+  closeNote: string | null;
   site: { id: string; name: string; code: string } | null;
   lines: Array<{
     id: string;
@@ -104,6 +106,38 @@ export default function RetailOrderPage() {
     });
   };
 
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["retail-purchase-orders"] });
+    void queryClient.invalidateQueries({ queryKey: ["retail-purchase-order"] });
+    void queryClient.invalidateQueries({ queryKey: ["retail-open-orders-for-receipts"] });
+  };
+
+  const close = useMutation({
+    mutationFn: (reopen: boolean) =>
+      fetchJson(`/api/v2/retail/purchasing/orders/${orderId}/close`, {
+        method: reopen ? "DELETE" : "POST",
+        body: reopen ? undefined : JSON.stringify({}),
+      }),
+    onSuccess: (_result, reopen) => {
+      toast({ title: reopen ? "Order reopened" : "Order closed", variant: "success" });
+      refresh();
+    },
+    onError: (error) =>
+      toast({ title: "That did not work", description: getApiErrorMessage(error), variant: "destructive" }),
+  });
+
+  const confirmClose = () => {
+    if (!order) return;
+    void dsConfirm({
+      title: `Stop waiting for the rest of ${order.poNo}?`,
+      description: "What has come stays on the shelf. The order stops showing as owed, and no delivery can be booked against it until it is reopened.",
+      confirmLabel: "Close the rest",
+      variant: "warning",
+    }).then((confirmed) => {
+      if (confirmed) close.mutate(false);
+    });
+  };
+
   const edit = () => {
     setOpening((current) => current + 1);
     setEditing(true);
@@ -116,8 +150,11 @@ export default function RetailOrderPage() {
         sum + Math.max(Number(line.quantity) - Number(line.receivedQuantity), 0) * Number(line.unitCost),
       0,
     ) ?? 0;
+  const closed = order?.status === "CLOSED";
   const owed =
-    order?.lines.some((line) => Number(line.quantity) - Number(line.receivedQuantity) > 0) ?? false;
+    !closed &&
+    (order?.lines.some((line) => Number(line.quantity) - Number(line.receivedQuantity) > 0) ?? false);
+  const anyCame = order?.lines.some((line) => Number(line.receivedQuantity) > 0) ?? false;
 
   return (
     <RetailShell title="Orders">
@@ -162,13 +199,23 @@ export default function RetailOrderPage() {
             overflow={
               <>
                 <DropdownMenuItem onSelect={edit}>Edit order</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={confirmRemove}
-                  className="text-[var(--tone-danger-strong)]"
-                >
-                  Remove order
-                </DropdownMenuItem>
+                {owed ? <DropdownMenuItem onSelect={confirmClose}>Close the rest</DropdownMenuItem> : null}
+                {closed ? (
+                  <DropdownMenuItem onSelect={() => close.mutate(true)}>Reopen the order</DropdownMenuItem>
+                ) : null}
+                {/* Once anything has come, the order is the record of what it
+                    was against: it is closed, never removed. */}
+                {anyCame ? null : (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={confirmRemove}
+                      className="text-[var(--tone-danger-strong)]"
+                    >
+                      Remove order
+                    </DropdownMenuItem>
+                  </>
+                )}
               </>
             }
           />
@@ -194,8 +241,14 @@ export default function RetailOrderPage() {
                 },
                 { label: "Raised", value: formatRetailDate(order.createdAt), mono: true },
                 { label: "Value", value: retailMoney(value), mono: true },
+                ...(closed
+                  ? [
+                      { label: "Closed", value: formatRetailDate(order.closedAt), mono: true },
+                      ...(order.closeNote ? [{ label: "Why", value: order.closeNote }] : []),
+                    ]
+                  : []),
                 {
-                  label: "Still to come",
+                  label: closed ? "Never came" : "Still to come",
                   value: stillToCome > 0 ? retailMoney(stillToCome) : "Nothing",
                   mono: stillToCome > 0,
                   tone: stillToCome > 0 ? "warn" : "muted",

@@ -1363,6 +1363,7 @@ model User {
   retailShopProfilesUpdated         RetailShopProfile[]            @relation("RetailShopProfileUpdatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
+  retailPurchaseOrdersClosed        RetailPurchaseOrder[]          @relation("RetailPurchaseOrderClosedBy")
   retailGoodsReceiptsReceived       RetailGoodsReceipt[]           @relation("RetailGoodsReceiptReceivedBy")
   retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
@@ -4354,11 +4355,13 @@ enum RetailHeldCartStatus {
 }
 
 /// `DRAFT` on creation, then driven by receipts: `PARTIAL` while quantities are
-/// outstanding, `RECEIVED` once they are not.
+/// outstanding, `RECEIVED` once they are not. `CLOSED` when the shop stops
+/// waiting for what is left — the supplier ran out, or the rest is not coming.
 enum RetailPurchaseOrderStatus {
   DRAFT
   PARTIAL
   RECEIVED
+  CLOSED
 }
 
 enum RetailGoodsReceiptStatus {
@@ -4507,6 +4510,10 @@ model RetailPurchaseOrder {
   expectedDate DateTime?
   notes        String?
   createdById  String?
+  /// Who stopped waiting for the rest, when, and why. Set with `CLOSED`.
+  closedAt     DateTime?
+  closedById   String?
+  closeNote    String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -4515,6 +4522,7 @@ model RetailPurchaseOrder {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdBy User?   @relation("RetailPurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  closedBy  User?   @relation("RetailPurchaseOrderClosedBy", fields: [closedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, poNo])
   @@index([companyId, siteId, status])
@@ -4536,6 +4544,7 @@ model RetailPurchaseOrderLine {
   createdAt        DateTime @default(now())
 
   purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  receiptLines  RetailGoodsReceiptLine[]
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -4579,13 +4588,18 @@ model RetailGoodsReceiptLine {
   quantity        Decimal @default(0) @db.Decimal(12, 4)
   unitCost        Decimal @default(0) @db.Decimal(14, 2)
   lineTotal       Decimal @default(0) @db.Decimal(14, 2)
+  /// The order line this delivery filled. Null for a delivery with no order, or
+  /// a line the order did not have.
+  purchaseOrderLineId String?
   createdAt       DateTime @default(now())
 
-  receipt RetailGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  receipt           RetailGoodsReceipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseOrderLine RetailPurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
 
   company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  @@index([purchaseOrderLineId])
   @@index([receiptId])
   @@index([companyId])
 }
