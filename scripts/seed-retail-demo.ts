@@ -361,6 +361,11 @@ async function main() {
       unit: item.unit,
     })
   }
+  // The case opens into the singles: one Castle case is 24 × 340ml.
+  await prisma.product.update({
+    where: { id: stocked.get("CASTLE-CASE")!.productId },
+    data: { packOfId: stocked.get("CASTLE-340")!.productId, packSize: 24 },
+  })
   console.log(`  ${CATALOGUE.length} lines on the shelf (Castle 340ml is under its minimum)`)
 
   // ── Customers ────────────────────────────────────────────────────────────

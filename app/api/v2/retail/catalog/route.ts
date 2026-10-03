@@ -3,8 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
-import { findLiveRetailCategory } from "@/lib/retail/categories";
-import { productDetailFields, productDetailWrites } from "@/lib/retail/product-details";
+import { productDetailFields, productDetailsProblem, productDetailWrites } from "@/lib/retail/product-details";
 import { loadShelfListings, upsertShelfListing } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";
@@ -106,8 +105,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const input = catalogItemSchema.parse(body);
 
-    if (input.categoryId && !(await findLiveRetailCategory(session.user.companyId, input.categoryId))) {
-      return errorResponse("That category is not one of this shop's", 400);
+    const detailsProblem = await productDetailsProblem(session.user.companyId, input, null);
+    if (detailsProblem) {
+      return errorResponse(detailsProblem, 400);
     }
 
     if (!input.inventoryItemId) {

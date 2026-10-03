@@ -19,6 +19,7 @@ import {
   useInvalidateProducts,
   type RetailProduct,
 } from "@/components/retail/product-dialogs";
+import { BreakCaseDialog } from "@/components/retail/break-case-dialog";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -60,6 +61,7 @@ export default function RetailProductPage() {
   const productId = params?.id ?? "";
   const [editing, setEditing] = useState(false);
   const [pricing, setPricing] = useState(false);
+  const [opening, setOpening] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const invalidate = useInvalidateProducts();
@@ -143,6 +145,9 @@ export default function RetailProductPage() {
             overflow={
               <>
                 <DropdownMenuItem onSelect={() => setEditing(true)}>Edit product</DropdownMenuItem>
+                {product.packOf ? (
+                  <DropdownMenuItem onSelect={() => setOpening(true)}>Open cases into singles</DropdownMenuItem>
+                ) : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={confirmRemove}
@@ -192,6 +197,9 @@ export default function RetailProductPage() {
                   tone: (product.inventoryItem?.currentStock ?? 0) > 0 ? "default" : "warn",
                 },
                 { label: "Site", value: product.site?.name ?? "No site" },
+                ...(product.packOf
+                  ? [{ label: "Case of", value: `${product.packSize} × ${product.packOf.name}` }]
+                  : []),
               ]}
             />
 
@@ -208,6 +216,15 @@ export default function RetailProductPage() {
                 },
                 { label: "Category", value: product.category ?? "None" },
                 { label: "Check ID", value: product.ageRestricted ? "Yes" : "No" },
+                ...(product.returnable
+                  ? [
+                      {
+                        label: "Deposit",
+                        value: product.depositAmount ? retailMoney(product.depositAmount) : "Returnable, no deposit set",
+                        mono: Boolean(product.depositAmount),
+                      },
+                    ]
+                  : []),
                 ...(product.description ? [{ label: "Description", value: product.description }] : []),
               ]}
             />
@@ -235,6 +252,7 @@ export default function RetailProductPage() {
 
       <ProductDialog open={editing} onOpenChange={setEditing} product={editable} />
       <ChangePriceDialog product={pricing ? editable : null} onOpenChange={(open) => !open && setPricing(false)} />
+      {product?.packOf ? <BreakCaseDialog open={opening} onOpenChange={setOpening} product={product} /> : null}
     </RetailShell>
   );
 }

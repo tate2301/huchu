@@ -9,8 +9,7 @@ import {
   upsertShelfListing,
 } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { findLiveRetailCategory } from "@/lib/retail/categories";
-import { productDetailFields, productDetailWrites } from "@/lib/retail/product-details";
+import { productDetailFields, productDetailsProblem, productDetailWrites } from "@/lib/retail/product-details";
 import { ensureInventoryItemAccess, requireRetailSession } from "../../_helpers";
 
 /**
@@ -99,8 +98,9 @@ export async function PATCH(
     const body = await request.json();
     const input = patchSchema.parse(body);
 
-    if (input.categoryId && !(await findLiveRetailCategory(session.user.companyId, input.categoryId))) {
-      return errorResponse("That category is not one of this shop's", 400);
+    const detailsProblem = await productDetailsProblem(session.user.companyId, input, id);
+    if (detailsProblem) {
+      return errorResponse(detailsProblem, 400);
     }
 
     let inventoryItemId = existing.inventoryItemId;

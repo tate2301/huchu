@@ -37,6 +37,9 @@ export type RetailProduct = {
   ageRestricted: boolean;
   returnable: boolean;
   depositAmount: number | null;
+  /** A case: the single it opens into, and how many. */
+  packOf: { id: string; name: string } | null;
+  packSize: number | null;
   inventoryItem: {
     id: string;
     itemCode: string;
@@ -82,6 +85,8 @@ type ProductForm = {
   reorderLevel: string;
   returnable: boolean;
   deposit: string;
+  packOfId: string | null;
+  packSize: string;
 };
 
 function formFor(product: RetailProduct | null, defaultVat: number): ProductForm {
@@ -105,6 +110,8 @@ function formFor(product: RetailProduct | null, defaultVat: number): ProductForm
         : String(product.inventoryItem.reorderLevel),
     returnable: product?.returnable ?? false,
     deposit: product?.depositAmount ? String(product.depositAmount) : "",
+    packOfId: product?.packOf?.id ?? null,
+    packSize: product?.packSize ? String(product.packSize) : "",
   };
 }
 
@@ -184,6 +191,18 @@ export function ProductDialog({
 
   const shop = useShopProfile(open);
   const deposits = shop.data?.features.emptiesAndDeposits ?? false;
+  const cases = shop.data?.features.casesAndSingles ?? false;
+  // The singles a case can open into: this shop's products that are not
+  // themselves cases, and not this one.
+  const singlesQuery = useQuery({
+    queryKey: ["retail-catalog"],
+    queryFn: () => fetchJson<{ data: RetailProduct[] }>("/api/v2/retail/catalog"),
+    enabled: open && cases,
+  });
+  const singles = useMemo(
+    () => (singlesQuery.data?.data ?? []).filter((row) => !row.packOf && row.id !== product?.id),
+    [singlesQuery.data, product?.id],
+  );
 
   const save = useMutation({
     mutationFn: async () => {
@@ -204,6 +223,9 @@ export function ProductDialog({
         ...(form.cost.trim() ? { costPrice: amount(form.cost) } : {}),
         ...(deposits
           ? { returnable: form.returnable, depositAmount: form.returnable ? amount(form.deposit) : null }
+          : {}),
+        ...(cases
+          ? { packOfId: form.packOfId, packSize: form.packOfId ? amount(form.packSize) : null }
           : {}),
       };
       if (product) {
@@ -252,6 +274,10 @@ export function ProductDialog({
     }
     if (deposits && form.returnable && amount(form.deposit) === null) {
       problems.push("Give the deposit on a returnable bottle.");
+    }
+    if (cases && form.packOfId) {
+      const size = amount(form.packSize);
+      if (size === null || size < 2 || !Number.isInteger(size)) problems.push("Say how many singles are in the case.");
     }
     if (!product && sites.length > 1 && !form.siteId) problems.push("Say which site keeps its stock.");
     setErrors(problems);
@@ -457,6 +483,39 @@ export function ProductDialog({
                         inputMode="decimal"
                         className="font-mono"
                         onChange={(event) => set("deposit", event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                ) : null}
+              </div>
+            ) : null}
+
+            {cases ? (
+              <div className={FIELD_ROW}>
+                <FormField label="Case of">
+                  {() => (
+                    <SearchableSelect
+                      value={form.packOfId ?? undefined}
+                      placeholder="Not a case"
+                      searchPlaceholder="Search products"
+                      options={[
+                        { value: "", label: "Not a case" },
+                        ...singles.map((row) => ({ value: row.id, label: row.name, meta: row.sku })),
+                      ]}
+                      onValueChange={(value) => set("packOfId", value || null)}
+                    />
+                  )}
+                </FormField>
+                {form.packOfId ? (
+                  <FormField label="Singles in it">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        value={form.packSize}
+                        inputMode="numeric"
+                        className="font-mono"
+                        placeholder="24"
+                        onChange={(event) => set("packSize", event.target.value)}
                       />
                     )}
                   </FormField>

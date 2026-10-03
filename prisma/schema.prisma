@@ -13069,6 +13069,10 @@ model Product {
   /// bottle-store trade, modelled nowhere in this repo before now.
   returnable         Boolean       @default(false)
   depositAmount      Decimal?      @db.Decimal(14, 2)
+  /// A case: the single it breaks into on the shelf, and how many of them.
+  /// Null on everything that is not a case.
+  packOfId           String?
+  packSize           Int?
   imageUrl           String?
   notes              String?
   isActive           Boolean       @default(true)
@@ -13083,6 +13087,8 @@ model Product {
   company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy      User?               @relation("ProductCreatedBy", fields: [createdById], references: [id])
   retailCategory RetailCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  packOf         Product?            @relation("ProductPack", fields: [packOfId], references: [id], onDelete: SetNull)
+  packs          Product[]           @relation("ProductPack")
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
@@ -13093,6 +13099,7 @@ model Product {
   @@index([companyId, isActive, kind])
   @@index([companyId, category])
   @@index([categoryId])
+  @@index([packOfId])
   /// The till scans on this and expects an answer before the next item.
   @@index([companyId, barcode])
 }

@@ -71,6 +71,9 @@ export type ShelfListing = {
   /** An empty that comes back for money, and what it is worth. */
   returnable: boolean;
   depositAmount: number | null;
+  /** A case: the single it opens into, and how many. Null on a single. */
+  packOf: { id: string; name: string } | null;
+  packSize: number | null;
   status: ShelfListingStatus;
   unitPrice: number;
   compareAtPrice: number | null;
@@ -110,6 +113,8 @@ const listingSelect = {
   depositAmount: true,
   categoryId: true,
   retailCategory: { select: { name: true, ageRestricted: true } },
+  packSize: true,
+  packOf: { select: { id: true, name: true } },
   isActive: true,
   standardPrice: true,
   compareAtPrice: true,
@@ -240,6 +245,8 @@ export async function loadShelfListings(
       ageRestricted: product.ageRestricted || Boolean(product.retailCategory?.ageRestricted),
       returnable: product.returnable,
       depositAmount: product.depositAmount === null ? null : toNumberOrZero(product.depositAmount),
+      packOf: product.packOf,
+      packSize: product.packOf ? product.packSize : null,
       status: product.isActive ? "ACTIVE" : "INACTIVE",
       unitPrice: shelf?.unitPrice ?? toNumberOrZero(product.standardPrice),
       compareAtPrice:
@@ -419,6 +426,9 @@ export async function upsertShelfListing(input: {
   costPrice?: MoneyLike | null;
   returnable?: boolean;
   depositAmount?: MoneyLike | null;
+  /** A case's single and size. `undefined` leaves them alone; null makes it a single. */
+  packOfId?: string | null;
+  packSize?: number | null;
 }): Promise<string> {
   const unitPrice = money(input.unitPrice);
   const taxPercent = percent(input.taxPercent);
@@ -464,6 +474,12 @@ export async function upsertShelfListing(input: {
       ...(costPrice === undefined ? {} : { costPrice }),
       ...(input.returnable === undefined ? {} : { returnable: input.returnable }),
       ...(depositAmount === undefined ? {} : { depositAmount }),
+      ...(input.packOfId === undefined
+        ? {}
+        : {
+            packOf: input.packOfId ? { connect: { id: input.packOfId } } : { disconnect: true },
+            packSize: input.packOfId ? (input.packSize ?? null) : null,
+          }),
     } satisfies Prisma.ProductUpdateInput;
 
     const product = input.productId
@@ -491,6 +507,8 @@ export async function upsertShelfListing(input: {
             costPrice: costPrice ?? null,
             returnable: input.returnable ?? false,
             depositAmount: depositAmount ?? null,
+            packOfId: input.packOfId ?? null,
+            packSize: input.packOfId ? (input.packSize ?? null) : null,
           },
           update: shared,
           select: { id: true },
