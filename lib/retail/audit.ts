@@ -73,6 +73,12 @@ export const RETAIL_AUDIT_EVENTS = {
   cashMoved: "RETAIL_CASH.MOVED",
   /** A delivery booked in against a purchase order. */
   goodsReceived: "RETAIL_GOODS.RECEIVED",
+  /**
+   * The shop's business type or one of its features changed. Carries the type
+   * before and after and the categories the change added, because "who turned
+   * the age check off" is a question a licence inspector will ask.
+   */
+  shopProfileChanged: "RETAIL_SHOP.PROFILE_CHANGED",
 } as const;
 
 export type RetailAuditEvent =

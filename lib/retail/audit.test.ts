@@ -371,6 +371,7 @@ describe("the chain", () => {
       shiftClosed: "RETAIL_SHIFT.CLOSED",
       cashMoved: "RETAIL_CASH.MOVED",
       goodsReceived: "RETAIL_GOODS.RECEIVED",
+      shopProfileChanged: "RETAIL_SHOP.PROFILE_CHANGED",
     });
   });
 });

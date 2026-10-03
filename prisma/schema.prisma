@@ -310,6 +310,8 @@ model Company {
   priceLists                    PriceList[]
   productPrices                 ProductPrice[]
   retailRegisters               RetailRegister[]
+  retailShopProfile             RetailShopProfile?
+  retailCategories              RetailCategory[]
   retailPromotions              RetailPromotion[]
   retailPurchaseOrders          RetailPurchaseOrder[]
   retailPurchaseOrderLines      RetailPurchaseOrderLine[]
@@ -1358,6 +1360,7 @@ model User {
   crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
+  retailShopProfilesUpdated         RetailShopProfile[]            @relation("RetailShopProfileUpdatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
   retailGoodsReceiptsReceived       RetailGoodsReceipt[]           @relation("RetailGoodsReceiptReceivedBy")
@@ -4387,6 +4390,74 @@ enum RetailTenderType {
   MOBILE_MONEY
   TRANSFER
   VOUCHER
+}
+
+/// What kind of shop a retail workspace is. It decides the categories a new
+/// shop starts with and which shop-type features exist for the till to use.
+enum RetailBusinessType {
+  GENERAL
+  LIQUOR
+}
+
+/// The shop's own profile: its business type and the features that come with
+/// it. One row per company, written from Settings › General.
+///
+/// A feature is on only when the business type has it *and* its switch is on,
+/// so switching a liquor store to General retail turns every liquor feature
+/// off without losing how they were set. See `lib/retail/shop-profile.ts`.
+model RetailShopProfile {
+  companyId          String             @id
+  businessType       RetailBusinessType @default(GENERAL)
+  /// Liquor: the till asks for an ID check before selling anything that needs one.
+  ageCheck           Boolean            @default(true)
+  /// Liquor: age-restricted lines stop selling outside the licence hours.
+  licenceHours       Boolean            @default(true)
+  /// Licence hours as 24-hour "HH:MM", in the shop's time (Africa/Harare).
+  /// Monday to Saturday share one window; Sunday has its own.
+  weekdayOpensAt     String             @default("08:00")
+  weekdayClosesAt    String             @default("22:00")
+  sundayOpensAt      String             @default("10:00")
+  sundayClosesAt     String             @default("18:00")
+  /// Liquor: returnable bottles carry a deposit that comes back with the empty.
+  emptiesAndDeposits Boolean            @default(true)
+  /// Liquor: a case is sold whole or broken into singles.
+  casesAndSingles    Boolean            @default(true)
+  licenceNumber      String?
+  licenceExpiresOn   DateTime?          @db.Date
+  updatedById        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  updatedBy User?   @relation("RetailShopProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// A shop's product category: Beer, Spirits, Soft drinks. The shop's own list,
+/// seeded from its business type and edited in Products › Categories — not the
+/// stores module's fixed FUEL/SPARES/CONSUMABLES, which describe a mine.
+model RetailCategory {
+  id                  String    @id @default(uuid())
+  companyId           String
+  name                String
+  /// VAT on products in it, as a percentage. 15 is the standard rate.
+  vatRate             Decimal   @default(15) @db.Decimal(5, 2)
+  /// The till asks for an ID check on anything in it, when the shop checks ID.
+  ageRestricted       Boolean   @default(false)
+  /// New products in it start returnable, at this deposit.
+  returnable          Boolean   @default(false)
+  depositAmount       Decimal?  @db.Decimal(14, 2)
+  /// Prices that earn less than this are flagged. A percentage of the price.
+  targetMarginPercent Decimal?  @db.Decimal(5, 2)
+  sortOrder           Int       @default(0)
+  archivedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  products Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId, archivedAt, sortOrder])
 }
 
 model RetailRegister {
@@ -12943,7 +13014,14 @@ model Product {
   name               String
   description        String?
   kind               ProductKind   @default(GOODS)
+  /// Free text for the modules that have no category list of their own.
+  /// Retail does: it files a product under `retailCategory` and leaves this
+  /// alone.
   category           String?
+  /// The shop's own category, from Products › Categories. Its VAT rate, ID
+  /// check and deposit are the defaults a new product in it starts from, and
+  /// the till checks ID when either the product or its category asks for it.
+  categoryId         String?
   unit               UnitOfMeasure @default(EACH)
   /// Free text when `unit` is OTHER, e.g. "per pallet".
   unitLabel          String?
@@ -12996,6 +13074,7 @@ model Product {
 
   company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy      User?               @relation("ProductCreatedBy", fields: [createdById], references: [id])
+  retailCategory RetailCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
@@ -13005,6 +13084,7 @@ model Product {
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])
   @@index([companyId, category])
+  @@index([categoryId])
   /// The till scans on this and expects an answer before the next item.
   @@index([companyId, barcode])
 }
