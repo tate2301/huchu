@@ -132,6 +132,8 @@ export type SaleRow = {
   customerName: string | null;
   cashierName: string | null;
   totalAmount: number;
+  /** Bottle deposits taken on top of the goods; negative on a refund. */
+  depositAmount?: number;
   itemCount: number;
   tenderTypes: string[];
   overrideReason: string | null;
@@ -153,6 +155,12 @@ export type SaleDetail = SaleRow & {
     quantity: number;
     unitPrice: number;
     lineTotal: number;
+    /** The line's bottle deposit; comes back with the line on a refund. */
+    depositAmount?: number;
+    /** Deposit already handed back on earlier refunds of the line. */
+    depositRefunded?: number;
+    /** What is left of the line to refund. */
+    refundableQuantity?: number;
   }>;
   reversals: Array<{
     id: string;

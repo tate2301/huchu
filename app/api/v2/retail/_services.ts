@@ -26,6 +26,7 @@ import {
   totalFromDenominations,
 } from "@/lib/retail/cash-up";
 import { reversalSubtotal } from "@/lib/retail/sale-totals";
+import { depositBack } from "@/lib/retail/deposits";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import {
   buildRetailZReportFigures,
@@ -89,6 +90,8 @@ export type RetailSaleLineInput = {
   lineTotal: number;
   costUnit: number;
   costTotal: number;
+  /** The deposit on this line's returnable bottles, net of empties back. */
+  depositAmount?: number;
 };
 
 function round(value: number) {
@@ -657,11 +660,6 @@ export async function createRetailSaleTransaction(input: {
   postedAt?: Date;
   /** When the cashier confirmed the customer's ID, for a sale with an age-restricted line. */
   idCheckedAt?: Date | null;
-  /**
-   * Deposits on returnable bottles, net of empties back. Paid on top of
-   * `totalAmount` and posted to deposits held, never to revenue.
-   */
-  depositAmount?: number;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -711,7 +709,11 @@ export async function createRetailSaleTransaction(input: {
   );
 
   // What the customer pays: the goods, and the deposit on their bottles.
-  const amountDue = round(input.totalAmount + (input.depositAmount ?? 0));
+  // Deposits on returnable bottles, net of empties back: the sum of the lines'
+  // own, so a refund can pay back exactly the share of the lines it returns.
+  // Paid on top of `totalAmount` and posted to deposits held, never revenue.
+  const depositAmount = sumMoney(input.lines.map((line) => money(line.depositAmount ?? 0)));
+  const amountDue = round(input.totalAmount + toNumberOrZero(depositAmount));
   if (nonCashTotal > amountDue) {
     throw new Error("Non-cash tenders cannot exceed the sale total");
   }
@@ -811,7 +813,7 @@ export async function createRetailSaleTransaction(input: {
             cashierName: resolveCashierName(input.actor),
             customerName: input.customerName ?? null,
             idCheckedAt: input.idCheckedAt ?? null,
-            depositAmount: money(input.depositAmount ?? 0),
+            depositAmount,
             subtotal: input.subtotal,
             discountAmount: input.discountAmount,
             taxAmount: input.taxAmount,
@@ -845,6 +847,7 @@ export async function createRetailSaleTransaction(input: {
                 lineTotal: line.lineTotal,
                 costUnit: line.costUnit,
                 costTotal: line.costTotal,
+                depositAmount: money(line.depositAmount ?? 0),
               })),
             },
             payments: {
@@ -1096,6 +1099,18 @@ export async function refundRetailSaleTransaction(input: {
         );
         return accumulator;
       }, new Map());
+    // The deposit each line has already paid back, so the last refund of a
+    // line returns exactly what is left of it rather than a rounded share.
+    const depositBackByLine = priorRefunds
+      .flatMap((sale) => sale.lines)
+      .reduce<Map<string, Prisma.Decimal>>((accumulator, line) => {
+        if (!line.sourceLineId) return accumulator;
+        accumulator.set(
+          line.sourceLineId,
+          (accumulator.get(line.sourceLineId) ?? ZERO).plus(money(line.depositAmount).abs()),
+        );
+        return accumulator;
+      }, new Map());
 
     const requestedLines = normalizedLineRequests.map((line) => {
       const sourceLine = currentSourceSale.lines.find((entry) => entry.id === line.saleLineId);
@@ -1118,6 +1133,17 @@ export async function refundRetailSaleTransaction(input: {
         ? multiplyMoney(sourceQuantity, sourceCostUnit)
         : sourceCostTotal.abs();
 
+      // Bottles back with the goods: the line's deposit comes back with them.
+      const deposit = depositBack(
+        {
+          quantity: toNumberOrZero(sourceQuantity),
+          depositAmount: toNumberOrZero(sourceLine.depositAmount),
+          depositRefunded: toNumberOrZero(depositBackByLine.get(sourceLine.id) ?? ZERO),
+        },
+        toNumberOrZero(requestedQuantity),
+        toNumberOrZero(refundableQty),
+      );
+
       return {
         sourceLine,
         quantity: requestedQuantity,
@@ -1126,6 +1152,7 @@ export async function refundRetailSaleTransaction(input: {
         lineTotal: multiplyMoney(money(sourceLine.lineTotal).abs(), ratio).negated(),
         costUnit: sourceCostUnit,
         costTotal: multiplyMoney(wholeLineCost, ratio),
+        depositAmount: money(deposit).negated(),
       };
     });
 
@@ -1135,7 +1162,9 @@ export async function refundRetailSaleTransaction(input: {
     const discountAmount = sumMoney(requestedLines.map((line) => line.discountAmount));
     const taxAmount = sumMoney(requestedLines.map((line) => line.taxAmount));
     const totalAmount = sumMoney(requestedLines.map((line) => line.lineTotal));
-    const refundValue = totalAmount.abs();
+    const depositAmount = sumMoney(requestedLines.map((line) => line.depositAmount));
+    // The goods and their bottles' deposits: what the customer gets back.
+    const refundValue = totalAmount.abs().plus(depositAmount.abs());
     const paymentTotal = sumMoney(refundPayments.map((payment) => payment.amount));
     // Exactly equal, not within a cent. The `Math.abs(a - b) > 0.01` this replaces
     // is the epsilon fudge `lib/money.ts` exists to retire — it let a refund be a
@@ -1167,6 +1196,8 @@ export async function refundRetailSaleTransaction(input: {
         discountAmount,
         taxAmount,
         totalAmount,
+        // Paid back on top of the goods, out of deposits held.
+        depositAmount,
         tenderedAmount: -paymentTotal,
         changeAmount: 0,
         // R-1.5 — a refund is denominated by the sale it reverses, not by
@@ -1196,6 +1227,7 @@ export async function refundRetailSaleTransaction(input: {
             lineTotal: line.lineTotal,
             costUnit: line.costUnit,
             costTotal: line.costTotal,
+            depositAmount: line.depositAmount,
           })),
         },
         payments: {
@@ -1447,6 +1479,7 @@ export async function voidRetailSaleTransaction(input: {
             costTotal: money(line.costTotal).isZero()
               ? multiplyMoney(money(line.quantity).abs(), money(line.costUnit))
               : money(line.costTotal),
+            depositAmount: money(line.depositAmount).abs().negated(),
           })),
         },
         payments: {
@@ -1703,6 +1736,7 @@ export async function generateRetailZReportTransaction(input: {
         discountAmount: sale.discountAmount,
         taxAmount: sale.taxAmount,
         totalAmount: sale.totalAmount,
+        depositAmount: sale.depositAmount,
         changeAmount: sale.changeAmount ?? 0,
         exchangeRate: sale.exchangeRate,
         payments: sale.payments,
@@ -1740,6 +1774,7 @@ export async function generateRetailZReportTransaction(input: {
     taxTotal: figures.taxTotal,
     taxRatePercent: figures.taxRatePercent,
     grossTakings: figures.grossTakings,
+    depositTotal: figures.depositTotal,
     refundTotal: figures.refundTotal,
     voidTotal: figures.voidTotal,
     openingFloat: figures.openingFloat,

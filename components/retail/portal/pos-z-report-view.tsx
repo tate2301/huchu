@@ -135,6 +135,7 @@ type ZReport = {
   taxTotal: number;
   taxRatePercent: number;
   grossTakings: number;
+  depositTotal: number;
   refundTotal: number;
   voidTotal: number;
   openingFloat: number;
@@ -342,7 +343,7 @@ function ZReportSheet({ report }: { report: ZReport }) {
           />
         </div>
 
-        {(report.refundCount > 0 || report.voidCount > 0) && (
+        {(report.refundCount > 0 || report.voidCount > 0 || report.depositTotal !== 0) && (
           <div className="mt-3 flex flex-wrap gap-4 rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-3 text-xs text-[var(--text-muted)]">
             <span>
               Refunds{" "}
@@ -358,6 +359,15 @@ function ZReportSheet({ report }: { report: ZReport }) {
               </span>{" "}
               · {report.voidCount}
             </span>
+            {report.depositTotal !== 0 ? (
+              <span>
+                Bottle deposits held{" "}
+                <span className="font-mono font-bold tabular-nums text-[var(--text-strong)]">
+                  {money(report.depositTotal)}
+                </span>{" "}
+                · owed back on empties, not takings
+              </span>
+            ) : null}
           </div>
         )}
 

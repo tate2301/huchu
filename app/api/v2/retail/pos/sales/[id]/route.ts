@@ -91,7 +91,7 @@ export async function GET(
           saleId: { in: relatedSales.map((relatedSale) => relatedSale.id) },
           sourceLineId: { not: null },
         },
-        select: { sourceLineId: true, quantity: true },
+        select: { sourceLineId: true, quantity: true, depositAmount: true },
       })
     : [];
   const refundedBySourceLine = reversalLineRows.reduce<Map<string, number>>((accumulator, line) => {
@@ -99,6 +99,14 @@ export async function GET(
     accumulator.set(
       line.sourceLineId,
       (accumulator.get(line.sourceLineId) ?? 0) + toNumberOrZero(money(line.quantity).abs()),
+    );
+    return accumulator;
+  }, new Map());
+  const depositRefundedBySourceLine = reversalLineRows.reduce<Map<string, number>>((accumulator, line) => {
+    if (!line.sourceLineId) return accumulator;
+    accumulator.set(
+      line.sourceLineId,
+      (accumulator.get(line.sourceLineId) ?? 0) + toNumberOrZero(money(line.depositAmount).abs()),
     );
     return accumulator;
   }, new Map());
@@ -120,6 +128,7 @@ export async function GET(
           ...rest,
           ...(showCost ? { costUnit, costTotal } : {}),
           refundedQuantity,
+          depositRefunded: depositRefundedBySourceLine.get(line.id) ?? 0,
           refundableQuantity: Math.max(toNumberOrZero(line.quantity) - refundedQuantity, 0),
         };
       }),

@@ -125,6 +125,7 @@ export async function POST(
       siteId: sale.siteId,
       sourceSaleId: sale.sourceSaleId,
       totalAmount: sale.totalAmount,
+      depositAmount: sale.depositAmount,
       tenderedAmount: sale.tenderedAmount,
       postedAt: sale.postedAt ?? sale.createdAt,
       lines: sale.lines,

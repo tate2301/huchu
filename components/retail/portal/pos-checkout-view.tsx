@@ -1955,7 +1955,7 @@ export function PosCheckoutView() {
                 {lastCompletedSale?.saleNo}
               </div>
               <div className="mt-1 font-mono text-2xl font-black text-white/90">
-                {money(lastCompletedSale?.totalAmount ?? 0)}
+                {money(Number(lastCompletedSale?.totalAmount ?? 0) + Number(lastCompletedSale?.depositAmount ?? 0))}
               </div>
             </div>
           )}
@@ -1995,8 +1995,14 @@ export function PosCheckoutView() {
               <div>
                 <div className="text-[11px] text-[var(--text-muted)]">Total charged</div>
                 <div className="font-mono text-base font-black text-[var(--text-strong)]">
-                  {money(lastCompletedSale?.totalAmount ?? 0)}
+                  {money(Number(lastCompletedSale?.totalAmount ?? 0) + Number(lastCompletedSale?.depositAmount ?? 0))}
                 </div>
+                {Number(lastCompletedSale?.depositAmount ?? 0) > 0 ? (
+                  <div className="text-[11px] text-[var(--text-muted)]">
+                    including bottle deposits{" "}
+                    <span className="font-mono">{money(Number(lastCompletedSale?.depositAmount))}</span>
+                  </div>
+                ) : null}
               </div>
               {lastCompletedSale?.customerName ? (
                 <div className="text-right">

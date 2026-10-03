@@ -18,7 +18,7 @@ import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
-import { depositsDue } from "@/lib/retail/deposits";
+import { depositsDue, lineDeposit } from "@/lib/retail/deposits";
 import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
@@ -174,6 +174,7 @@ function mapSales(
     discountAmount: toNumberOrZero(sale.discountAmount),
     taxAmount: toNumberOrZero(sale.taxAmount),
     totalAmount: toNumberOrZero(sale.totalAmount),
+    depositAmount: toNumberOrZero(sale.depositAmount),
     tenderedAmount: toNumber(sale.tenderedAmount),
     changeAmount: toNumber(sale.changeAmount),
     promotionCode: sale.promotionCode,
@@ -735,19 +736,17 @@ export async function POST(request: NextRequest) {
     const totalAmount = checkout.total;
     // Deposits on returnable bottles, priced off the product rather than the
     // device, and only on a shop that charges them.
-    const depositAmount = shopFeatures(shopProfile).emptiesAndDeposits
-      ? depositsDue(
-          input.items.map((item) => {
-            const product = sellable.get(item.productId)!;
-            return {
-              quantity: item.quantity,
-              returnable: product.returnable,
-              depositAmount: product.depositAmount,
-              emptiesBack: item.emptiesBack,
-            };
-          }),
-        )
-      : 0;
+    const depositsOn = shopFeatures(shopProfile).emptiesAndDeposits;
+    const depositLines = input.items.map((item) => {
+      const product = sellable.get(item.productId)!;
+      return {
+        quantity: item.quantity,
+        returnable: depositsOn && product.returnable,
+        depositAmount: product.depositAmount,
+        emptiesBack: item.emptiesBack,
+      };
+    });
+    const depositAmount = depositsDue(depositLines);
     const amountDue = round(totalAmount + depositAmount);
     const normalizedPayments = input.payments.map((payment) => ({
       tenderType: payment.tenderType,
@@ -916,7 +915,8 @@ export async function POST(request: NextRequest) {
       taxAmount,
       totalAmount,
       payments: normalizedPayments,
-      lines: normalizedLines.map((line) => ({
+      lines: normalizedLines.map((line, index) => ({
+        depositAmount: lineDeposit(depositLines[index]),
         inventoryItemId: line.inventoryItem.id,
         inventoryUnit: line.inventoryItem.unit,
         productId: line.listing.productId,
@@ -934,7 +934,6 @@ export async function POST(request: NextRequest) {
       notes: normalizedNotes || null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       idCheckedAt: input.idChecked && ageRestricted.length > 0 ? soldAt : null,
-      depositAmount,
     });
 
     const customerNetSpend =
@@ -978,6 +977,7 @@ export async function POST(request: NextRequest) {
       discountAmount: sale.discountAmount,
       taxAmount: sale.taxAmount,
       totalAmount: sale.totalAmount,
+      depositAmount: sale.depositAmount,
       tenderedAmount: sale.tenderedAmount,
       changeAmount: sale.changeAmount,
       payments: sale.payments,

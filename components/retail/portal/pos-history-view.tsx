@@ -22,6 +22,7 @@ import {
 } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, SaleDetail, SaleRow, TenderType } from "./pos-types";
+import { depositBack } from "@/lib/retail/deposits";
 import { getPaymentSummary, money, round } from "./pos-utils";
 import {
   formatQuantity,
@@ -163,7 +164,17 @@ export function PosHistoryView() {
       if (quantity <= 0 || line.quantity <= 0) {
         return sum;
       }
-      return sum + Math.abs(line.lineTotal) * (quantity / line.quantity);
+      // The bottles' deposit goes back with the goods, by the server's arithmetic.
+      const deposit = depositBack(
+        {
+          quantity: Number(line.quantity),
+          depositAmount: Number(line.depositAmount ?? 0),
+          depositRefunded: Number(line.depositRefunded ?? 0),
+        },
+        quantity,
+        Number(line.refundableQuantity ?? line.quantity),
+      );
+      return sum + round(Math.abs(line.lineTotal) * (quantity / line.quantity)) + deposit;
     }, 0),
   );
   const refundPaymentSummary = useMemo(
@@ -259,7 +270,7 @@ export function PosHistoryView() {
     setRefundPayments([
       {
         tenderType: "CASH",
-        amount: String(Math.abs(selectedSale.totalAmount)),
+        amount: String(round(Math.abs(Number(selectedSale.totalAmount)) + Math.abs(Number(selectedSale.depositAmount ?? 0)))),
         reference: "",
       },
     ]);
@@ -397,7 +408,7 @@ export function PosHistoryView() {
                       </td>
                       <td className={`px-4 py-4 text-right font-mono text-[13px] font-black ${isRefund ? "text-red-600" : "text-[var(--text-strong)]"}`}>
                         {isRefund && sale.totalAmount < 0 ? "−" : ""}
-                        {money(Math.abs(sale.totalAmount))}
+                        {money(Math.abs(sale.totalAmount) + Math.abs(sale.depositAmount ?? 0))}
                       </td>
                       <td className="px-4 py-4 font-mono text-xs text-[var(--text-muted)]">
                         {formatRetailDateTime(sale.postedAt)}
@@ -423,7 +434,7 @@ export function PosHistoryView() {
                   selectedSale.customerName ?? "Walk-in",
                   selectedSale.postedAt ? formatRetailDateTime(selectedSale.postedAt) : "Not saved yet",
                 ].join(" · ")}
-                valuePrimary={money(Math.abs(selectedSale.totalAmount))}
+                valuePrimary={money(Math.abs(Number(selectedSale.totalAmount)) + Math.abs(Number(selectedSale.depositAmount ?? 0)))}
                 valueSecondary={`${selectedSale.lines.length} product${selectedSale.lines.length !== 1 ? "s" : ""}`}
                 pill={
                   selectedSale.status === "POSTED" ? null : (
@@ -460,6 +471,14 @@ export function PosHistoryView() {
                           </span>
                         </div>
                       ))}
+                      {Number(selectedSale.depositAmount ?? 0) !== 0 ? (
+                        <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                          <div className="font-semibold text-[var(--text-strong)]">Bottle deposits</div>
+                          <span className="shrink-0 font-mono text-[13px] font-bold text-[var(--text-strong)]">
+                            {money(Number(selectedSale.depositAmount))}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
@@ -852,7 +871,7 @@ export function PosHistoryView() {
                   Total
                 </div>
                 <div className="mt-2 font-mono text-sm font-semibold text-[var(--text-strong)]">
-                  {money(selectedSale?.totalAmount ?? 0)}
+                  {money(Number(selectedSale?.totalAmount ?? 0) + Number(selectedSale?.depositAmount ?? 0))}
                 </div>
               </div>
             </div>

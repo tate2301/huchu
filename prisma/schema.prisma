@@ -4845,6 +4845,9 @@ model RetailZReport {
   /// Σ `RetailSale.totalAmount` — what customers paid, and the figure the two
   /// above are derived from.
   grossTakings   Decimal @default(0) @db.Decimal(14, 2)
+  /// Bottle deposits taken, net of deposits paid back. Outside `grossTakings`
+  /// (it is owed back, not earned) but inside the cash, so the drawer reconciles.
+  depositTotal   Decimal @default(0) @db.Decimal(14, 2)
   /// Positive magnitudes. The signed values are already inside the totals above.
   refundTotal    Decimal @default(0) @db.Decimal(14, 2)
   voidTotal      Decimal @default(0) @db.Decimal(14, 2)
@@ -5017,6 +5020,9 @@ model RetailSaleLine {
   lineTotal       Decimal @default(0) @db.Decimal(14, 2)
   costUnit        Decimal @default(0) @db.Decimal(14, 2)
   costTotal       Decimal @default(0) @db.Decimal(14, 2)
+  /// The deposit this line took on its returnable bottles, net of empties back.
+  /// The sale's `depositAmount` is their sum; a refund pays back its share.
+  depositAmount   Decimal @default(0) @db.Decimal(14, 2)
   createdAt       DateTime @default(now())
 
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)

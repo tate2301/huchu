@@ -45,3 +45,28 @@ export function lineDeposit(line: DepositLine): number {
 export function depositsDue(lines: readonly DepositLine[]): number {
   return lines.reduce((total, line) => total + lineDepositCents(line), 0) / 100;
 }
+
+export type RefundableDepositLine = {
+  /** What the line sold. */
+  quantity: number;
+  /** The deposit the line took, after its empties. */
+  depositAmount: number;
+  /** Deposit already handed back on earlier refunds of the line. */
+  depositRefunded?: number;
+};
+
+/**
+ * The deposit a refund hands back on one line.
+ *
+ * Bottles go back with the goods, so the line's deposit comes back in the same
+ * share as its quantity — and the refund that takes the last of the line hands
+ * back whatever is left, so a line refunded in pieces returns its deposit to
+ * the cent rather than a cent over or under from rounding each piece.
+ */
+export function depositBack(line: RefundableDepositLine, refunding: number, refundable: number): number {
+  const whole = cents(Math.abs(line.depositAmount));
+  const left = Math.max(whole - cents(Math.abs(line.depositRefunded ?? 0)), 0);
+  if (refunding <= 0 || line.quantity <= 0) return 0;
+  if (refunding >= refundable) return left / 100;
+  return Math.min(Math.round((whole * refunding) / line.quantity), left) / 100;
+}

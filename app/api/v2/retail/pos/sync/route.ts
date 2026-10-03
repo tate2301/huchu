@@ -30,7 +30,7 @@ import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
-import { depositsDue } from "@/lib/retail/deposits";
+import { lineDeposit } from "@/lib/retail/deposits";
 import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
@@ -528,6 +528,16 @@ async function processCreateSale(
         lineTotal: calculated.lineTotal,
         costUnit: line.inventoryItem.unitCost ?? 0,
         costTotal: round(line.item.quantity * (line.inventoryItem.unitCost ?? 0)),
+        // Priced off the product, as at the counter; the transaction holds the
+        // tenders to the goods plus the lines' deposits.
+        depositAmount: shopFeatures(shopProfile).emptiesAndDeposits
+          ? lineDeposit({
+              quantity: line.item.quantity,
+              returnable: line.listing.returnable,
+              depositAmount: line.listing.depositAmount,
+              emptiesBack: line.item.emptiesBack,
+            })
+          : 0,
       };
     });
 
@@ -594,21 +604,6 @@ async function processCreateSale(
         : null,
       postedAt: soldAt,
       idCheckedAt: payload.idChecked && ageRestricted.length > 0 ? soldAt : null,
-      // Priced off the product, as at the counter. The transaction holds the
-      // tenders to the goods plus this.
-      depositAmount: shopFeatures(shopProfile).emptiesAndDeposits
-        ? depositsDue(
-            payload.items.map((item) => {
-              const product = sellable.get(item.productId)!;
-              return {
-                quantity: item.quantity,
-                returnable: product.returnable,
-                depositAmount: product.depositAmount,
-                emptiesBack: item.emptiesBack,
-              };
-            }),
-          )
-        : 0,
     });
 
     ctx.resolvedIds.set(op.clientOperationId, sale.id);

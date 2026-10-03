@@ -55,6 +55,8 @@ type CompletedSale = {
   customerName?: string | null;
   customerPhone?: string | null;
   totalAmount: number;
+  /** Bottle deposits charged on top of the goods. */
+  depositAmount?: number;
   changeAmount: number;
   postedAt: string;
   loyalty?: {
