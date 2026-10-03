@@ -30,7 +30,8 @@ import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
-import { liquorSaleRefusal, loadShopProfile } from "@/lib/retail/shop-profile";
+import { depositsDue } from "@/lib/retail/deposits";
+import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   getPosSupportedPromotionTypes,
@@ -364,6 +365,8 @@ async function processCreateSale(
       /** What the device charged. Absent means "whatever the shelf said". */
       unitPrice?: number;
       discountAmount?: number;
+      /** Empties brought back for this line. */
+      emptiesBack?: number;
     }>;
     /** The order-level discount the cashier keyed. */
     discountAmount?: number;
@@ -417,8 +420,9 @@ async function processCreateSale(
     const ageRestricted = [...sellable.values()]
       .filter((product) => product.ageRestricted)
       .map((product) => product.name);
+    const shopProfile = await loadShopProfile(ctx.companyId);
     const refusal = liquorSaleRefusal({
-      profile: await loadShopProfile(ctx.companyId),
+      profile: shopProfile,
       ageRestricted,
       idChecked: payload.idChecked === true,
       at: soldAt,
@@ -590,6 +594,21 @@ async function processCreateSale(
         : null,
       postedAt: soldAt,
       idCheckedAt: payload.idChecked && ageRestricted.length > 0 ? soldAt : null,
+      // Priced off the product, as at the counter. The transaction holds the
+      // tenders to the goods plus this.
+      depositAmount: shopFeatures(shopProfile).emptiesAndDeposits
+        ? depositsDue(
+            payload.items.map((item) => {
+              const product = sellable.get(item.productId)!;
+              return {
+                quantity: item.quantity,
+                returnable: product.returnable,
+                depositAmount: product.depositAmount,
+                emptiesBack: item.emptiesBack,
+              };
+            }),
+          )
+        : 0,
     });
 
     ctx.resolvedIds.set(op.clientOperationId, sale.id);

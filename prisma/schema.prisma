@@ -4949,6 +4949,11 @@ model RetailSale {
   /// When the cashier confirmed the customer's ID for an age-restricted line.
   /// Null on a sale with nothing age-restricted in it.
   idCheckedAt    DateTime?
+  /// Deposits on returnable bottles, net of empties brought back. Not part of
+  /// `totalAmount`, which stays the goods the receipt is signed for: what the
+  /// customer pays is `totalAmount + depositAmount`, and the deposit is a
+  /// liability the shop owes back, not revenue. Negative on a void.
+  depositAmount  Decimal   @default(0) @db.Decimal(14, 2)
   postedAt       DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

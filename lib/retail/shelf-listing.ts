@@ -326,6 +326,8 @@ export async function loadSellableProducts(input: {
           standardPrice: true,
           defaultTaxRate: true,
           ageRestricted: true,
+          returnable: true,
+          depositAmount: true,
           retailCategory: { select: { ageRestricted: true } },
         },
       },
@@ -343,6 +345,8 @@ export async function loadSellableProducts(input: {
       defaultTaxRate: row.product.defaultTaxRate,
       // The same rule as the shelf: the product, or its category, asks for ID.
       ageRestricted: row.product.ageRestricted || Boolean(row.product.retailCategory?.ageRestricted),
+      returnable: row.product.returnable,
+      depositAmount: row.product.depositAmount === null ? null : toNumberOrZero(row.product.depositAmount),
       siteId: row.siteId,
       inventoryItem: {
         id: row.id,
@@ -560,6 +564,9 @@ export type SellableProduct = {
   standardPrice: Prisma.Decimal;
   defaultTaxRate: Prisma.Decimal;
   ageRestricted: boolean;
+  /** An empty that comes back for money, and the deposit on it. */
+  returnable: boolean;
+  depositAmount: number | null;
   siteId: string;
   inventoryItem: {
     id: string;

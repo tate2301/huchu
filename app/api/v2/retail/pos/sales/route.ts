@@ -18,7 +18,8 @@ import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
-import { liquorSaleRefusal, loadShopProfile } from "@/lib/retail/shop-profile";
+import { depositsDue } from "@/lib/retail/deposits";
+import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   resolveRetailSite,
@@ -38,6 +39,8 @@ const saleLineSchema = z.object({
   quantity: z.number().positive(),
   unitPrice: z.number().min(0).optional(),
   discountAmount: z.number().min(0).optional(),
+  /** Empties the customer brought back for this line, on a shop that takes deposits. */
+  emptiesBack: z.number().int().min(0).optional(),
 });
 
 const salePaymentSchema = z.object({
@@ -487,8 +490,9 @@ export async function POST(request: NextRequest) {
     const ageRestricted = [...sellable.values()]
       .filter((product) => product.ageRestricted)
       .map((product) => product.name);
+    const shopProfile = await loadShopProfile(session.user.companyId);
     const refusal = liquorSaleRefusal({
-      profile: await loadShopProfile(session.user.companyId),
+      profile: shopProfile,
       ageRestricted,
       idChecked: input.idChecked === true,
       at: soldAt,
@@ -729,6 +733,22 @@ export async function POST(request: NextRequest) {
     const totalDiscount = checkout.discountAmount;
     const taxAmount = checkout.taxAmount;
     const totalAmount = checkout.total;
+    // Deposits on returnable bottles, priced off the product rather than the
+    // device, and only on a shop that charges them.
+    const depositAmount = shopFeatures(shopProfile).emptiesAndDeposits
+      ? depositsDue(
+          input.items.map((item) => {
+            const product = sellable.get(item.productId)!;
+            return {
+              quantity: item.quantity,
+              returnable: product.returnable,
+              depositAmount: product.depositAmount,
+              emptiesBack: item.emptiesBack,
+            };
+          }),
+        )
+      : 0;
+    const amountDue = round(totalAmount + depositAmount);
     const normalizedPayments = input.payments.map((payment) => ({
       tenderType: payment.tenderType,
       amount: round(payment.amount),
@@ -747,11 +767,11 @@ export async function POST(request: NextRequest) {
         .filter((payment) => payment.tenderType !== "CASH")
         .reduce((total, payment) => total + payment.amount, 0),
     );
-    if (nonCashTotal > totalAmount) {
+    if (nonCashTotal > amountDue) {
       return errorResponse("Non-cash tenders cannot exceed the sale total", 400);
     }
 
-    if (tenderedAmount < totalAmount) {
+    if (tenderedAmount < amountDue) {
       return errorResponse("Tendered amount is below the sale total", 400);
     }
     const customerPhone = normalizePhone(input.customerPhone);
@@ -914,6 +934,7 @@ export async function POST(request: NextRequest) {
       notes: normalizedNotes || null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       idCheckedAt: input.idChecked && ageRestricted.length > 0 ? soldAt : null,
+      depositAmount,
     });
 
     const customerNetSpend =

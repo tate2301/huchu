@@ -45,6 +45,7 @@ export type PosSaleQueuePayload = {
     quantity: number;
     unitPrice?: number;
     discountAmount?: number;
+    emptiesBack?: number;
   }>;
   payments: PosSalePaymentInput[];
 };

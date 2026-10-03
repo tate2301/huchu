@@ -144,6 +144,7 @@ async function ensureRetailSaleAccountingPosted(input: {
     taxAmount: MoneyLike;
     totalAmount: MoneyLike;
     changeAmount: MoneyLike;
+    depositAmount: MoneyLike;
     lines: Array<{
       inventoryItemId: string;
       itemName: string;
@@ -209,6 +210,9 @@ async function ensureRetailSaleAccountingPosted(input: {
     netAmount: toNumberOrZero(money(input.sale.subtotal).minus(money(input.sale.discountAmount)).abs()),
     taxAmount: toNumberOrZero(money(input.sale.taxAmount).abs()),
     grossAmount: toNumberOrZero(money(input.sale.totalAmount).abs()),
+    // Read by the deposits-held line of the retail sale rule. Always a number,
+    // so a rule line keyed on it never falls back to the whole amount.
+    payload: { depositAmount: toNumberOrZero(money(input.sale.depositAmount).abs()) },
     invertDirection: input.sale.saleType === "REFUND" || input.sale.saleType === "VOID",
     payments: input.sale.payments.map((payment) => ({
       tenderType: payment.tenderType,
@@ -653,6 +657,11 @@ export async function createRetailSaleTransaction(input: {
   postedAt?: Date;
   /** When the cashier confirmed the customer's ID, for a sale with an age-restricted line. */
   idCheckedAt?: Date | null;
+  /**
+   * Deposits on returnable bottles, net of empties back. Paid on top of
+   * `totalAmount` and posted to deposits held, never to revenue.
+   */
+  depositAmount?: number;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -701,14 +710,16 @@ export async function createRetailSaleTransaction(input: {
       .reduce((total, payment) => total + payment.amount, 0),
   );
 
-  if (nonCashTotal > input.totalAmount) {
+  // What the customer pays: the goods, and the deposit on their bottles.
+  const amountDue = round(input.totalAmount + (input.depositAmount ?? 0));
+  if (nonCashTotal > amountDue) {
     throw new Error("Non-cash tenders cannot exceed the sale total");
   }
-  if (tenderedAmount < input.totalAmount) {
+  if (tenderedAmount < amountDue) {
     throw new Error("Tendered amount is below the sale total");
   }
 
-  const cashDue = round(Math.max(input.totalAmount - nonCashTotal, 0));
+  const cashDue = round(Math.max(amountDue - nonCashTotal, 0));
   const changeAmount = round(Math.max(cashTotal - cashDue, 0));
   const providedCode = input.saleNo
     ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
@@ -800,6 +811,7 @@ export async function createRetailSaleTransaction(input: {
             cashierName: resolveCashierName(input.actor),
             customerName: input.customerName ?? null,
             idCheckedAt: input.idCheckedAt ?? null,
+            depositAmount: money(input.depositAmount ?? 0),
             subtotal: input.subtotal,
             discountAmount: input.discountAmount,
             taxAmount: input.taxAmount,
@@ -1391,6 +1403,9 @@ export async function voidRetailSaleTransaction(input: {
         discountAmount: money(currentSourceSale.discountAmount).abs().negated(),
         taxAmount: money(currentSourceSale.taxAmount).abs().negated(),
         totalAmount: money(currentSourceSale.totalAmount).abs().negated(),
+        // The deposit goes back with the bottles' sale, or the ledger keeps a
+        // liability for empties nobody owes.
+        depositAmount: money(currentSourceSale.depositAmount).abs().negated(),
         tenderedAmount: money(
           currentSourceSale.tenderedAmount ?? currentSourceSale.totalAmount,
         )
