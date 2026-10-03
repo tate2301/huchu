@@ -632,6 +632,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         refs: [
           { moduleId: "retail", href: "/retail/purchasing/orders" },
           { moduleId: "retail", href: "/retail/purchasing/receipts" },
+          { moduleId: "retail", href: "/retail/purchasing/requisitions" },
         ],
       },
       {

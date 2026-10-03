@@ -47,6 +47,16 @@ const ORDER_STATUS: Record<string, string> = {
   RECEIVED: "Delivered",
 };
 
+const REQUISITION_STATUS: Record<string, string> = {
+  DRAFT: "Draft",
+  SUBMITTED: "Waiting",
+  APPROVED: "Approved",
+  REJECTED: "Declined",
+  DISBURSED: "Paid",
+  ACQUITTED: "Paid",
+  CANCELLED: "Cancelled",
+};
+
 const PROMOTION_TYPE: Record<string, string> = {
   PERCENT: "Percent off",
   AMOUNT: "Amount off",
@@ -85,6 +95,7 @@ export const saleStatusLabel = (value: string | null | undefined) => lookup(SALE
 export const shiftStatusLabel = (value: string | null | undefined) => lookup(SHIFT_STATUS, value);
 export const cashMovementLabel = (value: string | null | undefined) => lookup(CASH_MOVEMENT, value);
 export const orderStatusLabel = (value: string | null | undefined) => lookup(ORDER_STATUS, value);
+export const requisitionStatusLabel = (value: string | null | undefined) => lookup(REQUISITION_STATUS, value);
 export const promotionTypeLabel = (value: string | null | undefined) => lookup(PROMOTION_TYPE, value);
 export const promotionStatusLabel = (value: string | null | undefined) =>
   lookup(PROMOTION_STATUS, value);

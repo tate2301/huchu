@@ -663,6 +663,7 @@ export const navSections: NavSection[] = [
       { href: "/retail/stock/transfers", icon: ArrowDownward, label: "Transfers" },
       { href: "/retail/purchasing/orders", icon: Package, label: "Orders" },
       { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Deliveries" },
+      { href: "/retail/purchasing/requisitions", icon: Coins, label: "Requisitions" },
       { href: "/retail/reports", icon: BarChart3, label: "Insights" },
     ],
   },

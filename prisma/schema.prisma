@@ -1113,6 +1113,7 @@ model Site {
   goldPeriodCloses      GoldPeriodClose[]
   retailRegisters       RetailRegister[]
   retailPurchaseOrders  RetailPurchaseOrder[]
+  crmRequisitions       CrmRequisition[]
   retailGoodsReceipts   RetailGoodsReceipt[]
   retailShifts          RetailShift[]
   retailSales           RetailSale[]
@@ -13385,6 +13386,9 @@ model CrmRequisition {
 
   /// Null for fuel, airtime and anything else that belongs to no project.
   projectId String?
+  /// The shop it was raised at, for a requisition raised in retail. Null on a
+  /// CRM requisition, which belongs to a project instead.
+  siteId    String?
 
   amount   Decimal @db.Decimal(14, 2)
   currency String  @default("USD")
@@ -13421,6 +13425,7 @@ model CrmRequisition {
 
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   project     CrmProject?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site        Site?               @relation(fields: [siteId], references: [id], onDelete: SetNull)
   requestedBy User                @relation("CrmRequisitionRequestedBy", fields: [requestedById], references: [id])
   approvedBy  User?               @relation("CrmRequisitionApprovedBy", fields: [approvedById], references: [id])
   disbursedBy User?               @relation("CrmRequisitionDisbursedBy", fields: [disbursedById], references: [id])
@@ -13432,6 +13437,7 @@ model CrmRequisition {
   @@index([companyId, status, createdAt])
   @@index([companyId, requestedById, status])
   @@index([companyId, projectId])
+  @@index([companyId, siteId, status])
 }
 
 /// One person's money for one day.

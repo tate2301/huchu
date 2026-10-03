@@ -456,6 +456,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/v2/retail/catalog", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/v2/retail/categories", featureKey: "retail.catalog" },
+  { scope: "api", prefix: "/api/v2/retail/requisitions", featureKey: "retail.purchasing" },
   { scope: "api", prefix: "/api/v2/retail/purchasing", featureKey: "retail.purchasing" },
   { scope: "api", prefix: "/api/v2/retail/promotions", featureKey: "retail.promotions" },
   { scope: "api", prefix: "/api/v2/retail/shifts", featureKey: "retail.shifts" },
