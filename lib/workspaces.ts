@@ -633,6 +633,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         ],
         refs: [
           { moduleId: "retail", href: "/retail/catalog", group: "selling" },
+          { moduleId: "retail", href: "/retail/catalog/categories", group: "selling" },
           { moduleId: "retail", href: "/retail/merchandising/pricing", group: "selling" },
           { moduleId: "retail", href: "/retail/merchandising/promotions", group: "selling" },
           { moduleId: "retail", href: "/retail/stock", group: "stock" },

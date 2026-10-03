@@ -26,7 +26,7 @@ import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Coins, TableRows } from "@/lib/icons";
-import { enumLabel, formatQuantity, formatRetailDate } from "@/lib/retail/words";
+import { formatQuantity, formatRetailDate } from "@/lib/retail/words";
 
 type ProductDetail = RetailProduct & {
   productId: string;
@@ -206,7 +206,7 @@ export default function RetailProductPage() {
                   mono: Boolean(product.barcode),
                   tone: product.barcode ? "default" : "muted",
                 },
-                { label: "Category", value: product.category ? enumLabel(product.category) : "None" },
+                { label: "Category", value: product.category ?? "None" },
                 { label: "Check ID", value: product.ageRestricted ? "Yes" : "No" },
                 ...(product.description ? [{ label: "Description", value: product.description }] : []),
               ]}

@@ -45,6 +45,7 @@ import { randomUUID } from "node:crypto"
 import { Prisma, WorkspaceProfile, type RetailTenderType } from "@prisma/client"
 import { money, multiplyMoney, rate, sumMoney } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
+import { ensureRetailCategories } from "@/lib/retail/categories"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 
@@ -66,21 +67,21 @@ function readArg(name: string): string | undefined {
  * `min` put Castle Lager 340ml under its reorder point deliberately.
  */
 const CATALOGUE = [
-  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.85", stock: 36, min: 96, weight: 26 },
-  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.72", stock: 210, min: 60, weight: 22 },
-  { code: "ZAMBEZI-375", name: "Zambezi Lager 375ml", unit: "bottle", price: "1.35", cost: "0.95", stock: 144, min: 48, weight: 16 },
-  { code: "BOHLINGER-330", name: "Bohlinger's 330ml", unit: "bottle", price: "1.55", cost: "1.10", stock: 96, min: 36, weight: 10 },
-  { code: "SAVANNA-330", name: "Savanna Dry 330ml", unit: "bottle", price: "1.85", cost: "1.32", stock: 72, min: 24, weight: 8 },
-  { code: "HUNTERS-330", name: "Hunter's Gold 330ml", unit: "bottle", price: "1.85", cost: "1.30", stock: 60, min: 24, weight: 7 },
-  { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.48", stock: 180, min: 48, weight: 12 },
-  { code: "ICE-2KG", name: "Ice 2kg bag", unit: "bag", price: "1.50", cost: "0.60", stock: 40, min: 20, weight: 6 },
-  { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.40", stock: 22, min: 8, weight: 5 },
-  { code: "TWOKEYS-750", name: "Two Keys Whisky 750ml", unit: "bottle", price: "9.75", cost: "7.20", stock: 28, min: 12, weight: 4 },
-  { code: "NEDERBURG-750", name: "Nederburg Cabernet 750ml", unit: "bottle", price: "12.60", cost: "9.45", stock: 24, min: 8, weight: 3 },
-  { code: "GORDONS-750", name: "Gordon's Gin 750ml", unit: "bottle", price: "16.40", cost: "12.65", stock: 18, min: 6, weight: 3 },
-  { code: "AMARULA-750", name: "Amarula Cream 750ml", unit: "bottle", price: "18.25", cost: "14.10", stock: 14, min: 6, weight: 2 },
-  { code: "JAMESON-750", name: "Jameson Irish Whiskey 750ml", unit: "bottle", price: "27.90", cost: "22.15", stock: 9, min: 4, weight: 2 },
-  { code: "BLKLABEL-750", name: "Johnnie Walker Black 750ml", unit: "bottle", price: "42.00", cost: "34.80", stock: 6, min: 3, weight: 1 },
+  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.85", stock: 36, min: 96, weight: 26, category: "Beer", deposit: "0.10" },
+  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.72", stock: 210, min: 60, weight: 22, category: "Beer" },
+  { code: "ZAMBEZI-375", name: "Zambezi Lager 375ml", unit: "bottle", price: "1.35", cost: "0.95", stock: 144, min: 48, weight: 16, category: "Beer", deposit: "0.10" },
+  { code: "BOHLINGER-330", name: "Bohlinger's 330ml", unit: "bottle", price: "1.55", cost: "1.10", stock: 96, min: 36, weight: 10, category: "Beer" },
+  { code: "SAVANNA-330", name: "Savanna Dry 330ml", unit: "bottle", price: "1.85", cost: "1.32", stock: 72, min: 24, weight: 8, category: "Ciders and coolers" },
+  { code: "HUNTERS-330", name: "Hunter's Gold 330ml", unit: "bottle", price: "1.85", cost: "1.30", stock: 60, min: 24, weight: 7, category: "Ciders and coolers" },
+  { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.48", stock: 180, min: 48, weight: 12, category: "Soft drinks" },
+  { code: "ICE-2KG", name: "Ice 2kg bag", unit: "bag", price: "1.50", cost: "0.60", stock: 40, min: 20, weight: 6, category: "Ice and mixers" },
+  { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.40", stock: 22, min: 8, weight: 5, category: "Beer" },
+  { code: "TWOKEYS-750", name: "Two Keys Whisky 750ml", unit: "bottle", price: "9.75", cost: "7.20", stock: 28, min: 12, weight: 4, category: "Spirits" },
+  { code: "NEDERBURG-750", name: "Nederburg Cabernet 750ml", unit: "bottle", price: "12.60", cost: "9.45", stock: 24, min: 8, weight: 3, category: "Wine" },
+  { code: "GORDONS-750", name: "Gordon's Gin 750ml", unit: "bottle", price: "16.40", cost: "12.65", stock: 18, min: 6, weight: 3, category: "Spirits" },
+  { code: "AMARULA-750", name: "Amarula Cream 750ml", unit: "bottle", price: "18.25", cost: "14.10", stock: 14, min: 6, weight: 2, category: "Spirits" },
+  { code: "JAMESON-750", name: "Jameson Irish Whiskey 750ml", unit: "bottle", price: "27.90", cost: "22.15", stock: 9, min: 4, weight: 2, category: "Spirits" },
+  { code: "BLKLABEL-750", name: "Johnnie Walker Black 750ml", unit: "bottle", price: "42.00", cost: "34.80", stock: 6, min: 3, weight: 1, category: "Spirits" },
 ]
 
 const VAT_PERCENT = "15.00"
@@ -280,6 +281,24 @@ async function main() {
     defaultRegisterCode: register.code,
   })
 
+  /*
+    A liquor store, with every liquor feature on: the till asks for ID, stops
+    selling alcohol outside licence hours, charges deposits on returnable
+    bottles and sells cases and singles. Its categories are the liquor set,
+    and every line below is filed under one.
+  */
+  await prisma.retailShopProfile.upsert({
+    where: { companyId },
+    update: { businessType: "LIQUOR" },
+    create: { companyId, businessType: "LIQUOR", licenceNumber: "HRE/BL/2024/0711" },
+  })
+  await ensureRetailCategories(prisma, companyId, "LIQUOR")
+  const categoryIds = new Map(
+    (await prisma.retailCategory.findMany({ where: { companyId }, select: { id: true, name: true } })).map(
+      (row) => [row.name, row.id],
+    ),
+  )
+
   type Stocked = { inventoryItemId: string; productId: string; unit: string }
   const stocked = new Map<string, Stocked>()
 
@@ -298,7 +317,7 @@ async function main() {
           data: {
             itemCode: entry.code,
             name: entry.name,
-            category: "CONSUMABLES",
+            category: "OTHER",
             unit: entry.unit,
             siteId: site.id,
             locationId: location.id,
@@ -330,6 +349,10 @@ async function main() {
       taxPercent: money(VAT_PERCENT),
       barcode: `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
       isActive: true,
+      categoryId: categoryIds.get(entry.category) ?? null,
+      costPrice: money(entry.cost),
+      returnable: Boolean(entry.deposit),
+      depositAmount: entry.deposit ? money(entry.deposit) : null,
     })
 
     stocked.set(entry.code, {

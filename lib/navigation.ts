@@ -654,6 +654,7 @@ export const navSections: NavSection[] = [
       { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts" },
       { href: "/retail/customers", icon: Users, label: "Customers" },
       { href: "/retail/catalog", icon: TableRows, label: "Products" },
+      { href: "/retail/catalog/categories", icon: Layers, label: "Categories" },
       { href: "/retail/merchandising/pricing", icon: Coins, label: "Prices" },
       { href: "/retail/merchandising/promotions", icon: ReceiptLong, label: "Promotions" },
       { href: "/retail/stock", icon: Package, label: "Stock" },

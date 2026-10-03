@@ -48,6 +48,7 @@ describe("retail words", () => {
   it("writes a quantity with its unit", () => {
     expect(formatQuantity(36, "bottle")).toBe("36 bottles");
     expect(formatQuantity(1, "case")).toBe("1 case");
+    expect(formatQuantity(0, "each")).toBe("0 each");
     expect(formatQuantity(3, "box")).toBe("3 boxes");
     expect(formatQuantity(2.5, "kg")).toBe("2.5 kg");
     expect(formatQuantity(14.0, "pcs")).toBe("14 pcs");

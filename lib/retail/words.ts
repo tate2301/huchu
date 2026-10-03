@@ -178,7 +178,7 @@ export function formatQuantity(value: number, unit?: string | null): string {
   const amount = Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
   const name = (unit ?? "").trim();
   if (!name) return amount;
-  const countable = /^[a-z]+$/i.test(name) && name.length > 2 && !/s$/i.test(name);
+  const countable = /^[a-z]+$/i.test(name) && name.length > 2 && !/s$/i.test(name) && name.toLowerCase() !== "each";
   if (!countable || Math.abs(value) === 1) return `${amount} ${name}`;
   return `${amount} ${/(x|ch|sh)$/i.test(name) ? `${name}es` : `${name}s`}`;
 }

@@ -252,3 +252,14 @@ export async function updateRetailCategory(
     throw error;
   }
 }
+
+/**
+ * A category, if it is this company's and not archived — the check every
+ * product write makes before filing a product under one.
+ */
+export async function findLiveRetailCategory(companyId: string, id: string) {
+  return prisma.retailCategory.findFirst({
+    where: { id, companyId, archivedAt: null },
+    select: { id: true, name: true, vatRate: true, ageRestricted: true, returnable: true, depositAmount: true },
+  });
+}
