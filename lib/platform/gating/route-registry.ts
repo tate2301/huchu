@@ -142,6 +142,8 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/retail/shifts", featureKey: "retail.shifts" },
   { scope: "page", prefix: "/retail/reports", featureKey: "retail.reports" },
   { scope: "page", prefix: "/retail", featureKey: "retail.core" },
+  // The stores movement feed, in the retail frame; it reads the stores API.
+  { scope: "page", prefix: "/retail/stock/movements", featureKey: "stores.movements" },
 
   { scope: "page", prefix: "/portal/pos/customers", featureKey: "crm.customers" },
   { scope: "page", prefix: "/portal/pos", featureKey: "retail.pos" },

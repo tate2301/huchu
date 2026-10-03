@@ -397,7 +397,7 @@ describe("workspace sidebar model", () => {
    * curated sections and it never renders a rail of its own. Every other
    * workspace still gets it.
    */
-  describe("retail: Range & Stock is the one stock door", () => {
+  describe("retail: Products and Stock are retail's own modules", () => {
     const retailFeatures = templateFeatures("TEMPLATE_RETAIL");
 
     function retailModel(activeStockLocationSiteIds?: string[]) {
@@ -409,35 +409,39 @@ describe("workspace sidebar model", () => {
       });
     }
 
-    function rangeItems(model: ReturnType<typeof retailModel>) {
-      return model.sections.find((section) => section.id === "retail-range")?.items ?? [];
+    function itemsOf(model: ReturnType<typeof retailModel>, id: string) {
+      return (model.sections.find((section) => section.id === id)?.items ?? []).map((item) => item.href);
     }
 
-    it("puts the core stock surfaces under Range & Stock", () => {
-      const hrefs = rangeItems(retailModel()).map((item) => item.href);
-      expect(hrefs).toContain("/stores/inventory");
-      expect(hrefs).toContain("/stores/movements");
-      expect(hrefs).toContain("/stores/locations");
+    it("lists the design's modules, in its order", () => {
+      expect(retailModel().sections.map((section) => section.title).slice(0, 5)).toEqual([
+        "The floor",
+        "Products",
+        "Stock",
+        "Buying",
+        "Insights",
+      ]);
     });
 
-    it("keeps the retail stock screens core has no answer for", () => {
-      const hrefs = rangeItems(retailModel()).map((item) => item.href);
-      // Purchase-order and goods-receipt value, which the core stock overview
-      // cannot show.
-      expect(hrefs).toContain("/retail/stock");
-      // A variance posted as an ADJUSTMENT. The Stores module offers Issue and
-      // Receive and has no adjustment surface anywhere.
-      expect(hrefs).toContain("/retail/stock/count");
+    it("puts what the shop sells under Products", () => {
+      expect(itemsOf(retailModel(), "retail-products")).toEqual([
+        "/retail/catalog",
+        "/retail/catalog/categories",
+        "/retail/merchandising/pricing",
+        "/retail/merchandising/promotions",
+      ]);
     });
 
-    it("renders no separate Stores & Inventory section", () => {
-      const model = retailModel();
-      expect(model.sections.map((section) => section.id)).not.toContain("stores");
-      expect(model.sections.map((section) => section.title)).not.toContain("Stores & Inventory");
+    it("puts on hand, movements and counts under Stock, all retail pages", () => {
+      const hrefs = itemsOf(retailModel(), "retail-stock");
+      expect(hrefs).toEqual(["/retail/stock", "/retail/stock/movements", "/retail/stock/count"]);
+    });
 
-      // …and the stock destinations are in the sidebar exactly once.
+    it("sends a shopkeeper to no stores screen, and renders no Stores section", () => {
+      const model = retailModel(["site-a", "site-a"]);
       const allHrefs = model.sections.flatMap((section) => section.items.map((item) => item.href));
-      expect(allHrefs.filter((href) => href === "/stores/inventory")).toHaveLength(1);
+      expect(allHrefs.filter((href) => href.startsWith("/stores"))).toEqual([]);
+      expect(model.sections.map((section) => section.id)).not.toContain("stores");
     });
 
     it("still renders Stores & Inventory for a non-retail workspace", () => {
@@ -451,22 +455,8 @@ describe("workspace sidebar model", () => {
       expect(stores?.items.map((item) => item.href)).toContain("/stores/inventory");
     });
 
-    it("does not offer core's catalogue or price lists beside retail's own", () => {
-      // A second item master and a second price book that no retail surface
-      // reads. They stay entitled — and now hold their own keys, so a tenant can
-      // be given retail's stock without them — but the retail sidebar does not
-      // ask the shopkeeper to choose between two catalogues.
-      const allHrefs = retailModel().sections.flatMap((section) =>
-        section.items.map((item) => item.href),
-      );
-      expect(allHrefs).not.toContain("/stores/catalogue");
-      expect(allHrefs).not.toContain("/stores/price-lists");
-      expect(allHrefs).toContain("/retail/catalog");
-      expect(allHrefs).toContain("/retail/merchandising/pricing");
-    });
-
     it("hides transfers until some site has two active stock locations", () => {
-      const hrefsFor = (siteIds?: string[]) => rangeItems(retailModel(siteIds)).map((i) => i.href);
+      const hrefsFor = (siteIds?: string[]) => itemsOf(retailModel(siteIds), "retail-stock");
 
       // Not known yet, and the demo bottle store's one `SHOP` location: a
       // transfer has nowhere to go and `recordStockMovement` refuses it.
@@ -480,16 +470,6 @@ describe("workspace sidebar model", () => {
       // A storeroom and a shop floor at the same site — the one transfer the
       // model can honestly represent.
       expect(hrefsFor(["site-a", "site-a"])).toContain("/retail/stock/transfers");
-    });
-
-    it("bands Range & Stock rather than listing nine destinations flat", () => {
-      const section = retailModel(["site-a", "site-a"]).sections.find(
-        (candidate) => candidate.id === "retail-range",
-      );
-      expect(section?.groups?.map((group) => group.id)).toEqual(["selling", "stock"]);
-      for (const item of section?.items ?? []) {
-        expect(item.group, `${item.href} sits in no band`).toBeTruthy();
-      }
     });
   });
 

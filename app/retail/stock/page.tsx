@@ -1,212 +1,174 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Skeleton } from "@corelithzw/react";
+import { Skeleton } from "@corelithzw/react";
 
-import {
-  ColumnFigure,
-  ColumnList,
-  ColumnName,
-  ColumnText,
-  FactList,
-  SectionHeading,
-} from "@/components/management/ui";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { retailMoney } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ClipboardList } from "@/lib/icons";
-import { formatQuantity, formatRetailDate } from "@/lib/retail/words";
+import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { ColumnFigure, ColumnList, ColumnName, ColumnText, StatusDot } from "@/components/management/ui";
+import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
+import type { RetailProduct } from "@/components/retail/product-dialogs";
+import { fetchSites } from "@/lib/api";
+import { fetchJson } from "@/lib/api-client";
+import { formatQuantity } from "@/lib/retail/words";
 
-type RetailDashboardPayload = {
-  summary: {
-    goodsReceivedValue: number;
-    openOrderValue: number;
-    lowStockCount: number;
-  };
-  lowStock: Array<{
-    id: string;
-    itemCode: string;
-    name: string;
-    currentStock: number;
-    minStock: number;
-    unit: string;
-  }>;
-};
+const LEVEL_OPTIONS = new Map([
+  ["LOW", "Running low"],
+  ["OUT", "Out of stock"],
+  ["OK", "In stock"],
+]);
 
-type Delivery = {
-  id: string;
-  receiptNo: string;
-  supplierName: string;
-  createdAt: string;
-  totalValue: number;
-};
+const WIDTH = 960;
 
-type Watch = {
-  id: string;
-  itemCode: string;
-  name: string;
-  onHand: number;
-  reorderAt: number;
-  shortBy: number;
-  unit: string;
-};
+type Level = "OUT" | "LOW" | "OK";
 
-const WIDTH = 560;
-const WIDE = 760;
+function levelOf(product: RetailProduct): Level {
+  const onHand = product.inventoryItem?.currentStock ?? 0;
+  if (onHand <= 0) return "OUT";
+  const reorder = product.inventoryItem?.reorderLevel ?? null;
+  return reorder !== null && onHand <= reorder ? "LOW" : "OK";
+}
+
+const LEVEL_ORDER: Record<Level, number> = { OUT: 0, LOW: 1, OK: 2 };
 
 /**
- * Stock — what needs attention.
+ * Stock › On hand — how much of each product the shop has.
  *
- * Drawn as the CRM's finance page is — section headings over lists and facts,
- * no tiles: the products at or under their reorder point as a `ColumnList`,
- * most short first, then what is on order and the last deliveries. The one
- * verb, Count stock, is in the app bar and opens the stock counts page with
- * its dialog up.
+ * One table, one subject: every product with a stock line, out of stock and
+ * running low first, then A to Z. The level is a filter, not a band above the
+ * table; the branch is a filter when there is more than one. A product's
+ * name opens its record, where its reorder level is edited and a case is
+ * opened into singles. Counting is the one verb, in the app bar.
  */
 export default function RetailStockPage() {
-  const overview = useQuery({
-    queryKey: ["retail-stock-overview"],
-    queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
-  });
-  const deliveries = useQuery({
-    queryKey: ["retail-receipts"],
-    queryFn: () => fetchJson<{ data: Delivery[] }>("/api/v2/retail/purchasing/receipts"),
-  });
+  const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [level, setLevel] = useState<string>(FILTER_ANY);
+  const [siteId, setSiteId] = useState<string>(FILTER_ANY);
 
-  const watch = useMemo<Watch[]>(
-    () =>
-      (overview.data?.lowStock ?? [])
-        .map((item) => {
-          const onHand = Number(item.currentStock);
-          const reorderAt = Number(item.minStock);
-          return {
-            id: item.id,
-            itemCode: item.itemCode,
-            name: item.name,
-            onHand,
-            reorderAt,
-            shortBy: Math.max(reorderAt - onHand, 0),
-            unit: item.unit,
-          };
-        })
-        .sort((left, right) => right.shortBy - left.shortBy),
-    [overview.data?.lowStock],
+  const sitesQuery = useQuery({ queryKey: ["retail-stock-sites"], queryFn: fetchSites });
+  const sites = useMemo(
+    () => (sitesQuery.data ?? []).filter((site: { isActive?: boolean }) => site.isActive !== false),
+    [sitesQuery.data],
+  );
+  const siteOptions = useMemo(
+    () => new Map(sites.map((site: { id: string; name: string }) => [site.id, site.name])),
+    [sites],
   );
 
-  const lastDeliveries = (deliveries.data?.data ?? []).slice(0, 5);
+  const stockQuery = useQuery({
+    queryKey: ["retail-catalog", "stock", siteId],
+    queryFn: () => {
+      const params = new URLSearchParams({ status: "all" });
+      if (siteId !== FILTER_ANY) params.set("siteId", siteId);
+      return fetchJson<{ data: RetailProduct[] }>(`/api/v2/retail/catalog?${params.toString()}`);
+    },
+  });
+  const products = useMemo(() => stockQuery.data?.data ?? [], [stockQuery.data]);
 
-  const actions = (
-    <Button asChild size="sm">
-      <Link href="/retail/stock/count?new=1">
-        <ClipboardList className="h-4 w-4" />
-        Count stock
-      </Link>
-    </Button>
-  );
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return products
+      .filter((product) => product.inventoryItem)
+      .filter((product) => level === FILTER_ANY || levelOf(product) === level)
+      .filter(
+        (product) =>
+          !needle ||
+          [product.name, product.sku, product.barcode ?? ""].some((value) => value.toLowerCase().includes(needle)),
+      )
+      .sort(
+        (left, right) =>
+          LEVEL_ORDER[levelOf(left)] - LEVEL_ORDER[levelOf(right)] || left.name.localeCompare(right.name),
+      );
+  }, [products, level, search]);
 
-  if (overview.isPending) {
-    return (
-      <RetailShell title="Stock" actions={actions}>
-        <div aria-busy="true" aria-live="polite" className="space-y-1.5" style={{ maxWidth: WIDE }}>
-          <span className="sr-only">Loading the stock</span>
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-        </div>
-      </RetailShell>
-    );
-  }
-
-  if (overview.isError) {
-    return (
-      <RetailShell title="Stock" actions={actions}>
-        <Alert tone="danger" title="The stock would not load">
-          {getApiErrorMessage(overview.error)}
-        </Alert>
-      </RetailShell>
-    );
-  }
-
-  const { summary } = overview.data;
+  const filtered = level !== FILTER_ANY || siteId !== FILTER_ANY;
 
   return (
-    <RetailShell title="Stock" actions={actions}>
-      <SectionHeading maxWidth={WIDE} count={summary.lowStockCount} className="mt-0">
-        Running low
-      </SectionHeading>
-      <ColumnList
-        label="Running low"
-        maxWidth={WIDE}
-        empty="Nothing is running low."
-        columns={[
-          { id: "product", label: "Product" },
-          { id: "onHand", label: "On hand", align: "end" },
-          { id: "reorderAt", label: "Reorder at", align: "end", hideBelow: "sm" },
-          { id: "shortBy", label: "Short by", align: "end" },
-        ]}
-        rows={watch.map((row) => ({
-          id: row.id,
-          cells: {
-            product: <ColumnName name={row.name} meta={row.itemCode} />,
-            onHand: (
-              <ColumnFigure tone={row.onHand <= 0 ? "danger" : "default"}>
-                {formatQuantity(row.onHand, row.unit)}
-              </ColumnFigure>
-            ),
-            reorderAt: <ColumnFigure tone="muted">{formatQuantity(row.reorderAt, row.unit)}</ColumnFigure>,
-            shortBy:
-              row.shortBy > 0 ? (
-                <ColumnFigure tone="warn">{formatQuantity(row.shortBy, row.unit)}</ColumnFigure>
-              ) : (
-                <ColumnFigure tone="muted">—</ColumnFigure>
-              ),
-          },
-        }))}
-      />
-
-      <SectionHeading maxWidth={WIDTH}>Orders</SectionHeading>
-      <FactList
-        maxWidth={WIDTH}
-        items={[
-          { label: "On order", value: retailMoney(summary.openOrderValue), mono: true },
-          { label: "Delivered this month", value: retailMoney(summary.goodsReceivedValue), mono: true },
-        ]}
-      />
-
-      <SectionHeading maxWidth={WIDTH}>Last deliveries</SectionHeading>
-      {deliveries.isPending ? (
-        <div aria-busy="true" aria-live="polite" className="space-y-2" style={{ maxWidth: WIDTH }}>
-          <span className="sr-only">Loading the deliveries</span>
+    <RecordListShell
+      title="On hand"
+      search={search}
+      onSearchChange={setSearch}
+      searchPlaceholder="Search by name, code or barcode"
+      filters={
+        <>
+          <ViewToolbarFilter
+            label="Level"
+            value={level}
+            anyLabel="Any level"
+            options={LEVEL_OPTIONS}
+            onChange={setLevel}
+          />
+          <ViewToolbarFilter
+            label="Site"
+            value={siteId}
+            anyLabel="Every site"
+            options={siteOptions}
+            onChange={setSiteId}
+          />
+        </>
+      }
+      filterCount={(level === FILTER_ANY ? 0 : 1) + (siteId === FILTER_ANY ? 0 : 1)}
+      count={stockQuery.isSuccess ? `${rows.length} of ${products.length}` : null}
+      createLabel="Count stock"
+      onCreate={() => router.push("/retail/stock/count?new=1")}
+      error={stockQuery.error}
+    >
+      {stockQuery.isPending ? (
+        <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
+          <Skeleton height={44} />
           <Skeleton height={44} />
           <Skeleton height={44} />
         </div>
-      ) : deliveries.isError ? (
-        <Alert tone="danger" title="The deliveries would not load">
-          {getApiErrorMessage(deliveries.error)}
-        </Alert>
       ) : (
         <ColumnList
-          label="Last deliveries"
+          label="On hand"
           maxWidth={WIDTH}
-          empty="No deliveries yet."
+          empty={search.trim() || filtered ? "Nothing matches." : "No stock yet."}
           columns={[
-            { id: "delivery", label: "Delivery" },
-            { id: "date", label: "Date", hideBelow: "sm" },
-            { id: "value", label: "Value", align: "end" },
+            { id: "product", label: "Product" },
+            { id: "category", label: "Category", hideBelow: "md" },
+            { id: "level", label: "Level", hideBelow: "sm" },
+            { id: "onHand", label: "On hand", align: "end" },
+            { id: "reorder", label: "Reorder at", align: "end", hideBelow: "sm" },
           ]}
-          rows={lastDeliveries.map((delivery) => ({
-            id: delivery.id,
-            cells: {
-              delivery: <ColumnName code={delivery.receiptNo} name={delivery.supplierName} />,
-              date: <ColumnText>{formatRetailDate(delivery.createdAt)}</ColumnText>,
-              value: <ColumnFigure>{retailMoney(Number(delivery.totalValue))}</ColumnFigure>,
-            },
-          }))}
+          rows={rows.map((product) => {
+            const state = levelOf(product);
+            const unit = product.inventoryItem?.unit;
+            const reorder = product.inventoryItem?.reorderLevel ?? null;
+            return {
+              id: product.id,
+              cells: {
+                product: (
+                  <ColumnName
+                    name={product.name}
+                    meta={[product.sku, siteId === FILTER_ANY && sites.length > 1 ? product.site?.name : null]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    href={`/retail/catalog/${product.id}`}
+                  />
+                ),
+                category: product.category ? <ColumnText>{product.category}</ColumnText> : null,
+                level:
+                  state === "OUT" ? (
+                    <StatusDot tone="danger" label="Out of stock" />
+                  ) : state === "LOW" ? (
+                    <StatusDot tone="warn" label="Running low" />
+                  ) : null,
+                onHand: (
+                  <ColumnFigure tone={state === "OUT" ? "danger" : state === "LOW" ? "warn" : "default"}>
+                    {formatQuantity(product.inventoryItem?.currentStock ?? 0, unit)}
+                  </ColumnFigure>
+                ),
+                reorder: (
+                  <ColumnFigure tone="muted">{reorder === null ? "—" : formatQuantity(reorder, unit)}</ColumnFigure>
+                ),
+              },
+            };
+          })}
         />
       )}
-    </RetailShell>
+    </RecordListShell>
   );
 }
