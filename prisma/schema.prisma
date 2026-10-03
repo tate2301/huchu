@@ -4492,6 +4492,8 @@ model RetailPromotion {
   endsAt    DateTime?
   status    RetailPromotionStatus @default(ACTIVE)
   notes     String?
+  /// In the bin: removed, restorable, and gone from every list and the till.
+  archivedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

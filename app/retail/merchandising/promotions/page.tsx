@@ -170,7 +170,7 @@ export default function RetailPromotionsPage() {
     void dsConfirm({
       title: `Remove ${promotion.name}?`,
       description:
-        "The till stops applying it at checkout. Sales it has already discounted keep their discount.",
+        "It goes in the bin and the till stops applying it. Sales it discounted keep their discount, and Settings › Bin brings it back.",
       confirmLabel: "Remove the promotion",
       variant: "danger",
     }).then((confirmed) => {

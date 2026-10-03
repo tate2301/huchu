@@ -26,6 +26,7 @@ import {
   Storefront,
   ShieldCheck,
   SlidersHorizontal,
+  Trash2,
   UserCheck,
   UserRound,
   Users,
@@ -524,6 +525,14 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     label: "Fiscal device",
     href: "/retail/setup/fiscal",
     icon: ReceiptLong,
+    gate: { kind: "feature" },
+  },
+  {
+    id: "retail-bin",
+    group: "shop",
+    label: "Bin",
+    href: "/retail/setup/bin",
+    icon: Trash2,
     gate: { kind: "feature" },
   },
 

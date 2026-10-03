@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
   const posOnly =
     searchParams.get("pos") === "1" || (status === "ACTIVE" && !includeUnsupported);
 
-  const where: Prisma.RetailPromotionWhereInput = { companyId: session.user.companyId };
+  // What is in the bin is not on the list; Settings › Bin restores it.
+  const where: Prisma.RetailPromotionWhereInput = { companyId: session.user.companyId, archivedAt: null };
   if (status && status !== "all") {
     const parsed = RetailPromotionStatus[status as keyof typeof RetailPromotionStatus];
     if (!parsed) return errorResponse(`Unknown status "${status}"`, 400);

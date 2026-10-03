@@ -19,7 +19,7 @@ const patchSchema = z.object({
 
 async function getPromotion(companyId: string, id: string) {
   return prisma.retailPromotion.findFirst({
-    where: { id, companyId },
+    where: { id, companyId, archivedAt: null },
   });
 }
 
@@ -97,6 +97,10 @@ export async function DELETE(
     return errorResponse("Promotion not found", 404);
   }
 
-  await prisma.retailPromotion.delete({ where: { id: existing.id } });
+  // To the bin, not gone: off the till at once, and restorable.
+  await prisma.retailPromotion.update({
+    where: { id: existing.id },
+    data: { archivedAt: new Date(), status: "INACTIVE" },
+  });
   return successResponse({ success: true });
 }

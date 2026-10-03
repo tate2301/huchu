@@ -575,6 +575,51 @@ export async function archiveShelfListing(input: {
   });
 }
 
+/**
+ * Bring a product back out of the bin.
+ *
+ * Back on the list, but off sale: its shelf price was removed when it went in
+ * the bin, and the figure it comes back with — its last standard price — may
+ * be months old. So it is restored priced at that figure, which keeps the
+ * shelf list and `standardPrice` agreeing, and the owner looks at it and puts
+ * it on sale. Returns false when it is not this company's, or not in the bin.
+ */
+export async function restoreShelfListing(input: { companyId: string; productId: string }): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const product = await tx.product.findFirst({
+      where: { id: input.productId, companyId: input.companyId, archivedAt: { not: null } },
+      select: { id: true, standardPrice: true },
+    });
+    if (!product) return false;
+
+    const priceList = await tx.priceList.findUnique({
+      where: { companyId_name: { companyId: input.companyId, name: SHELF_PRICE_LIST_NAME } },
+      select: { id: true },
+    });
+    if (priceList) {
+      await tx.productPrice.upsert({
+        where: {
+          priceListId_productId_minQuantity: {
+            priceListId: priceList.id,
+            productId: product.id,
+            minQuantity: new Prisma.Decimal(1),
+          },
+        },
+        create: {
+          companyId: input.companyId,
+          priceListId: priceList.id,
+          productId: product.id,
+          minQuantity: new Prisma.Decimal(1),
+          unitPrice: product.standardPrice,
+        },
+        update: { unitPrice: product.standardPrice },
+      });
+    }
+    await tx.product.update({ where: { id: product.id }, data: { archivedAt: null, isActive: false } });
+    return true;
+  });
+}
+
 export type SellableProduct = {
   productId: string;
   sku: string;
