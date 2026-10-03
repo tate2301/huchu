@@ -141,7 +141,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/retail/merchandising", featureKey: "retail.promotions" },
   { scope: "page", prefix: "/retail/sales", featureKey: "retail.pos" },
   { scope: "page", prefix: "/retail/shifts", featureKey: "retail.shifts" },
-  { scope: "page", prefix: "/retail/reports", featureKey: "retail.reports" },
+  { scope: "page", prefix: "/retail/insights", featureKey: "retail.reports" },
   { scope: "page", prefix: "/retail", featureKey: "retail.core" },
   // The stores movement feed, in the retail frame; it reads the stores API.
   { scope: "page", prefix: "/retail/stock/movements", featureKey: "stores.movements" },
@@ -463,7 +463,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/retail/promotions", featureKey: "retail.promotions" },
   { scope: "api", prefix: "/api/v2/retail/shifts", featureKey: "retail.shifts" },
   { scope: "api", prefix: "/api/v2/retail/pos", featureKey: "retail.pos" },
-  { scope: "api", prefix: "/api/v2/retail/reports", featureKey: "retail.reports" },
+  { scope: "api", prefix: "/api/v2/retail/insights", featureKey: "retail.reports" },
   { scope: "api", prefix: "/api/v2/retail", featureKey: "retail.core" },
   { scope: "api", prefix: "/api/v2/thrift", featureKey: "retail.core" },
   // SS-1.1 — the till's own v2 collection endpoint, which sits outside the

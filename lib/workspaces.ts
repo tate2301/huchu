@@ -638,10 +638,11 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
       {
         id: "retail-control",
         title: "Insights",
-        refs: [
-          { moduleId: "retail", href: "/retail/reports" },
-          { moduleId: "reporting", href: "/reports" },
-        ],
+        // The seven questions an owner asks of the shop, one page each.
+        refs: ["sales", "profit", "products", "stock", "losses", "customers", "money"].map((topic) => ({
+          moduleId: "retail" as const,
+          href: `/retail/insights/${topic}`,
+        })),
       },
     ],
   },

@@ -63,7 +63,7 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
       label: "Shifts",
       roles: ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"],
     },
-    { href: "/retail/reports", icon: BarChart3, label: "Insights" },
+    { href: "/retail/insights/sales", icon: BarChart3, label: "Insights" },
     { href: "/retail/setup/operations", icon: Building2, label: "Shop settings" },
   ],
   "crm-sales": [
