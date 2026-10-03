@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { quantity } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
-import { loadShelfListing, loadShelfListings, upsertShelfListing } from "./shelf-listing";
+import { loadSellableProducts, loadShelfListing, loadShelfListings, upsertShelfListing } from "./shelf-listing";
 
 let companyId: string;
 let siteId: string;
@@ -113,6 +113,11 @@ describe("a shelf line in the shop's own category", () => {
     const product = await prisma.product.findUniqueOrThrow({ where: { id: castleId } });
     expect(product.ageRestricted).toBe(false);
     expect((await loadShelfListing(companyId, castleId))?.ageRestricted).toBe(true);
+  });
+
+  it("asks for ID at the till too, where the sale is checked", async () => {
+    const { products } = await loadSellableProducts({ companyId, siteId, productIds: [castleId] });
+    expect(products.get(castleId)?.ageRestricted).toBe(true);
   });
 
   it("is what the till's category chip finds, and nothing else is", async () => {

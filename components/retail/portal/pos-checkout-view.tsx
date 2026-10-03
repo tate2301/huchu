@@ -279,6 +279,7 @@ export function PosCheckoutView() {
     pendingOfflineSales, syncOfflineSales, syncOfflineSalesPending,
     requiredReferenceTenders, minReferenceLength,
     lastCompletedSale, dismissCompletedSale,
+    needsIdCheck, checkId,
   } = usePosPortalState();
 
   /* ── Derived state ───────────────────────────── */
@@ -489,6 +490,12 @@ export function PosCheckoutView() {
   }
 
   const handleCharge = () => {
+    // A recalled basket with alcohol in it: the check is asked for here, and
+    // the cashier charges again once it is done.
+    if (needsIdCheck) {
+      void checkId();
+      return;
+    }
     if (blockers.length) return;
     postSale();
   };

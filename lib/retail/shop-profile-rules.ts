@@ -132,6 +132,54 @@ export function isWithinLicenceHours(hours: ShopHours, at: Date, timeZone = SHOP
   return clock.minutes >= opens || clock.minutes < closes;
 }
 
+/** "08:00" to "8am", "22:30" to "10:30pm" — how a cashier reads the licence. */
+export function clockLabel(hhmm: string) {
+  const [hours, mins] = hhmm.split(":").map(Number);
+  const suffix = hours < 12 ? "am" : "pm";
+  const twelve = hours % 12 === 0 ? 12 : hours % 12;
+  return mins === 0 ? `${twelve}${suffix}` : `${twelve}:${String(mins).padStart(2, "0")}${suffix}`;
+}
+
+/** Today's licence window at `at`, in words. */
+export function licenceWindowLabel(hours: ShopHours, at: Date, timeZone = SHOP_TIME_ZONE) {
+  const sunday = shopClock(at, timeZone).weekday === "Sun";
+  const opens = sunday ? hours.sundayOpensAt : hours.weekdayOpensAt;
+  const closes = sunday ? hours.sundayClosesAt : hours.weekdayClosesAt;
+  if (opens === closes) return sunday ? "not at all on a Sunday" : "not at all today";
+  return `${clockLabel(opens)} to ${clockLabel(closes)}`;
+}
+
+/**
+ * Why a liquor store may not ring up this basket, or null when it may.
+ *
+ * One function for the till and the server: the till asks before it adds a
+ * line, and the sale and offline-replay routes ask again, against the moment
+ * the sale was made rather than the moment it reached the server — a sale rung
+ * at 21:55 and synced at 22:10 was legal.
+ *
+ * Only age-restricted lines are refused. A shop out of licence hours still
+ * sells bread and airtime.
+ */
+export function liquorSaleRefusal(input: {
+  profile: Pick<ShopProfile, "businessType"> & ShopSwitches & ShopHours;
+  ageRestricted: readonly string[];
+  idChecked: boolean;
+  at: Date;
+  timeZone?: string;
+}): string | null {
+  if (input.ageRestricted.length === 0) return null;
+  const features = shopFeatures(input.profile);
+  const what = input.ageRestricted.length === 1 ? input.ageRestricted[0] : "alcohol";
+  if (features.licenceHours && !isWithinLicenceHours(input.profile, input.at, input.timeZone)) {
+    const subject = what.charAt(0).toUpperCase() + what.slice(1);
+    return `${subject} can't be sold now. The licence allows ${licenceWindowLabel(input.profile, input.at, input.timeZone)}.`;
+  }
+  if (features.ageCheck && !input.idChecked) {
+    return `Check the customer's ID before selling ${what}.`;
+  }
+  return null;
+}
+
 /** May this person change what kind of shop it is? The owner only. */
 export function canChangeShopProfile(role: string | null | undefined) {
   return hasRole(role, ["SUPERADMIN"]);

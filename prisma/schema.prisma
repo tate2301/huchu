@@ -4946,6 +4946,9 @@ model RetailSale {
   voidReason     String?
   status         RetailSaleStatus @default(POSTED)
   notes          String?
+  /// When the cashier confirmed the customer's ID for an age-restricted line.
+  /// Null on a sale with nothing age-restricted in it.
+  idCheckedAt    DateTime?
   postedAt       DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

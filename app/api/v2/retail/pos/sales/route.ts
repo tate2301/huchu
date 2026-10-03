@@ -18,6 +18,7 @@ import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
+import { liquorSaleRefusal, loadShopProfile } from "@/lib/retail/shop-profile";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   resolveRetailSite,
@@ -91,6 +92,8 @@ const saleSchema = z.object({
    * `reviewReplayedPrices` block below. A live till never sends it.
    */
   offlineCreatedAt: z.string().datetime().optional(),
+  /** The cashier confirmed the customer's ID. A liquor store needs it for alcohol. */
+  idChecked: z.boolean().optional(),
   /** S-3. When the device's price snapshot was resolved, if it carries a stamp. */
   pricedAt: z.string().datetime().optional(),
 });
@@ -475,6 +478,23 @@ export async function POST(request: NextRequest) {
 
     if (missing.length > 0) {
       return errorResponse("One or more catalog items are invalid", 400);
+    }
+
+    // A liquor store's licence: no alcohol outside its hours, and none without
+    // an ID check. Judged at the moment of sale, which for a replay is when the
+    // till rang it.
+    const soldAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : new Date();
+    const ageRestricted = [...sellable.values()]
+      .filter((product) => product.ageRestricted)
+      .map((product) => product.name);
+    const refusal = liquorSaleRefusal({
+      profile: await loadShopProfile(session.user.companyId),
+      ageRestricted,
+      idChecked: input.idChecked === true,
+      at: soldAt,
+    });
+    if (refusal) {
+      return errorResponse(refusal, 409);
     }
 
     // S-3. *The* resolution point. The shelf price comes out of the core price
@@ -893,6 +913,7 @@ export async function POST(request: NextRequest) {
       overrideReason: overrideReason ?? null,
       notes: normalizedNotes || null,
       periodOverrideReason: input.periodOverrideReason ?? null,
+      idCheckedAt: input.idChecked && ageRestricted.length > 0 ? soldAt : null,
     });
 
     const customerNetSpend =

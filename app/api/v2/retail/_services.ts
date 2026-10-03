@@ -651,6 +651,8 @@ export async function createRetailSaleTransaction(input: {
   notes?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
+  /** When the cashier confirmed the customer's ID, for a sale with an age-restricted line. */
+  idCheckedAt?: Date | null;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -797,6 +799,7 @@ export async function createRetailSaleTransaction(input: {
             cashierId: input.actor.userId,
             cashierName: resolveCashierName(input.actor),
             customerName: input.customerName ?? null,
+            idCheckedAt: input.idCheckedAt ?? null,
             subtotal: input.subtotal,
             discountAmount: input.discountAmount,
             taxAmount: input.taxAmount,

@@ -7,6 +7,8 @@ import {
   canChangeShopProfile,
   DEFAULT_SHOP_PROFILE,
   isWithinLicenceHours,
+  licenceWindowLabel,
+  liquorSaleRefusal,
   loadShopProfile,
   saveShopProfile,
   shopClock,
@@ -72,6 +74,45 @@ describe("licence hours", () => {
 
   it("treats a window that opens and closes at once as closed", () => {
     expect(isWithinLicenceHours({ ...HOURS, sundayOpensAt: "00:00", sundayClosesAt: "00:00" }, harare("2026-10-04T12:00:00"))).toBe(false);
+  });
+});
+
+describe("a liquor sale at the till", () => {
+  const liquor = { ...DEFAULT_SHOP_PROFILE, businessType: "LIQUOR" as const };
+  const monday8pm = harare("2026-10-05T20:00:00");
+  const monday11pm = harare("2026-10-05T23:00:00");
+
+  it("goes through when nothing in the basket is age-restricted, at any hour", () => {
+    expect(liquorSaleRefusal({ profile: liquor, ageRestricted: [], idChecked: false, at: monday11pm })).toBeNull();
+  });
+
+  it("asks for the ID check before alcohol, inside licence hours", () => {
+    expect(
+      liquorSaleRefusal({ profile: liquor, ageRestricted: ["Castle Lager 340ml"], idChecked: false, at: monday8pm }),
+    ).toBe("Check the customer's ID before selling Castle Lager 340ml.");
+    expect(
+      liquorSaleRefusal({ profile: liquor, ageRestricted: ["Castle Lager 340ml"], idChecked: true, at: monday8pm }),
+    ).toBeNull();
+  });
+
+  it("refuses alcohol outside licence hours, ID or not, and says when it may", () => {
+    expect(
+      liquorSaleRefusal({ profile: liquor, ageRestricted: ["Gin", "Beer"], idChecked: true, at: monday11pm }),
+    ).toBe("Alcohol can't be sold now. The licence allows 8am to 10pm.");
+  });
+
+  it("says a Sunday closed all day plainly", () => {
+    const shut = { ...liquor, sundayOpensAt: "00:00", sundayClosesAt: "00:00" };
+    expect(licenceWindowLabel(shut, harare("2026-10-04T12:00:00"))).toBe("not at all on a Sunday");
+  });
+
+  it("follows each switch, and is off for general retail", () => {
+    const noHours = { ...liquor, licenceHours: false };
+    expect(liquorSaleRefusal({ profile: noHours, ageRestricted: ["Gin"], idChecked: true, at: monday11pm })).toBeNull();
+    const noCheck = { ...liquor, ageCheck: false };
+    expect(liquorSaleRefusal({ profile: noCheck, ageRestricted: ["Gin"], idChecked: false, at: monday8pm })).toBeNull();
+    const general = { ...liquor, businessType: "GENERAL" as const };
+    expect(liquorSaleRefusal({ profile: general, ageRestricted: ["Gin"], idChecked: false, at: monday11pm })).toBeNull();
   });
 });
 

@@ -326,6 +326,7 @@ export async function loadSellableProducts(input: {
           standardPrice: true,
           defaultTaxRate: true,
           ageRestricted: true,
+          retailCategory: { select: { ageRestricted: true } },
         },
       },
     },
@@ -340,7 +341,8 @@ export async function loadSellableProducts(input: {
       name: row.product.name,
       standardPrice: row.product.standardPrice,
       defaultTaxRate: row.product.defaultTaxRate,
-      ageRestricted: row.product.ageRestricted,
+      // The same rule as the shelf: the product, or its category, asks for ID.
+      ageRestricted: row.product.ageRestricted || Boolean(row.product.retailCategory?.ageRestricted),
       siteId: row.siteId,
       inventoryItem: {
         id: row.id,
