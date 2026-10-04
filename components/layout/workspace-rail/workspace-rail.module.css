@@ -66,8 +66,10 @@
   height: 30px;
   border: 0;
   border-radius: 9px;
-  background: var(--text-strong);
-  color: var(--text-inverse, #fff);
+  /* The logo tile is its own role (5.1.2 `--device`): dark in every theme,
+     so Tender dark does not turn it into a white square. */
+  background: var(--device);
+  color: #ffffff;
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
