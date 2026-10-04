@@ -112,49 +112,92 @@ function sampleText(value: ReportValue | undefined, column: ReportColumn): strin
    The sheets
    ────────────────────────────────────────────────────────────────────────── */
 
+const GROUP_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } };
+
+function groupLabel(value: ReportValue, count: number): string {
+  const name = value === null || value === undefined || value === "" ? "None" : String(value);
+  return `${name} (${count.toLocaleString("en-US")})`;
+}
+
+/**
+ * The rows, under one frozen header. Grouped, each group is a headed section
+ * whose heading carries its subtotals; the totals are the last row. Both are
+ * `SUBTOTAL` formulas, and Excel's `SUBTOTAL` skips other `SUBTOTAL`s in its
+ * range, so the last row is the whole set and never counts a group twice.
+ */
 function addRows(workbook: ExcelJS.Workbook, input: ExportInput) {
   const sheet = workbook.addWorksheet(sheetName(input.meta.title), {
     views: [{ state: "frozen", ySplit: 1 }],
   });
   const columns = input.applied.columns;
   const rows = orderedRows(input);
+  const totals = input.view.totals;
+  const sections = input.applied.groups ?? [{ value: null, rows: input.applied.rows, totals: input.applied.totals }];
+  const grouped = Boolean(input.applied.groups);
+
+  /** One total cell: a formula over the range, or the value where no formula fits. */
+  const totalCell = (
+    column: ReportColumn,
+    index: number,
+    from: number,
+    to: number,
+    result: ReportValue | undefined,
+  ): ExcelJS.CellValue => {
+    const fn = totals[column.key]!;
+    const code = SUBTOTAL[fn];
+    // Distinct has no SUBTOTAL; a count would also count the group headings' words.
+    if (!code || (grouped && (fn === "count" || fn === "distinct"))) return typeof result === "number" ? result : null;
+    const range = `${columnLetter(index)}${from}:${columnLetter(index)}${to}`;
+    return { formula: `SUBTOTAL(${code},${range})`, result: typeof result === "number" ? result : undefined };
+  };
+  const formatTotals = (row: ExcelJS.Row) =>
+    columns.forEach((column, index) => {
+      const fn = totals[column.key];
+      if (!fn) return;
+      const cell = row.getCell(index + 1);
+      cell.numFmt = fn === "count" || fn === "distinct" ? "0" : formatFor(column) ?? NUMBER;
+      cell.note = totalCaption(fn);
+    });
 
   styleHeader(sheet.addRow(columns.map((column) => column.label)));
-  for (const row of rows) {
-    const added = sheet.addRow(columns.map((column) => cellValue(row[column.key], column)));
-    columns.forEach((column, index) => {
-      const format = formatFor(column);
-      if (format) added.getCell(index + 1).numFmt = format;
-    });
+  for (const section of sections) {
+    const heading = grouped ? sheet.addRow(columns.map((_, index) => (index === 0 ? groupLabel(section.value, section.rows.length) : null))) : null;
+    for (const row of section.rows) {
+      const added = sheet.addRow(columns.map((column) => cellValue(row[column.key], column)));
+      columns.forEach((column, index) => {
+        const format = formatFor(column);
+        if (format) added.getCell(index + 1).numFmt = format;
+      });
+    }
+    if (heading && section.rows.length > 0) {
+      const first = heading.number + 1;
+      const last = heading.number + section.rows.length;
+      columns.forEach((column, index) => {
+        if (totals[column.key]) heading.getCell(index + 1).value = totalCell(column, index, first, last, section.totals[column.key]);
+      });
+      formatTotals(heading);
+    }
+    if (heading) {
+      heading.font = { bold: true };
+      heading.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = GROUP_FILL;
+      });
+    }
   }
 
-  const last = rows.length + 1;
+  const last = sheet.rowCount;
   if (rows.length > 0) {
     sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: last, column: columns.length } };
   }
 
   // Totals as formulas over the rows above, so a filter in Excel moves them.
-  const totals = input.view.totals;
   if (Object.keys(totals).length > 0 && rows.length > 0) {
     const totalRow = sheet.addRow(
-      columns.map((column, index) => {
-        const fn = totals[column.key];
-        if (!fn) return index === 0 ? "Total" : null;
-        const code = SUBTOTAL[fn];
-        const range = `${columnLetter(index)}2:${columnLetter(index)}${last}`;
-        const result = input.applied.totals[column.key];
-        // Distinct has no SUBTOTAL; it is written as the value it was.
-        if (!code) return typeof result === "number" ? result : null;
-        return { formula: `SUBTOTAL(${code},${range})`, result: typeof result === "number" ? result : undefined };
-      }),
+      columns.map((column, index) =>
+        totals[column.key] ? totalCell(column, index, 2, last, input.applied.totals[column.key]) : index === 0 ? "Total" : null,
+      ),
     );
-    columns.forEach((column, index) => {
-      const fn = totals[column.key];
-      if (!fn) return;
-      const cell = totalRow.getCell(index + 1);
-      cell.numFmt = fn === "count" || fn === "distinct" ? "0" : formatFor(column) ?? NUMBER;
-      cell.note = totalCaption(fn);
-    });
+    formatTotals(totalRow);
     styleTotal(totalRow);
   }
 

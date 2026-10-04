@@ -26,6 +26,7 @@ import { describe, expect, it } from "vitest";
 import {
   auditAmount,
   auditCashMoved,
+  auditExportDownloaded,
   auditGoodsReceived,
   auditSalePosted,
   auditSaleReversed,
@@ -325,6 +326,16 @@ describe("cash and stock", () => {
       lineCount: 3,
     });
   });
+
+  it("records who took a list home, as what, and how many rows", async () => {
+    const log = recorder();
+    await auditExportDownloaded(log.client, { actor: CHIPO, key: "retail-shifts", format: "xlsx", rows: 312 });
+
+    expect(log.last().eventType).toBe(RETAIL_AUDIT_EVENTS.exportDownloaded);
+    expect(log.last().entityType).toBe("ReportSource");
+    expect(log.last().entityId).toBe("retail-shifts");
+    expect(log.payload()).toMatchObject({ key: "retail-shifts", format: "xlsx", rows: 312 });
+  });
 });
 
 describe("the chain", () => {
@@ -374,6 +385,7 @@ describe("the chain", () => {
       orderClosed: "RETAIL_PURCHASE_ORDER.CLOSED",
       orderReopened: "RETAIL_PURCHASE_ORDER.REOPENED",
       shopProfileChanged: "RETAIL_SHOP.PROFILE_CHANGED",
+      exportDownloaded: "RETAIL_EXPORT.DOWNLOADED",
     });
   });
 });

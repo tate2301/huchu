@@ -26,7 +26,11 @@ export function reportCatalog(
   /** Reports this workspace switched off. */
   disabled: ReadonlySet<string> = new Set(),
 ): CatalogArea[] {
-  const readable = sources.filter((source) => !disabled.has(source.key) && canReadReport(source, access));
+  const readable = sources.filter(
+    // A working list is a page of its own, not a report, unless it says otherwise.
+    (source) =>
+      !disabled.has(source.key) && (!source.list || source.list.catalog === true) && canReadReport(source, access),
+  );
   const forProfile = (source: ReportDefinition) => (profile ? source.profiles.includes(profile) : false);
 
   const areas = new Map<string, { area: string; ours: boolean; reports: CatalogEntry[] }>();

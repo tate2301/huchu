@@ -86,6 +86,12 @@ export const RETAIL_AUDIT_EVENTS = {
    * the age check off" is a question a licence inspector will ask.
    */
   shopProfileChanged: "RETAIL_SHOP.PROFILE_CHANGED",
+  /**
+   * A list or report left the building as a file. Carries the source, the
+   * format and how many rows, so an owner can see who took the customer list
+   * home. Entity `ReportSource`, id = the source key.
+   */
+  exportDownloaded: "RETAIL_EXPORT.DOWNLOADED",
 } as const;
 
 export type RetailAuditEvent =
@@ -355,6 +361,24 @@ export async function auditGoodsReceived(
       totalValue: auditAmount(input.totalValue),
       lineCount: input.lineCount,
     },
+  });
+}
+
+export async function auditExportDownloaded(
+  client: AuditClient,
+  input: {
+    actor: RetailAuditActor;
+    key: string;
+    format: "xlsx" | "csv" | "pdf";
+    rows: number;
+  },
+): Promise<void> {
+  await writeRetailAuditEvent(client, {
+    actor: input.actor,
+    eventType: RETAIL_AUDIT_EVENTS.exportDownloaded,
+    entityType: "ReportSource",
+    entityId: input.key,
+    payload: { key: input.key, format: input.format, rows: input.rows },
   });
 }
 
