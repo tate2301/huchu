@@ -3,6 +3,14 @@ import { Prisma } from "@prisma/client";
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { shopClock } from "@/lib/retail/shop-profile-rules";
+import {
+  missedSales,
+  outSince,
+  RATE_LOOKBACK_DAYS,
+  type MissedSales,
+  type MovementForStock,
+  type SaleForRate,
+} from "@/lib/retail/stockouts";
 
 /**
  * Insights — the questions an owner asks of the shop, each answered on its
@@ -495,6 +503,8 @@ type StockRow = {
   unitCost: number;
   reorderLevel: number | null;
   value: number;
+  /** When the product was set up: it cannot have sold before then. */
+  createdAt: Date;
 };
 
 async function loadStock(companyId: string): Promise<StockRow[]> {
@@ -508,6 +518,7 @@ async function loadStock(companyId: string): Promise<StockRow[]> {
         select: {
           id: true,
           name: true,
+          createdAt: true,
           retailCategory: { select: { id: true, name: true, targetMarginPercent: true } },
         },
       },
@@ -525,6 +536,7 @@ async function loadStock(companyId: string): Promise<StockRow[]> {
       unitCost: n(item.unitCost),
       reorderLevel: item.minStock === null ? null : n(item.minStock),
       value: 0,
+      createdAt: item.product.createdAt,
     };
     const onHand = n(item.currentStock);
     entry.onHand += onHand;
@@ -697,6 +709,83 @@ export function daysOfCover(onHand: number, soldInPeriod: number, days: number) 
 
 const COVER_AIM = 14;
 
+/** How far back the stock movements are walked to find when a shelf ran empty. */
+const STOCKOUT_REACH_DAYS = 365;
+
+type Stockout = { outAt: Date | null } & MissedSales;
+
+/**
+ * When each empty shelf ran out, and what it has cost in the period.
+ *
+ * Two queries for every out-of-stock product at once: their movements, to
+ * find the day each ran out, and their sales in the weeks before, for the rate.
+ */
+async function loadStockouts(companyId: string, out: readonly StockRow[], from: Date, to: Date) {
+  const stockouts = new Map<string, Stockout>();
+  if (out.length === 0) return stockouts;
+  const ids = out.map((row) => row.productId);
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      item: { productId: { in: ids }, site: { companyId } },
+      createdAt: { gte: new Date(to.getTime() - STOCKOUT_REACH_DAYS * DAY) },
+    },
+    select: { movementType: true, quantity: true, createdAt: true, item: { select: { productId: true } } },
+  });
+  const byProduct = new Map<string, MovementForStock[]>();
+  for (const movement of movements) {
+    const productId = movement.item.productId;
+    if (!productId) continue;
+    const list = byProduct.get(productId) ?? [];
+    list.push({ movementType: movement.movementType, quantity: n(movement.quantity), at: movement.createdAt });
+    byProduct.set(productId, list);
+  }
+
+  const outAts = new Map(out.map((row) => [row.productId, outSince(row.onHand, byProduct.get(row.productId) ?? [])]));
+  const known = [...outAts.values()].filter((date): date is Date => date !== null);
+  const lines = known.length
+    ? await prisma.retailSaleLine.findMany({
+        where: {
+          productId: { in: ids },
+          sale: {
+            companyId,
+            saleType: "SALE",
+            status: "POSTED",
+            postedAt: { gte: new Date(Math.min(...known.map((date) => date.getTime())) - RATE_LOOKBACK_DAYS * DAY) },
+          },
+        },
+        select: { productId: true, quantity: true, lineTotal: true, sale: { select: { postedAt: true, createdAt: true } } },
+      })
+    : [];
+  const salesByProduct = new Map<string, SaleForRate[]>();
+  for (const line of lines) {
+    if (!line.productId) continue;
+    const list = salesByProduct.get(line.productId) ?? [];
+    list.push({ quantity: n(line.quantity), takings: n(line.lineTotal), at: when(line.sale) });
+    salesByProduct.set(line.productId, list);
+  }
+
+  for (const row of out) {
+    const outAt = outAts.get(row.productId) ?? null;
+    if (!outAt) {
+      stockouts.set(row.productId, { outAt, daysOut: 0, perDay: 0, missed: 0 });
+      continue;
+    }
+    const sales = salesByProduct.get(row.productId) ?? [];
+    stockouts.set(row.productId, {
+      outAt,
+      ...missedSales({
+        outAt,
+        from,
+        to,
+        // Set up before it sold — unless its sales were brought in from before.
+        firstStockedAt: sales.reduce((first, sale) => (sale.at < first ? sale.at : first), row.createdAt),
+        sales,
+      }),
+    });
+  }
+  return stockouts;
+}
+
 async function stockInsight(companyId: string, days: number): Promise<Insight> {
   const { from, to } = insightWindow(days);
   const [stock, sales] = await Promise.all([loadStock(companyId), loadSales(companyId, from, to)]);
@@ -722,10 +811,15 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
   const coverLabel = (value: number) =>
     value < COVER_AIM / 2 ? "Too little" : value > COVER_AIM * 4 ? "Far too much" : value > COVER_AIM * 2 ? "Too much" : "About right";
 
+  const stockouts = await loadStockouts(companyId, stock.filter((row) => row.onHand <= 0), from, to);
   const out = stock
-    .filter((row) => row.onHand <= 0 && (sold.get(row.productId)?.quantity ?? 0) > 0)
-    .map((row) => ({ row, perDay: (sold.get(row.productId)?.quantity ?? 0) / days }))
-    .sort((left, right) => right.perDay - left.perDay);
+    .filter((row) => row.onHand <= 0)
+    .map((row) => ({ row, stockout: stockouts.get(row.productId)! }))
+    // An empty shelf matters when it would have sold: it sold in the period,
+    // or it sold before it ran out.
+    .filter(({ row, stockout }) => stockout.missed > 0 || (sold.get(row.productId)?.quantity ?? 0) > 0)
+    .sort((left, right) => right.stockout.missed - left.stockout.missed || right.stockout.perDay - left.stockout.perDay);
+  const missed = out.reduce((sum, entry) => sum + entry.stockout.missed, 0);
   const tooMuch = stock
     .map((row) => ({ row, cover: daysOfCover(row.onHand, sold.get(row.productId)?.quantity ?? 0, days) }))
     .filter((entry) => entry.row.onHand > 0 && (entry.cover === null || entry.cover > COVER_AIM * 4))
@@ -741,6 +835,14 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
     findings.push(`${row.group.label} has ${Math.round(row.cover!)} days of cover: ${usd(row.value)} tied up in it.`);
   }
   if (low.length > 0) findings.push(`${low.length} ${low.length === 1 ? "product is" : "products are"} at or below the reorder level.`);
+  if (missed > 0) {
+    const worst = out[0];
+    findings.push(
+      out.filter((entry) => entry.stockout.missed > 0).length === 1
+        ? `About ${usd(missed)} of sales were missed in ${days} days with ${worst.row.name} out of stock.`
+        : `About ${usd(missed)} of sales were missed in ${days} days with shelves empty, ${usd(worst.stockout.missed)} of it on ${worst.row.name}.`,
+    );
+  }
 
   return {
     topic: "stock",
@@ -749,7 +851,11 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
       { label: "Stock at cost", ...money(stockValue) },
       { label: "Days of cover", value: cover ?? 0, format: "days", note: `at the last ${days} days' sales` },
       { label: "Running low", ...count(low.length), note: "at or below reorder level" },
-      { label: "Out of stock", ...count(out.length), note: "and selling" },
+      {
+        label: "Sales missed",
+        ...money(missed),
+        note: `estimated, ${out.length} ${out.length === 1 ? "product" : "products"} out of stock`,
+      },
     ],
     question: "Are we stocked right?",
     unit: `Days of cover by category at the last ${days} days' sales, against the ${COVER_AIM} days you aim for`,
@@ -770,15 +876,22 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
         label: "Out of stock",
         columns: [
           { id: "name", label: "Product" },
-          { id: "perDay", label: "Sells a day", align: "end" },
+          { id: "outFor", label: "Out for", align: "end" },
+          { id: "missed", label: "Sales missed", align: "end" },
+          { id: "perDay", label: "Sold a day", align: "end" },
           { id: "reorder", label: "Reorder at", align: "end" },
         ],
-        rows: out.map(({ row, perDay }) => ({
+        rows: out.map(({ row, stockout }) => ({
           id: row.productId,
           href: `/retail/catalog/${row.productId}`,
           cells: {
             name: row.name,
-            perDay: { value: perDay, format: "ratio" },
+            outFor:
+              stockout.outAt === null
+                ? "Over a year"
+                : { value: daysSince(stockout.outAt, to) ?? 0, format: "days", tone: "warn" },
+            missed: stockout.outAt === null ? "Not known" : { ...money(stockout.missed), tone: stockout.missed > 0 ? "bad" : undefined },
+            perDay: { value: stockout.outAt === null ? (sold.get(row.productId)?.quantity ?? 0) / days : stockout.perDay, format: "ratio" },
             reorder: row.reorderLevel === null ? "Not set" : count(row.reorderLevel),
           },
         })),
