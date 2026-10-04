@@ -372,6 +372,17 @@ describe("workspace sidebar model", () => {
     expect(hrefs).toContain("/retail/customers");
   });
 
+  it("leaves the retail ledger out once the CRM proper is on", () => {
+    const model = getWorkspaceSidebarModel({
+      role: "MANAGER",
+      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER").concat(["crm.customers", "crm.core"]),
+      workspaceProfile: "GENERAL",
+    });
+    const hrefs = model.sections.flatMap((section) => section.items.map((item) => item.href));
+    expect(hrefs).toContain("/crm");
+    expect(hrefs).not.toContain("/retail/customers");
+  });
+
   it("general business sidebar contains no mining hrefs anywhere", () => {
     const model = getWorkspaceSidebarModel({
       role: "MANAGER",

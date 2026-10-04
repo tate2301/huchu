@@ -11,7 +11,12 @@ import {
 import type { NavItem } from "@/lib/navigation";
 import type { WorkspaceNavSection, WorkspaceOption } from "@/lib/workspaces";
 import { areaForHref, getRailModel } from "@/lib/rail/model";
-import type { RailArea } from "@/lib/rail/areas";
+import {
+  areaRows,
+  folderForHref,
+  type RailArea,
+  type RailFolder,
+} from "@/lib/rail/areas";
 import { orderRows } from "@/lib/rail/order";
 import {
   Popover,
@@ -85,48 +90,57 @@ export function WorkspaceRail({
   collections?: React.ReactNode;
 }) {
   const model = React.useMemo(() => getRailModel(sections), [sections]);
-  const { shape, areas, pinCapacity } = model;
+  const { shape, areas, loose, pinCapacity } = model;
 
   const activeArea = React.useMemo(
     () => areaForHref(areas, activeHref),
     [areas, activeHref],
   );
+  const activeFolderId = activeArea ? (folderForHref(activeArea, activeHref)?.id ?? null) : null;
+  const looseActive = loose.some((item) => item.href === activeHref);
 
-  // Which area the panel is showing. `null` is the map, which is a legitimate
-  // place to be standing: you are looking at the workspace, not inside one of
-  // its areas.
-  const [viewAreaId, setViewAreaId] = React.useState<string | null>(null);
+  // Where the panel is standing: the map (no area), an area, or a folder in
+  // one. Down is a row with a caret, up is the back button, one level at a
+  // time. It follows the page: opening a destination opens the level it sits
+  // in, and opening one of the loose pages — Home, Overview — goes back to the
+  // map, which is where those rows live.
+  const [view, setView] = React.useState<{ areaId: string | null; folderId: string | null }>({
+    areaId: null,
+    folderId: null,
+  });
   React.useEffect(() => {
-    if (activeArea) setViewAreaId(activeArea.id);
-  }, [activeArea]);
+    if (activeArea) setView({ areaId: activeArea.id, folderId: activeFolderId });
+    else if (looseActive) setView({ areaId: null, folderId: null });
+  }, [activeArea, activeFolderId, looseActive]);
 
   const { pins, isPinned, toggle } = usePins(workspaceLabel, pinCapacity);
 
   const byHref = React.useMemo(() => {
-    const map = new Map<string, { item: NavItem; area: RailArea }>();
+    const map = new Map<string, NavItem>();
+    for (const item of loose) map.set(item.href, item);
     for (const area of areas) {
-      for (const item of area.items) map.set(item.href, { item, area });
+      for (const item of area.items) map.set(item.href, item);
     }
     return map;
-  }, [areas]);
+  }, [areas, loose]);
 
   const pinnedItems = React.useMemo(
     () =>
       orderRows(
         pins
           .map((href) => byHref.get(href))
-          .filter((entry): entry is { item: NavItem; area: RailArea } =>
-            Boolean(entry),
-          ),
-        { label: (entry) => entry.item.label },
+          .filter((item): item is NavItem => Boolean(item)),
+        { label: (item) => item.label },
       ),
     [byHref, pins],
   );
 
   const shownArea =
     shape === "areas"
-      ? (areas.find((area) => area.id === viewAreaId) ?? null)
+      ? (areas.find((area) => area.id === view.areaId) ?? null)
       : null;
+  const shownFolder =
+    shownArea?.folders?.find((folder) => folder.id === view.folderId) ?? null;
 
   const marks: RailMark[][] = React.useMemo(() => {
     const groups: RailMark[][] = [];
@@ -143,7 +157,7 @@ export function WorkspaceRail({
     }
     if (pinnedItems.length > 0) {
       groups.push(
-        pinnedItems.map(({ item }) => ({
+        pinnedItems.map((item) => ({
           id: `pin:${item.href}`,
           label: item.label,
           icon: item.icon,
@@ -186,41 +200,82 @@ export function WorkspaceRail({
     />
   );
 
-  const rowsFor = (area: RailArea) =>
-    orderRows(area.items, {
+  const rowsFor = (items: NavItem[], area: RailArea) =>
+    orderRows(items, {
       label: (item) => item.label,
       rank: (item) => item.rank,
       isPinned: (item) => isPinned(item.href),
       alphabetical: area.ranked === true,
     }).map(rowFor);
 
+  // A row that opens a level: the area or folder's first page, and the level
+  // itself in the panel. Setting the view here as well as from the page is
+  // what makes it open when that page is the one already showing.
+  const levelRow = (
+    level: RailArea | RailFolder,
+    open: () => void,
+    active: boolean,
+  ) => (
+    <RailRow
+      key={level.id}
+      href={level.items[0]?.href ?? "#"}
+      label={level.label}
+      icon={level.icon}
+      active={active}
+      onOpen={open}
+    />
+  );
+
+  const looseRows = loose.length > 0 ? <RailRows>{loose.map(rowFor)}</RailRows> : null;
+
   const body =
     shape === "flat" ? (
       <>
+        {looseRows}
         {areas.map((area) => (
           <React.Fragment key={area.id}>
             <RailHeading>{area.label}</RailHeading>
-            <RailRows>{rowsFor(area)}</RailRows>
+            <RailRows>{rowsFor(area.items, area)}</RailRows>
           </React.Fragment>
         ))}
       </>
+    ) : shownArea && shownFolder ? (
+      <RailRows>{rowsFor(shownFolder.items, shownArea)}</RailRows>
     ) : shownArea ? (
-      <RailRows>{rowsFor(shownArea)}</RailRows>
-    ) : (
       <RailRows>
-        {areas.map((area) => (
-          <RailRow
-            key={area.id}
-            href={area.items[0]?.href ?? "#"}
-            label={area.label}
-            icon={area.icon}
-            active={area.id === activeArea?.id}
-          />
-        ))}
+        {rowsFor(areaRows(shownArea), shownArea)}
+        {(shownArea.folders ?? []).map((folder) =>
+          levelRow(
+            folder,
+            () => setView({ areaId: shownArea.id, folderId: folder.id }),
+            folder.id === activeFolderId,
+          ),
+        )}
       </RailRows>
+    ) : (
+      <>
+        {looseRows}
+        <RailRows>
+          {areas.map((area) =>
+            levelRow(
+              area,
+              () => setView({ areaId: area.id, folderId: null }),
+              area.id === activeArea?.id,
+            ),
+          )}
+        </RailRows>
+      </>
     );
 
-  if (areas.length === 0) {
+  // Back goes up one level: from a folder to its area, from an area to the map.
+  const panelTitle = shownFolder?.label ?? shownArea?.label ?? workspaceLabel;
+  const back = shownFolder
+    ? { label: shownArea!.label, go: () => setView({ areaId: shownArea!.id, folderId: null }) }
+    : shownArea
+      ? { label: workspaceLabel, go: () => setView({ areaId: null, folderId: null }) }
+      : null;
+
+  if (areas.length === 0 && loose.length === 0) {
     return (
       <div className={styles.rail}>
         <SwitcherRail
@@ -283,9 +338,9 @@ export function WorkspaceRail({
       />
       {isCollapsed ? null : (
         <RailPanel
-          title={shownArea ? shownArea.label : workspaceLabel}
-          backLabel={workspaceLabel}
-          onBack={shownArea ? () => setViewAreaId(null) : undefined}
+          title={panelTitle}
+          backLabel={back?.label}
+          onBack={back?.go}
           onCollapse={onToggleCollapse}
           onSearch={onOpenSearch}
           onNew={onOpenNew}

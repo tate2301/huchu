@@ -346,6 +346,13 @@
   text-overflow: ellipsis;
 }
 
+/* A row with a level under it. Quieter than the label: it is a direction,
+   not a value. */
+.rowCaret {
+  flex-shrink: 0;
+  color: var(--text-subtle);
+}
+
 .heading {
   display: flex;
   align-items: center;

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import { PushPin } from "@/lib/icons";
+import { ChevronRight, PushPin } from "@/lib/icons";
 import type { LucideIcon } from "@/lib/icons";
 
 import styles from "./workspace-rail.module.css";
@@ -32,6 +32,7 @@ export function RailRow({
   onPin,
   pinned,
   pinLabel,
+  onOpen,
 }: {
   href: string;
   label: string;
@@ -42,11 +43,18 @@ export function RailRow({
   onPin?: () => void;
   pinned?: boolean;
   pinLabel?: string;
+  /**
+   * The row stands for a level with rows of its own — an area, or a folder in
+   * one. Following it lands on the level's first page and opens the level in
+   * the panel; the caret says there is more under it.
+   */
+  onOpen?: () => void;
 }) {
   return (
     <li>
       <Link
         href={href}
+        onClick={onOpen}
         aria-current={active ? "page" : undefined}
         className={cn(
           styles.row,
@@ -75,6 +83,9 @@ export function RailRow({
           </button>
         ) : null}
         <RailTrailing trailing={trailing} />
+        {onOpen ? (
+          <ChevronRight className={styles.rowCaret} width={13} height={13} aria-hidden="true" />
+        ) : null}
       </Link>
     </li>
   );
