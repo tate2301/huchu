@@ -6,16 +6,8 @@
  * are written once and a caller's className still wins over them.
  *
  * Three grounds, each a step lighter as you move right: the switcher, the
- * panel, the page. In dark the step runs the other way, lighter as you come
- * forward, which is the same relationship built out of lightness instead of
- * shadow.
- *
- * Ink: `--text-subtle` resolves to #8A91A0, which is 3.16:1 on white and
- * below the 4.5:1 floor. It stays on the *glyphs* — the icon buttons, the
- * dimmed row icon, the pin, the empty mark — where the contrast floor does
- * not apply, and every rung that sets readable **text** uses #5E6573
- * instead: the find button's label, a dimmed row's label, the row counts and
- * the badges.
+ * panel, the page. Every colour is a theme role or a package token pointed at
+ * one (app/themes/roles.css), so Tender dark layers the same steps by itself.
  */
 
 .rail {
@@ -31,13 +23,6 @@
   /* Positioning belongs to `Sidebar`, which the shell already provides: this
      sits inside it so the provider's width variables, the mobile sheet and the
      inset's own layout keep working. */
-}
-
-:global(body.is-dark) .rail {
-  --rail-switcher-bg: var(--surface);
-  --rail-panel-bg: var(--surface-muted);
-  --rail-row-hover: var(--surface-sunken);
-  --rail-row-active: var(--surface-deep);
 }
 
 /* ---- tier one: the switcher ---- */
@@ -229,7 +214,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  color: #5E6573;
+  color: var(--ink-3);
   font-size: 13px;
   font-weight: 400;
   text-align: left;
@@ -330,7 +315,7 @@
 }
 
 .rowDim .rowLabel {
-  color: #5E6573;
+  color: var(--ink-3);
 }
 
 .rowDim .rowIcon {
@@ -368,7 +353,7 @@
   font-size: 13px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: #5E6573;
+  color: var(--ink-3);
 }
 
 .badge {
@@ -383,7 +368,7 @@
   font-size: 13px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: #5E6573;
+  color: var(--ink-3);
 }
 
 .badgeUrgent {

@@ -229,7 +229,7 @@ export default function RetailInsightPage() {
               <ul className="space-y-1.5">
                 {insight.actions.map((action) => (
                   <li key={action.href}>
-                    <Link href={action.href} className="text-[var(--action-primary-bg)] hover:underline">
+                    <Link href={action.href} className="text-[var(--action-ink)] hover:underline">
                       {action.label}
                     </Link>
                   </li>

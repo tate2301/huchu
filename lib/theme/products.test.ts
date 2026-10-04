@@ -95,6 +95,42 @@ describe("roles.css", () => {
     for (const role of ROLE_TOKENS) {
       expect(pairs[role], role).toBeUndefined();
     }
+    // Every colour comes from a role: no var() here names a non-role token.
+    const roles = new Set<string>(ROLE_TOKENS);
+    for (const [name, value] of Object.entries(pairs)) {
+      for (const [, ref] of value.matchAll(/var\((--[a-z0-9-]+)\)/g)) {
+        expect(roles.has(ref), `${name} reads ${ref}`).toBe(true);
+      }
+    }
+    // The strong status inks and the brand and gray ramps follow the product.
+    expect(pairs["--tone-success-strong"]).toBe("var(--ok)");
+    expect(pairs["--tone-danger-strong"]).toBe("var(--bad)");
+    expect(pairs["--tone-warn-strong"]).toBe("var(--warn)");
+    expect(pairs["--brand-500"]).toBe("var(--action)");
+    expect(pairs["--gray-500"]).toBe("var(--ink-3)");
+  });
+
+  it("leaves no package colour token on its light-theme literal", () => {
+    // Every token the package paints with a literal colour is either a role
+    // (each theme answers it) or pointed at one above. Shadows are the
+    // exception: they only darken, and read the same on either ground.
+    const pkg = readFileSync(
+      path.resolve(__dirname, "../../node_modules/@corelithzw/react/dist/tokens.css"),
+      "utf8",
+    );
+    const literal = new Set(
+      blocks(pkg)
+        .flatMap((block) => declarations(block.body))
+        .filter(([, value]) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(value))
+        .map(([name]) => name)
+        .filter((name) => !name.startsWith("--shadow-")),
+    );
+    expect(literal.size).toBeGreaterThan(50);
+    const pointing = blocks(ROLES_CSS).find((block) => block.selector === ":root[data-theme]");
+    const pointed = new Set(declarations(pointing!.body).map(([name]) => name));
+    const roles = new Set<string>(ROLE_TOKENS);
+    const missed = [...literal].filter((name) => !roles.has(name) && !pointed.has(name));
+    expect(missed).toEqual([]);
   });
 });
 

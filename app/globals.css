@@ -1810,10 +1810,11 @@
   --shadow-popover: 0 4px 6px -1px rgba(15,23,42,0.1), 0 2px 4px -2px rgba(15,23,42,0.1);
 }
 
-/* No `prefers-color-scheme` block. The product is light-only: reading the
-   operating system's preference put a dark terminal in front of anyone whose
-   laptop was set that way, which nobody had asked for. A dark POS skin, if it
-   is wanted, is an explicit choice on the terminal — not an inference. */
+/* No `prefers-color-scheme` block. Dark is an explicit choice, never
+   inferred: the person picks it on Appearance (`huchu.appearance`), and the
+   head script in `app/layout.tsx` sets `data-theme="tender-dark"` before the
+   first paint. The one place the device is read is retail's "Match the
+   device", which the person also has to choose. */
 
 /* ── campus motion ───────────────────────────────────────────────────
    Animation the campus screens use, in one place so the timings agree.

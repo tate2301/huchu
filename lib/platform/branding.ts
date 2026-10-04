@@ -128,9 +128,9 @@ const DEFAULT_FONT_KEY: BrandingFontKey = "huchu";
  * The unbranded baseline. Colours mirror `@corelithzw/react`'s `--brand`,
  * `--brand-soft` and `--brand-tint` so the branding editor opens on the design
  * system rather than on a palette the product no longer uses. The colours
- * never reach the interface — the product theme paints it (see
- * `getBrandingCssVariables`) — they seed the editor's swatches, the workspace
- * icon and documents.
+ * never reach the interface, and neither does the typeface: the product theme
+ * and its type pair paint it (`app/themes/roles.css`, 00-foundations 5.1.5).
+ * They seed the editor's swatches, the workspace icon and documents.
  */
 const DEFAULT_BRANDING: EffectiveBranding = {
   companyId: null,
@@ -334,26 +334,6 @@ export async function getEffectiveBrandingForHost(hostHeader: string | null | un
     return DEFAULT_BRANDING;
   }
   return getEffectiveBrandingForCompany(tenant.companyId);
-}
-
-/**
- * CSS custom properties for a tenant's branding, applied inline on `<body>`.
- *
- * Only the typeface. A tenant's colours no longer re-tint the interface: the
- * product theme does (`app/themes/roles.css`, chosen from the workspace's
- * profile), and the tenant's mark stays in the logo tile and on documents.
- * An inline style outranks every stylesheet, so a colour emitted here would
- * silently override the theme.
- *
- * Empty with branding disabled, and on the default face: that option's family
- * IS `var(--font-sans)`, and emitting it would define `--font-sans` in terms of
- * itself — a reference cycle that leaves the element with no font-family.
- */
-export function getBrandingCssVariables(branding: EffectiveBranding): Record<string, string> {
-  if (!branding.brandingEnabled || branding.fontFamilyKey === DEFAULT_FONT_KEY) {
-    return {};
-  }
-  return { "--font-sans": branding.fontFamily };
 }
 
 export function getBrandingFeatureKeys() {

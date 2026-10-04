@@ -25,7 +25,6 @@ import {
   PLATFORM_BRAND_NAME,
   PLATFORM_MARKETING_TAGLINE,
 } from "@/lib/platform/brand";
-import { getBrandingCssVariables } from "@/lib/platform/branding";
 import { authOptions } from "@/lib/auth";
 import { getSiteUrl } from "@/lib/site-url";
 import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@/lib/platform/tenant";
@@ -159,12 +158,10 @@ export default async function RootLayout({
   // resolution the favicon and title use, so the rail's logo, the tab's icon
   // and the page's theme all describe one workspace.
   const { hostHeader, identity, session, product } = await resolveRequestWorkspace();
-  const branding = identity.branding;
   const workspaceBrand = identity.companyId
     ? { name: identity.workspaceName, logoUrl: identity.logoUrl }
     : null;
   const hostContext = getPlatformHostContext(hostHeader);
-  const brandingVars = getBrandingCssVariables(branding);
 
   return (
     /*
@@ -189,7 +186,6 @@ export default async function RootLayout({
            system's `body` rule sets the family and is the authority here. */
         className="subpixel-antialiased"
         data-portal-path={hostContext.portalPath ?? undefined}
-        style={brandingVars as React.CSSProperties}
       >
         <Analytics />
         <SpeedInsights />

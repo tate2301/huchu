@@ -197,6 +197,28 @@
   --brand-tint: var(--sel-bg);
   --brand-100: var(--sel-line);
   --brand-200: var(--sel-line);
+  --brand-300: var(--sel-line);
+  --brand-500: var(--action);
+  --brand-700: var(--action-ink);
+  --brand-900: var(--action-ink);
+  --clay-strong: var(--action-ink);
+  --clay-soft: var(--sel-bg);
+  --clay-tint: var(--sel-bg);
+
+  /* The package's cool gray ramp, laid onto the product's own steps. The
+     bridge's --neutral-* and the 700–900 status rungs mix from it, so they
+     follow the product too. */
+  --gray-50: var(--ground);
+  --gray-100: var(--tray);
+  --gray-200: var(--line);
+  --gray-300: var(--line-strong);
+  --gray-400: var(--faint);
+  --gray-500: var(--ink-3);
+  --gray-600: color-mix(in oklab, var(--ink-3) 50%, var(--ink-2));
+  --gray-700: var(--ink-2);
+  --gray-800: color-mix(in oklab, var(--ink-2) 50%, var(--ink));
+  --gray-900: var(--ink);
+  --gray-950: var(--ink);
 
   --action-primary-bg: var(--action-fill);
   --action-primary-hover: color-mix(in oklab, var(--action-fill) 88%, #000);
@@ -207,7 +229,19 @@
   --action-secondary-fg: var(--ink);
   --action-destructive-bg: var(--bad);
   --action-destructive-hover: color-mix(in oklab, var(--bad) 88%, #000);
-  --action-destructive-fg: #ffffff;
+  /* Text on `--bad`: white on the light themes, the dark ink on Tender dark,
+     where `--bad` is lifted to a light rose and white would read at 2.5:1. */
+  --action-destructive-fg: var(--on-sel);
+  /* The package's "serious but reversible" button: a filled warm grey with
+     `--canvas` text, so it takes the ink steps and inverts with the theme. */
+  --action-destructive-soft-bg: var(--ink-2);
+  --action-destructive-soft-hover: var(--ink);
+
+  /* Status ink: the role itself, which each theme already sets to read at
+     4.5:1 on its surfaces (the dark steps are lifted). */
+  --tone-success-strong: var(--ok);
+  --tone-danger-strong: var(--bad);
+  --tone-warn-strong: var(--warn);
 
   --tone-info: var(--info);
   --tone-info-bg: var(--info-soft);

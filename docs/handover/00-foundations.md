@@ -590,7 +590,7 @@ Implementation:
 | `app/layout.tsx` | Reads the profile: `session?.user?.workspaceProfile`, else the host's company (`resolveWorkspaceIdentityForHost` gains `workspaceProfile` from `Company.workspaceProfile`). Renders `<html lang="en-GB" data-product={product} data-theme={lightTheme}>` and, in `<head>`, the inline appearance script (5.1.4). `viewport.themeColor` becomes `#faf7f4` for retail, `#f6f7f9` otherwise. |
 | `lib/platform/workspace-identity.ts` | `WorkspaceIdentity.workspaceProfile: string \| null`. |
 | `app/globals.css` | The hoisted Google Fonts import becomes `family=Atkinson+Hyperlegible+Next:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap` (Atkinson Hyperlegible Mono is dropped). The `@theme inline` block gains colour utilities for every role (`--color-ground: var(--ground)`, `--color-tray`, `--color-line`, `--color-line-soft`, `--color-line-strong`, `--color-ink-2`, `--color-ink-3`, `--color-faint`, `--color-action`, `--color-action-fill`, `--color-sel-fill`, `--color-on-sel`, `--color-sel-bg`, `--color-ok`, `--color-ok-soft`, `--color-info`, `--color-info-soft`, `--color-warn`, `--color-warn-soft`, `--color-bad`, `--color-bad-soft`, `--color-data`), and `--font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace`. |
-| `lib/platform/branding.ts` `getBrandingCssVariables` | Stops emitting colour variables on `<body>`. A tenant's colour no longer re-tints the interface (the product theme does); the logo still shows in the logo tile and on documents. |
+| `lib/platform/branding.ts` `getBrandingCssVariables` | Deleted, with its inline style on `<body>`. A tenant's colour and typeface no longer reach the interface (the product theme and the type pair of 5.1.5 do); the logo still shows in the logo tile, and colours and typeface still paint documents. |
 | `app/themes/corelith-bridge.css` | `--chrome-edge: var(--line)`; `--table-header-bg: var(--ground)`; `--table-divider: var(--line-soft)`; `--sidebar-panel-w: 240px`; `--sidebar: var(--ground)`; the three literal badge inks become `var(--ok)`, `var(--warn)`, `var(--bad)`. Nothing else: it already derives every legacy name from package tokens, which now derive from roles. |
 
 #### 5.1.2 The roles and their values
@@ -668,12 +668,22 @@ In `app/themes/roles.css`, one block `:root[data-theme] { … }`:
 | `--brand-strong` | `var(--action-ink)` |
 | `--brand-deeper` | `var(--action-fill)` |
 | `--brand-soft`, `--brand-50`, `--brand-tint` | `var(--sel-bg)` (selection is never orange) |
-| `--brand-100`, `--brand-200` | `var(--sel-line)` |
+| `--brand-100`, `--brand-200`, `--brand-300` | `var(--sel-line)` |
+| `--brand-500` | `var(--action)` |
+| `--brand-700`, `--brand-900` | `var(--action-ink)` |
+| `--clay-strong` / `--clay-soft`, `--clay-tint` | `var(--action-ink)` / `var(--sel-bg)` |
+| `--gray-50` / `-100` / `-200` / `-300` / `-400` / `-500` | `var(--ground)` / `var(--tray)` / `var(--line)` / `var(--line-strong)` / `var(--faint)` / `var(--ink-3)` |
+| `--gray-600` | `color-mix(in oklab, var(--ink-3) 50%, var(--ink-2))` |
+| `--gray-700` | `var(--ink-2)` |
+| `--gray-800` | `color-mix(in oklab, var(--ink-2) 50%, var(--ink))` |
+| `--gray-900`, `--gray-950` | `var(--ink)` (so the bridge's `--neutral-*` and the 700–900 status rungs follow the product) |
 | `--action-primary-bg` | `var(--action-fill)` |
 | `--action-primary-hover`, `--action-primary-pressed` | `color-mix(in oklab, var(--action-fill) 88%, #000)` |
 | `--action-primary-fg` | `var(--on-action)` |
 | `--action-secondary-bg` / `-bg-h` / `-fg` | `var(--surface)` / `var(--hover)` / `var(--ink)` |
-| `--action-destructive-bg` / `-hover` / `-fg` | `var(--bad)` / `color-mix(in oklab, var(--bad) 88%, #000)` / `#ffffff` |
+| `--action-destructive-bg` / `-hover` / `-fg` | `var(--bad)` / `color-mix(in oklab, var(--bad) 88%, #000)` / `var(--on-sel)` (white on the light themes, dark ink on Tender dark's lifted `--bad`) |
+| `--action-destructive-soft-bg` / `-soft-hover` | `var(--ink-2)` / `var(--ink)` (a filled grey with `--canvas` text) |
+| `--tone-success-strong` / `--tone-danger-strong` / `--tone-warn-strong` | `var(--ok)` / `var(--bad)` / `var(--warn)` |
 | `--tone-info` / `-bg` / `-bd` | `var(--info)` / `var(--info-soft)` / `color-mix(in oklab, var(--info) 25%, var(--surface))` |
 | `--tone-success` / `-bg` / `-bd` | `var(--ok)` / `var(--ok-soft)` / `color-mix(in oklab, var(--ok) 25%, var(--surface))` |
 | `--tone-warn` / `-bg` / `-bd` | `var(--warn)` / `var(--warn-soft)` / `var(--warn-line)` |
@@ -2083,7 +2093,7 @@ No redirects from old paths, no compatibility layers. Each removal lands in the 
 | `app/retail/purchasing/page.tsx`, `app/retail/insights/page.tsx`, `app/retail/setup/page.tsx`, `app/retail/setup/branding/page.tsx` (redirect-only pages) | module marks link to the first item directly | FND-03 |
 | `app/retail/setup/{operations,pos-policy,fiscal,accounting,bin}` and their entries in `lib/settings/management-nav.ts` (the retail half of the full-screen Settings dialog) | `app/retail/manage/{tills,till-rules,fiscal,posting,bin}` inside the shell (moved as they are; their area units rebuild them on the frames) | FND-03 |
 | Old prefixes in `lib/platform/gating/route-registry.ts` (`/retail/catalog`, `/retail/setup/bin`, `/retail/purchasing`, `/retail/merchandising`, `/retail/setup/fiscal`) and old hrefs in `lib/primary-actions.ts` | 5.3.4 prefixes | FND-03 |
-| Colour output of `getBrandingCssVariables` (`lib/platform/branding.ts`) | the product theme | FND-01 |
+| `getBrandingCssVariables` (`lib/platform/branding.ts`) and the inline style it wrote on `<body>` | the product theme and the type pair | FND-01 |
 | The Atkinson Hyperlegible Mono font import in `app/globals.css` | IBM Plex Mono | FND-01 |
 | The light-only restriction in `components/providers/appearance-provider.tsx` | 5.1.4 | FND-01 |
 | `app/retail/shifts/page.tsx` as it is (two-line register, client-side search, `RecordListShell`) and the `GET` handler of `app/api/v2/retail/shifts/route.ts` (its only caller) | `<ListFrame source="retail-shifts" />` and `GET /api/v2/reports/retail-shifts` | FND-05 |
