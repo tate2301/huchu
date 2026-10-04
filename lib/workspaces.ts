@@ -638,15 +638,18 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
       {
         id: "retail-control",
         title: "Insights",
-        // The seven questions an owner asks of the shop, one page each, then
-        // the reports: the worksheets behind them, filtered and exported.
-        refs: [
-          ...["sales", "profit", "products", "stock", "losses", "customers", "money"].map((topic) => ({
-            moduleId: "retail" as const,
-            href: `/retail/insights/${topic}`,
-          })),
-          { moduleId: "reporting" as const, href: "/reports" },
-        ],
+        // The seven questions an owner asks of the shop, one page each.
+        refs: ["sales", "profit", "products", "stock", "losses", "customers", "money"].map((topic) => ({
+          moduleId: "retail" as const,
+          href: `/retail/insights/${topic}`,
+        })),
+      },
+      {
+        // Reports are their own place: every template, built in or saved by the
+        // team, by area. Insights answers questions; this is where rows are read.
+        id: "retail-reports",
+        title: "Reports",
+        refs: [{ moduleId: "reporting", href: "/reports" }],
       },
     ],
   },

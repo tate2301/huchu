@@ -8,6 +8,7 @@ const PROFILES = ["RETAIL"];
 const sales: ReportDefinition = {
   key: "retail-sales",
   title: "Sales",
+  summary: "Every sale, refund and void, by day, shop and cashier",
   area: "Selling",
   href: "/retail/sales",
   profiles: PROFILES,
@@ -40,6 +41,7 @@ const sales: ReportDefinition = {
 const itemsSold: ReportDefinition = {
   key: "retail-items-sold",
   title: "Items sold",
+  summary: "Each line sold: quantity, price, revenue and margin",
   area: "Selling",
   href: "/retail/sales",
   profiles: PROFILES,
@@ -68,6 +70,7 @@ const itemsSold: ReportDefinition = {
 const stock: ReportDefinition = {
   key: "retail-stock",
   title: "Stock on hand",
+  summary: "What is on the shelf at cost and at price, by shop",
   area: "Stock",
   href: "/retail/stock",
   profiles: PROFILES,
@@ -89,7 +92,8 @@ const stock: ReportDefinition = {
 const tills: ReportDefinition = {
   key: "retail-shifts",
   title: "Till shifts",
-  area: "Selling",
+  summary: "Each shift: float, takings, counted, short or over",
+  area: "The floor",
   href: "/retail/shifts",
   profiles: PROFILES,
   params: periodParams(14, "Opened"),

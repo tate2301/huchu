@@ -141,6 +141,8 @@ export type ReportDefinition = ReportMeta & {
   roles?: string[];
   /** Workspace profiles this report is at the front of the catalogue for. */
   profiles: string[];
+  /** One line on what it shows, under its name in the catalogue. */
+  summary?: string;
 };
 
 /** How a report's rows are fetched. Server-only: it queries the database. */

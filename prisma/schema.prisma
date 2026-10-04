@@ -124,6 +124,7 @@ model Company {
   accountingSeedExecutions      AccountingSeedExecution[]
   documentTemplates             DocumentTemplate[]
   reportSettings                ReportSetting[]
+  reportTemplates               ReportTemplate[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
   idSequences                   IdSequence[]
@@ -1373,6 +1374,7 @@ model User {
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
   sessionHandoffs                   SessionHandoff[]
+  reportTemplates                   ReportTemplate[]
 
   @@index([companyId])
   @@index([email])
@@ -6715,6 +6717,43 @@ model ReportSetting {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, reportKey])
+}
+
+/// A report saved under a name: one of the code's reports, with the columns,
+/// filters, sort, grouping and totals somebody chose, and who else sees it.
+/// It lists under its report's area, beside the built-in one, and opens that
+/// report with this view. The rows are still the report's, read under the
+/// reader's own role, so sharing a template never shares what a role may not see.
+model ReportTemplate {
+  id          String                 @id @default(uuid())
+  companyId   String
+  /// The report it reads, e.g. `retail-sales`. Not a foreign key: reports are
+  /// code, and a template on a report a release removes is simply not listed.
+  reportKey   String
+  name        String
+  description String?
+  /// A `ReportView` (`lib/reports/types.ts`).
+  view        Json
+  /// The report's choices it keeps, and its dates when they were kept. Dates
+  /// left out move with today: the report's own period applies.
+  params      Json                   @default("{}")
+  audience    ReportTemplateAudience @default(JUST_ME)
+  createdById String
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, reportKey])
+  @@index([companyId, createdById])
+}
+
+/// Who sees a report template besides whoever made it.
+enum ReportTemplateAudience {
+  JUST_ME
+  MANAGERS
+  EVERYONE
 }
 
 model DocumentTemplate {

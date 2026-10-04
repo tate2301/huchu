@@ -8,6 +8,7 @@ import {
   Coins,
   Drop,
   Factory,
+  FileText,
   Flag,
   Funnel,
   IdentificationCard,
@@ -82,6 +83,7 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   stock: Package,
   "retail-buy": TrayArrowDown,
   "retail-control": ChartLineUp,
+  "retail-reports": FileText,
   pos: CashRegister,
   // CRM
   pipeline: Funnel,
@@ -143,6 +145,7 @@ const AREA_LABELS: Record<string, string> = {
   stock: "Stock",
   "retail-buy": "Buying",
   "retail-control": "Insights",
+  "retail-reports": "Reports",
   // Not "Money": the Finance area beside it is money too, and two areas that
   // both sound like money is a coin toss. Quotes, invoices, receipts and
   // collections are what the business bills.

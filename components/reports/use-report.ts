@@ -5,11 +5,14 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
+import type { ReportTemplateRecord } from "@/lib/reports/template-access";
 import type { ReportMeta, ReportParams, ReportRow, ReportView } from "@/lib/reports/types";
 import { decodeView, defaultView, encodeView, fitView } from "@/lib/reports/view";
 
 export type ReportResponse = {
   report: ReportMeta;
+  /** The template it was opened as, when it was. */
+  template: ReportTemplateRecord | null;
   params: ReportParams;
   rows: ReportRow[];
   truncated: boolean;
@@ -90,6 +93,7 @@ export function useReport(key: string) {
   return {
     query,
     meta,
+    template: query.data?.template ?? null,
     view,
     /** The params the server actually used, defaults filled in. */
     params: query.data?.params ?? given,

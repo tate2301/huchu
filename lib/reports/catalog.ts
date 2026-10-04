@@ -12,7 +12,7 @@ import type { ReportMeta, ReportDefinition, SavedReportSetup } from "@/lib/repor
  * added a module still finds its reports, just after the ones it is about.
  */
 
-export type CatalogEntry = Pick<ReportMeta, "key" | "title" | "area">;
+export type CatalogEntry = Pick<ReportMeta, "key" | "title" | "area"> & { summary: string | null };
 
 export type CatalogArea = {
   area: string;
@@ -37,7 +37,7 @@ export function reportCatalog(
       areas.set(source.area, entry);
     }
     entry.ours ||= forProfile(source);
-    entry.reports.push({ key: source.key, title: source.title, area: source.area });
+    entry.reports.push({ key: source.key, title: source.title, area: source.area, summary: source.summary ?? null });
   }
 
   // Stable: within each half, areas keep the order the registry declares them in.

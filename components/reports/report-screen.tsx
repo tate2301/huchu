@@ -30,6 +30,7 @@ import {
   type ExportTemplateId,
 } from "@/lib/reports/export-layouts";
 import { formatTotal } from "@/lib/reports/format";
+import type { TemplateAudience } from "@/lib/reports/template-access";
 import type { ReportColumnKind, ReportParam, ReportRow, ReportView } from "@/lib/reports/types";
 import { aggregate, applyView } from "@/lib/reports/view";
 
@@ -39,6 +40,7 @@ import { ReportFilters } from "./report-filters";
 import { ReportRowActions } from "./report-row-actions";
 import { ReportRowList } from "./report-row-list";
 import { ReportTable } from "./report-table";
+import { TemplateSheet } from "./template-sheet";
 import { useReport } from "./use-report";
 
 /**
@@ -48,9 +50,19 @@ import { useReport } from "./use-report";
  * (the dates and choices, which fetch again) and how to look at them (search,
  * filters, grouping and columns, which do not). Export sits with the page's
  * title and writes exactly what the table shows — or just the selected rows.
+ *
+ * Opened as a template, it starts from the template's view and dates, says
+ * whose it is, and can be saved back over it; any report, template or not, can
+ * be saved as a new template.
  */
 
 const NO_GROUP = "__none__";
+
+const SEEN_BY: Record<TemplateAudience, string> = {
+  JUST_ME: "only its maker sees it",
+  MANAGERS: "managers see it",
+  EVERYONE: "everyone sees it",
+};
 
 /** Kinds that repeat across rows. A reference or a phone number is one group per row. */
 const GROUPABLE: ReadonlySet<ReportColumnKind> = new Set(["text", "status", "relation", "date"]);
@@ -174,8 +186,9 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
   const { toast } = useToast();
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const { query, meta, view, params, setView, resetView, setParams, customised } = useReport(reportKey);
+  const { query, meta, template, view, params, setView, resetView, setParams, customised } = useReport(reportKey);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [sheet, setSheet] = useState<"save" | "edit" | null>(null);
   const [exporting, setExporting] = useState(false);
   const isPhone = useIsMobile();
 
@@ -232,10 +245,31 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
     }
   };
 
+  /** The view on screen becomes the template's own. */
+  const saveTemplateView = async () => {
+    if (!template || !view) return;
+    try {
+      await fetchJson(`/api/v2/reports/templates/${template.id}`, { method: "PATCH", body: JSON.stringify({ view }) });
+      toast({ title: `${template.name} saved`, variant: "success" });
+      resetView();
+      refresh();
+    } catch (error) {
+      toast({ title: "Not saved", description: getApiErrorMessage(error), variant: "destructive" });
+    }
+  };
+
   const chrome = (
-    <PageChrome title={meta?.title ?? "Report"} backHref="/reports" backLabel="Reports">
+    <PageChrome title={template?.name ?? meta?.title ?? "Report"} backHref="/reports" backLabel="Reports">
       {meta && applied ? (
         <>
+          {template?.canChange && customised ? (
+            <Button variant="secondary" size="sm" onClick={() => void saveTemplateView()}>
+              Save
+            </Button>
+          ) : null}
+          <Button variant="secondary" size="sm" onClick={() => setSheet("save")}>
+            Save as a template
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" disabled={exporting}>
@@ -248,7 +282,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
               <ExportChoices onChoose={(format, template) => void runExport(format, false, template)} />
             </DropdownMenuContent>
           </DropdownMenu>
-          {customised || manager ? (
+          {customised || manager || template?.canChange ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label="More">
@@ -256,8 +290,11 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {template?.canChange ? (
+                  <DropdownMenuItem onSelect={() => setSheet("edit")}>Change the template</DropdownMenuItem>
+                ) : null}
                 {customised ? <DropdownMenuItem onSelect={resetView}>Reset the view</DropdownMenuItem> : null}
-                {manager ? (
+                {manager && !template ? (
                   <>
                     {customised ? <DropdownMenuSeparator /> : null}
                     <DropdownMenuItem asChild>
@@ -347,6 +384,13 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
       {chrome}
 
       <div className="grid gap-3">
+        {template ? (
+          <p className="text-[13px] text-[var(--text-muted)]">
+            {template.mine ? "Your template" : `${template.madeBy}’s template`} on {template.reportTitle} ·{" "}
+            {SEEN_BY[template.audience]}
+            {template.description ? <> · {template.description}</> : null}
+          </p>
+        ) : null}
         <ParamControls params={meta.params} values={params} onChange={setParams} />
 
         <div className="flex flex-wrap items-center gap-2">
@@ -431,6 +475,13 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
             </DropdownMenuContent>
           </DropdownMenu>
         </DataTableFloatingActions>
+      ) : null}
+
+      {sheet === "save" ? (
+        <TemplateSheet mode={{ kind: "save", meta, view, params }} open onOpenChange={(open) => setSheet(open ? "save" : null)} />
+      ) : null}
+      {sheet === "edit" && template ? (
+        <TemplateSheet mode={{ kind: "edit", template }} open onOpenChange={(open) => setSheet(open ? "edit" : null)} />
       ) : null}
     </>
   );

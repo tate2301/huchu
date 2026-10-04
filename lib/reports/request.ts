@@ -60,6 +60,6 @@ export async function fetchReport(
 /** The params a request carries: everything in its query string but the view. */
 export function paramsFromSearch(search: URLSearchParams): ReportParams {
   const params: ReportParams = {};
-  for (const [key, value] of search) if (key !== "v" && key !== "preview") params[key] = value;
+  for (const [key, value] of search) if (key !== "v" && key !== "preview" && key !== "template") params[key] = value;
   return params;
 }

@@ -70,6 +70,7 @@ const sectionVariantIcons: Record<string, LucideIcon> = {
   "retail-range": MedusaGridListIcon,
   "retail-buy": LocalShipping,
   "retail-control": Scale,
+  "retail-reports": MedusaChartBarIcon,
   "accounting-overview": Scale,
   "accounting-receivables": ReceiptLong,
   "accounting-payables": Package,
