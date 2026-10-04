@@ -25,7 +25,7 @@ import {
   type AutomationCondition,
   type AUTOMATION_TRIGGERS,
 } from "@/lib/crm/automation";
-import { DotsThree, Plus } from "@/lib/icons";
+import { DotsThree, History, Plus } from "@/lib/icons";
 
 type WorkflowRow = {
   id: string;
@@ -103,6 +103,14 @@ export function WorkflowsContent() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageChrome title="Workflows">
+        {/* What the rules did lives one step under the rules, not as a row of
+            its own in the sidebar: this page is its index. */}
+        <Button type="button" variant="secondary" asChild>
+          <Link href="/crm/workflows/runs">
+            <History className="mr-1.5 size-4" aria-hidden="true" />
+            Activity
+          </Link>
+        </Button>
         <Button type="button" asChild>
           <Link href="/crm/workflows/new">
             <Plus className="mr-1.5 size-4" aria-hidden="true" />

@@ -1,6 +1,7 @@
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 
 import {
+  areaRows,
   areasFromSections,
   splitLooseAreas,
   type RailArea,
@@ -64,12 +65,13 @@ export type RailModel = {
   /** Destinations that were an area of one: rows in the map, never marks. */
   loose: NavItem[];
   /**
-   * Areas whose own panel would still overflow, with the rows they hold.
+   * Areas whose panel would still overflow at some level — the area's own rows
+   * and folder rows together, or one folder's destinations.
    *
-   * Only a tenant running every module at once reaches this today, and what it
-   * needs is the third level the design puts on the page: the area's own
-   * groups, drawn as rows, with the destinations under them. Reported rather
-   * than clipped so it cannot be mistaken for a rail that fits.
+   * An area read whole carries its groups as folders, which is the third level
+   * the design puts on the page, so a module of twenty-odd destinations is a
+   * panel of seven rows. Reported rather than clipped so a list that grows
+   * past it cannot be mistaken for a rail that fits.
    */
   overflowing: RailArea[];
 };
@@ -121,7 +123,11 @@ export function getRailModel(sections: WorkspaceNavSection[]): RailModel {
     cost,
     budget,
     loose,
-    overflowing: areas.filter((area) => area.items.length > panelRows),
+    overflowing: areas.filter(
+      (area) =>
+        areaRows(area).length + (area.folders?.length ?? 0) > panelRows ||
+        (area.folders ?? []).some((folder) => folder.items.length > panelRows),
+    ),
     pinCapacity: pinCapacityFor(areas.length, shape),
   };
 }

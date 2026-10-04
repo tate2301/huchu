@@ -52,7 +52,7 @@ export function WorkflowRunsContent() {
 
   return (
     <div className="space-y-5">
-      <PageChrome title="Workflow activity" />
+      <PageChrome title="Workflow activity" backHref="/crm/workflows" backLabel="Workflows" />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* Six range labels run past 400px together; the control scrolls
