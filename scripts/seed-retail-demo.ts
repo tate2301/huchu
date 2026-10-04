@@ -43,7 +43,8 @@ import "dotenv/config"
 
 import { randomUUID } from "node:crypto"
 import { Prisma, WorkspaceProfile, type RetailTenderType } from "@prisma/client"
-import { money, multiplyMoney, rate, sumMoney } from "@/lib/money"
+import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
+import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
 import { ensureRetailCategories } from "@/lib/retail/categories"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
@@ -840,6 +841,8 @@ async function main() {
     })
   }
 
+  await seedStockLedger(companyId, site.id)
+
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
     `\n  ${refunds} refund(s), ${voids} void(s) flagged, ${zwgSales} sale(s) settled in ZWG` +
@@ -847,6 +850,209 @@ async function main() {
       `\n  one shift left OPEN so the till is live` +
       `\n\nSign in as any of:\n${STAFF.map((s) => `  ${s.role.padEnd(12)} ${s.email}`).join("\n")}` +
       `\n  password: ${STAFF_PASSWORD}`,
+  )
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Where the spirits stand at the main branch: the phone count walks the shelves in this order. */
+const SHELVES: Array<[namePrefix: string, shelf: string]> = [
+  ["Jameson", "Shelf 2, top"],
+  ["Johnnie Walker", "Shelf 2, top"],
+  ["Gordon", "Shelf 2, middle"],
+  ["Amarula", "Shelf 3"],
+  ["Two Keys", "Shelf 3"],
+  ["Bols Brandy", "Shelf 3"],
+  ["Hennessy", "Shelf 3"],
+]
+
+type LedgerRow = {
+  id: string
+  createdAt: Date
+  change: Prisma.Decimal
+  balanceAfter: Prisma.Decimal | null
+  create?: Omit<Prisma.StockMovementCreateManyInput, "balanceAfter" | "referenceId">
+}
+
+/**
+ * STK-01. Every stock line gets a ledger that tells its story.
+ *
+ * An `OPENING` movement 31 days ago, then a movement for every sale, refund
+ * and void of the last 30 days (by the cashier, at the sale's time, under the
+ * sale's number), then whatever the shop's own documents posted — and
+ * `balanceAfter` follows them in (createdAt, id) order, so the newest movement
+ * on each line holds its on hand.
+ *
+ * The opening is what makes it land: it is the line's on hand less everything
+ * that moved since. The seed owns the opening and the sales' movements and
+ * rebuilds them on every run (the history above is regenerated, and `--reset`
+ * deletes sales); movements the shop posted itself (deliveries, case breaks,
+ * corrections) are kept, and only their balances are rewritten.
+ */
+async function seedStockLedger(companyId: string, mainSiteId: string) {
+  const now = Date.now()
+  const since = new Date(now - 30 * DAY_MS)
+  const lines = await prisma.inventoryItem.findMany({
+    where: { site: { companyId } },
+    select: { id: true, unit: true, currentStock: true, name: true },
+  })
+  const lineIds = lines.map((line) => line.id)
+  const unitOf = new Map(lines.map((line) => [line.id, line.unit]))
+
+  await prisma.stockMovement.deleteMany({
+    where: { itemId: { in: lineIds }, reason: { in: ["OPENING", "SALE", "REFUND", "VOID"] } },
+  })
+
+  // A sale voided at the till has a VOID document putting its stock back. The
+  // history above marks a void on the sale alone, which never moved stock.
+  const sales = await prisma.retailSale.findMany({
+    where: {
+      companyId,
+      postedAt: { gte: since },
+      OR: [{ status: "POSTED" }, { status: "VOIDED", reversals: { some: { saleType: "VOID" } } }],
+    },
+    select: {
+      id: true,
+      saleNo: true,
+      saleType: true,
+      postedAt: true,
+      cashierId: true,
+      lines: { select: { inventoryItemId: true, quantity: true } },
+    },
+  })
+
+  const byLine = new Map<string, LedgerRow[]>(lineIds.map((id) => [id, []]))
+  for (const sale of sales) {
+    const kind =
+      sale.saleType === "SALE"
+        ? ({ reason: "SALE", movementType: "ISSUE", sourceType: "RETAIL_SALE", sign: -1, words: "Retail sale" } as const)
+        : sale.saleType === "REFUND"
+          ? ({ reason: "REFUND", movementType: "RECEIPT", sourceType: "RETAIL_REFUND", sign: 1, words: "Retail refund" } as const)
+          : ({ reason: "VOID", movementType: "RECEIPT", sourceType: "RETAIL_VOID", sign: 1, words: "Retail sale void" } as const)
+    for (const line of sale.lines) {
+      const rows = byLine.get(line.inventoryItemId)
+      const unit = unitOf.get(line.inventoryItemId)
+      if (!rows || !unit) continue
+      const units = quantity(line.quantity).abs()
+      rows.push({
+        id: randomUUID(),
+        createdAt: sale.postedAt!,
+        change: kind.sign < 0 ? units.negated() : units,
+        balanceAfter: null,
+        create: {
+          itemId: line.inventoryItemId,
+          movementType: kind.movementType,
+          quantity: units,
+          unit,
+          issuedById: sale.cashierId,
+          notes: `${kind.words} ${sale.saleNo}`,
+          sourceType: kind.sourceType,
+          sourceId: `${sale.id}:${line.inventoryItemId}`,
+          reason: kind.reason,
+          reference: sale.saleNo,
+          change: kind.sign < 0 ? units.negated() : units,
+          createdAt: sale.postedAt!,
+        },
+      })
+    }
+  }
+
+  const kept = await prisma.stockMovement.findMany({
+    where: { itemId: { in: lineIds } },
+    select: { id: true, itemId: true, createdAt: true, change: true, balanceAfter: true },
+  })
+  for (const movement of kept) byLine.get(movement.itemId)!.push({ ...movement })
+
+  const created: Prisma.StockMovementCreateManyInput[] = []
+  const rebalanced: Array<{ id: string; balanceAfter: Prisma.Decimal }> = []
+  const restated: string[] = []
+  for (const line of lines) {
+    const rows = byLine.get(line.id)!
+    rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+
+    // The opening is what was on the shelf before all of this; never so little
+    // that the line would have sold stock it did not have.
+    const moved = rows.reduce((sum, row) => sum.plus(row.change), ZERO)
+    let opening = quantity(line.currentStock).minus(moved)
+    let running = ZERO
+    let lowest = ZERO
+    for (const row of rows) {
+      running = running.plus(row.change)
+      if (running.lessThan(lowest)) lowest = running
+    }
+    if (opening.plus(lowest).lessThan(ZERO)) opening = lowest.negated()
+    if (opening.isZero() && rows.length === 0) continue
+
+    const firstAt = rows[0]?.createdAt.getTime() ?? now
+    const openingAt = new Date(Math.min(now - 31 * DAY_MS, firstAt - 60 * 1000))
+    if (!opening.isZero()) {
+      rows.unshift({
+        id: randomUUID(),
+        createdAt: openingAt,
+        change: opening,
+        balanceAfter: null,
+        create: {
+          itemId: line.id,
+          movementType: "RECEIPT",
+          quantity: opening,
+          unit: line.unit,
+          notes: "Opening stock",
+          reason: "OPENING",
+          reference: "Opening",
+          change: opening,
+          createdAt: openingAt,
+        },
+      })
+    }
+
+    let balance = ZERO
+    for (const row of rows) {
+      balance = balance.plus(row.change)
+      if (row.create) {
+        created.push({ ...row.create, id: row.id, referenceId: "", balanceAfter: balance })
+      } else if (!row.balanceAfter || !row.balanceAfter.equals(balance)) {
+        rebalanced.push({ id: row.id, balanceAfter: balance })
+      }
+    }
+    if (!balance.equals(line.currentStock)) {
+      await prisma.inventoryItem.update({ where: { id: line.id }, data: { currentStock: balance } })
+      restated.push(`${line.name} ${line.currentStock} → ${balance}`)
+    }
+  }
+
+  // One block of movement numbers from the global sequence, taken under its lock.
+  const firstNumber =
+    created.length === 0
+      ? 0
+      : await prisma.$transaction(async (tx) => {
+          const first = await reserveIdentifier(tx, { companyId, entity: "STOCK_MOVEMENT" })
+          await tx.globalIdSequence.update({
+            where: { entityKey_scopeKey: { entityKey: "STOCK_MOVEMENT", scopeKey: "GLOBAL" } },
+            data: { lastNumber: { increment: created.length - 1 } },
+          })
+          return Number(first.split("-").pop())
+        })
+  const prefix = ID_ENTITY_CONFIG.STOCK_MOVEMENT.prefix
+  created.forEach((row, index) => {
+    row.referenceId = `${prefix}-${String(firstNumber + index).padStart(4, "0")}`
+  })
+  for (let index = 0; index < created.length; index += 500) {
+    await prisma.stockMovement.createMany({ data: created.slice(index, index + 500) })
+  }
+  for (const row of rebalanced) {
+    await prisma.stockMovement.update({ where: { id: row.id }, data: { balanceAfter: row.balanceAfter } })
+  }
+
+  for (const [namePrefix, shelf] of SHELVES) {
+    await prisma.inventoryItem.updateMany({
+      where: { siteId: mainSiteId, name: { startsWith: namePrefix } },
+      data: { shelf },
+    })
+  }
+
+  console.log(
+    `  stock ledger: ${created.length} movement(s) written, ${rebalanced.length} rebalanced` +
+      (restated.length > 0 ? `; on hand follows the ledger for ${restated.join(", ")}` : ""),
   )
 }
 

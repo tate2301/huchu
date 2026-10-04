@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
+import { reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { money, multiplyMoney, quantity, toNumberOrZero, ZERO } from "@/lib/money";
+import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureInventoryItemAccess,
@@ -63,18 +65,27 @@ export async function POST(request: NextRequest) {
       return errorResponse("Counted stock matches current stock; no adjustment needed", 400);
     }
 
-    const { movement } = await recordStockMovement({
-      companyId: session.user.companyId,
-      userId: session.user.id,
-      itemId: item.id,
-      movementType: "ADJUSTMENT",
-      quantity: variance,
-      unit: item.unit,
-      unitCost: item.unitCost ?? 0,
-      notes: input.notes?.trim() || `Retail stock count adjustment for ${item.name}`,
-      sourceType: "RETAIL_STOCK_ADJUSTMENT",
-      sourceId: `stock-adjustment:${item.id}:${Date.now()}`,
-    });
+    // Setting on hand to a figure is "Fix a mistake", numbered as an adjustment.
+    const { movement } = await prisma.$transaction(async (tx) =>
+      recordStockMovement({
+        tx,
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        itemId: item.id,
+        movementType: "ADJUSTMENT",
+        quantity: variance,
+        unit: item.unit,
+        unitCost: item.unitCost ?? 0,
+        notes: input.notes?.trim() || `Retail stock count adjustment for ${item.name}`,
+        sourceType: "RETAIL_STOCK_ADJUSTMENT",
+        sourceId: `stock-adjustment:${item.id}:${Date.now()}`,
+        reason: "CORRECTION",
+        reference: await reserveIdentifier(tx, {
+          companyId: session.user.companyId,
+          entity: "RETAIL_STOCK_ADJUSTMENT",
+        }),
+      }),
+    );
 
     const adjustmentValue = multiplyMoney(variance.abs(), money(item.unitCost ?? 0).abs());
     const accounting =
@@ -86,7 +97,7 @@ export async function POST(request: NextRequest) {
             sourceSubtype: variance.isNegative() ? "LOSS" : "GAIN",
             siteId: site.id,
             entryDate: new Date(),
-            description: `Retail stock adjustment ${movement.referenceId}`,
+            description: `Retail stock adjustment ${movement.reference}`,
             createdById: session.user.id,
             actorRole: session.user.role,
             periodOverrideReason: input.periodOverrideReason ?? null,

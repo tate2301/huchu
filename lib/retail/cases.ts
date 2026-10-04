@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { reserveIdentifier } from "@/lib/id-generator";
 import { money, quantity, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
@@ -79,6 +80,8 @@ export async function breakCase(input: {
   const notes = `Opened ${input.cases} × ${pack.name} into ${singles} × ${pack.packOf.name}`;
 
   return prisma.$transaction(async (tx) => {
+    // Both legs carry one number, so the case and its singles read as one break.
+    const reference = await reserveIdentifier(tx, { companyId: input.companyId, entity: "RETAIL_CASE_BREAK" });
     const out = await recordStockMovement({
       tx,
       companyId: input.companyId,
@@ -90,6 +93,8 @@ export async function breakCase(input: {
       notes,
       sourceType: "RETAIL_STOCK_ADJUSTMENT",
       sourceId: input.caseProductId,
+      reason: "CASE_BROKEN",
+      reference,
     });
     const into = await recordStockMovement({
       tx,
@@ -103,6 +108,8 @@ export async function breakCase(input: {
       notes,
       sourceType: "RETAIL_STOCK_ADJUSTMENT",
       sourceId: input.caseProductId,
+      reason: "CASE_BROKEN",
+      reference,
     });
     return {
       cases: input.cases,

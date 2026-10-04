@@ -261,6 +261,8 @@ export async function POST(request: NextRequest) {
               toLocationId: line.location.id,
               notes: `Retail receipt ${created.receiptNo}`,
               sourceType: "RETAIL_GOODS_RECEIPT",
+              reason: "RECEIVED",
+              reference: created.receiptNo,
               sourceId: `${created.id}:${line.inventoryItem.id}`,
               entryDate: created.postedAt ?? new Date(),
               tx,

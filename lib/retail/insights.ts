@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { shopClock } from "@/lib/retail/shop-profile-rules";
+import { COVER_AIM, daysOfCover } from "@/lib/retail/stock/levels";
 import {
   missedSales,
   outSince,
@@ -700,14 +701,6 @@ async function productsInsight(companyId: string, days: number): Promise<Insight
     ],
   };
 }
-
-/** How many days the stock lasts at the period's rate of sale. Null when nothing sold. */
-export function daysOfCover(onHand: number, soldInPeriod: number, days: number) {
-  if (soldInPeriod <= 0) return null;
-  return onHand / (soldInPeriod / days);
-}
-
-const COVER_AIM = 14;
 
 /** How far back the stock movements are walked to find when a shelf ran empty. */
 const STOCKOUT_REACH_DAYS = 365;

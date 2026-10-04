@@ -29,6 +29,8 @@ export type ReservableIdEntity =
   | "RETAIL_HELD_CART"
   | "RETAIL_SALE"
   | "RETAIL_PROMOTION"
+  | "RETAIL_STOCK_ADJUSTMENT"
+  | "RETAIL_CASE_BREAK"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -83,6 +85,11 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
   RETAIL_SALE: { prefix: "RSL", requiresSiteId: true },
   RETAIL_PROMOTION: { prefix: "RPM", requiresSiteId: false },
+  // A stock adjustment and a case break are documents only in name: the number
+  // lives on their movements (`StockMovement.reference`), shared by both legs
+  // of a case break.
+  RETAIL_STOCK_ADJUSTMENT: { prefix: "ADJ", requiresSiteId: false },
+  RETAIL_CASE_BREAK: { prefix: "BRK", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -407,6 +414,14 @@ async function findEntityMaxExistingCode(
         select: { promoCode: true },
       });
       return extractMaxFromCodes(records.map((record) => record.promoCode), prefix);
+    }
+    case "RETAIL_STOCK_ADJUSTMENT":
+    case "RETAIL_CASE_BREAK": {
+      const records = await db.stockMovement.findMany({
+        where: { item: { site: { companyId } }, reference: { startsWith: `${prefix}-` } },
+        select: { reference: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.reference), prefix);
     }
     // CRM entities seed from existing rows so a lost IdSequence row cannot
     // restart the counter at 0001 and collide with the unique constraint.

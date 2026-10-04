@@ -92,9 +92,15 @@ describe("opening a case into singles", () => {
     expect(await open(1)).toEqual({ cases: 1, singles: 24, caseStock: 2, singleStock: 30 });
     const movements = await prisma.stockMovement.findMany({
       where: { itemId: { in: [singleLineId, caseLineId] } },
-      select: { itemId: true, movementType: true, quantity: true, notes: true },
+      select: { itemId: true, movementType: true, quantity: true, notes: true, reason: true, reference: true, change: true },
     });
     expect(movements).toHaveLength(2);
+    // Both legs say why, and share one number: the first break in this shop.
+    expect(movements.map((row) => [row.reason, row.reference])).toEqual([
+      ["CASE_BROKEN", "BRK-0001"],
+      ["CASE_BROKEN", "BRK-0001"],
+    ]);
+    expect(movements.find((row) => row.itemId === caseLineId)?.change.toNumber()).toBe(-1);
     expect(movements.find((row) => row.itemId === caseLineId)).toMatchObject({ movementType: "ISSUE" });
     const into = movements.find((row) => row.itemId === singleLineId);
     expect(into?.movementType).toBe("RECEIPT");

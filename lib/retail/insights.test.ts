@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { daysOfCover, insightWindow, profitOf, relativeChange, salesTotals } from "./insights";
+import { insightWindow, profitOf, relativeChange, salesTotals } from "./insights";
 
 const d = (value: number) => new Prisma.Decimal(value);
 const line = (quantity: number, lineTotal: number, taxAmount: number, costTotal: number) => ({
@@ -31,12 +31,6 @@ describe("the figures Insights is built from", () => {
     expect(profit.cost).toBeCloseTo(7.65, 10);
     expect(profit.profit).toBeCloseTo(1.74, 10);
     expect(profit.margin).toBeCloseTo(1.74 / 9.39, 10);
-  });
-
-  it("works out days of cover at the period's rate, and has none for what does not sell", () => {
-    // 30 sold in 30 days is one a day; 14 on hand lasts 14 days.
-    expect(daysOfCover(14, 30, 30)).toBe(14);
-    expect(daysOfCover(14, 0, 30)).toBeNull();
   });
 
   it("compares with the period before, and not with nothing", () => {

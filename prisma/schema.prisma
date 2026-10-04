@@ -3021,6 +3021,11 @@ enum NotificationType {
   SCHOOL_NOTICE_PARENTS
   SCHOOL_NOTICE_STUDENTS
   SCHOOL_NOTICE_TEACHERS
+  /// Retail stock: a count sent to its counter, a count sent for approval, a
+  /// transfer on its way to the receiving site.
+  RETAIL_COUNT_ASSIGNED
+  RETAIL_COUNT_SUBMITTED
+  RETAIL_TRANSFER_SENT
 }
 
 enum NotificationSeverity {
@@ -3050,6 +3055,8 @@ enum NotificationEntityType {
   CRM_DAILY_REPORT
   /// A lead, deal, company, person or site; which one is in the payload's view path.
   CRM_RECORD
+  RETAIL_STOCK_COUNT
+  RETAIL_STOCK_TRANSFER
 }
 
 enum HrIncidentCategory {
@@ -4180,6 +4187,12 @@ model InventoryItem {
   /// The catalogue item this stock is of. Optional: plenty of stock (fuel,
   /// consumables) is never sold and needs no catalogue entry at all.
   productId    String?
+  /// "Reorder": how many to order when it is low. Suggested orders start from
+  /// it. (`minStock` is "Reorder at".)
+  reorderQty   Decimal? @db.Decimal(12, 4)
+  /// Where on the shelf it lives ("Shelf 2, top"). The phone count sorts and
+  /// labels lines by it.
+  shelf        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4239,16 +4252,58 @@ model StockMovement {
   /// some callers key a line within a document (`<receiptId>:<itemId>`).
   sourceId   String?
 
+  /// Why stock moved, in the shop's words. Retail writes one on every
+  /// movement; the stores module writes null.
+  reason       StockMovementReason?
+  /// The document number a person reads: SALE-31862, GRN-0004, CNT-0019,
+  /// TRF-0007, BRK-0012, ADJ-0031. Shared by every movement of one document,
+  /// unlike `referenceId`, which is this row's own.
+  reference    String?
+  /// Signed effect on the line's on hand: +40 received, −1 sold, 0 for a move
+  /// between places.
+  change       Decimal  @default(0) @db.Decimal(12, 4)
+  /// The line's on hand straight after this movement, in (createdAt, id) order.
+  balanceAfter Decimal? @db.Decimal(12, 4)
+  /// On a reversal: the movement it puts back. Unique, so a movement is
+  /// reversed at most once.
+  reversesId   String?  @unique
+
   createdAt DateTime @default(now())
 
   item       InventoryItem  @relation(fields: [itemId], references: [id])
   toLocation StockLocation? @relation("StockMovementDestination", fields: [toLocationId], references: [id])
   issuedBy   User?          @relation(fields: [issuedById], references: [id])
+  reverses   StockMovement? @relation("StockMovementReversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversedBy StockMovement? @relation("StockMovementReversal")
 
   @@index([itemId])
+  @@index([itemId, createdAt])
   @@index([toLocationId])
   @@index([createdAt])
   @@index([sourceType, sourceId])
+}
+
+/// Why stock moved, in the shop's words. Retail writes one on every movement;
+/// the stores module passes null.
+enum StockMovementReason {
+  OPENING
+  SALE
+  REFUND
+  VOID
+  RECEIVED
+  DELIVERY_DIFFERENCE
+  SUPPLIER_RETURN
+  COUNT
+  BROKEN
+  OWN_USE
+  FOUND
+  CORRECTION
+  TRANSFER_OUT
+  TRANSFER_IN
+  TRANSFER_BACK
+  CASE_BROKEN
+  REVERSAL
+  PLACE_MOVE
 }
 
 /// Retail's status vocabularies.

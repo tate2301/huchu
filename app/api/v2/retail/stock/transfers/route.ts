@@ -63,6 +63,9 @@ export async function POST(request: NextRequest) {
       toLocationId: input.toLocationId,
       sourceType: "RETAIL_STOCK_TRANSFER",
       sourceId: `stock-transfer:${item.id}:${Date.now()}`,
+      // A move between places has no document a person reads.
+      reason: "PLACE_MOVE",
+      reference: null,
     });
 
     await captureAccountingEvent({
