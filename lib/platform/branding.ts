@@ -14,12 +14,6 @@ export type BrandingFontKey =
   | "source-sans-3"
   | "lato";
 
-type RGB = {
-  r: number;
-  g: number;
-  b: number;
-};
-
 export type BrandingFontOption = {
   key: BrandingFontKey;
   label: string;
@@ -42,15 +36,16 @@ export type BrandingFontOption = {
 };
 
 /**
- * The monospace face documents set figures in — the same one the app uses, so
- * a total on screen and the same total on paper are the same shape.
+ * The monospace face documents set figures in — the same one the app uses
+ * (IBM Plex Mono, 00-foundations 5.1.5), so a total on screen and the same
+ * total on paper are the same shape.
  */
 export const DOCUMENT_MONO_FONT_FAMILY =
-  '"Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 const GOOGLE_FONTS = "https://fonts.googleapis.com/css2";
 /** Loaded alongside every option, because `.mono` is used on every document. */
-const MONO_SPEC = "family=Atkinson+Hyperlegible+Mono:wght@400..700";
+const MONO_SPEC = "family=IBM+Plex+Mono:wght@400;500;600";
 
 function googleFontUrl(familySpec: string): string {
   return `${GOOGLE_FONTS}?family=${familySpec}&${MONO_SPEC}&display=swap`;
@@ -132,9 +127,10 @@ const DEFAULT_FONT_KEY: BrandingFontKey = "huchu";
 /**
  * The unbranded baseline. Colours mirror `@corelithzw/react`'s `--brand`,
  * `--brand-soft` and `--brand-tint` so the branding editor opens on the design
- * system rather than on a palette the product no longer uses. Nothing here
- * reaches the DOM while `brandingEnabled` is false — see
- * `getBrandingCssVariables` — these values only seed the editor's swatches.
+ * system rather than on a palette the product no longer uses. The colours
+ * never reach the interface — the product theme paints it (see
+ * `getBrandingCssVariables`) — they seed the editor's swatches, the workspace
+ * icon and documents.
  */
 const DEFAULT_BRANDING: EffectiveBranding = {
   companyId: null,
@@ -187,50 +183,6 @@ export function normalizeHexColor(value: string | null | undefined): string | nu
   if (!trimmed) return null;
   const normalized = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
   return /^#[0-9a-fA-F]{6}$/.test(normalized) ? normalized.toLowerCase() : null;
-}
-
-function parseHexColor(value: string): RGB | null {
-  const normalized = normalizeHexColor(value);
-  if (!normalized) {
-    return null;
-  }
-
-  return {
-    r: Number.parseInt(normalized.slice(1, 3), 16),
-    g: Number.parseInt(normalized.slice(3, 5), 16),
-    b: Number.parseInt(normalized.slice(5, 7), 16),
-  };
-}
-
-function toHexColor(rgb: RGB): string {
-  const toHex = (value: number) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0");
-  return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
-}
-
-function mixColors(from: string, to: string, ratio: number): string {
-  const a = parseHexColor(from);
-  const b = parseHexColor(to);
-  if (!a || !b) {
-    return from;
-  }
-
-  const clampedRatio = Math.max(0, Math.min(1, ratio));
-  return toHexColor({
-    r: a.r + (b.r - a.r) * clampedRatio,
-    g: a.g + (b.g - a.g) * clampedRatio,
-    b: a.b + (b.b - a.b) * clampedRatio,
-  });
-}
-
-function getContrastTextColor(background: string): string {
-  const rgb = parseHexColor(background);
-  if (!rgb) {
-    return "#ffffff";
-  }
-
-  const luminance =
-    (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
-  return luminance > 0.58 ? "#111827" : "#ffffff";
 }
 
 function toFontFamilyKey(value: string | null | undefined): BrandingFontKey {
@@ -387,69 +339,21 @@ export async function getEffectiveBrandingForHost(hostHeader: string | null | un
 /**
  * CSS custom properties for a tenant's branding, applied inline on `<body>`.
  *
- * An inline style outranks every stylesheet, so anything emitted here silently
- * overrides `@corelithzw/react`. Two rules keep that from re-opening the drift
- * this function used to cause:
+ * Only the typeface. A tenant's colours no longer re-tint the interface: the
+ * product theme does (`app/themes/roles.css`, chosen from the workspace's
+ * profile), and the tenant's mark stays in the logo tile and on documents.
+ * An inline style outranks every stylesheet, so a colour emitted here would
+ * silently override the theme.
  *
- *  1. Emit ONLY what the tenant actually chose. Surfaces, text, borders,
- *     statuses, charts and shadows are the design system's job — they used to
- *     be hardcoded warm-paper hexes here, which is why every page rendered off
- *     the token set regardless of what the stylesheets said.
- *  2. Re-tint through the design system's OWN token names (`--brand` and its
- *     scale), not just the app's aliases. That is what makes a tenant's colour
- *     reach components rendered by the package, which read `--brand`.
- *
- * With branding disabled the result is empty and the page renders as pure
- * design system.
+ * Empty with branding disabled, and on the default face: that option's family
+ * IS `var(--font-sans)`, and emitting it would define `--font-sans` in terms of
+ * itself — a reference cycle that leaves the element with no font-family.
  */
 export function getBrandingCssVariables(branding: EffectiveBranding): Record<string, string> {
-  if (!branding.brandingEnabled) {
+  if (!branding.brandingEnabled || branding.fontFamilyKey === DEFAULT_FONT_KEY) {
     return {};
   }
-
-  const { primary, secondary, accent } = branding.colors;
-
-  const strong = mixColors(primary, "#000000", 0.18);
-  const deeper = mixColors(primary, "#000000", 0.32);
-  const onPrimary = getContrastTextColor(primary);
-
-  return {
-    // Typeface. Skipped on the default key: that option's family IS
-    // `var(--font-sans)`, and emitting it here would define `--font-sans` in
-    // terms of itself — a reference cycle that leaves the element with no
-    // font-family at all. Omitting it lets the design system's face stand.
-    ...(branding.fontFamilyKey === DEFAULT_FONT_KEY
-      ? {}
-      : { "--font-sans": branding.fontFamily }),
-
-    // The design system's brand scale — one saturated colour, re-anchored on
-    // the tenant's. Everything downstream (actions, focus ring, info tone,
-    // links, selection wash, package components) derives from these.
-    "--brand": primary,
-    "--brand-strong": strong,
-    "--brand-deeper": deeper,
-    "--brand-soft": mixColors(primary, "#ffffff", 0.9),
-    "--brand-tint": mixColors(primary, "#ffffff", 0.94),
-    "--brand-50": mixColors(primary, "#ffffff", 0.94),
-    "--brand-100": mixColors(primary, "#ffffff", 0.86),
-    "--brand-200": mixColors(primary, "#ffffff", 0.7),
-    "--brand-300": mixColors(primary, "#ffffff", 0.48),
-    "--brand-500": primary,
-    "--brand-700": strong,
-    "--brand-900": mixColors(primary, "#000000", 0.55),
-
-    // `--action-primary-*` and `--focus-ring` already resolve through `--brand`
-    // in the package, so only the foreground needs stating: contrast against an
-    // arbitrary tenant colour cannot be derived in CSS.
-    "--action-primary-fg": onPrimary,
-
-    // Secondary and accent are separate tenant choices, not brand rungs.
-    "--action-secondary-bg": secondary,
-    "--action-secondary-bg-h": mixColors(secondary, "#000000", 0.06),
-    "--action-secondary-fg": getContrastTextColor(secondary),
-    "--accent": accent,
-    "--accent-foreground": getContrastTextColor(accent),
-  };
+  return { "--font-sans": branding.fontFamily };
 }
 
 export function getBrandingFeatureKeys() {

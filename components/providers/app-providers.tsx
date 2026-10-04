@@ -14,6 +14,7 @@ import { OfflineRuntime } from "@/components/offline/offline-runtime"
 import { AppearanceProvider } from "@/components/providers/appearance-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { isRefusal } from "@/lib/api-client"
+import type { Product } from "@/lib/theme/products"
 
 /** Kept query results live as long as the client keeps them in memory. */
 const PERSISTED_QUERY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
@@ -58,9 +59,12 @@ export function AppProviders({
    * would put the provider back in its fetch-on-mount behaviour.
    */
   session,
+  /** The workspace's product, from the root layout: it decides the themes. */
+  product,
 }: {
   children: React.ReactNode
   session?: Session | null
+  product: Product
 }) {
   const pathname = usePathname()
   const [queryClient] = React.useState(
@@ -122,7 +126,7 @@ export function AppProviders({
       refetchWhenOffline={false}
     >
       <QueryProvider client={queryClient} persistOptions={persistOptions}>
-        <AppearanceProvider>
+        <AppearanceProvider product={product}>
           <OfflineRuntime />
           <OfflineChrome />
           {children}
