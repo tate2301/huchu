@@ -113,3 +113,14 @@ These override 00-foundations §5.3 and every spec that disagrees.
 
    Routes stay under `/retail/manage/*`. Every board that drew "Management" for these pages now reads "Setup" in the panel title and the back link.
 4. **Units affected:** FND-08 and SET-01 build the Shop page, not "Company". The other SET and ADM units place their pages under Setup.
+5. **The sidebar keeps every function it had, always.** The owner said: "we need to retain the functionality of the sidebar always." No unit may remove or move a sidebar function. That covers:
+   - search;
+   - pins;
+   - the area-map and flat views;
+   - the workspace switcher;
+   - Help and Management;
+   - the account menu;
+   - collapse;
+   - notifications.
+
+   A unit may restyle a sidebar function to the canvas. It may only add to the sidebar.
