@@ -9,6 +9,7 @@ import type {
   PostingRuleMode,
   PostingRuleOperator,
   PostingRuleScopeType,
+  RetailAccountRole,
 } from "@prisma/client";
 import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 
@@ -95,6 +96,8 @@ export type DefaultPostingRuleLine = {
   taxCodeCode?: string;
   repeatMode?: PostingRuleLineRepeatMode;
   accountSource?: PostingRuleLineAccountSource;
+  /** With `accountSource: "ROLE_MAPPING"`: the company's account for this role (SET-09). */
+  accountRole?: RetailAccountRole;
   valuePath?: string;
   memoTemplate?: string;
   costCenterCode?: string;
@@ -177,18 +180,21 @@ const PAYROLL_CHART_OF_ACCOUNTS: DefaultAccount[] = [
 
 const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "1000", name: "Till Cash", type: "ASSET", category: "Cash", systemManaged: true },
+  // SET-09: ZiG cash is counted and posted apart from US dollar cash.
+  { code: "1001", name: "Till cash, ZiG", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1005", name: "Cash Vault", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1010", name: "Operating Bank", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1015", name: "Card Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1016", name: "Mobile Money Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1017", name: "Transfer Clearing", type: "ASSET", category: "Cash", systemManaged: true },
-  { code: "1018", name: "Voucher Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1020", name: "Bank Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1100", name: "Accounts Receivable", type: "ASSET", category: "Receivables", systemManaged: true },
   { code: "1200", name: "Inventory", type: "ASSET", category: "Inventory", systemManaged: true },
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2200", name: "VAT Output", type: "LIABILITY", category: "Tax", systemManaged: true },
   { code: "2240", name: "Bottle Deposits Held", type: "LIABILITY", category: "Payables", systemManaged: true },
+  // SET-09: a voucher taken at the till settles what the shop owes its holder.
+  { code: "2250", name: "Vouchers issued", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2210", name: "VAT Input", type: "ASSET", category: "Tax", systemManaged: true },
   { code: "2300", name: "Goods Received Not Invoiced", type: "LIABILITY", category: "Inventory", systemManaged: true },
   ...PAYROLL_CHART_OF_ACCOUNTS,
@@ -806,21 +812,21 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         sortOrder: 10,
       },
       {
-        accountCode: "4000",
+        accountSource: "ROLE_MAPPING", accountRole: "SALES",
         direction: "CREDIT",
         basis: "NET",
         memoTemplate: "{description} / revenue",
         sortOrder: 20,
       },
       {
-        accountCode: "2200",
+        accountSource: "ROLE_MAPPING", accountRole: "VAT_OUTPUT",
         direction: "CREDIT",
         basis: "TAX",
         memoTemplate: "{description} / output VAT",
         sortOrder: 30,
       },
       {
-        accountCode: "2240",
+        accountSource: "ROLE_MAPPING", accountRole: "DEPOSITS_HELD",
         direction: "CREDIT",
         valuePath: "depositAmount",
         memoTemplate: "{description} / bottle deposits",
@@ -847,14 +853,14 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         sortOrder: 37,
       },
       {
-        accountCode: "5000",
+        accountSource: "ROLE_MAPPING", accountRole: "COST_OF_SALES",
         direction: "DEBIT",
         valuePath: "inventory.totalCost",
         memoTemplate: "{description} / COGS",
         sortOrder: 40,
       },
       {
-        accountCode: "1200",
+        accountSource: "ROLE_MAPPING", accountRole: "STOCK",
         direction: "CREDIT",
         valuePath: "inventory.totalCost",
         memoTemplate: "{description} / inventory",
@@ -880,35 +886,35 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         sortOrder: 10,
       },
       {
-        accountCode: "4000",
+        accountSource: "ROLE_MAPPING", accountRole: "SALES",
         direction: "CREDIT",
         basis: "NET",
         memoTemplate: "{description} / revenue",
         sortOrder: 20,
       },
       {
-        accountCode: "2200",
+        accountSource: "ROLE_MAPPING", accountRole: "VAT_OUTPUT",
         direction: "CREDIT",
         basis: "TAX",
         memoTemplate: "{description} / output VAT",
         sortOrder: 30,
       },
       {
-        accountCode: "2240",
+        accountSource: "ROLE_MAPPING", accountRole: "DEPOSITS_HELD",
         direction: "CREDIT",
         valuePath: "depositAmount",
         memoTemplate: "{description} / bottle deposits",
         sortOrder: 35,
       },
       {
-        accountCode: "5000",
+        accountSource: "ROLE_MAPPING", accountRole: "COST_OF_SALES",
         direction: "DEBIT",
         valuePath: "inventory.totalCost",
         memoTemplate: "{description} / COGS",
         sortOrder: 40,
       },
       {
-        accountCode: "1200",
+        accountSource: "ROLE_MAPPING", accountRole: "STOCK",
         direction: "CREDIT",
         valuePath: "inventory.totalCost",
         memoTemplate: "{description} / inventory",
@@ -934,21 +940,21 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         sortOrder: 10,
       },
       {
-        accountCode: "4000",
+        accountSource: "ROLE_MAPPING", accountRole: "SALES",
         direction: "CREDIT",
         basis: "NET",
         memoTemplate: "{description} / revenue",
         sortOrder: 20,
       },
       {
-        accountCode: "2200",
+        accountSource: "ROLE_MAPPING", accountRole: "VAT_OUTPUT",
         direction: "CREDIT",
         basis: "TAX",
         memoTemplate: "{description} / output VAT",
         sortOrder: 30,
       },
       {
-        accountCode: "2240",
+        accountSource: "ROLE_MAPPING", accountRole: "DEPOSITS_HELD",
         direction: "CREDIT",
         valuePath: "depositAmount",
         memoTemplate: "{description} / bottle deposits",
@@ -972,14 +978,14 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         sortOrder: 37,
       },
       {
-        accountCode: "5000",
+        accountSource: "ROLE_MAPPING", accountRole: "COST_OF_SALES",
         direction: "DEBIT",
         valuePath: "inventory.totalCost",
         memoTemplate: "{description} / COGS",
         sortOrder: 40,
       },
       {
-        accountCode: "1200",
+        accountSource: "ROLE_MAPPING", accountRole: "STOCK",
         direction: "CREDIT",
         valuePath: "inventory.totalCost",
         memoTemplate: "{description} / inventory",
@@ -996,7 +1002,7 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     ruleMode: "GUIDED",
     isFallback: true,
     lines: [
-      { accountCode: "1200", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / inventory", sortOrder: 10 },
+      { accountSource: "ROLE_MAPPING", accountRole: "STOCK", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / inventory", sortOrder: 10 },
       { accountCode: "2300", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / GRNI", sortOrder: 20 },
     ],
   },
@@ -1009,8 +1015,8 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     ruleMode: "GUIDED",
     isFallback: true,
     lines: [
-      { accountCode: "1200", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / inventory", sortOrder: 10 },
-      { accountCode: "5410", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / shrinkage", sortOrder: 20 },
+      { accountSource: "ROLE_MAPPING", accountRole: "STOCK", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / inventory", sortOrder: 10 },
+      { accountSource: "ROLE_MAPPING", accountRole: "BREAKAGE", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / shrinkage", sortOrder: 20 },
     ],
   },
   {
@@ -1168,14 +1174,29 @@ export const SCHOOLS_POSTING_RULES: DefaultPostingRule[] = [
 export const DEFAULT_POSTING_RULES = BASE_POSTING_RULES;
 
 export const RETAIL_TENDER_ACCOUNT_MAPPINGS: DefaultTenderAccountMapping[] = [
-  { tenderType: "CASH", clearingAccountCode: "1000", priority: 10 },
+  { tenderType: "CASH", currency: "USD", clearingAccountCode: "1000", priority: 10 },
+  { tenderType: "CASH", currency: "ZWG", clearingAccountCode: "1001", priority: 10 },
   { tenderType: "CARD", clearingAccountCode: "1015", priority: 20 },
   { tenderType: "ECOCASH", clearingAccountCode: "1016", priority: 30 },
   { tenderType: "INNBUCKS", clearingAccountCode: "1016", priority: 35 },
   { tenderType: "TRANSFER", clearingAccountCode: "1017", priority: 40 },
   { tenderType: "ON_ACCOUNT", clearingAccountCode: "1100", priority: 45 },
-  { tenderType: "VOUCHER", clearingAccountCode: "1018", priority: 50 },
+  { tenderType: "VOUCHER", clearingAccountCode: "2250", priority: 50 },
 ];
+
+/**
+ * SET-09: the account each retail role posts to until the shop chooses
+ * another on Posting to the books. The seed pack creates these mappings where
+ * a company has none.
+ */
+export const RETAIL_ROLE_ACCOUNT_CODES: Record<RetailAccountRole, string> = {
+  SALES: "4000",
+  VAT_OUTPUT: "2200",
+  COST_OF_SALES: "5000",
+  STOCK: "1200",
+  BREAKAGE: "5410",
+  DEPOSITS_HELD: "2240",
+};
 
 type AccountingDefaultArgs = {
   workspaceProfile: string | null | undefined;

@@ -2687,6 +2687,7 @@ export type AccountingSeedPackResult = {
   createdTaxTemplates: number;
   createdTaxRules: number;
   createdTenderMappings: number;
+  createdRoleMappings: number;
   createdPostingRules: number;
   createdCurrencyDefinitions: number;
   createdCurrencyRates: number;
@@ -2700,6 +2701,7 @@ export type AccountingSeedPackResult = {
     missingTaxRules: string[];
     missingPostingRules: string[];
     missingTenderMappings: string[];
+    missingRoleMappings: string[];
     missingCurrencies: string[];
     missingFxQuotes: string[];
   };

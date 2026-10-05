@@ -45,6 +45,8 @@ import { createHash, randomUUID } from "node:crypto"
 import { Prisma, WorkspaceProfile, type NotificationType, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
+import { runAccountingSeedPack } from "@/lib/accounting/bootstrap"
+import { RETAIL_ROLE_ACCOUNT_CODES } from "@/lib/accounting/defaults"
 import { prisma } from "@/lib/prisma"
 import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
@@ -1217,6 +1219,7 @@ async function main() {
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
   await seedPayments(companyId)
+  await seedPosting(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -2338,4 +2341,101 @@ async function seedPayments(companyId: string) {
     if (written) await prisma.platformAuditEvent.update({ where: { id: written.id }, data: { createdAt: entry.at } })
   }
   console.log(`  payments: all tenders on but InnBucks, ZiG ${ZWG_RATE} set by ${owner.name}`)
+}
+
+/**
+ * SET-09. Setup › Posting to the books as the board draws it, over the
+ * tenant's own chart: the Zimbabwe retail pack applied (so "1001 Till cash,
+ * ZiG" and "2250 Vouchers issued" are there and every role has its account),
+ * each tender that is on mapped — US dollar cash to 1000, ZiG cash to 1001,
+ * vouchers to 2250 — posting at the end of each day, last changed by the
+ * owner on 1 September, and last night's 23:00 run: 412 sales, 6 deliveries,
+ * 1 count. Every run puts the page back the way the board has it: runs, saves
+ * and accounts that test runs left are cleared first.
+ */
+async function seedPosting(companyId: string) {
+  const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
+  if (!owner) {
+    console.log("  posting: no owner, skipped")
+    return
+  }
+  await runAccountingSeedPack({ companyId, mode: "APPLY" })
+
+  const accounts = await prisma.chartOfAccount.findMany({ where: { companyId }, select: { id: true, code: true } })
+  const byCode = new Map(accounts.map((account) => [account.code, account.id]))
+  const tenders: Array<[RetailTenderType, string | null, string]> = [
+    ["CASH", "USD", "1000"],
+    ["CASH", "ZWG", "1001"],
+    ["CARD", null, "1015"],
+    ["ECOCASH", null, "1016"],
+    ["INNBUCKS", null, "1016"],
+    ["TRANSFER", null, "1017"],
+    ["ON_ACCOUNT", null, "1100"],
+    ["VOUCHER", null, "2250"],
+  ]
+  for (const [tenderType, currency, code] of tenders) {
+    const clearingAccountId = byCode.get(code)!
+    const where = { companyId, tenderType, siteId: null, registerCode: null, currency }
+    const existing = await prisma.tenderAccountMapping.findFirst({ where, select: { id: true } })
+    if (existing) await prisma.tenderAccountMapping.update({ where: { id: existing.id }, data: { clearingAccountId, isActive: true } })
+    else await prisma.tenderAccountMapping.create({ data: { ...where, clearingAccountId, isActive: true } })
+  }
+  for (const [role, code] of Object.entries(RETAIL_ROLE_ACCOUNT_CODES)) {
+    const accountId = byCode.get(code)!
+    await prisma.retailAccountRoleMapping.upsert({
+      where: { companyId_role: { companyId, role: role as keyof typeof RETAIL_ROLE_ACCOUNT_CODES } },
+      update: { accountId },
+      create: { companyId, role: role as keyof typeof RETAIL_ROLE_ACCOUNT_CODES, accountId },
+    })
+  }
+  // An account a test run quick-added, and nothing posted to it.
+  await prisma.chartOfAccount.deleteMany({
+    where: { companyId, code: "1012", journalLines: { none: {} }, tenderClearingMappings: { none: {} }, retailRoleMappings: { none: {} } },
+  })
+
+  await prisma.retailPostingSettings.upsert({
+    where: { companyId },
+    update: { schedule: "END_OF_DAY", updatedById: owner.id },
+    create: { companyId, schedule: "END_OF_DAY", updatedById: owner.id },
+  })
+  await prisma.platformAuditEvent.deleteMany({
+    where: {
+      companyId,
+      entityType: "RetailSettings",
+      entityId: "posting",
+      eventType: { in: [RETAIL_AUDIT_EVENTS.settingsChanged, RETAIL_AUDIT_EVENTS.postingRun, RETAIL_AUDIT_EVENTS.postingAccountAdded] },
+    },
+  })
+  const changedAt = new Date("2026-09-01T10:15:00+02:00")
+  await writeRetailAuditEvent(prisma, {
+    actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+    eventType: RETAIL_AUDIT_EVENTS.settingsChanged,
+    entityType: "RetailSettings",
+    entityId: "posting",
+    payload: {
+      page: "posting",
+      changes: [{ field: "schedule", label: "Post", from: "With every sale", to: "At the end of each day" }],
+    },
+  })
+  const saved = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.settingsChanged, entityId: "posting" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  })
+  if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
+
+  await prisma.retailPostingRun.deleteMany({ where: { companyId } })
+  const lastNight = harareTime(1, 23, 0)
+  await prisma.retailPostingRun.create({
+    data: {
+      companyId,
+      trigger: "SCHEDULE",
+      startedAt: lastNight,
+      finishedAt: new Date(lastNight.getTime() + 40_000),
+      salesPosted: 412,
+      deliveriesPosted: 6,
+      countsPosted: 1,
+    },
+  })
+  console.log(`  posting: tenders and roles over the chart, end of each day, last run ${lastNight.toISOString()}`)
 }

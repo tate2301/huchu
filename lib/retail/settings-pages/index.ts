@@ -1,5 +1,6 @@
 import { companyPage } from "./company";
 import { paymentsPage } from "./payments";
+import { postingPage } from "./posting";
 import type { SettingsPage } from "./types";
 
 export type {
@@ -18,6 +19,7 @@ export type {
 export const SETTINGS_PAGES: Record<string, SettingsPage> = {
   company: companyPage,
   payments: paymentsPage,
+  posting: postingPage,
 };
 
 export function settingsPage(key: string): SettingsPage | null {

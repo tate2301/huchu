@@ -1,275 +1,237 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import "./posting.css";
+
+import * as React from "react";
+import { Dialog } from "radix-ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
-import {
-  FactList,
-  FormField,
-  FormPage,
-  HeaderAction,
-  SectionHeading,
-  StatusBadge,
-} from "@/components/management/ui";
-import { FactRowsSkeleton, LoadFailure } from "@/components/preferences/organization/form-parts";
-import { SHOP_SETUP_KEY, ShopSettingsShell } from "@/components/retail/shop-settings";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { settingsQueryKey } from "@/components/settings-frame/model";
+import { SettingsFrame } from "@/components/settings-frame/settings-frame";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  fetchAccountingReadiness,
-  fetchTenderMappings,
-  runSeedPack,
-  type AccountingSeedPackResult,
-} from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
-import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
-import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
-import { Scale } from "@/lib/icons";
-import { tenderLabel } from "@/lib/retail/words";
-import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
-
+import { Button } from "@/components/workspace/button";
+import { Field } from "@/components/workspace/fields/field";
+import { TextInput } from "@/components/workspace/fields/text-input";
+import { lookupKey } from "@/components/sheet-form/lookup-field";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import type { SetupPreview } from "@/lib/retail/posting-settings";
 
 /**
- * Where each failing check is fixed. A link is offered only to someone who can
- * open it — the bookkeeper's template leaves posting rules, periods and the
- * rest of the ledger's set-up shut — and otherwise the check states its fact,
- * "Not ready", which reads as a status rather than a verb nobody can click.
+ * Setup › Posting to the books (W-65, board PostingSettings): where each
+ * tender settles, the sales and stock accounts, and when the day posts, on
+ * the SettingsFrame. "Post now" posts what is waiting; "Set up the accounts"
+ * adds what the Zimbabwe retail pack has and the chart lacks. Owners and the
+ * bookkeeper; nobody else opens it.
  */
-const FIX: Record<string, { label: string; href: string }> = {
-  accounts: { label: "Open the chart of accounts", href: "/accounting/chart-of-accounts" },
-  periods: { label: "Open a period", href: "/accounting/periods" },
-  "retained-earnings": { label: "Set it in posting rules", href: "/accounting/posting-rules?view=seed" },
-  "default-tax": { label: "Choose a tax code", href: "/accounting/tax" },
-  "default-bank": { label: "Add a bank account", href: "/accounting/banking" },
-  rules: { label: "Open posting rules", href: "/accounting/posting-rules" },
-  "fx-rates": { label: "Add exchange rates", href: "/accounting/currency" },
-};
-
-/**
- * Posting — whether a sale can reach the ledger without somebody posting it
- * by hand, and the one verb that makes it so.
- *
- * Settings → Shop. It was "Accounting setup": three tiles, a list of checks
- * with a subtitle explaining that each had to pass, a table of tenders with a
- * subtitle explaining why, the seed pack as a card with a paragraph of what it
- * provisions, and a card of links onward. The checks and the tenders are two
- * lists of facts now; the seed pack is "Set up the accounts", in a dialog.
- */
-export default function RetailPostingPage() {
-  const queryClient = useQueryClient();
-  const [settingUp, setSettingUp] = useState(false);
+export default function PostingSettingsPage() {
   const { data: session } = useSession();
-  const user = session?.user as { role?: string; enabledFeatures?: string[] } | undefined;
-  const canOpen = (href: string) => {
-    const path = href.split("?")[0];
-    return isRouteAllowedForRole(user?.role, path) && canAccessRouteWithToken(path, user?.enabledFeatures).allowed;
-  };
-
-  const readiness = useQuery({
-    queryKey: ["accounting", "setup-readiness"],
-    queryFn: fetchAccountingReadiness,
-  });
-  const mappings = useQuery({
-    queryKey: ["accounting", "tender-mappings"],
-    queryFn: fetchTenderMappings,
-  });
-
-  const checks = readiness.data?.checks ?? [];
-  const failing = checks.filter((check) => !check.ready).length;
-
+  const canPost = canRetailRoleDo(session?.user?.role ?? "", "retail.posting", "update");
   return (
-    <ShopSettingsShell>
-      <FormPage
-        title="Posting"
-        icon={Scale}
-        badge={failing > 0 ? <StatusBadge tone="warn">{`${failing} to fix`}</StatusBadge> : null}
-        action={
-          readiness.data?.canSetUp ? (
-            <HeaderAction icon={Scale} onClick={() => setSettingUp(true)}>
-              Set up the accounts
-            </HeaderAction>
-          ) : null
-        }
-      >
-        <SectionHeading variant="form" count={checks.length}>
-          Checks
-        </SectionHeading>
-        {readiness.isLoading ? (
-          <FactRowsSkeleton rows={6} />
-        ) : readiness.isError ? (
-          <LoadFailure
-            message={`The checks would not load. ${getApiErrorMessage(readiness.error)}`}
-            onRetry={() => void readiness.refetch()}
-          />
-        ) : (
-          <FactList
-            maxWidth={null}
-            labelWidth={220}
-            items={checks.map((check) => {
-              const fix = FIX[check.id] && canOpen(FIX[check.id].href) ? FIX[check.id] : undefined;
-              return {
-                id: check.id,
-                label: check.label,
-                value: check.ready ? "Ready" : (fix?.label ?? "Not ready"),
-                tone: check.ready ? ("muted" as const) : ("warn" as const),
-                href: check.ready ? undefined : fix?.href,
-              };
-            })}
-          />
-        )}
-
-        <SectionHeading variant="form">Tenders</SectionHeading>
-        {mappings.isLoading ? (
-          <FactRowsSkeleton rows={5} />
-        ) : (
-          <FactList
-            maxWidth={null}
-            labelWidth={220}
-            items={RETAIL_TENDER_TYPES.map((tender) => {
-              const mapping = (mappings.data ?? []).find(
-                (entry) => entry.tenderType === tender && entry.isActive,
-              );
-              return {
-                id: tender,
-                label: tenderLabel(tender),
-                value: mapping?.clearingAccount
-                  ? `${mapping.clearingAccount.code} ${mapping.clearingAccount.name}`
-                  : "No account",
-                tone: mapping ? ("default" as const) : ("warn" as const),
-              };
-            })}
-          />
-        )}
-      </FormPage>
-
-      <SetUpAccountsDialog
-        open={settingUp}
-        onOpenChange={setSettingUp}
-        onApplied={() => {
-          void queryClient.invalidateQueries({ queryKey: ["accounting"] });
-          void queryClient.invalidateQueries({ queryKey: SHOP_SETUP_KEY });
-        }}
-      />
-    </ShopSettingsShell>
+    <SettingsFrame
+      page="posting"
+      actions={canPost ? <PostNow /> : null}
+      slots={(values) => ({
+        setup: canPost ? <SetUpAccounts /> : null,
+        checks: <ReadyChecks checks={values.checks} />,
+      })}
+    />
   );
 }
 
-/**
- * The Zimbabwe retail seed pack: the chart of accounts, tax codes, currencies,
- * posting rules and tender accounts a till's sales post against. Safe to run
- * again — it only adds what is missing — so Preview is there to see what that
- * is, not to protect anything.
- */
-function SetUpAccountsDialog({
-  open,
-  onOpenChange,
-  onApplied,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onApplied: () => void;
-}) {
+/** The header's "Post now": every retail event still waiting, to the books now. */
+function PostNow() {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [zwg, setZwg] = useState("");
-  const [zar, setZar] = useState("");
-  const [result, setResult] = useState<AccountingSeedPackResult | null>(null);
-  const [errors, setErrors] = useState<string[]>([]);
+  const [busy, setBusy] = React.useState(false);
 
-  const run = useMutation({
-    mutationFn: (mode: "DRY_RUN" | "APPLY") => {
-      const rates: Record<string, number> = {};
-      if (zwg.trim()) rates.ZWG = Number(zwg);
-      if (zar.trim()) rates.ZAR = Number(zar);
-      return runSeedPack({ mode, fxRates: Object.keys(rates).length > 0 ? rates : undefined });
-    },
-    onSuccess: (data, mode) => {
-      setResult(data);
-      setErrors([]);
-      if (mode === "APPLY") {
-        toast({ title: "Accounts set up", variant: "success" });
-        onApplied();
-      }
-    },
-    onError: (error) => setErrors([`The accounts were not set up: ${getApiErrorMessage(error)}`]),
-  });
+  const post = async () => {
+    setBusy(true);
+    try {
+      const { run } = await fetchJson<{ run: { at: string; text: string; toast: string } }>("/api/v2/retail/posting/run", {
+        method: "POST",
+      });
+      toast({ title: run.toast, variant: "success" });
+      await queryClient.invalidateQueries({ queryKey: settingsQueryKey("posting") });
+    } catch (error) {
+      toast({ title: getApiErrorMessage(error, "Nothing was posted. Try again."), variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <RecordDialog
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next);
-        if (!next) setResult(null);
-      }}
-      title="Set up the accounts"
-      size="md"
-      errors={errors}
-      onSubmit={(event) => {
-        event.preventDefault();
-        run.mutate("APPLY");
-      }}
-      footer={
-        <>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={run.isPending}
-            onClick={() => run.mutate("DRY_RUN")}
-          >
-            Preview
-          </Button>
-          <Button type="submit" disabled={run.isPending}>
-            Set up the accounts
-          </Button>
-        </>
-      }
-    >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="ZWG to the US dollar">
-          {(id) => (
-            <Input id={id} inputMode="decimal" className="font-mono" value={zwg} onChange={(event) => setZwg(event.target.value)} placeholder="27.50" />
-          )}
-        </FormField>
-        <FormField label="Rand to the US dollar">
-          {(id) => (
-            <Input id={id} inputMode="decimal" className="font-mono" value={zar} onChange={(event) => setZar(event.target.value)} placeholder="18.50" />
-          )}
-        </FormField>
-      </div>
+    <Button busy={busy} onClick={() => void post()}>
+      Post now
+    </Button>
+  );
+}
 
-      {result ? (
-        <>
-          <SectionHeading variant="form" maxWidth={9999}>
-            {result.mode === "DRY_RUN" ? "Would add" : "Added"}
-          </SectionHeading>
-          <FactList
-            maxWidth={null}
-            align="end"
-            items={[
-              { label: "Accounts", value: String(result.createdAccounts), mono: true },
-              { label: "Tax codes", value: String(result.createdTaxCodes), mono: true },
-              { label: "Currencies", value: String(result.createdCurrencyDefinitions), mono: true },
-              { label: "Tender accounts", value: String(result.createdTenderMappings), mono: true },
-              { label: "Posting rules", value: String(result.createdPostingRules), mono: true },
-              { label: "Periods", value: String(result.createdPeriods), mono: true },
-              ...(result.preview.missingFxQuotes.length > 0
-                ? [
-                    {
-                      label: "No rate for",
-                      value: result.preview.missingFxQuotes.join(", "),
-                      tone: "warn" as const,
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        </>
-      ) : null}
-    </RecordDialog>
+/** "Ready to post": the three facts a run depends on, a warn dot on any that fails. */
+function ReadyChecks({ checks }: { checks: unknown }) {
+  const list = Array.isArray(checks) ? (checks as Array<{ ok: boolean; text: string }>) : [];
+  return (
+    <ul className="cx-posting-checks">
+      {list.map((check) => (
+        <li key={check.text} className={check.ok ? undefined : "is-warn"}>
+          {check.text}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+type SetupAnswer = { groups: SetupPreview };
+
+/**
+ * "Set up the accounts": what the pack would add, grouped, with the ZiG and
+ * rand rates to add with it, then "Add them". Nothing missing says so.
+ */
+function SetUpAccounts() {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <Button className="cx-posting-setup" onClick={() => setOpen(true)}>
+        Set up the accounts
+      </Button>
+      {open ? <SetUpDialog onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+function SetUpDialog({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [preview, setPreview] = React.useState<SetupPreview | null>(null);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [zwg, setZwg] = React.useState("");
+  const [zar, setZar] = React.useState("");
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [failure, setFailure] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  const send = React.useCallback(
+    (mode: "DRY_RUN" | "APPLY", rates?: { ZWG: string; ZAR: string }) =>
+      fetchJson<SetupAnswer>("/api/v2/retail/posting/setup", {
+        method: "POST",
+        body: JSON.stringify({ mode, ...(rates ? { fxRates: rates } : {}) }),
+      }),
+    [],
+  );
+
+  React.useEffect(() => {
+    let live = true;
+    send("DRY_RUN")
+      .then((answer) => live && setPreview(answer.groups))
+      .catch((error) => live && setLoadError(getApiErrorMessage(error, "What it would add did not load.")));
+    return () => {
+      live = false;
+    };
+  }, [send]);
+
+  const add = async () => {
+    setBusy(true);
+    setErrors({});
+    setFailure(null);
+    try {
+      await send("APPLY", { ZWG: zwg.trim(), ZAR: zar.trim() });
+      toast({ title: "The accounts are set up.", variant: "success" });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: settingsQueryKey("posting") }),
+        queryClient.invalidateQueries({ queryKey: lookupKey("account") }),
+      ]);
+      onClose();
+    } catch (error) {
+      const fieldErrors = error instanceof ApiError ? (error.details as { fieldErrors?: Record<string, string> })?.fieldErrors : null;
+      if (fieldErrors && Object.keys(fieldErrors).length > 0) setErrors(fieldErrors);
+      else setFailure(getApiErrorMessage(error, "The accounts were not set up. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const groups: Array<[string, string[]]> = preview
+    ? [
+        ["Accounts", preview.accounts],
+        ["VAT codes", preview.vatCodes],
+        ["Tender accounts", preview.tenderAccounts],
+      ]
+    : [];
+
+  return (
+    <Dialog.Root open onOpenChange={(next) => !next && !busy && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="cx-scrim" />
+        <div className="cx-confirm-layer">
+          <Dialog.Content className="cx-confirm cx-posting-dialog" aria-describedby={undefined}>
+            <Dialog.Title className="cx-confirm__title">Set up the accounts</Dialog.Title>
+            {loadError ? (
+              <p role="alert" className="cx-confirm__error">
+                {loadError}
+              </p>
+            ) : !preview ? (
+              <p className="cx-confirm__body" aria-busy="true">
+                Looking at what you have…
+              </p>
+            ) : preview.nothing ? (
+              <p className="cx-confirm__body">Everything is already set up.</p>
+            ) : (
+              <>
+                <p className="cx-confirm__body">It adds these, and nothing you already have changes.</p>
+                {groups
+                  .filter(([, items]) => items.length > 0)
+                  .map(([title, items]) => (
+                    <section key={title} className="cx-posting-dialog__group">
+                      <h3>{title}</h3>
+                      <ul>
+                        {items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  ))}
+                <section className="cx-posting-dialog__group">
+                  <h3>Rates</h3>
+                  <div className="cx-posting-dialog__rates">
+                    <Field label="US$1 is, in ZiG" optional error={errors.ZWG}>
+                      {(control) => (
+                        <TextInput {...control} mono right inputMode="decimal" placeholder="26.80" value={zwg} onChange={(event) => setZwg(event.target.value)} />
+                      )}
+                    </Field>
+                    <Field label="US$1 is, in rand" optional error={errors.ZAR}>
+                      {(control) => (
+                        <TextInput {...control} mono right inputMode="decimal" placeholder="18.50" value={zar} onChange={(event) => setZar(event.target.value)} />
+                      )}
+                    </Field>
+                  </div>
+                </section>
+              </>
+            )}
+            {failure ? (
+              <p role="alert" className="cx-confirm__error">
+                {failure}
+              </p>
+            ) : null}
+            <div className="cx-confirm__actions">
+              {preview && !preview.nothing ? (
+                <>
+                  <Button size="field" disabled={busy} onClick={onClose}>
+                    Cancel
+                  </Button>
+                  <Button size="field" variant="primary" busy={busy} onClick={() => void add()}>
+                    Add them
+                  </Button>
+                </>
+              ) : (
+                <Button size="field" onClick={onClose}>
+                  Close
+                </Button>
+              )}
+            </div>
+          </Dialog.Content>
+        </div>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

@@ -60,7 +60,7 @@ function sale(depositAmount: number) {
     taxAmount: 1.88,
     grossAmount: 14.4,
     payload: { depositAmount },
-    payments: [{ tenderType: "CASH", amount: paid, reference: null, currency: null }],
+    payments: [{ tenderType: "CASH", amount: paid, reference: null, currency: "USD" }],
     inventory: { lines: [], totalCost: 10.2 },
   };
 }

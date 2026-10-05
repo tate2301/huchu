@@ -1,4 +1,6 @@
 import { purgeExpiredBin } from "@/lib/retail/bin";
+import { POSTING_RUN_AT } from "@/lib/retail/posting-schedule";
+import { runScheduledPosting } from "@/lib/retail/posting-settings";
 import { applyRbzRate } from "@/lib/retail/rbz-rate";
 
 import type { RetailJob } from "./schedule";
@@ -25,5 +27,11 @@ export const RETAIL_JOBS: RetailJob[] = [
     name: "rbz-rate",
     when: { dailyAt: "07:00" },
     run: (now) => applyRbzRate(now),
+  },
+  {
+    // The day's sales, deliveries and counts to the books, for every shop that posts at the end of each day (SET-09).
+    name: "posting-run",
+    when: { dailyAt: POSTING_RUN_AT },
+    run: () => runScheduledPosting(),
   },
 ];

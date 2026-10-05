@@ -13,6 +13,7 @@ import {
 
 import { companySettings } from "./company";
 import { paymentsSettings } from "./payments";
+import { postingSettings } from "./posting";
 import type { SettingsStore } from "./types";
 
 /**
@@ -24,6 +25,7 @@ import type { SettingsStore } from "./types";
 const STORES: Record<string, SettingsStore> = {
   company: companySettings,
   payments: paymentsSettings,
+  posting: postingSettings,
 };
 
 export const SETTINGS_ENTITY = "RetailSettings";

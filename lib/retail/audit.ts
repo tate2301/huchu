@@ -164,6 +164,13 @@ export const RETAIL_AUDIT_EVENTS = {
   transferReceived: "RETAIL_STOCK_TRANSFER.RECEIVED",
   /** A new ZiG rate (W-05), typed in on Payments. Entity `RetailSettings`, id `payments`; carries the rate and the one it replaced. */
   zigRateSet: "RETAIL_ZIG_RATE.SET",
+  /**
+   * A posting run (SET-09): the 23:00 run or "Post now". Entity
+   * `RetailSettings`, id `posting`; carries the run, its trigger and what it posted.
+   */
+  postingRun: "RETAIL_POSTING.RUN",
+  /** An account added from an account field on Posting to the books (SET-09). Entity `RetailSettings`, id `posting`; carries its code, name and type. */
+  postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",
 } as const;
 
 export type RetailAuditEvent =

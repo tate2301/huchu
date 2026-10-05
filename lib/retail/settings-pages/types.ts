@@ -21,6 +21,12 @@ export type SettingsAsideSection = {
   bullets?: string[];
   text?: string;
   link?: { label: string; href: string };
+  /**
+   * Where the page's own component draws something live under the section
+   * (SettingsFrame `slots`): "Set up the accounts", the checks a posting run
+   * depends on.
+   */
+  slot?: string;
 };
 
 export type SettingsAction = { fields: string[]; endpoint: string; can: [RetailResource, RetailAction] };

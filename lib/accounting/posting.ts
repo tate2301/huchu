@@ -6,6 +6,7 @@ import type {
   PostingRuleOperator,
   PrismaClient,
   Prisma,
+  RetailAccountRole,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -16,6 +17,7 @@ import { getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
 import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
 import { syncPaymentLedgerEntryForSource } from "@/lib/accounting/payment-ledger";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
+import { isRetailSource, retailPostingDeferredUntil } from "@/lib/retail/posting-schedule";
 import { toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
 
 const BALANCE_TOLERANCE = 0.01;
@@ -94,6 +96,8 @@ export type PostingContext = {
 type PostingResult = {
   entryId?: string;
   skipped?: boolean;
+  /** A shop posting at the end of each day: the event waits, PENDING, for the day's run (SET-09). */
+  deferred?: boolean;
   error?: string;
   code?: string;
 };
@@ -422,6 +426,27 @@ async function resolveTenderMappingLookup(companyId: string, envelope: ReturnTyp
   };
 }
 
+/**
+ * The company's account for each retail role (SET-09): what a rule line with
+ * `accountSource = ROLE_MAPPING` posts to.
+ */
+async function resolveRoleAccounts(companyId: string) {
+  const mappings = await prisma.retailAccountRoleMapping.findMany({
+    where: { companyId },
+    include: { account: { select: { id: true, code: true, name: true, nodeType: true, isActive: true } } },
+  });
+  return new Map(mappings.map((mapping) => [mapping.role, mapping.account]));
+}
+
+const ROLE_WORDS: Record<RetailAccountRole, string> = {
+  SALES: "sales",
+  VAT_OUTPUT: "VAT",
+  COST_OF_SALES: "cost of sales",
+  STOCK: "stock",
+  BREAKAGE: "breakage and losses",
+  DEPOSITS_HELD: "deposits on empties",
+};
+
 function resolveLineAmount(line: PostingRuleLine, context: PostingContext, envelope: ReturnType<typeof buildEnvelope>, repeatItem?: Record<string, unknown>) {
   const valueSource = repeatItem ?? envelope;
   const valueFromPath = getPathValue(valueSource, line.valuePath);
@@ -486,6 +511,9 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
   }
 
   const resolveTenderMapping = await resolveTenderMappingLookup(context.companyId, envelope);
+  const roleAccounts = matchedRule.lines.some((line) => line.accountSource === "ROLE_MAPPING")
+    ? await resolveRoleAccounts(context.companyId)
+    : new Map<RetailAccountRole, never>();
   const lineRows: PostingSimulationResult["lines"] = [];
   const warnings: string[] = [];
 
@@ -529,6 +557,22 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
         accountId = mapping.clearingAccount.id;
         accountCode = mapping.clearingAccount.code;
         accountName = mapping.clearingAccount.name;
+      } else if (line.accountSource === "ROLE_MAPPING") {
+        const account = line.accountRole ? roleAccounts.get(line.accountRole) : undefined;
+        if (!account || !account.isActive || account.nodeType !== "LEDGER") {
+          return {
+            lines: [],
+            totalDebit: 0,
+            totalCredit: 0,
+            balanced: false,
+            warnings,
+            error: `No account is set for ${line.accountRole ? ROLE_WORDS[line.accountRole] : "this line"}`,
+            code: "ROLE_MAPPING_MISSING",
+          };
+        }
+        accountId = account.id;
+        accountCode = account.code;
+        accountName = account.name;
       } else if (!line.account || !line.account.isActive || line.account.nodeType !== "LEDGER") {
         return {
           lines: [],
@@ -600,7 +644,17 @@ export async function previewPostingFromSource(context: PostingContext) {
   return simulatePosting(context);
 }
 
-export async function createJournalEntryFromSource(context: PostingContext, db: Db = prisma): Promise<PostingResult> {
+/**
+ * Post a source's journal entry. A shop that posts at the end of each day
+ * (SET-09) has its retail events captured and left PENDING until the day's
+ * run; `postNow` is that run (and the drain, which only takes events whose
+ * time has come).
+ */
+export async function createJournalEntryFromSource(
+  context: PostingContext,
+  db: Db = prisma,
+  options: { postNow?: boolean } = {},
+): Promise<PostingResult> {
   const envelope = buildEnvelope(context);
   const integrationEvent = await createOrRefreshIntegrationEvent(context, envelope);
 
@@ -625,6 +679,17 @@ export async function createJournalEntryFromSource(context: PostingContext, db: 
           journalEntryId: existing.id,
         });
         return { entryId: existing.id, skipped: true };
+      }
+    }
+
+    if (!options.postNow && isRetailSource(context.sourceType)) {
+      const notBefore = await retailPostingDeferredUntil(context.companyId, new Date());
+      if (notBefore) {
+        await prisma.accountingIntegrationEvent.update({
+          where: { id: integrationEvent.id },
+          data: { status: "PENDING", nextRetryAt: notBefore },
+        });
+        return { deferred: true, error: "Posted with the day's run", code: "POSTING_DEFERRED" };
       }
     }
 

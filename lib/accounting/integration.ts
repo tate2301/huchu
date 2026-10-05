@@ -148,40 +148,22 @@ export async function captureAccountingEvent(input: CaptureAccountingEventInput,
   });
 }
 
-export async function retryPendingAccountingEvents(input: {
-  companyId: string;
-  limit?: number;
-  actorRole?: string | null;
-  periodOverrideReason?: string | null;
-}) {
-  const limit = Math.min(Math.max(input.limit ?? 100, 1), 1000);
-  const now = new Date();
+type IntegrationEventRow = Awaited<ReturnType<typeof prisma.accountingIntegrationEvent.findMany>>[number];
 
-  const events = await prisma.accountingIntegrationEvent.findMany({
-    where: {
-      companyId: input.companyId,
-      sourceType: { not: null },
-      sourceId: { not: null },
-      status: { in: ["FAILED", "PENDING"] },
-      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: now } }],
-    },
-    orderBy: [{ nextRetryAt: "asc" }, { updatedAt: "asc" }],
-    take: limit,
-  });
+/**
+ * Post one captured accounting event now, whatever its "not before": the
+ * drain below, and a shop's posting run (SET-09).
+ */
+export async function postIntegrationEvent(
+  event: IntegrationEventRow,
+  input: { actorRole?: string | null; periodOverrideReason?: string | null } = {},
+): Promise<"posted" | "skipped" | "failed"> {
+  const payload = parsePayload(event.payloadJson);
+  const createdById = event.createdById ?? (await resolveFallbackActorId(event.companyId));
+  if (!createdById) return "failed";
 
-  let posted = 0;
-  let failed = 0;
-  let skipped = 0;
-
-  for (const event of events) {
-    const payload = parsePayload(event.payloadJson);
-    const createdById = event.createdById ?? (await resolveFallbackActorId(event.companyId));
-    if (!createdById) {
-      failed += 1;
-      continue;
-    }
-
-    const result = await createJournalEntryFromSource({
+  const result = await createJournalEntryFromSource(
+    {
       companyId: event.companyId,
       sourceType: event.sourceType as AccountingSourceType,
       sourceId: event.sourceId,
@@ -209,15 +191,46 @@ export async function retryPendingAccountingEvents(input: {
       payload,
       payments: parsePostingPayments(payload),
       inventory: parsePostingInventory(payload),
-    });
+    },
+    prisma,
+    // Its time has come (or someone asked): an end-of-day shop's event is not put off again.
+    { postNow: true },
+  );
 
-    if (result.entryId) {
-      posted += 1;
-    } else if (result.skipped) {
-      skipped += 1;
-    } else {
-      failed += 1;
-    }
+  if (result.skipped) return "skipped";
+  return result.entryId ? "posted" : "failed";
+}
+
+export async function retryPendingAccountingEvents(input: {
+  companyId: string;
+  limit?: number;
+  actorRole?: string | null;
+  periodOverrideReason?: string | null;
+}) {
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 1000);
+  const now = new Date();
+
+  const events = await prisma.accountingIntegrationEvent.findMany({
+    where: {
+      companyId: input.companyId,
+      sourceType: { not: null },
+      sourceId: { not: null },
+      status: { in: ["FAILED", "PENDING"] },
+      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: now } }],
+    },
+    orderBy: [{ nextRetryAt: "asc" }, { updatedAt: "asc" }],
+    take: limit,
+  });
+
+  let posted = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const event of events) {
+    const outcome = await postIntegrationEvent(event, input);
+    if (outcome === "posted") posted += 1;
+    else if (outcome === "skipped") skipped += 1;
+    else failed += 1;
   }
 
   return {

@@ -130,13 +130,20 @@ function leaveAsk(count: number, title: string): Ask {
   };
 }
 
-export function SettingsFrame({ page: key }: { page: string }) {
+type FrameExtras = {
+  /** The page's own header buttons, before Activity ("Post now"). */
+  actions?: React.ReactNode;
+  /** What the page draws live in its aside sections' slots, from the loaded values. */
+  slots?: (values: Record<string, unknown>) => Record<string, React.ReactNode>;
+};
+
+export function SettingsFrame({ page: key, ...extras }: { page: string } & FrameExtras) {
   const page = settingsPage(key);
   if (!page) throw new Error(`No settings page "${key}"`);
-  return <Frame pageKey={key} page={page} />;
+  return <Frame pageKey={key} page={page} {...extras} />;
 }
 
-function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
+function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: SettingsPage } & FrameExtras) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: session } = useSession();
@@ -299,6 +306,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
   const canReadActivity = canRetailRoleDo(role, "retail.activity", "view");
   const chrome = (
     <PageChrome title={page.title}>
+      {actions}
       {canReadActivity ? <Button onClick={() => setActivityOpen(true)}>Activity</Button> : null}
     </PageChrome>
   );
@@ -340,7 +348,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
           </p>
         ) : null}
         <div className="sf-grid">
-          {section.fields.map((field) => (
+          {section.fields.filter((field) => !field.show || field.show(values, ctx)).map((field) => (
             <div key={field.id} className={field.half ? "sf-cell sf-cell--half" : "sf-cell"}>
               {canChangeField(page, access, field.id) ? (
                 <SheetField
@@ -373,6 +381,8 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
     ));
   }
 
+  const asideSlots = slots && hydrated && query.data ? slots(saved) : undefined;
+
   const line = query.data
     ? cleanLine({ page, canEdit, lastChanged: query.data.lastChanged, savedAt, now })
     : null;
@@ -394,7 +404,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
               >
                 {body}
               </form>
-              <SettingsAside sections={page.aside} under />
+              <SettingsAside sections={page.aside} under slots={asideSlots} />
             </div>
             {hydrated && query.data ? (
               <SaveBar
@@ -407,7 +417,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
               />
             ) : null}
           </div>
-          <SettingsAside sections={page.aside} />
+          <SettingsAside sections={page.aside} slots={asideSlots} />
         </div>
       </div>
       {leaving !== null ? (

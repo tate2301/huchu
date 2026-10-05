@@ -239,6 +239,16 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
         : `Set the ZiG rate to ${text(payload.rate) ?? "a new rate"}${text(payload.previous) ? `, from ${text(payload.previous)}` : ""}`,
     tone: "info",
   }),
+  // "Posted 412 sales, 6 deliveries, 1 count" (SET-09).
+  [RETAIL_AUDIT_EVENTS.postingRun]: (payload) => ({
+    what: text(payload.posted) ? `Posted ${text(payload.posted)}` : "Posted to the books, nothing waiting",
+    tone: payload.failed ? "warn" : "info",
+  }),
+  // "Added the account 1012 Cash on hand, rand" (SET-09).
+  [RETAIL_AUDIT_EVENTS.postingAccountAdded]: (payload) => ({
+    what: `Added the account ${text(payload.label) ?? ""}`.trim(),
+    tone: "ok",
+  }),
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,
     tone: "info",

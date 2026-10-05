@@ -102,6 +102,8 @@ async function refusal(promise: Promise<unknown>): Promise<TransferRefusal> {
 
 beforeAll(async () => {
   companyId = (await prisma.company.create({ data: { name: `Transfers ${stamp}`, slug: `transfers-${stamp}` }, select: { id: true } })).id;
+  // The loss journal is read straight after receiving: this shop posts with every sale (SET-09).
+  await prisma.retailPostingSettings.create({ data: { companyId, schedule: "EVERY_SALE" } });
   const user = async (name: string, role: "MANAGER" | "STOCK_CLERK" | "CASHIER") =>
     (await prisma.user.create({ data: { email: `${role.toLowerCase()}-${stamp}@shop.test`, name, role, companyId }, select: { id: true } })).id;
   managerId = await user("Tafara Nyathi", "MANAGER");

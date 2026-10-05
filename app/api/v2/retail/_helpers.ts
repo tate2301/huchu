@@ -71,6 +71,8 @@ function round(value: number) {
 }
 
 const RETAIL_PENDING_POSTING_CODES = new Set([
+  // A shop posting at the end of each day: the event waits for the day's run (SET-09).
+  "POSTING_DEFERRED",
   "PERIOD_LOCKED",
   "PERIOD_OVERRIDE_FORBIDDEN",
   "PERIOD_OVERRIDE_REASON_REQUIRED",

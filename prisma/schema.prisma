@@ -316,6 +316,9 @@ model Company {
   retailDeviceMessages          RetailDeviceMessage[]
   retailShopProfile             RetailShopProfile?
   retailPaymentSettings         RetailPaymentSettings?
+  retailPostingSettings         RetailPostingSettings?
+  retailAccountRoleMappings     RetailAccountRoleMapping[]
+  retailPostingRuns             RetailPostingRun[]
   retailCategories              RetailCategory[]
   retailPromotions              RetailPromotion[]
   retailPurchaseOrders          RetailPurchaseOrder[]
@@ -1387,6 +1390,8 @@ model User {
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
   retailShopProfilesUpdated         RetailShopProfile[]            @relation("RetailShopProfileUpdatedBy")
   retailPaymentSettingsUpdated      RetailPaymentSettings[]        @relation("RetailPaymentSettingsUpdatedBy")
+  retailPostingSettingsUpdated      RetailPostingSettings[]        @relation("RetailPostingSettingsUpdatedBy")
+  retailPostingRunsStarted          RetailPostingRun[]             @relation("RetailPostingRunStartedBy")
   currencyRatesCreated              CurrencyRate[]                 @relation("CurrencyRateCreatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
@@ -4538,6 +4543,72 @@ model RetailPaymentSettings {
   updatedBy User?   @relation("RetailPaymentSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
+/// Setup › Posting to the books (SET-09): when retail sales and stock reach the ledger.
+enum RetailPostingSchedule {
+  END_OF_DAY
+  EVERY_SALE
+}
+
+enum RetailPostingTrigger {
+  SCHEDULE
+  BY_HAND
+}
+
+/// The accounts a retail posting rule line can ask for by role instead of by code.
+enum RetailAccountRole {
+  SALES
+  VAT_OUTPUT
+  COST_OF_SALES
+  STOCK
+  BREAKAGE
+  DEPOSITS_HELD
+}
+
+/// The company's account for each role ("Sales and stock" on Posting to the books).
+model RetailAccountRoleMapping {
+  companyId String
+  role      RetailAccountRole
+  accountId String
+  updatedAt DateTime          @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account ChartOfAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@id([companyId, role])
+}
+
+model RetailPostingSettings {
+  companyId   String                @id
+  schedule    RetailPostingSchedule @default(END_OF_DAY)
+  updatedById String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailPostingSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// One posting pass: what "Last posted" reads.
+model RetailPostingRun {
+  id               String               @id @default(uuid())
+  companyId        String
+  trigger          RetailPostingTrigger
+  startedById      String?
+  startedAt        DateTime             @default(now())
+  finishedAt       DateTime?
+  salesPosted      Int                  @default(0)
+  refundsPosted    Int                  @default(0)
+  deliveriesPosted Int                  @default(0)
+  countsPosted     Int                  @default(0)
+  otherPosted      Int                  @default(0)
+  failed           Int                  @default(0)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  startedBy User?   @relation("RetailPostingRunStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, startedAt])
+}
+
 /// What kind of shop a retail workspace is. It decides the categories a new
 /// shop starts with and which shop-type features exist for the till to use.
 enum RetailBusinessType {
@@ -5622,6 +5693,7 @@ enum PostingRuleLineRepeatMode {
 enum PostingRuleLineAccountSource {
   FIXED_ACCOUNT
   TENDER_MAPPING
+  ROLE_MAPPING
 }
 
 enum AccountingSeedExecutionMode {
@@ -5785,7 +5857,8 @@ model ChartOfAccount {
   journalLines           JournalLine[]
   postingLines           PostingRuleLine[]
   tenderClearingMappings TenderAccountMapping[] @relation("TenderClearingAccount")
-  tenderOffsetMappings   TenderAccountMapping[] @relation("TenderOffsetAccount")
+  tenderOffsetMappings   TenderAccountMapping[]     @relation("TenderOffsetAccount")
+  retailRoleMappings     RetailAccountRoleMapping[]
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -5954,6 +6027,8 @@ model PostingRuleLine {
   taxCodeId       String?
   repeatMode      PostingRuleLineRepeatMode    @default(NONE)
   accountSource   PostingRuleLineAccountSource @default(FIXED_ACCOUNT)
+  /// With `accountSource = ROLE_MAPPING`: which of the company's role accounts this line posts to.
+  accountRole     RetailAccountRole?
   valuePath       String?
   memoTemplate    String?
   costCenterId    String?

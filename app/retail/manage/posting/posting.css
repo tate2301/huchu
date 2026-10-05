@@ -1,0 +1,19 @@
+/* Posting to the books (SET-09, board PostingSettings): the aside's live parts and the set-up dialog. */
+
+.cx-posting-setup { align-self: flex-start; }
+
+/* "Ready to post": the aside's bullets, a warn dot on a check that fails. */
+.cx-sf-aside ul.cx-posting-checks li.is-warn { color: var(--warn); }
+.cx-sf-aside ul.cx-posting-checks li.is-warn::before { background: var(--warn-dot); }
+
+.cx-posting-dialog { width: 520px; max-height: calc(100vh - 32px); overflow: auto; }
+.cx-posting-dialog__group { display: flex; flex-direction: column; gap: 6px; }
+.cx-posting-dialog__group h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.cx-posting-dialog__group ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; color: var(--ink-2); font-size: 13px; }
+.cx-posting-dialog__rates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 519px) {
+  .cx-posting-dialog__rates { grid-template-columns: 1fr; }
+}
+
+/* "Last posted" reads as the board draws it: the run, in the weight of a fact. */
+#cx-set-lastPosted { font-weight: 600; }

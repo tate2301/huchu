@@ -34,6 +34,8 @@ let productId = "";
 
 beforeAll(async () => {
   companyId = (await prisma.company.create({ data: { name: `Sync ${stamp}`, slug: `sync-${stamp}` }, select: { id: true } })).id;
+  // These replays read each sale's journal at once: this shop posts with every sale (SET-09).
+  await prisma.retailPostingSettings.create({ data: { companyId, schedule: "EVERY_SALE" } });
   const owner = await prisma.user.create({
     data: { companyId, name: "Tendai Mhlanga", role: "SUPERADMIN", email: `owner-${stamp}@sync.test`, password: "x" },
     select: { id: true },
