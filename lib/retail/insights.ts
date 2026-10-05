@@ -2,6 +2,16 @@ import { Prisma } from "@prisma/client";
 
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import {
+  customersHeadline,
+  type Headline,
+  lossesHeadline,
+  moneyHeadline,
+  productsHeadline,
+  profitHeadline,
+  salesHeadline,
+  stockHeadline,
+} from "@/lib/retail/insight-headline";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import { SHOP_TIME_ZONE, shopClock, type ShopHours } from "@/lib/retail/shop-profile-rules";
 import { COVER_AIM, daysOfCover } from "@/lib/retail/stock/levels";
@@ -20,10 +30,11 @@ import {
  * we stocked right, where is money leaking, who comes back, where is the cash
  * going.
  *
- * Every page has the same shape: a few figures against the period before, one
- * chart that answers the page's question, tables behind it, what it says in
- * sentences, and where to go to do something about it. The figures leave here
- * as numbers with a format; the page writes them out.
+ * Every page has the same shape: a headline of two sentences that says what
+ * the figures add up to and what to notice, a few figures against the period
+ * before, one chart that answers the page's question, tables behind it, and
+ * where to go to do something about it. The figures leave here as numbers
+ * with a format; the page writes them out.
  */
 
 export const INSIGHT_TOPICS = ["sales", "profit", "products", "stock", "losses", "customers", "money"] as const;
@@ -90,7 +101,8 @@ export type Insight = {
   unit: string;
   chart: InsightChart;
   tables: InsightTable[];
-  findings: string[];
+  /** The two sentences at the top of the page, from these figures. */
+  headline: Headline;
   actions: Array<{ label: string; href: string }>;
 };
 
@@ -119,6 +131,10 @@ export type InsightWindow = {
   short: string;
   /** "in 30 days", "today", "this month" — after a verb. */
   within: string;
+  /** "in the last 30 days", "today", "this month" — closing a headline. */
+  over: string;
+  /** "the 30 days before", "the day before", "the month before". */
+  beforeWords: string;
   /** "on the 30 days before". */
   beforeNote: string;
   /** "Compared with the 30 days before". */
@@ -164,6 +180,8 @@ export function insightWindow(period: InsightPeriod, now = new Date()): InsightW
       words: "today",
       short: "today",
       within: "today",
+      over: "today",
+      beforeWords: "the day before",
       beforeNote: "on the day before",
       compareWords: "Compared with the day before",
     };
@@ -181,6 +199,8 @@ export function insightWindow(period: InsightPeriod, now = new Date()): InsightW
       words: "this month",
       short: "this month",
       within: "this month",
+      over: "this month",
+      beforeWords: "the month before",
       beforeNote: "on the month before",
       compareWords: "Compared with the month before",
     };
@@ -197,6 +217,8 @@ export function insightWindow(period: InsightPeriod, now = new Date()): InsightW
     words: `last ${days} days`,
     short: `${days} days`,
     within: `in ${days} days`,
+    over: `in the last ${days} days`,
+    beforeWords: `the ${days} days before`,
     beforeNote: `on the ${days} days before`,
     compareWords: `Compared with the ${days} days before`,
   };
@@ -251,6 +273,7 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const saleSelect = {
   id: true,
+  siteId: true,
   saleType: true,
   totalAmount: true,
   discountAmount: true,
@@ -505,27 +528,29 @@ async function salesInsight(companyId: string, window: InsightWindow, siteId: st
   const till = (sale: LoadedSale) => sale.shift?.registerName ?? "No till";
   const cashier = (sale: LoadedSale) => sale.cashierName ?? "Unknown";
 
-  // What it says.
-  const findings: string[] = [];
+  // The headline: what was taken, then the busiest hour and the change on before.
   const slots = chart.rows.flatMap((day, row) =>
     chart.columns.map((hour, column) => ({ day, hour, value: chart.values[row][column] ?? 0 })),
   );
   const busiest = slots.reduce((best, slot) => (slot.value > best.value ? slot : best), slots[0]);
-  if (busiest && busiest.value > 0) {
-    findings.push(`${busiest.day} ${busiest.hour}:00 is the busiest hour, taking ${usd(busiest.value)} on an average day.`);
-  }
-  const quietMornings = slots.filter((slot) => Number(slot.hour) < 10 && slot.value > 0);
-  if (quietMornings.length > 0) {
-    const average = quietMornings.reduce((sum, slot) => sum + slot.value, 0) / quietMornings.length;
-    findings.push(`Before 10:00 the shop takes ${usd(average)} an hour on average.`);
-  }
   const growing = [...categoriesNow.entries()]
-    .map(([id, entry]) => ({ entry, change: relativeChange(entry.takings, categoriesThen.get(id) ?? 0) }))
-    .filter((row) => row.change !== null)
-    .sort((left, right) => (right.change ?? 0) - (left.change ?? 0))[0];
-  if (growing && (growing.change ?? 0) > 0) {
-    findings.push(`${growing.entry.name} grew ${(growing.change! * 100).toFixed(0)}% on the period before.`);
-  }
+    .map(([id, entry]) => ({ name: entry.name, change: relativeChange(entry.takings, categoriesThen.get(id) ?? 0) }))
+    .filter((row): row is { name: string; change: number } => row.change !== null)
+    .sort((left, right) => right.change - left.change)[0];
+  const headline = salesHeadline({
+    words: window,
+    takings: current.takings,
+    baskets: current.baskets,
+    takingsBefore: previous.takings,
+    change: relativeChange(current.takings, previous.takings),
+    site: site && siteId ? site.label : null,
+    tradedAt:
+      site && !siteId
+        ? site.options.filter((option) => now.some((sale) => sale.siteId === option.value)).map((option) => option.label)
+        : [],
+    busiest: busiest && busiest.value > 0 ? { day: busiest.day, hour: busiest.hour } : null,
+    growing: growing ?? null,
+  });
 
   const itemsNow = current.baskets ? current.items / current.baskets : 0;
   const itemsBefore = previous.baskets ? previous.items / previous.baskets : 0;
@@ -582,7 +607,7 @@ async function salesInsight(companyId: string, window: InsightWindow, siteId: st
         totalBefore: previous.takings,
       }),
     ],
-    findings,
+    headline,
     actions: [
       { label: "See the sales", href: "/retail/sales" },
       { label: "Plan a promotion for the quiet hours", href: "/retail/products/promotions" },
@@ -682,20 +707,27 @@ async function profitInsight(companyId: string, window: InsightWindow): Promise<
     empty: "Nothing sold in this period.",
   });
 
-  const findings: string[] = [];
-  const belowTarget = categoryRows.filter((row) => row.group.target && row.margin < row.group.target);
-  for (const row of belowTarget.slice(0, 2)) {
-    findings.push(
-      `${row.group.label} earns ${(row.margin * 100).toFixed(1)}%, below the ${(row.group.target! * 100).toFixed(0)}% you aim for.`,
-    );
-  }
+  // The headline: what was made, then the category furthest below its aim and the change on before.
+  const below = categoryRows
+    .filter((row) => row.group.target && row.revenue > 0 && row.margin < row.group.target)
+    .sort((left, right) => left.margin - left.group.target! - (right.margin - right.group.target!))[0];
   const worst = [...products].sort((left, right) => left.margin - right.margin)[0];
-  if (worst) findings.push(`${worst.name} earns the least: ${(worst.margin * 100).toFixed(1)}% on what it sells for.`);
   const best = categoryRows.reduce<(typeof categoryRows)[number] | null>(
     (top, row) => (row.revenue > 0 && (!top || row.margin > top.margin) ? row : top),
     null,
   );
-  if (best) findings.push(`${best.group.label} earns the best margin, ${(best.margin * 100).toFixed(1)}%.`);
+  const headline = profitHeadline({
+    words: window,
+    profit: current.profit,
+    margin: current.margin,
+    revenue: current.revenue,
+    baskets: salesTotals(now).baskets,
+    profitBefore: previous.profit,
+    change: relativeChange(current.profit, previous.profit),
+    below: below ? { label: below.group.label, margin: below.margin, target: below.group.target! } : null,
+    worst: worst ? { name: worst.name, margin: worst.margin } : null,
+    best: best ? { label: best.group.label, margin: best.margin } : null,
+  });
 
   return {
     topic: "profit",
@@ -728,7 +760,7 @@ async function profitInsight(companyId: string, window: InsightWindow): Promise<
       productTable("least", "Earning least", [...products].sort((left, right) => left.margin - right.margin)),
       productTable("most", "Earning most", [...products].sort((left, right) => right.profit - left.profit)),
     ],
-    findings,
+    headline,
     actions: [
       { label: "Change prices", href: "/retail/products/price-lists" },
       { label: "Set margins you aim for", href: "/retail/products/categories" },
@@ -863,12 +895,14 @@ async function productsInsight(companyId: string, window: InsightWindow): Promis
     .sort((left, right) => left.quantity - right.quantity);
   const names = new Map(stock.map((row) => [row.productId, row.name]));
 
-  const findings: string[] = [];
-  if (idle.length > 0) {
-    findings.push(`${usd(idleValue)} is sitting in ${idle.length} ${idle.length === 1 ? "product" : "products"} that have not sold in 60 days.`);
-  }
-  if (totalProfit > 0) findings.push(`The top 20 products make ${(top20 * 100).toFixed(0)}% of the profit.`);
-  if (outNow > 0) findings.push(`${outNow} ${outNow === 1 ? "product is" : "products are"} out of stock now.`);
+  const headline = productsHeadline({
+    words: window,
+    products: stock.length,
+    selling: stock.filter((row) => (sold.get(row.productId)?.quantity ?? 0) > 0).length,
+    idle: { count: idle.length, value: idleValue },
+    top20: totalProfit > 0 && profits.length > 20 ? top20 : null,
+    out: outNow,
+  });
 
   return {
     topic: "products",
@@ -936,7 +970,7 @@ async function productsInsight(companyId: string, window: InsightWindow): Promis
         empty: "Nothing is selling slowly.",
       },
     ],
-    findings,
+    headline,
     actions: [
       { label: "Run a promotion on what is not selling", href: "/retail/products/promotions" },
       { label: "Order from suppliers", href: "/retail/buying/orders" },
@@ -1060,24 +1094,24 @@ async function stockInsight(companyId: string, window: InsightWindow): Promise<I
     .filter((entry) => entry.row.onHand > 0 && (entry.cover === null || entry.cover > COVER_AIM * 4))
     .sort((left, right) => right.row.value - left.row.value);
 
-  const findings: string[] = [];
-  const short = categoryRows.filter((row) => (row.cover ?? 0) < COVER_AIM / 2);
-  for (const row of short.slice(0, 2)) {
-    findings.push(`${row.group.label} has ${Math.round(row.cover!)} days of cover against the ${COVER_AIM} you aim for.`);
-  }
-  const heavy = categoryRows.filter((row) => (row.cover ?? 0) > COVER_AIM * 4);
-  for (const row of heavy.slice(0, 1)) {
-    findings.push(`${row.group.label} has ${Math.round(row.cover!)} days of cover: ${usd(row.value)} tied up in it.`);
-  }
-  if (low.length > 0) findings.push(`${low.length} ${low.length === 1 ? "product is" : "products are"} at or below the reorder level.`);
-  if (missed > 0) {
-    const worst = out[0];
-    findings.push(
-      out.filter((entry) => entry.stockout.missed > 0).length === 1
-        ? `About ${usd(missed)} of sales were missed ${window.within} with ${worst.row.name} out of stock.`
-        : `About ${usd(missed)} of sales were missed ${window.within} with shelves empty, ${usd(worst.stockout.missed)} of it on ${worst.row.name}.`,
-    );
-  }
+  // The headline: the stock and its cover, then the shortest category and what empty shelves cost.
+  // `categoryRows` runs from least cover to most.
+  const short = categoryRows.find((row) => (row.cover ?? 0) < COVER_AIM / 2);
+  const heavy = [...categoryRows].reverse().find((row) => (row.cover ?? 0) > COVER_AIM * 4);
+  const headline = stockHeadline({
+    words: window,
+    value: stockValue,
+    cover,
+    baskets: salesTotals(sales).baskets,
+    aim: COVER_AIM,
+    short: short ? { label: short.group.label, cover: short.cover! } : null,
+    heavy: heavy ? { label: heavy.group.label, cover: heavy.cover!, value: heavy.value } : null,
+    low: low.length,
+    missed:
+      missed > 0
+        ? { value: missed, product: out.filter((entry) => entry.stockout.missed > 0).length === 1 ? out[0].row.name : null }
+        : null,
+  });
 
   return {
     topic: "stock",
@@ -1154,7 +1188,7 @@ async function stockInsight(companyId: string, window: InsightWindow): Promise<I
         empty: "Nothing is overstocked.",
       },
     ],
-    findings,
+    headline,
     actions: [
       { label: "See what is running low", href: "/retail/stock" },
       { label: "Order from suppliers", href: "/retail/buying/orders" },
@@ -1233,21 +1267,22 @@ async function lossesInsight(companyId: string, window: InsightWindow): Promise<
     else entry.voids += -n(sale.totalAmount);
   }
 
-  const findings: string[] = [];
-  const change_ = relativeChange(total, totalBefore);
-  if (change_ !== null && Math.abs(change_) >= 0.1) {
-    findings.push(`Losses are ${change_ > 0 ? "up" : "down"} ${(Math.abs(change_) * 100).toFixed(0)}% on the period before.`);
-  }
+  // The headline: what was lost, then where most of it went and the change on before.
   const biggest = [
     { label: "stock counts", value: countLoss },
     { label: "drawer differences", value: drawer },
     { label: "refunds and voids", value: reversed },
   ].sort((left, right) => right.value - left.value)[0];
-  if (biggest.value > 0) findings.push(`Most of it is ${biggest.label}: ${usd(biggest.value)}.`);
   const shortest = [...people.entries()].sort((left, right) => left[1].drawer - right[1].drawer)[0];
-  if (shortest && shortest[1].drawer < 0) {
-    findings.push(`${shortest[0]} was short ${shortest[1].short} ${shortest[1].short === 1 ? "time" : "times"}, ${usd(-shortest[1].drawer)} in all.`);
-  }
+  const headline = lossesHeadline({
+    words: window,
+    total,
+    takings,
+    change: relativeChange(total, totalBefore),
+    biggest,
+    shortest:
+      shortest && shortest[1].drawer < 0 ? { name: shortest[0], times: shortest[1].short, value: -shortest[1].drawer } : null,
+  });
 
   return {
     topic: "losses",
@@ -1293,7 +1328,7 @@ async function lossesInsight(companyId: string, window: InsightWindow): Promise<
         empty: "No losses in this period.",
       },
     ],
-    findings,
+    headline,
     actions: [
       { label: "Count the stock", href: "/retail/stock/counts" },
       { label: "Look at the shifts", href: "/retail/shifts" },
@@ -1380,12 +1415,16 @@ async function customersInsight(companyId: string, window: InsightWindow): Promi
     empty: id === "best" ? "No members bought in this period." : "Every member has been in within 30 days.",
   });
 
-  const findings: string[] = [];
-  if (walkInBasket > 0 && memberBasket > 0) {
-    findings.push(`Members spend ${(memberBasket / walkInBasket).toFixed(1)} times what a walk-in does a visit.`);
-  }
-  if (lapsed.length > 0) findings.push(`${lapsed.length} ${lapsed.length === 1 ? "member has" : "members have"} not been in for 30 days.`);
-  findings.push(`Members brought in ${(memberShare * 100).toFixed(0)}% of takings.`);
+  const headline = customersHeadline({
+    words: window,
+    takings: current.members + current.walkIns,
+    baskets: current.memberBaskets + current.walkInBaskets,
+    takingsBefore: previous.members + previous.walkIns,
+    memberShare,
+    ratio: walkInBasket > 0 && memberBasket > 0 ? memberBasket / walkInBasket : null,
+    lapsed: lapsed.length,
+    cameBack,
+  });
 
   return {
     topic: "customers",
@@ -1422,7 +1461,7 @@ async function customersInsight(companyId: string, window: InsightWindow): Promi
         `Spend, ${window.short}`,
       ),
     ],
-    findings,
+    headline,
     actions: [{ label: "See the customers", href: "/retail/customers" }],
   };
 }
@@ -1490,18 +1529,18 @@ async function moneyInsight(companyId: string, window: InsightWindow): Promise<I
   const inTotal = weeks.reduce((sum, week) => sum + week.values.in, 0);
   const outTotal = weeks.reduce((sum, week) => sum + week.values.out, 0);
 
-  const findings: string[] = [];
-  findings.push(
-    inTotal >= outTotal
-      ? `${usd(inTotal - outTotal)} more came in than went to suppliers and expenses ${window.within}.`
-      : `${usd(outTotal - inTotal)} more went to suppliers and expenses than came in ${window.within}.`,
-  );
   const heaviest = weeks.reduce<(typeof weeks)[number] | null>(
     (top, week) => (week.values.out > week.values.in && (!top || week.values.out - week.values.in > top.values.out - top.values.in) ? week : top),
     null,
   );
-  if (heaviest) findings.push(`The week of ${heaviest.label} spent more than it took.`);
-  if (waiting > 0) findings.push(`${waiting} ${waiting === 1 ? "requisition is" : "requisitions are"} waiting for a decision.`);
+  const headline = moneyHeadline({
+    words: window,
+    in: inTotal,
+    out: outTotal,
+    waiting,
+    heaviestWeek: window.period === "today" ? null : (heaviest?.label ?? null),
+    onOrder: onOrderValue,
+  });
 
   return {
     topic: "money",
@@ -1561,7 +1600,7 @@ async function moneyInsight(companyId: string, window: InsightWindow): Promise<I
         empty: "Nothing is waiting to be paid or delivered.",
       },
     ],
-    findings,
+    headline,
     actions: [
       { label: "Decide the requisitions", href: "/retail/buying/requisitions" },
       { label: "See the orders", href: "/retail/buying/orders" },

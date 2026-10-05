@@ -247,6 +247,35 @@ describe("the insight variant, in the InsightsSales board's shapes", () => {
     expect(html).toContain('<aside class="cx-df-aside"><p>aside</p></aside>');
   });
 
+  it("opens the main column with the headline: the fact, then what to notice", () => {
+    const headline = {
+      fact: "US$11,732 taken in the last 30 days across two shops.",
+      notice: "Fri 17:00 is the busiest hour; takings are 17% down on the 30 days before.",
+    };
+    const html = renderToStaticMarkup(
+      <DashboardFrame variant="insight" label="Sales" toolbar={<div id="bar" />} headline={headline}>
+        <p>main</p>
+      </DashboardFrame>,
+    );
+    expect(html).toContain(
+      '<div class="cx-df-main" aria-label="Sales" role="region"><div class="cx-df-headline">' +
+        '<p class="cx-df-headline__fact">US$11,732 taken in the last 30 days across two shops.</p>' +
+        '<p class="cx-df-headline__notice">Fri 17:00 is the busiest hour; takings are 17% down on the 30 days before.</p></div><p>main</p>',
+    );
+    const overview = renderToStaticMarkup(
+      <DashboardFrame variant="overview" toolbar={<div />} headline={headline}>
+        <p>tile</p>
+      </DashboardFrame>,
+    );
+    expect(overview).toMatch(/<div class="cx-df-grid"><div class="cx-df-headline">.*<\/div><p>tile<\/p>/);
+    const bare = renderToStaticMarkup(
+      <DashboardFrame variant="insight" toolbar={<div />} headline={null}>
+        <p>main</p>
+      </DashboardFrame>,
+    );
+    expect(bare).not.toContain("cx-df-headline");
+  });
+
   it("puts the period, site, comparison and update time in the toolbar", () => {
     const html = renderToStaticMarkup(
       <PeriodToolbar
@@ -393,25 +422,23 @@ describe("the insight variant, in the InsightsSales board's shapes", () => {
     view.unmount();
   });
 
-  it("writes the aside: what it says, what to do, and Send me this only when offered", () => {
+  it("writes the aside: what to do, and Send me this only when offered — never a What it says box", () => {
     const html = renderToStaticMarkup(
-      <InsightAside
-        findings={["Friday and Saturday evenings, 17:00 to 20:00, bring in a third of the week."]}
-        actions={[{ label: "Put two cashiers on Friday 16:00 to 21:00", href: "/retail/manage/people" }]}
-      />,
+      <InsightAside actions={[{ label: "Put two cashiers on Friday 16:00 to 21:00", href: "/retail/manage/people" }]} />,
     );
-    expect(html).toContain("What it says");
+    expect(html).not.toContain("What it says");
+    expect(html).toContain("Do something about it");
     expect(html).toMatch(/<a href="\/retail\/manage\/people" class="cx-df-aside__do"><span>Put two cashiers on Friday 16:00 to 21:00<\/span><svg/);
     expect(html).not.toContain("Send me this");
 
     const send = renderToStaticMarkup(
       <InsightAside
-        findings={[]}
         actions={[]}
         send={{ words: "This page, as a picture and three lines, every Monday at 07:00 on WhatsApp.", onWords: null, onSend: () => {} }}
       />,
     );
-    expect(send).toContain("Not enough trade in these dates to say.");
+    expect(send).not.toContain("Not enough trade");
+    expect(send).not.toContain("Do something about it");
     expect(send).toContain("Send me this");
     expect(send).toContain(">Send it every Monday</button>");
   });

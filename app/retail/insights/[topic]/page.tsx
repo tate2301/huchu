@@ -147,6 +147,10 @@ function seriesColor(stacked: boolean, index: number): SeriesColor {
 function Loading() {
   return (
     <>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <DashSkeleton height={32} width="70%" />
+        <DashSkeleton height={32} width="55%" />
+      </div>
       <DashSkeleton height={84} />
       <DashSkeleton height={240} />
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -160,25 +164,21 @@ function Loading() {
 
 function AsideLoading() {
   return (
-    <>
-      {[0, 1, 2].map((section) => (
-        <div key={section} className="cx-df-aside__section">
-          <DashSkeleton height={16} width="50%" />
-          <DashSkeleton height={12} />
-          <DashSkeleton height={12} />
-          <DashSkeleton height={12} width="70%" />
-        </div>
-      ))}
-    </>
+    <div className="cx-df-aside__section">
+      <DashSkeleton height={16} width="50%" />
+      <DashSkeleton height={36} />
+      <DashSkeleton height={36} />
+    </div>
   );
 }
 
 /**
  * Insights — one question an owner asks of the shop, answered on the
- * DashboardFrame's insight variant: the period and site in the toolbar, four
- * figures against the period before, the chart that answers the question,
- * the tables behind it under tabs, and beside them what it says and where to
- * go to do something about it. The period, site and tab live in the address.
+ * DashboardFrame's insight variant: the period and site in the toolbar, the
+ * headline the server wrote from the figures, four figures against the period
+ * before, the chart that answers the question, the tables behind it under
+ * tabs, and beside them where to go to do something about it. The period,
+ * site and tab live in the address.
  */
 export default function RetailInsightPage() {
   const params = useParams<{ topic: string }>();
@@ -234,9 +234,10 @@ export default function RetailInsightPage() {
         variant="insight"
         label={title}
         toolbar={toolbar}
+        headline={query.isError ? null : (insight?.headline ?? null)}
         aside={
           insight ? (
-            <InsightAside findings={insight.findings} actions={insight.actions} />
+            insight.actions.length > 0 ? <InsightAside actions={insight.actions} /> : null
           ) : query.isError ? null : (
             <AsideLoading />
           )

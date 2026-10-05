@@ -169,6 +169,13 @@
 .cx-df-insight { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); }
 .cx-df-insight--bare { grid-template-columns: minmax(0, 1fr); }
 .cx-df-main { min-width: 0; min-height: 0; overflow: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+/* The column scrolls; its blocks keep their height rather than squeeze to fit. */
+.cx-df-main > * { flex-shrink: 0; }
+
+/* Headline: two sentences over the tiles, the fact in ink and what to notice muted. */
+.cx-df-headline { grid-column: 1 / -1; max-width: 920px; padding: 4px 0 8px; font-size: 32px; line-height: 1.18; letter-spacing: -0.02em; text-wrap: pretty; }
+.cx-df-headline__fact { font-weight: 600; color: var(--ink); }
+.cx-df-headline__notice { font-weight: 400; color: var(--ink-3); }
 .cx-df-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .cx-df-strip__tile { padding: 14px 16px; border-left: 1px solid var(--line); margin-left: -1px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cx-df-strip__label, .cx-df-strip__value, .cx-df-strip__note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -232,9 +239,6 @@
 .cx-df-aside__section + .cx-df-aside__section { padding-top: 20px; border-top: 1px solid var(--line); }
 .cx-df-aside__section--actions { gap: 8px; }
 .cx-df-aside h2 { font-size: 14px; font-weight: 600; }
-.cx-df-aside__bullets { display: flex; flex-direction: column; gap: 10px; color: var(--ink-2); }
-.cx-df-aside__bullets li { display: flex; gap: 10px; line-height: 1.45; }
-.cx-df-aside__bullets li::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 7px; border-radius: 99px; background: var(--ink); }
 .cx-df-aside__do { min-height: 36px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); text-decoration: none; }
 .cx-df-aside__do:hover { background: var(--hover); }
 .cx-df-aside__do span { flex: 1; min-width: 0; }
@@ -262,6 +266,7 @@
   .cx-df-toolbar__wide { display: none !important; }
   .cx-df-toolbar__under { display: block; padding: 8px 16px; font-size: 12.5px; color: var(--ink-3); border-bottom: 1px solid var(--line); background: inherit; }
   .cx-df-main { padding: 16px; }
+  .cx-df-headline { font-size: 24px; padding: 0 0 4px; }
   .cx-df-grid { padding: 16px; gap: 12px; }
   .cx-df-grid > [class*="cx-df-span-"] { grid-column: span 12; }
   .cx-df-grid > .cx-df-span-2 { grid-column: span 6; }
