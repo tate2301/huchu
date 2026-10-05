@@ -110,14 +110,53 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     };
   }, [kind, load, ctx]);
 
+  // A kind that polls (a pairing code's state) merges each answer into the
+  // values and into what counts as unchanged, so polling never makes it dirty.
+  const valuesRef = React.useRef(values);
+  valuesRef.current = values;
+  const { poll } = kind;
+  React.useEffect(() => {
+    if (!poll || !open) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = async () => {
+      try {
+        const polled = await poll.run(ctx, valuesRef.current);
+        if (live && polled) {
+          setInitial((current) => ({ ...current, ...polled }));
+          setValues((current) => ({ ...current, ...polled }));
+        }
+      } catch {
+        // The next tick asks again.
+      }
+      if (live) timer = setTimeout(() => void tick(), poll.every);
+    };
+    timer = setTimeout(() => void tick(), poll.every);
+    return () => {
+      live = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [poll, open, ctx]);
+
   const dirty = !readOnly && isDirty(initial, values);
   const title = sheetText(kind.title, ctx, values);
   const sub = sheetText(kind.sub, ctx, values);
 
+  // Leaving without saving: what the kind undoes (the till Pair a till made), then close.
+  const leave = () => {
+    const undo = kind.cancel?.(ctx, values) ?? null;
+    if (undo) {
+      void send(undo)
+        .then(() => Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key }))))
+        .catch(() => undefined);
+    }
+    onClose();
+  };
+
   const requestClose = () => {
     if (saving) return;
     if (dirty) setAsking("discard");
-    else onClose();
+    else leave();
   };
 
   const setValue = (fieldId: string, value: unknown) => {
@@ -206,7 +245,12 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const sendChecked = async (again: boolean) => {
     setSaving(true);
     try {
-      const answer = await send(kind.submit(values, ctx));
+      const request = kind.submit(values, ctx);
+      if (!request) {
+        await after(null, again);
+        return;
+      }
+      const answer = await send(request);
       if (answer.ok) {
         const result = (answer.payload as { data?: unknown } | null)?.data ?? answer.payload;
         await after(result, again);
@@ -247,7 +291,8 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
         : asking === "confirm" && kind.confirm
           ? kind.confirm(values, ctx)
           : null;
-  const secondary = readOnly ? "Close" : (kind.secondary ?? "Cancel");
+  const secondaryLink = readOnly ? null : (kind.secondaryLink?.(ctx, values) ?? null);
+  const secondary = readOnly ? "Close" : (secondaryLink?.label ?? kind.secondary ?? "Cancel");
   const again = !readOnly && kind.secondary !== undefined && kind.secondary !== "Cancel";
   const sections = shownSections(kind, values, ctx);
   const danger = !readOnly && kind.danger && (kind.danger.show?.(ctx, values) ?? true) ? kind.danger : null;
@@ -416,7 +461,15 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   ) : null}
                 </span>
               )}
-              <Button size="field" onClick={() => (again ? void submit(true) : requestClose())} disabled={saving}>
+              <Button
+                size="field"
+                onClick={() => {
+                  if (secondaryLink) router.replace(secondaryLink.href, { scroll: false });
+                  else if (again) void submit(true);
+                  else requestClose();
+                }}
+                disabled={saving}
+              >
                 {secondary}
               </Button>
               {readOnly ? null : (
@@ -446,7 +499,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
             else if (asking === "confirm") {
               setAsking(null);
               await sendChecked(false);
-            } else onClose();
+            } else leave();
           }}
         />
       ) : null}

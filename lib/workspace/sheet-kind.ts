@@ -64,6 +64,8 @@ export type FieldSpec = {
   t: FieldType;
   /** The label. */
   l: string;
+  /** The label worked out from what was loaded ("On Back till now"); `l` stays the name in messages. */
+  lw?: (values: SheetValues) => string;
   /** The starting value, or how to work it out from the context. */
   v?: unknown | ((ctx: SheetCtx) => unknown);
   /** Placeholder. */
@@ -79,7 +81,10 @@ export type FieldSpec = {
   right?: boolean;
   /** `text`: upper case as typed (a short code). */
   upper?: boolean;
-  tone?: "ok" | "warn";
+  /** `read`: the value in that tone, always or as the values say ("Paired" ok, "Not paired yet" warn). */
+  tone?: "ok" | "warn" | ((values: SheetValues) => "ok" | "warn" | undefined);
+  /** `read`: a QR code of this payload beside the value, drawn in the browser (a pairing code for a Kora). */
+  qr?: (values: SheetValues) => string | null;
   /** The hint in `--warn`, always or while this holds (the default site switched off). */
   warn?: boolean | ((values: SheetValues) => boolean);
   /**
@@ -194,7 +199,20 @@ export type SheetKind = {
   readOnly?: (ctx: SheetCtx, values: SheetValues) => boolean;
   /** Edit kinds: the current values. */
   load?: (ctx: SheetCtx) => Promise<SheetValues>;
-  submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest;
+  /**
+   * Asked again every `every` ms while open; what it returns is merged into
+   * the values and into what counts as unchanged (a pairing code's state).
+   */
+  poll?: { every: number; run: (ctx: SheetCtx, values: SheetValues) => Promise<SheetValues | null> };
+  /**
+   * Sent when the sheet is left without saving (Cancel, ×, Esc, Discard): the
+   * till Pair a till made goes, a pairing code stops.
+   */
+  cancel?: (ctx: SheetCtx, values: SheetValues) => SheetRequest | null;
+  /** The secondary as a way on instead of Cancel ("Pair another device"), while this gives one. */
+  secondaryLink?: (ctx: SheetCtx, values: SheetValues) => { label: string; href: string } | null;
+  /** Null: nothing to send; the primary is done at once (a code that paired on its own). */
+  submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest | null;
   /** React Query keys to refetch after a save. */
   invalidate: string[][];
   /** Every one of these, or the sheet does not open. */

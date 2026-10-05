@@ -119,6 +119,7 @@ afterAll(async () => {
   await prisma.stockMovement.deleteMany({ where: { item: { site: { companyId: { in: ids } } } } });
   await prisma.inventoryItem.deleteMany({ where: { site: { companyId: { in: ids } } } });
   await prisma.retailShift.deleteMany({ where: { companyId: { in: ids } } });
+  await prisma.retailDevice.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.retailRegister.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.stockLocation.deleteMany({ where: { site: { companyId: { in: ids } } } });
   await prisma.retailShopProfile.deleteMany({ where: { companyId: { in: ids } } });
@@ -345,9 +346,21 @@ describe("closing a site", () => {
 
   it("closes a site with nothing left: its tills stop, it shows under Closed, its history stays", async () => {
     const borrowdale = await prisma.site.findFirstOrThrow({ where: { companyId, code: "BDL" } });
-    await prisma.retailRegister.create({ data: { companyId, siteId: borrowdale.id, code: `TILL-B`, name: "Borrowdale till" } });
+    const till = await prisma.retailRegister.create({
+      data: { companyId, siteId: borrowdale.id, code: `TILL-B`, name: "Borrowdale till" },
+      select: { id: true },
+    });
+    const device = await prisma.retailDevice.create({
+      data: { companyId, registerId: till.id, kind: "COUNTER_MINI", keyHash: `key-${stamp}`, pairedById: ownerId },
+      select: { id: true },
+    });
 
     const closed = await closeSite(actor(), borrowdale.id);
+    // SET-03: the closed site's tills lose their devices, with the reason.
+    expect(await prisma.retailDevice.findUniqueOrThrow({ where: { id: device.id } })).toMatchObject({
+      unpairReason: "SITE_CLOSED",
+      unpairedById: ownerId,
+    });
     expect(closed).toMatchObject({ state: "CLOSED", tills: 0, sub: "Closed · 0 tills · US$0.00 in stock" });
     const row = await prisma.site.findUniqueOrThrow({ where: { id: borrowdale.id } });
     expect(row).toMatchObject({ isActive: false, closedById: ownerId });

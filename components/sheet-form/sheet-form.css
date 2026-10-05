@@ -122,3 +122,8 @@
 /* A `text` field with choices: a select that reads as the text box it replaces. */
 .cx-input--select { appearance: none; cursor: pointer; }
 .cx-input:disabled { background: var(--ground); color: var(--ink-3); cursor: default; }
+/* A read value with its QR code to the right (the pairing code on a Kora). */
+.sf-qr-row { display: flex; align-items: flex-start; gap: 12px; }
+.sf-qr-row > .cx-read { flex: 1 1 auto; }
+.sf-qr { flex: none; display: inline-flex; border-radius: 8px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
+.sf-qr img { display: block; width: 100%; height: 100%; }

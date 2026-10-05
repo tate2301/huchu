@@ -5,6 +5,7 @@ import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { activeRetailPriceList } from "@/lib/retail/shelf-pricing";
+import { unpairDevicesOf } from "@/lib/retail/tills";
 import {
   SITE_CODE_PATTERN,
   cleanSiteCode,
@@ -660,7 +661,14 @@ export async function closeSite(actor: SiteActor, id: string): Promise<SiteDetai
     const stocked = await tx.inventoryItem.count({ where: { siteId: site.id, currentStock: { not: 0 } } });
     if (stocked > 0) throw new SiteRefusal(409, hasStockSentence(stocked), { code: "HAS_STOCK" });
 
-    // Its tills stop: nothing sells there once it is closed.
+    // Its tills stop and their devices are unpaired: nothing sells there once it is closed.
+    const working = await tx.retailRegister.findMany({ where: { companyId, siteId: site.id, isActive: true }, select: { id: true } });
+    const devicesUnpaired = await unpairDevicesOf(tx, {
+      companyId,
+      registerIds: working.map((till) => till.id),
+      actorId: actor.userId,
+      reason: "SITE_CLOSED",
+    });
     const tills = await tx.retailRegister.updateMany({
       where: { companyId, siteId: site.id, isActive: true },
       data: { isActive: false },
@@ -674,7 +682,7 @@ export async function closeSite(actor: SiteActor, id: string): Promise<SiteDetai
       eventType: RETAIL_AUDIT_EVENTS.siteClosed,
       entityType: "Site",
       entityId: site.id,
-      payload: { name: site.name, code: site.code, tillsStopped: tills.count },
+      payload: { name: site.name, code: site.code, tillsStopped: tills.count, devicesUnpaired },
     });
   });
   return (await getSite(companyId, id, canSeeCostOf(actor)))!;

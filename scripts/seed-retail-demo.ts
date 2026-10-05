@@ -41,7 +41,7 @@
 
 import "dotenv/config"
 
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { Prisma, WorkspaceProfile, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
@@ -410,8 +410,24 @@ async function main() {
   })
   const backRegister = await prisma.retailRegister.upsert({
     where: { companyId_code: { companyId, code: "TILL-2" } },
-    update: { name: "Back till", siteId: site.id, isActive: true },
-    create: { companyId, code: "TILL-2", name: "Back till", siteId: site.id },
+    update: { name: "Back till", siteId: site.id, isActive: true, deviceKind: "BROWSER" },
+    create: { companyId, code: "TILL-2", name: "Back till", siteId: site.id, deviceKind: "BROWSER" },
+  })
+  // SET-03: the TillsList board's other three tills (their devices: `seedTills`).
+  const handheld = await prisma.retailRegister.upsert({
+    where: { companyId_code: { companyId, code: "TILL-3" } },
+    update: { name: "Handheld 1", siteId: site.id, isActive: true, deviceKind: "KORA" },
+    create: { companyId, code: "TILL-3", name: "Handheld 1", siteId: site.id, deviceKind: "KORA" },
+  })
+  const borrowdaleTill = await prisma.retailRegister.upsert({
+    where: { companyId_code: { companyId, code: "TILL-4" } },
+    update: { name: "Borrowdale till", siteId: borrowdale.id, isActive: true, deviceKind: "COUNTER_MINI" },
+    create: { companyId, code: "TILL-4", name: "Borrowdale till", siteId: borrowdale.id },
+  })
+  await prisma.retailRegister.upsert({
+    where: { companyId_code: { companyId, code: "TILL-5" } },
+    update: { name: "Cold room till", siteId: site.id, isActive: true, deviceKind: "COUNTER_MINI" },
+    create: { companyId, code: "TILL-5", name: "Cold room till", siteId: site.id },
   })
 
   /**
@@ -658,6 +674,11 @@ async function main() {
     open: boolean
     cashier: (typeof tills)[number]
     float: string
+    /** Another branch's till (Borrowdale); else Harare Main Branch. */
+    site?: typeof site
+    /** A short shift that closed at this time, with sales at exactly these times. */
+    closesAt?: Date
+    saleTimes?: Date[]
   }
   const slots: Slot[] = []
   for (let dayOffset = days; dayOffset >= 0; dayOffset -= 1) {
@@ -678,6 +699,36 @@ async function main() {
     }
   }
   slots.push({ register: backRegister, openedAt: staleOpenedAt, open: true, cashier: staffNamed("Farai Moyo"), float: "100.00" })
+  /*
+    SET-03 (10-setup 3.7): Handheld 1's evening shift yesterday, its last sale
+    at 21:50, and the Borrowdale till's early shift today, its last sale at
+    09:12 — what the TillsList board's "Last sale" column reads. They open
+    before the Front till's 07:58, so its shift keeps the highest number, and
+    their sales take their share of the 30-day quotas like any other.
+  */
+  const harareAt = (days: number, hour: number, minute: number) => harareTime(days, hour, minute)
+  slots.push({
+    register: handheld,
+    openedAt: harareAt(1, 17, 2),
+    open: false,
+    cashier: staffNamed("Chipo Dube"),
+    float: "50.00",
+    closesAt: harareAt(1, 22, 6),
+    saleTimes: [harareAt(1, 17, 40), harareAt(1, 18, 55), harareAt(1, 19, 31), harareAt(1, 20, 18), harareAt(1, 21, 4), harareAt(1, 21, 50)],
+  })
+  const borrowdaleOpens = harareAt(0, 7, 30)
+  if (borrowdaleOpens.getTime() < now.getTime()) {
+    slots.push({
+      register: borrowdaleTill,
+      site: borrowdale,
+      openedAt: borrowdaleOpens,
+      open: false,
+      cashier: staffNamed("Farai Moyo"),
+      float: "50.00",
+      closesAt: new Date(Math.min(harareAt(0, 9, 40).getTime(), now.getTime() - 60 * 1000)),
+      saleTimes: [harareAt(0, 7, 46), harareAt(0, 8, 21), harareAt(0, 8, 57), harareAt(0, 9, 12)],
+    })
+  }
   slots.sort((a, b) => a.openedAt.getTime() - b.openedAt.getTime())
 
   // Three closed without a count (about a week, a month and three months ago).
@@ -715,6 +766,7 @@ async function main() {
   const windowOpens = now.getTime() - 30 * DAY_MS
   const windowCounts = windowOpens + 6 * HOUR_MS
   const salePlans = slots.map((slot) => {
+    if (slot.saleTimes) return slot.saleTimes.filter((postedAt) => postedAt.getTime() <= now.getTime() && !(postedAt.getTime() >= windowOpens && postedAt.getTime() < windowCounts))
     const count = Math.max(3, Math.round(between(9, 17) * dayBusyness(slot.openedAt)))
     return Array.from(
       { length: count },
@@ -734,7 +786,8 @@ async function main() {
       const cashier = slot.cashier
       const openedAt = slot.openedAt
       const isOpenShift = slot.open
-      const closedAt = isOpenShift ? null : new Date(openedAt.getTime() + (7 * 60 + between(-4, 5)) * 60 * 1000)
+      const closedAt = isOpenShift ? null : (slot.closesAt ?? new Date(openedAt.getTime() + (7 * 60 + between(-4, 5)) * 60 * 1000))
+      const slotSiteId = (slot.site ?? site).id
 
       const shiftId = randomUUID()
       const shiftNo = `SH-${String(slotIndex + 1).padStart(5, "0")}`
@@ -832,7 +885,7 @@ async function main() {
           companyId,
           saleNo: `S-${String(saleSeq).padStart(6, "0")}`,
           shiftId,
-          siteId: site.id,
+          siteId: slotSiteId,
           cashierId: cashier.id,
           cashierName: cashier.name,
           customerName: named ? pick(CUSTOMERS) : null,
@@ -883,7 +936,7 @@ async function main() {
             saleNo: `S-${String(saleSeq).padStart(6, "0")}`,
             shiftId,
             sourceSaleId: saleId,
-            siteId: site.id,
+            siteId: slotSiteId,
             cashierId: cashier.id,
             cashierName: cashier.name,
             saleType: "REFUND",
@@ -992,7 +1045,7 @@ async function main() {
         shiftNo,
         registerCode: slot.register.code,
         registerName: slot.register.name,
-        siteId: site.id,
+        siteId: slotSiteId,
         cashierId: cashier.id,
         cashierName: cashier.name,
         openingFloat,
@@ -1170,6 +1223,7 @@ async function main() {
   }
 
   await seedSites({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
+  await seedTills(companyId)
   await seedStockPeople(companyId, passwordHash)
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
@@ -1263,6 +1317,80 @@ async function seedSites(input: { companyId: string; mainSiteId: string; borrowd
       console.log(`  closed the site ${other.name} (it has history)`)
     }
   }
+}
+
+/**
+ * SET-03 (10-setup 3.7). The devices on the TillsList board: Front till's
+ * CounterMini (seen now, 4.12.0), Back till's browser on a Windows PC (seen a
+ * few minutes ago), Handheld 1's Kora (last seen yesterday 21:55, no shift:
+ * Closed), the Borrowdale till's CounterMini (silent for two hours: Offline 2
+ * hours) and the Cold room till with no device (Not paired). All paired on 2
+ * August 2026 by Tafara Nyathi. Their keys are random hashes nobody holds.
+ * Every run starts again from these: devices, codes and messages an
+ * acceptance run made go, and so do the tills it added that never sold.
+ */
+async function seedTills(companyId: string) {
+  const tafara = await prisma.user.findFirst({
+    where: { companyId, email: "tafara.manager@bottlestore.test" },
+    select: { id: true },
+  })
+  if (!tafara) {
+    console.log("  tills: Tafara Nyathi missing, skipped")
+    return
+  }
+  await prisma.retailDeviceMessage.deleteMany({ where: { companyId } })
+  await prisma.retailPairingCode.deleteMany({ where: { companyId } })
+  await prisma.retailPairingThrottle.deleteMany({ where: { companyId } })
+  await prisma.retailDevice.deleteMany({ where: { companyId } })
+
+  const seeded = ["TILL-1", "TILL-2", "TILL-3", "TILL-4", "TILL-5"]
+  const strays = await prisma.retailRegister.findMany({
+    where: { companyId, code: { notIn: seeded } },
+    select: { id: true, code: true },
+  })
+  let removed = 0
+  for (const stray of strays) {
+    const used = await prisma.retailShift.count({ where: { companyId, registerCode: stray.code } })
+    if (used > 0) await prisma.retailRegister.update({ where: { id: stray.id }, data: { isActive: false } })
+    else {
+      await prisma.retailRegister.delete({ where: { id: stray.id } })
+      removed += 1
+    }
+  }
+
+  const tills = new Map(
+    (await prisma.retailRegister.findMany({ where: { companyId, code: { in: seeded } }, select: { id: true, code: true } })).map(
+      (till) => [till.code, till.id],
+    ),
+  )
+  const now = Date.now()
+  const minutesAgo = (minutes: number) => new Date(now - minutes * 60 * 1000)
+  const pairedAt = new Date("2026-08-02T09:20:00+02:00")
+  const devices: Array<{ code: string; kind: "COUNTER_MINI" | "KORA" | "BROWSER"; label?: string; lastSeenAt: Date }> = [
+    { code: "TILL-1", kind: "COUNTER_MINI", lastSeenAt: new Date(now) },
+    { code: "TILL-2", kind: "BROWSER", label: "Windows PC", lastSeenAt: minutesAgo(4) },
+    { code: "TILL-3", kind: "KORA", lastSeenAt: harareTime(1, 21, 55) },
+    { code: "TILL-4", kind: "COUNTER_MINI", lastSeenAt: minutesAgo(2 * 60 + 3) },
+  ]
+  for (const device of devices) {
+    const registerId = tills.get(device.code)
+    if (!registerId) continue
+    await prisma.retailDevice.create({
+      data: {
+        companyId,
+        registerId,
+        kind: device.kind,
+        label: device.label ?? null,
+        keyHash: createHash("sha256").update(randomUUID()).digest("hex"),
+        appVersion: "4.12.0",
+        pairedAt,
+        pairedById: tafara.id,
+        lastSeenAt: device.lastSeenAt,
+        createdAt: pairedAt,
+      },
+    })
+  }
+  console.log(`  tills: 5 (4 paired, Cold room till not paired)${removed ? `, ${removed} added by a test run removed` : ""}`)
 }
 
 /**

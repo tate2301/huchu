@@ -142,6 +142,14 @@ export const RETAIL_AUDIT_EVENTS = {
   siteClosed: "RETAIL_SITE.CLOSED",
   /** A price list added by copying another (the Price list field's quick add). Carries its name, what it copied and how many products. */
   priceListCreated: "RETAIL_PRICE_LIST.CREATED",
+  /** A till made on Pair a till, recorded when Done first saves it (Cancel leaves nothing). Carries its name, site and device. */
+  tillCreated: "RETAIL_TILL.CREATED",
+  /** A till changed: each field before and after. */
+  tillChanged: "RETAIL_TILL.CHANGED",
+  /** A till's device unpaired from the back office. Carries the device and why. */
+  deviceUnpaired: "RETAIL_DEVICE.UNPAIRED",
+  /** "Send a message" to a till. Carries the words. */
+  tillMessageSent: "RETAIL_TILL.MESSAGE_SENT",
   /** Stock sent to another site (W-24). Entity `RetailStockTransfer`; carries lines, units and value (money as a string). */
   transferSent: "RETAIL_STOCK_TRANSFER.SENT",
   /** A transfer called off: what was still on the way went back to the site it left. Carries the units returned. */

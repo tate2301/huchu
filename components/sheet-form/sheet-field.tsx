@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { FieldSpec, PickedOption, SheetCtx, SheetCurrency, SheetLine, SheetValues } from "@/lib/workspace/sheet-kind";
 
 import { LinesField } from "./lines-field";
+import { QrCode } from "./qr-code";
 import { LookupField } from "./lookup-field";
 
 /**
@@ -96,6 +97,9 @@ export function SheetField({
   const nolabel = field.nolabel || t === "toggle" || t === "lines";
   const disabled = readOnly || (field.disabled?.(values) ?? false);
   const warn = typeof field.warn === "function" ? field.warn(values) : (field.warn ?? false);
+  const label = field.lw?.(values) ?? field.l;
+  const tone = typeof field.tone === "function" ? field.tone(values) : field.tone;
+  const qr = field.qr?.(values) ?? null;
 
   if (t === "toggle") {
     return (
@@ -104,7 +108,7 @@ export function SheetField({
           id={controlId}
           checked={value === true}
           onCheckedChange={onChange}
-          label={field.l}
+          label={label}
           hint={hint && warn ? <span className="cx-hint--warn">{hint}</span> : hint}
           disabled={disabled}
         />
@@ -116,7 +120,7 @@ export function SheetField({
   return (
     <Field
       id={controlId}
-      label={field.l}
+      label={label}
       optional={field.opt && !field.optQuiet}
       hint={hint}
       warn={warn}
@@ -128,10 +132,17 @@ export function SheetField({
         switch (t) {
           case "read": {
             const shown = fixed ? fixed.shown : readOnly ? shownValue(value) : typeof value === "string" ? value : String(value ?? "");
-            return (
-              <ReadValue id={control.id} mono={field.mono} right={field.right} tone={field.tone}>
+            const read = (
+              <ReadValue id={control.id} mono={field.mono} right={field.right} tone={tone}>
                 {shown}
               </ReadValue>
+            );
+            if (!qr) return read;
+            return (
+              <div className="sf-qr-row">
+                {read}
+                <QrCode payload={qr} label={`${field.l}, as a QR code`} />
+              </div>
             );
           }
           case "money":

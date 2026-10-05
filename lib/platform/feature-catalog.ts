@@ -55,6 +55,8 @@ export interface TierDefinition {
    */
   onboardingFee: number;
   includedSites: number;
+  /** Tills that may be paired at once (SET-03, `SubscriptionPlan.maxTills`). `null` means any number. */
+  includedTills: number | null;
   additionalSiteMonthlyPrice: number;
   /**
    * Seats included in the base price. Corelith does not price per seat — this is a
@@ -636,6 +638,7 @@ export const TIERS: TierDefinition[] = [
     annualMonthlyPrice: annualMonthly(19),
     onboardingFee: 0,
     includedSites: 1,
+    includedTills: 1,
     // Deliberately the cheapest site overage in the catalog: multi-site is the
     // reason this SKU exists, so adding a site must never be the thing that
     // stops somebody buying it.
@@ -670,6 +673,7 @@ export const TIERS: TierDefinition[] = [
     annualMonthlyPrice: annualMonthly(39),
     onboardingFee: 0,
     includedSites: 1,
+    includedTills: 2,
     additionalSiteMonthlyPrice: 19,
     includedUsers: 5,
     additionalUserPackMonthlyPrice: 12,
@@ -698,6 +702,7 @@ export const TIERS: TierDefinition[] = [
     annualMonthlyPrice: annualMonthly(99),
     onboardingFee: 250,
     includedSites: 3,
+    includedTills: 8,
     additionalSiteMonthlyPrice: 29,
     includedUsers: 20,
     additionalUserPackMonthlyPrice: 12,
@@ -727,6 +732,7 @@ export const TIERS: TierDefinition[] = [
     // so the ceiling is set where no chain on this SKU reaches it and the
     // overage is kept low rather than modelling infinity.
     includedSites: 25,
+    includedTills: null,
     additionalSiteMonthlyPrice: 19,
     includedUsers: 60,
     additionalUserPackMonthlyPrice: 12,
@@ -759,6 +765,7 @@ export const TIERS: TierDefinition[] = [
     annualMonthlyPrice: annualMonthly(299),
     onboardingFee: 500,
     includedSites: 3,
+    includedTills: null,
     additionalSiteMonthlyPrice: 39,
     includedUsers: 25,
     additionalUserPackMonthlyPrice: 12,
@@ -798,6 +805,7 @@ export const TIERS: TierDefinition[] = [
     onboardingFee: 0,
     // Uncapped in practice: nothing is charged beyond the ceiling.
     includedSites: 999,
+    includedTills: null,
     additionalSiteMonthlyPrice: 0,
     includedUsers: null,
     additionalUserPackMonthlyPrice: 0,

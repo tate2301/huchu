@@ -249,7 +249,7 @@ describe("the Sites sheets (SET-02)", () => {
         { id: "back", name: "Back store", hasStock: true },
       ],
     };
-    const request = site.submit(values, { ...owner, id: "hre" });
+    const request = site.submit(values, { ...owner, id: "hre" })!;
     expect(request).toMatchObject({ method: "PATCH", url: "/api/v2/retail/sites/hre" });
     expect(request.body).toMatchObject({
       code: "HRE",

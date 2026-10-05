@@ -4,6 +4,7 @@ import { FLOOR_SHEETS } from "./floor";
 import { PRODUCT_SHEETS } from "./products";
 import { SETUP_SHEETS } from "./setup";
 import { STOCK_SHEETS } from "./stock";
+import { TILL_SHEETS } from "./tills";
 
 /**
  * Every sheet kind, by the `?sheet=` key that opens it (00-foundations 5.7.6).
@@ -14,4 +15,5 @@ export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...PRODUCT_SHEETS,
   ...SETUP_SHEETS,
   ...STOCK_SHEETS,
+  ...TILL_SHEETS,
 };

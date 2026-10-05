@@ -311,6 +311,9 @@ model Company {
   priceLists                    PriceList[]
   productPrices                 ProductPrice[]
   retailRegisters               RetailRegister[]
+  retailDevices                 RetailDevice[]
+  retailPairingCodes            RetailPairingCode[]
+  retailDeviceMessages          RetailDeviceMessage[]
   retailShopProfile             RetailShopProfile?
   retailCategories              RetailCategory[]
   retailPromotions              RetailPromotion[]
@@ -487,6 +490,8 @@ model SubscriptionPlan {
   currency     String   @default("USD")
   maxSites     Int?
   maxUsers     Int?
+  /// Paired tills the plan allows (SET-03). Null = any number.
+  maxTills     Int?
   warningDays  Int      @default(14)
   graceDays    Int      @default(7)
   isActive     Boolean  @default(true)
@@ -1393,6 +1398,11 @@ model User {
   sessionHandoffs                   SessionHandoff[]
   reportTemplates                   ReportTemplate[]
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
+  retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
+  retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
+  retailDevicesUnpaired             RetailDevice[]                 @relation("RetailDeviceUnpairedBy")
+  retailPairingCodesCreated         RetailPairingCode[]            @relation("RetailPairingCodeCreatedBy")
+  retailDeviceMessagesSent          RetailDeviceMessage[]          @relation("RetailDeviceMessageSentBy")
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
   retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
   retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
@@ -4568,20 +4578,130 @@ model RetailCategory {
 }
 
 model RetailRegister {
-  id        String   @id @default(uuid())
-  companyId String
-  code      String
-  name      String
-  siteId    String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String           @id @default(uuid())
+  companyId   String
+  code        String
+  name        String
+  siteId      String
+  isActive    Boolean          @default(true)
+  /// What the owner said will run here ("Device" on Pair a till). The paired device's own kind is what the list shows.
+  deviceKind  RetailDeviceKind @default(COUNTER_MINI)
+  hasPrinter  Boolean          @default(true)
+  hasDrawer   Boolean          @default(true)
+  hasScale    Boolean          @default(false)
+  /// "Sells from price list". Null = the site's list.
+  priceListId String?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  site    Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  company      Company               @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site         Site                  @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  priceList    PriceList?            @relation("RegisterPriceList", fields: [priceListId], references: [id], onDelete: SetNull)
+  createdBy    User?                 @relation("RetailRegisterCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  devices      RetailDevice[]
+  pairingCodes RetailPairingCode[]
+  messages     RetailDeviceMessage[]
 
   @@unique([companyId, code])
   @@index([companyId, siteId, isActive])
+}
+
+enum RetailDeviceKind {
+  COUNTER_MINI
+  KORA
+  BROWSER
+}
+
+enum RetailDeviceUnpairReason {
+  UNPAIRED
+  REPLACED
+  SITE_CLOSED
+  ACCOUNT_CLOSED
+}
+
+enum RetailPairingPurpose {
+  PAIR
+  REPLACE
+}
+
+/// What runs Tender at a till. One active device per till (partial unique index in the migration).
+model RetailDevice {
+  id           String                    @id @default(uuid())
+  companyId    String
+  registerId   String
+  kind         RetailDeviceKind
+  /// For a browser: "Windows PC", "Android tablet"… from the user agent. Null for CounterMini and Kora.
+  label        String?
+  /// sha256 of the device key. The key itself only ever lives in the device's httpOnly cookie.
+  keyHash      String                    @unique
+  appVersion   String?
+  pairedAt     DateTime                  @default(now())
+  pairedById   String
+  lastSeenAt   DateTime?
+  unpairedAt   DateTime?
+  unpairedById String?
+  unpairReason RetailDeviceUnpairReason?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  register   RetailRegister @relation(fields: [registerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  pairedBy   User           @relation("RetailDevicePairedBy", fields: [pairedById], references: [id], onDelete: Restrict)
+  unpairedBy User?          @relation("RetailDeviceUnpairedBy", fields: [unpairedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, registerId, unpairedAt])
+}
+
+/// A six-digit code a manager makes; good once, for 10 minutes. Only its hash is stored.
+model RetailPairingCode {
+  id          String               @id @default(uuid())
+  companyId   String
+  registerId  String
+  purpose     RetailPairingPurpose
+  /// sha256(companyId + ":" + code)
+  codeHash    String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  deviceId    String?
+  createdById String
+  createdAt   DateTime             @default(now())
+
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  register  RetailRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("RetailPairingCodeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([companyId, codeHash])
+  @@index([registerId, usedAt, expiresAt])
+}
+
+/// Five wrong codes from one unpaired device stop it for 15 minutes.
+model RetailPairingThrottle {
+  companyId      String
+  /// Random id in the unpaired device's `tender_install` cookie.
+  installId      String
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@id([companyId, installId])
+}
+
+/// "Send a message" from the Tills list: shown on the till until dismissed.
+model RetailDeviceMessage {
+  id          String    @id @default(uuid())
+  companyId   String
+  registerId  String
+  body        String
+  sentById    String
+  createdAt   DateTime  @default(now())
+  dismissedAt DateTime?
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  register RetailRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  sentBy   User           @relation("RetailDeviceMessageSentBy", fields: [sentById], references: [id], onDelete: Restrict)
+
+  @@index([registerId, dismissedAt])
 }
 
 model RetailPromotion {
@@ -13296,6 +13416,7 @@ model PriceList {
   company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   entries ProductPrice[]
   sites   Site[]         @relation("SitePriceList")
+  registers RetailRegister[] @relation("RegisterPriceList")
 
   @@unique([companyId, name])
   @@index([companyId, isActive, kind])

@@ -434,6 +434,8 @@ export type ListSpec = {
   exportExtras?: Array<{ label: string; href: string; requires: ListGrant[] }>;
   /** Listed in the Reports catalogue. Default false. */
   catalog?: boolean;
+  /** Refetched this often while open, for rows whose state changes on its own (a till going offline). */
+  refreshSeconds?: number;
 };
 
 /**

@@ -110,6 +110,11 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
     placeholderData: keepPreviousData,
     enabled: address.ready,
     retry: (count, error) => !(error instanceof ApiError && error.status < 500) && count < 2,
+    // A list whose rows change on their own (tills' states) asks again on its own.
+    refetchInterval: (query) => {
+      const seconds = query.state.data?.report.list.refreshSeconds;
+      return seconds ? seconds * 1000 : false;
+    },
   });
   // Nothing from a cache until mounted, so the first render matches the server's.
   const data = address.ready ? listQuery.data : undefined;

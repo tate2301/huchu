@@ -13,6 +13,7 @@ export { cancelRequisitionAsk, closeShortAsk, removeOrderAsk } from "./buying";
 export { categoryDeleteAsk, categoryMergeAsk } from "./categories";
 export { archiveAsk, archiveManyAsk } from "./products";
 export { closeSiteAsk } from "./sites";
+export { unpairAsk } from "./tills";
 export { cancelTransferAsk, cancelTransfersAsk, reverseMovementsAsk } from "./stock";
 export type { ListActionRun } from "./runs";
 

@@ -453,6 +453,10 @@ describe("the chain", () => {
       siteChanged: "RETAIL_SITE.CHANGED",
       siteClosed: "RETAIL_SITE.CLOSED",
       priceListCreated: "RETAIL_PRICE_LIST.CREATED",
+      tillCreated: "RETAIL_TILL.CREATED",
+      tillChanged: "RETAIL_TILL.CHANGED",
+      deviceUnpaired: "RETAIL_DEVICE.UNPAIRED",
+      tillMessageSent: "RETAIL_TILL.MESSAGE_SENT",
       transferSent: "RETAIL_STOCK_TRANSFER.SENT",
       transferCancelled: "RETAIL_STOCK_TRANSFER.CANCELLED",
     });
