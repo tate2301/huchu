@@ -11,6 +11,7 @@ import { useHomeLink } from "@/components/layout/role-refusal";
 import { useShell } from "@/components/layout/shell-state";
 import { useToast } from "@/components/ui/use-toast";
 import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
+import { EmptyGuide } from "@/components/workspace/empty-guide";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fillTemplate } from "@/lib/reports/actions";
 import { getReportDefinition } from "@/lib/reports/registry";
@@ -31,7 +32,7 @@ import { exportList, runAction, sheetHref } from "./actions";
 import type { ExportFormat } from "./export-menu";
 import { ListCards, PhoneFiltersSheet, PhoneFooter, PhoneToolbar } from "./list-cards";
 import { ListPager } from "./list-pager";
-import { EmptyGuide, LoadError, NoMatch, Refusal, SkeletonRows } from "./list-states";
+import { LoadError, NoMatch, Refusal, SkeletonRows } from "./list-states";
 import { ListTable } from "./list-table";
 import { ListTabs } from "./list-tabs";
 import { ListToolbar } from "./list-toolbar";
@@ -779,7 +780,7 @@ function skeletonSpec(list: ListSpec | undefined, columns: ListColumn[]): ListSp
     columns,
     rowHref: list?.rowHref ?? "",
     card: list?.card ?? { title: "", figure: "", meta: "" },
-    empty: list?.empty ?? { icon: "", title: "", body: "" },
+    empty: list?.empty ?? { title: "", line: "" },
     primary: null,
   };
 }

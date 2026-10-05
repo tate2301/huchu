@@ -319,11 +319,21 @@ export type ListAction = {
     | { copy: string; done?: string };
 };
 
+/**
+ * What a list says before it has ever had a row (00-foundations 5.12.2).
+ * With `steps` it teaches the job in three numbered sentences under a
+ * question (the Guided board); without, it is the list's icon, a statement
+ * and one line (the TenderUI board). `icon` names an export of `lib/icons`.
+ */
 export type EmptyGuideSpec = {
-  icon: string;
+  icon?: string;
   title: string;
-  body: string;
+  line: string;
+  /** Each step: the bold clause, then the rest of the sentence. */
+  steps?: Array<[bold: string, rest: string]>;
+  /** Record tabs carry none: their rows arrive from elsewhere. */
   primary?: { label: string; sheet?: string; href?: string };
+  secondary?: { label: string; href: string };
 };
 
 export type ListSort = { key: string; label: string; rules: SortRule[] };

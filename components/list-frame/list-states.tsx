@@ -1,14 +1,13 @@
 import "./list-frame.css";
 
-import * as React from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/workspace/button";
-import * as Icons from "@/lib/icons";
-import type { EmptyGuideSpec, ListColumn } from "@/lib/reports/types";
+import type { ListColumn } from "@/lib/reports/types";
 
 /**
- * Loading, empty, no match, error and no permission (00-foundations 5.4.11).
+ * Loading, no match, error and no permission (00-foundations 5.4.11). The
+ * empty state is the workspace's `EmptyGuide`.
  */
 
 /** First load: 12 rows of `--tray` bars, 40–80% of each cell. */
@@ -58,31 +57,6 @@ export function Refusal({ noun, back }: { noun: string; back?: { href: string; l
       {back ? (
         <Button asChild>
           <Link href={back.href}>Back to {back.label}</Link>
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
-type IconComponent = React.ComponentType<{ "aria-hidden"?: boolean }>;
-
-/**
- * Nothing at all yet (`everEmpty`): the source's guide, centred — its icon on
- * a 48px `--tray` tile, the title, the line, and the first thing to do.
- */
-export function EmptyGuide({ guide, primaryHref }: { guide: EmptyGuideSpec; primaryHref: string | null }) {
-  const Icon = (Icons as unknown as Record<string, IconComponent | undefined>)[guide.icon];
-  return (
-    <div className="cx-lf-guide">
-      <span className="cx-lf-guide__icon">{Icon ? <Icon aria-hidden /> : null}</span>
-      <h2 className="cx-lf-guide__title">{guide.title}</h2>
-      <p className="cx-lf-guide__body">{guide.body}</p>
-      {guide.primary && primaryHref ? (
-        <Button asChild variant="primary">
-          <Link href={primaryHref}>
-            <Icons.Plus aria-hidden />
-            {guide.primary.label}
-          </Link>
         </Button>
       ) : null}
     </div>

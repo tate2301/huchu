@@ -6,7 +6,7 @@ import type { ReportRow } from "@/lib/reports/types";
 
 import { ListCell } from "./list-cell";
 import { ListPager } from "./list-pager";
-import { EmptyGuide, NoMatch, Refusal } from "./list-states";
+import { NoMatch, Refusal } from "./list-states";
 import { SaveBar } from "./save-bar";
 import { SelectionBar } from "./selection-bar";
 import { TotalsBand } from "./totals-band";
@@ -172,14 +172,6 @@ describe("states (5.4.11)", () => {
     const html = renderToStaticMarkup(<Refusal noun="shifts" back={{ href: "/retail/stock", label: "On hand" }} />);
     expect(html).toContain("Your role cannot view shifts.");
     expect(html).toContain("Back to On hand");
-  });
-
-  it("draws the empty guide from the source", () => {
-    const html = renderToStaticMarkup(<EmptyGuide guide={list.empty} primaryHref="/retail/shifts?sheet=shift-open" />);
-    expect(html).toContain("No shifts yet");
-    expect(html).toContain("A shift starts when a cashier opens a till with its float. Each one closes with a count.");
-    expect(html).toContain('href="/retail/shifts?sheet=shift-open"');
-    expect(html).toContain("Open shift");
   });
 
   it("holds unsaved edits in the save bar", () => {

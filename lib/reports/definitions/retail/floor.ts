@@ -236,7 +236,7 @@ const shifts: ListSpec = {
   empty: {
     icon: "CashRegister",
     title: "No shifts yet",
-    body: "A shift starts when a cashier opens a till with its float. Each one closes with a count.",
+    line: "A shift starts when a cashier opens a till with its float. Each one closes with a count.",
     primary: { label: "Open shift", sheet: "shift-open" },
   },
   catalog: false,

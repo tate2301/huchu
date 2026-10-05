@@ -313,7 +313,7 @@ const PRODUCTS: ListSpec = {
   ],
   rowHref: "/retail/products/{id}",
   card: { title: "name", figure: "price", meta: "{category}" },
-  empty: { icon: "Package", title: "No products yet", body: "Add the first one." },
+  empty: { icon: "Package", title: "No products yet", line: "Add the first one." },
 };
 
 const PRODUCT_ROWS: ReportRow[] = [
