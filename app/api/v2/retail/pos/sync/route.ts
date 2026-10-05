@@ -169,7 +169,6 @@ async function processOpenShift(
   ctx: SyncContext
 ): Promise<SyncOperationResult> {
   const payload = op.payload as {
-    siteId: string;
     openingCash: number;
     registerName?: string;
     openedAt: string;
@@ -355,7 +354,6 @@ async function processCreateSale(
     /** The till's key for the attempt. This is what makes a replay safe. */
     clientRef?: string;
     shiftId: string;
-    siteId: string;
     customerId?: string;
     customerName?: string;
     customerPhone?: string;
@@ -395,7 +393,14 @@ async function processCreateSale(
 
   try {
     const resolvedShiftId = resolveReferencedId(ctx, payload.shiftId);
-    if (!resolvedShiftId) {
+    // The sale's site is its shift's: the till's, wherever the queue thought it was.
+    const shift = resolvedShiftId
+      ? await prisma.retailShift.findFirst({
+          where: { id: resolvedShiftId, companyId: ctx.companyId },
+          select: { siteId: true },
+        })
+      : null;
+    if (!resolvedShiftId || !shift) {
       return { clientOperationId: op.clientOperationId, status: "failed", error: "Open shift not found" };
     }
     const resolvedCustomerId = payload.customerId
@@ -407,7 +412,7 @@ async function processCreateSale(
     // online path is: the stock that moved was the stock at that till.
     const { products: sellable, missing } = await loadSellableProducts({
       companyId: ctx.companyId,
-      siteId: payload.siteId,
+      siteId: shift.siteId,
       productIds: payload.items.map((i) => i.productId),
     });
 
@@ -591,7 +596,7 @@ async function processCreateSale(
       */
       clientRef: payload.clientRef ?? payload.saleNo ?? null,
       shiftId: resolvedShiftId,
-      siteId: payload.siteId,
+      siteId: shift.siteId,
       customerName,
       subtotal: checkout.subtotal,
       discountAmount: checkout.discountAmount,

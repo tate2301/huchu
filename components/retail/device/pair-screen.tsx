@@ -1,12 +1,17 @@
 "use client";
 
-import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 
 import "./device-screen.css";
 
 const LENGTH = 6;
 
-type PairAnswer = { till?: { id: string; name: string }; error?: string; code?: string };
+type PairAnswer = { till?: { id: string; name: string }; error?: string; code?: string; lockedUntil?: string };
+
+/** What the last try said. A lock's sentence stays until the lock runs out; any other goes with the next keystroke. */
+type Refusal = { text: string; lockedUntil: number | null };
+
+const isLocked = (refusal: Refusal | null) => refusal?.lockedUntil != null && refusal.lockedUntil > Date.now();
 
 /**
  * Pair this device (10-setup W-04 step 5, TillPairing panel 1): six digit
@@ -16,10 +21,29 @@ type PairAnswer = { till?: { id: string; name: string }; error?: string; code?: 
  */
 export function PairScreen({ home, kora }: { home: string; kora: boolean }) {
   const [digits, setDigits] = useState<string[]>(() => Array(LENGTH).fill(""));
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Refusal | null>(null);
   const [busy, setBusy] = useState(false);
   const boxes = useRef<Array<HTMLInputElement | null>>([]);
   const scan = useRef<HTMLInputElement | null>(null);
+  /** Back to the first box once the boxes take input again (they are disabled while the code is checked). */
+  const refocus = useRef(false);
+
+  useEffect(() => {
+    if (!error?.lockedUntil) return;
+    const timer = window.setTimeout(() => setError(null), Math.max(0, error.lockedUntil - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [error]);
+
+  useEffect(() => {
+    if (busy || !refocus.current) return;
+    refocus.current = false;
+    boxes.current[0]?.focus();
+  }, [busy]);
+
+  /** The person is typing the next code: the last refusal is over, unless it was a lock still running. */
+  const startAgain = () => {
+    if (error && !isLocked(error)) setError(null);
+  };
 
   const focus = (index: number) => boxes.current[Math.max(0, Math.min(LENGTH - 1, index))]?.focus();
 
@@ -38,11 +62,12 @@ export function PairScreen({ home, kora }: { home: string; kora: boolean }) {
         window.location.assign(home);
         return;
       }
-      setError(answer.error ?? "That code did not work.");
+      const until = answer.code === "LOCKED" && answer.lockedUntil ? new Date(answer.lockedUntil).getTime() : null;
+      setError({ text: answer.error ?? "That code did not work.", lockedUntil: until });
       setDigits(Array(LENGTH).fill(""));
-      focus(0);
+      refocus.current = true;
     } catch {
-      setError("The till could not reach the shop. Check the connection and try again.");
+      setError({ text: "The till could not reach the shop. Check the connection and try again.", lockedUntil: null });
     } finally {
       setBusy(false);
     }
@@ -51,6 +76,7 @@ export function PairScreen({ home, kora }: { home: string; kora: boolean }) {
   const fill = (from: number, typed: string) => {
     const incoming = typed.replace(/\D/g, "").slice(0, LENGTH - from).split("");
     if (incoming.length === 0) return;
+    startAgain();
     const next = [...digits];
     incoming.forEach((digit, offset) => {
       next[from + offset] = digit;
@@ -64,6 +90,7 @@ export function PairScreen({ home, kora }: { home: string; kora: boolean }) {
   const onKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Backspace" && !digits[index] && index > 0) {
       event.preventDefault();
+      startAgain();
       const next = [...digits];
       next[index - 1] = "";
       setDigits(next);
@@ -112,6 +139,7 @@ export function PairScreen({ home, kora }: { home: string; kora: boolean }) {
                   const value = event.target.value.replace(/\D/g, "");
                   if (value) fill(index, value);
                   else {
+                    startAgain();
                     const next = [...digits];
                     next[index] = "";
                     setDigits(next);
@@ -127,7 +155,7 @@ export function PairScreen({ home, kora }: { home: string; kora: boolean }) {
         </div>
         {error ? (
           <p className="device-error" role="alert">
-            {error}
+            {error.text}
           </p>
         ) : null}
         {kora ? (

@@ -208,20 +208,38 @@ describe("pairing a device with a code (W-04 step 6)", () => {
     expect(await prisma.retailDevice.count({ where: { registerId: third.id } })).toBe(0);
   });
 
-  it("stops all pairing at the shop after twenty wrong codes from anywhere, for a code's life", async () => {
+  it("forgets an install's and an address's wrong codes once none has come for 15 minutes", async () => {
+    const install = `slow-${stamp}`;
+    const address = `198.51.100.7-${stamp}`;
+    for (const left of [4, 3, 2, 1]) {
+      expect(await refusal(pair("000000", install, { address }))).toMatchObject({ status: 400, body: { triesLeft: left } });
+    }
+    // Weeks pass between typos: the next one is the first again, not the fifth.
+    await prisma.retailPairingThrottle.updateMany({
+      where: { companyId, installId: { in: [`install:${install}`, `ip:${address}`] } },
+      data: { updatedAt: new Date(Date.now() - 16 * 60 * 1000) },
+    });
+    expect(await refusal(pair("000000", install, { address }))).toMatchObject({ status: 400, body: { code: "BAD_CODE", triesLeft: 4 } });
+  });
+
+  it("ends the shop's live codes at twenty wrong codes from anywhere, and a code made after pairs", async () => {
     await prisma.retailPairingThrottle.deleteMany({ where: { companyId } });
+    const back = await prisma.retailRegister.findFirstOrThrow({ where: { companyId, name: "Back till" } });
+    const guessed = await code(back.id, "REPLACE");
     for (let index = 1; index < PAIR_SHOP_MAX_WRONG; index += 1) {
       expect(await refusal(pair("000000", `spray-${index}-${stamp}`))).toMatchObject({ status: 400, body: { code: "BAD_CODE" } });
     }
-    const locked = await refusal(pair("000000", `spray-last-${stamp}`));
-    expect(locked).toMatchObject({ status: 429, body: { code: "LOCKED" } });
-    const until = new Date(String(locked.body.lockedUntil)).getTime() - Date.now();
-    expect(until).toBeGreaterThan(9 * 60 * 1000);
-    expect(until).toBeLessThanOrEqual(10 * 60 * 1000);
-    // A right code from a new install at a new address waits too.
-    const spare = await till("Spare till 2");
-    expect(await refusal(pair((await code(spare.id)).code, `fresh-${stamp}`))).toMatchObject({ status: 429 });
-    await prisma.retailRegister.update({ where: { id: spare.id }, data: { isActive: false } });
+    expect(await prisma.retailPairingCode.count({ where: { companyId, usedAt: null, expiresAt: { gt: new Date() } } })).toBeGreaterThan(0);
+    // The twentieth: the code alive while the guessing went on has faced its twenty and is gone.
+    expect(await refusal(pair("000000", `spray-last-${stamp}`))).toMatchObject({ status: 400, body: { code: "BAD_CODE" } });
+    expect(await prisma.retailPairingCode.count({ where: { companyId, usedAt: null, expiresAt: { gt: new Date() } } })).toBe(0);
+    expect(await refusal(pair(guessed.code, `owner-${stamp}`))).toMatchObject({ status: 400, body: { code: "BAD_CODE" } });
+
+    // The shop is not locked: the owner's next code pairs, and the count starts again.
+    const paired = await pair((await code(back.id, "REPLACE")).code, `owner-again-${stamp}`);
+    expect(paired.till.name).toBe("Back till");
+    const shop = await prisma.retailPairingThrottle.findUniqueOrThrow({ where: { companyId_installId: { companyId, installId: "shop" } } });
+    expect(shop).toMatchObject({ failedAttempts: 1, lockedUntil: null });
   });
 });
 

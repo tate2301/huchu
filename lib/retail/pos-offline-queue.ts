@@ -17,7 +17,6 @@ export type PosSaleQueuePayload = {
    */
   clientRef: string;
   shiftId: string;
-  siteId: string;
   customerId?: string;
   customerName?: string;
   customerPhone?: string;

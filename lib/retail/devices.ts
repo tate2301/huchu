@@ -28,7 +28,7 @@ import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import type { ShopProfile } from "@/lib/retail/shop-profile-rules";
 import { getRetailTenderPolicy, type RetailTenderType } from "@/lib/retail/tender-policy";
-import { evaluateTillPinAttempt } from "@/lib/retail/till-pin";
+import { TILL_PIN_LOCK_MS, evaluateTillPinAttempt } from "@/lib/retail/till-pin";
 import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
 
 /**
@@ -243,31 +243,31 @@ export type PairInput = {
 };
 
 /**
- * Wrong codes are counted three ways (`RetailPairingThrottle.installId` holds
- * the key): per install and per address, five and the caller waits 15 minutes
- * like a PIN; and across the whole shop, because an install id is whatever the
- * browser says and addresses can be many. Twenty wrong codes in a code's
- * ten-minute life stop all pairing at the shop for ten minutes, so any code
- * alive when the guessing started has died before it can be guessed further.
+ * Wrong codes are counted against the caller (`RetailPairingThrottle.installId`
+ * holds the key): per install and per address, five and the caller waits 15
+ * minutes like a PIN. An install id is whatever the browser says and addresses
+ * can be many, so the shop counts too, but it never stops pairing: every
+ * twenty wrong codes at the shop end the codes alive at that moment. No code
+ * faces more than twenty guesses, and a code made after that pairs as usual,
+ * so guessing cannot keep a shop from pairing a till. Each count forgets wrong
+ * codes once none has come for a lock's length (a code's life for the shop).
  */
 export const PAIR_SHOP_MAX_WRONG = 20;
-const PAIR_SHOP_WINDOW_MS = PAIRING_TTL_MS;
 const SHOP_KEY = "shop";
+const SHOP_WINDOW_MS = PAIRING_TTL_MS;
 
 type ThrottleRow = { installId: string; failedAttempts: number; lockedUntil: Date | null; updatedAt: Date };
+type ThrottleState = { failedAttempts: number; lockedUntil: Date | null };
 
-function throttleKeys(input: PairInput): { key: string; limits?: { maxAttempts: number; lockMs: number } }[] {
-  return [
-    ...(input.installId ? [{ key: `install:${input.installId}` }] : []),
-    { key: `ip:${input.address}` },
-    { key: SHOP_KEY, limits: { maxAttempts: PAIR_SHOP_MAX_WRONG, lockMs: PAIR_SHOP_WINDOW_MS } },
-  ];
+/** The caller's own counts: its install, when it sent one, and its address. */
+function callerKeys(input: PairInput): string[] {
+  return [...(input.installId ? [`install:${input.installId}`] : []), `ip:${input.address}`];
 }
 
-/** A row's count as it stands now: the shop's count forgets wrong codes older than a code's life. */
-function throttleState(row: ThrottleRow | undefined, key: string, now: Date) {
+/** A row's count as it stands now: wrong codes stop counting once none has come for `windowMs`. */
+function throttleState(row: ThrottleRow | undefined, windowMs: number, now: Date): ThrottleState {
   if (!row) return { failedAttempts: 0, lockedUntil: null };
-  const stale = key === SHOP_KEY && !row.lockedUntil && now.getTime() - row.updatedAt.getTime() > PAIR_SHOP_WINDOW_MS;
+  const stale = !row.lockedUntil && now.getTime() - row.updatedAt.getTime() > windowMs;
   return stale ? { failedAttempts: 0, lockedUntil: null } : { failedAttempts: row.failedAttempts, lockedUntil: row.lockedUntil };
 }
 
@@ -275,14 +275,45 @@ const lockedRefusal = (lockedUntil: Date) =>
   new PairRefusal(429, lockedSentence(lockedUntil), { code: "LOCKED", lockedUntil: lockedUntil.toISOString() });
 
 /**
+ * One more wrong code at the shop. The twentieth ends every code alive and
+ * starts the count again. The count goes up in the database, so wrong codes
+ * sent at the same moment are all counted.
+ */
+async function countShopWrongCode(companyId: string, now: Date): Promise<void> {
+  const where = { companyId_installId: { companyId, installId: SHOP_KEY } };
+  const fresh = new Date(now.getTime() - SHOP_WINDOW_MS);
+  const bumped = await prisma.retailPairingThrottle.updateMany({
+    where: { companyId, installId: SHOP_KEY, updatedAt: { gte: fresh } },
+    data: { failedAttempts: { increment: 1 } },
+  });
+  if (bumped.count === 0) {
+    await prisma.retailPairingThrottle.upsert({
+      where,
+      create: { companyId, installId: SHOP_KEY, failedAttempts: 1 },
+      update: { failedAttempts: 1, lockedUntil: null },
+    });
+  }
+  const reached = await prisma.retailPairingThrottle.updateMany({
+    where: { companyId, installId: SHOP_KEY, failedAttempts: { gte: PAIR_SHOP_MAX_WRONG } },
+    data: { failedAttempts: 0 },
+  });
+  if (reached.count > 0) {
+    await prisma.retailPairingCode.updateMany({
+      where: { companyId, usedAt: null, expiresAt: { gt: now } },
+      data: { expiresAt: now },
+    });
+  }
+}
+
+/**
  * Redeem a pairing code. Five wrong codes from one install, or one address,
- * stop it for 15 minutes, and twenty across the shop stop the shop's pairing
- * for ten (429 LOCKED); a wrong one is 400 BAD_CODE with the tries left. A
- * device that is already one of the shop's tills is refused (409): it is
- * unpaired first. In one transaction: the code is used; a REPLACE code
- * unpairs the till's current device (REPLACED, by whoever made the code); a
- * PAIR code checks the plan; the new device is made with the key's hash;
- * audited. Returns the key for the cookie, and the till and site.
+ * stop it for 15 minutes (429 LOCKED); a wrong one is 400 BAD_CODE with the
+ * tries left, and twenty across the shop end its live codes. A device that is
+ * already one of the shop's tills is refused (409): it is unpaired first. In
+ * one transaction: the code is used; a REPLACE code unpairs the till's current
+ * device (REPLACED, by whoever made the code); a PAIR code checks the plan;
+ * the new device is made with the key's hash; audited. Returns the key for
+ * the cookie, and the till and site.
  */
 export async function pairDevice(
   input: PairInput,
@@ -293,21 +324,21 @@ export async function pairDevice(
     throw new PairRefusal(409, alreadyATillSentence(already.register.name), { code: "ALREADY_A_TILL" });
   }
 
-  const keys = throttleKeys(input);
+  const keys = callerKeys(input);
   const rows: ThrottleRow[] = await prisma.retailPairingThrottle.findMany({
-    where: { companyId: input.companyId, installId: { in: keys.map((entry) => entry.key) } },
+    where: { companyId: input.companyId, installId: { in: keys } },
     select: { installId: true, failedAttempts: true, lockedUntil: true, updatedAt: true },
   });
-  const counted = keys.map((entry) => ({
-    ...entry,
+  const counted = keys.map((key) => ({
+    key,
     state: throttleState(
-      rows.find((row) => row.installId === entry.key),
-      entry.key,
+      rows.find((row) => row.installId === key),
+      TILL_PIN_LOCK_MS,
       now,
     ),
   }));
   // The same five-and-fifteen-minutes rule as a PIN, held on each count.
-  const gates = counted.map((entry) => evaluateTillPinAttempt({ state: entry.state, verified: null, now, limits: entry.limits }));
+  const gates = counted.map((entry) => evaluateTillPinAttempt({ state: entry.state, verified: null, now }));
   const lockedUntil = latestLock(counted.filter((_, index) => gates[index]!.decision === "LOCKED").map((entry) => entry.state.lockedUntil));
   if (lockedUntil) throw lockedRefusal(lockedUntil);
   const triesLeft = Math.min(...gates.map((gate) => gate.attemptsRemaining));
@@ -324,7 +355,7 @@ export async function pairDevice(
   if (!live) {
     const outcomes = counted.map((entry) => ({
       key: entry.key,
-      outcome: evaluateTillPinAttempt({ state: entry.state, verified: false, now, limits: entry.limits }),
+      outcome: evaluateTillPinAttempt({ state: entry.state, verified: false, now }),
     }));
     await prisma.$transaction(
       outcomes.map(({ key, outcome }) =>
@@ -335,6 +366,7 @@ export async function pairDevice(
         }),
       ),
     );
+    await countShopWrongCode(input.companyId, now);
     const nowLocked = latestLock(
       outcomes.filter(({ outcome }) => outcome.decision === "REJECTED_NOW_LOCKED").map(({ outcome }) => outcome.next.lockedUntil),
     );
@@ -399,10 +431,8 @@ export async function pairDevice(
       select: { id: true, kind: true, label: true },
     });
     await tx.retailPairingCode.update({ where: { id: live.id }, data: { deviceId: device.id } });
-    // The shop's count is left to run out: a right code does not excuse the wrong ones.
-    await tx.retailPairingThrottle.deleteMany({
-      where: { companyId: input.companyId, installId: { in: keys.map((entry) => entry.key).filter((key) => key !== SHOP_KEY) } },
-    });
+    // The caller's counts start again; the shop's is left to run out, since a right code does not excuse the wrong ones.
+    await tx.retailPairingThrottle.deleteMany({ where: { companyId: input.companyId, installId: { in: keys } } });
 
     await writeRetailAuditEvent(tx, {
       actor: auditActor,

@@ -463,12 +463,12 @@ export function PosPortalProvider({
   }, [tenantKey]);
 
   const buildSalePayload = (): PosSaleQueuePayload | null => {
-    if (!currentShift?.id || !siteId) return null;
+    // The site is the shift's, which the server takes from the till.
+    if (!currentShift?.id) return null;
     return {
       // Not `saleNo`. See `createSaleClientRef`.
       clientRef: createSaleClientRef(),
       shiftId: currentShift.id,
-      siteId,
       customerId: selectedCustomerId ?? undefined,
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,

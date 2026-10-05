@@ -29,7 +29,6 @@ import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/s
 import { cashierFilterFor } from "@/lib/retail/own-rows";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
-  resolveRetailSite,
   getPosSupportedPromotionTypes,
   isPosSupportedPromotionType,
   requireRetailSession,
@@ -81,7 +80,6 @@ const saleSchema = z.object({
    */
   clientRef: z.string().min(1).max(80).optional(),
   shiftId: z.string().uuid(),
-  siteId: z.string().uuid().optional(),
   customerId: z.string().uuid().optional().nullable(),
   customerName: z.string().max(200).optional().nullable(),
   customerPhone: z.string().max(40).optional().nullable(),
@@ -430,15 +428,6 @@ export async function POST(request: NextRequest) {
     const input = saleSchema.parse(body);
     const unpaired = unpairedSaleGate(device, input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null);
     if (unpaired.response) return unpaired.response;
-    const { site, response: siteResponse } = await resolveRetailSite(
-      session.user.companyId,
-      input.siteId,
-    );
-    if (siteResponse) return siteResponse;
-    if (!site) {
-      return errorResponse("Invalid site", 400);
-    }
-
     const shift = await prisma.retailShift.findFirst({
       where: {
         id: input.shiftId,
@@ -450,9 +439,9 @@ export async function POST(request: NextRequest) {
     if (!shift) {
       return errorResponse("Open shift not found for this cashier", 409);
     }
-    if (shift.siteId !== site.id) {
-      return errorResponse("Shift site does not match the selected site", 409);
-    }
+    // The till fixes the site: the shift was opened on this device's till, at
+    // its site (a shift on another till is refused with the sale, ShiftElsewhere).
+    const site = { id: shift.siteId };
 
     const promotion = input.promotionId
       ? await prisma.retailPromotion.findFirst({
