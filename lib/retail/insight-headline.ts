@@ -267,6 +267,8 @@ export function lossesHeadline(input: {
   words: HeadlineWords;
   total: number;
   takings: number;
+  /** Baskets sold in the period: under `FEW_SALES` the change on before is left out. */
+  baskets: number;
   change: number | null;
   biggest: { label: string; value: number } | null;
   shortest: { name: string; times: number; value: number } | null;
@@ -284,7 +286,10 @@ export function lossesHeadline(input: {
     notice: noticeSentence(
       [
         biggest,
-        input.change !== null && Math.abs(input.change) >= 0.1 && changeClause("losses are", input.change, words),
+        input.baskets >= FEW_SALES &&
+          input.change !== null &&
+          Math.abs(input.change) >= 0.1 &&
+          changeClause("losses are", input.change, words),
         input.shortest &&
           `${input.shortest.name} was short ${counted(input.shortest.times, "time", "times")}, ${headlineMoney(input.shortest.value)} in all`,
       ],

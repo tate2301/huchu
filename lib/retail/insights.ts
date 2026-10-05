@@ -1278,6 +1278,7 @@ async function lossesInsight(companyId: string, window: InsightWindow): Promise<
     words: window,
     total,
     takings,
+    baskets: salesTotals(sales).baskets,
     change: relativeChange(total, totalBefore),
     biggest,
     shortest:

@@ -199,6 +199,7 @@ describe("Losses headline", () => {
     words: thirty,
     total: 412,
     takings: 34_918,
+    baskets: 3_862,
     change: 0.21,
     biggest: { label: "drawer differences", value: 210 },
     shortest: { name: "Tendai Moyo", times: 3, value: 45 },
@@ -215,6 +216,15 @@ describe("Losses headline", () => {
     expect(lossesHeadline({ ...losses, change: 0.04, biggest: { label: "refunds and voids", value: 412 } }).notice).toBe(
       "All of it is refunds and voids, US$412; Tendai Moyo was short 3 times, US$45.00 in all.",
     );
+  });
+
+  it("leaves out the comparison with the period before on too few sales", () => {
+    expect(
+      lossesHeadline({ ...losses, words: today, total: 1, takings: 94.5, baskets: 6, change: -0.91, biggest: { label: "stock counts", value: 1 }, shortest: null }),
+    ).toEqual({
+      fact: "US$1.00 lost today, 1.1% of takings.",
+      notice: "All of it is stock counts, US$1.00.",
+    });
   });
 
   it("says nothing was lost in a sentence", () => {
