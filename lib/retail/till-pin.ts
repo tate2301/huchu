@@ -97,8 +97,12 @@ export function evaluateTillPinAttempt(input: {
   state: TillPinAttemptState;
   verified: boolean | null;
   now: Date;
+  /** Another count and lock than a PIN's five and fifteen minutes (the pairing throttle's shop-wide ceiling). */
+  limits?: { maxAttempts: number; lockMs: number };
 }): TillPinAttemptOutcome {
   const { state, verified, now } = input;
+  const maxAttempts = input.limits?.maxAttempts ?? TILL_PIN_MAX_ATTEMPTS;
+  const lockMs = input.limits?.lockMs ?? TILL_PIN_LOCK_MS;
 
   if (isTillPinLocked(state, now)) {
     return {
@@ -116,7 +120,7 @@ export function evaluateTillPinAttempt(input: {
     return {
       decision: "REJECTED",
       next: { failedAttempts: baseAttempts, lockedUntil: null },
-      attemptsRemaining: Math.max(0, TILL_PIN_MAX_ATTEMPTS - baseAttempts),
+      attemptsRemaining: Math.max(0, maxAttempts - baseAttempts),
       retryAfterMs: 0,
     };
   }
@@ -125,29 +129,29 @@ export function evaluateTillPinAttempt(input: {
     return {
       decision: "ACCEPTED",
       next: { failedAttempts: 0, lockedUntil: null },
-      attemptsRemaining: TILL_PIN_MAX_ATTEMPTS,
+      attemptsRemaining: maxAttempts,
       retryAfterMs: 0,
     };
   }
 
   const failedAttempts = baseAttempts + 1;
 
-  if (failedAttempts >= TILL_PIN_MAX_ATTEMPTS) {
+  if (failedAttempts >= maxAttempts) {
     return {
       decision: "REJECTED_NOW_LOCKED",
       next: {
         failedAttempts,
-        lockedUntil: new Date(now.getTime() + TILL_PIN_LOCK_MS),
+        lockedUntil: new Date(now.getTime() + lockMs),
       },
       attemptsRemaining: 0,
-      retryAfterMs: TILL_PIN_LOCK_MS,
+      retryAfterMs: lockMs,
     };
   }
 
   return {
     decision: "REJECTED",
     next: { failedAttempts, lockedUntil: null },
-    attemptsRemaining: TILL_PIN_MAX_ATTEMPTS - failedAttempts,
+    attemptsRemaining: maxAttempts - failedAttempts,
     retryAfterMs: 0,
   };
 }

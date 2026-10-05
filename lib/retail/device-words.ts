@@ -52,6 +52,12 @@ export const badCodeSentence = (triesLeft: number) => `That code did not work. $
 export const lockedSentence = (lockedUntil: Date, timeZone = DEFAULT_TIME_ZONE) =>
   `Too many tries. Try again at ${formatTime(lockedUntil, timeZone)}.`;
 
+/** 409 when a till acts on a shift that belongs to another till. */
+export const shiftOnOtherTillSentence = (till: string) => `That shift is on ${till}.`;
+
+/** 409 ALREADY_A_TILL: a paired device asked to pair again. */
+export const alreadyATillSentence = (till: string) => `This device is already ${till}. Unpair it in Management › Tills and devices first.`;
+
 /** A wrong PIN on Who is selling?: "Wrong PIN. 4 tries left." */
 export const wrongPinSentence = (triesLeft: number) => `Wrong PIN. ${tries(triesLeft)}.`;
 

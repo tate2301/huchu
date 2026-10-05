@@ -18,6 +18,7 @@ import {
   markOfflineOperationSynced,
 } from "@/lib/offline/outbox";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
+import { onPairedTill } from "@/lib/retail/till-presence";
 import type {
   OfflineModuleDefinition,
   OfflineMutationAdapter,
@@ -189,6 +190,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
   {
     key: "retail-current-shift",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: ["retail-current-shift"],
     featureKey: "retail.pos",
     fetcher: async () => fetchJson("/api/v2/retail/pos/current-shift"),
@@ -207,15 +210,16 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
 
     It fetched `/api/v2/retail/setup/tender-policy`, which is gated on
     `retail.payments` `view` — a permission no cashier holds — so it 403'd on
-    every till warm-up. Pointing it at `pos/context` instead fixed the cashier
-    and broke everyone else: that route additionally enforces
-    `canAccessPosPortal(role)`, so a CRM owner warming this module took a 403
-    on every page. The e2e suite caught that within one run of the change.
+    every till warm-up. Pointing it at the till's own context route instead
+    fixed the cashier and broke everyone else: that route additionally
+    enforced `canAccessPosPortal(role)`, so a CRM owner warming this module
+    took a 403 on every page. The e2e suite caught that within one run of the
+    change.
 
     The entry is gone because nothing needs it. Nothing reads the
     `["retail-pos-tender-policy"]` cache key, and the two rules it carried now
     reach the till live through `pos-portal-state.tsx`, which reads them off
-    `pos/context` — and that query is persisted with the rest of the tenant's
+    `devices/me` — and that query is persisted with the rest of the tenant's
     cache, so the till has them offline too. A second copy warmed for every
     session in the product was buying nothing.
 
@@ -227,6 +231,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   */
   {
     key: "retail-catalog-default",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: async () => {
       const shift = await fetchJson<{ data: { siteId?: string | null } | null }>(
         "/api/v2/retail/pos/current-shift",
@@ -243,6 +249,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
   {
     key: "retail-held-carts",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: async () => {
       const shift = await fetchJson<{ data: { id?: string | null } | null }>(
         "/api/v2/retail/pos/current-shift",
@@ -259,6 +267,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
   {
     key: "retail-pos-sales-overview",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: async () => {
       const shift = await fetchJson<{ data: { id?: string | null } | null }>(
         "/api/v2/retail/pos/current-shift",
@@ -298,6 +308,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
   {
     key: "retail-pos-price-check-default",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: async () => {
       const shift = await fetchJson<{ data: { siteId?: string | null } | null }>(
         "/api/v2/retail/pos/current-shift",

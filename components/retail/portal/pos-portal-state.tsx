@@ -49,6 +49,7 @@ import type {
 import { getPaymentSummary } from "./pos-utils";
 // Type-only, like `TillFiscalStatus` above.
 import type { TillContext } from "@/lib/retail/devices";
+import { markPairedTill } from "@/lib/retail/till-presence";
 import { usePosDeviceWatch } from "./pos-device-watch";
 
 type CompletedSale = {
@@ -111,6 +112,8 @@ type PosPortalStateValue = {
   setOverrideReason: (value: string) => void;
   selectedPromotionId: string;
   setSelectedPromotionId: (value: string) => void;
+  /** This device is one of the shop's tills. False only on price check, which works before pairing. */
+  paired: boolean;
   /** This device's till, its site and what it knows (`devices/me`); null until it lands. */
   till: TillContext | null;
   currentShift: CurrentShift | null;
@@ -193,7 +196,8 @@ function createSaleClientRef() {
 export function PosPortalProvider({
   children,
   isPosHost = false,
-}: PropsWithChildren<{ isPosHost?: boolean }>) {
+  paired,
+}: PropsWithChildren<{ isPosHost?: boolean; paired: boolean }>) {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -222,19 +226,26 @@ export function PosPortalProvider({
   const [idChecked, setIdChecked] = useState(false);
 
   // A device that stops being a till goes to /unpaired at its next request,
-  // sending what it held offline first (W-76).
-  usePosDeviceWatch(isPosHost);
+  // sending what it held offline first (W-76). A device that is not a till
+  // yet (price check) asks nothing of the device routes.
+  usePosDeviceWatch(isPosHost, paired);
+  useEffect(() => {
+    markPairedTill(paired);
+    return () => markPairedTill(false);
+  }, [paired]);
 
   const tillQuery = useQuery({
     queryKey: ["till-context"],
     queryFn: () => fetchJson<{ data: TillContext }>("/api/v2/retail/devices/me"),
     staleTime: 60_000,
+    enabled: paired,
   });
   const till = tillQuery.data?.data ?? null;
   const currentShiftQuery = useQuery({
     queryKey: ["retail-current-shift"],
     queryFn: () =>
       fetchJson<{ data: CurrentShift | null }>("/api/v2/retail/pos/current-shift"),
+    enabled: paired,
   });
   const currentShift = currentShiftQuery.data?.data ?? null;
   const siteId = currentShift?.siteId ?? till?.site.id ?? "";
@@ -656,6 +667,7 @@ export function PosPortalProvider({
     setOverrideReason,
     selectedPromotionId,
     setSelectedPromotionId,
+    paired,
     till,
     isPosHost,
     currentShift,

@@ -121,7 +121,10 @@ export function PortalLoginForm({
       if (result?.error) {
         setError(getAuthErrorMessage(result.error));
       } else {
-        router.push(result?.url ?? resolvedCallbackUrl);
+        // The relative path, not `result.url`: NextAuth builds that on
+        // NEXTAUTH_URL (the tenant host), and the session cookie this sign-in
+        // just set belongs to the portal host it was made on.
+        router.push(resolvedCallbackUrl);
         router.refresh();
       }
     } catch {

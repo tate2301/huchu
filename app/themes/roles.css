@@ -115,7 +115,9 @@
 
 /* Dark by layering: warm near-black, each surface a step lighter; accents and
    status colours lift a step to keep their contrast (TenderUI). */
-:root[data-theme="tender-dark"] {
+:root[data-theme="tender-dark"],
+/* …and any element that asks for it: the till's device screens are dark whatever the shop's theme. */
+[data-theme="tender-dark"] {
   --ground: #171310;
   --surface: #1e1915;
   --hover: #241e1a;

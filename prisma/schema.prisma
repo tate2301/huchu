@@ -4683,7 +4683,7 @@ model RetailPairingCode {
 /// Five wrong codes from one unpaired device stop it for 15 minutes.
 model RetailPairingThrottle {
   companyId      String
-  /// Random id in the unpaired device's `tender_install` cookie.
+  /// What the wrong codes are counted against: `install:<tender_install cookie>`, `ip:<address>`, or `shop`.
   installId      String
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?

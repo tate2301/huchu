@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { unpairedSentence, type UnpairReason } from "@/lib/retail/device-words";
+import { salesSentAfterUnpairing } from "@/lib/retail/devices";
 import { deviceWords } from "@/lib/retail/till-words";
 import { deviceForPage } from "../device-page";
 
@@ -8,14 +9,14 @@ import "@/components/retail/device/device-screen.css";
 
 /**
  * POS host `/unpaired` (10-setup 5.5, TillPairing panel 4): what a device
- * shows once a manager unpaired it or paired another to its till. `sent` is
- * how many sales it sent in on its way out.
+ * shows once a manager unpaired it or paired another to its till, with how
+ * many of the sales it held offline came in after that (counted here).
  */
-export default async function UnpairedPage({ searchParams }: { searchParams: Promise<{ sent?: string }> }) {
+export default async function UnpairedPage() {
   const { device, base } = await deviceForPage();
   if (!device) redirect(`${base}/pair`);
   if (!device.unpairedAt) redirect(base || "/");
-  const sent = Math.max(0, Math.min(9999, Number.parseInt((await searchParams).sent ?? "0", 10) || 0));
+  const sent = await salesSentAfterUnpairing(device);
   const label = device.kind === "BROWSER" && device.label ? device.label : deviceWords(device);
   const body = unpairedSentence({
     by: device.unpairedBy?.name ?? "",
@@ -25,7 +26,7 @@ export default async function UnpairedPage({ searchParams }: { searchParams: Pro
     sent,
   });
   return (
-    <main className="device-screen">
+    <main className="device-screen" data-theme="tender-dark">
       <section className="device-card" aria-labelledby="unpaired-title">
         <span className="device-eyebrow">
           {device.register.name} · {label}

@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api-client";
 import { X } from "@/lib/icons";
 import { TILL_HEARTBEAT_KEY, useTillHeartbeat } from "./pos-device-watch";
+import { usePosPortalState } from "./pos-portal-state";
 
 /**
  * "Send a message" from Setup › Tills and devices, shown on the till as a
@@ -13,7 +14,8 @@ import { TILL_HEARTBEAT_KEY, useTillHeartbeat } from "./pos-device-watch";
  */
 export function PosTillMessages() {
   const queryClient = useQueryClient();
-  const heartbeat = useTillHeartbeat();
+  const { paired } = usePosPortalState();
+  const heartbeat = useTillHeartbeat(paired);
   const messages = heartbeat.data?.messages ?? [];
   const dismiss = useMutation({
     mutationFn: (id: string) => fetchJson(`/api/v2/retail/devices/messages/${id}/dismiss`, { method: "POST" }),

@@ -86,7 +86,7 @@ export function PairScreen({ home, kora }: { home: string; kora: boolean }) {
   };
 
   return (
-    <main className="device-screen">
+    <main className="device-screen" data-theme="tender-dark">
       <section className="device-card" aria-labelledby="pair-title">
         <span className="device-eyebrow">Tender · not a till yet</span>
         <h1 id="pair-title" className="device-title">Pair this device</h1>

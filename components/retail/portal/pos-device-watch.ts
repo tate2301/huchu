@@ -16,7 +16,8 @@ import { listOfflineRetailOperations } from "@/lib/retail/offline-runtime";
  * one. The first such answer, from any query or mutation, ends the session
  * here: what the device held offline is sent first (`pos/sync` still takes
  * sales made before the unpairing, flagged for a manager), then the person is
- * signed out and the device shows /unpaired with how many went — or /pair.
+ * signed out and the device shows /unpaired, which counts how many went — or
+ * /pair.
  */
 
 type DeviceRefusal = "DEVICE_UNPAIRED" | "NOT_A_TILL";
@@ -36,25 +37,32 @@ const HEARTBEAT_MS = 60_000;
 
 export const TILL_HEARTBEAT_KEY = ["till-heartbeat"] as const;
 
-/** The heartbeat, shared by the watch and the message banner. */
-export function useTillHeartbeat() {
+/** The heartbeat, shared by the watch and the message banner; only a till calls in. */
+export function useTillHeartbeat(paired: boolean) {
   return useQuery({
     queryKey: TILL_HEARTBEAT_KEY,
     queryFn: () => fetchJson<{ messages: TillMessage[] }>("/api/v2/retail/devices/heartbeat", { method: "POST", body: "{}" }),
     refetchInterval: HEARTBEAT_MS,
     refetchIntervalInBackground: true,
     retry: false,
+    enabled: paired,
   });
 }
 
-export function usePosDeviceWatch(isPosHost: boolean) {
+/**
+ * Watches a till. On a device that is not a till yet (`paired` false: price
+ * check, which works before pairing) it does nothing — a NOT_A_TILL there is
+ * the expected answer, not news, and the person stays signed in.
+ */
+export function usePosDeviceWatch(isPosHost: boolean, paired: boolean) {
   const queryClient = useQueryClient();
   const { syncNow, tenantKey } = useOfflineRuntime();
   const leaving = useRef(false);
   // Keep calling in while the till is open.
-  useTillHeartbeat();
+  useTillHeartbeat(paired);
 
   useEffect(() => {
+    if (!paired) return;
     const base = isPosHost ? "" : "/portal/pos";
     const leave = async (refusal: DeviceRefusal) => {
       if (leaving.current) return;
@@ -64,18 +72,16 @@ export function usePosDeviceWatch(isPosHost: boolean) {
         window.location.assign(`${base}/pair`);
         return;
       }
-      const held = async () => (tenantKey ? (await listOfflineRetailOperations(tenantKey)).length : 0);
-      const before = await held();
-      if (before > 0) {
+      // Send what it held first; /unpaired counts what came in.
+      if (tenantKey && (await listOfflineRetailOperations(tenantKey)).length > 0) {
         try {
           await syncNow({ force: true });
         } catch {
           // What could not be sent stays queued on this device.
         }
       }
-      const sent = Math.max(0, before - (await held()));
       await signOut({ redirect: false });
-      window.location.assign(`${base}/unpaired${sent > 0 ? `?sent=${sent}` : ""}`);
+      window.location.assign(`${base}/unpaired`);
     };
     const check = (error: unknown) => {
       const refusal = refusalOf(error);
@@ -91,5 +97,5 @@ export function usePosDeviceWatch(isPosHost: boolean) {
       queries();
       mutations();
     };
-  }, [isPosHost, queryClient, syncNow, tenantKey]);
+  }, [isPosHost, paired, queryClient, syncNow, tenantKey]);
 }

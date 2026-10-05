@@ -5,15 +5,21 @@ import { PosPortalLayoutFrame } from "@/components/retail/portal/pos-portal-layo
 import { PosTillLockProvider } from "@/components/retail/portal/pos-lock-screen";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
 import { resolveWorkspaceIdentityForHost } from "@/lib/platform/workspace-identity";
+import { deviceForPage, isPairedTill } from "../device-page";
 
 export default async function PosPortalLayout({ children }: { children: ReactNode }) {
   const headersList = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(headersList);
   const portalRouting = getPortalRequestRouting(hostHeader, "/portal/pos");
-  const workspace = await resolveWorkspaceIdentityForHost(hostHeader);
+  const [workspace, { device }] = await Promise.all([resolveWorkspaceIdentityForHost(hostHeader), deviceForPage()]);
 
   return (
-    <PosPortalProvider isPosHost={portalRouting.isPortalHost}>
+    /*
+      Only price check opens on a device that is not a till (the page guards
+      send everything else to /pair). There the provider leaves the device
+      alone: no till context, no shift, no heartbeat, no watch.
+    */
+    <PosPortalProvider isPosHost={portalRouting.isPortalHost} paired={isPairedTill(device)}>
       {/*
         S-7.5. The lock wraps the whole till, not a single screen: a cashier
         stepping away leaves whichever view they were on, and the basket has to

@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { fetchJson } from "@/lib/api-client";
-import { Package, QrCode, ReceiptLong, Search } from "@/lib/icons";
+import { Package, QrCode, Search, Storefront } from "@/lib/icons";
 import { formatQuantity } from "@/lib/retail/words";
 import {
   PosEmptyState,
@@ -12,24 +13,29 @@ import {
   PosPanelHeader,
   PosStatusPill,
 } from "./pos-primitives";
-import { usePosPortalState } from "./pos-portal-state";
 import type { PosCatalogItem } from "./pos-types";
 import { money } from "./pos-utils";
 
-export function PosPriceCheckView() {
-  const { currentShift } = usePosPortalState();
+/**
+ * Price check: the shelf price and what is on hand. Needs no shift and no
+ * till — the site comes from the page (the till's, else the shop's default).
+ */
+export function PosPriceCheckView({ siteId }: { siteId: string | null }) {
   const [search, setSearch] = useState("");
 
   const catalogQuery = useQuery({
-    queryKey: ["retail-pos-price-check", currentShift?.siteId, search],
+    queryKey: ["retail-pos-price-check", siteId, search],
     queryFn: () =>
       fetchJson<{ data: PosCatalogItem[] }>(
-        `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(currentShift?.siteId ?? "")}&search=${encodeURIComponent(search)}`,
+        `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(siteId ?? "")}&search=${encodeURIComponent(search)}`,
       ),
-    enabled: Boolean(currentShift?.siteId),
+    enabled: Boolean(siteId),
   });
 
-  const rows = useMemo(() => catalogQuery.data?.data ?? [], [catalogQuery.data?.data]);
+  // The persisted cache can hold results the server never saw; show them after hydration.
+  const hydrated = useHydrated();
+  const loading = !hydrated || catalogQuery.isLoading;
+  const rows = useMemo(() => (hydrated ? (catalogQuery.data?.data ?? []) : []), [hydrated, catalogQuery.data?.data]);
   const featuredItem = rows[0] ?? null;
 
   return (
@@ -69,13 +75,13 @@ export function PosPriceCheckView() {
       <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,1.08fr)]">
         {/* Featured result hero panel */}
         <PosPanel className="flex min-h-0 flex-col">
-          {!currentShift ? (
-            <PosEmptyState icon={ReceiptLong} title="Open a shift first" />
+          {!siteId ? (
+            <PosEmptyState icon={Storefront} title="Add a site first" />
           ) : !featuredItem ? (
             <PosEmptyState
               icon={Package}
               title={
-                catalogQuery.isLoading
+                loading
                   ? "Loading the products…"
                   : catalogQuery.isError
                     ? "The products would not load"
@@ -165,13 +171,13 @@ export function PosPriceCheckView() {
           <PosPanelHeader title={`${rows.length} ${rows.length === 1 ? "product" : "products"}`} />
 
           <div className="h-full min-h-0 overflow-y-auto pr-1">
-            {!currentShift ? (
-              <PosEmptyState icon={ReceiptLong} title="Open a shift first" />
+            {!siteId ? (
+              <PosEmptyState icon={Storefront} title="Add a site first" />
             ) : rows.length === 0 ? (
               <PosEmptyState
                 icon={Package}
                 title={
-                  catalogQuery.isLoading
+                  loading
                     ? "Loading the products…"
                     : catalogQuery.isError
                       ? "The products would not load"

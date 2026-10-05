@@ -86,6 +86,13 @@ const GUARD_MARKERS = [
    * once for ten minutes, with five wrong tries stopping the device.
    */
   "pairDevice",
+  /**
+   * SET-04: the till's door onto the back office's cash-movement handlers. The
+   * device must be one of the session's shop's tills and the shift must be on
+   * it (409 otherwise); the handler it then hands to asks the matrix (own
+   * drawer `retail.sell`, anybody else's `retail.cash-control`).
+   */
+  "refuseShiftElsewhere",
   /*
     `canAccessPosPortal` (`lib/retail/pos-host.ts`) is not here. It answers
     which portal you may sign into, a question about hosts rather than

@@ -11,16 +11,18 @@ import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
 import {
   DEVICE_COOKIE,
   UNPAIRED_REVIEW_REASON,
+  alreadyATillSentence,
   badCodeSentence,
   deviceKindFromShell,
   deviceLabelFromUserAgent,
   lockedSentence,
   pairedFootnote,
   personChip,
+  shiftOnOtherTillSentence,
   unpairedSaleVerdict,
   type UnpairReason,
 } from "@/lib/retail/device-words";
-import { PairingRefusal, checkTillRoom, hashCode } from "@/lib/retail/pairing";
+import { PAIRING_TTL_MS, PairingRefusal, checkTillRoom, hashCode } from "@/lib/retail/pairing";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
@@ -118,7 +120,7 @@ function refuse(status: number, body: Record<string, unknown>): NextResponse {
   return NextResponse.json(body, { status });
 }
 
-export const NOT_A_TILL = "This device is not a till. Pair it from Setup › Tills and devices.";
+export const NOT_A_TILL = "This device is not a till. Pair it from Management › Tills and devices.";
 
 /**
  * The device this POS request comes from. No device key, a key nobody
@@ -149,6 +151,20 @@ export async function requirePosDevice(
 }
 
 /**
+ * A till acts only on its own shifts: closing, or moving cash on, a shift that
+ * is on another till is refused 409 "That shift is on {till}.". A shift that
+ * is not the shop's is left for the handler's own 404.
+ */
+export async function refuseShiftElsewhere(device: PosDevice, shiftId: string): Promise<NextResponse | null> {
+  const shift = await prisma.retailShift.findFirst({
+    where: { id: shiftId, companyId: device.companyId },
+    select: { registerId: true, register: { select: { name: true } } },
+  });
+  if (!shift || shift.registerId === device.registerId) return null;
+  return refuse(409, { error: shiftOnOtherTillSentence(shift.register.name), code: "SHIFT_ELSEWHERE" });
+}
+
+/**
  * A sale from a device that may have been unpaired since (W-76): from a paired
  * device it simply goes in; from an unpaired one only an offline sale rung
  * before the unpairing goes in, flagged for a manager (`reviewReason`). Anything
@@ -165,6 +181,23 @@ export function unpairedSaleGate(
     reviewReason: null,
     response: refuse(401, { error: "This device is no longer a till.", code: "DEVICE_UNPAIRED", ...unpairedFacts(device) }),
   };
+}
+
+/**
+ * How many sales this device sent in after it was unpaired: the offline sales
+ * it held, which came in flagged (W-76). What /unpaired counts, from the
+ * database rather than from the device's word.
+ */
+export async function salesSentAfterUnpairing(device: PosDevice): Promise<number> {
+  if (!device.unpairedAt) return 0;
+  return prisma.retailSale.count({
+    where: {
+      companyId: device.companyId,
+      deviceId: device.id,
+      reviewReason: UNPAIRED_REVIEW_REASON,
+      createdAt: { gte: device.unpairedAt },
+    },
+  });
 }
 
 /** Last seen now (at most once a minute), and the shell's version when it says. */
@@ -196,8 +229,12 @@ export class PairRefusal extends Error {
 export type PairInput = {
   companyId: string;
   code: string;
-  /** The `tender_install` cookie, else `ip:<address>`. */
-  installId: string;
+  /** The `tender_install` cookie; null when the browser sent none. */
+  installId: string | null;
+  /** The caller's address from our own edge (`trustedClientAddress`). */
+  address: string;
+  /** The `tender_device` cookie, when the request carries one. */
+  deviceKey: string | null;
   userAgent: string | null;
   /** `X-Tender-Shell`. */
   shell: string | null;
@@ -206,28 +243,74 @@ export type PairInput = {
 };
 
 /**
- * Redeem a pairing code. Five wrong codes from one install stop it for 15
- * minutes (429 LOCKED); a wrong one is 400 BAD_CODE with the tries left. In
- * one transaction: the code is used; a REPLACE code unpairs the till's
- * current device (REPLACED, by whoever made the code); a PAIR code checks the
- * plan; the new device is made with the key's hash; audited. Returns the key
- * for the cookie, and the till and site.
+ * Wrong codes are counted three ways (`RetailPairingThrottle.installId` holds
+ * the key): per install and per address, five and the caller waits 15 minutes
+ * like a PIN; and across the whole shop, because an install id is whatever the
+ * browser says and addresses can be many. Twenty wrong codes in a code's
+ * ten-minute life stop all pairing at the shop for ten minutes, so any code
+ * alive when the guessing started has died before it can be guessed further.
+ */
+export const PAIR_SHOP_MAX_WRONG = 20;
+const PAIR_SHOP_WINDOW_MS = PAIRING_TTL_MS;
+const SHOP_KEY = "shop";
+
+type ThrottleRow = { installId: string; failedAttempts: number; lockedUntil: Date | null; updatedAt: Date };
+
+function throttleKeys(input: PairInput): { key: string; limits?: { maxAttempts: number; lockMs: number } }[] {
+  return [
+    ...(input.installId ? [{ key: `install:${input.installId}` }] : []),
+    { key: `ip:${input.address}` },
+    { key: SHOP_KEY, limits: { maxAttempts: PAIR_SHOP_MAX_WRONG, lockMs: PAIR_SHOP_WINDOW_MS } },
+  ];
+}
+
+/** A row's count as it stands now: the shop's count forgets wrong codes older than a code's life. */
+function throttleState(row: ThrottleRow | undefined, key: string, now: Date) {
+  if (!row) return { failedAttempts: 0, lockedUntil: null };
+  const stale = key === SHOP_KEY && !row.lockedUntil && now.getTime() - row.updatedAt.getTime() > PAIR_SHOP_WINDOW_MS;
+  return stale ? { failedAttempts: 0, lockedUntil: null } : { failedAttempts: row.failedAttempts, lockedUntil: row.lockedUntil };
+}
+
+const lockedRefusal = (lockedUntil: Date) =>
+  new PairRefusal(429, lockedSentence(lockedUntil), { code: "LOCKED", lockedUntil: lockedUntil.toISOString() });
+
+/**
+ * Redeem a pairing code. Five wrong codes from one install, or one address,
+ * stop it for 15 minutes, and twenty across the shop stop the shop's pairing
+ * for ten (429 LOCKED); a wrong one is 400 BAD_CODE with the tries left. A
+ * device that is already one of the shop's tills is refused (409): it is
+ * unpaired first. In one transaction: the code is used; a REPLACE code
+ * unpairs the till's current device (REPLACED, by whoever made the code); a
+ * PAIR code checks the plan; the new device is made with the key's hash;
+ * audited. Returns the key for the cookie, and the till and site.
  */
 export async function pairDevice(
   input: PairInput,
   now: Date = new Date(),
 ): Promise<{ key: string; till: { id: string; name: string }; site: { id: string; name: string } }> {
-  const throttleKey = { companyId_installId: { companyId: input.companyId, installId: input.installId } };
-  const throttle = await prisma.retailPairingThrottle.findUnique({ where: throttleKey });
-  const state = { failedAttempts: throttle?.failedAttempts ?? 0, lockedUntil: throttle?.lockedUntil ?? null };
-  // The same five-and-fifteen-minutes rule as a PIN.
-  const gate = evaluateTillPinAttempt({ state, verified: null, now });
-  if (gate.decision === "LOCKED") {
-    throw new PairRefusal(429, lockedSentence(state.lockedUntil!), {
-      code: "LOCKED",
-      lockedUntil: state.lockedUntil!.toISOString(),
-    });
+  const already = await findDeviceByKey(input.deviceKey);
+  if (already && already.companyId === input.companyId && !already.unpairedAt) {
+    throw new PairRefusal(409, alreadyATillSentence(already.register.name), { code: "ALREADY_A_TILL" });
   }
+
+  const keys = throttleKeys(input);
+  const rows: ThrottleRow[] = await prisma.retailPairingThrottle.findMany({
+    where: { companyId: input.companyId, installId: { in: keys.map((entry) => entry.key) } },
+    select: { installId: true, failedAttempts: true, lockedUntil: true, updatedAt: true },
+  });
+  const counted = keys.map((entry) => ({
+    ...entry,
+    state: throttleState(
+      rows.find((row) => row.installId === entry.key),
+      entry.key,
+      now,
+    ),
+  }));
+  // The same five-and-fifteen-minutes rule as a PIN, held on each count.
+  const gates = counted.map((entry) => evaluateTillPinAttempt({ state: entry.state, verified: null, now, limits: entry.limits }));
+  const lockedUntil = latestLock(counted.filter((_, index) => gates[index]!.decision === "LOCKED").map((entry) => entry.state.lockedUntil));
+  if (lockedUntil) throw lockedRefusal(lockedUntil);
+  const triesLeft = Math.min(...gates.map((gate) => gate.attemptsRemaining));
 
   const digits = input.code.replace(/\D/g, "");
   const live =
@@ -239,22 +322,25 @@ export async function pairDevice(
       : null;
 
   if (!live) {
-    const outcome = evaluateTillPinAttempt({ state, verified: false, now });
-    await prisma.retailPairingThrottle.upsert({
-      where: throttleKey,
-      create: { companyId: input.companyId, installId: input.installId, ...outcome.next },
-      update: outcome.next,
-    });
-    if (outcome.decision === "REJECTED_NOW_LOCKED") {
-      throw new PairRefusal(429, lockedSentence(outcome.next.lockedUntil!), {
-        code: "LOCKED",
-        lockedUntil: outcome.next.lockedUntil!.toISOString(),
-      });
-    }
-    throw new PairRefusal(400, badCodeSentence(outcome.attemptsRemaining), {
-      code: "BAD_CODE",
-      triesLeft: outcome.attemptsRemaining,
-    });
+    const outcomes = counted.map((entry) => ({
+      key: entry.key,
+      outcome: evaluateTillPinAttempt({ state: entry.state, verified: false, now, limits: entry.limits }),
+    }));
+    await prisma.$transaction(
+      outcomes.map(({ key, outcome }) =>
+        prisma.retailPairingThrottle.upsert({
+          where: { companyId_installId: { companyId: input.companyId, installId: key } },
+          create: { companyId: input.companyId, installId: key, ...outcome.next },
+          update: outcome.next,
+        }),
+      ),
+    );
+    const nowLocked = latestLock(
+      outcomes.filter(({ outcome }) => outcome.decision === "REJECTED_NOW_LOCKED").map(({ outcome }) => outcome.next.lockedUntil),
+    );
+    if (nowLocked) throw lockedRefusal(nowLocked);
+    const left = Math.min(...outcomes.map(({ outcome }) => outcome.attemptsRemaining));
+    throw new PairRefusal(400, badCodeSentence(left), { code: "BAD_CODE", triesLeft: left });
   }
 
   const key = newDeviceKey();
@@ -269,7 +355,7 @@ export async function pairDevice(
       data: { usedAt: now },
     });
     // Someone redeemed it a moment ago.
-    const taken = new PairRefusal(400, badCodeSentence(gate.attemptsRemaining), { code: "BAD_CODE", triesLeft: gate.attemptsRemaining });
+    const taken = new PairRefusal(400, badCodeSentence(triesLeft), { code: "BAD_CODE", triesLeft });
     if (claimed.count === 0) throw taken;
     const till = await tx.retailRegister.findFirst({
       where: { id: live.registerId, companyId: input.companyId, isActive: true },
@@ -313,7 +399,10 @@ export async function pairDevice(
       select: { id: true, kind: true, label: true },
     });
     await tx.retailPairingCode.update({ where: { id: live.id }, data: { deviceId: device.id } });
-    await tx.retailPairingThrottle.deleteMany({ where: { companyId: input.companyId, installId: input.installId } });
+    // The shop's count is left to run out: a right code does not excuse the wrong ones.
+    await tx.retailPairingThrottle.deleteMany({
+      where: { companyId: input.companyId, installId: { in: keys.map((entry) => entry.key).filter((key) => key !== SHOP_KEY) } },
+    });
 
     await writeRetailAuditEvent(tx, {
       actor: auditActor,
@@ -340,6 +429,11 @@ export async function pairDevice(
     return { till: { id: till.id, name: till.name }, site: till.site };
   });
   return { key, ...paired };
+}
+
+/** The latest of some locks, or null. */
+function latestLock(locks: (Date | null)[]): Date | null {
+  return locks.reduce<Date | null>((latest, lock) => (lock && (!latest || lock > latest) ? lock : latest), null);
 }
 
 /* ── What the till knows about itself (GET devices/me) ────────────────────── */
@@ -396,6 +490,17 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     },
     priceListId: register.priceListId ?? register.site.priceListId ?? defaultList?.id ?? null,
   };
+}
+
+/** The shop's default site if it is open, else its first open site; null when it has none. */
+export async function shopSiteId(companyId: string): Promise<string | null> {
+  const profile = await prisma.retailShopProfile.findUnique({ where: { companyId }, select: { defaultSiteId: true } });
+  const sites = await prisma.site.findMany({
+    where: { companyId, isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true },
+  });
+  return sites.find((site) => site.id === profile?.defaultSiteId)?.id ?? sites[0]?.id ?? null;
 }
 
 /* ── Who is selling? (GET devices/people) ─────────────────────────────────── */

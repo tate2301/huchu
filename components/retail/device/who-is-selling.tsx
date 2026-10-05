@@ -97,7 +97,7 @@ export function WhoIsSelling({
   }, [press]);
 
   return (
-    <main className="device-screen">
+    <main className="device-screen" data-theme="tender-dark">
       <section className="device-card" aria-labelledby="who-title">
         <span className="device-eyebrow">{eyebrow}</span>
         <h1 id="who-title" className="device-title">Who is selling?</h1>
