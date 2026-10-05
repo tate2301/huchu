@@ -75,6 +75,8 @@ export type ShelfListing = {
   packOf: { id: string; name: string } | null;
   packSize: number | null;
   status: ShelfListingStatus;
+  /** When it went in the bin; null while it is on the range. */
+  binnedAt: string | null;
   unitPrice: number;
   compareAtPrice: number | null;
   taxPercent: number;
@@ -119,6 +121,7 @@ const listingSelect = {
   standardPrice: true,
   compareAtPrice: true,
   defaultTaxRate: true,
+  archivedAt: true,
 } satisfies Prisma.ProductSelect;
 
 /**
@@ -145,9 +148,11 @@ export async function loadShelfListings(
     /** Narrow to named products. Used by the single-listing read. */
     productIds?: readonly string[];
     take?: number;
+    /** Read binned lines too: only the record page, which draws the bin banner. */
+    includeBinned?: boolean;
   } = {},
 ): Promise<ShelfListing[]> {
-  const { siteId, search, activeOnly, status, category, productIds, take } = options;
+  const { siteId, search, activeOnly, status, category, productIds, take, includeBinned } = options;
 
   const stockWhere: Prisma.InventoryItemWhereInput = {
     site: { companyId },
@@ -157,7 +162,7 @@ export async function loadShelfListings(
   const where: Prisma.ProductWhereInput = {
     companyId,
     // Archived is off the range, not merely inactive. See the header.
-    archivedAt: null,
+    ...(includeBinned ? {} : { archivedAt: null }),
     // A product with no stock row at this branch is not something this till can
     // sell, however well core describes it.
     inventoryItems: { some: stockWhere },
@@ -248,6 +253,7 @@ export async function loadShelfListings(
       packOf: product.packOf,
       packSize: product.packOf ? product.packSize : null,
       status: product.isActive ? "ACTIVE" : "INACTIVE",
+      binnedAt: product.archivedAt?.toISOString() ?? null,
       unitPrice: shelf?.unitPrice ?? toNumberOrZero(product.standardPrice),
       compareAtPrice:
         product.compareAtPrice === null ? null : toNumberOrZero(product.compareAtPrice),
@@ -285,8 +291,9 @@ export async function loadShelfListings(
 export async function loadShelfListing(
   companyId: string,
   productId: string,
+  options: { includeBinned?: boolean } = {},
 ): Promise<ShelfListing | null> {
-  const [listing] = await loadShelfListings(companyId, { productIds: [productId] });
+  const [listing] = await loadShelfListings(companyId, { productIds: [productId], ...options });
   return listing ?? null;
 }
 
@@ -429,7 +436,10 @@ export async function upsertShelfListing(input: {
   /** A case's single and size. `undefined` leaves them alone; null makes it a single. */
   packOfId?: string | null;
   packSize?: number | null;
-}): Promise<string> {
+},
+/** Run inside this transaction, so a caller can write its audit events with it. */
+client?: Prisma.TransactionClient,
+): Promise<string> {
   const unitPrice = money(input.unitPrice);
   const taxPercent = percent(input.taxPercent);
   const compareAtPrice =
@@ -443,7 +453,7 @@ export async function upsertShelfListing(input: {
         ? undefined
         : moneyOrNull(input.depositAmount);
 
-  return prisma.$transaction(async (tx) => {
+  const write = async (tx: Prisma.TransactionClient) => {
     const priceList = await tx.priceList.upsert({
       where: { companyId_name: { companyId: input.companyId, name: SHELF_PRICE_LIST_NAME } },
       create: {
@@ -541,83 +551,82 @@ export async function upsertShelfListing(input: {
     });
 
     return product.id;
-  });
+  };
+  return client ? write(client) : prisma.$transaction(write);
 }
 
 /**
  * Take a line off the range without deleting anything a receipt needs.
  *
- * `DELETE /api/v2/retail/catalog/{id}` used to remove a `RetailCatalogItem` row
- * and leave the stock line alone. The equivalent on a `Product` cannot be a
- * delete: 12,600 sale lines point at these products, and although the foreign key
- * is `SET NULL` and `itemName` would still print, throwing away the link is
- * rewriting history to save a row. So the product is archived — off the till, off
- * the back-office list, and still attached to every sale it was ever part of —
- * and its shelf price is removed so a later un-archive cannot resurrect a stale
- * number.
+ * A `Product` cannot be deleted: thousands of sale lines point at it, and
+ * although the foreign key is `SET NULL` and `itemName` would still print,
+ * throwing away the link is rewriting history to save a row. So the product
+ * goes in the bin (`archivedAt`) — off the till, off every list and lookup,
+ * and still attached to every sale it was ever part of — and its shelf price
+ * is removed so nothing reads a price for a line that is not on the range.
+ * Whether it was on sale is left as it was, so a restore puts it back as it
+ * stood. Called by the bin (`lib/retail/bin.ts`) inside its transaction.
  */
-export async function archiveShelfListing(input: {
-  companyId: string;
-  productId: string;
-}): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await tx.productPrice.deleteMany({
-      where: {
-        productId: input.productId,
-        companyId: input.companyId,
-        priceList: { name: SHELF_PRICE_LIST_NAME },
-      },
-    });
-    await tx.product.update({
-      where: { id: input.productId },
-      data: { isActive: false, archivedAt: new Date() },
-    });
+export async function archiveShelfListing(
+  tx: Prisma.TransactionClient,
+  input: { companyId: string; productId: string; at?: Date },
+): Promise<void> {
+  await tx.productPrice.deleteMany({
+    where: {
+      productId: input.productId,
+      companyId: input.companyId,
+      priceList: { name: SHELF_PRICE_LIST_NAME },
+    },
+  });
+  await tx.product.update({
+    where: { id: input.productId },
+    data: { archivedAt: input.at ?? new Date() },
   });
 }
 
 /**
- * Bring a product back out of the bin.
+ * Bring a product back out of the bin, as it stood when it went in.
  *
- * Back on the list, but off sale: its shelf price was removed when it went in
- * the bin, and the figure it comes back with — its last standard price — may
- * be months old. So it is restored priced at that figure, which keeps the
- * shelf list and `standardPrice` agreeing, and the owner looks at it and puts
- * it on sale. Returns false when it is not this company's, or not in the bin.
+ * Its shelf price was removed when it went in the bin; it comes back at its
+ * standard price, which every shelf edit keeps equal to the shelf price, so
+ * the till charges what it charged before. Returns false when it is not this
+ * company's, or not in the bin.
  */
-export async function restoreShelfListing(input: { companyId: string; productId: string }): Promise<boolean> {
-  return prisma.$transaction(async (tx) => {
-    const product = await tx.product.findFirst({
-      where: { id: input.productId, companyId: input.companyId, archivedAt: { not: null } },
-      select: { id: true, standardPrice: true },
-    });
-    if (!product) return false;
+export async function restoreShelfListing(
+  tx: Prisma.TransactionClient,
+  input: { companyId: string; productId: string },
+): Promise<boolean> {
+  const product = await tx.product.findFirst({
+    where: { id: input.productId, companyId: input.companyId, archivedAt: { not: null } },
+    select: { id: true, standardPrice: true },
+  });
+  if (!product) return false;
 
-    const priceList = await tx.priceList.findUnique({
-      where: { companyId_name: { companyId: input.companyId, name: SHELF_PRICE_LIST_NAME } },
-      select: { id: true },
-    });
-    if (priceList) {
-      await tx.productPrice.upsert({
-        where: {
-          priceListId_productId_minQuantity: {
-            priceListId: priceList.id,
-            productId: product.id,
-            minQuantity: new Prisma.Decimal(1),
-          },
-        },
-        create: {
-          companyId: input.companyId,
+  const priceList = await tx.priceList.findUnique({
+    where: { companyId_name: { companyId: input.companyId, name: SHELF_PRICE_LIST_NAME } },
+    select: { id: true },
+  });
+  if (priceList) {
+    await tx.productPrice.upsert({
+      where: {
+        priceListId_productId_minQuantity: {
           priceListId: priceList.id,
           productId: product.id,
           minQuantity: new Prisma.Decimal(1),
-          unitPrice: product.standardPrice,
         },
-        update: { unitPrice: product.standardPrice },
-      });
-    }
-    await tx.product.update({ where: { id: product.id }, data: { archivedAt: null, isActive: false } });
-    return true;
-  });
+      },
+      create: {
+        companyId: input.companyId,
+        priceListId: priceList.id,
+        productId: product.id,
+        minQuantity: new Prisma.Decimal(1),
+        unitPrice: product.standardPrice,
+      },
+      update: { unitPrice: product.standardPrice },
+    });
+  }
+  await tx.product.update({ where: { id: product.id }, data: { archivedAt: null } });
+  return true;
 }
 
 export type SellableProduct = {

@@ -1070,6 +1070,7 @@ model PlatformAuditEvent {
 
   @@index([companyId, createdAt])
   @@index([eventType, createdAt])
+  @@index([companyId, entityType, entityId, createdAt])
 }
 
 model Site {

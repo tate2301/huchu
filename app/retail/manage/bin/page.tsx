@@ -20,7 +20,7 @@ const KIND: Record<BinKind, string> = {
 };
 
 const RESTORED: Record<BinKind, string> = {
-  product: "Restored, off sale. Check its price, then put it on sale.",
+  product: "Restored. It is back in every list.",
   promotion: "Restored, inactive. Set its dates to run it again.",
   category: "Restored, and back in every product field.",
 };
@@ -30,7 +30,7 @@ const RESTORED: Record<BinKind, string> = {
  *
  * Nothing is deleted from here, because nothing a shop removes is deleted:
  * sales, receipts and products point at these. Restore puts each back where
- * it was, a product off sale until somebody has looked at its price.
+ * it was, for 30 days after it went in.
  */
 export default function RetailBinPage() {
   const { toast } = useToast();
@@ -43,7 +43,7 @@ export default function RetailBinPage() {
 
   const restore = useMutation({
     mutationFn: (entry: BinEntry) =>
-      fetchJson("/api/v2/retail/bin", { method: "POST", body: JSON.stringify({ kind: entry.kind, id: entry.id }) }),
+      fetchJson("/api/v2/retail/bin/restore", { method: "POST", body: JSON.stringify({ kind: entry.kind, id: entry.id }) }),
     onSuccess: async (_result, entry) => {
       toast({ title: `${entry.name} restored`, description: RESTORED[entry.kind], variant: "success" });
       await Promise.all(

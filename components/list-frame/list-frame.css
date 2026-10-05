@@ -250,3 +250,12 @@
 .cx-lf-option[aria-checked="true"] { font-weight: 600; }
 .cx-lf-option__mark { width: 16px; flex: none; display: inline-flex; color: var(--action); }
 .cx-lf-option__mark svg { width: 16px; height: 16px; }
+
+/* A dot cell: "● Cash" — the dot in the value's tone, the word in ink. */
+.cx-lf-dotcell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--ink); }
+.cx-lf-dotcell::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 99px; background: var(--faint); }
+.cx-lf-dotcell--ok::before { background: var(--ok); }
+.cx-lf-dotcell--info::before { background: var(--info); }
+.cx-lf-dotcell--warn::before, .cx-lf-dotcell--gold::before, .cx-lf-dotcell--pending::before { background: var(--warn-dot); }
+.cx-lf-dotcell--bad::before { background: var(--bad-dot); }
+.cx-lf-dotcell--hollow::before { background: transparent; border: 1.5px solid var(--ink-3); box-sizing: border-box; }

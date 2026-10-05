@@ -27,11 +27,11 @@ export function compactTick(value: number) {
   return String(Number(value.toFixed(1)));
 }
 
-function Grid({ ticks }: { ticks: number[] }) {
+function Grid({ ticks, format = compactTick }: { ticks: number[]; format?: (value: number) => string }) {
   return (
     <div className="cx-df-bars__grid" aria-hidden="true">
       {ticks.map((tick) => (
-        <span key={tick}>{compactTick(tick)}</span>
+        <span key={tick}>{format(tick)}</span>
       ))}
     </div>
   );
@@ -58,19 +58,28 @@ export function BarChart({
   xLabels,
   label,
   emphasiseLast = true,
+  tick,
+  evenX = false,
+  steps,
 }: {
   bars: ReadonlyArray<Bar>;
-  /** A few dates spread under the plot ("4 Sep" … "3 Oct"). */
+  /** A few dates spread under the plot ("4 Sep" … "3 Oct"), or one per bar with `evenX`. */
   xLabels: ReadonlyArray<string>;
   label: string;
   emphasiseLast?: boolean;
+  /** A y label ("US$20"); default the compact figure. */
+  tick?: (value: number) => string;
+  /** One x label under each bar, centred on it. */
+  evenX?: boolean;
+  /** Grid steps; default four. */
+  steps?: number;
 }) {
   const [hover, setHover] = React.useState<number | null>(null);
-  const scale = niceScale(Math.max(0, ...bars.map((bar) => bar.value)));
+  const scale = niceScale(Math.max(0, ...bars.map((bar) => bar.value)), steps);
   const tip = hover === null ? null : bars[hover];
   return (
     <div className="cx-df-bars">
-      <Grid ticks={scale.ticks} />
+      <Grid ticks={scale.ticks} format={tick} />
       <div className="cx-df-bars__plot" role="img" aria-label={label}>
         {bars.map((bar, index) => (
           <span
@@ -97,9 +106,9 @@ export function BarChart({
           />
         ) : null}
       </div>
-      <div className="cx-df-bars__x" aria-hidden="true">
-        {xLabels.map((tick, index) => (
-          <span key={`${tick}-${index}`}>{tick}</span>
+      <div className={cn("cx-df-bars__x", evenX && "cx-df-bars__x--even")} aria-hidden="true">
+        {xLabels.map((text, index) => (
+          <span key={`${text}-${index}`}>{text}</span>
         ))}
       </div>
     </div>

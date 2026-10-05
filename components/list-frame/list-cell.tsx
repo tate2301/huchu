@@ -82,6 +82,10 @@ export function ListCell({
       const tone = column.tones?.[String(value)] ?? "neutral";
       return <StateBadge tone={tone}>{String(value)}</StateBadge>;
     }
+    case "dot": {
+      const tone = column.tones?.[String(value)] ?? "hollow";
+      return <span className={`cx-lf-dotcell cx-lf-dotcell--${tone}`}>{String(value)}</span>;
+    }
     case "date": {
       const time = column.timeKey ? row[column.timeKey] : null;
       return (

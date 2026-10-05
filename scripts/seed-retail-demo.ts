@@ -50,6 +50,7 @@ import { ensureRetailCategories } from "@/lib/retail/categories"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 import { tradingDayKey } from "@/lib/retail/z-report"
+import { auditCashMoved, auditRecordEdited, auditSalePosted, auditShiftOpened } from "@/lib/retail/audit"
 import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services"
 
 function readArg(name: string): string | undefined {
@@ -879,6 +880,15 @@ async function main() {
     })
   }
 
+  // ── What the records' Activity tabs read (FND-06) ────────────────────────
+  await seedRecordActivity({
+    companyId,
+    shiftRows,
+    saleRows,
+    manager: staff.find((person) => person.name === "Tafara Nyathi") ?? staff[0]!,
+    now,
+  })
+
   // ── Purchasing ───────────────────────────────────────────────────────────
   const supplier = "Delta Beverages"
   const poNo = "PO-00001"
@@ -962,6 +972,143 @@ async function main() {
       `\n\nSign in as any of:\n${STAFF.map((s) => `  ${s.role.padEnd(12)} ${s.email}`).join("\n")}` +
       `\n  password: ${STAFF_PASSWORD}`,
   )
+}
+
+/**
+ * FND-06. The events the shift and product records' Activity tabs read, as
+ * the till and the back office would have written them: each open drawer's
+ * opening, the Front till's sales this morning and its drop of US$20.00 to
+ * the safe at 10:04 by Tafara Nyathi (ShiftRecord board), and the owner's
+ * last price change on Amarula Cream 750ml, US$17.99 to US$18.25.
+ */
+async function seedRecordActivity(input: {
+  companyId: string
+  shiftRows: Prisma.RetailShiftCreateManyInput[]
+  saleRows: Prisma.RetailSaleCreateManyInput[]
+  manager: { id: string; name: string }
+  now: Date
+}) {
+  const { companyId, shiftRows, saleRows, manager, now } = input
+  const at = async (eventType: string, entityId: string, when: Date) => {
+    const latest = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, eventType, entityId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    })
+    if (latest) await prisma.platformAuditEvent.update({ where: { id: latest.id }, data: { createdAt: when } })
+  }
+  const actorOf = (row: { cashierId: string; cashierName: string }) => ({
+    companyId,
+    userId: row.cashierId,
+    userName: row.cashierName,
+    userRole: "CASHIER",
+  })
+
+  // Without --reset the history rows are skipped as duplicates, and these ids were never written.
+  const written = new Set(
+    (
+      await prisma.retailShift.findMany({
+        where: { companyId, id: { in: shiftRows.filter((row) => row.status === "OPEN").map((row) => row.id as string) } },
+        select: { id: true },
+      })
+    ).map((row) => row.id),
+  )
+
+  let events = 0
+  for (const shift of shiftRows.filter((row) => row.status === "OPEN" && written.has(row.id as string))) {
+    const openedAt = shift.openedAt as Date
+    await auditShiftOpened(prisma, {
+      actor: actorOf(shift),
+      shiftId: shift.id as string,
+      shiftNo: shift.shiftNo,
+      siteId: shift.siteId,
+      registerCode: shift.registerCode,
+      cashierId: shift.cashierId,
+      openingFloat: shift.openingFloat as Prisma.Decimal,
+    })
+    await at("RETAIL_SHIFT.OPENED", shift.id as string, openedAt)
+    events += 1
+  }
+
+  const front = shiftRows.find((row) => row.status === "OPEN" && row.registerCode === "TILL-1" && written.has(row.id as string))
+  if (front) {
+    for (const sale of saleRows.filter((row) => row.shiftId === front.id)) {
+      await auditSalePosted(prisma, {
+        actor: actorOf(front),
+        saleId: sale.id as string,
+        saleNo: sale.saleNo,
+        shiftId: front.id as string,
+        siteId: sale.siteId ?? null,
+        totalAmount: sale.totalAmount as Prisma.Decimal,
+        currency: sale.currency ?? "USD",
+        baseAmount: sale.baseAmount as Prisma.Decimal,
+        lineCount: 1,
+      })
+      await at("RETAIL_SALE.POSTED", sale.id as string, sale.postedAt as Date)
+      events += 1
+    }
+
+    const dropAt = harareTime(0, 10, 4)
+    if (dropAt.getTime() > (front.openedAt as Date).getTime() && dropAt.getTime() < now.getTime()) {
+      const movement = await prisma.retailCashMovement.create({
+        data: {
+          companyId,
+          shiftId: front.id as string,
+          type: "DROP_TO_SAFE",
+          reasonCode: "CASH_LEVEL_TOO_HIGH",
+          amount: money("20.00"),
+          currency: "USD",
+          exchangeRate: rate("1"),
+          baseAmount: money("20.00"),
+          recordedById: manager.id,
+          recordedByName: manager.name,
+          createdAt: dropAt,
+        },
+        select: { id: true },
+      })
+      await prisma.retailShift.update({
+        where: { id: front.id as string },
+        data: { expectedCash: { decrement: money("20.00") } },
+      })
+      await auditCashMoved(prisma, {
+        actor: { companyId, userId: manager.id, userName: manager.name, userRole: "MANAGER" },
+        movementId: movement.id,
+        shiftId: front.id as string,
+        type: "DROP_TO_SAFE",
+        reasonCode: "CASH_LEVEL_TOO_HIGH",
+        amount: money("20.00"),
+        currency: "USD",
+        baseAmount: money("20.00"),
+      })
+      await at("RETAIL_CASH.MOVED", movement.id, dropAt)
+      events += 1
+    }
+  }
+
+  // The owner's last price change on Amarula, once.
+  const amarula = await prisma.product.findFirst({ where: { companyId, code: "AMARULA-750" }, select: { id: true } })
+  const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
+  if (amarula && owner) {
+    const already = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, entityType: "Product", entityId: amarula.id, eventType: "RETAIL_RECORD.EDITED" },
+      select: { id: true },
+    })
+    if (!already) {
+      await auditRecordEdited(prisma, {
+        actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+        entityType: "Product",
+        entityId: amarula.id,
+        field: "unitPrice",
+        label: "Price",
+        from: "17.99",
+        to: "18.25",
+        kind: "money",
+      })
+      await at("RETAIL_RECORD.EDITED", amarula.id, harareTime(2, 9, 12))
+      events += 1
+    }
+  }
+  console.log(`  ${events} activity events (open drawers, the Front till's morning, Amarula's price)`)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

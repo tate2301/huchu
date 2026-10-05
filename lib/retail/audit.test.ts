@@ -27,6 +27,8 @@ import {
   auditAmount,
   auditCashMoved,
   auditExportDownloaded,
+  auditRecordBin,
+  auditRecordEdited,
   auditGoodsReceived,
   auditSalePosted,
   auditSaleReversed,
@@ -338,6 +340,42 @@ describe("cash and stock", () => {
   });
 });
 
+describe("records edited in place and moved to the bin", () => {
+  it("records the field, its label and both values, money as a string", async () => {
+    const log = recorder();
+    await auditRecordEdited(log.client, {
+      actor: CHIPO,
+      entityType: "Product",
+      entityId: "product-1",
+      field: "unitPrice",
+      label: "Price",
+      from: auditAmount(17.99),
+      to: auditAmount(18.25),
+      kind: "money",
+    });
+    expect(log.last().eventType).toBe("RETAIL_RECORD.EDITED");
+    expect(log.last().entityType).toBe("Product");
+    expect(log.payload()).toMatchObject({
+      entityType: "Product",
+      field: "unitPrice",
+      label: "Price",
+      from: "17.99",
+      to: "18.25",
+      kind: "money",
+    });
+  });
+
+  it("records a bin move and a restore with the kind and the name", async () => {
+    const log = recorder();
+    const base = { actor: CHIPO, entityType: "Product", entityId: "product-1", kind: "product", name: "Amarula Cream 750ml" };
+    await auditRecordBin(log.client, { ...base, action: "binned" });
+    expect(log.last().eventType).toBe("RETAIL_RECORD.BINNED");
+    expect(log.payload()).toMatchObject({ kind: "product", name: "Amarula Cream 750ml" });
+    await auditRecordBin(log.client, { ...base, action: "restored" });
+    expect(log.last().eventType).toBe("RETAIL_RECORD.RESTORED");
+  });
+});
+
 describe("the chain", () => {
   it("links each event to the one before it", async () => {
     const log = recorder();
@@ -386,6 +424,10 @@ describe("the chain", () => {
       orderReopened: "RETAIL_PURCHASE_ORDER.REOPENED",
       shopProfileChanged: "RETAIL_SHOP.PROFILE_CHANGED",
       exportDownloaded: "RETAIL_EXPORT.DOWNLOADED",
+      recordEdited: "RETAIL_RECORD.EDITED",
+      recordBinned: "RETAIL_RECORD.BINNED",
+      recordRestored: "RETAIL_RECORD.RESTORED",
+      settingsChanged: "RETAIL_SETTINGS.CHANGED",
     });
   });
 });

@@ -92,6 +92,21 @@ export const RETAIL_AUDIT_EVENTS = {
    * home. Entity `ReportSource`, id = the source key.
    */
   exportDownloaded: "RETAIL_EXPORT.DOWNLOADED",
+  /**
+   * One value in a record's details changed (W-62). Carries the field, its
+   * label and the value before and after as text (money through
+   * `auditAmount`), and `kind` so Activity can print the money as money.
+   */
+  recordEdited: "RETAIL_RECORD.EDITED",
+  /** A record moved to the bin (W-63). Carries the bin kind and its name. */
+  recordBinned: "RETAIL_RECORD.BINNED",
+  /** A record came back out of the bin (W-63). */
+  recordRestored: "RETAIL_RECORD.RESTORED",
+  /**
+   * A settings page saved (C-14). Entity `RetailSettings`, id the page;
+   * carries every field changed in the one save.
+   */
+  settingsChanged: "RETAIL_SETTINGS.CHANGED",
 } as const;
 
 export type RetailAuditEvent =
@@ -379,6 +394,60 @@ export async function auditExportDownloaded(
     entityType: "ReportSource",
     entityId: input.key,
     payload: { key: input.key, format: input.format, rows: input.rows },
+  });
+}
+
+/** How a changed value is printed in Activity. */
+export type RecordValueKind = "text" | "money" | "count" | "percent";
+
+/** One value in a record's details, changed (W-62). */
+export async function auditRecordEdited(
+  client: AuditClient,
+  input: {
+    actor: RetailAuditActor;
+    entityType: string;
+    entityId: string;
+    field: string;
+    label: string;
+    from: string | null;
+    to: string | null;
+    kind?: RecordValueKind;
+  },
+): Promise<void> {
+  await writeRetailAuditEvent(client, {
+    actor: input.actor,
+    eventType: RETAIL_AUDIT_EVENTS.recordEdited,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    payload: {
+      entityType: input.entityType,
+      field: input.field,
+      label: input.label,
+      from: input.from,
+      to: input.to,
+      kind: input.kind ?? "text",
+    },
+  });
+}
+
+/** A record into the bin, or back out of it (W-63). */
+export async function auditRecordBin(
+  client: AuditClient,
+  input: {
+    actor: RetailAuditActor;
+    action: "binned" | "restored";
+    entityType: string;
+    entityId: string;
+    kind: string;
+    name: string;
+  },
+): Promise<void> {
+  await writeRetailAuditEvent(client, {
+    actor: input.actor,
+    eventType: input.action === "binned" ? RETAIL_AUDIT_EVENTS.recordBinned : RETAIL_AUDIT_EVENTS.recordRestored,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    payload: { kind: input.kind, name: input.name },
   });
 }
 

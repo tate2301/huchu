@@ -214,6 +214,8 @@ export type CellKind =
   | "owed"
   | "zero"
   | "state"
+  /** A dot in the value's tone and the word, no ground ("● Cash"): a kind of thing, not a judgement. */
+  | "dot"
   | "bar"
   | "duration"
   | "edit-money";
@@ -227,7 +229,7 @@ export type ListColumn = ReportColumn & {
   /** 3 leaves at ≤1140px of table width, 2 at ≤940px. */
   priority?: 1 | 2 | 3;
   sortable?: boolean;
-  /** state: value → tone. The order of the keys is the order groups are drawn in. */
+  /** state and dot: value → tone. The order of the keys is the order groups are drawn in. */
   tones?: Record<string, Tone>;
   /** Totals band: rows whose tone is one of these, counted under this label ("23 to check"). */
   summary?: { tones: Tone[]; label: string };
