@@ -314,6 +314,18 @@ export function retailRoleKey(session: SessionLike): string | null {
   return session.user.role ?? null;
 }
 
+/**
+ * The feature that makes a company a shop. The session test below and the
+ * bookkeeper's retail-only template (`lib/platform/user-entitlements.ts`)
+ * both read this key, so the two never disagree about who works in a shop.
+ */
+export const RETAIL_CORE_FEATURE = "retail.core";
+
+/** Whether a list of enabled features is a shop's: `retail.core` is on. */
+export function runsRetail(enabledFeatures: readonly string[] | null | undefined): boolean {
+  return (enabledFeatures ?? []).some((key) => key.trim().toLowerCase() === RETAIL_CORE_FEATURE);
+}
+
 /** The question every guard asks: may this signed-in caller do it. */
 export function canRetailSessionDo(session: SessionLike, resource: RetailResource, action: RetailAction): boolean {
   return canRetailRoleDo(retailRoleKey(session), resource, action);

@@ -16,6 +16,7 @@ import { hasRole, type UserRole } from "@/lib/roles";
 import {
   canRetailSessionDo,
   retailPermissionDenial,
+  runsRetail,
   type RetailAction,
   type RetailResource,
   type SessionLike,
@@ -37,11 +38,14 @@ export function requireRetailPermission(
   return denial ? errorResponse(denial, 403) : null;
 }
 
-type SharedRouteSession = SessionLike & { user: { workspaceProfile?: string | null } };
+type SharedRouteSession = SessionLike & { user: { enabledFeatures?: readonly string[] | null } };
 
-/** Whether the caller works in a shop. */
+/**
+ * Whether the caller works in a shop: their session carries `retail.core`, the
+ * same key that puts the bookkeeper's retail reads on their template.
+ */
 export function isRetailSession(session: SharedRouteSession): boolean {
-  return (session.user.workspaceProfile ?? "").trim().toUpperCase() === "RETAIL";
+  return runsRetail(session.user.enabledFeatures);
 }
 
 /**

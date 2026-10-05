@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
   }
 
   /*
-    Photographing the range is a setup act, not a counter one. `retail.catalog`
-    `update` is what a manager holds and a cashier does not — `READ_THE_SHELF`
-    grants a cashier `view` alone.
+    Photographing the range is a setup act, not a counter one: `update` on
+    `retail.catalog`, which the owner and the manager hold. The cashier and the
+    stock clerk hold `view` alone.
   */
   const gate = requireRetailPermission(session, "retail.catalog", "update");
   if (gate) return gate;

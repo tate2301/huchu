@@ -28,8 +28,8 @@ import { GET, POST } from "./route";
 const COMPANY_ID = "company-1";
 const URL = "http://test.local/api/accounting/fiscalisation/config";
 
-function signedInAs(role: string, workspaceProfile = "RETAIL") {
-  validateSessionMock.mockResolvedValue({ session: { user: { companyId: COMPANY_ID, role, workspaceProfile } } });
+function signedInAs(role: string, enabledFeatures = ["retail.core"]) {
+  validateSessionMock.mockResolvedValue({ session: { user: { companyId: COMPANY_ID, role, enabledFeatures } } });
 }
 
 function save(body: unknown = { providerKey: "ZIMRA_FDMS", deviceId: "12345" }) {
@@ -65,7 +65,7 @@ describe("POST /api/accounting/fiscalisation/config", () => {
   });
 
   it("outside a shop, keeps the session check alone", async () => {
-    signedInAs("MANAGER", "GOLD_MINE");
+    signedInAs("MANAGER", ["accounting.core"]);
     const response = await save();
     expect(response.status).toBe(201);
   });

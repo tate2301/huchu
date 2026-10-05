@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import {
@@ -24,12 +25,19 @@ import {
   type AccountingSeedPackResult,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
+import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { Scale } from "@/lib/icons";
 import { tenderLabel } from "@/lib/retail/words";
 
 const TENDERS = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"] as const;
 
-/** Where each failing check is fixed. */
+/**
+ * Where each failing check is fixed. A link is offered only to someone who can
+ * open it — the bookkeeper's template leaves posting rules, periods and the
+ * rest of the ledger's set-up shut — and otherwise the check reads "Set up the
+ * accounts", the header's own verb.
+ */
 const FIX: Record<string, { label: string; href: string }> = {
   accounts: { label: "Open the chart of accounts", href: "/accounting/chart-of-accounts" },
   periods: { label: "Open a period", href: "/accounting/periods" },
@@ -53,6 +61,12 @@ const FIX: Record<string, { label: string; href: string }> = {
 export default function RetailPostingPage() {
   const queryClient = useQueryClient();
   const [settingUp, setSettingUp] = useState(false);
+  const { data: session } = useSession();
+  const user = session?.user as { role?: string; enabledFeatures?: string[] } | undefined;
+  const canOpen = (href: string) => {
+    const path = href.split("?")[0];
+    return isRouteAllowedForRole(user?.role, path) && canAccessRouteWithToken(path, user?.enabledFeatures).allowed;
+  };
 
   const readiness = useQuery({
     queryKey: ["accounting", "setup-readiness"],
@@ -95,7 +109,7 @@ export default function RetailPostingPage() {
             maxWidth={null}
             labelWidth={220}
             items={checks.map((check) => {
-              const fix = FIX[check.id];
+              const fix = FIX[check.id] && canOpen(FIX[check.id].href) ? FIX[check.id] : undefined;
               return {
                 id: check.id,
                 label: check.label,

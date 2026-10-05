@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { getAccountingSetupReadiness } from "@/lib/accounting/bootstrap";
-import { canOnSharedRoute } from "@/lib/retail/permissions";
+import { canOnSharedRoute, isRetailSession, requireRetailPermission } from "@/lib/retail/permissions";
 
 export async function GET(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+
+    // A shop's Posting to the books row: the owner and the bookkeeper read it,
+    // the manager does not reach the books. Other products keep the route open.
+    if (isRetailSession(session)) {
+      const refused = requireRetailPermission(session, "retail.posting", "view");
+      if (refused) return refused;
+    }
 
     const readiness = await getAccountingSetupReadiness(session.user.companyId);
     return successResponse({

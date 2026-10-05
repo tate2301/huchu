@@ -14,13 +14,13 @@ export function useHomeLink(): { href: string; label: string } {
 
 /**
  * What a retail page shows to a role its nav item does not admit
- * (00-foundations 5.3.4, 5.4.11): "Your role cannot view <the page>." and the
- * way back to where this person's workspace starts. The page's own server
+ * (00-foundations 5.3.4, 5.4.11): "Your role cannot view the fiscal device."
+ * — the matrix's own words, as its API refuses — and the way back to where this person's workspace starts. The page's own server
  * refuses too; this keeps the page from drawing a table and buttons the
  * person cannot use.
  */
 export function RoleRefusal() {
   const nav = useShellNav();
   const home = useHomeLink();
-  return <Refusal noun={(nav.pageLabel ?? "this page").toLowerCase()} back={home} />;
+  return <Refusal noun={nav.refusalNoun} back={home} />;
 }

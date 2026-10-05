@@ -26,9 +26,9 @@ vi.mock("@/lib/accounting/bootstrap", () => ({
 
 import { POST } from "./route";
 
-function signedInAs(role: string, workspaceProfile = "RETAIL") {
+function signedInAs(role: string, enabledFeatures = ["retail.core"]) {
   validateSessionMock.mockResolvedValue({
-    session: { user: { id: "user-1", email: "a@b.test", companyId: "company-1", role, workspaceProfile } },
+    session: { user: { id: "user-1", email: "a@b.test", companyId: "company-1", role, enabledFeatures } },
   });
 }
 
@@ -63,10 +63,38 @@ describe("POST /api/accounting/setup/seed-pack", () => {
     expect(runMock).toHaveBeenCalledWith(expect.objectContaining({ companyId: "company-1", mode: "APPLY" }));
   });
 
+  it("an empty body is a dry run, and the manager is still refused before it", async () => {
+    signedInAs("MANAGER");
+    const refused = await POST(new NextRequest("http://test.local/api/accounting/setup/seed-pack", { method: "POST" }));
+    expect(refused.status).toBe(403);
+    expect(previewMock).not.toHaveBeenCalled();
+    signedInAs("FINANCE_OFFICER");
+    const ran = await POST(new NextRequest("http://test.local/api/accounting/setup/seed-pack", { method: "POST" }));
+    expect(ran.status).toBe(200);
+    expect(previewMock).toHaveBeenCalled();
+    expect(runMock).not.toHaveBeenCalled();
+  });
+
+  it("a company with retail switched on is a shop whatever its workspace profile says", async () => {
+    validateSessionMock.mockResolvedValue({
+      session: {
+        user: {
+          id: "user-1",
+          email: "a@b.test",
+          companyId: "company-1",
+          role: "MANAGER",
+          workspaceProfile: "GENERAL",
+          enabledFeatures: ["accounting.core", "retail.core"],
+        },
+      },
+    });
+    expect((await run("APPLY")).status).toBe(403);
+  });
+
   it("outside a shop, keeps the manager and refuses the finance officer", async () => {
-    signedInAs("MANAGER", "GOLD_MINE");
+    signedInAs("MANAGER", ["accounting.core"]);
     expect((await run("DRY_RUN")).status).toBe(200);
-    signedInAs("FINANCE_OFFICER", "GOLD_MINE");
+    signedInAs("FINANCE_OFFICER", ["accounting.core"]);
     expect((await run("DRY_RUN")).status).toBe(403);
   });
 });

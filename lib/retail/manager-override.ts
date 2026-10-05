@@ -9,12 +9,12 @@
  *
  * ── Why the till needs this at all ─────────────────────────────────────────
  *
- * `RUN_A_TILL` in `./permissions.ts` withholds `refund` and `void` from a
- * cashier, deliberately: a reversal moves money back out of the drawer and
- * stock back onto the shelf, and it is not the till operator's call. But the
- * POS portal admits **only** cashiers (`canAccessPosPortal`), so before this
- * existed the two buttons were gated on a condition no POS user could ever
- * satisfy and reversals were unreachable from the shop floor entirely.
+ * The matrix (`./permission-matrix.ts`) gives a cashier `refund` and `void` on
+ * `retail.sell`, but only within the till rules (SET-06): past the shop's
+ * limits a reversal moves money back out of the drawer and stock back onto the
+ * shelf, and that is not the till operator's call alone. The POS portal admits
+ * **only** cashiers (`canAccessPosPortal`), so the approval that lifts a
+ * reversal past those limits has to be given at the till.
  *
  * Moving them to the back office is not the answer either, and the reason is
  * concrete rather than aesthetic: a refund needs a `shiftId`, because the cash

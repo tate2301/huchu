@@ -354,7 +354,7 @@ describe("POST /api/accounting/fiscalisation/fiscal-days", () => {
 
   it("in a shop, opens a day only for a role that may change the fiscal device", async () => {
     validateSessionMock.mockResolvedValue({
-      session: { user: { companyId: COMPANY_ID, role: "MANAGER", workspaceProfile: "RETAIL" } },
+      session: { user: { companyId: COMPANY_ID, role: "MANAGER", enabledFeatures: ["retail.core"] } },
     });
     const response = await POST(postRequest({ providerConfigId: "8f2b1d1e-0a2c-4c7f-9a1b-1f2e3d4c5b6a" }));
 

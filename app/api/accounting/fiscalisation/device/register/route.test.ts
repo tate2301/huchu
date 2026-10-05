@@ -83,7 +83,7 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
 
   it("in a shop, is the owner's to do: the manager reads the fiscal device", async () => {
     validateSessionMock.mockResolvedValue({
-      session: { user: { companyId: COMPANY_ID, role: "MANAGER", workspaceProfile: "RETAIL" } },
+      session: { user: { companyId: COMPANY_ID, role: "MANAGER", enabledFeatures: ["retail.core"] } },
     });
     const response = await POST(request({ activationKey: "00112233", serialNumber: "SN-1" }));
     expect(response.status).toBe(403);

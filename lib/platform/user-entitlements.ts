@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getCompanyFeatureMap, type FeatureMap } from "@/lib/platform/entitlements";
 import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
+import { RETAIL_CORE_FEATURE } from "@/lib/retail/permission-matrix";
 
 const MANAGER_TEMPLATE_DENY = new Set([
   "core.branding.manage",
@@ -259,8 +260,6 @@ const RETAIL_TEMPLATE_PREFIXES: Record<string, readonly string[]> = {
   FINANCE_OFFICER: ["crm.customers", "stores.inventory", "stores.movements", "accounting.zimra.fiscalisation"],
 };
 
-/** A company runs retail when its retail core is on. */
-const RETAIL_COMPANY_FEATURE = "retail.core";
 
 const MANAGED_USER_ROLE_VALUES = [
   "SUPERADMIN",
@@ -394,7 +393,7 @@ function getRoleDefaultForFeature(templateRole: string, featureKey: string, comp
   return isTemplateAllowedForRole(
     templateRole,
     featureKey,
-    isCompanyFeatureEnabled(RETAIL_COMPANY_FEATURE, companyMap),
+    isCompanyFeatureEnabled(RETAIL_CORE_FEATURE, companyMap),
   );
 }
 

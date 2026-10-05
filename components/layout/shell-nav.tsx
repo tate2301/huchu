@@ -14,6 +14,7 @@ import type { RailArea } from "@/lib/rail/areas";
 import { logoInitials } from "@/lib/rail/initials";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
 import { canRoleOpenRetailPath, RETAIL_NAV_ITEMS, retailNavItemForPath } from "@/lib/retail/nav";
+import { RESOURCE_LABELS } from "@/lib/retail/permission-matrix";
 import {
   getWorkspaceSidebarModel,
   type WorkspaceOption,
@@ -67,6 +68,12 @@ type ShellNav = {
    * `requires` (00-foundations 5.3.4) refuse them. The page is not drawn.
    */
   refused: boolean;
+  /**
+   * What the refusal names: the matrix's label for the page's first required
+   * resource ("the fiscal device"), so the page says the sentence its API
+   * refuses with (`retailPermissionDenial`), not the nav label.
+   */
+  refusalNoun: string;
   /** Where this person's workspace starts, for the refusal's way out. */
   homeHref: string;
   badges: Record<string, string>;
@@ -154,6 +161,7 @@ export function ShellNavProvider({
   const pending = isRetailPage && sessionStatus === "loading";
   const refused =
     sessionStatus === "authenticated" && !canRoleOpenRetailPath(role, pathname, searchParams);
+  const refusalNoun = pageItem ? RESOURCE_LABELS[pageItem.requires[0][0]] : "this page";
   const currentArea = React.useMemo(() => areaForHref(rail.areas, activeHref), [activeHref, rail]);
   const activeItem = React.useMemo(
     () => currentArea?.items.find((item) => item.href === activeHref) ?? null,
@@ -197,6 +205,7 @@ export function ShellNavProvider({
       setNotFound,
       pending,
       refused,
+      refusalNoun,
       homeHref: model.homeHref,
       badges: (mounted && badgesQuery.data?.badges) || NO_BADGES,
       companyName,
@@ -219,6 +228,7 @@ export function ShellNavProvider({
       pending,
       rail,
       refused,
+      refusalNoun,
       role,
       selectWorkspace,
     ],
