@@ -206,6 +206,16 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
       indistinguishable from "there are none".
     */
     "retail.promotions",
+    /*
+      The back office a cashier reaches (00-foundations 5.3.4): their own
+      shifts, and their own requisitions under Buying. The role matrix in
+      `lib/retail/permission-matrix.ts` still decides what each request may do;
+      these only let the pages and their APIs answer at all.
+    */
+    "retail.shifts",
+    "retail.purchasing",
+    // `retail.catalog` depends on it: without it the Products list is gone.
+    "stores.inventory",
     "crm.customers",
     "portal.core",
     "portal.pos",
@@ -215,6 +225,13 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "core.help.",
     "core.notifications.",
     "core.multitenancy.",
+    /*
+      Stock is the clerk's module (5.3.4): On hand and Counts sit under
+      `retail.core`, and they read the stock ledger's items and movements.
+    */
+    "retail.core",
+    "stores.inventory",
+    "stores.movements",
     "retail.purchasing",
     "retail.catalog",
     "portal.pos",

@@ -3,6 +3,7 @@ import {
   AddressBook,
   Bed,
   CashRegister,
+  ChartBar,
   ChartLineUp,
   ClipboardText,
   Coins,
@@ -10,6 +11,7 @@ import {
   Factory,
   FileText,
   Flag,
+  GearSix,
   Funnel,
   IdentificationCard,
   Lightning,
@@ -19,6 +21,7 @@ import {
   MedusaHandTruckIcon,
   Money,
   Package,
+  Stack,
   Storefront,
   Sun,
   Tag,
@@ -76,14 +79,16 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   staff: IdentificationCard,
   school: MedusaCogSixToothIcon,
   // Retail and stock
+  // The retail modules (00-foundations 5.3.4).
   "retail-floor": Storefront,
   "retail-products": Tag,
-  "retail-stock": Package,
+  "retail-stock": Stack,
+  "retail-buy": TrayArrowDown,
+  "retail-control": ChartBar,
+  "retail-reports": FileText,
+  "retail-manage": GearSix,
   selling: Tag,
   stock: Package,
-  "retail-buy": TrayArrowDown,
-  "retail-control": ChartLineUp,
-  "retail-reports": FileText,
   pos: CashRegister,
   // CRM
   pipeline: Funnel,
@@ -146,6 +151,7 @@ const AREA_LABELS: Record<string, string> = {
   "retail-buy": "Buying",
   "retail-control": "Insights",
   "retail-reports": "Reports",
+  "retail-manage": "Management",
   // Not "Money": the Finance area beside it is money too, and two areas that
   // both sound like money is a coin toss. Quotes, invoices, receipts and
   // collections are what the business bills.
@@ -270,27 +276,4 @@ export function areasFromSections(
   }
 
   return areas;
-}
-
-/**
- * An area of one is a row, not a mark.
- *
- * A single destination does not earn a slot in a column of eight — it is one
- * row in the map and nothing else. Campus arrives with two of them (Overview
- * and School reports), which is the difference between ten areas and twelve.
- */
-export function splitLooseAreas(areas: RailArea[]): {
-  areas: RailArea[];
-  loose: NavItem[];
-} {
-  const kept: RailArea[] = [];
-  const loose: NavItem[] = [];
-  for (const area of areas) {
-    if (area.items.length <= 1) {
-      loose.push(...area.items);
-      continue;
-    }
-    kept.push(area);
-  }
-  return { areas: kept, loose };
 }

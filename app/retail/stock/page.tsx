@@ -112,7 +112,7 @@ export default function RetailStockPage() {
       filterCount={(level === FILTER_ANY ? 0 : 1) + (siteId === FILTER_ANY ? 0 : 1)}
       count={stockQuery.isSuccess ? `${rows.length} of ${products.length}` : null}
       createLabel="Count stock"
-      onCreate={() => router.push("/retail/stock/count?new=1")}
+      onCreate={() => router.push("/retail/stock/counts?new=1")}
       error={stockQuery.error}
     >
       {stockQuery.isPending ? (
@@ -146,7 +146,7 @@ export default function RetailStockPage() {
                     meta={[product.sku, siteId === FILTER_ANY && sites.length > 1 ? product.site?.name : null]
                       .filter(Boolean)
                       .join(" · ")}
-                    href={`/retail/catalog/${product.id}`}
+                    href={`/retail/products/${product.id}`}
                   />
                 ),
                 category: product.category ? <ColumnText>{product.category}</ColumnText> : null,

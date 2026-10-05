@@ -6,7 +6,7 @@
  * S-7.6, contract surface 15 in `docs/retail/pos-production-readiness-2026-08-17.md`.
  * The endpoint at `pos/till-settings` shipped without this screen; the stock-take
  * called that out as the one place where "reuse the back office" produced
- * nothing usable, because a cashier on a tablet cannot open `/retail/setup/**`
+ * nothing usable, because a cashier on a tablet cannot open `/retail/manage/**`
  * and should not be able to.
  *
  * ── It reads. It does not write. ───────────────────────────────────────────

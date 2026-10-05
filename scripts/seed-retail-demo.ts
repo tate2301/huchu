@@ -221,6 +221,17 @@ async function main() {
     data: { workspaceProfile: "RETAIL" as WorkspaceProfile },
   })
 
+  /*
+    The company's legal and trading names (the Company settings board). The
+    rail's logo tile is drawn from the legal name: "Hurudza Creative (Private)
+    Limited" is "HC" (00-foundations 5.3.2).
+  */
+  await prisma.companyBranding.upsert({
+    where: { companyId },
+    update: { legalName: "Hurudza Creative (Private) Limited", tradingName: "Harare Bottle Store" },
+    create: { companyId, legalName: "Hurudza Creative (Private) Limited", tradingName: "Harare Bottle Store" },
+  })
+
   console.log(`Seeding ${days} days of trade into ${company.name} (${slug})`)
 
   // ── Staff ────────────────────────────────────────────────────────────────

@@ -359,7 +359,7 @@ async function salesInsight(companyId: string, days: number): Promise<Insight> {
     findings,
     actions: [
       { label: "See the sales", href: "/retail/sales" },
-      { label: "Plan a promotion for the quiet hours", href: "/retail/merchandising/promotions" },
+      { label: "Plan a promotion for the quiet hours", href: "/retail/products/promotions" },
     ],
   };
 }
@@ -428,7 +428,7 @@ async function profitInsight(companyId: string, days: number): Promise<Insight> 
     ],
     rows: rows.slice(0, 10).map((entry) => ({
       id: entry.id,
-      href: `/retail/catalog/${entry.id}`,
+      href: `/retail/products/${entry.id}`,
       cells: {
         name: entry.name,
         sold: count(entry.quantity),
@@ -488,8 +488,8 @@ async function profitInsight(companyId: string, days: number): Promise<Insight> 
     ],
     findings,
     actions: [
-      { label: "Change prices", href: "/retail/merchandising/pricing" },
-      { label: "Set margins you aim for", href: "/retail/catalog/categories" },
+      { label: "Change prices", href: "/retail/products/price-lists" },
+      { label: "Set margins you aim for", href: "/retail/products/categories" },
     ],
   };
 }
@@ -652,7 +652,7 @@ async function productsInsight(companyId: string, days: number): Promise<Insight
         ],
         rows: idle.slice(0, 15).map((row) => ({
           id: row.productId,
-          href: `/retail/catalog/${row.productId}`,
+          href: `/retail/products/${row.productId}`,
           cells: {
             name: row.name,
             last: row.last ? row.last.toISOString() : "Never",
@@ -672,7 +672,7 @@ async function productsInsight(companyId: string, days: number): Promise<Insight
         ],
         rows: best.slice(0, 15).map(([productId, entry]) => ({
           id: productId,
-          href: `/retail/catalog/${productId}`,
+          href: `/retail/products/${productId}`,
           cells: { name: names.get(productId) ?? "A removed product", sold: count(entry.quantity), takings: money(entry.takings) },
         })),
         empty: "Nothing sold in this period.",
@@ -688,7 +688,7 @@ async function productsInsight(companyId: string, days: number): Promise<Insight
         ],
         rows: slow.slice(0, 15).map(({ row, quantity }) => ({
           id: row.productId,
-          href: `/retail/catalog/${row.productId}`,
+          href: `/retail/products/${row.productId}`,
           cells: { name: row.name, sold: count(quantity), onHand: count(row.onHand), value: money(row.value) },
         })),
         empty: "Nothing is selling slowly.",
@@ -696,8 +696,8 @@ async function productsInsight(companyId: string, days: number): Promise<Insight
     ],
     findings,
     actions: [
-      { label: "Run a promotion on what is not selling", href: "/retail/merchandising/promotions" },
-      { label: "Order from suppliers", href: "/retail/purchasing/orders" },
+      { label: "Run a promotion on what is not selling", href: "/retail/products/promotions" },
+      { label: "Order from suppliers", href: "/retail/buying/orders" },
     ],
   };
 }
@@ -876,7 +876,7 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
         ],
         rows: out.map(({ row, stockout }) => ({
           id: row.productId,
-          href: `/retail/catalog/${row.productId}`,
+          href: `/retail/products/${row.productId}`,
           cells: {
             name: row.name,
             outFor:
@@ -901,7 +901,7 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
         ],
         rows: tooMuch.slice(0, 15).map(({ row, cover: days }) => ({
           id: row.productId,
-          href: `/retail/catalog/${row.productId}`,
+          href: `/retail/products/${row.productId}`,
           cells: {
             name: row.name,
             cover: days === null ? "Not selling" : { value: days, format: "days", tone: "warn" },
@@ -915,7 +915,7 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
     findings,
     actions: [
       { label: "See what is running low", href: "/retail/stock" },
-      { label: "Order from suppliers", href: "/retail/purchasing/orders" },
+      { label: "Order from suppliers", href: "/retail/buying/orders" },
     ],
   };
 }
@@ -1053,9 +1053,9 @@ async function lossesInsight(companyId: string, days: number): Promise<Insight> 
     ],
     findings,
     actions: [
-      { label: "Count the stock", href: "/retail/stock/count" },
+      { label: "Count the stock", href: "/retail/stock/counts" },
       { label: "Look at the shifts", href: "/retail/shifts" },
-      { label: "Tighten the till rules", href: "/retail/setup/pos-policy" },
+      { label: "Tighten the till rules", href: "/retail/manage/till-rules" },
     ],
   };
 }
@@ -1295,7 +1295,7 @@ async function moneyInsight(companyId: string, days: number): Promise<Insight> {
         rows: [
           ...toPay.map((row) => ({
             id: row.id,
-            href: `/retail/purchasing/requisitions/${row.id}`,
+            href: `/retail/buying/requisitions/${row.id}`,
             cells: {
               what: `${row.requisitionNo} · ${row.purpose}`,
               who: row.requestedBy?.name ?? "—",
@@ -1307,7 +1307,7 @@ async function moneyInsight(companyId: string, days: number): Promise<Insight> {
             .filter((row) => row.value > 0)
             .map(({ order, value }) => ({
               id: order.id,
-              href: `/retail/purchasing/orders/${order.id}`,
+              href: `/retail/buying/orders/${order.id}`,
               cells: {
                 what: order.poNo,
                 who: order.supplierName,
@@ -1321,8 +1321,8 @@ async function moneyInsight(companyId: string, days: number): Promise<Insight> {
     ],
     findings,
     actions: [
-      { label: "Decide the requisitions", href: "/retail/purchasing/requisitions" },
-      { label: "See the orders", href: "/retail/purchasing/orders" },
+      { label: "Decide the requisitions", href: "/retail/buying/requisitions" },
+      { label: "See the orders", href: "/retail/buying/orders" },
     ],
   };
 }

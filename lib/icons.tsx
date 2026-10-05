@@ -579,3 +579,22 @@ export const TextAlignLeft = createPhosphorIcon("TextAlignLeft", "TextAlignLeft"
 export const Hash = createPhosphorIcon("Hash", "Hash");
 export const CopySimple = createPhosphorIcon("CopySimple", "CopySimple");
 export const DotsSixVertical = createPhosphorIcon("DotsSixVertical", "DotsSixVertical");
+
+/**
+ * The retail shell's marks and items, by their Phosphor names
+ * (00-foundations 5.3.4).
+ */
+export const SquaresFour = createPhosphorIcon("SquaresFour", "SquaresFour");
+export const Stack = createPhosphorIcon("Stack", "Stack");
+export const ChartBar = createPhosphorIcon("ChartBar", "ChartBar");
+export const ArrowsLeftRight = createPhosphorIcon("ArrowsLeftRight", "ArrowsLeftRight");
+export const Truck = createPhosphorIcon("Truck", "Truck");
+export const Trash = createPhosphorIcon("Trash", "Trash");
+export const Folder = createPhosphorIcon("Folder", "Folder");
+export const DeviceMobile = createPhosphorIcon("DeviceMobile", "DeviceMobile");
+export const Stamp = createPhosphorIcon("Stamp", "Stamp");
+export const Ticket = createPhosphorIcon("Ticket", "Ticket");
+export const CreditCard = createPhosphorIcon("CreditCard", "CreditCard");
+export const List = createPhosphorIcon("List", "List");
+/** Phosphor's two-person `Users` (the export named `Users` above is `UsersThree`). */
+export const UsersPair = createPhosphorIcon("Users", "UsersPair");

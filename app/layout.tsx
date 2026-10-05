@@ -17,10 +17,11 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cache, Suspense } from "react";
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getServerSession } from "next-auth";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
+import { PANEL_COOKIE } from "@/lib/rail/panel-cookie";
 import { isAdminPortalHost } from "@/lib/admin-portal";
 import {
   PLATFORM_APP_DESCRIPTION,
@@ -161,8 +162,10 @@ export default async function RootLayout({
   // and the page's theme all describe one workspace.
   const { hostHeader, identity, session, product } = await resolveRequestWorkspace();
   const workspaceBrand = identity.companyId
-    ? { name: identity.workspaceName, logoUrl: identity.logoUrl }
+    ? { name: identity.workspaceName, logoUrl: identity.logoUrl, legalName: identity.branding.legalName }
     : null;
+  // The module panel's open state, so the first paint draws it as it was left.
+  const defaultPanelOpen = (await cookies()).get(PANEL_COOKIE)?.value !== "false";
   const hostContext = getPlatformHostContext(hostHeader);
 
   return (
@@ -197,6 +200,7 @@ export default async function RootLayout({
               <AppShell
                 hostPortalPath={hostContext.portalPath}
                 workspaceBrand={workspaceBrand}
+                defaultPanelOpen={defaultPanelOpen}
               >
                 {children}
               </AppShell>

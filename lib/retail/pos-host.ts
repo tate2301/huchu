@@ -61,9 +61,14 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
 
 const POS_PORTAL_ALLOWED_ROLES = new Set(["CASHIER", "POS_CASHIER"]);
 
-export function isCashierRole(role: string | null | undefined): boolean {
-  const normalizedRole = role?.trim().toUpperCase();
-  return normalizedRole === "CASHIER" || normalizedRole === "POS_CASHIER";
+/**
+ * A sign-in that exists only for the till (a device's `POS_CASHIER`), kept on
+ * the POS host. A `CASHIER` is staff: on the tenant host they work in the back
+ * office the nav gives them (their shifts, the shelf, their requisitions,
+ * 00-foundations 5.3.4) and they sell on the till device.
+ */
+export function isTillOnlyRole(role: string | null | undefined): boolean {
+  return role?.trim().toUpperCase() === "POS_CASHIER";
 }
 
 export function canAccessPosPortal(role: string | null | undefined): boolean {

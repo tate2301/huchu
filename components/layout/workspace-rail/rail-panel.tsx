@@ -3,88 +3,48 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import {
-  CaretLeft,
-  MagnifyingGlass,
-  MedusaCirclePlusIcon,
-  SidebarSimple,
-} from "@/lib/icons";
+import { CaretLeft } from "@/lib/icons";
 
 import styles from "./workspace-rail.module.css";
 
 /**
- * Tier two.
- *
- * Its header is either the workspace (the map) or the area you are in, with a
- * way back to the map. Search and New sit under it in both, because both are
- * about the whole workspace rather than this area.
+ * The module panel (00-foundations 5.3.3): 240px on `--ground`, a 48px head
+ * with the collapse chevron and the module's title, then its items. Nothing
+ * else: no search, no New, no Help, no Management row.
  */
 export function RailPanel({
   title,
-  backLabel,
-  onBack,
+  overlay,
   onCollapse,
-  onSearch,
-  onNew,
-  newLabel,
   children,
-  shelf,
+  extra,
 }: {
   title: string;
-  backLabel?: string;
-  onBack?: () => void;
+  /** Drawn over the page (720–1099px) rather than beside it. */
+  overlay?: boolean;
   onCollapse?: () => void;
-  onSearch?: () => void;
-  onNew?: () => void;
-  newLabel?: string;
   children: React.ReactNode;
-  shelf?: React.ReactNode;
+  /** The module's own extra section (the CRM's saved views). */
+  extra?: React.ReactNode;
 }) {
   return (
-    <div className={styles.panel}>
-      <div className={cn(styles.panelHead, onBack && styles.panelHeadBack)}>
-        {onBack ? (
-          <button
-            type="button"
-            aria-label={`Back to ${backLabel ?? "the workspace"}`}
-            className={styles.iconButton}
-            onClick={onBack}
-          >
-            <CaretLeft width={15} height={15} />
-          </button>
-        ) : null}
-        <span className={styles.panelTitle}>{title}</span>
+    <nav aria-label={title} className={cn(styles.panel, overlay && styles.panelOverlay)}>
+      <div className={styles.panelHead}>
         {onCollapse ? (
           <button
             type="button"
-            aria-label="Collapse the rail"
-            className={styles.iconButton}
+            aria-label="Collapse the panel"
+            aria-keyshortcuts="Meta+B Control+B"
+            className={styles.collapse}
             onClick={onCollapse}
           >
-            <SidebarSimple width={15} height={15} />
+            <CaretLeft className={styles.collapseIcon} />
           </button>
         ) : null}
+        <span className={styles.panelTitle}>{title}</span>
       </div>
-
-      <div className={styles.panelTools}>
-        <button type="button" className={styles.find} onClick={onSearch}>
-          <MagnifyingGlass width={15} height={15} />
-          <span className={styles.findLabel}>Search</span>
-          <span className={styles.count}>⌘K</span>
-        </button>
-        {onNew ? (
-          <button type="button" className={styles.new} onClick={onNew}>
-            <MedusaCirclePlusIcon width={15} height={15} />
-            {newLabel ?? "New"}
-          </button>
-        ) : null}
-      </div>
-
-      <nav className={styles.panelBody} aria-label={title}>
-        {children}
-      </nav>
-
-      {shelf ? <div className={styles.shelf}>{shelf}</div> : null}
-    </div>
+      <ul className={styles.items}>{children}</ul>
+      {extra ? <div className={styles.extra}>{extra}</div> : null}
+    </nav>
   );
 }

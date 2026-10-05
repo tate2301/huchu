@@ -26,6 +26,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ top
 
   const path = params.safeParse(await context.params);
   if (!path.success) return errorResponse("There is no such insight", 404);
+  // "Managers do not see Money" (the Roles board): the nav hides the item,
+  // and this is the check.
+  if (path.data.topic === "money") {
+    const moneyGate = requireRetailPermission(session, "retail.money", "view");
+    if (moneyGate) return moneyGate;
+  }
   const period = query.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!period.success) return errorResponse(period.error.issues[0]?.message ?? "Choose 7, 30 or 90 days", 400);
 

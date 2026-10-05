@@ -12,7 +12,7 @@
  * The settings the demo shows already exist, in one place: `RetailPosPolicy` and
  * `RetailTenderPolicy` (both `FiscalisationProviderConfig` rows),
  * `RetailSetupProfile`, `CompanyBranding`, `Site` and `RetailRegister`. They are
- * edited under `/retail/setup/**` through PUT handlers gated on
+ * edited under `/retail/manage/**` through PUT handlers gated on
  * `requireRetailManager`. This composes those for the till and shapes them for a
  * cashier; it does not accept a write, and there is no second store.
  *

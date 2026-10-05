@@ -41,12 +41,23 @@ const session = (role: string | null | undefined) => ({ user: { role } });
 const EVERY_ROLE = [...ROLES, "POS_CASHIER", "NOT_A_ROLE", "", " ", "cashier "] as const;
 
 describe("the shop's own", () => {
-  it.each(["SUPERADMIN", "MANAGER", "SHOP_MANAGER"])("%s may do everything", (role) => {
+  it("the owner may do everything", () => {
     for (const resource of RETAIL_RESOURCES) {
       for (const action of RETAIL_ACTIONS) {
-        expect(canRetailRoleDo(role, resource, action)).toBe(true);
+        expect(canRetailRoleDo("SUPERADMIN", resource, action)).toBe(true);
       }
     }
+  });
+
+  it.each(["MANAGER", "SHOP_MANAGER"])("%s may do everything but read the money page", (role) => {
+    for (const resource of RETAIL_RESOURCES) {
+      for (const action of RETAIL_ACTIONS) {
+        expect(canRetailRoleDo(role, resource, action)).toBe(resource !== "retail.money");
+      }
+    }
+    expect(retailPermissionDenial(session(role), "retail.money", "view")).toBe(
+      "Your role cannot view the money page",
+    );
   });
 });
 

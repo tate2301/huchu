@@ -1,8 +1,6 @@
-export { WorkspaceRail, RailFlyout } from "./workspace-rail";
-export { RailAvatar } from "./rail-avatar";
+export { WorkspaceRail } from "./workspace-rail";
 export { RailPanel } from "./rail-panel";
-export { RailHeading, RailRow, RailRows } from "./rail-row";
+export { RailRow } from "./rail-row";
 export { SwitcherRail } from "./switcher-rail";
 export type { RailMark } from "./switcher-rail";
-export { usePins } from "./use-pins";
 export { useActiveWorkspace } from "./use-active-workspace";

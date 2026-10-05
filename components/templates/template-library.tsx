@@ -33,7 +33,7 @@ import {
   starterTemplate,
   startersForKind,
 } from "@/lib/crm/starter-templates";
-import { FileText, Plus } from "@/lib/icons";
+import { Plus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -272,7 +272,7 @@ export function TemplateLibrary() {
 
   return (
     <div className="space-y-5">
-      <PageChrome title="Templates" icon={FileText}>
+      <PageChrome title="Templates">
         <Button type="button" onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1.5 size-4" aria-hidden="true" />
           New template

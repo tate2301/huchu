@@ -6,7 +6,7 @@ import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { canRetailRoleDo, type RetailAction, type RetailResource } from "@/lib/retail/permission-matrix";
 import { schoolAccess } from "@/lib/schools/access";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
@@ -49,7 +49,6 @@ export type WorkspaceSidebarModel = {
   workspaceIcon: LucideIcon;
   quickActions: NavItem[];
   sections: WorkspaceNavSection[];
-  supportItems: NavItem[];
   /** Every workspace this person can switch to. One entry means no switcher. */
   workspaces: WorkspaceOption[];
   /** The one the sections above were built for. */
@@ -115,6 +114,11 @@ type WorkspaceProfileSectionSpec = {
     href: string;
     /** The band this destination sits in. Must name one of `groups`. */
     group?: string;
+    /**
+     * Retail grants this arrangement asks of a destination another module
+     * owns (any of), on top of the item's own `requires`.
+     */
+    requires?: Array<[RetailResource, RetailAction]>;
   }>;
 };
 
@@ -129,6 +133,21 @@ type WorkspaceProfileRecipe = {
   nativeModules: WorkspaceModuleId[];
   sections: WorkspaceProfileSectionSpec[];
 };
+
+/** Whether a role holds any of these retail grants. */
+function roleMeets(
+  role: string | null | undefined,
+  requires: Array<[RetailResource, RetailAction]>,
+): boolean {
+  return requires.some(([resource, action]) => canRetailRoleDo(role, resource, action));
+}
+
+function retailHomeHref(role: string | null | undefined): string {
+  const normalized = role?.trim().toUpperCase();
+  if (normalized === "CASHIER") return "/retail/shifts";
+  if (normalized === "STOCK_CLERK") return "/retail/stock";
+  return "/retail";
+}
 
 function resolveRecipeHomeHref(
   recipe: WorkspaceProfileRecipe,
@@ -351,34 +370,20 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     label: "Retail",
     homeHref: "/retail",
     /**
-     * The retail nav section is already the definition — see `lib/navigation.ts`.
-     * This adds the three things gating cannot express: the till is a portal app
-     * rather than a retail page, the back-office shifts screen is the manager's
-     * view of a cash-up a cashier does at the register, and a transfer needs
-     * somewhere to transfer to.
+     * The retail nav section is already the definition — see `lib/navigation.ts`,
+     * where each item's `requires` decides who sees it (`buildContext`). This
+     * adds the one thing a grant cannot express: a transfer needs somewhere to
+     * transfer to.
      */
     getItems(context) {
-      const posCapable = canAccessPosPortal(context.role);
       const canTransfer = canReclassifyStockBetweenLocations(context.activeStockLocationSiteIds);
-      const items: NavItem[] = [];
-
-      for (const item of context.navSectionById.get("retail")?.items ?? []) {
-        if (item.href === "/retail/shifts" && posCapable) continue;
-        // A shop with one stock location has nowhere to send anything, and
-        // `recordStockMovement` refuses such a transfer outright — the
-        // destination has to be a *different* active location at the same site.
-        // A surface whose only action cannot be performed is not offered, the
-        // same rule the till applies to its site picker when there is one branch.
-        if (item.href === "/retail/stock/transfers" && !canTransfer) continue;
-        // `/portal/pos` and `/retail/sales` are both gated on `retail.pos`, so
-        // offering the till alongside the sales list keeps them in step.
-        if (item.href === "/retail/sales" && posCapable) {
-          items.push({ href: "/portal/pos", label: "Open POS", icon: Payments });
-        }
-        items.push(item);
-      }
-
-      return items;
+      // A shop with one stock location has nowhere to send anything, and
+      // `recordStockMovement` refuses such a transfer outright — the
+      // destination has to be a *different* active location at the same site.
+      // A surface whose only action cannot be performed is not offered.
+      return (context.navSectionById.get("retail")?.items ?? []).filter(
+        (item) => item.href !== "/retail/stock/transfers" || canTransfer,
+      );
     },
   },
   crm: {
@@ -574,7 +579,9 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
   },
   RETAIL: {
     label: "Retail",
-    preferredHomeHref: "/retail",
+    // Where each role starts its day (00-foundations 5.3.4): the counter for a
+    // cashier, the shelves for a stock clerk, the overview for everyone else.
+    preferredHomeHref: retailHomeHref,
     /**
      * `stores` is native here, which is what removes "Stores & Inventory" as its
      * own entry from a retail sidebar: `buildAdditionalSections` only emits
@@ -583,37 +590,30 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
      * Every other profile leaves `stores` unclaimed and still gets the section.
      */
     nativeModules: ["retail", "reporting", "stores"],
+    /**
+     * The retail modules, one rail mark each, in the canvas's order
+     * (00-foundations 5.3.4). `retail-manage` is the gear at the foot of the
+     * rail rather than a mark among the others (`lib/rail/model.ts`).
+     */
     sections: [
       {
         id: "retail-floor",
         title: "The floor",
         refs: [
           { moduleId: "retail", href: "/retail" },
-          { moduleId: "retail", href: "/portal/pos" },
           { moduleId: "retail", href: "/retail/sales" },
           { moduleId: "retail", href: "/retail/shifts" },
           { moduleId: "retail", href: "/retail/customers" },
         ],
       },
-      /**
-       * Products, then Stock, as two modules — what the shop sells, and how
-       * much of it is here.
-       *
-       * They used to be one section, "Products and stock", that also reached
-       * into the stores module for On hand, Movements and Locations. Those are
-       * retail pages now (`/retail/stock` is On hand, `/retail/stock/movements`
-       * reads the same feed), so a shopkeeper never lands on a stores screen
-       * with its own tab bar under a retail sidebar. `stores` stays native so
-       * its section does not render beside these.
-       */
       {
         id: "retail-products",
         title: "Products",
         refs: [
-          { moduleId: "retail", href: "/retail/catalog" },
-          { moduleId: "retail", href: "/retail/catalog/categories" },
-          { moduleId: "retail", href: "/retail/merchandising/pricing" },
-          { moduleId: "retail", href: "/retail/merchandising/promotions" },
+          { moduleId: "retail", href: "/retail/products" },
+          { moduleId: "retail", href: "/retail/products/price-lists" },
+          { moduleId: "retail", href: "/retail/products/promotions" },
+          { moduleId: "retail", href: "/retail/products/categories" },
         ],
       },
       {
@@ -622,7 +622,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         refs: [
           { moduleId: "retail", href: "/retail/stock" },
           { moduleId: "retail", href: "/retail/stock/movements" },
-          { moduleId: "retail", href: "/retail/stock/count" },
+          { moduleId: "retail", href: "/retail/stock/counts" },
           { moduleId: "retail", href: "/retail/stock/transfers" },
         ],
       },
@@ -630,9 +630,9 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         id: "retail-buy",
         title: "Buying",
         refs: [
-          { moduleId: "retail", href: "/retail/purchasing/orders" },
-          { moduleId: "retail", href: "/retail/purchasing/receipts" },
-          { moduleId: "retail", href: "/retail/purchasing/requisitions" },
+          { moduleId: "retail", href: "/retail/buying/orders" },
+          { moduleId: "retail", href: "/retail/buying/deliveries" },
+          { moduleId: "retail", href: "/retail/buying/requisitions" },
         ],
       },
       {
@@ -646,10 +646,21 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
       },
       {
         // Reports are their own place: every template, built in or saved by the
-        // team, by area. Insights answers questions; this is where rows are read.
+        // team. Owner, manager and bookkeeper only (98-decisions C-35).
         id: "retail-reports",
         title: "Reports",
-        refs: [{ moduleId: "reporting", href: "/reports" }],
+        refs: [{ moduleId: "reporting", href: "/reports", requires: [["retail.reports", "view"]] }],
+      },
+      {
+        id: "retail-manage",
+        title: "Management",
+        refs: [
+          { moduleId: "retail", href: "/retail/manage/tills" },
+          { moduleId: "retail", href: "/retail/manage/till-rules" },
+          { moduleId: "retail", href: "/retail/manage/fiscal" },
+          { moduleId: "retail", href: "/retail/manage/posting" },
+          { moduleId: "retail", href: "/retail/manage/bin" },
+        ],
       },
     ],
   },
@@ -748,7 +759,11 @@ function buildContext(args: WorkspaceModelArgs): WorkspaceBuildContext {
   )
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => isRouteAllowedForRole(args.role, item.href)),
+      items: section.items.filter(
+        (item) =>
+          isRouteAllowedForRole(args.role, item.href) &&
+          (!item.requires || roleMeets(args.role, item.requires)),
+      ),
     }))
     .filter((section) => section.items.length > 0);
 
@@ -791,6 +806,7 @@ function getVisibleItem(
 function buildProfileSections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  role: string | null | undefined,
 ): WorkspaceNavSection[] {
   return recipe.sections
     .map((section) => {
@@ -800,6 +816,7 @@ function buildProfileSections(
       for (const ref of section.refs) {
         const item = getVisibleItem(visibleModules, ref.moduleId, ref.href);
         if (!item || seen.has(item.href)) continue;
+        if (ref.requires && !roleMeets(role, ref.requires)) continue;
         seen.add(item.href);
         // The arrangement's grouping wins over whatever band the item carried
         // in its own module — `/stores/inventory` is "Stock" in both, but the
@@ -984,13 +1001,14 @@ function getPrimarySections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
   verticalProduct: VerticalProductBundleDefinition,
+  role: string | null | undefined,
   verticalOnly = false,
 ): WorkspaceNavSection[] {
   if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
     return buildGeneralSections(visibleModules, verticalProduct);
   }
 
-  const profileSections = buildProfileSections(recipe, visibleModules);
+  const profileSections = buildProfileSections(recipe, visibleModules, role);
   const usedHrefs = collectSectionHrefs(profileSections);
 
   if (verticalOnly || recipe === WORKSPACE_PROFILE_RECIPES.RETAIL) {
@@ -1300,23 +1318,17 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
     enabledFeatures: args.enabledFeatures,
     workspaceProfile: profile,
   });
-  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct, verticalOnly);
+  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct, args.role, verticalOnly);
   const usedPrimaryHrefs = collectSectionHrefs(primarySections);
-  const canonicalAdditionalSections =
+  // The retail workspace is the canvas's: its own modules and the Management
+  // gear, nothing appended (00-foundations 5.3.2). A vertical of a split
+  // tenant and the general workspace carry no leftovers either.
+  const additionalSections =
+    verticalOnly ||
+    recipe === WORKSPACE_PROFILE_RECIPES.GENERAL ||
     recipe === WORKSPACE_PROFILE_RECIPES.RETAIL
-      ? buildCanonicalCoreSections(
-          visibleModules,
-          usedPrimaryHrefs,
-          verticalProduct,
-          "additional",
-        )
-      : [];
-  const additionalSections = verticalOnly || recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
-    ? []
-    : [
-        ...canonicalAdditionalSections,
-        ...buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct),
-      ];
+      ? []
+      : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
   const sections = [...primarySections, ...additionalSections];
   const homeTarget = getHomeTarget({
     recipe,
@@ -1343,7 +1355,6 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
       workspaceProfile: profile,
     }),
     sections,
-    supportItems: getSupportItems(context),
     workspaces,
     activeWorkspaceId: activeWorkspace.id,
   };

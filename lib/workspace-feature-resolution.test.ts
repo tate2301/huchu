@@ -400,9 +400,9 @@ describe("workspace sidebar model", () => {
   describe("retail: Products and Stock are retail's own modules", () => {
     const retailFeatures = templateFeatures("TEMPLATE_RETAIL");
 
-    function retailModel(activeStockLocationSiteIds?: string[]) {
+    function retailModel(activeStockLocationSiteIds?: string[], role = "MANAGER") {
       return getWorkspaceSidebarModel({
-        role: "MANAGER",
+        role,
         enabledFeatures: retailFeatures,
         workspaceProfile: "RETAIL",
         activeStockLocationSiteIds,
@@ -413,28 +413,76 @@ describe("workspace sidebar model", () => {
       return (model.sections.find((section) => section.id === id)?.items ?? []).map((item) => item.href);
     }
 
-    it("lists the design's modules, in its order", () => {
-      expect(retailModel().sections.map((section) => section.title).slice(0, 5)).toEqual([
+    it("lists the design's modules, in its order, Management last", () => {
+      expect(retailModel().sections.map((section) => section.title)).toEqual([
         "The floor",
         "Products",
         "Stock",
         "Buying",
         "Insights",
+        "Reports",
+        "Management",
       ]);
     });
 
-    it("puts what the shop sells under Products", () => {
+    it("puts what the shop sells under Products, in the canvas's order", () => {
       expect(itemsOf(retailModel(), "retail-products")).toEqual([
-        "/retail/catalog",
-        "/retail/catalog/categories",
-        "/retail/merchandising/pricing",
-        "/retail/merchandising/promotions",
+        "/retail/products",
+        "/retail/products/price-lists",
+        "/retail/products/promotions",
+        "/retail/products/categories",
       ]);
+    });
+
+    it("leaves the till out of the floor", () => {
+      expect(itemsOf(retailModel(), "retail-floor")).toEqual([
+        "/retail",
+        "/retail/sales",
+        "/retail/shifts",
+        "/retail/customers",
+      ]);
+    });
+
+    it("puts the moved settings pages under Management", () => {
+      expect(itemsOf(retailModel(), "retail-manage")).toEqual([
+        "/retail/manage/tills",
+        "/retail/manage/till-rules",
+        "/retail/manage/fiscal",
+        "/retail/manage/posting",
+        "/retail/manage/bin",
+      ]);
+    });
+
+    it("gives the manager Insights without Money, and the owner Money", () => {
+      expect(itemsOf(retailModel(), "retail-control")).not.toContain("/retail/insights/money");
+      expect(itemsOf(retailModel(undefined, "SUPERADMIN"), "retail-control")).toContain(
+        "/retail/insights/money",
+      );
+    });
+
+    it("shows the cashier the floor, the shelf and their requisitions, and nothing else", () => {
+      const model = retailModel(undefined, "CASHIER");
+      expect(model.homeHref).toBe("/retail/shifts");
+      expect(Object.fromEntries(model.sections.map((section) => [section.id, section.items.map((i) => i.href)]))).toEqual({
+        "retail-floor": ["/retail/sales", "/retail/shifts", "/retail/customers"],
+        "retail-products": ["/retail/products", "/retail/products/price-lists", "/retail/products/promotions"],
+        "retail-buy": ["/retail/buying/requisitions"],
+      });
+    });
+
+    it("shows the stock clerk Products, Stock and Buying, landing on On hand", () => {
+      const model = retailModel(undefined, "STOCK_CLERK");
+      expect(model.homeHref).toBe("/retail/stock");
+      expect(Object.fromEntries(model.sections.map((section) => [section.id, section.items.map((i) => i.href)]))).toEqual({
+        "retail-products": ["/retail/products"],
+        "retail-stock": ["/retail/stock", "/retail/stock/movements", "/retail/stock/counts"],
+        "retail-buy": ["/retail/buying/orders", "/retail/buying/deliveries", "/retail/buying/requisitions"],
+      });
     });
 
     it("puts on hand, movements and counts under Stock, all retail pages", () => {
       const hrefs = itemsOf(retailModel(), "retail-stock");
-      expect(hrefs).toEqual(["/retail/stock", "/retail/stock/movements", "/retail/stock/count"]);
+      expect(hrefs).toEqual(["/retail/stock", "/retail/stock/movements", "/retail/stock/counts"]);
     });
 
     it("sends a shopkeeper to no stores screen, and renders no Stores section", () => {

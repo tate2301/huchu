@@ -1,488 +1,244 @@
-/*
- * The workspace rail.
- *
- * All of the rail's paint lives here rather than at the call sites, so the
- * rungs the design fixes — the 32px row, the 42px slot, the three grounds —
- * are written once and a caller's className still wins over them.
- *
- * Three grounds, each a step lighter as you move right: the switcher, the
- * panel, the page. Every colour is a theme role or a package token pointed at
- * one (app/themes/roles.css), so Tender dark layers the same steps by itself.
- */
+/* The shell's navigation (00-foundations 5.3.2–5.3.3): a 56px rail of module
+   marks and a 240px panel of the current module's items. Role tokens only. */
+
+.nav {
+  position: relative;
+  display: flex;
+  flex: none;
+  height: 100%;
+}
+
+/* ── Rail ─────────────────────────────────────────────────────────────── */
 
 .rail {
-  --rail-switcher-bg: var(--surface-muted);
-  --rail-panel-bg: color-mix(in srgb, var(--surface-muted) 42%, var(--surface));
-  --rail-row-hover: var(--border-subtle);
-  --rail-row-active: var(--surface-sunken);
-
-  display: flex;
-  flex-shrink: 0;
-  height: 100%;
-  min-height: 0;
-  /* Positioning belongs to `Sidebar`, which the shell already provides: this
-     sits inside it so the provider's width variables, the mobile sheet and the
-     inset's own layout keep working. */
-}
-
-/* ---- tier one: the switcher ---- */
-
-.switcher {
-  box-sizing: border-box;
+  width: 56px;
+  flex: none;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
-  width: 56px;
-  background: var(--rail-switcher-bg);
-  border-right: 1px solid var(--border);
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  box-sizing: border-box;
 }
 
-.company {
-  display: grid;
-  place-items: center;
-  height: 52px;
-  flex-shrink: 0;
-}
-
-.companyMark {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
+.tile {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  margin-bottom: 8px;
+  padding: 0;
   border: 0;
-  border-radius: 9px;
-  /* The logo tile is its own role (5.1.2 `--device`): dark in every theme,
-     so Tender dark does not turn it into a white square. */
+  border-radius: 8px;
   background: var(--device);
   color: #ffffff;
-  font-size: 13px;
+  font-family: inherit;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
-/* The branding logo fills the mark's tile; `contain` keeps a wide wordmark
-   whole rather than cropping it to a square. The tile's dark ground would sit
-   behind a transparent logo, so the logo gets the surface instead. */
-.companyMark:has(.companyLogo) {
-  overflow: hidden;
-  background: var(--surface-base);
-  box-shadow: inset 0 0 0 1px var(--border);
-}
-
-.companyLogo {
+.tileLogo {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
-.marks {
-  flex-grow: 1;
-  min-height: 0;
-  padding: 0 6px;
-  /* The rail never scrolls: if this clips, the shape was wrong, not the
-     height, and `getRailModel` is where that is decided. */
-  overflow: hidden;
+/* Anything unread, or the device not ready: an 8px dot on the top-right corner. */
+.tileDot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
-.markList {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.divider {
-  display: block;
-  width: 24px;
-  height: 1px;
-  margin: 8px auto;
-  background: var(--border);
-}
-
-.slot {
-  display: grid;
-  place-items: center;
+.mark {
   width: 36px;
   height: 36px;
-  margin: 0 auto;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.slot:hover {
-  background: var(--rail-row-hover);
-}
-
-.slotActive {
-  background: var(--surface);
-  color: var(--text-strong);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 1px 2px rgb(22 24 29 / 6%);
-}
-
-.person {
-  display: grid;
-  place-items: center;
-  height: 56px;
-  flex-shrink: 0;
-}
-
-.personButton {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  border-radius: 9999px;
-  cursor: pointer;
-}
-
-/* ---- tier two: the panel ---- */
-
-.panel {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  width: var(--sidebar-panel-w, 224px);
-  background: var(--rail-panel-bg);
-  border-right: 1px solid var(--border);
-}
-
-.panelHead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 52px;
-  flex-shrink: 0;
-  padding: 0 10px 0 12px;
-}
-
-.panelHeadBack {
-  padding-left: 6px;
-}
-
-.panelTitle {
-  flex-grow: 1;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--text-strong);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.iconButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-subtle);
-  cursor: pointer;
-}
-
-.iconButton:hover {
-  background: var(--rail-row-hover);
-  color: var(--text-body);
-}
-
-.panelTools {
-  display: grid;
-  gap: 7px;
-  flex-shrink: 0;
-  padding: 0 8px 10px;
-}
-
-.find {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  height: 32px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
+  flex: none;
   border-radius: 8px;
-  background: var(--surface);
   color: var(--ink-3);
-  font-size: 13px;
-  font-weight: 400;
-  text-align: left;
-  cursor: pointer;
-}
-
-.findLabel {
-  flex-grow: 1;
-}
-
-.new {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  height: 32px;
-  border: 1px solid var(--action-primary-bg);
-  border-radius: 8px;
-  background: var(--action-primary-bg);
-  color: var(--action-primary-fg);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.4;
-  cursor: pointer;
-}
-
-.new:hover {
-  background: var(--action-primary-hover);
-  border-color: var(--action-primary-hover);
-}
-
-.panelBody {
-  flex-grow: 1;
-  min-height: 0;
-  padding: 0 8px;
-  overflow-y: auto;
-}
-
-.shelf {
-  flex-shrink: 0;
-  padding: 8px;
-  border-top: 1px solid var(--border);
-}
-
-/* ---- rows ---- */
-
-.rows {
-  display: grid;
-  gap: 1px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.row {
+  background: transparent;
   display: flex;
   align-items: center;
-  gap: 9px;
-  height: 32px;
-  padding: 0 9px;
-  border-radius: 8px;
-  color: var(--text-body);
+  justify-content: center;
   text-decoration: none;
 }
 
-.row:hover {
-  background: var(--rail-row-hover);
+.mark:hover {
+  background: var(--hover);
 }
 
-.rowActive {
-  background: var(--rail-row-active);
-  color: var(--text-strong);
+.markIcon {
+  width: 18px;
+  height: 18px;
 }
 
-.rowActive .rowLabel {
-  font-weight: 600;
+.markCurrent,
+.markCurrent:hover {
+  background: var(--active);
+  color: var(--ink);
 }
 
-/* A row that acts rather than navigates — the workspace switcher's entries.
-   Same rung, so a button and a link are the same object to the eye. */
-.rowButton {
-  width: 100%;
+.spacer {
+  flex: 1;
+}
+
+.tile:focus-visible,
+.mark:focus-visible,
+.item:focus-visible,
+.collapse:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+
+/* ── Panel ────────────────────────────────────────────────────────────── */
+
+.panel {
+  width: 240px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--ground);
+  border-right: 1px solid var(--line);
+  box-sizing: border-box;
+}
+
+/* 720–1099px: over the page, from the rail's edge. */
+.panelOverlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 56px;
+  z-index: 40;
+  box-shadow: var(--shadow-float);
+}
+
+.panelHead {
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.collapse {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin: 0 -6px 0 -6px;
+  padding: 0;
   border: 0;
+  border-radius: 8px;
   background: transparent;
-  font: inherit;
-  text-align: left;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
-.rowIcon {
-  flex-shrink: 0;
-  color: var(--text-muted);
+.collapseIcon {
+  width: 16px;
+  height: 16px;
 }
 
-.rowActive .rowIcon {
-  color: var(--text-strong);
+.collapse:hover {
+  background: var(--hover);
 }
 
-.rowDim .rowLabel {
-  color: var(--ink-3);
-}
-
-.rowDim .rowIcon {
-  color: var(--text-subtle);
-}
-
-.rowLabel {
-  flex-grow: 1;
+.panelTitle {
   min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.4;
-  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.heading {
+.items {
   display: flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 9px;
-  margin-top: 14px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--text-muted);
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 4px 10px;
+  list-style: none;
+  overflow-y: auto;
 }
 
-/* ---- figures ---- */
-
-.count {
-  flex-shrink: 0;
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+.item {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--ink);
   font-size: 13px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+
+.item:hover {
+  background: var(--active);
+}
+
+.itemIcon {
+  width: 16px;
+  height: 16px;
+  flex: none;
   color: var(--ink-3);
+}
+
+.itemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .badge {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 7px;
-  flex-shrink: 0;
-  border-radius: 9999px;
-  background: var(--surface-muted);
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-  font-size: 13px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-3);
-}
-
-.badgeUrgent {
-  background: var(--action-destructive-soft-bg);
-  color: var(--action-destructive-bg);
-}
-
-/* A mark cannot carry a figure at 36px — it carries a dot. */
-.markAlert {
-  position: absolute;
-  top: 3px;
-  right: 4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 9999px;
-  background: var(--action-destructive-bg);
-  box-shadow: 0 0 0 2px var(--rail-switcher-bg);
-}
-
-.slotWrap {
-  position: relative;
-}
-
-/* ---- the pin, which appears on hover ---- */
-
-.pinButton {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-subtle);
-  cursor: pointer;
-}
-
-.row:hover .pinButton,
-.pinButton:focus-visible {
-  display: inline-flex;
-}
-
-.pinButtonOn {
-  display: inline-flex;
-  color: var(--action-primary-bg);
-}
-
-/* ---- the workspace switcher ---- */
-
-.workspaceMenu {
-  border-radius: 11px;
-}
-
-.workspaceMenuTitle {
-  margin: 0 0 4px;
-  padding: 5px 9px 6px;
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--text-strong);
+  flex: none;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ---- the collapsed flyout ---- */
-
-.flyout {
-  border-radius: 11px;
-  background: var(--rail-panel-bg);
-  box-shadow:
-    0 12px 32px -8px rgb(42 38 34 / 18%),
-    0 2px 6px rgb(42 38 34 / 6%);
-}
-
-.flyoutTitle {
-  margin: 0;
-  padding: 6px 9px 7px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--text-muted);
-}
-
-/* ---- the empty state ---- */
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  height: 100%;
-  padding: 0 16px;
-  text-align: center;
-}
-
-.emptyMark {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  background: var(--surface-muted);
-  color: var(--text-subtle);
-}
-
-.emptyLabel {
-  margin: 0;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-weight: 500;
-  line-height: 1.4;
-  color: var(--text-muted);
+  color: var(--ink-2);
+  background: var(--tray);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+/* G1: the current item is solid ink with white text. */
+.itemCurrent,
+.itemCurrent:hover {
+  background: var(--sel-fill);
+  color: var(--on-sel);
+  font-weight: 600;
+}
+
+.itemCurrent .itemIcon {
+  color: var(--on-sel);
+}
+
+.itemCurrent .badge {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--on-sel);
+}
+
+.extra {
+  padding: 4px 10px;
 }

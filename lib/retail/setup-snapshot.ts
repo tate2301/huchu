@@ -182,7 +182,7 @@ export async function getRetailSetupSnapshot(companyId: string) {
     {
       id: "operations",
       label: "Operations",
-      href: "/retail/setup/operations",
+      href: "/retail/manage/tills",
       total: operationsTotal,
       completed: operationsCompleted,
       missing: Math.max(operationsTotal - operationsCompleted, 0),
@@ -208,7 +208,7 @@ export async function getRetailSetupSnapshot(companyId: string) {
     {
       id: "policy",
       label: "POS policy",
-      href: "/retail/setup/pos-policy",
+      href: "/retail/manage/till-rules",
       total: posPolicyChecks.length,
       completed: posPolicyCompleted,
       missing: Math.max(posPolicyChecks.length - posPolicyCompleted, 0),
@@ -220,7 +220,7 @@ export async function getRetailSetupSnapshot(companyId: string) {
     {
       id: "accounting",
       label: "Accounting",
-      href: "/retail/setup/accounting",
+      href: "/retail/manage/posting",
       total: accountingChecks.length,
       completed: accountingCompleted,
       missing: Math.max(accountingChecks.length - accountingCompleted, 0),

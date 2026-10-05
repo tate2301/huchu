@@ -67,7 +67,7 @@ test.describe("the back office", () => {
 
   test("W3 add a product", async ({ page }) => {
     const shot = shooter("retail", "journey-w03-add-a-product");
-    await visitSettled(page, "/retail/catalog");
+    await visitSettled(page, "/retail/products");
     await expect(page.getByRole("table")).toBeVisible({ timeout: 60_000 });
     await shot(page, "products");
 
@@ -98,7 +98,7 @@ test.describe("the back office", () => {
 
   test("W4 take a product off sale, and back", async ({ page }) => {
     const shot = shooter("retail", "journey-w04-edit-a-product");
-    await visitSettled(page, "/retail/catalog");
+    await visitSettled(page, "/retail/products");
     await page.getByPlaceholder(/search by name/i).first().fill(RUN);
     await page.getByRole("link", { name: new RegExp(PRODUCT) }).first().click();
     await expect(page.getByRole("heading", { name: PRODUCT })).toBeVisible({ timeout: 60_000 });
@@ -126,7 +126,7 @@ test.describe("the back office", () => {
 
   test("W5 change a price", async ({ page }) => {
     const shot = shooter("retail", "journey-w05-change-a-price");
-    await visitSettled(page, "/retail/merchandising/pricing");
+    await visitSettled(page, "/retail/products/price-lists");
     await page.getByPlaceholder(/search by name/i).first().fill(RUN);
     await expect(page.getByText(PRODUCT).first()).toBeVisible({ timeout: 60_000 });
     await shot(page, "prices");
@@ -147,7 +147,7 @@ test.describe("the back office", () => {
 
   test("W6 run a promotion", async ({ page }) => {
     const shot = shooter("retail", "journey-w06-run-a-promotion");
-    await visitSettled(page, "/retail/merchandising/promotions");
+    await visitSettled(page, "/retail/products/promotions");
     await shot(page, "promotions");
     await page.getByRole("button", { name: "New promotion" }).click();
     const dialog = await dialogNamed(page, "New promotion");
@@ -162,7 +162,7 @@ test.describe("the back office", () => {
 
   test("W7 order stock and receive the delivery", async ({ page }) => {
     const shot = shooter("retail", "journey-w07-order-and-deliver");
-    await visitSettled(page, "/retail/purchasing/orders");
+    await visitSettled(page, "/retail/buying/orders");
     await shot(page, "orders");
 
     await page.getByRole("button", { name: "New order" }).click();
@@ -208,7 +208,7 @@ test.describe("the back office", () => {
 
   test("W8 count stock", async ({ page }) => {
     const shot = shooter("retail", "journey-w08-count-stock");
-    await visitSettled(page, "/retail/stock/count");
+    await visitSettled(page, "/retail/stock/counts");
     await shot(page, "stock-counts");
     await page.getByRole("button", { name: "Count stock" }).first().click();
     const dialog = await dialogNamed(page, "Count stock");
@@ -239,7 +239,7 @@ test.describe("the back office", () => {
 
   test("W11 add a till", async ({ page }) => {
     const shot = shooter("retail", "journey-w11-add-a-till");
-    await visitSettled(page, "/retail/setup/operations");
+    await visitSettled(page, "/retail/manage/tills");
     await expect(page.getByRole("heading", { name: "Tills" }).first()).toBeVisible({ timeout: 60_000 });
     await shot(page, "tills");
     await page.getByRole("button", { name: /^New/ }).first().click();
@@ -254,7 +254,7 @@ test.describe("the back office", () => {
 
   test("W12 set the till rules", async ({ page }) => {
     const shot = shooter("retail", "journey-w12-till-rules");
-    await visitSettled(page, "/retail/setup/pos-policy");
+    await visitSettled(page, "/retail/manage/till-rules");
     await expect(page.getByText("Tenders that need a reference")).toBeVisible({ timeout: 60_000 });
     await shot(page, "till-rules");
     await page.getByRole("button", { name: "Save till rules" }).click();
@@ -264,7 +264,7 @@ test.describe("the back office", () => {
 
   test("W13 set up the accounts a sale posts to", async ({ page }) => {
     const shot = shooter("retail", "journey-w13-posting");
-    await visitSettled(page, "/retail/setup/accounting");
+    await visitSettled(page, "/retail/manage/posting");
     await expect(page.getByText("Checks").first()).toBeVisible({ timeout: 60_000 });
     await shot(page, "posting");
     await page.getByRole("button", { name: "Set up the accounts" }).first().click();
@@ -281,7 +281,7 @@ test.describe("the back office", () => {
 
   test("W14 set up and register the fiscal device, and open the day", async ({ page }) => {
     const shot = shooter("retail", "journey-w14-fiscal-device");
-    await visitSettled(page, "/retail/setup/fiscal");
+    await visitSettled(page, "/retail/manage/fiscal");
     await expect(page.getByLabel("Device ID", { exact: true })).toBeVisible({ timeout: 60_000 });
     await shot(page, "fiscal-device");
 

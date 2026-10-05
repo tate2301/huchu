@@ -2,20 +2,14 @@
 
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { NotificationRichBody } from "@/components/notifications/notification-renderers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
 import { useNotificationStream } from "@/hooks/use-notification-stream";
 import {
@@ -28,7 +22,7 @@ import {
 } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check";
-import { Bell, CheckCircle2, Loader2 } from "@/lib/icons";
+import { CheckCircle2, Loader2 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 type FilterMode = "unread" | "all";
@@ -50,24 +44,57 @@ function actionButtonVariant(action: NotificationAction) {
   return action.variant ?? "outline";
 }
 
-export function NotificationCenter() {
+/** Whether this workspace has the notification centre at all. */
+export function useNotificationsEnabled() {
   const { data: session } = useSession();
   const enabledFeatures = (
     session?.user as { enabledFeatures?: string[] } | undefined
   )?.enabledFeatures;
-  const centerEnabled = canAccessCapabilityWithToken(
-    "notification.center.stream",
-    enabledFeatures,
-  ).allowed;
+  return (
+    canAccessCapabilityWithToken("notification.center.widget", enabledFeatures).allowed &&
+    canAccessCapabilityWithToken("notification.center.stream", enabledFeatures).allowed
+  );
+}
+
+/**
+ * How many are unread, for the account menu's pill and the logo tile's dot
+ * (00-foundations 5.3.6). Shares the `["notifications"]` prefix, so marking
+ * one read in the panel refreshes it.
+ */
+export function useUnreadNotificationCount(): number {
+  const enabled = useNotificationsEnabled();
+  const { data } = useQuery({
+    queryKey: ["notifications", "unread-count"],
+    enabled,
+    queryFn: () => fetchNotifications({ unreadOnly: true, limit: 1 }),
+    staleTime: 5000,
+    refetchInterval: 30000,
+  });
+  return enabled ? (data?.unreadCount ?? 0) : 0;
+}
+
+/**
+ * The notification panel, opened from the account menu's "Notifications" and
+ * drawn to the right of the rail, anchored to `children` (the logo tile).
+ */
+export function NotificationCenter({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  const centerEnabled = useNotificationsEnabled();
+  const [filterMode, setFilterMode] = useState<FilterMode>("unread");
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
-  const [filterMode, setFilterMode] = useState<FilterMode>("unread");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["notifications", filterMode],
-    enabled: centerEnabled,
+    enabled: centerEnabled && open,
     queryFn: () =>
       fetchNotifications({
         unreadOnly: filterMode === "unread",
@@ -177,42 +204,21 @@ export function NotificationCenter() {
   };
 
   if (!centerEnabled || featureDisabled) {
-    return null;
+    return <>{children}</>;
   }
 
   return (
-    <DropdownMenu
+    <Popover
       open={open}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
+        onOpenChange(nextOpen);
         if (nextOpen) invalidateNotifications();
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative"
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 ? (
-            <span className="absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent
-        align="end"
-        sideOffset={8}
-        className="w-[min(96vw,520px)] p-0"
-      >
+      <PopoverAnchor asChild>{children}</PopoverAnchor>
+      <PopoverContent side="right" align="start" sideOffset={12} className="w-[min(96vw,520px)] p-0">
         <div className="flex items-center justify-between px-3 py-2">
-          <DropdownMenuLabel className="p-0">
-            Notification Centre
-          </DropdownMenuLabel>
+          <p className="m-0 text-[13px] font-semibold">Notifications</p>
           <div className="flex items-center gap-1">
             <Button
               size="sm"
@@ -230,7 +236,7 @@ export function NotificationCenter() {
             </Button>
           </div>
         </div>
-        <DropdownMenuSeparator />
+        <div className="h-px bg-[var(--line)]" />
 
         <div className="flex items-center justify-between px-3 py-2">
           <span className="text-muted-foreground">
@@ -360,7 +366,7 @@ export function NotificationCenter() {
             </div>
           )}
         </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -10,7 +10,7 @@
  * The till portal is cashier-only. `canAccessPosPortal` in `lib/retail/pos-host.ts`
  * admits `CASHIER` and `POS_CASHIER` and nothing else, and `PosPortalAuthGuard`
  * sends everybody else to `/access-blocked`. A shop manager does not work at this
- * screen; they work in the back office at `/retail/setup/**` and they approve at
+ * screen; they work in the back office at `/retail/manage/**` and they approve at
  * the counter by typing their password into the override dialog.
  *
  * So "what does a cashier see" is the whole question, and the answer is: all of

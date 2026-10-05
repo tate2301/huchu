@@ -1,6 +1,6 @@
 import { test, expect } from "./_support/fixtures";
 import { CRM, GOLD, RETAIL, SCHOOL } from "./_support/tenants";
-import { sweepRecordTests, sweepTests, type Route } from "./_support/sweep";
+import { sweepRecordTests } from "./_support/sweep";
 import { companyIdFor, db } from "./_support/db";
 import { expectHealthyPage } from "./_support/assert";
 import { visitSettled } from "./_support/nav";
@@ -184,21 +184,10 @@ test.describe("Retail records", () => {
 
   const retailCompanyId = () => companyIdFor(RETAIL.slug, RETAIL.seed);
 
-  const PURCHASING: readonly Route[] = [
-    {
-      path: "/retail/purchasing",
-      name: "Purchasing index",
-      redirectsTo: "/retail/purchasing/orders",
-      expect: /Orders/,
-    },
-  ];
-
-  sweepTests(PURCHASING);
-
   sweepRecordTests([
     {
       name: "One catalogue line",
-      path: (id) => `/retail/catalog/${id}`,
+      path: (id) => `/retail/products/${id}`,
       // `{id}` here is a `Product.id` — the shelf listing, not the stock item.
       // See the docstring on app/api/v2/retail/catalog/[id]/route.ts.
       find: async () =>
@@ -222,7 +211,7 @@ test.describe("Retail records", () => {
     },
     {
       name: "One purchase order",
-      path: (id) => `/retail/purchasing/orders/${id}`,
+      path: (id) => `/retail/buying/orders/${id}`,
       find: async () =>
         (await db.retailPurchaseOrder.findFirst({ where: { companyId: await retailCompanyId() }, select: { id: true } }))?.id ?? null,
       expect: /Supplier|Order|Delta Beverages/i,

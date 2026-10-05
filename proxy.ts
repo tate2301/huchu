@@ -38,7 +38,7 @@ import {
   isRouteAllowedForRole,
   landingPathForRole,
 } from "@/lib/auth-core/role-routes";
-import { getPosHostForCompany, isCashierRole, isPublicPosPath } from "@/lib/retail/pos-host";
+import { getPosHostForCompany, isPublicPosPath, isTillOnlyRole } from "@/lib/retail/pos-host";
 import { PUBLIC_BASE_PATHS } from "@/lib/public-routes";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
@@ -61,7 +61,6 @@ const PORTAL_HOME_BY_ROLE = {
   STUDENT: "/portal/student",
   TEACHER: "/portal/teacher",
   POS_CASHIER: "/portal/pos",
-  CASHIER: "/portal/pos",
 } as const;
 // Mirrors WORKFORCE_MODULE_ALLOWED_ROLES in `lib/navigation.ts`. Checked on the
 // prefix here so a school teacher signing into a tenant that also runs payroll
@@ -167,8 +166,7 @@ function getPortalHomeForRole(role: string | undefined | null) {
     role === "PARENT" ||
     role === "STUDENT" ||
     role === "TEACHER" ||
-    role === "POS_CASHIER" ||
-    role === "CASHIER"
+    role === "POS_CASHIER"
   ) {
     return PORTAL_HOME_BY_ROLE[role as keyof typeof PORTAL_HOME_BY_ROLE];
   }
@@ -408,7 +406,7 @@ export default withAuth(
       return redirectToPath(request, ADMIN_BASE_PATH);
     }
 
-    if (!isApiRequest && token && isCashierRole(token.role)) {
+    if (!isApiRequest && token && isTillOnlyRole(token.role)) {
       const posHost = getPosHostForCompany(token.companySlug, rootDomain);
       if (posHost && hostContext.hostname !== posHost && !isAdminHost) {
         const redirectUrl = request.nextUrl.clone();

@@ -54,6 +54,11 @@ function googleFontUrl(familySpec: string): string {
 export type EffectiveBranding = {
   companyId: string | null;
   companyName: string | null;
+  /**
+   * `CompanyBranding.legalName`: the rail's logo tile is drawn from it when
+   * there is no logo ("Hurudza Creative (Private) Limited" is "HC").
+   */
+  legalName: string | null;
   displayName: string;
   fontFamilyKey: BrandingFontKey;
   fontFamily: string;
@@ -135,6 +140,7 @@ const DEFAULT_FONT_KEY: BrandingFontKey = "huchu";
 const DEFAULT_BRANDING: EffectiveBranding = {
   companyId: null,
   companyName: null,
+  legalName: null,
   displayName: PLATFORM_BRAND_NAME,
   fontFamilyKey: DEFAULT_FONT_KEY,
   fontFamily: BRANDING_FONT_OPTIONS[0].fontFamily,
@@ -269,6 +275,7 @@ export async function getEffectiveBrandingForCompany(companyId: string): Promise
           branding: {
             select: {
               displayName: true,
+              legalName: true,
               logoUrl: true,
               primaryColor: true,
               secondaryColor: true,
@@ -308,6 +315,7 @@ export async function getEffectiveBrandingForCompany(companyId: string): Promise
     return {
       companyId: company.id,
       companyName,
+      legalName: company.branding?.legalName?.trim() || null,
       displayName,
       brandingEnabled,
       customDomainEnabled,

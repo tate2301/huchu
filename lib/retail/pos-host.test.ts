@@ -28,6 +28,7 @@ import { describe, expect, it } from "vitest";
 import {
   POS_ALL_PUBLIC_PATHS,
   getPosPortalHrefPair,
+  isTillOnlyRole,
   type PosPortalNavKey,
 } from "./pos-host";
 
@@ -84,5 +85,15 @@ describe("the public path list has nothing dangling in it", () => {
       orphans,
       "a public path no nav entry uses is either dead or a rename that only got done on one side — `/queue` was both",
     ).toEqual([]);
+  });
+});
+
+describe("isTillOnlyRole", () => {
+  it("keeps only the till's own sign-in on the POS host", () => {
+    expect(isTillOnlyRole("POS_CASHIER")).toBe(true);
+    // A cashier is staff: their shifts and requisitions are back-office pages.
+    expect(isTillOnlyRole("CASHIER")).toBe(false);
+    expect(isTillOnlyRole("SUPERADMIN")).toBe(false);
+    expect(isTillOnlyRole(null)).toBe(false);
   });
 });

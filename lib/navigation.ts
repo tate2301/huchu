@@ -1,5 +1,4 @@
 import {
-  ArrowDownward,
   BarChart3,
   Building2,
   Calendar,
@@ -56,11 +55,30 @@ import {
   Work,
   Wrench,
   Zap,
+  ArrowsLeftRight,
+  CashRegister,
+  ChartBar,
+  ClipboardText,
+  Clock,
+  DeviceMobile,
+  Folder,
+  ListChecks,
+  Money,
+  Rows,
+  Stack,
+  Stamp,
+  SquaresFour,
+  Tag,
+  Trash,
+  TrayArrowDown,
+  Truck,
+  UsersPair,
   type LucideIcon,
 } from "@/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
+import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import type { SchoolAction, SchoolResource } from "@/lib/schools/access";
 
 // Who may reach People and Payroll at all. Mirrored as a Set in `proxy.ts`,
@@ -90,6 +108,12 @@ export type NavItem = {
   grant?: SchoolNavGrant;
   /** Where this row sits in a `ranked` section. See `NavRank`. */
   rank?: NavRank;
+  /**
+   * Retail only: the grants that show this item, any of them
+   * (00-foundations 5.3.4). Checked with `canRetailRoleDo`; the server still
+   * refuses on its own, hiding is never the check.
+   */
+  requires?: Array<[RetailResource, RetailAction]>;
 };
 
 /**
@@ -639,38 +663,96 @@ export const navSections: NavSection[] = [
   {
     id: "retail",
     title: "Retail",
-    description: "Overview, sales, range and stock, purchasing, customers, shifts, reports, and setup",
+    description: "The floor, products, stock, buying, insights and management",
     featureKey: "retail.core",
-    // The only definition of retail's nav items, and every href is a route that
-    // exists. It used to be a second list of alias paths (`/retail/sell`,
-    // `/retail/buy`, …) whose sole purpose was to carry a feature key for
-    // `lib/workspaces.ts` to probe, which meant every surface was gated on
-    // `retail.core` here while the page itself enforced a tighter key. The
-    // real paths carry their own keys in the route registry, so gating and
-    // enforcement now agree.
+    // The only definition of retail's nav items (00-foundations 5.3.4): every
+    // href is a route that exists, labelled and drawn as the canvas draws it.
+    // `requires` is the role visibility; the route registry still gates each
+    // path on the tenant's features. Pages that do not exist yet join here in
+    // the area unit that builds them.
     items: [
-      { href: "/retail", icon: Wallet, label: "Overview" },
-      { href: "/retail/sales", icon: ClipboardList, label: "Sales" },
-      { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts" },
-      { href: "/retail/customers", icon: Users, label: "Customers" },
-      { href: "/retail/catalog", icon: TableRows, label: "Products" },
-      { href: "/retail/catalog/categories", icon: Layers, label: "Categories" },
-      { href: "/retail/merchandising/pricing", icon: Coins, label: "Prices" },
-      { href: "/retail/merchandising/promotions", icon: ReceiptLong, label: "Promotions" },
-      { href: "/retail/stock", icon: Package, label: "On hand" },
-      { href: "/retail/stock/movements", icon: ArrowDownward, label: "Movements" },
-      { href: "/retail/stock/count", icon: ClipboardList, label: "Counts" },
-      { href: "/retail/stock/transfers", icon: ArrowDownward, label: "Transfers" },
-      { href: "/retail/purchasing/orders", icon: Package, label: "Orders" },
-      { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Deliveries" },
-      { href: "/retail/purchasing/requisitions", icon: Coins, label: "Requisitions" },
-      { href: "/retail/insights/sales", icon: BarChart3, label: "Sales" },
-      { href: "/retail/insights/profit", icon: BarChart3, label: "Profit" },
-      { href: "/retail/insights/products", icon: BarChart3, label: "Products" },
-      { href: "/retail/insights/stock", icon: BarChart3, label: "Stock health" },
-      { href: "/retail/insights/losses", icon: BarChart3, label: "Losses" },
-      { href: "/retail/insights/customers", icon: BarChart3, label: "Customers" },
-      { href: "/retail/insights/money", icon: BarChart3, label: "Money" },
+      // The floor
+      { href: "/retail", icon: SquaresFour, label: "Overview", requires: [["retail.reports", "view"]] },
+      { href: "/retail/sales", icon: Receipt, label: "Sales", requires: [["retail.sell", "view"]] },
+      {
+        href: "/retail/shifts",
+        icon: CashRegister,
+        label: "Shifts",
+        requires: [
+          ["retail.cash-control", "view"],
+          ["retail.sell", "open-shift"],
+        ],
+      },
+      { href: "/retail/customers", icon: UsersPair, label: "Customers", requires: [["retail.sell", "view"]] },
+      // Products
+      { href: "/retail/products", icon: Rows, label: "Products", requires: [["retail.catalog", "view"]] },
+      {
+        href: "/retail/products/price-lists",
+        icon: Tag,
+        label: "Price lists",
+        requires: [
+          ["retail.catalog", "update"],
+          ["retail.sell", "view"],
+        ],
+      },
+      {
+        href: "/retail/products/promotions",
+        icon: Megaphone,
+        label: "Promotions",
+        requires: [
+          ["retail.catalog", "update"],
+          ["retail.sell", "view"],
+        ],
+      },
+      {
+        href: "/retail/products/categories",
+        icon: Folder,
+        label: "Categories",
+        requires: [["retail.catalog", "update"]],
+      },
+      // Stock
+      { href: "/retail/stock", icon: Stack, label: "On hand", requires: [["retail.stock", "view"]] },
+      { href: "/retail/stock/movements", icon: Clock, label: "Movements", requires: [["retail.stock", "view"]] },
+      { href: "/retail/stock/counts", icon: ClipboardText, label: "Counts", requires: [["retail.stock", "view"]] },
+      {
+        href: "/retail/stock/transfers",
+        icon: ArrowsLeftRight,
+        label: "Transfers",
+        requires: [["retail.stock", "view"]],
+      },
+      // Buying
+      { href: "/retail/buying/orders", icon: TrayArrowDown, label: "Orders", requires: [["retail.purchasing", "view"]] },
+      { href: "/retail/buying/deliveries", icon: Truck, label: "Deliveries", requires: [["retail.purchasing", "view"]] },
+      {
+        href: "/retail/buying/requisitions",
+        icon: Money,
+        label: "Requisitions",
+        requires: [["retail.requisitions", "view"]],
+      },
+      // Insights
+      { href: "/retail/insights/sales", icon: ChartBar, label: "Sales", requires: [["retail.reports", "view"]] },
+      { href: "/retail/insights/profit", icon: ChartBar, label: "Profit", requires: [["retail.reports", "view"]] },
+      { href: "/retail/insights/products", icon: ChartBar, label: "Products", requires: [["retail.reports", "view"]] },
+      { href: "/retail/insights/stock", icon: ChartBar, label: "Stock health", requires: [["retail.reports", "view"]] },
+      { href: "/retail/insights/losses", icon: ChartBar, label: "Losses", requires: [["retail.reports", "view"]] },
+      { href: "/retail/insights/customers", icon: ChartBar, label: "Customers", requires: [["retail.reports", "view"]] },
+      { href: "/retail/insights/money", icon: ChartBar, label: "Money", requires: [["retail.money", "view"]] },
+      // Management (the gear at the foot of the rail)
+      {
+        href: "/retail/manage/tills",
+        icon: DeviceMobile,
+        label: "Tills and devices",
+        requires: [["retail.setup", "view"]],
+      },
+      { href: "/retail/manage/till-rules", icon: ListChecks, label: "Till rules", requires: [["retail.setup", "view"]] },
+      { href: "/retail/manage/fiscal", icon: Stamp, label: "Fiscal device", requires: [["retail.setup", "view"]] },
+      {
+        href: "/retail/manage/posting",
+        icon: Rows,
+        label: "Posting to the books",
+        requires: [["retail.setup", "view"]],
+      },
+      { href: "/retail/manage/bin", icon: Trash, label: "Bin", requires: [["retail.setup", "view"]] },
     ],
   },
   {

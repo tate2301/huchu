@@ -128,7 +128,7 @@ async function managersOf(companyId: string, excludeId: string) {
 }
 
 function viewPath(id: string) {
-  return `/retail/purchasing/requisitions/${id}`;
+  return `/retail/buying/requisitions/${id}`;
 }
 
 async function tellManagers(actor: RequisitionActor, requisition: CrmRequisition) {
