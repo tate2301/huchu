@@ -2,7 +2,8 @@ import { Prisma } from "@prisma/client";
 
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { shopClock } from "@/lib/retail/shop-profile-rules";
+import { loadShopProfile } from "@/lib/retail/shop-profile";
+import { SHOP_TIME_ZONE, shopClock, type ShopHours } from "@/lib/retail/shop-profile-rules";
 import { COVER_AIM, daysOfCover } from "@/lib/retail/stock/levels";
 import {
   missedSales,
@@ -28,7 +29,9 @@ import {
 export const INSIGHT_TOPICS = ["sales", "profit", "products", "stock", "losses", "customers", "money"] as const;
 export type InsightTopic = (typeof INSIGHT_TOPICS)[number];
 
-export const INSIGHT_PERIODS = [7, 30, 90] as const;
+/** The toolbar's periods, each compared with the same span before it. */
+export const INSIGHT_PERIODS = ["today", "7d", "30d", "month"] as const;
+export type InsightPeriod = (typeof INSIGHT_PERIODS)[number];
 
 export type Format = "money" | "count" | "percent" | "days" | "ratio";
 export type Tone = "good" | "bad" | "warn";
@@ -51,11 +54,14 @@ export type InsightTable = {
   label: string;
   columns: Array<{ id: string; label: string; align?: "end" }>;
   rows: Array<{ id: string; href?: string; cells: Record<string, Cell> }>;
+  /** The Σ row, where the table's columns add up. */
+  total?: { label: string; cells: Record<string, Cell> } | null;
   empty: string;
 };
 
 export type InsightChart =
-  | { kind: "heat"; rows: string[]; columns: string[]; values: number[][]; format: Format }
+  /** `null` is an hour the shop is shut that day. */
+  | { kind: "heat"; rows: string[]; columns: string[]; values: Array<Array<number | null>>; format: Format }
   | { kind: "bars"; rows: Array<{ id: string; label: string; value: number; note?: string; tone?: Tone }>; format: Format }
   | {
       kind: "columns";
@@ -66,9 +72,19 @@ export type InsightChart =
       format: Format;
     };
 
+export type InsightSite = { value: string; label: string; options: Array<{ value: string; label: string }> };
+
 export type Insight = {
   topic: InsightTopic;
-  days: number;
+  period: InsightPeriod;
+  /** "Compared with the 30 days before". */
+  compareWords: string;
+  /** The site chip, on the pages that answer for one site; null without one. */
+  site: InsightSite | null;
+  /** When the figures were worked out (ISO). */
+  updatedAt: string;
+  /** Replaces the chart when the window has no trade. */
+  emptyChart: string | null;
   kpis: Kpi[];
   question: string;
   unit: string;
@@ -80,11 +96,110 @@ export type Insight = {
 
 const DAY = 86_400_000;
 
-export function insightWindow(days: number, now = new Date()) {
+/**
+ * The span an insight reads, and the same span before it, with the words the
+ * page uses for both.
+ *
+ * Today runs from the shop's midnight; 7 and 30 days are that many 24 hours
+ * back from now; this month runs from the 1st. Before is the same length
+ * immediately before, except for a month, which is compared with last month's
+ * 1st up to the same day and time.
+ */
+export type InsightWindow = {
+  period: InsightPeriod;
+  from: Date;
+  to: Date;
+  before: Date;
+  beforeTo: Date;
+  /** The span in days (a fraction for today), for rates. */
+  days: number;
+  /** "last 30 days", "today", "this month". */
+  words: string;
+  /** "30 days", "today", "this month" — after "Profit, ". */
+  short: string;
+  /** "in 30 days", "today", "this month" — after a verb. */
+  within: string;
+  /** "on the 30 days before". */
+  beforeNote: string;
+  /** "Compared with the 30 days before". */
+  compareWords: string;
+};
+
+/** Midnight of `at`'s day and of its month's 1st, in the shop's zone. */
+function shopMidnights(at: Date, timeZone = SHOP_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const read = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  const [year, month, day] = [read("year"), read("month"), read("day")];
+  const wall = Date.UTC(year, month - 1, day, read("hour"), read("minute"), read("second"));
+  const offset = Math.round((wall - Math.floor(at.getTime() / 1000) * 1000) / 60_000) * 60_000;
+  return {
+    day: new Date(Date.UTC(year, month - 1, day) - offset),
+    month: new Date(Date.UTC(year, month - 1, 1) - offset),
+    lastMonth: new Date(Date.UTC(year, month - 2, 1) - offset),
+  };
+}
+
+export function insightWindow(period: InsightPeriod, now = new Date()): InsightWindow {
   const to = now;
+  const midnights = shopMidnights(now);
+  if (period === "today") {
+    const from = midnights.day;
+    const span = to.getTime() - from.getTime();
+    return {
+      period,
+      from,
+      to,
+      before: new Date(from.getTime() - DAY),
+      beforeTo: new Date(to.getTime() - DAY),
+      days: Math.max(span, 3_600_000) / DAY,
+      words: "today",
+      short: "today",
+      within: "today",
+      beforeNote: "on the day before",
+      compareWords: "Compared with the day before",
+    };
+  }
+  if (period === "month") {
+    const from = midnights.month;
+    const span = to.getTime() - from.getTime();
+    return {
+      period,
+      from,
+      to,
+      before: midnights.lastMonth,
+      beforeTo: new Date(midnights.lastMonth.getTime() + span),
+      days: Math.max(span, 3_600_000) / DAY,
+      words: "this month",
+      short: "this month",
+      within: "this month",
+      beforeNote: "on the month before",
+      compareWords: "Compared with the month before",
+    };
+  }
+  const days = period === "7d" ? 7 : 30;
   const from = new Date(to.getTime() - days * DAY);
-  const before = new Date(from.getTime() - days * DAY);
-  return { from, to, before };
+  return {
+    period,
+    from,
+    to,
+    before: new Date(from.getTime() - days * DAY),
+    beforeTo: from,
+    days,
+    words: `last ${days} days`,
+    short: `${days} days`,
+    within: `in ${days} days`,
+    beforeNote: `on the ${days} days before`,
+    compareWords: `Compared with the ${days} days before`,
+  };
 }
 
 /**
@@ -98,9 +213,9 @@ export function relativeChange(now: number, before: number): number | null {
 }
 
 /** A figure's change and the words that say what it is against, or neither. */
-function against(days: number, now: number, before: number, upIsGood = true): Pick<Kpi, "change" | "note"> {
+function against(window: InsightWindow, now: number, before: number, upIsGood = true): Pick<Kpi, "change" | "note"> {
   const result = change(now, before, upIsGood);
-  return result ? { change: result, note: `on the ${days} days before` } : { change: null };
+  return result ? { change: result, note: window.beforeNote } : { change: null };
 }
 
 function change(now: number, before: number, upIsGood = true): Kpi["change"] {
@@ -160,9 +275,9 @@ const saleSelect = {
 
 export type LoadedSale = Prisma.RetailSaleGetPayload<{ select: typeof saleSelect }>;
 
-async function loadSales(companyId: string, from: Date, to: Date) {
+async function loadSales(companyId: string, from: Date, to: Date, siteId: string | null = null) {
   return prisma.retailSale.findMany({
-    where: { companyId, status: "POSTED", postedAt: { gte: from, lt: to } },
+    where: { companyId, status: "POSTED", postedAt: { gte: from, lt: to }, ...(siteId ? { siteId } : {}) },
     select: saleSelect,
   });
 }
@@ -211,150 +326,261 @@ function categoryOf(line: LoadedSale["lines"][number]): Group {
 
 // ── Sales ───────────────────────────────────────────────────────────────────
 
-async function salesInsight(companyId: string, days: number): Promise<Insight> {
-  const { from, to, before } = insightWindow(days);
-  const [now, then] = await Promise.all([loadSales(companyId, from, to), loadSales(companyId, before, from)]);
+/** "08:00" as minutes after midnight. */
+function clockMinutes(hhmm: string) {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+/**
+ * The heat grid's hours and which of them the shop is open, from its trading
+ * hours: Monday to Saturday share one window, Sunday has its own. A window
+ * that runs past midnight opens the whole day.
+ */
+export function tradingHours(hours: ShopHours) {
+  const windows = {
+    weekday: { opens: clockMinutes(hours.weekdayOpensAt), closes: clockMinutes(hours.weekdayClosesAt) },
+    sunday: { opens: clockMinutes(hours.sundayOpensAt), closes: clockMinutes(hours.sundayClosesAt) },
+  };
+  const open = (window: { opens: number; closes: number }, hour: number) =>
+    window.closes <= window.opens ? true : hour * 60 + 60 > window.opens && hour * 60 < window.closes;
+  const all = Object.values(windows);
+  const wraps = all.some((window) => window.closes <= window.opens);
+  const first = wraps ? 0 : Math.floor(Math.min(...all.map((window) => window.opens)) / 60);
+  const last = wraps ? 23 : Math.ceil(Math.max(...all.map((window) => window.closes)) / 60) - 1;
+  return {
+    hours: Array.from({ length: last - first + 1 }, (_, index) => first + index),
+    isOpen: (weekday: string, hour: number) => open(weekday === "Sun" ? windows.sunday : windows.weekday, hour),
+  };
+}
+
+/** How many of each weekday the window touches, by the shop's calendar. */
+export function weekdaysIn(from: Date, to: Date) {
+  const dates = new Map<string, string>();
+  const day = new Intl.DateTimeFormat("en-GB", { timeZone: SHOP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+  for (let at = from.getTime(); at < to.getTime(); at += 3_600_000) {
+    const date = new Date(at);
+    dates.set(day.format(date), shopClock(date).weekday);
+  }
+  const counts = new Map<string, number>();
+  for (const weekday of dates.values()) counts.set(weekday, (counts.get(weekday) ?? 0) + 1);
+  return counts;
+}
+
+/**
+ * Takings by weekday and trading hour, averaged over the days of that weekday
+ * in the window ("average a day"). A shut hour is null.
+ */
+export function salesHeat(
+  sales: ReadonlyArray<Pick<LoadedSale, "postedAt" | "createdAt" | "totalAmount">>,
+  window: Pick<InsightWindow, "from" | "to" | "period">,
+  hours: ShopHours,
+): Extract<InsightChart, { kind: "heat" }> {
+  const trading = tradingHours(hours);
+  const counts = weekdaysIn(window.from, window.to);
+  const rows = window.period === "today" ? [shopClock(window.to).weekday] : WEEKDAYS;
+  const sums = new Map<string, number>();
+  for (const sale of sales) {
+    const clock = shopClock(when(sale));
+    const key = `${clock.weekday}:${Math.floor(clock.minutes / 60)}`;
+    sums.set(key, (sums.get(key) ?? 0) + n(sale.totalAmount));
+  }
+  return {
+    kind: "heat",
+    rows,
+    columns: trading.hours.map((hour) => String(hour).padStart(2, "0")),
+    values: rows.map((day) =>
+      trading.hours.map((hour) =>
+        trading.isOpen(day, hour) ? (sums.get(`${day}:${hour}`) ?? 0) / Math.max(counts.get(day) ?? 0, 1) : null,
+      ),
+    ),
+    format: "money",
+  };
+}
+
+type Tally = { takings: number; baskets: number };
+
+/**
+ * One table of the Sales page: a row per group, highest takings first, its
+ * share of the whole and its change on before, and a Σ row.
+ */
+export function salesTable(input: {
+  id: string;
+  label: string;
+  noun: [one: string, many: string];
+  column: string;
+  now: Map<string, Tally & { name: string }>;
+  then: Map<string, number>;
+  total: Tally;
+  totalBefore: number;
+}): InsightTable {
+  const rows = [...input.now.entries()].sort((left, right) => right[1].takings - left[1].takings);
+  const against = (now: number, before: number): Cell => {
+    const relative = relativeChange(now, before);
+    return relative === null ? "New" : { value: relative, format: "percent", tone: relative >= 0 ? "good" : "bad" };
+  };
+  return {
+    id: input.id,
+    label: input.label,
+    columns: [
+      { id: "name", label: input.column },
+      { id: "takings", label: "Takings", align: "end" },
+      { id: "share", label: "Share", align: "end" },
+      { id: "change", label: "Against before", align: "end" },
+      { id: "baskets", label: "Baskets", align: "end" },
+    ],
+    rows: rows.map(([id, entry]) => ({
+      id,
+      cells: {
+        name: entry.name,
+        takings: money(entry.takings),
+        share: { value: share(entry.takings, input.total.takings), format: "percent" },
+        change: against(entry.takings, input.then.get(id) ?? 0),
+        baskets: count(entry.baskets),
+      },
+    })),
+    total:
+      rows.length > 0
+        ? {
+            label: `Σ ${rows.length} ${rows.length === 1 ? input.noun[0] : input.noun[1]}`,
+            cells: {
+              takings: money(input.total.takings),
+              share: "100%",
+              change: relativeChange(input.total.takings, input.totalBefore) === null ? null : against(input.total.takings, input.totalBefore),
+              baskets: count(input.total.baskets),
+            },
+          }
+        : null,
+    empty: "No sales in these dates.",
+  };
+}
+
+async function salesInsight(companyId: string, window: InsightWindow, siteId: string | null): Promise<InsightBody> {
+  const { from, to, before, beforeTo } = window;
+  const [now, then, profile, site] = await Promise.all([
+    loadSales(companyId, from, to, siteId),
+    loadSales(companyId, before, beforeTo, siteId),
+    loadShopProfile(companyId),
+    siteChip(companyId, siteId),
+  ]);
   const current = salesTotals(now);
   const previous = salesTotals(then);
+  const chart = salesHeat(now, window, profile);
 
-  // Takings by weekday and hour, averaged over the weeks in the period.
-  const weeks = Math.max(days / 7, 1);
-  const grid = new Map<string, number>();
-  let firstHour = 23;
-  let lastHour = 0;
-  for (const sale of now) {
-    const clock = shopClock(when(sale));
-    const hour = Math.floor(clock.minutes / 60);
-    firstHour = Math.min(firstHour, hour);
-    lastHour = Math.max(lastHour, hour);
-    const key = `${clock.weekday}:${hour}`;
-    grid.set(key, (grid.get(key) ?? 0) + n(sale.totalAmount));
-  }
-  if (firstHour > lastHour) [firstHour, lastHour] = [8, 20];
-  const hours = Array.from({ length: lastHour - firstHour + 1 }, (_, index) => firstHour + index);
-  const values = WEEKDAYS.map((day) => hours.map((hour) => (grid.get(`${day}:${hour}`) ?? 0) / weeks));
-
-  // By category, till and cashier.
-  const byCategoryNow = new Map<string, { group: Group; takings: number; baskets: Set<string> }>();
-  const byCategoryThen = new Map<string, number>();
+  // By category: line takings, and the baskets with a line in it.
+  const categoriesNow = new Map<string, Tally & { name: string; sales: Set<string> }>();
+  const categoriesThen = new Map<string, number>();
   for (const sale of now) {
     for (const line of sale.lines) {
       const group = categoryOf(line);
-      const entry = byCategoryNow.get(group.id) ?? { group, takings: 0, baskets: new Set<string>() };
+      const entry = categoriesNow.get(group.id) ?? { name: group.label, takings: 0, baskets: 0, sales: new Set<string>() };
       entry.takings += n(line.lineTotal);
-      if (sale.saleType === "SALE") entry.baskets.add(sale.id);
-      byCategoryNow.set(group.id, entry);
+      if (sale.saleType === "SALE") entry.sales.add(sale.id);
+      entry.baskets = entry.sales.size;
+      categoriesNow.set(group.id, entry);
     }
   }
   for (const sale of then) {
     for (const line of sale.lines) {
       const group = categoryOf(line);
-      byCategoryThen.set(group.id, (byCategoryThen.get(group.id) ?? 0) + n(line.lineTotal));
+      categoriesThen.set(group.id, (categoriesThen.get(group.id) ?? 0) + n(line.lineTotal));
     }
   }
-  const lineTakings = [...byCategoryNow.values()].reduce((sum, entry) => sum + entry.takings, 0);
-  const categories = [...byCategoryNow.values()].sort((left, right) => right.takings - left.takings);
+  const lineTakings = (sales: readonly LoadedSale[]) =>
+    sales.reduce((sum, sale) => sum + sale.lines.reduce((lines, line) => lines + n(line.lineTotal), 0), 0);
 
-  const by = (key: (sale: LoadedSale) => string) => {
-    const totals = new Map<string, { takings: number; baskets: number }>();
-    for (const sale of now) {
+  const by = (sales: readonly LoadedSale[], key: (sale: LoadedSale) => string) => {
+    const totals = new Map<string, Tally & { name: string }>();
+    for (const sale of sales) {
       const name = key(sale);
-      const entry = totals.get(name) ?? { takings: 0, baskets: 0 };
+      const entry = totals.get(name) ?? { name, takings: 0, baskets: 0 };
       entry.takings += n(sale.totalAmount);
       if (sale.saleType === "SALE") entry.baskets += 1;
+      if (sale.saleType === "VOID") entry.baskets -= 1;
       totals.set(name, entry);
     }
-    return [...totals.entries()].sort((left, right) => right[1].takings - left[1].takings);
+    return totals;
   };
-
-  const groupTable = (id: string, label: string, rows: Array<[string, { takings: number; baskets: number }]>): InsightTable => ({
-    id,
-    label,
-    columns: [
-      { id: "name", label: label.replace("By ", "").replace(/^./, (c) => c.toUpperCase()) },
-      { id: "takings", label: "Takings", align: "end" },
-      { id: "share", label: "Share", align: "end" },
-      { id: "baskets", label: "Baskets", align: "end" },
-    ],
-    rows: rows.map(([name, entry]) => ({
-      id: name,
-      cells: {
-        name,
-        takings: money(entry.takings),
-        share: { value: share(entry.takings, current.takings), format: "percent" },
-        baskets: count(entry.baskets),
-      },
-    })),
-    empty: "No sales in this period.",
-  });
+  const takingsOf = (totals: Map<string, Tally>) => new Map([...totals].map(([id, entry]) => [id, entry.takings]));
+  const till = (sale: LoadedSale) => sale.shift?.registerName ?? "No till";
+  const cashier = (sale: LoadedSale) => sale.cashierName ?? "Unknown";
 
   // What it says.
   const findings: string[] = [];
-  const slots = WEEKDAYS.flatMap((day, row) => hours.map((hour, column) => ({ day, hour, value: values[row][column] })));
+  const slots = chart.rows.flatMap((day, row) =>
+    chart.columns.map((hour, column) => ({ day, hour, value: chart.values[row][column] ?? 0 })),
+  );
   const busiest = slots.reduce((best, slot) => (slot.value > best.value ? slot : best), slots[0]);
   if (busiest && busiest.value > 0) {
-    findings.push(
-      `${busiest.day} ${String(busiest.hour).padStart(2, "0")}:00 is the busiest hour, taking ${usd(busiest.value)} on an average week.`,
-    );
+    findings.push(`${busiest.day} ${busiest.hour}:00 is the busiest hour, taking ${usd(busiest.value)} on an average day.`);
   }
-  const quietMornings = slots.filter((slot) => slot.hour < 10 && slot.value > 0);
+  const quietMornings = slots.filter((slot) => Number(slot.hour) < 10 && slot.value > 0);
   if (quietMornings.length > 0) {
     const average = quietMornings.reduce((sum, slot) => sum + slot.value, 0) / quietMornings.length;
     findings.push(`Before 10:00 the shop takes ${usd(average)} an hour on average.`);
   }
-  const growing = categories
-    .map((entry) => ({ entry, change: relativeChange(entry.takings, byCategoryThen.get(entry.group.id) ?? 0) }))
+  const growing = [...categoriesNow.entries()]
+    .map(([id, entry]) => ({ entry, change: relativeChange(entry.takings, categoriesThen.get(id) ?? 0) }))
     .filter((row) => row.change !== null)
     .sort((left, right) => (right.change ?? 0) - (left.change ?? 0))[0];
   if (growing && (growing.change ?? 0) > 0) {
-    findings.push(`${growing.entry.group.label} grew ${(growing.change! * 100).toFixed(0)}% on the period before.`);
+    findings.push(`${growing.entry.name} grew ${(growing.change! * 100).toFixed(0)}% on the period before.`);
   }
+
+  const itemsNow = current.baskets ? current.items / current.baskets : 0;
+  const itemsBefore = previous.baskets ? previous.items / previous.baskets : 0;
+  const absolute = (value: number, format: Format): Kpi["change"] =>
+    previous.baskets ? { value, format, tone: value === 0 ? undefined : value > 0 ? "good" : "bad" } : null;
 
   return {
     topic: "sales",
-    days,
+    period: window.period,
+    site,
+    emptyChart: now.length === 0 ? "Nothing sold in these dates." : null,
     kpis: [
-      { label: "Takings", ...money(current.takings), ...against(days, current.takings, previous.takings) },
+      { label: "Takings", ...money(current.takings), ...against(window, current.takings, previous.takings) },
       { label: "Sales", ...count(current.baskets), change: change(current.baskets, previous.baskets), note: "baskets" },
-      { label: "Average basket", ...money(current.averageBasket), change: change(current.averageBasket, previous.averageBasket) },
       {
-        label: "Items a basket",
-        value: current.baskets ? current.items / current.baskets : 0,
-        format: "ratio",
-        change: change(current.baskets ? current.items / current.baskets : 0, previous.baskets ? previous.items / previous.baskets : 0),
+        label: "Average basket",
+        ...money(current.averageBasket),
+        change: absolute(current.averageBasket - previous.averageBasket, "money"),
       },
+      { label: "Items a basket", value: itemsNow, format: "ratio", change: absolute(itemsNow - itemsBefore, "ratio") },
     ],
     question: "When do we sell?",
-    unit: `Takings by day and hour, last ${days} days, on an average week`,
-    chart: { kind: "heat", rows: WEEKDAYS, columns: hours.map((hour) => String(hour).padStart(2, "0")), values, format: "money" },
+    unit: window.period === "today" ? "Takings by hour, today" : `Takings by day and hour, ${window.words}, average a day`,
+    chart,
     tables: [
-      {
+      salesTable({
         id: "category",
         label: "By category",
-        columns: [
-          { id: "name", label: "Category" },
-          { id: "takings", label: "Takings", align: "end" },
-          { id: "share", label: "Share", align: "end" },
-          { id: "change", label: "Against before", align: "end" },
-          { id: "baskets", label: "Baskets", align: "end" },
-        ],
-        rows: categories.map((entry) => {
-          const relative = relativeChange(entry.takings, byCategoryThen.get(entry.group.id) ?? 0);
-          return {
-            id: entry.group.id,
-            cells: {
-              name: entry.group.label,
-              takings: money(entry.takings),
-              share: { value: share(entry.takings, lineTakings), format: "percent" },
-              change: relative === null ? "New" : { value: relative, format: "percent", tone: relative >= 0 ? "good" : "bad" },
-              baskets: count(entry.baskets.size),
-            },
-          };
-        }),
-        empty: "No sales in this period.",
-      },
-      groupTable("till", "By till", by((sale) => sale.shift?.registerName ?? "No till")),
-      groupTable("cashier", "By cashier", by((sale) => sale.cashierName ?? "Unknown")),
+        noun: ["category", "categories"],
+        column: "Category",
+        now: categoriesNow,
+        then: categoriesThen,
+        total: { takings: lineTakings(now), baskets: current.baskets },
+        totalBefore: lineTakings(then),
+      }),
+      salesTable({
+        id: "till",
+        label: "By till",
+        noun: ["till", "tills"],
+        column: "Till",
+        now: by(now, till),
+        then: takingsOf(by(then, till)),
+        total: current,
+        totalBefore: previous.takings,
+      }),
+      salesTable({
+        id: "cashier",
+        label: "By cashier",
+        noun: ["cashier", "cashiers"],
+        column: "Cashier",
+        now: by(now, cashier),
+        then: takingsOf(by(then, cashier)),
+        total: current,
+        totalBefore: previous.takings,
+      }),
     ],
     findings,
     actions: [
@@ -362,6 +588,22 @@ async function salesInsight(companyId: string, days: number): Promise<Insight> {
       { label: "Plan a promotion for the quiet hours", href: "/retail/products/promotions" },
     ],
   };
+}
+
+/**
+ * The site chip: every open site, "All sites" first. A business with one
+ * site has no chip.
+ */
+async function siteChip(companyId: string, siteId: string | null): Promise<InsightSite | null> {
+  const sites = await prisma.site.findMany({
+    where: { companyId, isActive: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  if (sites.length < 2) return null;
+  const options = [{ value: "all", label: "All sites" }, ...sites.map((site) => ({ value: site.id, label: site.name }))];
+  const chosen = options.find((option) => option.value === (siteId ?? "all")) ?? options[0];
+  return { value: chosen.value, label: chosen.label, options };
 }
 
 // ── Profit ──────────────────────────────────────────────────────────────────
@@ -378,13 +620,13 @@ async function lossesFromCounts(companyId: string, from: Date, to: Date) {
   return adjustments.map((row) => ({ at: row.createdAt, value: n(row.quantity) * n(row.item.unitCost) }));
 }
 
-async function profitInsight(companyId: string, days: number): Promise<Insight> {
-  const { from, to, before } = insightWindow(days);
+async function profitInsight(companyId: string, window: InsightWindow): Promise<InsightBody> {
+  const { from, to, before, beforeTo } = window;
   const [now, then, counts, countsBefore] = await Promise.all([
     loadSales(companyId, from, to),
-    loadSales(companyId, before, from),
+    loadSales(companyId, before, beforeTo),
     lossesFromCounts(companyId, from, to),
-    lossesFromCounts(companyId, before, from),
+    lossesFromCounts(companyId, before, beforeTo),
   ]);
   const lines = now.flatMap((sale) => sale.lines);
   const current = profitOf(lines);
@@ -424,7 +666,7 @@ async function profitInsight(companyId: string, days: number): Promise<Insight> 
       { id: "sold", label: "Sold", align: "end" },
       { id: "revenue", label: "Sales, ex VAT", align: "end" },
       { id: "margin", label: "Margin", align: "end" },
-      { id: "profit", label: `Profit, ${days} days`, align: "end" },
+      { id: "profit", label: `Profit, ${window.short}`, align: "end" },
     ],
     rows: rows.slice(0, 10).map((entry) => ({
       id: entry.id,
@@ -457,9 +699,9 @@ async function profitInsight(companyId: string, days: number): Promise<Insight> 
 
   return {
     topic: "profit",
-    days,
+    period: window.period,
     kpis: [
-      { label: "Gross profit", ...money(current.profit), ...against(days, current.profit, previous.profit) },
+      { label: "Gross profit", ...money(current.profit), ...against(window, current.profit, previous.profit) },
       {
         label: "Margin",
         value: current.margin,
@@ -470,7 +712,7 @@ async function profitInsight(companyId: string, days: number): Promise<Insight> 
       { label: "Lost to stock counts", ...money(lost), change: change(lost, lostBefore, false) },
     ],
     question: "What do we actually make?",
-    unit: `Gross profit by category, last ${days} days, with its margin`,
+    unit: `Gross profit by category, ${window.words}, with its margin`,
     chart: {
       kind: "bars",
       format: "money",
@@ -574,8 +816,8 @@ function daysSince(date: Date | undefined, now: Date) {
   return date ? Math.floor((now.getTime() - date.getTime()) / DAY) : null;
 }
 
-async function productsInsight(companyId: string, days: number): Promise<Insight> {
-  const { from, to } = insightWindow(days);
+async function productsInsight(companyId: string, window: InsightWindow): Promise<InsightBody> {
+  const { from, to, days } = window;
   const [stock, last, sales] = await Promise.all([loadStock(companyId), lastSold(companyId), loadSales(companyId, from, to)]);
   const sold = soldQuantities(sales);
   const profitByProduct = new Map<string, number>();
@@ -630,9 +872,9 @@ async function productsInsight(companyId: string, days: number): Promise<Insight
 
   return {
     topic: "products",
-    days,
+    period: window.period,
     kpis: [
-      { label: "Products selling", ...count(sold.size), note: `of ${stock.length}, sold in ${days} days` },
+      { label: "Products selling", ...count(sold.size), note: `of ${stock.length}, sold ${window.within}` },
       { label: "Not sold in 60 days", ...count(idle.length), note: `${usd(idleValue)} on the shelf` },
       { label: "Top 20 products", value: top20, format: "percent", note: "of profit" },
       { label: "Out of stock", ...count(outNow), note: "now" },
@@ -779,8 +1021,8 @@ async function loadStockouts(companyId: string, out: readonly StockRow[], from: 
   return stockouts;
 }
 
-async function stockInsight(companyId: string, days: number): Promise<Insight> {
-  const { from, to } = insightWindow(days);
+async function stockInsight(companyId: string, window: InsightWindow): Promise<InsightBody> {
+  const { from, to, days } = window;
   const [stock, sales] = await Promise.all([loadStock(companyId), loadSales(companyId, from, to)]);
   const sold = soldQuantities(sales);
   const stockValue = stock.reduce((sum, row) => sum + row.value, 0);
@@ -832,17 +1074,17 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
     const worst = out[0];
     findings.push(
       out.filter((entry) => entry.stockout.missed > 0).length === 1
-        ? `About ${usd(missed)} of sales were missed in ${days} days with ${worst.row.name} out of stock.`
-        : `About ${usd(missed)} of sales were missed in ${days} days with shelves empty, ${usd(worst.stockout.missed)} of it on ${worst.row.name}.`,
+        ? `About ${usd(missed)} of sales were missed ${window.within} with ${worst.row.name} out of stock.`
+        : `About ${usd(missed)} of sales were missed ${window.within} with shelves empty, ${usd(worst.stockout.missed)} of it on ${worst.row.name}.`,
     );
   }
 
   return {
     topic: "stock",
-    days,
+    period: window.period,
     kpis: [
       { label: "Stock at cost", ...money(stockValue) },
-      { label: "Days of cover", value: cover ?? 0, format: "days", note: `at the last ${days} days' sales` },
+      { label: "Days of cover", value: cover ?? 0, format: "days", note: `at the rate sold ${window.words}` },
       { label: "Running low", ...count(low.length), note: "at or below reorder level" },
       {
         label: "Sales missed",
@@ -851,7 +1093,7 @@ async function stockInsight(companyId: string, days: number): Promise<Insight> {
       },
     ],
     question: "Are we stocked right?",
-    unit: `Days of cover by category at the last ${days} days' sales, against the ${COVER_AIM} days you aim for`,
+    unit: `Days of cover by category at the rate sold ${window.words}, against the ${COVER_AIM} days you aim for`,
     chart: {
       kind: "bars",
       format: "days",
@@ -939,21 +1181,21 @@ function weekLabel(date: Date) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Harare" }).format(date);
 }
 
-async function lossesInsight(companyId: string, days: number): Promise<Insight> {
-  const { from, to, before } = insightWindow(days);
+async function lossesInsight(companyId: string, window: InsightWindow): Promise<InsightBody> {
+  const { from, to, before, beforeTo } = window;
   const [counts, countsBefore, shifts, shiftsBefore, sales, salesBefore] = await Promise.all([
     lossesFromCounts(companyId, from, to),
-    lossesFromCounts(companyId, before, from),
+    lossesFromCounts(companyId, before, beforeTo),
     prisma.retailShift.findMany({
       where: { companyId, status: "CLOSED", closedAt: { gte: from, lt: to } },
       select: { variance: true, closedAt: true, cashierName: true, registerName: true },
     }),
     prisma.retailShift.findMany({
-      where: { companyId, status: "CLOSED", closedAt: { gte: before, lt: from } },
+      where: { companyId, status: "CLOSED", closedAt: { gte: before, lt: beforeTo } },
       select: { variance: true },
     }),
     loadSales(companyId, from, to),
-    loadSales(companyId, before, from),
+    loadSales(companyId, before, beforeTo),
   ]);
 
   const countLoss = -counts.reduce((sum, row) => sum + Math.min(row.value, 0), 0);
@@ -1009,9 +1251,9 @@ async function lossesInsight(companyId: string, days: number): Promise<Insight> 
 
   return {
     topic: "losses",
-    days,
+    period: window.period,
     kpis: [
-      { label: `Lost in ${days} days`, ...money(total), ...against(days, total, totalBefore, false) },
+      { label: `Lost ${window.within}`, ...money(total), ...against(window, total, totalBefore, false) },
       { label: "Of takings", value: share(total, takings), format: "percent" },
       { label: "Drawer differences", ...money(drawer), note: `${shortShifts} ${shortShifts === 1 ? "shift" : "shifts"} short` },
       { label: "Refunds and voids", ...money(reversed), note: `${reversals.length} of them` },
@@ -1066,10 +1308,10 @@ function isMember(name: string | null) {
   return Boolean(name && name.trim() && name.trim().toLowerCase() !== "walk-in");
 }
 
-async function customersInsight(companyId: string, days: number): Promise<Insight> {
-  const { from, to, before } = insightWindow(days);
+async function customersInsight(companyId: string, window: InsightWindow): Promise<InsightBody> {
+  const { from, to, before, beforeTo } = window;
   const yearAgo = new Date(to.getTime() - 365 * DAY);
-  const [year, then] = await Promise.all([loadSales(companyId, yearAgo, to), loadSales(companyId, before, from)]);
+  const [year, then] = await Promise.all([loadSales(companyId, yearAgo, to), loadSales(companyId, before, beforeTo)]);
   const now = year.filter((sale) => when(sale) >= from);
   const totals = (sales: readonly LoadedSale[]) => {
     let members = 0;
@@ -1147,7 +1389,7 @@ async function customersInsight(companyId: string, days: number): Promise<Insigh
 
   return {
     topic: "customers",
-    days,
+    period: window.period,
     kpis: [
       {
         label: "Takings from members",
@@ -1155,7 +1397,7 @@ async function customersInsight(companyId: string, days: number): Promise<Insigh
         format: "percent",
         change: memberShareBefore || memberShare ? { value: memberShare - memberShareBefore, format: "percent", tone: memberShare >= memberShareBefore ? "good" : "bad" } : null,
       },
-      { label: "Members who came back", ...count(cameBack), note: `in ${days} days` },
+      { label: "Members who came back", ...count(cameBack), note: window.within },
       { label: "Member basket", ...money(memberBasket), note: walkInBasket ? `${(memberBasket / walkInBasket).toFixed(1)}× a walk-in's` : undefined },
       { label: "Not seen in 30 days", ...count(lapsed.length), note: "members" },
     ],
@@ -1177,7 +1419,7 @@ async function customersInsight(companyId: string, days: number): Promise<Insigh
         "best",
         "Best customers",
         [...customers.entries()].filter(([, entry]) => entry.spendNow > 0).sort((left, right) => right[1].spendNow - left[1].spendNow),
-        `Spend, ${days} days`,
+        `Spend, ${window.short}`,
       ),
     ],
     findings,
@@ -1187,8 +1429,8 @@ async function customersInsight(companyId: string, days: number): Promise<Insigh
 
 // ── Money ───────────────────────────────────────────────────────────────────
 
-async function moneyInsight(companyId: string, days: number): Promise<Insight> {
-  const { from, to } = insightWindow(days);
+async function moneyInsight(companyId: string, window: InsightWindow): Promise<InsightBody> {
+  const { from, to } = window;
   const [openShifts, sales, receipts, requisitions, orders, deposits] = await Promise.all([
     prisma.retailShift.findMany({ where: { companyId, status: "OPEN" }, select: { expectedCash: true } }),
     loadSales(companyId, from, to),
@@ -1251,8 +1493,8 @@ async function moneyInsight(companyId: string, days: number): Promise<Insight> {
   const findings: string[] = [];
   findings.push(
     inTotal >= outTotal
-      ? `${usd(inTotal - outTotal)} more came in than went to suppliers and expenses in ${days} days.`
-      : `${usd(outTotal - inTotal)} more went to suppliers and expenses than came in over ${days} days.`,
+      ? `${usd(inTotal - outTotal)} more came in than went to suppliers and expenses ${window.within}.`
+      : `${usd(outTotal - inTotal)} more went to suppliers and expenses than came in ${window.within}.`,
   );
   const heaviest = weeks.reduce<(typeof weeks)[number] | null>(
     (top, week) => (week.values.out > week.values.in && (!top || week.values.out - week.values.in > top.values.out - top.values.in) ? week : top),
@@ -1263,7 +1505,7 @@ async function moneyInsight(companyId: string, days: number): Promise<Insight> {
 
   return {
     topic: "money",
-    days,
+    period: window.period,
     kpis: [
       { label: "Cash in open tills", ...money(inTills) },
       { label: "On order from suppliers", ...money(onOrderValue), note: `${orders.length} ${orders.length === 1 ? "order" : "orders"}` },
@@ -1327,7 +1569,13 @@ async function moneyInsight(companyId: string, days: number): Promise<Insight> {
   };
 }
 
-const BUILDERS: Record<InsightTopic, (companyId: string, days: number) => Promise<Insight>> = {
+/** What a topic works out; the window's words and the time are added once, in `loadInsight`. */
+type InsightBody = Omit<Insight, "compareWords" | "updatedAt" | "site" | "emptyChart"> & {
+  site?: InsightSite | null;
+  emptyChart?: string | null;
+};
+
+const BUILDERS: Record<InsightTopic, (companyId: string, window: InsightWindow, siteId: string | null) => Promise<InsightBody>> = {
   sales: salesInsight,
   profit: profitInsight,
   products: productsInsight,
@@ -1337,6 +1585,24 @@ const BUILDERS: Record<InsightTopic, (companyId: string, days: number) => Promis
   money: moneyInsight,
 };
 
-export function loadInsight(companyId: string, topic: InsightTopic, days: number) {
-  return BUILDERS[topic](companyId, days);
+/**
+ * One insight for a period. Only Sales answers for one site so far; the
+ * other topics read every site and draw no site chip.
+ */
+export async function loadInsight(
+  companyId: string,
+  topic: InsightTopic,
+  period: InsightPeriod,
+  siteId: string | null = null,
+  now = new Date(),
+): Promise<Insight> {
+  const window = insightWindow(period, now);
+  const body = await BUILDERS[topic](companyId, window, siteId);
+  return {
+    ...body,
+    site: body.site ?? null,
+    emptyChart: body.emptyChart ?? null,
+    compareWords: window.compareWords,
+    updatedAt: now.toISOString(),
+  };
 }
