@@ -10,6 +10,7 @@ export { BIN_KEEP_DAYS, binAsk, restorableUntil } from "./frame";
 export { cancelRequisitionAsk, closeShortAsk, removeOrderAsk } from "./buying";
 export { categoryDeleteAsk, categoryMergeAsk } from "./categories";
 export { archiveAsk, archiveManyAsk } from "./products";
+export { closeSiteAsk } from "./sites";
 export { reverseMovementsAsk } from "./stock";
 export type { ListActionRun } from "./runs";
 

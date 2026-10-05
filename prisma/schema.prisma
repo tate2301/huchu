@@ -1084,6 +1084,16 @@ model Site {
   // Configurable per site
   measurementUnit String @default("tonnes") // tonnes, trips, wheelbarrows
 
+  /// Retail (SET-02): the site's phone. `location` is its address.
+  phone        String?
+  /// Retail: opening hours as written ("Mon to Sat 08:00 to 21:00, Sun 10:00 to 17:00").
+  openingHours String?
+  /// Retail: the price list this site's tills sell from unless a till says otherwise.
+  priceListId  String?
+  /// Set when the site is closed; `isActive` goes false with it. History stays.
+  closedAt     DateTime?
+  closedById   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1115,6 +1125,8 @@ model Site {
   goldPeriodCloses      GoldPeriodClose[]
   retailRegisters       RetailRegister[]
   retailDefaultFor      RetailShopProfile[]    @relation("RetailDefaultSite")
+  priceList             PriceList?             @relation("SitePriceList", fields: [priceListId], references: [id], onDelete: SetNull)
+  closedBy              User?                  @relation("SiteClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
   retailPurchaseOrders  RetailPurchaseOrder[]
   crmRequisitions       CrmRequisition[]
   retailGoodsReceipts   RetailGoodsReceipt[]
@@ -1377,6 +1389,7 @@ model User {
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
   sessionHandoffs                   SessionHandoff[]
   reportTemplates                   ReportTemplate[]
+  sitesClosed                       Site[]                         @relation("SiteClosedBy")
 
   @@index([companyId])
   @@index([email])
@@ -4154,6 +4167,9 @@ model StockLocation {
   siteId    String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  /// "Places inside it", in the owner's order. The first active place is where removed places' stock goes.
+  sortOrder Int      @default(0)
 
   site              Site            @relation(fields: [siteId], references: [id])
   items             InventoryItem[]
@@ -13269,6 +13285,7 @@ model PriceList {
 
   company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   entries ProductPrice[]
+  sites   Site[]         @relation("SitePriceList")
 
   @@unique([companyId, name])
   @@index([companyId, isActive, kind])

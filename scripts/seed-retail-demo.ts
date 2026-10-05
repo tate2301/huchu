@@ -48,6 +48,7 @@ import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/mone
 import { prisma } from "@/lib/prisma"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
+import { activeRetailPriceList } from "@/lib/retail/shelf-pricing"
 import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 import { tradingDayKey } from "@/lib/retail/z-report"
 import {
@@ -377,14 +378,21 @@ async function main() {
 
   // ── Site, register, stock, catalogue ─────────────────────────────────────
   // Two branches: Harare Main Branch, where both tills are, and Borrowdale.
-  async function branch(code: string, name: string, location: string) {
-    const found = await prisma.site.findFirst({ where: { companyId, code }, select: { id: true } })
+  // SET-02: their short codes are HRE and BDL; a tenant seeded before carries
+  // MAIN and BORROWDALE, which are renamed in place.
+  async function branch(code: string, earlier: string, name: string, location: string) {
+    const found =
+      (await prisma.site.findFirst({ where: { companyId, code }, select: { id: true } })) ??
+      (await prisma.site.findFirst({ where: { companyId, code: earlier }, select: { id: true } }))
     return found
-      ? prisma.site.update({ where: { id: found.id }, data: { name } })
+      ? prisma.site.update({
+          where: { id: found.id },
+          data: { code, name, location, isActive: true, closedAt: null, closedById: null },
+        })
       : prisma.site.create({ data: { companyId, code, name, location } })
   }
-  const site = await branch("MAIN", "Harare Main Branch", "Harare CBD")
-  const borrowdale = await branch("BORROWDALE", "Borrowdale", "Borrowdale, Harare")
+  const site = await branch("HRE", "MAIN", "Harare Main Branch", "14 Samora Machel Avenue, Harare")
+  const borrowdale = await branch("BDL", "BORROWDALE", "Borrowdale", "Borrowdale Village, Harare")
 
   const location =
     (await prisma.stockLocation.findFirst({ where: { siteId: site.id, code: "SHOP" } })) ??
@@ -1158,6 +1166,7 @@ async function main() {
     })
   }
 
+  await seedSites({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
@@ -1168,6 +1177,73 @@ async function main() {
       `\n\nSign in as any of:\n${STAFF.map((s) => `  ${s.role.padEnd(12)} ${s.email}`).join("\n")}` +
       `\n  password: ${STAFF_PASSWORD}`,
   )
+}
+
+/**
+ * SET-02. Setup › Sites as the SitesList board draws it: Harare Main Branch
+ * (HRE, the default) with its phone, hours and three places — Shop floor,
+ * Back store, Cold room — and Borrowdale (BDL) with its shop floor, both
+ * selling from the shop's price list. Stock values are whatever the stock seed
+ * put on their shelves. `--reset` takes away sites added since (an acceptance
+ * run's Avondale): deleted when nothing else refers to them, else closed.
+ */
+async function seedSites(input: { companyId: string; mainSiteId: string; borrowdaleId: string; reset: boolean }) {
+  const { companyId, mainSiteId, borrowdaleId } = input
+  const priceList = await activeRetailPriceList(companyId)
+  await prisma.site.update({
+    where: { id: mainSiteId },
+    data: {
+      phone: "+263 24 270 5521",
+      openingHours: "Mon to Sat 08:00 to 22:00, Sun 10:00 to 18:00",
+      priceListId: priceList?.id ?? null,
+    },
+  })
+  await prisma.site.update({ where: { id: borrowdaleId }, data: { priceListId: priceList?.id ?? null } })
+
+  const places: Array<[siteId: string, code: string, name: string]> = [
+    [mainSiteId, "SHOP", "Shop floor"],
+    [mainSiteId, "BACK", "Back store"],
+    [mainSiteId, "COLD", "Cold room"],
+    [borrowdaleId, "SHOP", "Shop floor"],
+  ]
+  for (const [siteId, code, name] of places) {
+    const sortOrder = places.filter((place) => place[0] === siteId).findIndex((place) => place[1] === code)
+    await prisma.stockLocation.upsert({
+      where: { siteId_code: { siteId, code } },
+      update: { name, sortOrder, isActive: true },
+      create: { siteId, code, name, sortOrder },
+    })
+  }
+  // Any other place at the two sites is not on the board.
+  for (const siteId of [mainSiteId, borrowdaleId]) {
+    const keep = places.filter((place) => place[0] === siteId).map((place) => place[1])
+    const shopFloor = await prisma.stockLocation.findUniqueOrThrow({ where: { siteId_code: { siteId, code: "SHOP" } } })
+    const extra = await prisma.stockLocation.findMany({ where: { siteId, code: { notIn: keep } }, select: { id: true } })
+    if (extra.length === 0) continue
+    await prisma.inventoryItem.updateMany({
+      where: { locationId: { in: extra.map((place) => place.id) } },
+      data: { locationId: shopFloor.id },
+    })
+    await prisma.stockLocation.updateMany({ where: { id: { in: extra.map((place) => place.id) } }, data: { isActive: false } })
+  }
+
+  if (!input.reset) return
+  const others = await prisma.site.findMany({
+    where: { companyId, id: { notIn: [mainSiteId, borrowdaleId] } },
+    select: { id: true, name: true },
+  })
+  for (const other of others) {
+    try {
+      await prisma.$transaction([
+        prisma.stockLocation.deleteMany({ where: { siteId: other.id } }),
+        prisma.site.delete({ where: { id: other.id } }),
+      ])
+      console.log(`  removed the site ${other.name}`)
+    } catch {
+      await prisma.site.update({ where: { id: other.id }, data: { isActive: false, closedAt: new Date() } })
+      console.log(`  closed the site ${other.name} (it has history)`)
+    }
+  }
 }
 
 /**

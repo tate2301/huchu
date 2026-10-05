@@ -7,7 +7,8 @@ import type { RetailNavModule } from "./types";
  * "Owner direction, 5 October"). Not Management: the gear at the foot of the
  * rail opens the Management surface (`/management/master-data`), and what it
  * already has (company details, branding, users, sites, billing, activity) is
- * not rebuilt here.
+ * not rebuilt here — except Sites: shops are managed here, on the same
+ * `Site` model, because Management's sites page is a mining register.
  *
  * Each item reads its own resource's `view` from the Roles matrix (ADM-01).
  * Routes stay under `/retail/manage/*`; the unit that builds a page adds its
@@ -25,6 +26,8 @@ export const setupNav: RetailNavModule = {
   icon: Wrench,
   items: [
     { href: "/retail/manage/company", icon: Storefront, label: "Shop", requires: [["retail.company", "view"]] },
+    // SET-02 (98-decisions, owner direction 8): shops, the places inside them and the default site.
+    { href: "/retail/manage/sites", icon: Storefront, label: "Sites", requires: [["retail.sites", "view"]] },
     { href: "/retail/manage/tills", icon: DeviceMobile, label: "Tills and devices", requires: [["retail.tills", "view"]] },
     {
       href: "/retail/manage/till-rules",

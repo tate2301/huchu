@@ -36,7 +36,23 @@ export function initialValues(kind: SheetKind, ctx: SheetCtx): SheetValues {
       else values[field.id] = field.v === undefined ? emptyValue(field) : resolve(field.v, ctx);
     }
   }
-  return values;
+  return withDerived(kind, values);
+}
+
+/**
+ * The values with every `derive` field worked out again, except those the
+ * person has typed in: a suggested short code follows the name until changed.
+ */
+export function withDerived(kind: SheetKind, values: SheetValues, touched: ReadonlySet<string> = new Set()): SheetValues {
+  let next = values;
+  for (const section of kind.sections) {
+    for (const field of section.fields) {
+      if (!field.derive || touched.has(field.id)) continue;
+      const derived = field.derive(next);
+      if (derived !== next[field.id]) next = { ...next, [field.id]: derived };
+    }
+  }
+  return next;
 }
 
 /** A title or sub: fixed, or worked out from the context and what was loaded. */

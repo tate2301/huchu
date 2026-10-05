@@ -26,6 +26,7 @@ import {
   shownFields,
   shownSections,
   submitFailure,
+  withDerived,
 } from "./model";
 import { SheetField } from "./sheet-field";
 
@@ -76,15 +77,17 @@ function focusField(fieldId: string) {
 export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const readOnly = kind.readOnly?.(ctx) ?? false;
 
   const [initial, setInitial] = React.useState<SheetValues>(() => initialValues(kind, ctx));
   const [values, setValues] = React.useState<SheetValues>(initial);
+  const readOnly = kind.readOnly?.(ctx, values) ?? false;
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [footerError, setFooterError] = React.useState<string | null>(null);
   const [savedLine, setSavedLine] = React.useState<string | null>(null);
   const [unfolded, setUnfolded] = React.useState<Record<number, boolean>>({});
   const [saving, setSaving] = React.useState(false);
+  // Fields the person has typed in: a derived field stops following once touched.
+  const touched = React.useRef(new Set<string>());
   const [asking, setAsking] = React.useState<null | "discard" | "danger" | "confirm">(null);
   const listsOpen = React.useRef(0);
   const bodyRef = React.useRef<HTMLDivElement>(null);
@@ -96,15 +99,15 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     let live = true;
     void load(ctx).then((loaded) => {
       if (!live) return;
-      setInitial((current) => ({ ...current, ...loaded }));
-      setValues((current) => ({ ...current, ...loaded }));
+      setInitial((current) => withDerived(kind, { ...current, ...loaded }, touched.current));
+      setValues((current) => withDerived(kind, { ...current, ...loaded }, touched.current));
     }, (error: unknown) => {
       if (live) setFooterError(error instanceof Error ? error.message : "That could not be read. Close it and try again.");
     });
     return () => {
       live = false;
     };
-  }, [load, ctx]);
+  }, [kind, load, ctx]);
 
   const dirty = !readOnly && isDirty(initial, values);
   const title = sheetText(kind.title, ctx, values);
@@ -117,7 +120,8 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   };
 
   const setValue = (fieldId: string, value: unknown) => {
-    setValues((current) => ({ ...current, [fieldId]: value }));
+    touched.current.add(fieldId);
+    setValues((current) => withDerived(kind, { ...current, [fieldId]: value }, touched.current));
     setSavedLine(null);
     setFooterError(null);
     setErrors((current) => {
@@ -150,13 +154,15 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     toast({
       title: sentence,
       variant: "success",
-      ...(href ? { action: { label: "Open", onClick: () => router.push(href) } } : {}),
+      ...(href ? { action: { label: kind.openLabel ?? "Open", onClick: () => router.push(href) } } : {}),
     });
-    onClose();
+    const next = kind.next?.(result, values) ?? null;
+    if (next) router.replace(next);
+    else onClose();
   };
 
   const submit = async (again: boolean) => {
-    if (saving || readOnly) return;
+    if (saving || readOnly || kind.primaryDisabled?.(values)) return;
     setFooterError(null);
     setSavedLine(null);
     const problems = checkValues(kind, values, ctx);
@@ -231,6 +237,8 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const danger = !readOnly && kind.danger && (kind.danger.show?.(ctx, values) ?? true) ? kind.danger : null;
   const note = typeof kind.note === "function" ? kind.note(values) : kind.note;
   const guide = typeof kind.guide === "function" ? kind.guide(values) : kind.guide;
+  const primaryDisabled = kind.primaryDisabled?.(values) ?? false;
+  const noteLink = readOnly ? null : (kind.noteLink?.(values) ?? null);
   const steps = kind.steps ?? [];
   const at = kind.at ?? 0;
 
@@ -379,7 +387,17 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   <span className="sf-ellipsis">{savedLine}</span>
                 </span>
               ) : (
-                <span className="sf-foot__note">{readOnly ? "" : note}</span>
+                <span className="sf-foot__note">
+                  {readOnly ? "" : note}
+                  {noteLink ? (
+                    <>
+                      {" "}
+                      <a className="sf-foot__link" href={noteLink.href}>
+                        {noteLink.label}
+                      </a>
+                    </>
+                  ) : null}
+                </span>
               )}
               <Button size="field" onClick={() => (again ? void submit(true) : requestClose())} disabled={saving}>
                 {secondary}
@@ -389,6 +407,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   size="field"
                   variant={kind.primaryTone === "danger" ? "danger" : "primary"}
                   busy={saving}
+                  disabled={primaryDisabled}
                   onClick={() => void submit(false)}
                 >
                   {kind.primary}

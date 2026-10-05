@@ -58,10 +58,17 @@ export type FieldSpec = {
   opt?: boolean;
   mono?: boolean;
   right?: boolean;
+  /** `text`: upper case as typed (a short code). */
+  upper?: boolean;
   tone?: "ok" | "warn";
-  warn?: boolean;
-  /** `seg` labels, `text` choices (a select drawn as text), or `cards` as [label, description?, badge?]. */
-  o?: string[] | Array<[label: string, sub?: string, badge?: string]>;
+  /** The hint in `--warn`, always or while this holds (the default site switched off). */
+  warn?: boolean | ((values: SheetValues) => boolean);
+  /**
+   * `seg` labels, `text` choices (a select drawn as text), or `cards` as
+   * [label, description?, badge?]; or worked out from what was loaded ("Move
+   * some from Harare Main Branch").
+   */
+  o?: string[] | Array<[label: string, sub?: string, badge?: string]> | ((values: SheetValues) => string[]);
   cols?: number;
   rows?: number;
   /** `auto` and `lines`: the lookup noun (`GET /api/v2/retail/lookup/<noun>`). */
@@ -80,6 +87,13 @@ export type FieldSpec = {
    * choose (a cashier opening their own shift sees themselves).
    */
   fixed?: (ctx: SheetCtx) => { value: unknown; shown: string } | null;
+  /** `tags`: the last tag cannot be removed (a site keeps at least one place). */
+  keepOne?: boolean;
+  /**
+   * Follows the other values until the person types in it (a short code
+   * suggested from the name). Worked out from every value, `_` facts included.
+   */
+  derive?: (values: SheetValues) => string;
   /** Checked on a non-empty value before sending: the endpoint's own rule. */
   schema?: ZodType;
   /** Drawn but not changeable while this holds (hours while licence hours are off). */
@@ -119,9 +133,21 @@ export type SheetKind = {
   cur: SheetCurrency;
   note: string | ((values: SheetValues) => string);
   done: string | ((result: unknown, values: SheetValues) => string);
-  /** Where the toast's "Open" goes for a created record. */
+  /** Where the toast's action goes for a created record. */
   open?: (result: unknown) => string | null;
+  /** The toast action's words. Default "Open". */
+  openLabel?: string;
+  /**
+   * Where to go once saved instead of back to the page underneath: the next
+   * sheet of the job ("Move some from …" opens the transfer). Replaces this
+   * sheet's address, so Back does not reopen it.
+   */
+  next?: (result: unknown, values: SheetValues) => string | null;
   primary: string;
+  /** The primary is drawn but cannot send while this holds (no room on the plan); the note says why. */
+  primaryDisabled?: (values: SheetValues) => boolean;
+  /** A link after the note ("Plan and billing"), while this gives one. */
+  noteLink?: (values: SheetValues) => { label: string; href: string } | null;
   /** "danger": the primary is the danger outline — a sheet whose one job is a delete, asked before it sends. */
   primaryTone?: "danger";
   /** "Cancel" unless the kind says otherwise ("Add, then another" keeps the sheet open). */
@@ -137,7 +163,7 @@ export type SheetKind = {
   /** Asked before the primary sends (Merge). */
   confirm?: (values: SheetValues, ctx: SheetCtx) => Ask;
   /** Opened to read only: every field drawn as it stands, and only "Close" (a bookkeeper on a category). */
-  readOnly?: (ctx: SheetCtx) => boolean;
+  readOnly?: (ctx: SheetCtx, values: SheetValues) => boolean;
   /** Edit kinds: the current values. */
   load?: (ctx: SheetCtx) => Promise<SheetValues>;
   submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest;

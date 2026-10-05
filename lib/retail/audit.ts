@@ -125,6 +125,17 @@ export const RETAIL_AUDIT_EVENTS = {
   categoryChanged: "RETAIL_CATEGORY.CHANGED",
   /** A category deleted: its products moved first. Carries how many and where to. */
   categoryDeleted: "RETAIL_CATEGORY.DELETED",
+  /** A site added (W-03). Carries its name, code, places and price list. */
+  siteCreated: "RETAIL_SITE.CREATED",
+  /**
+   * A site changed (W-66): each field before and after, made the default,
+   * the places added and removed, and how many stock lines moved with them.
+   */
+  siteChanged: "RETAIL_SITE.CHANGED",
+  /** A site closed. Carries its name and how many tills stopped. */
+  siteClosed: "RETAIL_SITE.CLOSED",
+  /** A price list added by copying another (the Price list field's quick add). Carries its name, what it copied and how many products. */
+  priceListCreated: "RETAIL_PRICE_LIST.CREATED",
 } as const;
 
 export type RetailAuditEvent =

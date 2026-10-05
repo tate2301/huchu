@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { FLOOR_SHEETS } from "@/lib/retail/sheet-kinds/floor";
 import { PRODUCT_SHEETS } from "@/lib/retail/sheet-kinds/products";
+import { SETUP_SHEETS } from "@/lib/retail/sheet-kinds/setup";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import type { SheetCtx, SheetKind } from "@/lib/workspace/sheet-kind";
 
@@ -16,6 +17,7 @@ import {
   sheetText,
   shownSections,
   submitFailure,
+  withDerived,
 } from "./model";
 
 const ctxFor = (role: string, name = "Tafara Nyathi"): SheetCtx => ({
@@ -191,5 +193,79 @@ describe("the category sheets (PRD-02)", () => {
     );
     expect(typeof remove.guide === "function" ? remove.guide(binnedOnly) : remove.guide).toBe("");
     expect(remove.primaryTone).toBe("danger");
+  });
+});
+
+describe("the Sites sheets (SET-02)", () => {
+  const siteNew = SETUP_SHEETS["site-new"]!;
+  const site = SETUP_SHEETS.site!;
+  const owner = ctxFor("SUPERADMIN", "Tendai Mhlanga");
+
+  it("suggests a short code from the name until the person types one", () => {
+    const start = initialValues(siteNew, owner);
+    expect(start.places).toEqual(["Shop floor"]);
+    expect(start.stock).toBe("Start empty");
+    const named = withDerived(siteNew, { ...start, name: "Avondale", _takenCodes: ["HRE", "BDL"] });
+    expect(named.code).toBe("AVO");
+    expect(withDerived(siteNew, { ...named, code: "AVD", name: "Avondale East" }, new Set(["code"])).code).toBe("AVD");
+  });
+
+  it("says the plan's room in the note and holds the primary when there is none", () => {
+    const note = (plan: unknown) => (typeof siteNew.note === "function" ? siteNew.note({ _plan: plan }) : siteNew.note);
+    expect(note({ name: "Grow", maxSites: 3, openSites: 2 })).toBe("Then pair its tills. Your Grow plan has room for one more site.");
+    expect(note({ name: "Grow", maxSites: 3, openSites: 3 })).toBe("Your Grow plan has no room for another site.");
+    expect(siteNew.primaryDisabled?.({ _plan: { name: "Grow", maxSites: 3, openSites: 3 } })).toBe(true);
+    expect(siteNew.noteLink?.({ _plan: { name: "Grow", maxSites: 3, openSites: 3 } })?.label).toBe("Plan and billing");
+    expect(siteNew.primaryDisabled?.({ _plan: null })).toBe(false);
+  });
+
+  it("offers Move some from the default site only when there is one, and opens the transfer after", () => {
+    const stock = siteNew.sections[2]!.fields.find((field) => field.id === "stock")!;
+    const options = (values: Record<string, unknown>) => (typeof stock.o === "function" ? stock.o(values) : stock.o);
+    expect(options({ _from: null })).toEqual(["Start empty"]);
+    expect(options({ _from: { id: "hre", name: "Harare Main Branch" } })).toEqual(["Start empty", "Move some from Harare Main Branch"]);
+    const result = { id: "avd", name: "Avondale" };
+    expect(siteNew.next?.(result, { stock: "Start empty", _from: { id: "hre", name: "Harare Main Branch" } })).toBeNull();
+    expect(siteNew.next?.(result, { stock: "Move some from Harare Main Branch", _from: { id: "hre", name: "Harare Main Branch" } })).toBe(
+      "/retail/stock/transfers?sheet=transfer-new&from=hre&to=avd",
+    );
+    expect(doneSentence(siteNew, result)).toBe("Avondale added. Pair its tills next.");
+    expect(siteNew.openLabel).toBe("Pair a till");
+  });
+
+  it("keeps known places by id, warns when the default is switched off, and reads only for a stock clerk", () => {
+    const values = {
+      name: "Harare Main Branch",
+      code: "hre",
+      phone: "",
+      address: "14 Samora Machel Avenue, Harare",
+      isDefault: false,
+      places: ["Shop floor", "Cold room"],
+      priceListId: { id: "list", label: "Retail" },
+      openingHours: "",
+      _isDefault: true,
+      _places: [
+        { id: "shop", name: "Shop floor", hasStock: true },
+        { id: "back", name: "Back store", hasStock: true },
+      ],
+    };
+    const request = site.submit(values, { ...owner, id: "hre" });
+    expect(request).toMatchObject({ method: "PATCH", url: "/api/v2/retail/sites/hre" });
+    expect(request.body).toMatchObject({
+      code: "HRE",
+      phone: null,
+      places: [{ id: "shop", name: "Shop floor" }, { name: "Cold room" }],
+      priceListId: "list",
+      isDefault: false,
+    });
+    const toggle = site.sections[0]!.fields.find((field) => field.id === "isDefault")!;
+    expect(typeof toggle.h === "function" && toggle.h(values)).toBe("Make another site the default instead.");
+    expect(typeof toggle.warn === "function" && toggle.warn(values)).toBe(true);
+    expect(site.readOnly?.(ctxFor("STOCK_CLERK"), {})).toBe(true);
+    expect(site.readOnly?.(ctxFor("MANAGER"), {})).toBe(false);
+    expect(site.readOnly?.(ctxFor("MANAGER"), { _closed: true })).toBe(true);
+    expect(site.danger?.show?.(ctxFor("MANAGER"), { _name: "Borrowdale" })).toBe(false);
+    expect(site.danger?.show?.(owner, { _name: "Borrowdale", _isDefault: false })).toBe(true);
+    expect(site.danger?.show?.(owner, { _name: "Harare Main Branch", _isDefault: true })).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { canRetailSessionDo, retailPermissionDenial } from "@/lib/retail/permiss
 
 import { FLOOR_LOOKUPS } from "./floor";
 import { PRODUCT_LOOKUPS } from "./products";
+import { SETUP_LOOKUPS } from "./setup";
 import { LookupFieldErrors, type LookupCtx, type LookupNoun, type LookupOption, type QuickField } from "./types";
 
 /**
@@ -10,7 +11,7 @@ import { LookupFieldErrors, type LookupCtx, type LookupNoun, type LookupOption, 
  * line here.
  */
 export const LOOKUP_NOUNS: ReadonlyMap<string, LookupNoun> = new Map(
-  [...FLOOR_LOOKUPS, ...PRODUCT_LOOKUPS].map((noun) => [noun.noun, noun]),
+  [...FLOOR_LOOKUPS, ...PRODUCT_LOOKUPS, ...SETUP_LOOKUPS].map((noun) => [noun.noun, noun]),
 );
 
 export type { LookupCtx, LookupNoun, LookupOption, QuickField } from "./types";

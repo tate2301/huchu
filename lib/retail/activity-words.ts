@@ -190,6 +190,34 @@ function categoryDeletedWords(payload: Payload): ActivityWords {
   return { what: "Deleted it", tone: "bad" };
 }
 
+const SITE_FIELD_WORDS: Record<string, string> = {
+  name: "Name",
+  code: "Short code",
+  phone: "Phone",
+  address: "Address",
+  openingHours: "Open",
+  priceList: "Price list",
+};
+
+/** "Added Cold room, removed Back store and moved 3 stock lines", "Made it the default site", "Changed Phone". */
+function siteChangedWords(payload: Payload): ActivityWords {
+  const names = (value: unknown) => (Array.isArray(value) ? value.map((entry) => text(entry)).filter(Boolean) : []);
+  const added = names(payload.placesAdded);
+  const removed = names(payload.placesRemoved);
+  const moved = amount(payload.stockMoved) ?? 0;
+  const changes = payload.changes && typeof payload.changes === "object" ? Object.keys(payload.changes as Payload) : [];
+  const parts = [
+    payload.madeDefault ? "made it the default site" : null,
+    changes.length ? `changed ${changes.map((key) => SITE_FIELD_WORDS[key] ?? key).join(", ")}` : null,
+    added.length ? `added ${added.join(", ")}` : null,
+    removed.length ? `removed ${removed.join(", ")}` : null,
+    moved > 0 ? `moved ${formatCount(moved)} stock ${moved === 1 ? "line" : "lines"} with it` : null,
+  ].filter((part): part is string => part !== null);
+  if (parts.length === 0) return { what: "Changed it", tone: "info" };
+  const sentence = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return { what: sentence.charAt(0).toUpperCase() + sentence.slice(1), tone: "info" };
+}
+
 /** The table. Keyed by event type; area specs add theirs here. */
 const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWords> = {
   [RETAIL_AUDIT_EVENTS.recordEdited]: recordEditedWords,
@@ -215,6 +243,13 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
   [RETAIL_AUDIT_EVENTS.categoryCreated]: () => ({ what: "Added it", tone: "ok" }),
   [RETAIL_AUDIT_EVENTS.categoryChanged]: categoryChangedWords,
   [RETAIL_AUDIT_EVENTS.categoryDeleted]: categoryDeletedWords,
+  [RETAIL_AUDIT_EVENTS.siteCreated]: () => ({ what: "Added it", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.siteChanged]: siteChangedWords,
+  [RETAIL_AUDIT_EVENTS.siteClosed]: () => ({ what: "Closed it", tone: "bad" }),
+  [RETAIL_AUDIT_EVENTS.priceListCreated]: (payload) => ({
+    what: text(payload.from) ? `Added it, a copy of ${text(payload.from)}` : "Added it",
+    tone: "ok",
+  }),
 };
 
 /** "RETAIL_EXPORT.DOWNLOADED" → "Downloaded"; "STOCK.COUNT_POSTED" → "Count posted". */

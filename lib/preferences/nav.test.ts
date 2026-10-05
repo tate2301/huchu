@@ -50,6 +50,21 @@ describe("preferences navigation", () => {
     ]);
   });
 
+  it("leaves Sites to Setup › Sites in a shop, whose sites are its shops", () => {
+    for (const workspaceProfile of ["RETAIL", "THRIFT"]) {
+      const ids = getVisiblePreferencesItems({ role: "SUPERADMIN", enabledFeatures: ORG_ADMIN_FEATURES, workspaceProfile }).map(
+        (item) => item.id,
+      );
+      expect(ids).not.toContain("sites");
+      expect(ids).toContain("users");
+    }
+    expect(
+      getVisiblePreferencesItems({ role: "SUPERADMIN", enabledFeatures: ORG_ADMIN_FEATURES, workspaceProfile: "GOLD_MINE" }).map(
+        (item) => item.id,
+      ),
+    ).toContain("sites");
+  });
+
   it("lets finance officers see billing without broader organization setup", () => {
     expect(idsFor("FINANCE_OFFICER")).toEqual([
       "profile",

@@ -434,6 +434,10 @@ describe("the chain", () => {
       categoryCreated: "RETAIL_CATEGORY.CREATED",
       categoryChanged: "RETAIL_CATEGORY.CHANGED",
       categoryDeleted: "RETAIL_CATEGORY.DELETED",
+      siteCreated: "RETAIL_SITE.CREATED",
+      siteChanged: "RETAIL_SITE.CHANGED",
+      siteClosed: "RETAIL_SITE.CLOSED",
+      priceListCreated: "RETAIL_PRICE_LIST.CREATED",
     });
   });
 });

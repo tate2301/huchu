@@ -96,6 +96,7 @@ describe("the Setup module per role (ADM-01)", () => {
     expect(panel("SUPERADMIN")).toEqual(setupNav.items.map((item) => item.label));
     expect(panel("SUPERADMIN")).toEqual([
       "Shop",
+      "Sites",
       "Tills and devices",
       "Till rules",
       "Fiscal device",
@@ -116,15 +117,19 @@ describe("the Setup module per role (ADM-01)", () => {
   });
 
   it.each(["MANAGER", "SHOP_MANAGER"])("shows the %s all but Posting to the books", (role) => {
-    expect(panel(role)).toEqual(["Shop", "Tills and devices", "Till rules", "Fiscal device", "Bin"]);
+    expect(panel(role)).toEqual(["Shop", "Sites", "Tills and devices", "Till rules", "Fiscal device", "Bin"]);
   });
 
   it("shows the bookkeeper the shop, the fiscal device and posting", () => {
-    expect(panel("FINANCE_OFFICER")).toEqual(["Shop", "Fiscal device", "Posting to the books"]);
+    expect(panel("FINANCE_OFFICER")).toEqual(["Shop", "Sites", "Fiscal device", "Posting to the books"]);
   });
 
-  it.each(["CASHIER", "STOCK_CLERK"])("gives the %s no Setup", (role) => {
-    expect(panel(role)).toEqual([]);
+  it("gives the cashier no Setup", () => {
+    expect(panel("CASHIER")).toEqual([]);
+  });
+
+  it("gives the stock clerk Sites alone, to read", () => {
+    expect(panel("STOCK_CLERK")).toEqual(["Sites"]);
   });
 });
 

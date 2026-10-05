@@ -33,15 +33,20 @@ async function uploadPicture(file: File): Promise<string> {
   return answer.url;
 }
 
-function cardOptions(field: FieldSpec) {
-  return (field.o ?? []).map((entry) => {
+/** The field's options, fixed or worked out from the values. */
+function optionsOf(field: FieldSpec, values: SheetValues): Array<string | [label: string, sub?: string, badge?: string]> {
+  return (typeof field.o === "function" ? field.o(values) : field.o) ?? [];
+}
+
+function cardOptions(field: FieldSpec, values: SheetValues) {
+  return optionsOf(field, values).map((entry) => {
     const [label, description, badge] = Array.isArray(entry) ? entry : [entry];
     return { value: label, title: label, description, badge };
   });
 }
 
-function segItems(field: FieldSpec) {
-  return (field.o ?? []).map((entry) => {
+function segItems(field: FieldSpec, values: SheetValues) {
+  return optionsOf(field, values).map((entry) => {
     const label = Array.isArray(entry) ? entry[0] : entry;
     return { value: label, label };
   });
@@ -64,6 +69,7 @@ export type SheetFieldProps = {
 /** A value as words, for a sheet opened to read only. */
 function shownValue(value: unknown): string {
   if (value && typeof value === "object" && "label" in value) return String((value as PickedOption).label);
+  if (Array.isArray(value)) return value.length > 0 ? value.map(String).join(", ") : "—";
   if (typeof value === "string" && value.trim()) return value;
   return "—";
 }
@@ -85,6 +91,7 @@ export function SheetField({
   const t = fixed || (readOnly && field.t !== "toggle") ? "read" : field.t;
   const nolabel = field.nolabel || t === "toggle" || t === "lines";
   const disabled = readOnly || (field.disabled?.(values) ?? false);
+  const warn = typeof field.warn === "function" ? field.warn(values) : (field.warn ?? false);
 
   if (t === "toggle") {
     return (
@@ -94,7 +101,7 @@ export function SheetField({
           checked={value === true}
           onCheckedChange={onChange}
           label={field.l}
-          hint={hint}
+          hint={hint && warn ? <span className="cx-hint--warn">{hint}</span> : hint}
           disabled={disabled}
         />
         {error ? <span className="cx-error">{error}</span> : null}
@@ -108,7 +115,7 @@ export function SheetField({
       label={field.l}
       optional={field.opt}
       hint={hint}
-      warn={field.warn}
+      warn={warn}
       error={error}
       nolabel={nolabel}
       data-field={field.id}
@@ -163,7 +170,7 @@ export function SheetField({
                 aria-label={field.l}
                 block
                 disabled={disabled}
-                items={segItems(field)}
+                items={segItems(field, values)}
                 value={typeof value === "string" ? value : ""}
                 onValueChange={onChange}
               />
@@ -174,7 +181,7 @@ export function SheetField({
                 id={control.id}
                 aria-label={field.l}
                 cols={field.cols}
-                options={cardOptions(field)}
+                options={cardOptions(field, values)}
                 value={typeof value === "string" ? value : null}
                 onValueChange={onChange}
               />
@@ -183,6 +190,8 @@ export function SheetField({
             return (
               <TagsInput
                 {...control}
+                keepOne={field.keepOne}
+                disabled={disabled}
                 placeholder={field.p}
                 value={Array.isArray(value) ? (value as string[]) : []}
                 onValueChange={onChange}
@@ -223,7 +232,7 @@ export function SheetField({
                   value={typeof value === "string" ? value : ""}
                   onChange={(event) => onChange(event.target.value)}
                 >
-                  {segItems(field).map((item) => (
+                  {segItems(field, values).map((item) => (
                     <option key={item.value} value={item.value}>
                       {item.label}
                     </option>
@@ -239,7 +248,7 @@ export function SheetField({
                 right={field.right}
                 placeholder={field.p}
                 value={typeof value === "string" ? value : ""}
-                onChange={(event) => onChange(event.target.value)}
+                onChange={(event) => onChange(field.upper ? event.target.value.toUpperCase() : event.target.value)}
               />
             );
         }

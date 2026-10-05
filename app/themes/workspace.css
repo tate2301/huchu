@@ -147,7 +147,7 @@
 .cx-tag__remove { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--ink-3); cursor: pointer; }
 .cx-tag__remove:hover { background: var(--active); color: var(--ink); }
 .cx-tag__remove svg { width: 12px; height: 12px; }
-.cx-tags input { flex: 1; min-width: 140px; height: 26px; padding: 0 4px; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink); }
+.cx-tags input { flex: 1; min-width: 180px; height: 26px; padding: 0 4px; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink); }
 .cx-photo { position: relative; min-height: 76px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px dashed var(--line-strong); border-radius: 10px; background: var(--ground); color: var(--ink); cursor: pointer; }
 .cx-photo[data-dragging="true"] { border-color: var(--action); }
 .cx-photo__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

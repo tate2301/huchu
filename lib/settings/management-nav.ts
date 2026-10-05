@@ -594,6 +594,7 @@ export const settingsNavEntries: SettingsNavEntry[] = [
 export type SettingsRailAccess = {
   role?: string | null;
   enabledFeatures?: string[] | undefined;
+  workspaceProfile?: string | null;
 };
 
 export function canViewSettingsNavEntry(

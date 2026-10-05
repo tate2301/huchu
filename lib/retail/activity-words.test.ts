@@ -53,6 +53,26 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_CATEGORY.DELETED", { moved: 0, into: null })).toEqual({ what: "Deleted it", tone: "bad" });
   });
 
+  it("sites say what changed, the places and the stock that moved with them", () => {
+    expect(activityWords("RETAIL_SITE.CREATED", { name: "Avondale" })).toEqual({ what: "Added it", tone: "ok" });
+    expect(
+      activityWords("RETAIL_SITE.CHANGED", { changes: {}, placesAdded: ["Cold room"], placesRemoved: ["Back store"], stockMoved: 3 }),
+    ).toEqual({ what: "Added Cold room, removed Back store and moved 3 stock lines with it", tone: "info" });
+    expect(activityWords("RETAIL_SITE.CHANGED", { changes: {}, madeDefault: true, placesAdded: [], placesRemoved: [] })).toEqual({
+      what: "Made it the default site",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_SITE.CHANGED", { changes: { phone: { from: null, to: "+263 24 233 4410" } } })).toEqual({
+      what: "Changed Phone",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_SITE.CLOSED", { name: "Borrowdale" })).toEqual({ what: "Closed it", tone: "bad" });
+    expect(activityWords("RETAIL_PRICE_LIST.CREATED", { name: "Avondale", from: "Shelf prices" })).toEqual({
+      what: "Added it, a copy of Shelf prices",
+      tone: "ok",
+    });
+  });
+
   it("settings name every label changed", () => {
     expect(
       activityWords("RETAIL_SETTINGS.CHANGED", { changes: [{ label: "Cases and singles" }, { label: "Weekday hours" }] }),
