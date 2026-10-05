@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { Prisma, RetailSaleStatus, RetailSaleType } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { atLeast, money, resolveBaseCurrency, sumMoney, toBaseAmount, toNumber, toNumberOrZero } from "@/lib/money";
+import { atLeast, money, resolveBaseCurrency, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   getCustomerLoyaltyBalance,
@@ -19,9 +19,8 @@ import {
   retailRoleKey,
   requireRetailPermission,
 } from "@/lib/retail/permissions";
-import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
-import { loadPaymentSettings, NoZigRate, paymentRate, tenderOffProblem } from "@/lib/retail/payment-settings";
+import { loadPaymentSettings, tenderOffProblem } from "@/lib/retail/payment-settings";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
@@ -35,7 +34,7 @@ import {
   isPosSupportedPromotionType,
   requireRetailSession,
 } from "../../_helpers";
-import { ShiftElsewhere, createRetailSaleTransaction } from "../../_services";
+import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "../../_services";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 
@@ -773,47 +772,12 @@ export async function POST(request: NextRequest) {
         if (off) return errorResponse(off, 400);
       }
     }
-    const rates = new Map<string, Prisma.Decimal>();
+    // Checked before the customer is captured; the sale's transaction stamps
+    // and checks them again on its own path, the one `pos/sync` replays through.
     try {
-      for (const currency of new Set(input.payments.map((payment) => payment.currency ?? saleCurrency))) {
-        rates.set(currency, await paymentRate(session.user.companyId, saleCurrency, currency, soldAt));
-      }
+      await stampSalePayments({ companyId: session.user.companyId, payments: input.payments, amountDue, on: soldAt });
     } catch (error) {
-      if (error instanceof NoZigRate) return errorResponse(error.message, 400);
-      throw error;
-    }
-    const normalizedPayments = input.payments.map((payment) => {
-      const currency = payment.currency ?? saleCurrency;
-      const exchangeRate = rates.get(currency)!;
-      const amount = round(payment.amount);
-      return {
-        tenderType: payment.tenderType,
-        amount,
-        currency,
-        exchangeRate: exchangeRate.toNumber(),
-        baseAmount: toNumberOrZero(toBaseAmount(amount, exchangeRate)),
-        reference: payment.reference?.trim() || null,
-      };
-    });
-    const tenderPolicy = await getRetailTenderPolicy(session.user.companyId);
-    const paymentReferenceError = validateTenderReferences(tenderPolicy, normalizedPayments);
-    if (paymentReferenceError) {
-      return errorResponse(paymentReferenceError, 400);
-    }
-    const tenderedAmount = round(
-      normalizedPayments.reduce((total, payment) => total + payment.baseAmount, 0),
-    );
-    const nonCashTotal = round(
-      normalizedPayments
-        .filter((payment) => payment.tenderType !== "CASH")
-        .reduce((total, payment) => total + payment.baseAmount, 0),
-    );
-    if (nonCashTotal > amountDue) {
-      return errorResponse("Non-cash tenders cannot exceed the sale total", 400);
-    }
-
-    if (tenderedAmount < amountDue) {
-      return errorResponse("Tendered amount is below the sale total", 400);
+      return errorResponse(error instanceof Error ? error.message : "The payments do not add up.", 400);
     }
     const customerPhone = normalizePhone(input.customerPhone);
     const customerEmail = normalizeEmail(input.customerEmail);
@@ -958,7 +922,8 @@ export async function POST(request: NextRequest) {
       discountAmount: totalDiscount,
       taxAmount,
       totalAmount,
-      payments: normalizedPayments,
+      payments: input.payments,
+      soldAt,
       lines: normalizedLines.map((line, index) => ({
         depositAmount: lineDeposit(depositLines[index]),
         inventoryItemId: line.inventoryItem.id,

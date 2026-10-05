@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { companyPage } from "@/lib/retail/settings-pages/company";
+import { paymentsPage } from "@/lib/retail/settings-pages/payments";
 
-import { changedValues, checkBeforeSave, cleanLine, shownSettingsSections } from "./model";
+import { canChangeField, changedValues, checkBeforeSave, cleanLine, shownSettingsSections, splitChanges } from "./model";
 import { changesNotSaved } from "./save-bar";
 
 const SAVED = {
@@ -52,5 +53,18 @@ describe("a settings page's state", () => {
     expect(cleanLine({ page: companyPage, canEdit: false, lastChanged, savedAt: null, now })).toBe(
       "Owners only. Every change shows in Activity with who made it.",
     );
+  });
+
+  it("sends the rate to its own action, and lets the manager change only that", () => {
+    expect(splitChanges(paymentsPage, { zigRate: "27.10", innbucks: true })).toEqual({
+      action: { zigRate: "27.10" },
+      settings: { innbucks: true },
+    });
+    const manager = { canEdit: false, canAct: true };
+    const owner = { canEdit: true, canAct: true };
+    expect(canChangeField(paymentsPage, manager, "zigRate")).toBe(true);
+    expect(canChangeField(paymentsPage, manager, "innbucks")).toBe(false);
+    expect(canChangeField(paymentsPage, owner, "innbucks")).toBe(true);
+    expect(canChangeField(paymentsPage, { canEdit: false, canAct: false }, "zigRate")).toBe(false);
   });
 });

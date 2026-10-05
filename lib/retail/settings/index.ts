@@ -36,22 +36,6 @@ export function settingsHandler(key: string): { page: SettingsPage; store: Setti
 
 type Payload = Record<string, unknown>;
 
-/**
- * Who may change what on a page: every field with the page's `change`
- * grant; with only its `partly` grant, those fields; else nothing.
- */
-export type SettingsAccess = { all: boolean; fields: string[] };
-
-export function settingsAccess(page: SettingsPage, can: (grant: SettingsPage["change"]) => boolean): SettingsAccess {
-  if (can(page.change)) return { all: true, fields: [] };
-  if (page.partly && can(page.partly.can)) return { all: false, fields: page.partly.fields };
-  return { all: false, fields: [] };
-}
-
-function mayChange(access: SettingsAccess, field: string): boolean {
-  return access.all || access.fields.includes(field);
-}
-
 /** The latest save of the page: who and when, or null when nobody has saved it. */
 async function lastSave(companyId: string, key: string): Promise<SettingsLastChanged | null> {
   const event = await prisma.platformAuditEvent.findFirst({
@@ -81,16 +65,11 @@ export async function settingsLastChanged(companyId: string, key: string): Promi
   return store?.lastChanged ? store.lastChanged(companyId, saved) : saved;
 }
 
-export async function readSettings(companyId: string, key: string, access: SettingsAccess): Promise<SettingsResponse | null> {
+export async function readSettings(companyId: string, key: string, canEdit: boolean): Promise<SettingsResponse | null> {
   const handler = settingsHandler(key);
   if (!handler) return null;
   const [values, lastChanged] = await Promise.all([handler.store.load(companyId), settingsLastChanged(companyId, key)]);
-  return {
-    values,
-    canEdit: access.all || access.fields.length > 0,
-    ...(access.all ? {} : { editable: access.fields }),
-    lastChanged,
-  };
+  return { values, canEdit, lastChanged };
 }
 
 function same(a: unknown, b: unknown): boolean {
@@ -99,8 +78,7 @@ function same(a: unknown, b: unknown): boolean {
 
 export type SettingsSaveResult =
   | ({ ok: true } & SettingsSaved)
-  | { ok: false; fieldErrors: Record<string, string> }
-  | { ok: false; forbidden: string };
+  | { ok: false; fieldErrors: Record<string, string> };
 
 /**
  * Save a page's changed fields. Each is checked against the page's rule;
@@ -111,29 +89,31 @@ export async function saveSettings(
   actor: RetailAuditActor,
   key: string,
   changes: Record<string, unknown>,
-  access: SettingsAccess = { all: true, fields: [] },
 ): Promise<SettingsSaveResult | null> {
   const handler = settingsHandler(key);
   if (!handler) return null;
   const { page, store } = handler;
 
-  const before = await store.load(actor.companyId);
-  // A role may send only what it may change (the manager: the ZiG rate), whatever else it says.
-  if (Object.entries(changes).some(([field, value]) => !same(before[field], value) && !mayChange(access, field))) {
-    return { ok: false, forbidden: page.partly?.refused ?? "Your role cannot change these settings." };
+  // A field a real action saves (the ZiG rate, C-14) goes to that action's endpoint, never here.
+  const actionFields = Object.keys(changes).filter((field) => page.action?.fields.includes(field));
+  if (actionFields.length > 0) {
+    return {
+      ok: false,
+      fieldErrors: Object.fromEntries(
+        actionFields.map((field) => [field, "This is saved on its own, not with the page."]),
+      ),
+    };
   }
 
   const checked = checkSettingsChanges(page, changes);
   if (!checked.ok) return checked;
 
+  const before = await store.load(actor.companyId);
   const changed = Object.entries(checked.values).filter(([field, value]) => !same(before[field], value));
-  // A change the store records itself (a new ZiG rate) is not repeated in the page's event.
-  const audited = changed.filter(([field]) => !store.auditsOwn?.includes(field));
   if (changed.length > 0) {
     const applied = Object.fromEntries(changed);
     await prisma.$transaction(async (tx) => {
       await store.save(tx, actor, applied);
-      if (audited.length === 0) return;
       await writeRetailAuditEvent(tx, {
         actor,
         eventType: RETAIL_AUDIT_EVENTS.settingsChanged,
@@ -141,7 +121,7 @@ export async function saveSettings(
         entityId: key,
         payload: {
           page: key,
-          changes: audited.map(([field, to]) => ({
+          changes: changed.map(([field, to]) => ({
             field,
             label: settingsFieldLabel(page, field),
             from: before[field] ?? null,

@@ -95,6 +95,15 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_ZIG_RATE.SET", { rate: "26.80", previous: null }).what).toBe("Set the ZiG rate to 26.80");
   });
 
+  it("how the ZiG rate is updated", () => {
+    expect(activityWords("RETAIL_ZIG_RATE.SET", { source: "RBZ_DAILY", previousSource: "MANUAL" }).what).toBe(
+      "Takes the RBZ’s rate daily",
+    );
+    expect(activityWords("RETAIL_ZIG_RATE.SET", { source: "MANUAL", previousSource: "RBZ_DAILY" }).what).toBe(
+      "Updates the ZiG rate by hand",
+    );
+  });
+
   it("a shift's open and close", () => {
     expect(activityWords("RETAIL_SHIFT.OPENED", { openingFloat: "200.00" }).what).toBe(
       "Opened with a float of US$200.00",

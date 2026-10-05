@@ -35,9 +35,29 @@ export function changedValues(
   return changes;
 }
 
-/** Whether this caller changes the field here: the page changes it, and their grant reaches it (`editable`). */
-export function canChangeField(page: SettingsPage, response: Pick<SettingsResponse, "canEdit" | "editable">, id: string) {
-  return response.canEdit && isSettingsFieldEditable(page, id) && (!response.editable || response.editable.includes(id));
+/**
+ * Whether this caller changes the field here: a field the page's action saves
+ * (the ZiG rate) with the action's grant, any other the page changes with the
+ * page's (`canEdit`).
+ */
+export function canChangeField(
+  page: SettingsPage,
+  access: { canEdit: boolean; canAct: boolean },
+  id: string,
+): boolean {
+  if (!isSettingsFieldEditable(page, id)) return false;
+  return page.action?.fields.includes(id) ? access.canAct : access.canEdit;
+}
+
+/** A save's changes split by where they go: the page's action first, then the settings `PATCH`. */
+export function splitChanges(page: SettingsPage, changes: Record<string, unknown>) {
+  const action: Record<string, unknown> = {};
+  const settings: Record<string, unknown> = {};
+  for (const [id, value] of Object.entries(changes)) {
+    if (page.action?.fields.includes(id)) action[id] = value;
+    else settings[id] = value;
+  }
+  return { action, settings };
 }
 
 /** Sections whose `when` holds. Values in a hidden section are kept, and still saved. */

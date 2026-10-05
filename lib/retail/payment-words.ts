@@ -158,3 +158,14 @@ export function splitChange(
   const zigAmount = Math.round(((change - usd) * zig.rate) / step) * step;
   return { usd, zig: Number(zigAmount.toFixed(2)) };
 }
+
+/** ZiG 11, ZiG 10.50: whole ZiG without decimals. */
+function zigWords(amount: number): string {
+  return `ZiG ${Number.isInteger(amount) ? String(amount) : amount.toFixed(2)}`;
+}
+
+/** The till's change pill: "Change US$3.00 and ZiG 11", or "Change US$3.40" with no ZiG part. */
+export function changeWords(change: { usd: number; zig: number }): string {
+  const usd = `US$${change.usd.toFixed(2)}`;
+  return change.zig > 0 ? `Change ${usd} and ${zigWords(change.zig)}` : `Change ${usd}`;
+}

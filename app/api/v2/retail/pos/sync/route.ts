@@ -375,6 +375,8 @@ async function processCreateSale(
       tenderType: string;
       amount: number;
       reference?: string;
+      /** ZiG cash says "ZWG". No rate: the sale's transaction stamps the shop's (SET-05). */
+      currency?: string;
     }>;
     overrideReason?: string;
     promotionId?: string;
@@ -565,7 +567,17 @@ async function processCreateSale(
             `${Object.values(RetailTenderType).join(", ")}`,
         );
       }
-      return { ...payment, tenderType };
+      if (payment.currency != null && !["USD", "ZWG"].includes(payment.currency)) {
+        throw new Error(`Unknown currency "${payment.currency}" — expected USD or ZWG`);
+      }
+      // Only what the till may say about a payment: any rate it sends is dropped
+      // here, and the shop's own is stamped for the moment it was sold.
+      return {
+        tenderType,
+        amount: payment.amount,
+        reference: payment.reference ?? null,
+        currency: payment.currency ?? null,
+      };
     });
 
     let customerName: string | null = null;
@@ -611,6 +623,7 @@ async function processCreateSale(
       // Sold before this device was unpaired, sent in after: a manager looks at it.
       reviewReason: ctx.device.unpairedAt ? UNPAIRED_REVIEW_REASON : null,
       postedAt: soldAt,
+      soldAt,
       idCheckedAt: payload.idChecked && ageRestricted.length > 0 ? soldAt : null,
     });
 

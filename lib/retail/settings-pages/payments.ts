@@ -18,9 +18,9 @@ import type { SettingsPage } from "./types";
  * rounded, and its EcoCash merchant (10-setup 5.6).
  *
  * The owner changes everything; the manager changes the rate and how it is
- * updated only (`retail.zig-rate`); the bookkeeper reads it. A new rate is a
- * `CurrencyRate` row of its own (the history is kept, the newest applies), so
- * the save bar says "Rate changed by …" while the rate is the latest change.
+ * updated only (`retail.zig-rate`, its own action); the bookkeeper reads it. A
+ * new rate is a `CurrencyRate` row of its own (the history is kept, the newest
+ * applies), so the save bar says "Rate changed by …" while it is the latest change.
  */
 
 const onOff = z.boolean({ message: "Turn it on or off." });
@@ -42,11 +42,8 @@ export const paymentsPage: SettingsPage = {
   title: "Payments",
   read: ["retail.payments", "view"],
   change: ["retail.payments", "update"],
-  partly: {
-    can: ["retail.zig-rate", "update"],
-    fields: ZIG_RATE_FIELDS,
-    refused: "Your role can change the ZiG rate only.",
-  },
+  // The rate keeps its own endpoint (C-14); managers change it too.
+  action: { fields: ZIG_RATE_FIELDS, endpoint: "/api/v2/retail/payments/zig-rate", can: ["retail.zig-rate", "update"] },
   whoCanChange: "Owners and managers.",
   sections: [
     {

@@ -6,6 +6,7 @@ import {
   rateChangedLine,
   rateSetHint,
   roundingStep,
+  changeWords,
   splitChange,
   TENDER_OPTIONS,
   tenderKeyOf,
@@ -98,5 +99,11 @@ describe("payments in words", () => {
     expect(splitChange(3.4, { rate: 26.8, rounding: "0.50" })).toEqual({ usd: 3, zig: 10.5 });
     expect(splitChange(2, { rate: 26.8, rounding: "1" })).toEqual({ usd: 2, zig: 0 });
     expect(splitChange(3.4, null)).toEqual({ usd: 3.4, zig: 0 });
+  });
+
+  it("says the change in dollars, then ZiG", () => {
+    expect(changeWords({ usd: 3, zig: 11 })).toBe("Change US$3.00 and ZiG 11");
+    expect(changeWords({ usd: 3, zig: 10.5 })).toBe("Change US$3.00 and ZiG 10.50");
+    expect(changeWords({ usd: 3.4, zig: 0 })).toBe("Change US$3.40");
   });
 });

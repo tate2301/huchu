@@ -23,6 +23,8 @@ export type SettingsAsideSection = {
   link?: { label: string; href: string };
 };
 
+export type SettingsAction = { fields: string[]; endpoint: string; can: [RetailResource, RetailAction] };
+
 /** Who last changed the page and when; `what` names a change of the page's own kind ("rate"). */
 export type SettingsLastChanged = { by: string; at: string; what?: string };
 
@@ -46,11 +48,12 @@ export type SettingsPage = {
   /** Names for the fields it changes and does not draw, for Activity's lines. */
   labels?: Record<string, string>;
   /**
-   * A narrower grant that changes some fields only (the manager's ZiG rate):
-   * a role with it and without `change` edits `fields` and reads the rest; a
-   * save that changes anything else is refused with `refused` (403).
+   * Fields a real action of its own saves, shown here beside the settings
+   * (C-14: the ZiG rate keeps its own endpoint). The frame sends their
+   * changes as `{ changes }` to `endpoint` before the settings `PATCH`; a
+   * role with `can` changes them whether or not it may change the page.
    */
-  partly?: { can: [RetailResource, RetailAction]; fields: string[]; refused: string };
+  action?: SettingsAction;
   /** The clean save bar's line for a change of the page's own kind (`lastChanged.what`). */
   lastChangedLine?: (lastChanged: SettingsLastChanged, now: Date) => string | null;
 };
@@ -58,10 +61,8 @@ export type SettingsPage = {
 /** `GET /api/v2/retail/settings/[page]`. */
 export type SettingsResponse = {
   values: Record<string, unknown>;
-  /** The caller may change something here. */
+  /** The caller may change the page (its `change` grant). */
   canEdit: boolean;
-  /** With `partly`: the only fields this caller may change. Absent: every field the page changes. */
-  editable?: string[];
   lastChanged: SettingsLastChanged | null;
 };
 

@@ -175,6 +175,50 @@ export async function setZigRate(
   return true;
 }
 
+/** A ZiG rate change refused for one of its fields ("zigRate" or "zigSource"). */
+export class ZigRateRefused extends Error {
+  constructor(
+    message: string,
+    readonly field: "zigRate" | "zigSource",
+  ) {
+    super(message);
+    this.name = "ZigRateRefused";
+  }
+}
+
+/**
+ * The ZiG rate action (`POST /api/v2/retail/payments/zig-rate`, C-14): a new
+ * rate by hand, and how the rate is updated. Owners and managers. A new rate
+ * is a `CurrencyRate` row audited `RETAIL_ZIG_RATE.SET { rate, previous }`; a
+ * new source is the settings row's, audited `RETAIL_ZIG_RATE.SET { source }`.
+ * While the RBZ's daily rate is chosen nobody types one in.
+ */
+export async function changeZigRate(
+  actor: RetailAuditActor,
+  input: { rate?: string; source?: RetailRateSource },
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const before = await loadPaymentSettings(actor.companyId, tx);
+    const source = input.source ?? before.zigRateSource;
+    if (input.source && input.source !== before.zigRateSource) {
+      await savePaymentSettings(tx, actor, { zigRateSource: input.source });
+      await writeRetailAuditEvent(tx, {
+        actor,
+        eventType: RETAIL_AUDIT_EVENTS.zigRateSet,
+        entityType: "RetailSettings",
+        entityId: "payments",
+        payload: { source: input.source, previousSource: before.zigRateSource },
+      });
+    }
+    if (input.rate !== undefined) {
+      if (source === "RBZ_DAILY") {
+        throw new ZigRateRefused("The RBZ sets the rate while it is updated daily.", "zigRate");
+      }
+      await setZigRate(tx, { actor, companyId: actor.companyId, rate: input.rate, source: "MANUAL" });
+    }
+  });
+}
+
 /* ── At the till ──────────────────────────────────────────────────────────── */
 
 export type { TillTender };

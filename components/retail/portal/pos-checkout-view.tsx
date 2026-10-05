@@ -65,7 +65,7 @@ import { PosEmptyState, PosStatusPill } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, TenderType } from "./pos-types";
 import { money } from "./pos-utils";
-import { splitChange, type TillTender } from "@/lib/retail/payment-words";
+import { changeWords, splitChange, type TillTender } from "@/lib/retail/payment-words";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 
@@ -458,7 +458,7 @@ export function PosCheckoutView() {
 
   const blockers = useMemo(() => {
     const next = [...checkoutBaseBlockers];
-    if (nonCashTotal > total + 0.01) next.push("Card and mobile money come to more than the total");
+    if (nonCashTotal > total + 0.01) next.push("Card, EcoCash and the other non-cash tenders come to more than the total");
     if (tenderedTotal < total - 0.01) next.push("Less than the total is tendered");
     if (hasMissingRequiredReference) next.push("A reference is missing");
     return next;
@@ -1010,9 +1010,7 @@ export function PosCheckoutView() {
                 className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-black ring-1"
                 style={{ background: "var(--pos-change-bg)", color: "var(--pos-change-text)", boxShadow: `inset 0 0 0 1px var(--pos-status-success-ring)` }}
               >
-                {change.zig > 0
-                  ? `Change ${money(change.usd)} and ZiG ${money(change.zig)}`
-                  : `Change ${money(changeAmount)}`}
+                {changeWords(change)}
               </div>
             ) : tenderedTotal > 0 && tenderedTotal < total ? (
               <div
@@ -1569,7 +1567,8 @@ export function PosCheckoutView() {
 
       {/* Mobile cart + payment sheet */}
       <Sheet open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
-        <SheetContent side="bottom" size="lg" className="h-[92dvh] p-0">
+        {/* Portalled out of the terminal, so it carries the terminal's tokens (the tender colours) itself. */}
+        <SheetContent side="bottom" size="lg" className="pos-terminal h-[92dvh] p-0">
           <div className="flex h-full flex-col">
             <SheetHeader className="shrink-0 border-b border-[var(--edge-subtle)] px-4 py-3">
               <SheetTitle className="flex items-center justify-between">
@@ -1615,8 +1614,9 @@ export function PosCheckoutView() {
                 </div>
 
                 {/* Tender buttons */}
+                {/* Every tender the shop takes; the grid wraps. */}
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {tenderOptions.slice(0, 4).map((option) => {
+                  {tenderOptions.map((option) => {
                     const type = option.tender as TenderType;
                     const tKey = TENDER_TOKEN_KEYS[type];
                     const isSelected = payments[0] ? isTender(payments[0], option) : false;

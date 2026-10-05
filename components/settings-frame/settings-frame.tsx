@@ -38,6 +38,7 @@ import {
   JUST_SAVED_MS,
   settingsQueryKey,
   shownSettingsSections,
+  splitChanges,
 } from "./model";
 import { SaveBar } from "./save-bar";
 
@@ -49,8 +50,10 @@ import { SaveBar } from "./save-bar";
  * Reads `GET /api/v2/retail/settings/<page>`, draws the page's sections with
  * the sheet's fields (5.7.4), and saves the changed fields with one `PATCH`
  * from the save bar at the foot of the form. The header carries the title
- * and "Activity"; the aside says what the page changes and who may. A role
- * that cannot change the page reads every field as `read`.
+ * and "Activity"; the aside says what the page changes and who may. Fields a
+ * real action of the page saves (the ZiG rate) go to its own endpoint first.
+ * A field this role cannot change is drawn held (a switch, a segment, or any
+ * field on a page it changes something on), else as `read`.
  */
 
 const controlId = (fieldId: string) => `cx-set-${fieldId}`;
@@ -160,7 +163,15 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
 
   const saved = React.useMemo(() => query.data?.values ?? {}, [query.data]);
   const values = React.useMemo(() => ({ ...saved, ...draft }), [saved, draft]);
-  const canEdit = query.data?.canEdit ?? false;
+  const access = React.useMemo(
+    () => ({
+      canEdit: query.data?.canEdit ?? false,
+      canAct: page.action ? canRetailRoleDo(role, page.action.can[0], page.action.can[1]) : false,
+    }),
+    [query.data?.canEdit, page.action, role],
+  );
+  // This role changes something here: the page, or its action's fields.
+  const canEdit = access.canEdit || access.canAct;
   const changes = React.useMemo(() => changedValues(page, saved, values), [page, saved, values]);
   const count = Object.keys(changes).length;
 
@@ -232,33 +243,49 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
     }
     setSaving(true);
     setBarError(null);
+    const parts = splitChanges(page, changes);
+    // The action's fields first: a page rule may need them (ZiG cash on needs a rate).
+    const sends = [
+      ...(page.action && Object.keys(parts.action).length > 0
+        ? [{ url: page.action.endpoint, method: "POST", changes: parts.action }]
+        : []),
+      ...(Object.keys(parts.settings).length > 0
+        ? [{ url: `/api/v2/retail/settings/${encodeURIComponent(pageKey)}`, method: "PATCH", changes: parts.settings }]
+        : []),
+    ];
     try {
-      const response = await fetch(`/api/v2/retail/settings/${encodeURIComponent(pageKey)}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ changes }),
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | (SettingsSaved & { error?: string; fieldErrors?: Record<string, string> })
-        | null;
-      if (!response.ok) {
-        const fieldErrors = payload?.fieldErrors ?? {};
-        if (response.status === 400 && Object.keys(fieldErrors).length > 0) {
-          setErrors(fieldErrors);
-          requestAnimationFrame(() => focusField(Object.keys(fieldErrors)[0]!));
-        } else {
-          setBarError(payload?.error ?? "Nothing was saved. Try again.");
+      for (const send of sends) {
+        const response = await fetch(send.url, {
+          method: send.method,
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ changes: send.changes }),
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | (SettingsSaved & { error?: string; fieldErrors?: Record<string, string> })
+          | null;
+        if (!response.ok) {
+          const fieldErrors = payload?.fieldErrors ?? {};
+          if (response.status === 400 && Object.keys(fieldErrors).length > 0) {
+            setErrors(fieldErrors);
+            requestAnimationFrame(() => focusField(Object.keys(fieldErrors)[0]!));
+          } else {
+            setBarError(payload?.error ?? "Nothing was saved. Try again.");
+          }
+          return;
         }
-        return;
+        // What this send saved is saved, even if the next one is refused.
+        queryClient.setQueryData<SettingsResponse>(settingsQueryKey(pageKey), (current) => ({
+          canEdit: current?.canEdit ?? false,
+          values: payload!.values,
+          lastChanged: payload!.lastChanged,
+        }));
+        setDraft((current) => {
+          const next = { ...current };
+          for (const id of Object.keys(send.changes)) delete next[id];
+          return next;
+        });
       }
-      queryClient.setQueryData<SettingsResponse>(settingsQueryKey(pageKey), (current) => ({
-        canEdit: current?.canEdit ?? true,
-        editable: current?.editable,
-        values: payload!.values,
-        lastChanged: payload!.lastChanged,
-      }));
-      setDraft({});
       setErrors({});
       setSavedAt(Date.now());
       setNow(new Date());
@@ -315,7 +342,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
         <div className="sf-grid">
           {section.fields.map((field) => (
             <div key={field.id} className={field.half ? "sf-cell sf-cell--half" : "sf-cell"}>
-              {canChangeField(page, query.data, field.id) ? (
+              {canChangeField(page, access, field.id) ? (
                 <SheetField
                   field={field}
                   controlId={controlId(field.id)}
@@ -325,8 +352,9 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
                   error={errors[field.id]}
                   onChange={(value) => setValue(field.id, value)}
                 />
-              ) : canEdit && isSettingsFieldEditable(page, field.id) ? (
-                // Changed here, but not by this role (the manager on Payments): the control, held.
+              ) : isSettingsFieldEditable(page, field.id) &&
+                (canEdit || field.t === "toggle" || field.t === "seg") ? (
+                // Changed here, but not by this role: the control, held, so the page keeps its shape.
                 <SheetField
                   field={{ ...field, disabled: () => true }}
                   controlId={controlId(field.id)}

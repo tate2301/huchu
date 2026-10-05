@@ -3,9 +3,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { paymentsPage } from "@/lib/retail/settings-pages/payments";
 import { checkSettingsChanges } from "@/lib/retail/settings-pages";
-import { readSettings, saveSettings, settingsAccess } from "@/lib/retail/settings";
+import { readSettings, saveSettings } from "@/lib/retail/settings";
 
 import {
+  changeZigRate,
   latestZigRate,
   loadPaymentSettings,
   NoZigRate,
@@ -17,15 +18,13 @@ import {
 } from "./payment-settings";
 
 describe("the Payments page's rules", () => {
-  it("lets the owner change everything and the manager the rate only", () => {
-    const owner = settingsAccess(paymentsPage, ([resource, action]) =>
-      ["retail.payments:update", "retail.zig-rate:update"].includes(`${resource}:${action}`),
-    );
-    const manager = settingsAccess(paymentsPage, ([resource, action]) => `${resource}:${action}` === "retail.zig-rate:update");
-    const bookkeeper = settingsAccess(paymentsPage, () => false);
-    expect(owner).toEqual({ all: true, fields: [] });
-    expect(manager).toEqual({ all: false, fields: ["zigRate", "zigSource"] });
-    expect(bookkeeper).toEqual({ all: false, fields: [] });
+  it("saves the settings itself and the rate through its own action", () => {
+    expect(paymentsPage.change).toEqual(["retail.payments", "update"]);
+    expect(paymentsPage.action).toEqual({
+      fields: ["zigRate", "zigSource"],
+      endpoint: "/api/v2/retail/payments/zig-rate",
+      can: ["retail.zig-rate", "update"],
+    });
   });
 
   it("checks the rate, the rounding and the merchant", () => {
@@ -86,7 +85,6 @@ describe("saving Payments and taking ZiG", () => {
 
   const owner = () => ({ companyId, userId: ownerId, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" });
   const manager = () => ({ companyId, userId: managerId, userName: "Tafara Nyathi", userRole: "MANAGER" });
-  const managerAccess = { all: false, fields: ["zigRate", "zigSource"] };
 
   it("reads the defaults before anything is saved, and refuses ZiG with no rate", async () => {
     const settings = await loadPaymentSettings(companyId);
@@ -98,16 +96,23 @@ describe("saving Payments and taking ZiG", () => {
     await expect(paymentRate(companyId, "USD", "ZWG")).rejects.toBeInstanceOf(NoZigRate);
   });
 
-  it("saves the owner's tenders and rate: the rate as its own row and event", async () => {
+  it("keeps the rate out of the settings save: it is its own action", async () => {
+    expect(await saveSettings(owner(), "payments", { zigRate: "26.80", card: true })).toEqual({
+      ok: false,
+      fieldErrors: { zigRate: "This is saved on its own, not with the page." },
+    });
+  });
+
+  it("saves the owner's rate, then tenders: the rate as its own row and event", async () => {
+    await changeZigRate(owner(), { rate: "26.80" });
     const saved = await saveSettings(owner(), "payments", {
       cashZig: true,
       card: true,
       bankTransfer: true,
-      zigRate: "26.80",
       ecocashMerchantCode: "0921 774",
       ecocashDisplayName: "harare bottle",
     });
-    expect(saved).toMatchObject({ ok: true });
+    expect(saved).toMatchObject({ ok: true, lastChanged: { by: "Tendai Mhlanga" } });
     const rate = await latestZigRate(companyId);
     expect(rate).toMatchObject({ rate: "26.80", setBy: "Tendai Mhlanga", source: "MANUAL" });
     const events = await prisma.platformAuditEvent.findMany({
@@ -122,13 +127,10 @@ describe("saving Payments and taking ZiG", () => {
     expect((await loadPaymentSettings(companyId)).ecocashDisplayName).toBe("HARARE BOTTLE");
   });
 
-  it("lets the manager change the rate, and nothing else", async () => {
-    expect(await saveSettings(manager(), "payments", { innbucks: true }, managerAccess)).toEqual({
-      ok: false,
-      forbidden: "Your role can change the ZiG rate only.",
-    });
-    const saved = await saveSettings(manager(), "payments", { zigRate: "27.10" }, managerAccess);
-    expect(saved).toMatchObject({ ok: true, lastChanged: { by: "Tafara Nyathi", what: "rate" } });
+  it("records the manager's new rate as history, and says so on the page", async () => {
+    await changeZigRate(manager(), { rate: "27.10" });
+    // The same rate again writes nothing.
+    await changeZigRate(manager(), { rate: "27.1" });
     const rows = await prisma.currencyRate.findMany({ where: { companyId }, orderBy: { effectiveDate: "asc" } });
     expect(rows.map((row) => row.rate)).toEqual([26.8, 27.1]);
     expect(rows[1]!.createdById).toBe(managerId);
@@ -138,8 +140,25 @@ describe("saving Payments and taking ZiG", () => {
     });
     expect(JSON.parse(event!.payloadJson!)).toMatchObject({ rate: "27.10", previous: "26.80" });
 
-    const read = await readSettings(companyId, "payments", managerAccess);
-    expect(read).toMatchObject({ canEdit: true, editable: ["zigRate", "zigSource"], values: { zigRate: "27.10" } });
+    const read = await readSettings(companyId, "payments", false);
+    expect(read).toMatchObject({
+      canEdit: false,
+      values: { zigRate: "27.10", zigSetBy: "Tafara Nyathi" },
+      lastChanged: { by: "Tafara Nyathi", what: "rate" },
+    });
+  });
+
+  it("changes how the rate is updated, and refuses a typed rate while the RBZ sets it", async () => {
+    await changeZigRate(manager(), { source: "RBZ_DAILY" });
+    expect((await loadPaymentSettings(companyId)).zigRateSource).toBe("RBZ_DAILY");
+    await expect(changeZigRate(manager(), { rate: "28" })).rejects.toThrow("The RBZ sets the rate while it is updated daily.");
+    await changeZigRate(manager(), { source: "MANUAL" });
+    const sources = await prisma.platformAuditEvent.findMany({
+      where: { companyId, eventType: "RETAIL_ZIG_RATE.SET", payloadJson: { contains: "previousSource" } },
+      orderBy: { createdAt: "asc" },
+      select: { payloadJson: true },
+    });
+    expect(sources.map((event) => JSON.parse(event.payloadJson!).source)).toEqual(["RBZ_DAILY", "MANUAL"]);
   });
 
   it("refuses to turn every tender off", async () => {

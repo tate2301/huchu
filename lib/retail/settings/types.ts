@@ -15,13 +15,8 @@ export type SettingsStore = {
   /** Other rows whose events belong in this page's Activity. */
   related?(companyId: string): Array<{ entityType: string; ids: string[] }>;
   /**
-   * Fields whose change the store records itself (a new ZiG rate is its own
-   * row and event), left out of `RETAIL_SETTINGS.CHANGED`.
-   */
-  auditsOwn?: string[];
-  /**
-   * Who last changed the page when the store keeps changes of its own (the
-   * rate's history): given the page's last save, the latest of the two.
+   * Who last changed the page when an action of its own also changes it (a
+   * new ZiG rate): given the page's last save, the latest of the two.
    */
   lastChanged?(companyId: string, saved: SettingsLastChanged | null): Promise<SettingsLastChanged | null>;
 };

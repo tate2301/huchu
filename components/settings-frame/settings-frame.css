@@ -34,6 +34,8 @@
 .cx-sf .cx-read--area { min-height: 58px; align-items: flex-start; padding-top: 9px; padding-bottom: 9px; white-space: pre-line; }
 .cx-sf-empty { color: var(--faint); }
 .cx-sf-logo { width: 28px; height: 28px; margin-right: 10px; border-radius: 6px; object-fit: cover; background: var(--surface); }
+/* A choice with one option today ("By hand" until the RBZ feed is connected): a segment's width, not the track's. */
+.cx-sf .cx-seg--block > .cx-seg__item:only-child { flex: 0 0 50%; }
 .cx-sf-note { margin: -6px 0 0; color: var(--ink-3); font-size: 12.5px; line-height: 1.4; }
 .cx-sf-note a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 
