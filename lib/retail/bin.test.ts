@@ -1,15 +1,28 @@
 /**
  * The bin, against a real database (W-63): a product, promotion and category
  * move in through their own services with a `RETAIL_RECORD.BINNED` event, are
- * listed newest first, and come back with `RESTORED` as they stood — refused
- * twice, refused for another company, and refused after 30 days with 410.
+ * listed soonest gone first with who moved them, and come back with
+ * `RESTORED` as they stood — refused twice, refused for another company, and
+ * refused after 30 days with 410. Deleting for good deletes what nothing
+ * refers to and keeps the rest, out of the bin for good; the nightly purge
+ * does the same, once, with nobody as the actor.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { money, quantity } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
-import { binState, BinRefusal, listBin, moveToBin, restoreFromBin } from "./bin";
+import { deleteCategory } from "./categories";
+import {
+  binState,
+  BinRefusal,
+  deleteFromBinForGood,
+  listBinEntries,
+  moveToBin,
+  purgeExpiredBin,
+  restoreFromBin,
+  restoreManyFromBin,
+} from "./bin";
 import { loadShelfListing, upsertShelfListing } from "./shelf-listing";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -76,15 +89,23 @@ async function events(entityId: string) {
 
 describe("the bin", () => {
   it("moves each kind in, with its event, and lists what was moved", async () => {
-    expect(await listBin(companyId)).toEqual([]);
+    expect(await listBinEntries(companyId, new Date("2026-10-04T00:00:00Z"))).toEqual([]);
     const moved = await moveToBin(actor(), { kind: "product", id: productId }, new Date("2026-10-03T12:52:00Z"));
     expect(moved).toEqual({ binnedAt: "2026-10-03T12:52:00.000Z", keptUntil: "2026-11-02T12:52:00.000Z" });
-    await moveToBin(actor(), { kind: "promotion", id: promotionId });
-    await moveToBin(actor(), { kind: "category", id: categoryId });
+    await moveToBin(actor(), { kind: "promotion", id: promotionId }, new Date("2026-10-03T13:00:00Z"));
+    await moveToBin(actor(), { kind: "category", id: categoryId }, new Date("2026-10-03T13:10:00Z"));
 
-    const entries = await listBin(companyId);
-    expect(entries.map((entry) => entry.kind).sort()).toEqual(["category", "product", "promotion"]);
-    expect(entries.find((entry) => entry.kind === "product")?.detail).toBe(`GIN-${stamp} · last priced 16.40`);
+    const entries = await listBinEntries(companyId, new Date("2026-10-04T00:00:00Z"));
+    // Soonest gone first: the order they went in.
+    expect(entries.map((entry) => entry.kind)).toEqual(["product", "promotion", "category"]);
+    expect(entries[0]).toMatchObject({
+      name: "Gordon's Gin 750ml",
+      reference: `GIN-${stamp}`,
+      label: "Product",
+      binnedBy: "Tafara Nyathi",
+      binnedAt: new Date("2026-10-03T12:52:00Z"),
+    });
+    expect(entries[1]).toMatchObject({ label: "Promotion", reference: `P-${stamp}` });
 
     expect(await loadShelfListing(companyId, productId)).toBeNull();
     // Its record still reads the shelf's terms: VAT inside the price.
@@ -142,7 +163,7 @@ describe("the bin", () => {
       status: "INACTIVE",
     });
     await restoreFromBin(actor(), { kind: "category", id: categoryId });
-    expect(await listBin(companyId)).toEqual([]);
+    expect(await listBinEntries(companyId)).toEqual([]);
   });
 
   it("restores nothing that is not in the bin, and nothing of another company's", async () => {
@@ -167,5 +188,99 @@ describe("the bin", () => {
     expect(outcomes.filter((outcome) => outcome === null)).toHaveLength(1);
     expect(outcomes).toContainEqual({ status: 409, message: "It is already in the bin" });
     expect((await events(id)).filter((event) => event.eventType === "RETAIL_RECORD.BINNED")).toHaveLength(1);
+  });
+});
+
+describe("gone for good", () => {
+  const owner = () => ({ companyId, userId: "00000000-0000-0000-0000-0000000000bb", userName: "Tendai Mhlanga", userRole: "SUPERADMIN" });
+
+  it("restores several at once and says why one could not come back", async () => {
+    const back = (await prisma.retailCategory.create({ data: { companyId, name: "Brandy" }, select: { id: true } })).id;
+    const taken = (await prisma.retailCategory.create({ data: { companyId, name: "Whisky" }, select: { id: true } })).id;
+    await moveToBin(actor(), { kind: "category", id: back });
+    await moveToBin(actor(), { kind: "category", id: taken });
+    await prisma.retailCategory.create({ data: { companyId, name: "Whisky" } });
+    const answer = await restoreManyFromBin(actor(), [
+      { kind: "category", id: back },
+      { kind: "category", id: taken },
+    ]);
+    expect(answer.restored).toBe(1);
+    expect(answer.refused).toEqual([
+      {
+        kind: "category",
+        id: taken,
+        name: "Whisky",
+        why: "There is already a category called Whisky. Rename it, then restore this one.",
+      },
+    ]);
+  });
+
+  it("names who deleted a category from Products › Categories as who binned it", async () => {
+    const id = (await prisma.retailCategory.create({ data: { companyId, name: "Liqueurs" }, select: { id: true } })).id;
+    await deleteCategory(actor(), id, null);
+    expect((await listBinEntries(companyId)).find((entry) => entry.id === id)).toMatchObject({
+      label: "Category",
+      binnedBy: "Tafara Nyathi",
+    });
+  });
+
+  it("deletes a promotion never sold, with one PURGED event by the owner", async () => {
+    const id = (
+      await prisma.retailPromotion.create({
+        data: { companyId, promoCode: `OLD-${stamp}`, name: "Happy hour (old)", type: "PERCENT", value: money(10) },
+        select: { id: true },
+      })
+    ).id;
+    await moveToBin(actor(), { kind: "promotion", id });
+    expect(await deleteFromBinForGood(owner(), [{ kind: "promotion", id }])).toEqual({ deleted: 1, kept: 0 });
+    expect(await prisma.retailPromotion.findUnique({ where: { id } })).toBeNull();
+    const purged = (await events(id)).filter((event) => event.eventType === "RETAIL_RECORD.PURGED");
+    expect(purged).toHaveLength(1);
+    expect(JSON.parse(purged[0]!.payloadJson!)).toMatchObject({
+      kind: "promotion",
+      name: "Happy hour (old)",
+      how: "deleted",
+      automatic: false,
+      actorName: "Tendai Mhlanga",
+    });
+    // Gone already: skipped, not counted.
+    expect(await deleteFromBinForGood(owner(), [{ kind: "promotion", id }])).toEqual({ deleted: 0, kept: 0 });
+  });
+
+  it("keeps a product with stock on its line, out of the bin and past restoring", async () => {
+    // The gin went back in the bin above; its line holds 4 bottles.
+    expect(await deleteFromBinForGood(owner(), [{ kind: "product", id: productId }])).toEqual({ deleted: 0, kept: 1 });
+    expect(await prisma.product.findUnique({ where: { id: productId }, select: { archivedAt: true } })).not.toBeNull();
+    expect((await listBinEntries(companyId)).some((entry) => entry.id === productId)).toBe(false);
+    expect(await refusal(restoreFromBin(actor(), { kind: "product", id: productId }))).toEqual({
+      status: 410,
+      message: "It was deleted for good.",
+    });
+    const state = await binState(companyId, "Product", productId, (await prisma.product.findUniqueOrThrow({ where: { id: productId } })).archivedAt);
+    expect(state).toMatchObject({ purged: true, restorable: false });
+  });
+
+  it("does not list what went in 31 days ago, and the nightly purge takes it once, by nobody", async () => {
+    // Long ago, so the cut-off reaches nothing another test file has in its bin.
+    const now = new Date("2020-02-01T00:00:00Z");
+    const id = (await prisma.retailCategory.create({ data: { companyId, name: "Cane spirits" }, select: { id: true } })).id;
+    await moveToBin(actor(), { kind: "category", id }, new Date(now.getTime() - 31 * 24 * 60 * 60 * 1000));
+    expect((await listBinEntries(companyId, now)).some((entry) => entry.id === id)).toBe(false);
+
+    const first = await purgeExpiredBin(now);
+    expect(first.deleted).toBeGreaterThanOrEqual(1);
+    expect(await prisma.retailCategory.findUnique({ where: { id } })).toBeNull();
+    const purged = await prisma.platformAuditEvent.findMany({
+      where: { companyId, entityId: id, eventType: "RETAIL_RECORD.PURGED" },
+      select: { actor: true, payloadJson: true },
+    });
+    expect(purged).toHaveLength(1);
+    expect(purged[0]!.actor).toBeNull();
+    expect(JSON.parse(purged[0]!.payloadJson!)).toMatchObject({ kind: "category", name: "Cane spirits", how: "deleted", automatic: true });
+
+    await purgeExpiredBin(now);
+    expect(
+      await prisma.platformAuditEvent.count({ where: { companyId, entityId: id, eventType: "RETAIL_RECORD.PURGED" } }),
+    ).toBe(1);
   });
 });

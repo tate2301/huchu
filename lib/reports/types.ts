@@ -225,7 +225,9 @@ export type CellKind =
   | "dot"
   | "bar"
   | "duration"
-  | "edit-money";
+  | "edit-money"
+  /** A word that does the row menu action named by the column's `action` ("Restore"), in 600 ink. */
+  | "action";
 
 export type ListColumn = ReportColumn & {
   cell: CellKind;
@@ -244,6 +246,8 @@ export type ListColumn = ReportColumn & {
   diff?: "variance" | "gain";
   /** date: the row key holding the time of day, drawn after the day and sorted with it. */
   timeKey?: string;
+  /** date: "2 Nov 2026" (medium), or "Today", "Yesterday", else medium (relative). Default "15 August 2026". */
+  dayFormat?: "medium" | "relative";
   /** duration: the row key that is true while the thing is still running. */
   runningKey?: string;
   /** link/ref: default `list.rowHref`. */
@@ -258,8 +262,13 @@ export type ListColumn = ReportColumn & {
   pillKey?: string;
   /** num: always signed ("+40", "−1"); `gain` also colours a rise `--ok`, without a pill. */
   sign?: "plain" | "gain";
-  /** state and dot: the row key holding the tone, when the words vary row to row ("Count, two broken"). */
+  /**
+   * state and dot: the row key holding the tone, when the words vary row to row ("Count, two broken").
+   * text and date: the words take that tone's ink when the key is set ("2 Nov 2026" in `--warn` in its last days).
+   */
   toneKey?: string;
+  /** action: the key of the row menu action the cell does; drawn only when the row's menu offers it. */
+  action?: string;
   /**
    * `view-cost`: dropped, values and all, for roles that may not see cost.
    * `multi-site`: dropped while the company has one open site.
@@ -317,6 +326,8 @@ export type ListAction = {
   label: string;
   tone?: "bad";
   more?: boolean;
+  /** Row menu: a separator is drawn before it ("Delete for good" after "Open it"). */
+  separated?: boolean;
   /** Any of. */
   requires: ListGrant[];
   /** Row menu: only for rows that match. */
@@ -388,6 +399,8 @@ export type ListSort = { key: string; label: string; rules: SortRule[] };
 export type ListSpec = {
   /** "shifts" — in Export's caption, empty states, refusals ("Your role cannot view shifts"). */
   noun: string;
+  /** The header's sub beside the title ("Kept for 30 days, then gone for good"); a parent's name replaces it. */
+  sub?: string;
   /** Any of these grants reads the list. */
   read: ListGrant[];
   /** These roles see only the rows where `column` is their own user id; `filter` is hidden from them. */
@@ -406,7 +419,15 @@ export type ListSpec = {
   bulk?: Array<ListAction | { key: "export" }>;
   primary?: { label: string; icon?: "plus"; requires: ListGrant[]; sheet?: string; href?: string };
   /** The phone card. */
-  card: { title: string; badge?: string; figure: string; meta: RowTemplate; figure2?: string };
+  card: {
+    title: string;
+    badge?: string;
+    figure: string;
+    meta: RowTemplate;
+    figure2?: string;
+    /** A button on the card doing this row menu action ("Restore"), when the row's menu offers it. */
+    action?: string;
+  };
   empty: EmptyGuideSpec;
   edit?: { column: string; endpoint: string; changedLabel: string; note: string; save: string };
   /** Links under Export's formats, after a separator: other ways in ("Import a spreadsheet"). */

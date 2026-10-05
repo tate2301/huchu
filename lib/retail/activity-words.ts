@@ -224,6 +224,10 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
   [RETAIL_AUDIT_EVENTS.movementsReversed]: movementsReversedWords,
   [RETAIL_AUDIT_EVENTS.recordBinned]: () => ({ what: "Moved to the bin", tone: "bad" }),
   [RETAIL_AUDIT_EVENTS.recordRestored]: () => ({ what: "Restored from the bin", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.recordPurged]: (payload) => ({
+    what: payload.automatic ? "Deleted for good after 30 days in the bin" : "Deleted for good",
+    tone: "bad",
+  }),
   [RETAIL_AUDIT_EVENTS.settingsChanged]: settingsChangedWords,
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,

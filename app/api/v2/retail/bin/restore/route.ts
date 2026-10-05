@@ -7,8 +7,8 @@ import { requireRetailSession } from "../../_helpers";
 
 /**
  * Restore one record from the bin (W-63): `{ kind, id }` → `{ restored: true }`.
- * Bin update (owner, manager). 404 when it is not in the bin; 410 once it has
- * been there more than 30 days.
+ * Bin update (owner, manager). 404 when it is not in the bin; 410 once it was
+ * deleted for good or has been there more than 30 days.
  */
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return errorResponse("Validation failed", 400, parsed.error.issues);
 
   try {
-    const restored = await restoreFromBin(
+    await restoreFromBin(
       {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       },
       parsed.data,
     );
-    return successResponse(restored);
+    return successResponse({ restored: true });
   } catch (error) {
     if (error instanceof BinRefusal) return errorResponse(error.message, error.status);
     throw error;

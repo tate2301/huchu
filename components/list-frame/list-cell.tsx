@@ -4,9 +4,9 @@ import Link from "next/link";
 import { StateBadge } from "@/components/workspace/state-badge";
 import { fillTemplate } from "@/lib/reports/actions";
 import type { ListColumn, ReportRow } from "@/lib/reports/types";
-import { formatDay, formatDuration, formatWhen } from "@/lib/workspace/format";
+import { formatDuration, formatWhen } from "@/lib/workspace/format";
 
-import { cellText, diffTone, durationState, isBlank, toneOf } from "./model";
+import { cellText, dayText, diffTone, durationState, isBlank, toneOf } from "./model";
 
 /**
  * The cell resolver (00-foundations 5.4.7, Cells board): one component that
@@ -63,6 +63,10 @@ export function ListCell({
         <span className={column.cell === "ref" ? "cx-lf-ref cx-lf-ref--plain" : className}>{text}</span>
       );
     }
+    case "text": {
+      const tone = column.toneKey ? row[column.toneKey] : null;
+      return isBlank(tone) ? <>{text}</> : <span style={{ color: `var(--${String(tone)})` }}>{text}</span>;
+    }
     case "muted":
       return <span className="cx-lf-muted">{text}</span>;
     case "mono":
@@ -93,12 +97,14 @@ export function ListCell({
     }
     case "date": {
       const time = column.timeKey ? row[column.timeKey] : null;
-      return (
+      const tone = column.toneKey ? row[column.toneKey] : null;
+      const day = (
         <>
-          {formatDay(String(value))}
+          {dayText(column, String(value))}
           {!isBlank(time) ? <span className="cx-lf-time"> {String(time)}</span> : null}
         </>
       );
+      return isBlank(tone) ? day : <span style={{ color: `var(--${String(tone)})` }}>{day}</span>;
     }
     case "when":
       return <span className="cx-lf-monocell">{formatWhen(String(value))}</span>;
@@ -140,7 +146,7 @@ export function cellTitle(column: ListColumn, row: ReportRow): string {
   if (isBlank(value)) return "";
   if (column.cell === "date") {
     const time = column.timeKey ? row[column.timeKey] : null;
-    return `${formatDay(String(value))}${isBlank(time) ? "" : ` ${String(time)}`}`;
+    return `${dayText(column, String(value))}${isBlank(time) ? "" : ` ${String(time)}`}`;
   }
   if (column.cell === "when") return formatWhen(String(value));
   if (column.cell === "duration") return formatDuration(Number(value));

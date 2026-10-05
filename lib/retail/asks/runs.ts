@@ -9,5 +9,8 @@ import type { Ask } from "@/lib/workspace/ask";
  */
 export type ListActionRun = {
   ask?: (count: number, rows: ReportRow[]) => Ask;
-  done: (count: number, rows: ReportRow[], answer?: unknown) => string;
+  /** The toast; a warning when the server refused some of it ("2 restored. … cannot come back first."). */
+  done: (count: number, rows: ReportRow[], answer?: unknown) => string | { title: string; variant: "warning" };
+  /** The POST body, when the endpoint takes more than `{ ids }` (the bin's `{ items: [{ kind, id }] }`). */
+  body?: (ids: string[], rows: ReportRow[]) => unknown;
 };

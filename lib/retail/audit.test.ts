@@ -28,6 +28,7 @@ import {
   auditCashMoved,
   auditExportDownloaded,
   auditRecordBin,
+  auditRecordPurged,
   auditRecordEdited,
   auditGoodsReceived,
   auditSalePosted,
@@ -374,6 +375,19 @@ describe("records edited in place and moved to the bin", () => {
     await auditRecordBin(log.client, { ...base, action: "restored" });
     expect(log.last().eventType).toBe("RETAIL_RECORD.RESTORED");
   });
+
+  it("records deleting for good: by someone, or by the nightly purge with no actor", async () => {
+    const log = recorder();
+    const base = { companyId: "company-1", entityType: "RetailPromotion", entityId: "promo-1", kind: "promotion", name: "Happy hour" };
+    await auditRecordPurged(log.client, { ...base, actor: CHIPO, how: "deleted" });
+    expect(log.last().eventType).toBe("RETAIL_RECORD.PURGED");
+    expect(log.last().actor).toBe("user-chipo");
+    expect(log.payload()).toMatchObject({ kind: "promotion", name: "Happy hour", how: "deleted", automatic: false, actorName: "Chipo Dube" });
+    await auditRecordPurged(log.client, { ...base, actor: null, how: "kept" });
+    expect(log.last().actor).toBeNull();
+    expect(log.last().companyId).toBe("company-1");
+    expect(log.payload()).toMatchObject({ how: "kept", automatic: true, actorName: null });
+  });
 });
 
 describe("the chain", () => {
@@ -428,6 +442,7 @@ describe("the chain", () => {
       recordEdited: "RETAIL_RECORD.EDITED",
       recordBinned: "RETAIL_RECORD.BINNED",
       recordRestored: "RETAIL_RECORD.RESTORED",
+      recordPurged: "RETAIL_RECORD.PURGED",
       settingsChanged: "RETAIL_SETTINGS.CHANGED",
       productArchived: "RETAIL_PRODUCT.ARCHIVED",
       productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",

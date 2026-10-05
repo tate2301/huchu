@@ -46,6 +46,7 @@ import { Prisma, WorkspaceProfile, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
+import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 import { activeRetailPriceList } from "@/lib/retail/shelf-pricing"
@@ -1168,6 +1169,7 @@ async function main() {
 
   await seedSites({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
+  await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -1679,6 +1681,92 @@ async function seedStockLedger(companyId: string, mainSiteId: string) {
 }
 
 /** Stable pseudo-barcode from the SKU, so a re-run does not renumber the shelf. */
+/**
+ * ADM-07: the bin as the BinList board shows it — Nederburg Rosé 750ml, a
+ * wine the shop stopped stocking, moved to the bin by Tendai Mhlanga today at
+ * 09:02 through the product's own move (one minute before the run when that
+ * is earlier). The board's PO-0029 (an order, BUY-02) and "Happy hour (old)"
+ * (a price list, PRD-05) join when those kinds can go in the bin; T. Marange
+ * is not merged here. With --reset anything else in the bin — what test runs
+ * left — goes for good, so the bin reads as the board does.
+ */
+async function seedBin(input: { companyId: string; siteId: string; locationId: string; wineId: string | null; reset: boolean }) {
+  const { companyId } = input
+  const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
+  if (!owner) {
+    console.log("  bin: no owner to move Nederburg Rosé, skipped")
+    return
+  }
+  const actor = { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" }
+  const code = "NEDERBURG-ROSE-750"
+  const item =
+    (await prisma.inventoryItem.findFirst({ where: { siteId: input.siteId, itemCode: code }, select: { id: true } })) ??
+    (await prisma.inventoryItem.create({
+      data: {
+        itemCode: code,
+        name: "Nederburg Rosé 750ml",
+        category: "OTHER",
+        unit: "bottle",
+        siteId: input.siteId,
+        locationId: input.locationId,
+        currentStock: quantity(12),
+        minStock: quantity(6),
+        reorderQty: quantity(12),
+        unitCost: 9.4,
+      },
+      select: { id: true },
+    }))
+  const existing = await prisma.product.findFirst({ where: { companyId, code }, select: { id: true, archivedAt: true } })
+  const at = new Date(Math.min(harareTime(0, 9, 2).getTime(), Date.now() - 60_000))
+
+  // Already in the bin today by the owner's own move: nothing to do.
+  if (existing?.archivedAt) {
+    const binned = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, entityType: "Product", entityId: existing.id, eventType: RETAIL_AUDIT_EVENTS.recordBinned },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    })
+    if (binned && binned.createdAt.getTime() === existing.archivedAt.getTime() && existing.archivedAt.getTime() === at.getTime()) {
+      console.log("  bin: Nederburg Rosé 750ml already in the bin")
+    } else {
+      await prisma.product.update({ where: { id: existing.id }, data: { archivedAt: null } })
+    }
+  }
+  const current = existing ? await prisma.product.findUniqueOrThrow({ where: { id: existing.id }, select: { archivedAt: true } }) : null
+  if (!current?.archivedAt) {
+    const productId = await upsertShelfListing({
+      companyId,
+      productId: existing?.id ?? null,
+      sku: code,
+      name: "Nederburg Rosé 750ml",
+      inventoryItemId: item.id,
+      unitPrice: money("12.60"),
+      taxPercent: money(VAT_PERCENT),
+      categoryId: input.wineId,
+      costPrice: money("9.40"),
+    })
+    await moveToBin(actor, { kind: "product", id: productId }, at)
+    const event = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, entityType: "Product", entityId: productId, eventType: RETAIL_AUDIT_EVENTS.recordBinned },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    })
+    if (event) await prisma.platformAuditEvent.update({ where: { id: event.id }, data: { createdAt: at } })
+    console.log("  bin: Nederburg Rosé 750ml moved to the bin by Tendai Mhlanga")
+  }
+
+  if (input.reset) {
+    const strays = (await listBinEntries(companyId)).filter((entry) => !(entry.kind === "product" && entry.name === "Nederburg Rosé 750ml"))
+    if (strays.length) {
+      const gone = await deleteFromBinForGood(
+        actor,
+        strays.map((entry) => ({ kind: entry.kind, id: entry.id })),
+      )
+      console.log(`  bin: ${strays.length} left by test runs gone for good (${gone.deleted} deleted, ${gone.kept} kept)`)
+    }
+  }
+}
+
 function hashCode(value: string) {
   let hash = 0
   for (let index = 0; index < value.length; index += 1) {

@@ -263,5 +263,5 @@ export const productKind: RecordKind<ProductRecord> = {
       },
     ];
   },
-  invalidates: [["retail-catalog"], ["reports"], ["retail-bin"]],
+  invalidates: [["retail-catalog"], ["reports"], ["list", "retail-bin"]],
 };

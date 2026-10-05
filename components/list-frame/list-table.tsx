@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/workspace/menu";
 import { ChevronDown, DotsThree } from "@/lib/icons";
 import { fillTemplate } from "@/lib/reports/actions";
 import type {
@@ -71,6 +71,28 @@ const groupValue = (row: ReportRow, key: string): string => {
   return isBlank(value) ? "" : String(value);
 };
 
+/** An `action` cell: the word that does one of the row's menu actions, when the row's menu has it. */
+function RowActionCell({
+  column,
+  row,
+  menu,
+  onRowAction,
+}: {
+  column: ListColumn;
+  row: ReportRow;
+  menu: ListAction[];
+  onRowAction: (action: ListAction, row: ReportRow) => void;
+}) {
+  const action = menu.find((candidate) => candidate.key === column.action);
+  const words = row[column.key];
+  if (!action || isBlank(words)) return null;
+  return (
+    <button type="button" className="cx-lf-actcell" onClick={() => onRowAction(action, row)}>
+      {String(words)}
+    </button>
+  );
+}
+
 export function ListTable(props: Props) {
   const { spec, columns, template, rows, groups, groupKey, folded } = props;
   const by = sortOf(spec, props.sort);
@@ -134,22 +156,26 @@ export function ListTable(props: Props) {
             className={`cx-lf-c${alignOf(column) === "end" ? " cx-lf-c--end" : ""}`}
             style={{ padding: cellPadding(column, columnIndex === last) }}
           >
-            <ListCell
-              column={column}
-              row={row}
-              rowHref={href}
-              edit={
-                column.cell === "edit-money" && props.edit
-                  ? {
-                      value: props.edit.value(row),
-                      changed: props.edit.changed(row),
-                      refused: props.edit.refused(row),
-                      onChange: (value) => props.edit!.onChange(row, value),
-                      label: `New price for ${name}`,
-                    }
-                  : undefined
-              }
-            />
+            {column.cell === "action" ? (
+              <RowActionCell column={column} row={row} menu={menu} onRowAction={props.onRowAction} />
+            ) : (
+              <ListCell
+                column={column}
+                row={row}
+                rowHref={href}
+                edit={
+                  column.cell === "edit-money" && props.edit
+                    ? {
+                        value: props.edit.value(row),
+                        changed: props.edit.changed(row),
+                        refused: props.edit.refused(row),
+                        onChange: (value) => props.edit!.onChange(row, value),
+                        label: `New price for ${name}`,
+                      }
+                    : undefined
+                }
+              />
+            )}
           </div>
         ))}
         <div role="cell" className="cx-lf-rowmenu">
@@ -161,10 +187,13 @@ export function ListTable(props: Props) {
                 </button>
               </MenuTrigger>
               <MenuContent align="end" style={{ width: 240 }}>
-                {menu.map((action) => (
-                  <MenuItem key={action.key} danger={action.tone === "bad"} onSelect={() => props.onRowAction(action, row)}>
-                    {fillTemplate(action.label, row, false) ?? action.label}
-                  </MenuItem>
+                {menu.map((action, actionIndex) => (
+                  <React.Fragment key={action.key}>
+                    {action.separated && actionIndex > 0 ? <MenuSeparator /> : null}
+                    <MenuItem danger={action.tone === "bad"} onSelect={() => props.onRowAction(action, row)}>
+                      {fillTemplate(action.label, row, false) ?? action.label}
+                    </MenuItem>
+                  </React.Fragment>
                 ))}
               </MenuContent>
             </Menu>

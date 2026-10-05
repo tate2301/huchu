@@ -7,10 +7,10 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { StateBadge } from "@/components/workspace/state-badge";
 import { CaretLeft, Check, ChevronLeftIcon, ChevronRight, ChevronUpIcon, Search, X } from "@/lib/icons";
 import { fillTemplate } from "@/lib/reports/actions";
-import { PERIOD_PRESETS, type ListColumn, type ListSpecPublic, type ReportRow, type ReportValue, type ResolvedListQuery } from "@/lib/reports/types";
+import { PERIOD_PRESETS, type ListAction, type ListColumn, type ListSpecPublic, type ReportRow, type ReportValue, type ResolvedListQuery } from "@/lib/reports/types";
 import { formatCount } from "@/lib/workspace/format";
 
-import { PERIOD_LABELS, cellText, diffTone, drawnFilters, filterValueLabel, isBlank, sortLabel, toneOf, totalText } from "./model";
+import { PERIOD_LABELS, cellText, diffTone, drawnFilters, filterValueLabel, isBlank, rowMatches, sortLabel, toneOf, totalText } from "./model";
 
 /**
  * A list on a phone (00-foundations 5.4.12, Mobile board): a 52px toolbar of
@@ -59,6 +59,7 @@ export function ListCards({
   ticked,
   selecting,
   onTick,
+  onAction,
   scrollRef,
   onScroll,
 }: {
@@ -68,6 +69,8 @@ export function ListCards({
   /** While anything is ticked, a tap ticks rather than opens. */
   selecting: boolean;
   onTick: (row: ReportRow) => void;
+  /** The card's own button (`card.action`), doing that row menu action. */
+  onAction: (action: ListAction, row: ReportRow) => void;
   scrollRef: React.Ref<HTMLDivElement>;
   onScroll: () => void;
 }) {
@@ -96,6 +99,9 @@ export function ListCards({
       {rows.map((row) => {
         const href = fillTemplate(spec.rowHref, row) ?? "#";
         const badge = badgeColumn ? row[badgeColumn.key] : null;
+        const cardAction = spec.card.action
+          ? (spec.rowMenu ?? []).find((action) => action.key === spec.card.action && rowMatches(row, spec.columns, action.when))
+          : undefined;
         const figure2 = figure2Column ? row[figure2Column.key] : null;
         return (
           <Link
@@ -139,6 +145,20 @@ export function ListCards({
                 )
               ) : null}
             </span>
+            {cardAction && !selecting ? (
+              <button
+                type="button"
+                className="cx-lf-card__action"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onAction(cardAction, row);
+                }}
+              >
+                {cardAction.label}
+              </button>
+            ) : null}
           </Link>
         );
       })}

@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { binInput, binKind, BinRefusal, listBin, moveToBin } from "@/lib/retail/bin";
+import { binInput, binKind, BinRefusal, moveToBin } from "@/lib/retail/bin";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../_helpers";
-
-/** The bin's list: `retail.bin` `view`. Setup › Bin reads it. */
-export async function GET(request: NextRequest) {
-  const { response, session } = await requireRetailSession(request);
-  if (response || !session) return response as NextResponse;
-  const gate = requireRetailPermission(session, "retail.bin", "view");
-  if (gate) return gate;
-  return successResponse({ data: await listBin(session.user.companyId) });
-}
 
 /**
  * Move one record to the bin (W-63): `{ kind, id }` → `{ binnedAt, keptUntil }`.

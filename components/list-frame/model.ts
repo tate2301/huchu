@@ -12,7 +12,16 @@ import type {
   Tone,
 } from "@/lib/reports/types";
 import { filterRows, ratioOf } from "@/lib/reports/view";
-import { formatCount, formatMoney, formatPercent, formatSigned, formatSignedCount } from "@/lib/workspace/format";
+import {
+  formatCount,
+  formatDay,
+  formatMediumDay,
+  formatMoney,
+  formatPercent,
+  formatRelativeDay,
+  formatSigned,
+  formatSignedCount,
+} from "@/lib/workspace/format";
 
 /**
  * The ListFrame's arithmetic (00-foundations 5.4), kept out of the components
@@ -123,6 +132,13 @@ export function toneOf(column: Pick<ListColumn, "key" | "tones" | "toneKey">, ro
 }
 
 /** The words a cell prints, and its `title` (the full value). */
+/** A `date` cell's day in its column's format ("2 Nov 2026", "Today"), else "15 August 2026". */
+export function dayText(column: Pick<ListColumn, "dayFormat">, value: string, now: Date = new Date()): string {
+  if (column.dayFormat === "relative") return formatRelativeDay(value, now);
+  if (column.dayFormat === "medium") return formatMediumDay(value);
+  return formatDay(value);
+}
+
 export function cellText(column: ListColumn, row: ReportRow): string {
   const value = row[column.key];
   if (isBlank(value)) return "—";
@@ -135,6 +151,8 @@ export function cellText(column: ListColumn, row: ReportRow): string {
       return formatMoney(Number(value), currency);
     case "diff":
       return formatSigned(Number(value), currency);
+    case "date":
+      return column.dayFormat ? dayText(column, String(value)) : String(value);
     case "num": {
       if (column.sign) return formatSignedCount(Number(value));
       if (column.percent) return formatPercent(Number(value));

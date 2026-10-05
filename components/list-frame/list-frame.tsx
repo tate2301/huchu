@@ -364,10 +364,11 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   const post = async (action: ListAction, ids: string[], targetRows: ReportRow[]) => {
     const how = action.do;
     if (!("endpoint" in how)) return;
+    const run = "run" in how ? LIST_ACTION_RUNS[how.run] : undefined;
     const response = await fetch(how.endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify(run?.body ? run.body(ids, targetRows) : { ids }),
     });
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -379,8 +380,10 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
       queryClient.invalidateQueries({ queryKey: ["list", source] }),
       queryClient.invalidateQueries({ queryKey: ["nav-badges"] }),
     ]);
-    const run = "run" in how ? LIST_ACTION_RUNS[how.run] : undefined;
-    if (run) toast({ title: run.done(ids.length, targetRows, answer), variant: "success" });
+    if (run) {
+      const done = run.done(ids.length, targetRows, answer);
+      toast(typeof done === "string" ? { title: done, variant: "success" } : done);
+    }
   };
   const act = async (action: ListAction, ids: string[], targetRows: ReportRow[]) => {
     if ("export" in action.do) {
@@ -485,7 +488,12 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
     return { href: query ? `${pathname}?${query}` : pathname, label: parent.all };
   }, [parent, pathname, searchParams]);
   const chrome = (
-    <PageChrome title={title} sub={parent?.label ?? null} subLink={clearParent} primary={refusal ? null : primary} />
+    <PageChrome
+      title={title}
+      sub={parent?.label ?? definition?.list?.sub ?? null}
+      subLink={clearParent}
+      primary={refusal ? null : primary}
+    />
   );
 
   if (refusal) {
@@ -651,6 +659,7 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
             ticked={ticked}
             selecting={tickCount > 0}
             onTick={(row) => setTicks([row], !ticked(row.id))}
+            onAction={(action, row) => act(action, [row.id], [row])}
             scrollRef={scrollRef}
             onScroll={onScroll}
           />

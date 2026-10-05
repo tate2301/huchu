@@ -108,6 +108,12 @@ export const RETAIL_AUDIT_EVENTS = {
   /** A record came back out of the bin (W-63). */
   recordRestored: "RETAIL_RECORD.RESTORED",
   /**
+   * A record gone from the bin for good (W-63): deleted when nothing refers to
+   * it, else kept for history and never listed or restored again. Carries
+   * how, and whether the nightly purge did it (then nobody is the actor).
+   */
+  recordPurged: "RETAIL_RECORD.PURGED",
+  /**
    * A settings page saved (C-14). Entity `RetailSettings`, id the page;
    * carries every field changed in the one save.
    */
@@ -478,6 +484,46 @@ export async function auditRecordBin(
     entityId: input.entityId,
     payload: { kind: input.kind, name: input.name },
   });
+}
+
+/**
+ * A record gone from the bin for good (W-63). `actor` is null for the nightly
+ * purge, which nobody did: the event's actor is empty and it says `automatic`.
+ */
+export async function auditRecordPurged(
+  client: AuditClient,
+  input: {
+    companyId: string;
+    actor: RetailAuditActor | null;
+    entityType: string;
+    entityId: string;
+    kind: string;
+    name: string;
+    how: "deleted" | "kept";
+  },
+): Promise<void> {
+  const payload = { kind: input.kind, name: input.name, how: input.how, automatic: input.actor === null };
+  if (input.actor) {
+    await writeRetailAuditEvent(client, {
+      actor: input.actor,
+      eventType: RETAIL_AUDIT_EVENTS.recordPurged,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      payload,
+    });
+    return;
+  }
+  await writePlatformAuditEvent(
+    {
+      companyId: input.companyId,
+      actorId: null,
+      eventType: RETAIL_AUDIT_EVENTS.recordPurged,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      payload: { actorRole: null, actorName: null, ...payload },
+    },
+    client,
+  );
 }
 
 /** Narrower than `Prisma.TransactionClient`, and enough for every call above. */

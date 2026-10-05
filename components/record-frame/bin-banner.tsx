@@ -13,8 +13,8 @@ function dayMonth(iso: string) {
 
 /**
  * The bin banner (5.6.3): when it went in, who moved it, until when it is
- * kept, and Restore for roles with Bin update. Past 30 days it says so and
- * offers nothing.
+ * kept, and Restore for roles with Bin update. Past 30 days, or deleted for
+ * good, it says so and offers nothing.
  */
 export function BinBanner({
   state,
@@ -51,7 +51,9 @@ export function BinBanner({
         <b>In the bin</b>{" "}
         {state.restorable
           ? `${since} Kept until ${dayMonth(state.keptUntil)}, then gone for good. Nothing sold, paid or counted against it changes.`
-          : `${since.replace(/\.$/, "")}. It is past 30 days and can no longer be restored.`}
+          : state.purged
+            ? `${since} It was deleted for good and is kept only for what was sold, paid or counted against it.`
+            : `${since.replace(/\.$/, "")}. It is past 30 days and can no longer be restored.`}
         {error ? (
           <>
             {" "}

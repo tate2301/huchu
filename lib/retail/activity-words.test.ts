@@ -19,6 +19,14 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
       tone: "bad",
     });
     expect(activityWords("RETAIL_RECORD.RESTORED", {})).toEqual({ what: "Restored from the bin", tone: "ok" });
+    expect(activityWords("RETAIL_RECORD.PURGED", { how: "kept", automatic: false })).toEqual({
+      what: "Deleted for good",
+      tone: "bad",
+    });
+    expect(activityWords("RETAIL_RECORD.PURGED", { how: "deleted", automatic: true })).toEqual({
+      what: "Deleted for good after 30 days in the bin",
+      tone: "bad",
+    });
   });
 
   it("stopping and restarting a product's sale (20-products 3.4)", () => {

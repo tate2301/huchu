@@ -148,6 +148,21 @@ export function parseDay(text: string): string | null {
   return `${year}-${pad(month)}-${pad(day)}`;
 }
 
+/** "2 Nov 2026": a day in a table, where a year may differ from row to row. */
+export function formatMediumDay(value: Date | string, timeZone = DEFAULT_TIME_ZONE): string {
+  const w = wall(value, timeZone);
+  return `${w.day} ${MONTHS_SHORT[w.month - 1]} ${w.year}`;
+}
+
+/** "Today", "Yesterday", else "28 Sep 2026", by the calendar days in the zone at `now`. */
+export function formatRelativeDay(value: Date | string, now: Date, timeZone = DEFAULT_TIME_ZONE): string {
+  const day = dayKey(typeof value === "string" ? new Date(value) : value, timeZone);
+  const today = dayKey(now, timeZone);
+  if (day === today) return "Today";
+  if (day === dayKey(new Date(now.getTime() - 24 * 60 * 60 * 1000), timeZone)) return "Yesterday";
+  return formatMediumDay(value, timeZone);
+}
+
 /** "30 Sep". */
 export function formatShortDay(value: Date | string, timeZone = DEFAULT_TIME_ZONE): string {
   const w = wall(value, timeZone);
