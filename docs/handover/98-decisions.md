@@ -84,3 +84,32 @@ For C-42, Farai keeps Borrowdale and also gets Harare Main Branch, so the stale 
 Each area spec lists its own open questions. A build unit takes the answer its spec recommends. If the spec has no recommendation, the unit takes what the board draws.
 
 The unit records each choice in its report. If a board draws something with no data behind it (an integration that does not exist, a figure nobody keeps), the unit builds the honest version: it hides the option or rewords the hint. It never fakes a value.
+
+## Owner direction, 5 October: sidebar, Management and Setup
+
+These override 00-foundations §5.3 and every spec that disagrees.
+
+1. **The sidebar's structure is not ours to change.**
+   - The panel keeps its two levels: the workspace's module list, and a module's own items.
+   - The chevron before a module's title goes **back to the module list inside the panel**. It does not collapse the panel.
+   - Collapsing is a separate control in the panel header, as on `Main.dc.html`, plus Cmd/Ctrl+B.
+   - The canvas look (rail, panel, item sizes, badges, theme) stays.
+2. **The gear (Settings) opens the existing Management UI** at `/management/master-data`. That is the `ManagementShell` with its settings rail, already built.
+   - There is no retail "Management" module.
+   - Things Management already has are not rebuilt in retail: company legal details, branding, users and the user directory, master-data sites, billing and plan, activity.
+   - Retail pages link to the Management page or extend it.
+3. **Retail-specific settings live in the retail sidebar under a "Setup" module.** It takes the pages the canvas draws under Management that are about the shop:
+   - Shop: business type, liquor features, money rules
+   - Tills and devices
+   - Payments
+   - Till rules
+   - Receipts
+   - Fiscal device
+   - Posting to the books
+   - Approvals
+   - Loyalty
+   - Staff and PINs: retail roles, till PINs, site access
+   - Bin
+
+   Routes stay under `/retail/manage/*`. Every board that drew "Management" for these pages now reads "Setup" in the panel title and the back link.
+4. **Units affected:** FND-08 and SET-01 build the Shop page, not "Company". The other SET and ADM units place their pages under Setup.
