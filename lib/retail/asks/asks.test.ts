@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { binAsk, cancelRequisitionAsk, closeShortAsk, removeOrderAsk, restorableUntil } from "./index";
 
 describe("the Record board's asks", () => {
-  it("bin: restorable for 30 days, said as a long date in Harare", () => {
+  it("bin: restorable for 30 days, said as a day and month in Harare", () => {
     const movedAt = new Date("2026-10-03T22:30:00Z"); // 4 October 00:30 in Harare
     expect(restorableUntil(movedAt).toISOString()).toBe("2026-11-02T22:30:00.000Z");
     expect(binAsk({ title: "Castle Lager 340ml", movedAt })).toEqual({
       title: "Move Castle Lager 340ml to the bin?",
-      body: "It leaves every list and search today. Anything sold, paid or counted against it stays exactly as it is. You can restore it from the bin until 3 November 2026.",
+      body: "It leaves every list and search today. Anything sold, paid or counted against it stays exactly as it is. You can restore it from the bin until 3 November.",
       keep: "Keep it",
       go: "Move to the bin",
       fill: "bad",

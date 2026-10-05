@@ -16,6 +16,8 @@ const READ: ListSpec["read"] = [
 const OWN: ListSpec["scopeOwn"] = { roles: ["CASHIER"], column: "cashierId" };
 
 const TENDER_TONES = { Cash: "ok", "Mobile money": "info", Card: "warn", "Bank transfer": "neutral", Voucher: "gold" } as const;
+/** A sale's row: how it was paid, or that it was refunded or voided. */
+const SALE_TONES = { ...TENDER_TONES, Refund: "bad", Voided: "bad" } as const;
 
 const sales: ListSpec = {
   noun: "sales",
@@ -28,7 +30,7 @@ const sales: ListSpec = {
     { key: "postedAt", label: "When", kind: "date", cell: "when", width: "150px", align: "start" },
     { key: "saleNo", label: "Sale", kind: "code", cell: "ref", width: "140px", align: "start" },
     { key: "items", label: "Items", kind: "number", cell: "num", total: "sum", width: "80px", align: "end" },
-    { key: "paidWith", label: "Paid with", kind: "text", cell: "dot", tones: TENDER_TONES, width: "minmax(0,1fr)", align: "start" },
+    { key: "paidWith", label: "Paid with", kind: "text", cell: "dot", tones: SALE_TONES, width: "minmax(0,1fr)", align: "start" },
     { key: "total", label: "Total", kind: "money", currency: "USD", cell: "money", total: "sum", width: "120px", align: "end" },
   ],
   rowHref: "/retail/sales/{id}",

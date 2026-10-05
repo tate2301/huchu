@@ -74,6 +74,9 @@ export async function GET(
   return successResponse(record);
 }
 
+/** The product went in the bin between the read and the write. */
+class InTheBin extends Error {}
+
 /** 400 `{ error, fieldErrors }`: the rail shows the sentence under the field (4.9). */
 function fieldErrorResponse(message: string, fieldErrors: Record<string, string>) {
   markActivityFailed();
@@ -195,6 +198,13 @@ export async function PATCH(
     };
 
     await prisma.$transaction(async (tx) => {
+      // Checked again under the row's lock: a move to the bin that landed
+      // since the read above wins, and this edit is refused.
+      const open = await tx.product.updateMany({
+        where: { id: existing.productId, companyId, archivedAt: null },
+        data: { updatedAt: new Date() },
+      });
+      if (open.count === 0) throw new InTheBin();
       if (inventoryItemId !== existing.inventoryItemId) {
         // The line it used to sell keeps nothing pointing at it, which is what
         // "moved to a different stock row" means.
@@ -251,6 +261,7 @@ export async function PATCH(
       changed: changed.map(({ field, from, to }) => ({ field, from, to })),
     });
   } catch (error) {
+    if (error instanceof InTheBin) return errorResponse("Restore it to change it", 409);
     console.error("[API] PATCH /api/v2/retail/catalog/[id] error:", error);
     return errorResponse("Failed to update the product");
   }

@@ -87,6 +87,12 @@ describe("the bin", () => {
     expect(entries.find((entry) => entry.kind === "product")?.detail).toBe(`GIN-${stamp} · last priced 16.40`);
 
     expect(await loadShelfListing(companyId, productId)).toBeNull();
+    // Its record still reads the shelf's terms: VAT inside the price.
+    expect(await loadShelfListing(companyId, productId, { includeBinned: true })).toMatchObject({
+      unitPrice: 16.4,
+      taxInclusive: true,
+      binnedAt: "2026-10-03T12:52:00.000Z",
+    });
     const [binned] = await events(productId);
     expect(binned).toMatchObject({ eventType: "RETAIL_RECORD.BINNED", entityType: "Product" });
     expect(JSON.parse(binned!.payloadJson!)).toMatchObject({ kind: "product", name: "Gordon's Gin 750ml", actorName: "Tafara Nyathi" });

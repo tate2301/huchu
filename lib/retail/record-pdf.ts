@@ -2,6 +2,7 @@ import { esc } from "@/lib/documents/html-renderer";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { loadProductRecord } from "@/lib/retail/product-record";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
+import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
 import { formatDay, formatMoney, formatSigned, formatTime, formatWhen } from "@/lib/workspace/format";
 
 /**
@@ -68,7 +69,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         ["Difference", shift.variance === null ? "—" : formatSigned(shift.variance)],
       ]);
       const tenders = rows(shift.tenders.map((line) => [`${line.label} · ${line.sales}`, formatMoney(line.amount)]));
-      const hours = rows(shift.hourly.map((hour) => [hour.hour, formatMoney(hour.amount)]));
+      const hours = rows(shift.takingsOverTime.bars.map((bar) => [bar.label, formatMoney(bar.amount)]));
       const facts = rows([
         ["Till", shift.registerName],
         ["Site", shift.site?.name ?? "—"],
@@ -76,7 +77,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         ["Opened", `${formatDay(shift.openedAt)} ${formatTime(shift.openedAt)}`],
         ["Closed", shift.closedAt ? `${formatDay(shift.closedAt)} ${formatTime(shift.closedAt)}` : "Still open"],
         ["Takings", formatMoney(shift.takings)],
-        ["Sales", String(shift.saleCount)],
+        ["Sales", salesWords(shift)],
       ]);
       const now = new Date();
       return {
@@ -92,7 +93,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
 </div>
 <div class="rd-cols">
   <table class="rd-table"><caption>How people paid</caption><tbody>${tenders || rows([["Nobody has paid yet", formatMoney(0)]])}</tbody></table>
-  <table class="rd-table"><caption>Takings per hour</caption><tbody>${hours}</tbody></table>
+  <table class="rd-table"><caption>${takingsTitle(shift.takingsOverTime.hoursEach)}</caption><tbody>${hours}</tbody></table>
 </div>`,
       };
     },

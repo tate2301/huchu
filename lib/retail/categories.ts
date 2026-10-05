@@ -173,9 +173,7 @@ export const categoryInput = z.object({
   targetMarginPercent: z.number().min(0).max(99.99).nullable().default(null),
 });
 
-export const categoryPatch = categoryInput.partial().extend({
-  archived: z.boolean().optional(),
-});
+export const categoryPatch = categoryInput.partial();
 
 export type CategoryInput = z.infer<typeof categoryInput>;
 export type CategoryPatch = z.infer<typeof categoryPatch>;
@@ -214,10 +212,8 @@ export async function createRetailCategory(companyId: string, input: CategoryInp
 }
 
 /**
- * Change a category, or archive and restore it.
- *
- * Archiving hides it from every product field; products already filed under it
- * keep it, so nothing about a sale or a report changes. Returns null when the
+ * Change a category. Moving it to the bin and back is the bin's
+ * (`lib/retail/bin.ts`), which writes who did it. Returns null when the
  * category is not this company's.
  */
 export async function updateRetailCategory(
@@ -242,7 +238,6 @@ export async function updateRetailCategory(
   if (patch.targetMarginPercent !== undefined) {
     data.targetMarginPercent = patch.targetMarginPercent === null ? null : money(patch.targetMarginPercent);
   }
-  if (patch.archived !== undefined) data.archivedAt = patch.archived ? new Date() : null;
 
   try {
     const record = await prisma.retailCategory.update({ where: { id }, data, select: categorySelect });

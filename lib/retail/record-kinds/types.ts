@@ -58,7 +58,8 @@ export type RecordChart = {
   chip?: RecordChip;
   /** A right-aligned sentence instead of a range: "Selling about 2.1 a day". */
   aside?: string;
-  bars: Array<{ label: string; value: number; text: string }>;
+  /** `label` names a bar in its tooltip; `tick` is its x label ("" to skip it), `label` when absent. */
+  bars: Array<{ label: string; tick?: string; value: number; text: string }>;
   /** A y-axis tick: "US$20". */
   tick?: (value: number) => string;
   footer?: { text: string; link?: { label: string; href: string } };
@@ -87,12 +88,12 @@ export type RecordTab<R> = SourceTab<R> | ActivityTab;
 export type RailEdit = {
   /** The field the `PATCH` body carries. */
   field: string;
-  type: "text" | "money" | "number" | "select";
-  /** What the control starts with. */
+  /** `auto`: the lookup over `GET /api/v2/retail/lookup/<noun>` with quick add (5.7.5); it sends the picked id, or null. */
+  type: "text" | "money" | "number" | "auto";
+  /** What the control starts with: the text, or for `auto` the picked id. */
   initial: string;
-  options?: Array<{ value: string; label: string }>;
-  /** Options read when the row opens, for a `select` whose choices are the shop's own. */
-  loadOptions?: { key: readonly unknown[]; load: () => Promise<Array<{ value: string; label: string }>> };
+  /** `auto`: the noun looked up ("category") and what is picked now. */
+  lookup?: { noun: string; picked: { id: string; label: string } | null };
   mono?: boolean;
   /** The text typed, as the value sent; throws a sentence to show under it. */
   parse?: (text: string) => unknown;

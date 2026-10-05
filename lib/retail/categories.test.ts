@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
+import { moveToBin, restoreFromBin } from "@/lib/retail/bin";
 
 import {
   CATEGORY_SEEDS,
@@ -14,6 +15,8 @@ import {
 let companyId: string;
 let otherCompanyId: string;
 
+const actor = () => ({ companyId, userId: "00000000-0000-0000-0000-0000000000aa", userName: "Tafara Nyathi", userRole: "MANAGER" });
+
 beforeAll(async () => {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const [shop, rival] = await Promise.all([
@@ -26,6 +29,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const ids = [companyId, otherCompanyId].filter(Boolean);
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.product.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.retailCategory.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.company.deleteMany({ where: { id: { in: ids } } });
@@ -60,14 +64,14 @@ describe("a shop's categories", () => {
     expect(updated).toMatchObject({ returnable: false, depositAmount: null });
   });
 
-  it("hide an archived category but keep it on its products", async () => {
+  it("leave every list in the bin but stay on their products", async () => {
     const [snacks] = (await listRetailCategories(companyId)).filter((row) => row.name === "Snacks");
     const product = await prisma.product.create({
       data: { companyId, code: `SIMBA-${Date.now()}`, name: "Simba Chips 125g", categoryId: snacks.id },
       select: { id: true },
     });
 
-    await updateRetailCategory(companyId, snacks.id, { archived: true });
+    await moveToBin(actor(), { kind: "category", id: snacks.id });
     expect((await listRetailCategories(companyId)).some((row) => row.id === snacks.id)).toBe(false);
     const all = await listRetailCategories(companyId, { includeArchived: true });
     expect(all.find((row) => row.id === snacks.id)?.archivedAt).not.toBeNull();
@@ -75,7 +79,8 @@ describe("a shop's categories", () => {
     const kept = await prisma.product.findUniqueOrThrow({ where: { id: product.id }, select: { categoryId: true } });
     expect(kept.categoryId).toBe(snacks.id);
 
-    const restored = await updateRetailCategory(companyId, snacks.id, { archived: false });
+    await restoreFromBin(actor(), { kind: "category", id: snacks.id });
+    const restored = (await listRetailCategories(companyId)).find((row) => row.id === snacks.id);
     expect(restored?.archivedAt).toBeNull();
     expect(restored?.productCount).toBe(1);
   });

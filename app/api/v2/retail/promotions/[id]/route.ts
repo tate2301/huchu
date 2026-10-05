@@ -76,31 +76,3 @@ export async function PATCH(
     return errorResponse("Failed to update promotion");
   }
 }
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
-
-  const gate = requireRetailPermission(session, "retail.promotions", "delete");
-  if (gate) return gate;
-
-  const path = await parseRetailParams(params, retailIdParams);
-  if (path.response) return path.response;
-  const { id } = path.data;
-  const existing = await getPromotion(session.user.companyId, id);
-  if (!existing) {
-    return errorResponse("Promotion not found", 404);
-  }
-
-  // To the bin, not gone: off the till at once, and restorable.
-  await prisma.retailPromotion.update({
-    where: { id: existing.id },
-    data: { archivedAt: new Date(), status: "INACTIVE" },
-  });
-  return successResponse({ success: true });
-}

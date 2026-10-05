@@ -1,5 +1,6 @@
 import { fetchJson } from "@/lib/api-client";
 import type { ShiftRecordView } from "@/lib/retail/shift-record";
+import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
 import { formatDay, formatDuration, formatMoney, formatSigned, formatTime, formatCount } from "@/lib/workspace/format";
 
 import type { RecordChip, RecordKind, RecordStep } from "./types";
@@ -126,7 +127,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
   kpis: (shift) => {
     const moves = cashInOutNote(shift);
     return [
-      { label: "Takings", value: formatMoney(shift.takings), lead: formatCount(shift.saleCount), leadTone: "plain", note: shift.saleCount === 1 ? "sale" : "sales" },
+      { label: "Takings", value: formatMoney(shift.takings), lead: formatCount(shift.saleCount), leadTone: "plain", note: salesWords(shift).replace(/^[\d,]+ /, "") },
       { label: "Opening float", value: formatMoney(shift.openingFloat), lead: formatTime(shift.openedAt), leadTone: "plain", note: "counted in" },
       { label: "Cash in and out", value: formatMoney(shift.cashMovementNet), lead: moves.lead, leadTone: "plain", note: moves.note },
       { label: "Should be in the drawer", value: formatMoney(shift.expectedCash), lead: formatMoney(shift.cashSales), leadTone: "plain", note: "in cash sales" },
@@ -134,9 +135,9 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
     ];
   },
   chart: (shift) => ({
-    title: "Takings per hour",
+    title: takingsTitle(shift.takingsOverTime.hoursEach),
     unit: "US$",
-    bars: shift.hourly.map((hour) => ({ label: hour.hour, value: hour.amount, text: formatMoney(hour.amount) })),
+    bars: shift.takingsOverTime.bars.map((bar) => ({ label: bar.label, tick: bar.tick, value: bar.amount, text: formatMoney(bar.amount) })),
     tick: (value) => (value === 0 ? "0" : `US$${formatCount(value)}`),
   }),
   tabs: [
@@ -147,6 +148,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
       parent: "shift",
       allLink: { label: "All sales on this shift", href: (shift) => `/retail/sales?tab=all&shift=${shift.id}` },
       totalsText: (shift) => ({
+        postedAt: `Σ ${salesWords(shift)}`,
         paidWith: shift.tenders.map((line) => `${line.label.toLowerCase()} ${formatMoney(line.amount)}`).join(" · "),
       }),
     },

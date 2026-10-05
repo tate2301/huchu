@@ -16,8 +16,11 @@ import type { RecordChart } from "@/lib/retail/record-kinds/types";
 export function ChartPanel({ chart }: { chart: RecordChart }) {
   const id = React.useId();
   const empty = chart.bars.every((bar) => bar.value === 0);
+  // The gap narrows as the bars multiply, so no bar is ever squeezed to nothing.
+  const count = chart.bars.length;
+  const gap = count <= 8 ? 16 : count <= 16 ? 8 : 3;
   return (
-    <section className="cx-rf-panel" aria-labelledby={id}>
+    <section className="cx-rf-panel" aria-labelledby={id} style={{ "--rf-bar-gap": `${gap}px` } as React.CSSProperties}>
       <div className="cx-rf-panel__head">
         <h2 id={id} className="cx-rf-panel__title">
           {chart.title}
@@ -32,7 +35,7 @@ export function ChartPanel({ chart }: { chart: RecordChart }) {
       ) : (
         <BarChart
           bars={chart.bars}
-          xLabels={chart.bars.map((bar) => bar.label)}
+          xLabels={chart.bars.map((bar) => bar.tick ?? bar.label)}
           label={`${chart.title}${empty ? ": nothing yet" : ""}`}
           tick={chart.tick}
           evenX

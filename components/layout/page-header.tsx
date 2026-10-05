@@ -22,7 +22,7 @@ import { usePageChrome, type PagePrimary } from "@/components/layout/page-chrome
 import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
 import { Button } from "@/components/workspace/button";
-import { Menu, MenuContent, MenuTrigger } from "@/components/workspace/menu";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
 import { CrmMembers } from "@/components/crm/crm-members";
 import { CaretLeft, DotsThree, List, Plus, type LucideIcon } from "@/lib/icons";
 import { navSections } from "@/lib/navigation";
@@ -59,11 +59,12 @@ function sheetHref(pathname: string, search: string, sheet: string) {
  * the account menu.
  *
  * Below 720px it is "≡ <title> search, device, bell, ⋯ +": the menu button
- * opens the drawer and the primary becomes a 44px plus; the page's other
- * actions fold into ⋯.
+ * opens the drawer and a create primary becomes a 44px plus; a verb primary
+ * leads ⋯, and the page's other actions fold into ⋯ (as the page's
+ * `phoneMenu` items when it gives them).
  */
 export function PageHeader() {
-  const { actions, identity, primary } = usePageChrome();
+  const { actions, identity, primary, phoneMenu } = usePageChrome();
   const nav = useShellNav();
   const shell = useShell();
   const pathname = usePathname();
@@ -77,7 +78,10 @@ export function PageHeader() {
     if (target.onClick) target.onClick();
     else if (primaryHref) router.push(primaryHref);
   };
-  const folded = flatten(actions);
+  const folded = phoneMenu ? [] : flatten(actions);
+  // On a phone a create action is the plus; a verb ("Count and close") leads ⋯.
+  const primaryInMenu = primary && primary.icon !== "plus" ? primary : null;
+  const menuCount = folded.length + (phoneMenu?.length ?? 0) + (primaryInMenu ? 1 : 0);
   // Held lowercase and drawn with `createElement`: a capitalised binding read
   // during render looks to the lint rule like a component made in render.
   const pageIcon = nav.activeItem?.icon ?? routeIcon(pathname);
@@ -99,9 +103,11 @@ export function PageHeader() {
               <CaretLeft className="size-4" aria-hidden="true" />
               {back.label}
             </Link>
-            <span aria-hidden="true" className="text-[var(--line-strong)]">
-              /
-            </span>
+            {title ? (
+              <span aria-hidden="true" className="text-[var(--line-strong)]">
+                /
+              </span>
+            ) : null}
           </>
         ) : null}
         {pageIcon && !back
@@ -166,7 +172,7 @@ export function PageHeader() {
         <SearchTrigger compact />
         <DeviceStatus compact />
         <NotificationsBell compact />
-        {folded.length > 0 ? (
+        {menuCount > 0 ? (
           <Menu>
             <MenuTrigger asChild>
               <button
@@ -178,11 +184,23 @@ export function PageHeader() {
               </button>
             </MenuTrigger>
             <MenuContent align="end">
-              <div className="flex flex-col gap-1 p-1 [&_a]:w-full [&_button]:w-full">{folded}</div>
+              {primaryInMenu ? (
+                <MenuItem className="font-semibold" onSelect={() => runPrimary(primaryInMenu)}>
+                  {primaryInMenu.label}
+                </MenuItem>
+              ) : null}
+              {phoneMenu?.map((item) => (
+                <MenuItem key={item.key} danger={item.danger} sub={item.sub} onSelect={item.onSelect}>
+                  {item.label}
+                </MenuItem>
+              ))}
+              {folded.length ? (
+                <div className="flex flex-col gap-1 p-1 [&_a]:w-full [&_button]:w-full">{folded}</div>
+              ) : null}
             </MenuContent>
           </Menu>
         ) : null}
-        {primary ? (
+        {primary && !primaryInMenu ? (
           <button
             type="button"
             aria-label={primary.label}

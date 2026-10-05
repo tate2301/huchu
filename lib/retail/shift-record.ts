@@ -2,7 +2,7 @@ import { money, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { expectedCashForShift, getCashNetFromPayments } from "@/lib/retail/cash-up";
 import { tenderLabel } from "@/lib/retail/words";
-import { DEFAULT_TIME_ZONE, formatTime } from "@/lib/workspace/format";
+import { DEFAULT_TIME_ZONE, dayKey, formatTime, formatWhen } from "@/lib/workspace/format";
 import { shiftState } from "@/lib/reports/loaders/retail/floor";
 
 /**
@@ -34,7 +34,11 @@ export type ShiftRecordView = {
   notes: string | null;
   openingFloat: number;
   takings: number;
+  /** Posted sales; the Sales tab also lists the refunds and voids beside them. */
   saleCount: number;
+  refundCount: number;
+  /** Void rows and the sales they voided. */
+  voidCount: number;
   cashSales: number;
   /** Signed: what the movements did to the drawer. */
   cashMovementNet: number;
@@ -43,12 +47,70 @@ export type ShiftRecordView = {
   countedCash: number | null;
   variance: number | null;
   tenders: Array<{ tender: string; label: string; amount: number; sales: number }>;
-  /** One bar per hour from the hour it opened to now or the close: "08:00". */
-  hourly: Array<{ hour: string; amount: number }>;
+  /** Takings over the time it was open, for the chart: see `takingsOverTime`. */
+  takingsOverTime: TakingsOverTime;
   lastCashSale: { saleNo: string; at: string } | null;
 };
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/** At most this many bars: each stays wide enough to see and to point at. */
+const MAX_BARS = 24;
+/** Bucket sizes in hours, each dividing a day. */
+const BUCKET_HOURS = [1, 2, 3, 4, 6, 8, 12, 24];
+
+export type TakingsOverTime = {
+  /** Hours a bar covers: 1 for a shift within a day, more for one left open for days. */
+  hoursEach: number;
+  bars: Array<{
+    /** The bar's name in the tooltip: "08:00", "08:00–11:00", "3 Oct 08:00–11:00". */
+    label: string;
+    /** Its x label, or "" when the axis skips it to stay readable. */
+    tick: string;
+    amount: number;
+  }>;
+};
+
+/**
+ * Takings from the hour the drawer opened to now or the close, one bar an
+ * hour; a drawer left open for days is bucketed by the smallest of 2, 3, 4, 6,
+ * 8, 12 or 24 hours that keeps it to 24 bars, and its labels carry the day
+ * ("3 Oct 08:00"). Every bar is labelled in the tooltip; the axis labels every
+ * k-th bar so the labels never run into each other.
+ */
+export function takingsOverTime(
+  openedAt: Date,
+  end: Date,
+  sales: ReadonlyArray<{ at: Date; amount: number }>,
+  timeZone: string = DEFAULT_TIME_ZONE,
+): TakingsOverTime {
+  const start = Math.floor(openedAt.getTime() / HOUR_MS) * HOUR_MS;
+  const spanHours = Math.max(1, Math.floor((Math.max(end.getTime(), start) - start) / HOUR_MS) + 1);
+  const hoursEach =
+    BUCKET_HOURS.find((size) => Math.ceil(spanHours / size) <= MAX_BARS) ?? 24 * Math.ceil(spanHours / 24 / MAX_BARS);
+  const size = hoursEach * HOUR_MS;
+  const count = Math.ceil(spanHours / hoursEach);
+  const amounts = Array.from({ length: count }, () => 0);
+  for (const sale of sales) {
+    const index = Math.floor((sale.at.getTime() - start) / size);
+    if (index >= 0 && index < count) amounts[index] += sale.amount;
+  }
+  const days = dayKey(new Date(start), timeZone) !== dayKey(new Date(start + count * size - 1), timeZone);
+  const name = (at: number) => (days ? formatWhen(new Date(at), timeZone) : formatTime(new Date(at), timeZone));
+  // Hour labels ("08:00") fit twelve to a plot; day labels ("3 Oct 08:00") six.
+  const every = Math.ceil(count / (days ? 6 : 12));
+  return {
+    hoursEach,
+    bars: amounts.map((amount, index) => {
+      const at = start + index * size;
+      return {
+        label: hoursEach === 1 ? name(at) : `${name(at)}–${formatTime(new Date(at + size), timeZone)}`,
+        tick: index % every === 0 ? name(at) : "",
+        amount: Math.round(amount * 100) / 100,
+      };
+    }),
+  };
+}
 
 /** The shift, or null when it is not this company's (or, with `cashierId`, not theirs). */
 export async function loadShiftRecord(
@@ -109,17 +171,7 @@ export async function loadShiftRecord(
     }
   }
 
-  // The hours the drawer was open, each with what it took.
   const end = shift.closedAt ?? now;
-  const startHour = Math.floor(shift.openedAt.getTime() / HOUR_MS) * HOUR_MS;
-  const hours: Array<{ at: number; amount: number }> = [];
-  for (let at = startHour; at <= end.getTime() && hours.length < 48; at += HOUR_MS) hours.push({ at, amount: 0 });
-  for (const sale of sales) {
-    const when = (sale.postedAt ?? sale.createdAt).getTime();
-    const slot = hours.find((hour) => when >= hour.at && when < hour.at + HOUR_MS);
-    if (slot) slot.amount += toNumberOrZero(sale.baseAmount);
-  }
-
   const lastCash = [...sales].reverse().find((sale) => sale.payments.some((payment) => payment.tenderType === "CASH"));
   const variance = shift.variance === null ? null : toNumberOrZero(shift.variance);
   const status = shift.status === "OPEN" ? "OPEN" : "CLOSED";
@@ -142,6 +194,8 @@ export async function loadShiftRecord(
     openingFloat: toNumberOrZero(shift.openingFloat),
     takings: toNumberOrZero(sumMoney(sales.map((sale) => sale.baseAmount))),
     saleCount: sales.filter((sale) => sale.saleType === "SALE" && sale.status === "POSTED").length,
+    refundCount: sales.filter((sale) => sale.saleType === "REFUND").length,
+    voidCount: sales.filter((sale) => sale.saleType === "VOID" || (sale.saleType === "SALE" && sale.status !== "POSTED")).length,
     cashSales: toNumberOrZero(cashSales),
     cashMovementNet: toNumberOrZero(movementNet),
     movements: {
@@ -157,7 +211,12 @@ export async function loadShiftRecord(
     tenders: [...tenders.entries()]
       .map(([tender, entry]) => ({ tender, label: tenderLabel(tender), amount: cents(entry.amount), sales: entry.sales.size }))
       .sort((a, b) => b.amount - a.amount),
-    hourly: hours.map((hour) => ({ hour: formatTime(new Date(hour.at), timeZone), amount: cents(hour.amount) })),
+    takingsOverTime: takingsOverTime(
+      shift.openedAt,
+      end,
+      sales.map((sale) => ({ at: sale.postedAt ?? sale.createdAt, amount: toNumberOrZero(sale.baseAmount) })),
+      timeZone,
+    ),
     lastCashSale: lastCash
       ? { saleNo: lastCash.saleNo, at: (lastCash.postedAt ?? lastCash.createdAt).toISOString() }
       : null,

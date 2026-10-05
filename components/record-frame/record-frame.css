@@ -120,7 +120,7 @@
 
 /* ── Tabs and the tab's table ───────────────────────────── */
 .cx-rf-tabsrow { display: flex; align-items: flex-end; gap: 8px; border-bottom: 1px solid var(--line); }
-.cx-rf-tabsrow .cx-tabs { flex: 1; min-width: 0; border-bottom: 0; }
+.cx-rf-tabsrow .cx-tabs { flex: 1; min-width: 0; height: 40px; padding: 0; border-bottom: 0; }
 .cx-rf-tabsrow__export { margin-bottom: 6px; }
 .cx-rf-export { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
 .cx-rf-export:hover { background: var(--hover); }
@@ -171,6 +171,11 @@
 .cx-rf-edit__save { flex: none; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: var(--ink); color: var(--surface); cursor: pointer; }
 .cx-rf-edit__save svg { width: 14px; height: 14px; }
 .cx-rf-edit__error { font-size: 12px; color: var(--bad); }
+.cx-rf-edit__auto { flex: 1; min-width: 0; }
+.cx-rf-edit__auto .cx-pick { height: 30px; padding: 0 8px; border-color: var(--action); border-radius: 6px; }
+.cx-rf-edit__auto .cx-pick input { font-size: 13px; }
+.cx-rf-edit__auto .cx-pick input:focus-visible { outline: none; }
+.cx-rf-edit__auto .sf-auto__list { top: 34px; left: auto; right: -36px; width: 268px; }
 
 .cx-rf-photo { min-height: 178px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 16px; border: 1px dashed var(--line-strong); border-radius: 12px; background: var(--ground); color: var(--ink-3); text-align: center; font: inherit; }
 button.cx-rf-photo { width: 100%; cursor: pointer; }
@@ -191,11 +196,29 @@ button.cx-rf-photo:hover { background: var(--hover); }
 .cx-rf-state__title { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
 .cx-rf-skel { background: var(--tray); border-radius: 8px; animation: cx-rf-pulse 1.2s ease-in-out infinite; }
 @keyframes cx-rf-pulse { 50% { opacity: 0.55; } }
-.cx-rf-panel .cx-df-bars__plot { gap: 16px; }
+.cx-rf-panel .cx-df-bars__plot { gap: var(--rf-bar-gap, 16px); }
+.cx-rf-panel .cx-df-bars__x--even { gap: var(--rf-bar-gap, 16px); }
+/* An x label sits centred under its bar and may be wider than it: the axis
+   labels only every k-th bar, so it has its neighbours' room. */
+.cx-rf-panel .cx-df-bars__x--even > span { display: flex; justify-content: center; overflow: visible; text-overflow: clip; }
 .cx-rf-tabsrow .cx-tabs { overflow-x: auto; scrollbar-width: none; }
 .cx-rf-tabsrow .cx-tabs::-webkit-scrollbar { display: none; }
 .cx-rf-tabsrow__export { flex: none; }
+/* On a phone a tab's rows are cards (AGENTS table→cards), the strip wraps so
+   its figure stays on screen. */
+.cx-rf-cards { display: none; }
+.cx-rf-cards ul { margin: 0; padding: 0; list-style: none; }
+.cx-rf-cards .cx-lf-card { margin: 0 -16px; }
+.cx-rf-cards .cx-lf-mtotals { margin: 0 -16px; }
+.cx-rf-cards .cx-rf-what { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-rf-empty { margin: 0; padding: 28px 12px; text-align: center; color: var(--ink-3); border: 1px dashed var(--line); border-radius: 12px; }
 @media (max-width: 719px) {
   .cx-rf-main { padding: 16px; }
   .cx-rf-rail { padding: 20px 16px; }
+  .cx-rf-tablebox { display: none; }
+  .cx-rf-cards { display: block; }
+  .cx-rf-strip { height: auto; min-height: 48px; flex-wrap: wrap; row-gap: 6px; padding: 8px 16px; overflow-x: visible; white-space: normal; }
+  .cx-rf-strip__spacer { display: none; }
+  .cx-rf-figure { flex-basis: 100% !important; }
+  .cx-rf-strip > .cx-rf-steps { flex: 1 1 100%; flex-wrap: wrap; row-gap: 6px; }
 }

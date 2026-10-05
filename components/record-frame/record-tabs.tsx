@@ -8,14 +8,14 @@ import "@/components/list-frame/list-frame.css";
 import { exportList } from "@/components/list-frame/actions";
 import { ExportItems, type ExportFormat } from "@/components/list-frame/export-menu";
 import { ListCell, cellTitle } from "@/components/list-frame/list-cell";
-import { alignOf, cellPadding, totalText } from "@/components/list-frame/model";
+import { alignOf, cellPadding, cellText, totalText } from "@/components/list-frame/model";
 import { Menu, MenuContent, MenuTrigger } from "@/components/workspace/menu";
 import { Tabs } from "@/components/workspace/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fillTemplate } from "@/lib/reports/actions";
 import type { ListColumn, ListPageResponse } from "@/lib/reports/types";
-import { ChevronDown, Download } from "@/lib/icons";
+import { Download } from "@/lib/icons";
 import type { ActivityPage } from "@/lib/retail/record-activity";
 import type { RecordTab, SourceTab } from "@/lib/retail/record-kinds/types";
 import { formatCount, formatWhen } from "@/lib/workspace/format";
@@ -104,7 +104,6 @@ export function RecordTabs<R>({
                 <button type="button" className="cx-rf-export">
                   <Download aria-hidden="true" />
                   Export
-                  <ChevronDown aria-hidden="true" style={{ width: 12, height: 12, color: "var(--ink-3)" }} />
                 </button>
               </MenuTrigger>
               <MenuContent align="end" roomy style={{ width: 260 }}>
@@ -158,6 +157,11 @@ function SourceTable<R>({ tab, record, result }: { tab: SourceTab<R>; record: R;
   if (data.total === 0) {
     return <p className="cx-rf-tablemsg">{spec.empty.title}.</p>;
   }
+  const totals = totalsCells(columns, (column, index) =>
+    index === 0
+      ? (extra[column.key] ?? `Σ ${formatCount(data.total)} ${data.total === 1 ? spec.noun.replace(/s$/, "") : spec.noun}`)
+      : (extra[column.key] ?? (column.total ? totalText(column, data.totals[column.key]) : "")),
+  );
 
   return (
     <>
@@ -196,26 +200,24 @@ function SourceTable<R>({ tab, record, result }: { tab: SourceTab<R>; record: R;
             })}
           </div>
           <div role="row" className="cx-lf-g cx-rf-totals" style={{ gridTemplateColumns: template }}>
-            {columns.map((column, index) => {
-              const text =
-                index === 0
-                  ? `Σ ${formatCount(data.total)} ${spec.noun}`
-                  : (extra[column.key] ?? (column.total ? totalText(column, data.totals[column.key]) : ""));
+            {totals.map((cell) => {
+              const column = columns[cell.index]!;
               return (
                 <div
                   key={column.key}
                   role="cell"
-                  title={text || undefined}
-                  className={`cx-lf-c${alignOf(column) === "end" ? " cx-lf-c--end" : ""}${extra[column.key] ? " cx-rf-totals__text" : ""}`}
-                  style={{ padding: cellPadding(column, index === last, false) }}
+                  title={cell.text || undefined}
+                  className={`cx-lf-c${alignOf(column) === "end" ? " cx-lf-c--end" : ""}${cell.index > 0 && extra[column.key] ? " cx-rf-totals__text" : ""}`}
+                  style={{ padding: cellPadding(column, cell.index === last, false), gridColumn: cell.span > 1 ? `span ${cell.span}` : undefined }}
                 >
-                  {text}
+                  {cell.text}
                 </div>
               );
             })}
           </div>
         </div>
       </div>
+      <RecordCards spec={spec} rows={rows} columns={columns} totals={totals} />
       <div className="cx-rf-tablefoot">
         <span className="cx-rf-tablefoot__count">
           <b>
@@ -231,6 +233,79 @@ function SourceTable<R>({ tab, record, result }: { tab: SourceTab<R>; record: R;
         ) : null}
       </div>
     </>
+  );
+}
+
+type TotalsCell = { index: number; span: number; text: string };
+
+/**
+ * The totals row's cells. The Σ count takes the column after it too when that
+ * column has no total, so "Σ 1 cash movement" is never cut short.
+ */
+function totalsCells(columns: ListColumn[], textOf: (column: ListColumn, index: number) => string): TotalsCell[] {
+  const texts = columns.map((column, index) => textOf(column, index));
+  const merge = columns.length > 2 && texts[1] === "";
+  return texts
+    .map((text, index) => ({ index, span: index === 0 && merge ? 2 : 1, text }))
+    .filter((cell) => !(merge && cell.index === 1));
+}
+
+/**
+ * The tab's rows on a phone (AGENTS table→cards; 5.4.12): each row a card
+ * from the source's card spec linking to its record, and the totals on one
+ * line. Shown under 720px in place of the table.
+ */
+function RecordCards({
+  spec,
+  rows,
+  columns,
+  totals,
+}: {
+  spec: ListPageResponse["report"]["list"];
+  rows: ListPageResponse["rows"];
+  columns: ListColumn[];
+  totals: TotalsCell[];
+}) {
+  const column = (key: string | undefined) => (key ? columns.find((candidate) => candidate.key === key) : undefined);
+  const title = column(spec.card.title);
+  const figure = column(spec.card.figure);
+  // The money totals, as the list's phone footer gives them.
+  const figures = totals.filter((cell) => cell.index > 0 && cell.text && ["money", "diff"].includes(columns[cell.index]!.cell));
+  return (
+    <div className="cx-rf-cards">
+      <ul aria-label={spec.noun}>
+        {rows.map((row) => {
+          const href = fillTemplate(spec.rowHref, row);
+          const body = (
+            <>
+              <span className="cx-lf-card__top">
+                <span className="cx-lf-card__title">{title ? cellText(title, row) : row.id}</span>
+              </span>
+              <span className="cx-lf-card__fig">{figure ? cellText(figure, row) : null}</span>
+              <span className="cx-lf-card__meta">{fillTemplate(spec.card.meta, row, false) ?? ""}</span>
+            </>
+          );
+          return (
+            <li key={row.id}>
+              {href ? (
+                <Link href={href} className="cx-lf-card">
+                  {body}
+                </Link>
+              ) : (
+                <div className="cx-lf-card">{body}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <div className="cx-lf-mtotals">
+        <span>{totals[0]?.text}</span>
+        <span style={{ flex: 1 }} />
+        {figures.map((cell) => (
+          <span key={cell.index}>{cell.text}</span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -277,6 +352,22 @@ function ActivityTable({ result, page, onPage }: { result: ActivityQuery; page: 
             ))}
           </div>
         </div>
+      </div>
+      <div className="cx-rf-cards">
+        <ul aria-label="Activity">
+          {rows.map((row) => (
+            <li key={row.id} className="cx-lf-card">
+              <span className="cx-lf-card__top">
+                <span className={`cx-rf-what cx-rf-what--${row.tone}`}>{row.what}</span>
+              </span>
+              <span />
+              <span className="cx-lf-card__meta">
+                {formatWhen(row.at)} · {row.actor.name}
+                {row.reason ? ` · ${row.reason}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
       <div className="cx-rf-tablefoot">
         <span className="cx-rf-tablefoot__count">

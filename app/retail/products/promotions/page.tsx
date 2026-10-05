@@ -153,7 +153,7 @@ export default function RetailPromotionsPage() {
 
   const remove = useMutation({
     mutationFn: (promotion: Promotion) =>
-      fetchJson(`/api/v2/retail/promotions/${promotion.id}`, { method: "DELETE" }),
+      fetchJson("/api/v2/retail/bin", { method: "POST", body: JSON.stringify({ kind: "promotion", id: promotion.id }) }),
     onSuccess: () => {
       toast({ title: "Promotion removed", variant: "success" });
       void queryClient.invalidateQueries({ queryKey: ["retail-promotions"] });

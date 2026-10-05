@@ -55,7 +55,7 @@ describe("ConfirmDialog", () => {
     const title = document.getElementById(node.getAttribute("aria-labelledby")!);
     const body = document.getElementById(node.getAttribute("aria-describedby")!);
     expect(title?.textContent).toBe("Move Castle Lager 340ml to the bin?");
-    expect(body?.textContent).toContain("You can restore it from the bin until 2 November 2026.");
+    expect(body?.textContent).toContain("You can restore it from the bin until 2 November.");
     expect(document.activeElement?.textContent).toBe("Keep it");
     expect(button("Move to the bin").className).toContain("cx-btn--danger-fill");
   });

@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
 
+import "@/components/sheet-form/sheet-form.css";
+import { LookupField } from "@/components/sheet-form/lookup-field";
 import { Check, Loader2, Pencil } from "@/lib/icons";
+import type { PickedOption } from "@/lib/workspace/sheet-kind";
 import type { RailEdit, RailRow } from "@/lib/retail/record-kinds/types";
 
 /**
@@ -66,17 +68,20 @@ function RowEditor({
   onSave: (edit: RailEdit, value: unknown) => Promise<void>;
 }) {
   const [text, setText] = React.useState(edit.initial);
+  const [picked, setPicked] = React.useState<PickedOption | null>(edit.lookup?.picked ?? null);
+  const lookupId = React.useId();
+  const [listOpen, setListOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (edit.type !== "auto") return;
+    const input = document.getElementById(lookupId) as HTMLInputElement | null;
+    input?.focus();
+    input?.select();
+  }, [edit.type, lookupId]);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const errorId = React.useId();
-  const options = useQuery({
-    queryKey: edit.loadOptions?.key ?? ["rail-options", row.key],
-    queryFn: () => edit.loadOptions!.load(),
-    enabled: Boolean(edit.loadOptions),
-  });
-  const choices = edit.options ?? options.data ?? [];
 
-  const save = async (value: string = text) => {
+  const save = async (value: string = edit.type === "auto" ? (picked?.id ?? "") : text) => {
     let parsed: unknown;
     try {
       parsed = edit.parse ? edit.parse(value) : value;
@@ -95,6 +100,8 @@ function RowEditor({
   };
 
   const keys = (event: React.KeyboardEvent) => {
+    // The lookup's own keys (a pick with Enter, Esc closing its list) come first.
+    if (event.defaultPrevented || (listOpen && event.key === "Escape")) return;
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
@@ -117,7 +124,21 @@ function RowEditor({
   return (
     <span className="cx-rf-edit">
       <span className="cx-rf-edit__line">
-        {edit.type === "money" ? (
+        {edit.type === "auto" && edit.lookup ? (
+          <span className="cx-rf-edit__auto" onKeyDown={keys}>
+            <LookupField
+              id={lookupId}
+              label={row.label}
+              noun={edit.lookup.noun}
+              value={picked}
+              onValueChange={setPicked}
+              onOpenChange={setListOpen}
+              disabled={busy}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
+            />
+          </span>
+        ) : edit.type === "money" ? (
           <span className="cx-rf-edit__money">
             <span aria-hidden="true">US$</span>
             <input
@@ -130,20 +151,6 @@ function RowEditor({
               onFocus={(event) => event.target.select()}
             />
           </span>
-        ) : edit.type === "select" ? (
-          <select
-            {...aria}
-            className="cx-rf-edit__control"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-          >
-            {choices.length === 0 && text ? <option value={text}>{row.value}</option> : null}
-            {choices.map((choice) => (
-              <option key={choice.value} value={choice.value}>
-                {choice.label}
-              </option>
-            ))}
-          </select>
         ) : (
           <input
             {...aria}

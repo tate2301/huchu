@@ -7,12 +7,12 @@ import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 /**
- * Change a category, or archive or restore it.
+ * Change a category.
  *
  * There is no DELETE. A category with products under it cannot simply go — the
- * products would lose their VAT and ID-check defaults — so it is archived:
- * hidden from every product field, still on the products filed under it, and
- * one click from coming back.
+ * products would lose their VAT and ID-check defaults — so it goes in the bin
+ * (`POST /api/v2/retail/bin`, kind `category`): hidden from every product
+ * field, still on the products filed under it, and restorable for 30 days.
  */
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);

@@ -7,7 +7,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { PageChrome, type PagePrimary } from "@/components/layout/page-chrome";
+import { PageChrome, type PageMenuItem, type PagePrimary } from "@/components/layout/page-chrome";
 import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -136,6 +136,21 @@ export function RecordFrame<R>({
     toast({ title: "Restored. It is back in every list.", variant: "success" });
   };
 
+  // On a phone the group, ⋯ and "Move to the bin" are one menu, under the
+  // primary (5.6.2).
+  const phoneMenu: PageMenuItem[] = [
+    ...[...actions.slice(0, 3), ...more].map((action) => ({
+      key: action.key,
+      label: action.label,
+      danger: action.tone === "bad",
+      sub: action.sub,
+      onSelect: () => run(action),
+    })),
+    ...(canBin
+      ? [{ key: "bin", label: "Move to the bin", danger: true, sub: "Managers and owners only", onSelect: () => setAsking(true) }]
+      : []),
+  ];
+
   const chrome = (
     <PageChrome
       title={record ? title : ""}
@@ -143,6 +158,7 @@ export function RecordFrame<R>({
       backHref={kind.back.href}
       backLabel={kind.back.label}
       primary={primary}
+      phoneMenu={phoneMenu}
     >
       {record ? (
         <RecordActions actions={actions} more={more} bin={canBin ? () => setAsking(true) : null} onAction={run} />
@@ -198,6 +214,12 @@ export function RecordFrame<R>({
   }
 
   const chart = kind.chart?.(record) ?? null;
+  const kpis = kind.kpis?.(record) ?? [];
+  const canReadActivity = can(["retail.activity", "view"]);
+  // A role that sees no figures, chart or tab (a cashier on a product) still
+  // gets a main column that says so, not an empty one.
+  const mainEmpty =
+    kpis.length === 0 && !chart && !kind.tabs.some((tab) => tab.key !== "activity" || canReadActivity);
 
   return (
     <div className={`cx-rf${binned ? " is-binned" : ""}`}>
@@ -213,15 +235,13 @@ export function RecordFrame<R>({
       />
       <div className="cx-rf-body" aria-hidden={binned || undefined}>
         <div className="cx-rf-main">
-          <KpiStrip kpis={kind.kpis?.(record) ?? []} />
+          <KpiStrip kpis={kpis} />
           {chart ? <ChartPanel chart={chart} /> : null}
-          <RecordTabs
-            tabs={kind.tabs}
-            record={record}
-            recordId={id}
-            type={kind.type}
-            canReadActivity={can(["retail.activity", "view"])}
-          />
+          {mainEmpty ? (
+            <p className="cx-rf-empty">Your role sees only this record&rsquo;s details.</p>
+          ) : (
+            <RecordTabs tabs={kind.tabs} record={record} recordId={id} type={kind.type} canReadActivity={canReadActivity} />
+          )}
         </div>
         <DetailsRail
           top={kind.railTop?.(record) ?? null}

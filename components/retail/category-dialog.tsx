@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FormField } from "@/components/management/ui";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { RetailCategoryRow } from "@/lib/retail/categories";
+import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 
 type Form = {
   name: string;
@@ -64,6 +66,7 @@ export function CategoryDialog({
   const [shownFor, setShownFor] = useState<RetailCategoryRow | null>(category);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const shop = useShopProfile();
   const liquor = shop.data?.data.businessType === "LIQUOR";
   const deposits = shop.data?.features.emptiesAndDeposits ?? false;
@@ -83,14 +86,27 @@ export function CategoryDialog({
       category
         ? fetchJson(`/api/v2/retail/categories/${category.id}`, { method: "PATCH", body: JSON.stringify(body) })
         : fetchJson("/api/v2/retail/categories", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: async (_result, body) => {
-      const archived = body.archived;
-      toast({
-        title: archived === true ? "Category archived" : archived === false ? "Category restored" : category ? "Category saved" : "Category added",
-        variant: "success",
-      });
+    onSuccess: async () => {
+      toast({ title: category ? "Category saved" : "Category added", variant: "success" });
       await queryClient.invalidateQueries({ queryKey: RETAIL_CATEGORIES_KEY });
       await queryClient.invalidateQueries({ queryKey: ["retail-catalog"] });
+      onOpenChange(false);
+    },
+    onError: (error) => setErrors([getApiErrorMessage(error)]),
+  });
+
+  // In and out of the bin through the bin, which writes who moved it (W-63).
+  const bin = useMutation({
+    mutationFn: (move: "bin" | "restore") =>
+      fetchJson(move === "bin" ? "/api/v2/retail/bin" : "/api/v2/retail/bin/restore", {
+        method: "POST",
+        body: JSON.stringify({ kind: "category", id: category?.id }),
+      }),
+    onSuccess: async (_result, move) => {
+      toast({ title: move === "bin" ? "Category moved to the bin" : "Category restored", variant: "success" });
+      await queryClient.invalidateQueries({ queryKey: RETAIL_CATEGORIES_KEY });
+      await queryClient.invalidateQueries({ queryKey: ["retail-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: ["retail-bin"] });
       onOpenChange(false);
     },
     onError: (error) => setErrors([getApiErrorMessage(error)]),
@@ -123,6 +139,11 @@ export function CategoryDialog({
   };
 
   const archived = Boolean(category?.archivedAt);
+  const user = session?.user as { role?: string; supportSessionId?: string | null } | undefined;
+  // Into the bin is the category's delete right; out of it is Bin update.
+  const canMove =
+    Boolean(user) &&
+    canRetailSessionDo({ user: { role: user?.role, supportSessionId: user?.supportSessionId } }, archived ? "retail.bin" : "retail.categories", archived ? "update" : "delete");
 
   return (
     <RecordDialog
@@ -135,15 +156,15 @@ export function CategoryDialog({
       errors={errors}
       footer={
         <>
-          {category ? (
+          {category && canMove ? (
             <Button
               type="button"
               variant="outline"
               className="mr-auto"
-              disabled={save.isPending}
-              onClick={() => save.mutate({ archived: !archived })}
+              disabled={save.isPending || bin.isPending}
+              onClick={() => bin.mutate(archived ? "restore" : "bin")}
             >
-              {archived ? "Restore" : "Archive"}
+              {archived ? "Restore" : "Move to the bin"}
             </Button>
           ) : null}
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

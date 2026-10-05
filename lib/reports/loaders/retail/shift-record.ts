@@ -37,6 +37,8 @@ async function loadSales(ctx: ReportContext, params: ReportParams) {
     select: {
       id: true,
       saleNo: true,
+      saleType: true,
+      status: true,
       baseAmount: true,
       postedAt: true,
       createdAt: true,
@@ -53,7 +55,14 @@ async function loadSales(ctx: ReportContext, params: ReportParams) {
         postedAt: (sale.postedAt ?? sale.createdAt).toISOString(),
         saleNo: sale.saleNo,
         items: sale.lines.reduce((sum, line) => sum + (num(line.quantity) ?? 0), 0),
-        paidWith: paidWith(sale.payments.map((payment) => payment.tenderType)),
+        // A reversal says so where the tender would be, so the rows add up to
+        // the Σ's "17 sales, 1 refund".
+        paidWith:
+          sale.saleType === "REFUND"
+            ? "Refund"
+            : sale.saleType === "VOID" || sale.status !== "POSTED"
+              ? "Voided"
+              : paidWith(sale.payments.map((payment) => payment.tenderType)),
         total: cents(num(sale.baseAmount) ?? 0),
       }),
     ),

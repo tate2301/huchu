@@ -22,7 +22,8 @@ export type PageIdentity = {
 /**
  * The page's one primary action, at the right of the header. A create action
  * carries the plus; a record verb does not. It goes to `href`, opens the sheet
- * `?sheet=<kind>` over this page, or runs `onClick`.
+ * `?sheet=<kind>` over this page, or runs `onClick`. On a phone a create
+ * action is the 44px plus and a verb is the first item of ⋯.
  */
 export type PagePrimary = {
   label: string;
@@ -32,9 +33,24 @@ export type PagePrimary = {
   onClick?: () => void;
 };
 
+/**
+ * One item of the page's ⋯ on a phone, when the page lists its actions as
+ * items rather than letting the header fold its controls (a record: its
+ * action group and its ⋯ as one menu, 5.6.2).
+ */
+export type PageMenuItem = {
+  key: string;
+  label: string;
+  danger?: boolean;
+  sub?: string;
+  onSelect: () => void;
+};
+
 type PageChromeContextValue = {
   actions: React.ReactNode;
   setActions: (actions: React.ReactNode) => void;
+  phoneMenu: PageMenuItem[] | null;
+  setPhoneMenu: (items: PageMenuItem[] | null) => void;
   identity: PageIdentity | null;
   setIdentity: (identity: PageIdentity | null) => void;
   primary: PagePrimary | null;
@@ -45,12 +61,13 @@ const PageChromeContext = React.createContext<PageChromeContextValue | null>(nul
 
 function PageChromeProvider({ children }: { children: React.ReactNode }) {
   const [actions, setActions] = React.useState<React.ReactNode>(null);
+  const [phoneMenu, setPhoneMenu] = React.useState<PageMenuItem[] | null>(null);
   const [identity, setIdentity] = React.useState<PageIdentity | null>(null);
   const [primary, setPrimary] = React.useState<PagePrimary | null>(null);
 
   const value = React.useMemo(
-    () => ({ actions, setActions, identity, setIdentity, primary, setPrimary }),
-    [actions, identity, primary],
+    () => ({ actions, setActions, phoneMenu, setPhoneMenu, identity, setIdentity, primary, setPrimary }),
+    [actions, phoneMenu, identity, primary],
   );
 
   return <PageChromeContext.Provider value={value}>{children}</PageChromeContext.Provider>;
@@ -84,6 +101,7 @@ function PageChrome({
   sub,
   subLink,
   primary,
+  phoneMenu,
   children,
 }: {
   title: string;
@@ -94,10 +112,12 @@ function PageChrome({
   sub?: string | null;
   subLink?: { href: string; label: string } | null;
   primary?: PagePrimary | null;
+  /** The phone's ⋯ items in place of the folded `children`. */
+  phoneMenu?: PageMenuItem[] | null;
   /** The page's actions, rendered in the header. */
   children?: React.ReactNode;
 }) {
-  const { setActions, setIdentity, setPrimary } = usePageChrome();
+  const { setActions, setIdentity, setPrimary, setPhoneMenu } = usePageChrome();
   const subLinkHref = subLink?.href;
   const subLinkLabel = subLink?.label;
 
@@ -120,6 +140,12 @@ function PageChrome({
     setActions(children);
     return () => setActions(null);
   }, [children, setActions]);
+
+  React.useEffect(() => {
+    if (phoneMenu === undefined) return;
+    setPhoneMenu(phoneMenu);
+    return () => setPhoneMenu(null);
+  }, [phoneMenu, setPhoneMenu]);
 
   React.useEffect(() => {
     if (primary === undefined) return;

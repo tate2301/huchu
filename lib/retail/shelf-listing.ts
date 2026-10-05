@@ -230,6 +230,19 @@ export async function loadShelfListings(
     })),
   );
 
+  // A binned product has no shelf price row (the bin removed it) and prices
+  // off its standard price, which says nothing of VAT; it reads how the shelf
+  // list prices — VAT inside or added, the currency — from the list itself, as
+  // the restore will put it back on it.
+  const offList = (product: (typeof products)[number]) =>
+    Boolean(product.archivedAt) && priced.get(product.id)?.priceSource === "STANDARD";
+  const shelfList = products.some(offList)
+    ? await prisma.priceList.findUnique({
+        where: { companyId_name: { companyId, name: SHELF_PRICE_LIST_NAME } },
+        select: { id: true, taxInclusive: true, currency: true },
+      })
+    : null;
+
   const listings: ShelfListing[] = [];
   for (const product of products) {
     const stock = stockByProduct.get(product.id);
@@ -258,8 +271,8 @@ export async function loadShelfListings(
       compareAtPrice:
         product.compareAtPrice === null ? null : toNumberOrZero(product.compareAtPrice),
       taxPercent: shelf?.taxPercent ?? toNumberOrZero(product.defaultTaxRate),
-      taxInclusive: shelf?.taxInclusive ?? false,
-      currency: shelf?.currency ?? "USD",
+      taxInclusive: (offList(product) ? shelfList?.taxInclusive : shelf?.taxInclusive) ?? false,
+      currency: (offList(product) ? shelfList?.currency : shelf?.currency) ?? "USD",
       priceListId: shelf?.priceListId ?? null,
       priceSource: shelf?.priceSource ?? "STANDARD",
       pricedAt: shelf?.pricedAt ?? null,

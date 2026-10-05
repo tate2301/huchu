@@ -200,16 +200,11 @@ export const productKind: RecordKind<ProductRecord> = {
             muted: !product.category,
             edit: {
               field: "categoryId",
-              type: "select",
+              type: "auto",
               initial: product.categoryId ?? "",
-              loadOptions: {
-                key: ["rail-options", "categories"],
-                load: async () => [
-                  { value: "", label: "None" },
-                  ...(await fetchJson<{ data: Array<{ id: string; name: string }> }>("/api/v2/retail/categories")).data.map(
-                    (row) => ({ value: row.id, label: row.name }),
-                  ),
-                ],
+              lookup: {
+                noun: "category",
+                picked: product.categoryId && product.category ? { id: product.categoryId, label: product.category } : null,
               },
               parse: (value) => value || null,
               requires: UPDATE,

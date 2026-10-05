@@ -23,7 +23,8 @@ export function binAsk({
 }): Ask {
   return {
     title: `Move ${title} to the bin?`,
-    body: `It leaves every list and search today. Anything sold, paid or counted against it stays exactly as it is. You can restore it from the bin until ${formatDay(restorableUntil(movedAt), timeZone)}.`,
+    // "until 2 November": the year is the reader's, as on the banner.
+    body: `It leaves every list and search today. Anything sold, paid or counted against it stays exactly as it is. You can restore it from the bin until ${formatDay(restorableUntil(movedAt), timeZone).replace(/ \d{4}$/, "")}.`,
     keep: "Keep it",
     go: "Move to the bin",
     fill: "bad",
