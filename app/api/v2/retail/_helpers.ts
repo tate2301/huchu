@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { type RetailTenderType } from "@prisma/client";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, validateSession } from "@/lib/api-utils";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 
 export type RetailSession = Awaited<ReturnType<typeof validateSession>> extends infer TResult
@@ -327,47 +326,6 @@ export async function ensureInventoryItemAccess(companyId: string, inventoryItem
   }
 
   return item;
-}
-
-export async function upsertRetailRegister(input: {
-  companyId: string;
-  siteId: string;
-  registerName: string;
-  registerCode?: string | null;
-}) {
-  const normalizedName = input.registerName.trim();
-  if (!normalizedName) {
-    throw new Error("Register name is required.");
-  }
-
-  const existing = await prisma.retailRegister.findFirst({
-    where: {
-      companyId: input.companyId,
-      siteId: input.siteId,
-      name: { equals: normalizedName, mode: "insensitive" },
-    },
-  });
-
-  if (existing) {
-    return existing;
-  }
-
-  const code = input.registerCode
-    ? normalizeProvidedId(input.registerCode, "RETAIL_REGISTER")
-    : await reserveIdentifier(prisma, {
-        companyId: input.companyId,
-        entity: "RETAIL_REGISTER",
-        siteId: input.siteId,
-      });
-
-  return prisma.retailRegister.create({
-    data: {
-      companyId: input.companyId,
-      siteId: input.siteId,
-      code,
-      name: normalizedName,
-    },
-  });
 }
 
 export function retailValidationError(message: string, status = 400, details?: unknown) {

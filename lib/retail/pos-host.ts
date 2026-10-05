@@ -22,6 +22,9 @@ export const POS_PUBLIC_PATHS = [
   "/settings",
   "/activity",
   "/help",
+  /** SET-04 — the device screens: pair this device, and the one a device shows once it is no longer a till. */
+  "/pair",
+  "/unpaired",
 ] as const;
 export const POS_OPTIONAL_PUBLIC_PATHS = ["/customers", "/price-check"] as const;
 export const POS_ALL_PUBLIC_PATHS = [...POS_PUBLIC_PATHS, ...POS_OPTIONAL_PUBLIC_PATHS] as const;

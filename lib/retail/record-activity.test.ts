@@ -29,6 +29,7 @@ beforeAll(async () => {
     })
   ).id;
   const siteId = (await prisma.site.create({ data: { companyId, code: `A-${stamp}`, name: "Main" }, select: { id: true } })).id;
+  const registerId = (await prisma.retailRegister.create({ data: { companyId, siteId, code: "TILL-1", name: "Front till" }, select: { id: true } })).id;
   shiftId = (
     await prisma.retailShift.create({
       data: {
@@ -36,6 +37,7 @@ beforeAll(async () => {
         shiftNo: `SH-${stamp}`,
         registerCode: "TILL-1",
         registerName: "Front till",
+        registerId,
         siteId,
         cashierId: userId,
         cashierName: "Chipo Dube",
@@ -99,6 +101,7 @@ afterAll(async () => {
   await prisma.retailCashMovement.deleteMany({ where: { companyId } });
   await prisma.retailSale.deleteMany({ where: { companyId } });
   await prisma.retailShift.deleteMany({ where: { companyId } });
+  await prisma.retailRegister.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { id: userId } });
   await prisma.company.deleteMany({ where: { id: { in: [companyId, otherId] } } });

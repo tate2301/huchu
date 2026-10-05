@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePosDevice } from "@/lib/retail/devices";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
@@ -31,6 +32,8 @@ export async function POST(
 
   const gate = requireRetailPermission(session, "retail.sell", "void");
   if (gate) return gate;
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   try {
     /*
@@ -82,6 +85,7 @@ export async function POST(
       approvedBy,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
+      deviceId: device.id,
     });
 
     return successResponse({

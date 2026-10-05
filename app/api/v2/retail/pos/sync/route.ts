@@ -45,6 +45,8 @@ import {
   voidRetailSaleTransaction,
 } from "../../_services";
 import { fiscaliseRetailSales } from "@/lib/retail/fiscalisation";
+import { requirePosDevice, type PosDevice } from "@/lib/retail/devices";
+import { SOLD_AFTER_UNPAIR, UNPAIRED_REVIEW_REASON, unpairedSaleVerdict } from "@/lib/retail/device-words";
 
 // ── Request Schemas ─────────────────────────────────────────────────────────
 
@@ -68,7 +70,6 @@ const syncOperationSchema = z.object({
 
 const syncRequestSchema = z.object({
   operations: z.array(syncOperationSchema).min(1).max(50),
-  deviceId: z.string().optional(),
 });
 
 // ── Response Types ──────────────────────────────────────────────────────────
@@ -104,7 +105,8 @@ interface SyncContext {
   };
   companyId: string;
   userId: string;
-  deviceId?: string;
+  /** The device the queue comes from (its key); it may have been unpaired since (W-76). */
+  device: PosDevice;
   // Map of tempId → serverId for resolved entities
   resolvedIds: Map<string, string>;
   // Map of clientOperationId → result
@@ -203,9 +205,10 @@ async function processOpenShift(
         userName: ctx.session.user.name,
         userEmail: ctx.session.user.email,
       },
-      siteId: payload.siteId,
-      registerName: payload.registerName ?? "POS Register",
-      registerCode: payload.registerName?.toUpperCase().replace(/\s/g, "_") ?? "POS",
+      // The device's own till, wherever the queue thought it was.
+      siteId: ctx.device.register.site.id,
+      registerId: ctx.device.registerId,
+      deviceId: ctx.device.id,
       openingFloat: payload.openingCash,
       openedAt: new Date(payload.openedAt),
     });
@@ -386,7 +389,6 @@ async function processCreateSale(
     priceListId?: string;
     offlineCreatedAt?: string;
     offlineCreated?: boolean;
-    deviceId?: string;
     /** The cashier confirmed the customer's ID at the counter. */
     idChecked?: boolean;
   };
@@ -599,9 +601,10 @@ async function processCreateSale(
       lines: saleLines,
       promotionCode: promotion?.promoCode ?? null,
       overrideReason: overrideReason || null,
-      notes: payload.offlineCreated
-        ? `Offline replay from device ${ctx.deviceId ?? payload.deviceId ?? "unknown"}`
-        : null,
+      notes: payload.offlineCreated ? `Offline replay from device ${ctx.device.id}` : null,
+      device: { id: ctx.device.id, registerId: ctx.device.registerId },
+      // Sold before this device was unpaired, sent in after: a manager looks at it.
+      reviewReason: ctx.device.unpairedAt ? UNPAIRED_REVIEW_REASON : null,
       postedAt: soldAt,
       idCheckedAt: payload.idChecked && ageRestricted.length > 0 ? soldAt : null,
     });
@@ -667,6 +670,7 @@ async function processVoidSale(
       notes: payload.notes ?? null,
       periodOverrideReason: payload.periodOverrideReason ?? null,
       postedAt: new Date(payload.voidedAt),
+      deviceId: ctx.device.id,
     });
 
     return {
@@ -773,6 +777,7 @@ async function processRefundSale(
       notes: payload.notes ?? payload.reason,
       periodOverrideReason: payload.periodOverrideReason ?? null,
       postedAt: payload.refundedAt ? new Date(payload.refundedAt) : undefined,
+      deviceId: ctx.device.id,
     });
 
     return {
@@ -1007,6 +1012,14 @@ async function drainFiscalisation(
   }
 }
 
+/** When the till did this, as it says: the operation's own stamp, else its payload's. */
+function offlineMoment(op: z.infer<typeof syncOperationSchema>): Date | null {
+  const payload = op.payload as Record<string, unknown>;
+  const stamp = [op.offlineCreatedAt, payload.offlineCreatedAt, payload.openedAt, payload.closedAt, payload.voidedAt, payload.refundedAt]
+    .find((value): value is string => typeof value === "string" && !Number.isNaN(Date.parse(value)));
+  return stamp ? new Date(stamp) : null;
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -1017,6 +1030,9 @@ export async function POST(request: NextRequest) {
 
   const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
+  // A device unpaired since still sends in what it held (10-setup W-76).
+  const { device, response: deviceResponse } = await requirePosDevice(request, session, { allowUnpaired: true });
+  if (deviceResponse) return deviceResponse;
 
   try {
     const body = await request.json();
@@ -1026,7 +1042,7 @@ export async function POST(request: NextRequest) {
       session: session as SyncContext["session"],
       companyId: session.user.companyId,
       userId: session.user.id,
-      deviceId: input.deviceId,
+      device,
       resolvedIds: new Map(),
       results: new Map(),
     };
@@ -1057,6 +1073,15 @@ export async function POST(request: NextRequest) {
       }
 
       let result: SyncOperationResult;
+
+      // From an unpaired device only what happened before the unpairing comes in.
+      const happenedAt = offlineMoment(op);
+      if (unpairedSaleVerdict({ unpairedAt: device.unpairedAt, soldAt: happenedAt ?? new Date() }) === "refuse") {
+        result = { clientOperationId: op.clientOperationId, status: "failed", error: SOLD_AFTER_UNPAIR };
+        ctx.results.set(op.clientOperationId, result);
+        results.push(result);
+        continue;
+      }
 
       switch (op.operation) {
         case "open-shift":

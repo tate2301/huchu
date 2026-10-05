@@ -1,0 +1,521 @@
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+
+import type { Prisma } from "@prisma/client";
+import { NextResponse, type NextRequest } from "next/server";
+
+import { markActivityFailed } from "@/lib/activity/context";
+import { errorResponse } from "@/lib/api-response";
+import { getHostHeaderFromRequestHeaders, resolveTenantFromHost } from "@/lib/platform/tenant";
+import { prisma } from "@/lib/prisma";
+import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
+import {
+  DEVICE_COOKIE,
+  UNPAIRED_REVIEW_REASON,
+  badCodeSentence,
+  deviceKindFromShell,
+  deviceLabelFromUserAgent,
+  lockedSentence,
+  pairedFootnote,
+  personChip,
+  unpairedSaleVerdict,
+  type UnpairReason,
+} from "@/lib/retail/device-words";
+import { PairingRefusal, checkTillRoom, hashCode } from "@/lib/retail/pairing";
+import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { loadShopProfile } from "@/lib/retail/shop-profile";
+import type { ShopProfile } from "@/lib/retail/shop-profile-rules";
+import { getRetailTenderPolicy, type RetailTenderType } from "@/lib/retail/tender-policy";
+import { evaluateTillPinAttempt } from "@/lib/retail/till-pin";
+import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
+
+/**
+ * The device side of a till (10-setup W-04 steps 5–8, W-76, 4.4).
+ *
+ * A device proves which till it is with a key: 32 random bytes in the
+ * httpOnly `tender_device` cookie on the POS host, of which the server keeps
+ * only the sha256 (`RetailDevice.keyHash`). People say who they are with a
+ * PIN or a password. Every POS route asks `requirePosDevice` for the device
+ * first; a device that was unpaired gets 401 DEVICE_UNPAIRED at its next
+ * request and shows /unpaired.
+ */
+
+/** sha256 of a device key: what `RetailDevice.keyHash` holds. */
+export const hashDeviceKey = (key: string) => createHash("sha256").update(key).digest("hex");
+
+/** A new device key, base64url, for the cookie only. */
+export const newDeviceKey = () => randomBytes(32).toString("base64url");
+
+/** A new id for an unpaired device's `tender_install` cookie. */
+export const newInstallId = () => randomUUID();
+
+/** Last seen is written at most this often. */
+const SEEN_EVERY_MS = 60 * 1000;
+
+const deviceSelect = {
+  id: true,
+  companyId: true,
+  registerId: true,
+  kind: true,
+  label: true,
+  appVersion: true,
+  lastSeenAt: true,
+  pairedAt: true,
+  unpairedAt: true,
+  unpairReason: true,
+  pairedBy: { select: { name: true } },
+  unpairedBy: { select: { name: true } },
+  register: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      hasPrinter: true,
+      hasDrawer: true,
+      hasScale: true,
+      priceListId: true,
+      site: { select: { id: true, name: true, priceListId: true } },
+    },
+  },
+} satisfies Prisma.RetailDeviceSelect;
+
+export type PosDevice = Prisma.RetailDeviceGetPayload<{ select: typeof deviceSelect }>;
+
+/** The device whose key this is, paired or not; null for a key nobody issued. */
+export async function findDeviceByKey(key: string | null | undefined): Promise<PosDevice | null> {
+  if (!key) return null;
+  return prisma.retailDevice.findUnique({ where: { keyHash: hashDeviceKey(key) }, select: deviceSelect });
+}
+
+/** The device behind a request's cookie. */
+export function deviceOfRequest(request: NextRequest): Promise<PosDevice | null> {
+  return findDeviceByKey(request.cookies.get(DEVICE_COOKIE)?.value);
+}
+
+/** What a 401 DEVICE_UNPAIRED carries, and what /unpaired shows. */
+export type UnpairedFacts = {
+  by: string;
+  at: string;
+  reason: UnpairReason;
+  tillName: string;
+  deviceLabel: string;
+};
+
+export function unpairedFacts(device: PosDevice): UnpairedFacts {
+  return {
+    by: device.unpairedBy?.name ?? "",
+    at: (device.unpairedAt ?? new Date()).toISOString(),
+    reason: (device.unpairReason ?? "UNPAIRED") as UnpairReason,
+    tillName: device.register.name,
+    deviceLabel: deviceWords(device),
+  };
+}
+
+type DeviceSession = { user: { companyId: string } };
+
+function refuse(status: number, body: Record<string, unknown>): NextResponse {
+  markActivityFailed();
+  return NextResponse.json(body, { status });
+}
+
+export const NOT_A_TILL = "This device is not a till. Pair it from Setup › Tills and devices.";
+
+/**
+ * The device this POS request comes from. No device key, a key nobody
+ * issued, or another shop's device → 409 NOT_A_TILL. Unpaired → 401
+ * DEVICE_UNPAIRED with who, when and why — unless `allowUnpaired`, which only
+ * `pos/sync` asks for, so the device can send in what it sold before it was
+ * told. Records that the device was seen (at most once a minute) and the
+ * version its shell reports.
+ */
+export async function requirePosDevice(
+  request: NextRequest,
+  session: DeviceSession,
+  options: { allowUnpaired?: boolean } = {},
+): Promise<{ device: PosDevice; response: null } | { device: null; response: NextResponse }> {
+  const device = await deviceOfRequest(request);
+  if (!device || device.companyId !== session.user.companyId) {
+    return { device: null, response: refuse(409, { error: NOT_A_TILL, code: "NOT_A_TILL" }) };
+  }
+  if (device.unpairedAt && !options.allowUnpaired) {
+    const facts = unpairedFacts(device);
+    return {
+      device: null,
+      response: refuse(401, { error: "This device is no longer a till.", code: "DEVICE_UNPAIRED", ...facts }),
+    };
+  }
+  if (!device.unpairedAt) await noteSeen(device, request.headers.get("x-tender-version"));
+  return { device, response: null };
+}
+
+/**
+ * A sale from a device that may have been unpaired since (W-76): from a paired
+ * device it simply goes in; from an unpaired one only an offline sale rung
+ * before the unpairing goes in, flagged for a manager (`reviewReason`). Anything
+ * else is refused with the 401 the device turns into /unpaired.
+ */
+export function unpairedSaleGate(
+  device: PosDevice,
+  offlineSoldAt: Date | null,
+): { reviewReason: string | null; response: null } | { reviewReason: null; response: NextResponse } {
+  const verdict = unpairedSaleVerdict({ unpairedAt: device.unpairedAt, soldAt: offlineSoldAt ?? new Date() });
+  if (verdict === "accept") return { reviewReason: null, response: null };
+  if (verdict === "flag" && offlineSoldAt) return { reviewReason: UNPAIRED_REVIEW_REASON, response: null };
+  return {
+    reviewReason: null,
+    response: refuse(401, { error: "This device is no longer a till.", code: "DEVICE_UNPAIRED", ...unpairedFacts(device) }),
+  };
+}
+
+/** Last seen now (at most once a minute), and the shell's version when it says. */
+export async function noteSeen(device: PosDevice, appVersion: string | null | undefined, now: Date = new Date()) {
+  const version = appVersion?.trim().slice(0, 40) || null;
+  const stale = !device.lastSeenAt || now.getTime() - device.lastSeenAt.getTime() >= SEEN_EVERY_MS;
+  const newVersion = version !== null && version !== device.appVersion;
+  if (!stale && !newVersion) return;
+  await prisma.retailDevice.update({
+    where: { id: device.id },
+    data: { ...(stale ? { lastSeenAt: now } : {}), ...(newVersion ? { appVersion: version } : {}) },
+    select: { id: true },
+  });
+}
+
+/* ── Pair this device (W-04 step 6) ───────────────────────────────────────── */
+
+export class PairRefusal extends Error {
+  constructor(
+    readonly status: 400 | 409 | 429,
+    message: string,
+    readonly body: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "PairRefusal";
+  }
+}
+
+export type PairInput = {
+  companyId: string;
+  code: string;
+  /** The `tender_install` cookie, else `ip:<address>`. */
+  installId: string;
+  userAgent: string | null;
+  /** `X-Tender-Shell`. */
+  shell: string | null;
+  /** `X-Tender-Version`. */
+  appVersion: string | null;
+};
+
+/**
+ * Redeem a pairing code. Five wrong codes from one install stop it for 15
+ * minutes (429 LOCKED); a wrong one is 400 BAD_CODE with the tries left. In
+ * one transaction: the code is used; a REPLACE code unpairs the till's
+ * current device (REPLACED, by whoever made the code); a PAIR code checks the
+ * plan; the new device is made with the key's hash; audited. Returns the key
+ * for the cookie, and the till and site.
+ */
+export async function pairDevice(
+  input: PairInput,
+  now: Date = new Date(),
+): Promise<{ key: string; till: { id: string; name: string }; site: { id: string; name: string } }> {
+  const throttleKey = { companyId_installId: { companyId: input.companyId, installId: input.installId } };
+  const throttle = await prisma.retailPairingThrottle.findUnique({ where: throttleKey });
+  const state = { failedAttempts: throttle?.failedAttempts ?? 0, lockedUntil: throttle?.lockedUntil ?? null };
+  // The same five-and-fifteen-minutes rule as a PIN.
+  const gate = evaluateTillPinAttempt({ state, verified: null, now });
+  if (gate.decision === "LOCKED") {
+    throw new PairRefusal(429, lockedSentence(state.lockedUntil!), {
+      code: "LOCKED",
+      lockedUntil: state.lockedUntil!.toISOString(),
+    });
+  }
+
+  const digits = input.code.replace(/\D/g, "");
+  const live =
+    digits.length === 6
+      ? await prisma.retailPairingCode.findFirst({
+          where: { companyId: input.companyId, codeHash: hashCode(input.companyId, digits), usedAt: null, expiresAt: { gt: now } },
+          select: { id: true, registerId: true, purpose: true, createdById: true },
+        })
+      : null;
+
+  if (!live) {
+    const outcome = evaluateTillPinAttempt({ state, verified: false, now });
+    await prisma.retailPairingThrottle.upsert({
+      where: throttleKey,
+      create: { companyId: input.companyId, installId: input.installId, ...outcome.next },
+      update: outcome.next,
+    });
+    if (outcome.decision === "REJECTED_NOW_LOCKED") {
+      throw new PairRefusal(429, lockedSentence(outcome.next.lockedUntil!), {
+        code: "LOCKED",
+        lockedUntil: outcome.next.lockedUntil!.toISOString(),
+      });
+    }
+    throw new PairRefusal(400, badCodeSentence(outcome.attemptsRemaining), {
+      code: "BAD_CODE",
+      triesLeft: outcome.attemptsRemaining,
+    });
+  }
+
+  const key = newDeviceKey();
+  const kind: DeviceKind = deviceKindFromShell(input.shell);
+  const label = kind === "BROWSER" ? deviceLabelFromUserAgent(input.userAgent) : null;
+  const appVersion = input.appVersion?.trim().slice(0, 40) || null;
+
+  const paired = await prisma.$transaction(async (tx) => {
+    // Used once: a second redeem of the same code finds it gone.
+    const claimed = await tx.retailPairingCode.updateMany({
+      where: { id: live.id, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
+    });
+    // Someone redeemed it a moment ago.
+    const taken = new PairRefusal(400, badCodeSentence(gate.attemptsRemaining), { code: "BAD_CODE", triesLeft: gate.attemptsRemaining });
+    if (claimed.count === 0) throw taken;
+    const till = await tx.retailRegister.findFirst({
+      where: { id: live.registerId, companyId: input.companyId, isActive: true },
+      select: { id: true, name: true, site: { select: { id: true, name: true } } },
+    });
+    if (!till) throw taken;
+    const actor = await tx.user.findUnique({ where: { id: live.createdById }, select: { name: true, role: true } });
+    const auditActor = { companyId: input.companyId, userId: live.createdById, userName: actor?.name ?? null, userRole: actor?.role ?? null };
+
+    const current = await tx.retailDevice.findFirst({
+      where: { registerId: till.id, unpairedAt: null },
+      select: { id: true, kind: true, label: true },
+    });
+    if (current) {
+      // A PAIR code on a till that paired meanwhile still replaces: the till has one device.
+      await tx.retailDevice.update({
+        where: { id: current.id },
+        data: { unpairedAt: now, unpairedById: live.createdById, unpairReason: "REPLACED" },
+      });
+    } else {
+      try {
+        await checkTillRoom(tx, input.companyId);
+      } catch (error) {
+        if (error instanceof PairingRefusal) throw new PairRefusal(409, error.message, { code: "PLAN_LIMIT" });
+        throw error;
+      }
+    }
+
+    const device = await tx.retailDevice.create({
+      data: {
+        companyId: input.companyId,
+        registerId: till.id,
+        kind,
+        label,
+        keyHash: hashDeviceKey(key),
+        appVersion,
+        pairedAt: now,
+        pairedById: live.createdById,
+        lastSeenAt: now,
+      },
+      select: { id: true, kind: true, label: true },
+    });
+    await tx.retailPairingCode.update({ where: { id: live.id }, data: { deviceId: device.id } });
+    await tx.retailPairingThrottle.deleteMany({ where: { companyId: input.companyId, installId: input.installId } });
+
+    await writeRetailAuditEvent(tx, {
+      actor: auditActor,
+      eventType: RETAIL_AUDIT_EVENTS.devicePaired,
+      entityType: "RetailRegister",
+      entityId: till.id,
+      payload: { name: till.name, device: deviceWords(device), deviceId: device.id, purpose: live.purpose },
+    });
+    if (current) {
+      await writeRetailAuditEvent(tx, {
+        actor: auditActor,
+        eventType: RETAIL_AUDIT_EVENTS.deviceReplaced,
+        entityType: "RetailRegister",
+        entityId: till.id,
+        payload: {
+          name: till.name,
+          from: deviceWords(current),
+          fromDeviceId: current.id,
+          to: deviceWords(device),
+          toDeviceId: device.id,
+        },
+      });
+    }
+    return { till: { id: till.id, name: till.name }, site: till.site };
+  });
+  return { key, ...paired };
+}
+
+/* ── What the till knows about itself (GET devices/me) ────────────────────── */
+
+export type TillContext = {
+  till: { id: string; name: string; code: string; hasPrinter: boolean; hasDrawer: boolean; hasScale: boolean };
+  site: { id: string; name: string; places: number };
+  device: { id: string; kind: DeviceKind; label: string; pairedAt: string; pairedBy: string; paired: string };
+  /** What kind of shop: the till asks for ID and keeps licence hours on a liquor store. */
+  shop: ShopProfile;
+  /** The tender rules checkout enforces before the server checks them again (SET-06 widens these). */
+  rules: { requiredReferenceTenders: RetailTenderType[]; minReferenceLength: number };
+  /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
+  priceListId: string | null;
+};
+
+export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
+  const { register } = device;
+  const [places, defaultList, shop, tenderPolicy] = await Promise.all([
+    prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
+    register.priceListId || register.site.priceListId
+      ? Promise.resolve(null)
+      : prisma.priceList.findFirst({
+          where: { companyId: device.companyId, isActive: true },
+          orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+          select: { id: true },
+        }),
+    loadShopProfile(device.companyId),
+    getRetailTenderPolicy(device.companyId),
+  ]);
+  const pairedBy = device.pairedBy.name ?? "";
+  return {
+    till: {
+      id: register.id,
+      name: register.name,
+      code: register.code,
+      hasPrinter: register.hasPrinter,
+      hasDrawer: register.hasDrawer,
+      hasScale: register.hasScale,
+    },
+    site: { id: register.site.id, name: register.site.name, places },
+    device: {
+      id: device.id,
+      kind: device.kind,
+      label: deviceWords(device),
+      pairedAt: device.pairedAt.toISOString(),
+      pairedBy,
+      paired: pairedFootnote(device.pairedAt, pairedBy, now),
+    },
+    shop,
+    rules: {
+      requiredReferenceTenders: tenderPolicy.requiredReferenceTenders,
+      minReferenceLength: tenderPolicy.minReferenceLength,
+    },
+    priceListId: register.priceListId ?? register.site.priceListId ?? defaultList?.id ?? null,
+  };
+}
+
+/* ── Who is selling? (GET devices/people) ─────────────────────────────────── */
+
+export type TillPerson = { userId: string; label: string };
+
+/**
+ * The people who may sell at this till: active staff of the shop with a till
+ * PIN, whom the till admits and the matrix lets sell. Whoever has the shift
+ * open on this till comes first, then by surname.
+ */
+export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
+  const [pins, open] = await Promise.all([
+    prisma.retailTillPin.findMany({
+      where: { companyId: device.companyId, user: { isActive: true, companyId: device.companyId } },
+      select: { user: { select: { id: true, name: true, role: true } } },
+    }),
+    prisma.retailShift.findFirst({
+      where: { companyId: device.companyId, registerId: device.registerId, status: "OPEN" },
+      orderBy: { openedAt: "desc" },
+      select: { cashierId: true },
+    }),
+  ]);
+  const surname = (name: string) => name.trim().split(/\s+/).at(-1)?.toLowerCase() ?? "";
+  return pins
+    .map((pin) => pin.user)
+    .filter((user) => canAccessPosPortal(user.role) && canRetailRoleDo(user.role, "retail.sell", "create"))
+    .sort(
+      (a, b) =>
+        Number(b.id === open?.cashierId) - Number(a.id === open?.cashierId) ||
+        surname(a.name ?? "").localeCompare(surname(b.name ?? "")) ||
+        (a.name ?? "").localeCompare(b.name ?? ""),
+    )
+    .map((user) => ({ userId: user.id, label: personChip(user.name ?? "") }));
+}
+
+/* ── Messages (heartbeat, dismiss) ────────────────────────────────────────── */
+
+export type TillMessage = { id: string; body: string; from: string; at: string };
+
+/** The till's messages not yet dismissed, oldest first. */
+export async function tillMessages(device: PosDevice): Promise<TillMessage[]> {
+  const rows = await prisma.retailDeviceMessage.findMany({
+    where: { companyId: device.companyId, registerId: device.registerId, dismissedAt: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, body: true, createdAt: true, sentBy: { select: { name: true } } },
+  });
+  return rows.map((row) => ({ id: row.id, body: row.body, from: row.sentBy.name ?? "", at: row.createdAt.toISOString() }));
+}
+
+/** Dismiss one of this till's messages. False when it is not this till's. */
+export async function dismissTillMessage(device: PosDevice, id: string, now: Date = new Date()): Promise<boolean> {
+  const result = await prisma.retailDeviceMessage.updateMany({
+    where: { id, companyId: device.companyId, registerId: device.registerId, dismissedAt: null },
+    data: { dismissedAt: now },
+  });
+  if (result.count > 0) return true;
+  return (await prisma.retailDeviceMessage.count({ where: { id, companyId: device.companyId, registerId: device.registerId } })) > 0;
+}
+
+/* ── Who may sign in with a PIN (the `till-pin` provider) ─────────────────── */
+
+export type TillPinSignIn =
+  | { ok: true; device: PosDevice }
+  | { ok: false; reason: "NOT_A_TILL" | "DEVICE_UNPAIRED" | "NOT_ON_THIS_TILL" | "NO_PIN" | "LOCKED" | "WRONG_PIN"; triesLeft?: number };
+
+/**
+ * A PIN sign-in at a paired device: the device must be active and the
+ * shop's; the person must be one the till offers (`tillPeople`); the PIN is
+ * checked with the till's lockout. The caller compares the bcrypt hash.
+ */
+export async function checkTillPinSignIn(
+  input: { deviceKey: string | null | undefined; userId: string; verify: (pinHash: string) => Promise<boolean> },
+  now: Date = new Date(),
+): Promise<TillPinSignIn> {
+  const device = await findDeviceByKey(input.deviceKey);
+  if (!device) return { ok: false, reason: "NOT_A_TILL" };
+  if (device.unpairedAt) return { ok: false, reason: "DEVICE_UNPAIRED" };
+  const people = await tillPeople(device);
+  if (!people.some((person) => person.userId === input.userId)) return { ok: false, reason: "NOT_ON_THIS_TILL" };
+
+  const record = await prisma.retailTillPin.findFirst({
+    where: { userId: input.userId, companyId: device.companyId },
+    select: { id: true, pinHash: true, failedAttempts: true, lockedUntil: true },
+  });
+  if (!record) return { ok: false, reason: "NO_PIN" };
+  const state = { failedAttempts: record.failedAttempts, lockedUntil: record.lockedUntil };
+  if (evaluateTillPinAttempt({ state, verified: null, now }).decision === "LOCKED") return { ok: false, reason: "LOCKED" };
+
+  const outcome = evaluateTillPinAttempt({ state, verified: await input.verify(record.pinHash), now });
+  await prisma.retailTillPin.update({
+    where: { id: record.id },
+    data: {
+      failedAttempts: outcome.next.failedAttempts,
+      lockedUntil: outcome.next.lockedUntil,
+      ...(outcome.decision === "ACCEPTED" ? { lastUnlockedAt: now } : {}),
+    },
+    select: { id: true },
+  });
+  if (outcome.decision === "ACCEPTED") return { ok: true, device };
+  if (outcome.decision === "REJECTED_NOW_LOCKED") return { ok: false, reason: "LOCKED" };
+  return { ok: false, reason: "WRONG_PIN", triesLeft: outcome.attemptsRemaining };
+}
+
+/** A refusal from `pairDevice`, or the generic one. */
+export function pairFailure(error: unknown): NextResponse {
+  if (error instanceof PairRefusal) return refuse(error.status, { error: error.message, ...error.body });
+  console.error("[API] POST /api/v2/retail/devices/pair error:", error);
+  return errorResponse("That did not work. Try the code again.");
+}
+
+/**
+ * A device route with no session (`devices/me`, `people`, `heartbeat`): the
+ * device key is the credential, and it must be a device of the shop whose
+ * POS host this is.
+ */
+export async function requireHostDevice(
+  request: NextRequest,
+): Promise<{ device: PosDevice; response: null } | { device: null; response: NextResponse }> {
+  const tenant = await resolveTenantFromHost(getHostHeaderFromRequestHeaders(request.headers));
+  if (!tenant) return { device: null, response: refuse(409, { error: NOT_A_TILL, code: "NOT_A_TILL" }) };
+  return requirePosDevice(request, { user: { companyId: tenant.companyId } });
+}

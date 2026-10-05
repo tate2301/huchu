@@ -336,12 +336,17 @@ describe("closing a site", () => {
     });
 
     const borrowdale = await prisma.site.findFirstOrThrow({ where: { companyId, code: "BDL" } });
+    const till = await prisma.retailRegister.create({
+      data: { companyId, siteId: borrowdale.id, code: `TILL-9-${stamp}`, name: "Borrowdale till" },
+      select: { id: true, code: true },
+    });
     const shift = await prisma.retailShift.create({
-      data: { companyId, siteId: borrowdale.id, shiftNo: `SH-${stamp}`, registerCode: "TILL-9", registerName: "Borrowdale till", cashierId: ownerId, cashierName: "Tendai Mhlanga" },
+      data: { companyId, siteId: borrowdale.id, shiftNo: `SH-${stamp}`, registerCode: till.code, registerName: "Borrowdale till", registerId: till.id, cashierId: ownerId, cashierName: "Tendai Mhlanga" },
       select: { id: true },
     });
     expect(await refusal(closeSite(actor(), borrowdale.id))).toMatchObject({ opts: { code: "SHIFT_OPEN" } });
     await prisma.retailShift.delete({ where: { id: shift.id } });
+    await prisma.retailRegister.delete({ where: { id: till.id } });
   });
 
   it("closes a site with nothing left: its tills stop, it shows under Closed, its history stays", async () => {

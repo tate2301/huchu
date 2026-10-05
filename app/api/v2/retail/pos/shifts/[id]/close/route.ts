@@ -6,6 +6,7 @@ import { requireRetailSession } from "../../../../_helpers";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { closeRetailShiftTransaction } from "../../../../_services";
+import { requirePosDevice } from "@/lib/retail/devices";
 
 const closePosShiftSchema = z.object({
   countedCash: z.number().min(0),
@@ -26,6 +27,8 @@ export async function POST(
   }
   const gate = requireRetailPermission(session, "retail.sell", "close-shift");
   if (gate) return gate;
+  const { response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   try {
     /*

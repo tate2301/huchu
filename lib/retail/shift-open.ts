@@ -54,7 +54,7 @@ export async function planShiftOpen(input: {
   if (!register) return { refused: { status: 404, error: "Till not found", field: "till" } };
 
   const tillBusy = await prisma.retailShift.findFirst({
-    where: { companyId, siteId: register.siteId, registerCode: register.code, status: "OPEN" },
+    where: { companyId, registerId: register.id, status: "OPEN" },
     select: { id: true },
   });
   if (tillBusy) return { refused: { status: 409, error: `${register.name} already has an open shift.` } };

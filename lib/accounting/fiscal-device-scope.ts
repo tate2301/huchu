@@ -3,9 +3,9 @@ import type { Prisma } from "@prisma/client";
 /**
  * Rows in `FiscalisationProviderConfig` that are not fiscal devices.
  *
- * Retail keeps three of its settings in this table as JSON under reserved
- * provider keys — the setup profile, the till rules and the tender policy
- * (`lib/retail/setup-profile.ts`, `pos-policy.ts`, `tender-policy.ts`). Every
+ * Retail keeps two of its settings in this table as JSON under reserved
+ * provider keys — the till rules and the tender policy (`pos-policy.ts`,
+ * `tender-policy.ts`); the setup profile went with SET-04. Every
  * retail workspace therefore has an "active provider" whether or not it has a
  * ZIMRA device, and a lookup that asked for "any active provider" found one:
  * the fiscal-day console listed `RETAIL_SETUP_PROFILE` as a device, and a till
@@ -14,7 +14,6 @@ import type { Prisma } from "@prisma/client";
  * Asserted equal to the retail constants in `fiscal-device-scope.test.ts`.
  */
 export const SETTINGS_PROVIDER_KEYS = [
-  "RETAIL_SETUP_PROFILE",
   "RETAIL_POS_POLICY",
   "RETAIL_TENDER_POLICY",
 ] as const;

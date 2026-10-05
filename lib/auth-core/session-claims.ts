@@ -76,6 +76,8 @@ export function buildInitialTokenClaims(input: {
   companyId?: string;
   authStrategy?: AuthStrategyId;
   rememberMe?: boolean;
+  deviceId?: string;
+  registerId?: string;
 }): PlatformJwtClaims {
   const sessionPolicy = resolvePolicyForStrategy(input.authStrategy, input.rememberMe === true);
 
@@ -84,6 +86,8 @@ export function buildInitialTokenClaims(input: {
     ...(input.role ? { role: input.role } : {}),
     ...(input.companyId ? { companyId: input.companyId } : {}),
     ...(input.authStrategy ? { authStrategy: input.authStrategy } : {}),
+    ...(input.deviceId ? { deviceId: input.deviceId } : {}),
+    ...(input.registerId ? { registerId: input.registerId } : {}),
     sessionPolicy,
     rememberMe: sessionPolicy === "remember",
     authExpiresAt: buildAuthExpiresAt(sessionPolicy),
@@ -146,6 +150,8 @@ export function applyTokenToSessionClaims(
     enabledFeatures: token.enabledFeatures,
     subscriptionHealth: token.subscriptionHealth,
     allowedHosts: token.allowedHosts,
+    deviceId: token.deviceId,
+    registerId: token.registerId,
   };
 
   return session;

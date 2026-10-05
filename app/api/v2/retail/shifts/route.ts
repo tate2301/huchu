@@ -5,7 +5,7 @@ import { requireRetailPermission } from "@/lib/retail/permissions";
 import { planShiftOpen } from "@/lib/retail/shift-open";
 import { FLOAT_MESSAGE, openShiftSchema } from "@/lib/retail/shift-open-rules";
 import { requireRetailSession } from "../_helpers";
-import { openRetailShiftTransaction } from "../_services";
+import { ShiftElsewhere, openRetailShiftTransaction } from "../_services";
 
 /**
  * Open a shift from the back office (`?sheet=shift-open`, 00-foundations
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
 
     return successResponse({ ...shift, ...accounting }, 201);
   } catch (error) {
+    if (error instanceof ShiftElsewhere) return errorResponse(error.message, 409);
     console.error("[API] POST /api/v2/retail/shifts error:", error);
     return errorResponse(error instanceof Error ? error.message : "Failed to open shift", 400);
   }

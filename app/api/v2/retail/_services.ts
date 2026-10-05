@@ -48,8 +48,17 @@ import {
   ensureSiteAccess,
   postRetailJournal,
   type RetailAccountingResult,
-  upsertRetailRegister,
 } from "./_helpers";
+import { shiftElsewhereSentence } from "@/lib/retail/device-words";
+
+/** 409: this person's shift is open on another till ("People are not devices", 10-setup W-04 step 8). */
+export class ShiftElsewhere extends Error {
+  readonly status = 409;
+  constructor(readonly tillName: string) {
+    super(shiftElsewhereSentence(tillName));
+    this.name = "ShiftElsewhere";
+  }
+}
 
 export type RetailActorContext = {
   companyId: string;
@@ -233,9 +242,10 @@ async function ensureRetailSaleAccountingPosted(input: {
 export async function openRetailShiftTransaction(input: {
   actor: RetailActorContext;
   siteId: string;
-  registerId?: string | null;
-  registerName?: string | null;
-  registerCode?: string | null;
+  /** The till the shift is on: the device's own at the till (SET-04), the chosen one in the back office. */
+  registerId: string;
+  /** The device it is opened on; null in the back office. */
+  deviceId?: string | null;
   shiftNo?: string | null;
   openingFloat?: number;
   notes?: string | null;
@@ -253,29 +263,24 @@ export async function openRetailShiftTransaction(input: {
   }
 
   const cashierId = input.cashier?.id ?? input.actor.userId;
+  // People are not devices: one shift at a time, on one till (10-setup W-04 step 8).
   const existing = await prisma.retailShift.findFirst({
     where: {
       companyId: input.actor.companyId,
       cashierId,
       status: "OPEN",
     },
+    select: { registerName: true },
   });
   if (existing) {
-    throw new Error("Close the current shift before opening a new one");
+    throw new ShiftElsewhere(existing.registerName);
   }
 
-  const register = input.registerId
-    ? await ensureRetailRegisterAccess({
-        companyId: input.actor.companyId,
-        siteId: site.id,
-        registerId: input.registerId,
-      })
-    : await upsertRetailRegister({
-        companyId: input.actor.companyId,
-        siteId: site.id,
-        registerName: input.registerName?.trim() || "POS Register",
-        registerCode: input.registerCode ?? undefined,
-      });
+  const register = await ensureRetailRegisterAccess({
+    companyId: input.actor.companyId,
+    siteId: site.id,
+    registerId: input.registerId,
+  });
   if (!register) {
     throw new Error("Invalid register");
   }
@@ -306,6 +311,8 @@ export async function openRetailShiftTransaction(input: {
           shiftNo,
           registerCode: register.code,
           registerName: register.name,
+          registerId: register.id,
+          deviceId: input.deviceId ?? null,
           siteId: site.id,
           cashierId,
           cashierName: input.cashier?.name ?? resolveCashierName(input.actor),
@@ -666,6 +673,10 @@ export async function createRetailSaleTransaction(input: {
   postedAt?: Date;
   /** When the cashier confirmed the customer's ID, for a sale with an age-restricted line. */
   idCheckedAt?: Date | null;
+  /** The device it was rung on (SET-04); the till is the shift's. */
+  device?: { id: string; registerId: string } | null;
+  /** Why a manager should look at it (an offline sale from a device unpaired since, W-76). */
+  reviewReason?: string | null;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -685,6 +696,9 @@ export async function createRetailSaleTransaction(input: {
   }
   if (shift.siteId !== site.id) {
     throw new Error("Shift site does not match the selected site");
+  }
+  if (input.device && input.device.registerId !== shift.registerId) {
+    throw new ShiftElsewhere(shift.registerName);
   }
 
   const normalizedPayments = input.payments.map((payment) => ({
@@ -815,6 +829,9 @@ export async function createRetailSaleTransaction(input: {
             clientRef,
             shiftId: shift.id,
             siteId: site.id,
+            registerId: shift.registerId,
+            deviceId: input.device?.id ?? null,
+            reviewReason: input.reviewReason ?? null,
             cashierId: input.actor.userId,
             cashierName: resolveCashierName(input.actor),
             customerName: input.customerName ?? null,
@@ -995,6 +1012,8 @@ export async function refundRetailSaleTransaction(input: {
   notes?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
+  /** The device it is done on (SET-04); the till is the shift's. */
+  deviceId?: string | null;
   /**
    * S-7.7 — a manager who approved this at the counter, already verified.
    *
@@ -1194,6 +1213,8 @@ export async function refundRetailSaleTransaction(input: {
         companyId: input.actor.companyId,
         saleNo: refundNo,
         shiftId: shift.id,
+        registerId: shift.registerId,
+        deviceId: input.deviceId ?? null,
         sourceSaleId: currentSourceSale.id,
         siteId: currentSourceSale.siteId,
         cashierId: input.actor.userId,
@@ -1353,6 +1374,8 @@ export async function voidRetailSaleTransaction(input: {
   notes?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
+  /** The device it is done on (SET-04). */
+  deviceId?: string | null;
   /** A manager who approved this at the counter. See the refund above. */
   approvedBy?: { id: string; name: string } | null;
 }) {
@@ -1435,6 +1458,8 @@ export async function voidRetailSaleTransaction(input: {
         companyId: input.actor.companyId,
         saleNo: voidNo,
         shiftId: shift.id,
+        registerId: shift.registerId,
+        deviceId: input.deviceId ?? null,
         sourceSaleId: currentSourceSale.id,
         siteId: currentSourceSale.siteId,
         cashierId: input.actor.userId,

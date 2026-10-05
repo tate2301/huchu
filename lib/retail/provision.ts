@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { money, percent } from "@/lib/money";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 import { upsertShelfListing } from "@/lib/retail/shelf-listing";
-import { getRetailSetupProfile, saveRetailSetupProfile } from "@/lib/retail/setup-profile";
 
 /**
  * Opening a shop.
@@ -115,7 +114,8 @@ export type ProvisionRetailResult = {
   location: { id: string; code: string; created: boolean };
   register: { id: string; code: string; name: string; created: boolean };
   /** Whether the POS portal's default site and register were written. */
-  setupProfileWritten: boolean;
+  /** Whether the shop's default site was set here (it is left alone when the shop chose one). */
+  defaultSiteWritten: boolean;
   /** How many `STARTER_RANGE` lines this run ranged. Zero unless asked. */
   productsRanged: number;
   accounting: { accountsCreated: number; taxCodesCreated: number; postingRulesCreated: number };
@@ -198,31 +198,22 @@ export async function provisionRetail(
       select: { id: true, code: true, name: true },
     }));
 
-  /* ── 4. What the POS portal opens on ─────────────────────────────────── */
+  /* ── 4. The shop's default site ──────────────────────────────────────── */
 
   /*
     Written only when it is empty. A shop that has since chosen a different
-    default register must not have that choice reverted by somebody re-running
-    provisioning to fix something else.
+    default site must not have that choice reverted by somebody re-running
+    provisioning to fix something else. A till is whichever one a device is
+    paired to (SET-04), so there is no default till to point at.
   */
-  const [profile, shop] = await Promise.all([
-    getRetailSetupProfile(companyId),
-    prisma.retailShopProfile.findUnique({ where: { companyId }, select: { defaultSiteId: true } }),
-  ]);
-  const setupProfileWritten = !shop?.defaultSiteId || !profile.defaultRegisterId;
+  const shop = await prisma.retailShopProfile.findUnique({ where: { companyId }, select: { defaultSiteId: true } });
+  const defaultSiteWritten = !shop?.defaultSiteId;
   if (!shop?.defaultSiteId) {
     // The shop's default site (SET-01): new products, orders and stock go here.
     await prisma.retailShopProfile.upsert({
       where: { companyId },
       create: { companyId, defaultSiteId: site.id },
       update: { defaultSiteId: site.id },
-    });
-  }
-  if (!profile.defaultRegisterId) {
-    await saveRetailSetupProfile(companyId, {
-      defaultRegisterId: register.id,
-      defaultRegisterName: register.name,
-      defaultRegisterCode: register.code,
     });
   }
 
@@ -283,7 +274,7 @@ export async function provisionRetail(
     site: { ...site, created: !existingSite },
     location: { ...location, created: !existingLocation },
     register: { ...register, created: !existingRegister },
-    setupProfileWritten,
+    defaultSiteWritten,
     productsRanged,
     accounting,
     blockers: await retailTradingBlockers(companyId),

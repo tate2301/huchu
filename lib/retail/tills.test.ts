@@ -262,7 +262,7 @@ describe("Pair another device and Unpair (W-76)", () => {
   it("refuses Unpair while a shift is open on the till, with the sentence, then unpairs and records it", async () => {
     const till = await pairedTill("Front till", mainId);
     const shift = await prisma.retailShift.create({
-      data: { companyId, siteId: mainId, shiftNo: `SH-${stamp}`, registerCode: till.code, registerName: "Front till", cashierId: ownerId, cashierName: "Chipo Dube" },
+      data: { companyId, siteId: mainId, shiftNo: `SH-${stamp}`, registerCode: till.code, registerName: "Front till", registerId: till.id, cashierId: ownerId, cashierName: "Chipo Dube" },
       select: { id: true },
     });
     const detail = await getTill(companyId, till.id);

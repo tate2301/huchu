@@ -28,7 +28,7 @@ import {
 } from "@/lib/retail/offline-runtime";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { depositsDue } from "@/lib/retail/deposits";
-import { liquorSaleRefusal, shopFeatures, type ShopProfile } from "@/lib/retail/shop-profile-rules";
+import { liquorSaleRefusal, shopFeatures } from "@/lib/retail/shop-profile-rules";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
@@ -44,11 +44,12 @@ import type {
   CurrentShift,
   PaymentRow,
   PosCatalogItem,
-  PosSite,
   Promotion,
 } from "./pos-types";
 import { getPaymentSummary } from "./pos-utils";
-import { usePosSignedOut } from "./use-pos-signed-out";
+// Type-only, like `TillFiscalStatus` above.
+import type { TillContext } from "@/lib/retail/devices";
+import { usePosDeviceWatch } from "./pos-device-watch";
 
 type CompletedSale = {
   id: string;
@@ -77,12 +78,6 @@ type CustomerLookupResult = {
   email: string | null;
   loyaltyPoints: number;
   loyaltyTier: string;
-};
-
-/** The tender rules the checkout screen enforces, carried on `pos/context`. */
-type TillRules = {
-  requiredReferenceTenders: Array<PaymentRow["tenderType"]>;
-  minReferenceLength: number;
 };
 
 type PosQueuedSale = OfflineOutboxOperation<PosSaleQueuePayload>;
@@ -116,9 +111,8 @@ type PosPortalStateValue = {
   setOverrideReason: (value: string) => void;
   selectedPromotionId: string;
   setSelectedPromotionId: (value: string) => void;
-  sites: PosSite[];
-  defaultSiteId: string | null;
-  defaultRegisterId: string | null;
+  /** This device's till, its site and what it knows (`devices/me`); null until it lands. */
+  till: TillContext | null;
   currentShift: CurrentShift | null;
   currentShiftLoading: boolean;
   catalogItems: PosCatalogItem[];
@@ -227,36 +221,23 @@ export function PosPortalProvider({
   /** The cashier has checked this customer's ID. One check covers the basket. */
   const [idChecked, setIdChecked] = useState(false);
 
-  /*
-    Not while the sign-in form is up. This provider wraps the login route too —
-    see `usePosSignedOut` — so without the gate every cashier's sign-in fired
-    these two unauthenticated, took a 401, and retried. See the hook for the
-    captured timeline.
-  */
-  const signedOut = usePosSignedOut();
+  // A device that stops being a till goes to /unpaired at its next request,
+  // sending what it held offline first (W-76).
+  usePosDeviceWatch(isPosHost);
 
-  const posContextQuery = useQuery({
-    queryKey: ["pos-context"],
-    enabled: !signedOut,
-    queryFn: () =>
-      fetchJson<{
-        data: {
-          defaultSiteId: string | null;
-          defaultRegisterId: string | null;
-          sites: PosSite[];
-          rules: TillRules;
-          shop: ShopProfile;
-        };
-      }>("/api/v2/retail/pos/context"),
+  const tillQuery = useQuery({
+    queryKey: ["till-context"],
+    queryFn: () => fetchJson<{ data: TillContext }>("/api/v2/retail/devices/me"),
+    staleTime: 60_000,
   });
+  const till = tillQuery.data?.data ?? null;
   const currentShiftQuery = useQuery({
     queryKey: ["retail-current-shift"],
-    enabled: !signedOut,
     queryFn: () =>
       fetchJson<{ data: CurrentShift | null }>("/api/v2/retail/pos/current-shift"),
   });
   const currentShift = currentShiftQuery.data?.data ?? null;
-  const siteId = currentShift?.siteId ?? "";
+  const siteId = currentShift?.siteId ?? till?.site.id ?? "";
   const hasSeenOpenShiftRef = useRef(false);
 
   const catalogQuery = useQuery({
@@ -313,14 +294,8 @@ export function PosPortalProvider({
     enabled: Boolean(siteId) && hasPromotions,
   });
   /*
-    Tender rules now ride on `pos/context` above — see the comment on that
-    route. There used to be a separate query here against
-    `/api/v2/retail/setup/tender-policy`, which is gated on `retail.payments`
-    `view`, a permission no cashier holds. It returned 403 on every till on
-    every load, failed silently, and left checkout on the hard-coded defaults —
-    so a shop's configured reference requirements were accepted in the back
-    office and then quietly ignored at the counter. It surfaced only from
-    dev-server logs during a screenshot run.
+    Tender rules ride on `devices/me` (the till's context), which a cashier
+    can always read; `setup/tender-policy` is gated on `retail.payments`.
   */
   const customerSearchQuery = useQuery({
     queryKey: ["retail-pos-customer-search", customerName],
@@ -376,7 +351,7 @@ export function PosPortalProvider({
     [payments, amountDue],
   );
 
-  const shop = posContextQuery.data?.data.shop ?? null;
+  const shop = till?.shop ?? null;
   const ageCheckOn = shop ? shopFeatures(shop).ageCheck : false;
   const depositsOn = shop ? shopFeatures(shop).emptiesAndDeposits : false;
   const needsIdCheck = ageCheckOn && !idChecked && cart.some((item) => item.ageRestricted);
@@ -585,9 +560,10 @@ export function PosPortalProvider({
     if (!hasSeenOpenShiftRef.current) {
       return;
     }
+    // Back to "Who is selling?" on the till.
     void signOut({
       redirect: true,
-      callbackUrl: isPosHost ? "/login" : "/portal/pos/login",
+      callbackUrl: isPosHost ? "/" : "/portal/pos/login",
     });
   }, [currentShift?.id, currentShiftQuery.isLoading, isPosHost]);
 
@@ -680,9 +656,7 @@ export function PosPortalProvider({
     setOverrideReason,
     selectedPromotionId,
     setSelectedPromotionId,
-    sites: posContextQuery.data?.data.sites ?? [],
-    defaultSiteId: posContextQuery.data?.data.defaultSiteId ?? null,
-    defaultRegisterId: posContextQuery.data?.data.defaultRegisterId ?? null,
+    till,
     isPosHost,
     currentShift,
     currentShiftLoading: currentShiftQuery.isLoading,
@@ -790,9 +764,8 @@ export function PosPortalProvider({
     // A genuine fallback now, for the moments before context lands — not the
     // permanent state it was while the old endpoint 403'd. Kept in step with
     // `DEFAULT_RETAIL_TENDER_POLICY` in `lib/retail/tender-policy.ts`.
-    requiredReferenceTenders:
-      posContextQuery.data?.data.rules?.requiredReferenceTenders ?? ["CARD", "MOBILE_MONEY"],
-    minReferenceLength: posContextQuery.data?.data.rules?.minReferenceLength ?? 4,
+    requiredReferenceTenders: till?.rules.requiredReferenceTenders ?? ["CARD", "MOBILE_MONEY"],
+    minReferenceLength: till?.rules.minReferenceLength ?? 4,
     lastCompletedSale,
     dismissCompletedSale: () => setLastCompletedSale(null),
   };

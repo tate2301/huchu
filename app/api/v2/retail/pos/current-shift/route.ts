@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getCashNetFromPayments } from "@/lib/retail/cash-up";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requirePosDevice } from "@/lib/retail/devices";
 import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {
@@ -22,11 +23,16 @@ export async function GET(request: NextRequest) {
   // person with no business at a till has no business asking.
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
+  // The caller's open drawer on this till. One open on another till is not
+  // this till's: opening here says "Close your shift on {till} first."
   const shift = await prisma.retailShift.findFirst({
     where: {
       companyId: session.user.companyId,
       cashierId: session.user.id,
+      registerId: device.registerId,
       status: "OPEN",
     },
     orderBy: { openedAt: "desc" },

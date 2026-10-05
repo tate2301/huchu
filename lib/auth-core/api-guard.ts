@@ -119,6 +119,15 @@ export async function requireApiAuthLean(
     });
   }
 
+  // Same rule as resolveAccessContext: a till PIN session is good on the POS host only.
+  if (session.user.authStrategy === "till-pin" && getPlatformHostContext(hostHeader).portalCanonicalPrefix !== "pos") {
+    return deny(session, pathname, hostHeader, {
+      reason: "UNAUTHORIZED",
+      status: 401,
+      message: "Unauthorized",
+    });
+  }
+
   if (requireAdmin) {
     if (!isAdminPortalHost(hostHeader)) {
       return deny(session, pathname, hostHeader, {

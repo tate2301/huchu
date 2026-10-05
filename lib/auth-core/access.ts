@@ -57,6 +57,18 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
     };
   }
 
+  // A PIN session is made at a paired till and is good on the POS host only
+  // (10-setup W-04 step 7): anywhere else it is no session at all.
+  if (session.user.authStrategy === "till-pin" && getPlatformHostContext(hostHeader).portalCanonicalPrefix !== "pos") {
+    return {
+      ok: false,
+      reason: "UNAUTHORIZED",
+      status: 401,
+      message: "Unauthorized",
+      path: pathname,
+    };
+  }
+
   if (requireAdmin) {
     if (!isAdminPortalHost(hostHeader)) {
       return {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { RETAIL_POS_POLICY_PROVIDER_KEY } from "@/lib/retail/pos-policy";
-import { RETAIL_SETUP_PROFILE_PROVIDER_KEY } from "@/lib/retail/setup-profile";
 import { POLICY_PROVIDER_KEY } from "@/lib/retail/tender-policy";
 
 import { fiscalDeviceWhere, isFiscalDeviceKey, SETTINGS_PROVIDER_KEYS } from "./fiscal-device-scope";
@@ -9,7 +8,7 @@ import { fiscalDeviceWhere, isFiscalDeviceKey, SETTINGS_PROVIDER_KEYS } from "./
 describe("fiscal device scope", () => {
   it("names every retail settings row", () => {
     expect([...SETTINGS_PROVIDER_KEYS].sort()).toEqual(
-      [RETAIL_SETUP_PROFILE_PROVIDER_KEY, RETAIL_POS_POLICY_PROVIDER_KEY, POLICY_PROVIDER_KEY].sort(),
+      [RETAIL_POS_POLICY_PROVIDER_KEY, POLICY_PROVIDER_KEY].sort(),
     );
   });
 
@@ -19,7 +18,7 @@ describe("fiscal device scope", () => {
       isActive: true,
       providerKey: { notIn: [...SETTINGS_PROVIDER_KEYS] },
     });
-    expect(isFiscalDeviceKey("RETAIL_SETUP_PROFILE")).toBe(false);
+    expect(isFiscalDeviceKey("RETAIL_POS_POLICY")).toBe(false);
     expect(isFiscalDeviceKey("ZIMRA_FDMS")).toBe(true);
   });
 });

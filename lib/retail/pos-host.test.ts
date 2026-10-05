@@ -64,8 +64,9 @@ describe("every POS nav destination resolves on the POS host", () => {
 describe("every POS nav destination has a page behind it", () => {
   it.each(NAV_KEYS)("%s points at a route that exists", (key) => {
     const { internalHref } = getPosPortalHrefPair(key);
-    // `/portal/pos/held` → `app/portal/pos/held/page.tsx`; the root is `app/portal/pos/page.tsx`.
-    const pagePath = join(REPO_ROOT, "app", `${internalHref.replace(/^\//, "")}`, "page.tsx");
+    // `/portal/pos/held` → `app/portal/pos/(till)/held/page.tsx` (the till's
+    // route group); the root is `app/portal/pos/(till)/page.tsx`.
+    const pagePath = join(REPO_ROOT, "app", internalHref.replace(/^\/portal\/pos/, "portal/pos/(till)"), "page.tsx");
     expect(existsSync(pagePath), `${internalHref} has no page at ${pagePath}`).toBe(true);
   });
 });
@@ -77,14 +78,22 @@ describe("the public path list has nothing dangling in it", () => {
         (href): href is string => href !== null,
       ),
     );
-    // `/login` is reachable without a nav entry, by definition.
+    // `/login` and the device screens (`/pair`, `/unpaired`) are reachable
+    // without a nav entry, by definition.
+    const unlisted = new Set(["/login", "/pair", "/unpaired"]);
     const orphans = (POS_ALL_PUBLIC_PATHS as readonly string[]).filter(
-      (path) => path !== "/login" && !claimed.has(path),
+      (path) => !unlisted.has(path) && !claimed.has(path),
     );
     expect(
       orphans,
       "a public path no nav entry uses is either dead or a rename that only got done on one side — `/queue` was both",
     ).toEqual([]);
+  });
+});
+
+describe("the device screens", () => {
+  it.each(["pair", "unpaired", "who"])("/portal/pos/%s has its own page outside the till's layout", (screen) => {
+    expect(existsSync(join(REPO_ROOT, "app", "portal", "pos", screen, "page.tsx"))).toBe(true);
   });
 });
 

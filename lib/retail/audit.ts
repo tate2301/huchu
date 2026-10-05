@@ -148,6 +148,10 @@ export const RETAIL_AUDIT_EVENTS = {
   tillChanged: "RETAIL_TILL.CHANGED",
   /** A till's device unpaired from the back office. Carries the device and why. */
   deviceUnpaired: "RETAIL_DEVICE.UNPAIRED",
+  /** A device paired to a till with a code (W-04). Entity `RetailRegister`; carries the device, never the code or key. */
+  devicePaired: "RETAIL_DEVICE.PAIRED",
+  /** The till's old device stopped because a new one paired with a replace code (W-76). Carries both devices. */
+  deviceReplaced: "RETAIL_DEVICE.REPLACED",
   /** "Send a message" to a till. Carries the words. */
   tillMessageSent: "RETAIL_TILL.MESSAGE_SENT",
   /** Stock sent to another site (W-24). Entity `RetailStockTransfer`; carries lines, units and value (money as a string). */

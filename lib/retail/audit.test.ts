@@ -456,6 +456,8 @@ describe("the chain", () => {
       tillCreated: "RETAIL_TILL.CREATED",
       tillChanged: "RETAIL_TILL.CHANGED",
       deviceUnpaired: "RETAIL_DEVICE.UNPAIRED",
+      devicePaired: "RETAIL_DEVICE.PAIRED",
+      deviceReplaced: "RETAIL_DEVICE.REPLACED",
       tillMessageSent: "RETAIL_TILL.MESSAGE_SENT",
       transferSent: "RETAIL_STOCK_TRANSFER.SENT",
       transferCancelled: "RETAIL_STOCK_TRANSFER.CANCELLED",

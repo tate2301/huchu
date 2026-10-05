@@ -74,6 +74,18 @@ const GUARD_MARKERS = [
   "canRetailRoleDo",
   /** The same, measured with the session's role key (support sessions included). */
   "canRetailSessionDo",
+  /**
+   * SET-04: a till's own routes (`devices/me`, `people`, `heartbeat`), where
+   * the caller is a device, not a person. Its key — the POS host's httpOnly
+   * cookie — is the credential, and it must be a paired device of the shop
+   * whose POS host this is. Nothing a person could change is behind it.
+   */
+  "requireHostDevice",
+  /**
+   * SET-04: `devices/pair`. The six-digit code a manager made is the proof, good
+   * once for ten minutes, with five wrong tries stopping the device.
+   */
+  "pairDevice",
   /*
     `canAccessPosPortal` (`lib/retail/pos-host.ts`) is not here. It answers
     which portal you may sign into, a question about hosts rather than

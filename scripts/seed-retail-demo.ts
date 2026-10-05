@@ -48,7 +48,6 @@ import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/mone
 import { prisma } from "@/lib/prisma"
 import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
-import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 import { activeRetailPriceList } from "@/lib/retail/shelf-pricing"
 import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 import { tradingDayKey } from "@/lib/retail/z-report"
@@ -428,22 +427,6 @@ async function main() {
     where: { companyId_code: { companyId, code: "TILL-5" } },
     update: { name: "Cold room till", siteId: site.id, isActive: true, deviceKind: "COUNTER_MINI" },
     create: { companyId, code: "TILL-5", name: "Cold room till", siteId: site.id },
-  })
-
-  /**
-   * Point the shop at the branch and till this script just made.
-   *
-   * The seed created both and then never said which one is the default, so
-   * `getRetailSetupProfile` returned nulls and the till's own settings screen
-   * read back "Branch: Not set · Register: Not set" on a shop with exactly one
-   * of each. Every surface that falls back to the default site — the till when
-   * no shift is open, price check, the settings screen — was working off
-   * nothing.
-   */
-  await saveRetailSetupProfile(companyId, {
-    defaultRegisterId: register.id,
-    defaultRegisterName: register.name,
-    defaultRegisterCode: register.code,
   })
 
   /*
@@ -885,6 +868,7 @@ async function main() {
           companyId,
           saleNo: `S-${String(saleSeq).padStart(6, "0")}`,
           shiftId,
+          registerId: slot.register.id,
           siteId: slotSiteId,
           cashierId: cashier.id,
           cashierName: cashier.name,
@@ -935,6 +919,7 @@ async function main() {
             companyId,
             saleNo: `S-${String(saleSeq).padStart(6, "0")}`,
             shiftId,
+            registerId: slot.register.id,
             sourceSaleId: saleId,
             siteId: slotSiteId,
             cashierId: cashier.id,
@@ -1045,6 +1030,7 @@ async function main() {
         shiftNo,
         registerCode: slot.register.code,
         registerName: slot.register.name,
+        registerId: slot.register.id,
         siteId: slotSiteId,
         cashierId: cashier.id,
         cashierName: cashier.name,
@@ -1225,6 +1211,7 @@ async function main() {
   await seedSites({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedTills(companyId)
   await seedStockPeople(companyId, passwordHash)
+  await seedTillPins(companyId, passwordHash)
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
@@ -1350,7 +1337,7 @@ async function seedTills(companyId: string) {
   })
   let removed = 0
   for (const stray of strays) {
-    const used = await prisma.retailShift.count({ where: { companyId, registerCode: stray.code } })
+    const used = await prisma.retailShift.count({ where: { companyId, registerId: stray.id } })
     if (used > 0) await prisma.retailRegister.update({ where: { id: stray.id }, data: { isActive: false } })
     else {
       await prisma.retailRegister.delete({ where: { id: stray.id } })
@@ -1394,6 +1381,38 @@ async function seedTills(companyId: string) {
     })
   }
   console.log(`  tills: 5 (4 paired, Cold room till not paired)${removed ? `, ${removed} added by a test run removed` : ""}`)
+}
+
+/**
+ * SET-04: who sells at the tills, with their PINs, so a paired till's "Who is
+ * selling?" offers Chipo D., Kuda B. and Farai M. Kuda Banda is a cashier the
+ * admin area also seeds (upserted by email, so the two converge). The PINs are
+ * demo values, printed here and nowhere else.
+ */
+const TILL_PINS: Array<{ email: string; name: string; pin: string }> = [
+  { email: "chipo.till@bottlestore.test", name: "Chipo Dube", pin: "2580" },
+  { email: "kuda.till@bottlestore.test", name: "Kuda Banda", pin: "1470" },
+  { email: "farai.till@bottlestore.test", name: "Farai Moyo", pin: "3691" },
+]
+
+async function seedTillPins(companyId: string, passwordHash: string) {
+  const bcrypt = await import("bcryptjs")
+  await prisma.user.upsert({
+    where: { email: "kuda.till@bottlestore.test" },
+    update: { name: "Kuda Banda", role: "CASHIER", companyId, isActive: true },
+    create: { email: "kuda.till@bottlestore.test", name: "Kuda Banda", role: "CASHIER", companyId, password: passwordHash, isActive: true },
+  })
+  for (const person of TILL_PINS) {
+    const user = await prisma.user.findFirst({ where: { companyId, email: person.email }, select: { id: true } })
+    if (!user) continue
+    const pinHash = await bcrypt.hash(person.pin, 10)
+    await prisma.retailTillPin.upsert({
+      where: { userId: user.id },
+      update: { companyId, pinHash, failedAttempts: 0, lockedUntil: null },
+      create: { companyId, userId: user.id, pinHash },
+    })
+  }
+  console.log(`  till PINs: ${TILL_PINS.map((person) => `${person.name} ${person.pin}`).join(", ")}`)
 }
 
 /**

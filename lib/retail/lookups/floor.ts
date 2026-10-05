@@ -36,14 +36,14 @@ const till: LookupNoun = {
     });
     if (registers.length === 0) return [];
     const open = await prisma.retailShift.findMany({
-      where: { companyId: ctx.companyId, status: "OPEN", registerCode: { in: registers.map((row) => row.code) } },
-      select: { registerCode: true, siteId: true },
+      where: { companyId: ctx.companyId, status: "OPEN", registerId: { in: registers.map((row) => row.id) } },
+      select: { registerId: true },
     });
-    const busy = new Set(open.map((row) => `${row.siteId}:${row.registerCode}`));
+    const busy = new Set(open.map((row) => row.registerId));
     return registers.map((row) => ({
       id: row.id,
       label: row.name,
-      sub: busy.has(`${row.siteId}:${row.code}`) ? "Open" : "Closed",
+      sub: busy.has(row.id) ? "Open" : "Closed",
     }));
   },
   async add(ctx, fields) {

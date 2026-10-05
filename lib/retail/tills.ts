@@ -38,9 +38,8 @@ import { DEFAULT_TIME_ZONE, formatTime } from "@/lib/workspace/format";
  * The back office makes tills, issues the code a device pairs with, swaps a
  * device for another, unpairs one, and sends a till a message.
  *
- * Shifts still name their till by `registerCode` (the device side, SET-04,
- * gives them `registerId`), so what is open on a till and when it last sold
- * are read through the code.
+ * Shifts and sales name their till by `registerId` (SET-04); what is open on
+ * a till and when it last sold are read through it.
  */
 
 export { PairingRefusal as TillRefusal } from "@/lib/retail/pairing";
@@ -184,26 +183,27 @@ const tillSelect = {
 type TillRecord = Prisma.RetailRegisterGetPayload<{ select: typeof tillSelect }>;
 type OpenShift = { id: string; cashierName: string; openedAt: Date };
 
-/** The shift open on each till, by till code. */
+/** The shift open on each till, by till id. */
 async function openShifts(client: Client, companyId: string): Promise<Map<string, OpenShift>> {
   const shifts = await client.retailShift.findMany({
     where: { companyId, status: "OPEN" },
     orderBy: { openedAt: "asc" },
-    select: { id: true, registerCode: true, cashierName: true, openedAt: true },
+    select: { id: true, registerId: true, cashierName: true, openedAt: true },
   });
   // The latest one wins, should a till ever hold two.
-  return new Map(shifts.map((shift) => [shift.registerCode, shift]));
+  return new Map(shifts.map((shift) => [shift.registerId, shift]));
 }
 
-/** When each till last sold, by till code, through the shifts that name it. */
+/** When each till last sold, by till id. */
 async function lastSales(client: Client, companyId: string): Promise<Map<string, Date>> {
-  const rows = await client.$queryRaw<Array<{ code: string; at: Date | null }>>`
-    SELECT sh."registerCode" AS code, MAX(s."postedAt") AS at
-    FROM "RetailSale" s
-    JOIN "RetailShift" sh ON sh."id" = s."shiftId"
-    WHERE s."companyId" = ${companyId} AND s."saleType" = 'SALE'
-    GROUP BY sh."registerCode"`;
-  return new Map(rows.filter((row) => row.at).map((row) => [row.code, row.at as Date]));
+  const rows = await client.retailSale.groupBy({
+    by: ["registerId"],
+    where: { companyId, saleType: "SALE", registerId: { not: null } },
+    _max: { postedAt: true },
+  });
+  return new Map(
+    rows.filter((row) => row.registerId && row._max.postedAt).map((row) => [row.registerId as string, row._max.postedAt as Date]),
+  );
 }
 
 function summary(device: TillRecord["devices"][number] | undefined, now: Date): DeviceSummary | null {
@@ -260,7 +260,7 @@ export async function listTills(
     lastSales(prisma, companyId),
   ]);
   const data = tills
-    .map((till) => rowOf(till, shifts.get(till.code), sales.get(till.code), now))
+    .map((till) => rowOf(till, shifts.get(till.id), sales.get(till.id), now))
     // Stable: within each site the query's name order stays.
     .sort((a, b) => Number(b.site.isDefault) - Number(a.site.isDefault))
     .filter((row) => !filters.state || row.state === filters.state)
@@ -283,8 +283,8 @@ export async function getTill(companyId: string, id: string, now: Date = new Dat
       select: { id: true, name: true },
     }),
   ]);
-  const shift = shifts.get(till.code);
-  const row = rowOf(till, shift, sales.get(till.code), now);
+  const shift = shifts.get(till.id);
+  const row = rowOf(till, shift, sales.get(till.id), now);
   const current = summary(till.devices[0], now);
   return {
     ...row,
@@ -364,8 +364,8 @@ async function freeTillCode(client: Client, companyId: string): Promise<string> 
 
 const raced = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 
-const openShiftOn = (client: Client, companyId: string, code: string) =>
-  client.retailShift.findFirst({ where: { companyId, registerCode: code, status: "OPEN" }, select: { cashierName: true } });
+const openShiftOn = (client: Client, companyId: string, registerId: string) =>
+  client.retailShift.findFirst({ where: { companyId, registerId, status: "OPEN" }, select: { cashierName: true } });
 
 /* ── Pair a till (W-04) ───────────────────────────────────────────────────── */
 
@@ -455,7 +455,7 @@ export async function updateTill(actor: RetailAuditActor, id: string, patch: Til
     let siteName = till.site.name;
     let siteId = till.siteId;
     if (patch.siteId !== undefined && patch.siteId !== till.siteId) {
-      if (await openShiftOn(tx, companyId, till.code)) throw new PairingRefusal(409, MOVE_SHIFT_OPEN, { field: "siteId", code: "SHIFT_OPEN" });
+      if (await openShiftOn(tx, companyId, till.id)) throw new PairingRefusal(409, MOVE_SHIFT_OPEN, { field: "siteId", code: "SHIFT_OPEN" });
       const site = await openSite(tx, companyId, patch.siteId);
       data.siteId = site.id;
       siteId = site.id;
@@ -531,7 +531,7 @@ export async function deleteTill(actor: RetailAuditActor, id: string): Promise<v
     const till = await requireTill(tx, companyId, id);
     const [devices, shifts] = await Promise.all([
       tx.retailDevice.count({ where: { registerId: till.id } }),
-      tx.retailShift.count({ where: { companyId, registerCode: till.code } }),
+      tx.retailShift.count({ where: { companyId, registerId: till.id } }),
     ]);
     if (devices > 0 || shifts > 0) {
       throw new PairingRefusal(409, `${till.name} has been used, so it stays. Unpair its device instead.`, { code: "TILL_USED" });
@@ -608,7 +608,7 @@ export async function unpairTill(actor: RetailAuditActor, id: string, now: Date 
       select: { id: true, kind: true, label: true },
     });
     if (!device) throw new PairingRefusal(409, `${till.name} has no device to unpair.`, { code: "NOT_PAIRED" });
-    const shift = await openShiftOn(tx, companyId, till.code);
+    const shift = await openShiftOn(tx, companyId, till.id);
     if (shift) throw new PairingRefusal(409, unpairShiftOpen(till.name, shift.cashierName), { code: "SHIFT_OPEN" });
     await tx.retailDevice.update({
       where: { id: device.id },

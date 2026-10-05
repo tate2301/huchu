@@ -1,7 +1,6 @@
 ﻿import { getEffectiveBrandingForCompany } from "@/lib/platform/branding";
 import { prisma } from "@/lib/prisma";
 import { getRetailPosPolicy, RETAIL_POS_POLICY_PROVIDER_KEY } from "@/lib/retail/pos-policy";
-import { getRetailSetupProfile, RETAIL_SETUP_PROFILE_PROVIDER_KEY } from "@/lib/retail/setup-profile";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 
 export const RETAIL_REQUIRED_POSTING_RULES = [
@@ -29,7 +28,7 @@ export async function getRetailSetupSnapshot(companyId: string) {
     registers,
     openShiftCount,
     openShiftCountsBySite,
-    activeSetupProfileRecord,
+    pairedDevices,
     activePosPolicyRecord,
     effectiveBranding,
     openPeriods,
@@ -40,11 +39,8 @@ export async function getRetailSetupSnapshot(companyId: string) {
       where: { id: companyId },
       select: { id: true, name: true, slug: true },
     }),
-    // The default till from the JSON profile, the default site from the shop profile.
-    Promise.all([getRetailSetupProfile(companyId), loadShopProfile(companyId)]).then(([till, shop]) => ({
-      ...till,
-      defaultSiteId: shop.defaultSiteId,
-    })),
+    // The default site from the shop profile. A till is where its device is (SET-04).
+    loadShopProfile(companyId).then((shop) => ({ defaultSiteId: shop.defaultSiteId })),
     getRetailPosPolicy(companyId),
     prisma.companyBranding.findUnique({
       where: { companyId },
@@ -99,9 +95,9 @@ export async function getRetailSetupSnapshot(companyId: string) {
       where: { companyId, status: "OPEN" },
       _count: { _all: true },
     }),
-    prisma.fiscalisationProviderConfig.findFirst({
-      where: { companyId, providerKey: RETAIL_SETUP_PROFILE_PROVIDER_KEY, isActive: true },
-      select: { id: true, updatedAt: true },
+    prisma.retailDevice.findMany({
+      where: { companyId, unpairedAt: null },
+      select: { registerId: true },
     }),
     prisma.fiscalisationProviderConfig.findFirst({
       where: { companyId, providerKey: RETAIL_POS_POLICY_PROVIDER_KEY, isActive: true },
@@ -139,10 +135,7 @@ export async function getRetailSetupSnapshot(companyId: string) {
     sites.some((site) => site.isActive),
     registers.some((register) => register.isActive),
     Boolean(setupProfile.defaultSiteId && sites.some((site) => site.id === setupProfile.defaultSiteId)),
-    Boolean(
-      setupProfile.defaultRegisterId &&
-        registerRows.some((register) => register.id === setupProfile.defaultRegisterId),
-    ),
+    pairedDevices.length > 0,
   ].filter(Boolean).length;
 
   const operationsTotal = 4;
@@ -192,8 +185,8 @@ export async function getRetailSetupSnapshot(companyId: string) {
       completed: operationsCompleted,
       missing: Math.max(operationsTotal - operationsCompleted, 0),
       note:
-        !activeSetupProfileRecord
-          ? "Pin a branch/register pair so operators always land on a known terminal."
+        pairedDevices.length === 0
+          ? "Pair a device to a till so it knows where it is."
           : operationsCompleted < operationsTotal
           ? "Bind a default site and register so terminal setup is one tap."
           : "Default branch/register linkage is ready for daily use.",
@@ -258,9 +251,9 @@ export async function getRetailSetupSnapshot(companyId: string) {
       ...site,
       registerCount: registerCountsBySite[site.id] ?? 0,
       openShiftCount: openShiftCountsBySiteMap[site.id] ?? 0,
-      hasDefaultRegister:
-        setupProfile.defaultRegisterId !== null &&
-        registerRows.some((register) => register.id === setupProfile.defaultRegisterId && register.siteId === site.id),
+      hasPairedTill: registerRows.some(
+        (register) => register.siteId === site.id && pairedDevices.some((device) => device.registerId === register.id),
+      ),
     })),
     registers: registerRows,
     postingRules: {

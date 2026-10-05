@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { OfflineStatusButton } from "@/components/layout/offline-status-button";
 import { usePosPortalState } from "./pos-portal-state";
+import { PosTillMessages } from "./pos-till-messages";
 
 type PosPortalLink = {
   label: string;
@@ -212,16 +213,13 @@ export function PosPortalLayoutFrame({
   const { data: session } = useSession();
   const operatorInitial = (session?.user?.name || "O")[0]?.toUpperCase() || "O";
 
+  // On the till, signing out goes back to "Who is selling?".
   const handleSignOut = () => {
     void signOut({
       redirect: true,
-      callbackUrl: isPosHost ? "/login" : "/portal/pos/login",
+      callbackUrl: isPosHost ? "/" : "/portal/pos/login",
     });
   };
-
-  if (pathname === "/portal/pos/login" || pathname === "/login") {
-    return <>{children}</>;
-  }
 
   const title = ROUTE_TITLES.get(pathname) ?? "Till";
   const fillHeight = FILL_HEIGHT_ROUTES.has(pathname);
@@ -411,6 +409,8 @@ export function PosPortalLayoutFrame({
             {/* Below `lg` the rail is gone, so the phone header carries it. */}
             <OfflineStatusButton className="shrink-0 text-[var(--pos-amount-label)] [--offline-dot-ring:var(--pos-amount-bg)] hover:bg-[var(--pos-rail-active-bg)] hover:text-[var(--pos-amount-text)]" />
           </header>
+
+          <PosTillMessages />
 
           {fillHeight ? (
             <main className="flex-1 overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0">

@@ -1401,6 +1401,7 @@ model User {
   retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
   retailDevicesUnpaired             RetailDevice[]                 @relation("RetailDeviceUnpairedBy")
+  retailSalesReviewed               RetailSale[]                   @relation("RetailSaleReviewedBy")
   retailPairingCodesCreated         RetailPairingCode[]            @relation("RetailPairingCodeCreatedBy")
   retailDeviceMessagesSent          RetailDeviceMessage[]          @relation("RetailDeviceMessageSentBy")
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
@@ -4602,6 +4603,8 @@ model RetailRegister {
   devices      RetailDevice[]
   pairingCodes RetailPairingCode[]
   messages     RetailDeviceMessage[]
+  shifts       RetailShift[]
+  sales        RetailSale[]
 
   @@unique([companyId, code])
   @@index([companyId, siteId, isActive])
@@ -4649,6 +4652,8 @@ model RetailDevice {
   register   RetailRegister @relation(fields: [registerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   pairedBy   User           @relation("RetailDevicePairedBy", fields: [pairedById], references: [id], onDelete: Restrict)
   unpairedBy User?          @relation("RetailDeviceUnpairedBy", fields: [unpairedById], references: [id], onDelete: SetNull)
+  shifts     RetailShift[]
+  sales      RetailSale[]
 
   @@index([companyId, registerId, unpairedAt])
 }
@@ -4834,8 +4839,13 @@ model RetailShift {
   id           String    @id @default(uuid())
   companyId    String
   shiftNo      String
+  /// The frozen snapshot the Z report keys on; `registerId` is the till itself.
   registerCode String
   registerName String
+  /// The till the shift is on (SET-04): a shift opens on the device's own till.
+  registerId   String
+  /// The device it was opened on; null for shifts opened in the back office.
+  deviceId     String?
   siteId       String
   cashierId    String
   cashierName  String
@@ -4853,6 +4863,8 @@ model RetailShift {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cashier   User    @relation("RetailShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  register  RetailRegister @relation(fields: [registerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  device    RetailDevice?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   heldCarts     RetailHeldCart[]
   sales         RetailSale[]
   cashMovements RetailCashMovement[]
@@ -4860,6 +4872,7 @@ model RetailShift {
   @@unique([companyId, shiftNo])
   @@index([companyId, siteId, status])
   @@index([cashierId, status])
+  @@index([registerId, status])
 }
 
 /// S-7.1 — cash that left or entered the drawer between opening and cash-up.
@@ -5197,6 +5210,15 @@ model RetailSale {
   /// customer pays is `totalAmount + depositAmount`, and the deposit is a
   /// liability the shop owes back, not revenue. Negative on a void.
   depositAmount  Decimal   @default(0) @db.Decimal(14, 2)
+  /// The till and the device it was rung on (SET-04); null for back-office sales.
+  registerId     String?
+  deviceId       String?
+  /// Set by the till when the receipt printed (`pos/sales/[id]/printed`). Onboarding's test sale reads it.
+  printedAt      DateTime?
+  /// Why a manager should look at this sale; null for ordinary sales.
+  reviewReason   String?
+  reviewedAt     DateTime?
+  reviewedById   String?
   postedAt       DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -5211,11 +5233,15 @@ model RetailSale {
   shift      RetailShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sourceSale RetailSale?  @relation("RetailSaleSource", fields: [sourceSaleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   reversals  RetailSale[] @relation("RetailSaleSource")
+  register   RetailRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
+  device     RetailDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  reviewedBy User?           @relation("RetailSaleReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
   @@index([companyId, siteId, status, postedAt])
   @@index([shiftId])
+  @@index([companyId, registerId, postedAt])
 }
 
 model RetailSaleLine {

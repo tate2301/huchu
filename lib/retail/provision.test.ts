@@ -53,7 +53,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { getRetailSetupProfile, saveRetailSetupProfile } from "@/lib/retail/setup-profile";
 
 import { provisionRetail, retailTradingBlockers, type ProvisionRetailResult } from "./provision";
 
@@ -204,12 +203,9 @@ describe("a shop that has just been opened", () => {
     expect(await prisma.stockLocation.count({ where: { site: { companyId } } })).toBe(1);
   });
 
-  it("points the till portal at the branch and register it just made", async () => {
-    const profile = await getRetailSetupProfile(companyId);
+  it("makes the branch it just made the shop's default site", async () => {
     const shop = await prisma.retailShopProfile.findUniqueOrThrow({ where: { companyId } });
     expect(shop.defaultSiteId).toBe(result.site.id);
-    expect(profile.defaultRegisterId).toBe(result.register.id);
-    expect(profile.defaultRegisterCode).toBe(result.register.code);
   });
 
   /**
@@ -341,33 +337,19 @@ describe("running it twice", () => {
   /**
    * The case that makes idempotency worth testing rather than asserting.
    *
-   * A shop opens a second till and makes it the default. Somebody re-runs
-   * provisioning to fix something unrelated. If the profile were rewritten
-   * unconditionally, every cashier would come back tomorrow on the wrong
-   * register — and the shift they opened would be against it.
+   * A shop opens a second branch and makes it the default. Somebody re-runs
+   * provisioning to fix something unrelated. If the default were rewritten
+   * unconditionally, new products and orders would land at the wrong branch.
    */
-  it("does not revert a default register the shop has chosen", async () => {
-    const second = await prisma.retailRegister.create({
-      data: {
-        companyId,
-        siteId: first.site.id,
-        name: "Till 2",
-        code: "REG-002",
-        isActive: true,
-      },
-    });
-    await saveRetailSetupProfile(companyId, {
-      defaultRegisterId: second.id,
-      defaultRegisterName: second.name,
-      defaultRegisterCode: second.code,
-    });
+  it("does not revert a default site the shop has chosen", async () => {
+    const second = await prisma.site.create({ data: { companyId, name: "Second branch", code: "SB2" } });
+    await prisma.retailShopProfile.update({ where: { companyId }, data: { defaultSiteId: second.id } });
 
     const again = await provisionRetail({ companyId });
-    expect(again.setupProfileWritten).toBe(false);
+    expect(again.defaultSiteWritten).toBe(false);
 
-    const profile = await getRetailSetupProfile(companyId);
-    expect(profile.defaultRegisterId).toBe(second.id);
-    expect(profile.defaultRegisterCode).toBe("REG-002");
+    const shop = await prisma.retailShopProfile.findUniqueOrThrow({ where: { companyId } });
+    expect(shop.defaultSiteId).toBe(second.id);
   }, SLOW);
 
 });

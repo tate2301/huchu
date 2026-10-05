@@ -78,6 +78,8 @@ export function tokenToSession(token: PlatformJwtClaims): AuthenticatedSession {
       enabledFeatures: token.enabledFeatures,
       subscriptionHealth: token.subscriptionHealth,
       allowedHosts: token.allowedHosts,
+      deviceId: token.deviceId,
+      registerId: token.registerId,
     },
   } as AuthenticatedSession;
 }

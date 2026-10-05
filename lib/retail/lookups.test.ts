@@ -118,6 +118,7 @@ describe("till lookup", () => {
         shiftNo: "SH-00001",
         registerCode: "TILL-2",
         registerName: "Back till",
+        registerId: (await prisma.retailRegister.findFirstOrThrow({ where: { companyId, code: "TILL-2" } })).id,
         cashierId: cashier.id,
         cashierName: "Farai Moyo",
       },

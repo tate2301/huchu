@@ -35,4 +35,23 @@
  * nothing else. The old path stays for the back office.
  */
 
-export { GET, POST } from "../../../../shifts/[id]/cash-movements/route";
+import type { NextRequest } from "next/server";
+
+import { requireHostDevice } from "@/lib/retail/devices";
+import { GET as drawerGet, POST as drawerPost } from "../../../../shifts/[id]/cash-movements/route";
+
+/*
+  SET-04: at the till, on a till. The device is checked first (its key is the
+  credential for which till this is); the handlers then check the person.
+*/
+type Context = Parameters<typeof drawerGet>[1];
+
+export async function GET(request: NextRequest, context: Context) {
+  const { response } = await requireHostDevice(request);
+  return response ?? drawerGet(request, context);
+}
+
+export async function POST(request: NextRequest, context: Context) {
+  const { response } = await requireHostDevice(request);
+  return response ?? drawerPost(request, context);
+}

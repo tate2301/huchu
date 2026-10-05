@@ -1,9 +1,7 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import type { SearchableOption } from "@/app/gold/types";
 import { FieldHelp } from "@/components/shared/field-help";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
@@ -95,74 +93,20 @@ function VarianceBar({ variance, expected }: { variance: number; expected: numbe
 export function PosShiftView() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { sites, currentShift, defaultSiteId, defaultRegisterId } =
-    usePosPortalState();
+  const { till, currentShift } = usePosPortalState();
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
-  const [pickedSiteId, setPickedSiteId] = useState("");
-  const [pickedRegisterId, setPickedRegisterId] = useState("");
   const [openingFloat, setOpeningFloat] = useState("0");
   const [countedCash, setCountedCash] = useState("");
   const [activeNumericTarget, setActiveNumericTarget] = useState<"opening_float" | "counted_cash" | null>(null);
   const [closeNotes, setCloseNotes] = useState("");
   const [cashUpSummary, setCashUpSummary] = useState<CashUpSummary | null>(null);
 
-  const siteOptions = useMemo<SearchableOption[]>(
-    () => sites.map((site) => ({ value: site.id, label: site.name, meta: site.code })),
-    [sites],
-  );
-  /**
-   * The site and register in force are derived during render, not stored and then
-   * re-synced by an effect.
-   *
-   * The two effects this replaces each wrote a fallback into state, which is a
-   * render behind the data it is a fallback for: the dialog opened showing no
-   * register, then re-rendered with one. Deriving also removes the reset the old
-   * code never had — a picked register that does not belong to the newly picked
-   * site simply stops being picked, rather than lingering until an effect notices.
-   *
-   * `picked*` is the cashier's explicit choice and always wins while it remains
-   * valid. Everything after it is the fallback chain the effects used to encode.
-   */
-  const pickedSiteIsValid = Boolean(pickedSiteId) && sites.some((site) => site.id === pickedSiteId);
-  const selectedSiteId =
-    (pickedSiteIsValid ? pickedSiteId : "") ||
-    (defaultSiteId && sites.some((site) => site.id === defaultSiteId) ? defaultSiteId : "") ||
-    sites.find((site) => site.registers.length > 0)?.id ||
-    sites[0]?.id ||
-    "";
-
-  const selectedSite = sites.find((site) => site.id === selectedSiteId) ?? null;
-
-  const registerOptions = useMemo<SearchableOption[]>(
-    () =>
-      (selectedSite?.registers ?? []).map((register) => ({
-        value: register.id,
-        label: register.name,
-        meta: register.code,
-      })),
-    [selectedSite?.registers],
-  );
-
-  const registers = selectedSite?.registers ?? [];
-  const selectedRegisterId =
-    (pickedRegisterId && registers.some((register) => register.id === pickedRegisterId)
-      ? pickedRegisterId
-      : "") ||
-    (selectedSite?.id === defaultSiteId &&
-    defaultRegisterId &&
-    registers.some((register) => register.id === defaultRegisterId)
-      ? defaultRegisterId
-      : "") ||
-    registers[0]?.id ||
-    "";
-
-  // Sits below the derivations above: it reads `selectedSiteId`, which is now a
-  // `const` computed during render rather than state declared at the top.
+  // SET-04: a shift opens on this device's own till. There is no till to pick.
   const { reservedId: shiftNo, isReserving, error: reserveError } = useReservedId({
     entity: "RETAIL_SHIFT",
-    enabled: openDialog && Boolean(selectedSiteId),
-    siteId: selectedSiteId || undefined,
+    enabled: openDialog && Boolean(till),
+    siteId: till?.site.id,
   });
 
   const openShiftMutation = useMutation({
@@ -171,16 +115,12 @@ export function PosShiftView() {
         method: "POST",
         body: JSON.stringify({
           shiftNo: shiftNo || undefined,
-          siteId: selectedSiteId,
-          registerId: selectedRegisterId,
           openingFloat: Number(openingFloat || 0),
         }),
       }),
     onSuccess: () => {
       toast({ title: "Shift opened", variant: "success" });
       setOpenDialog(false);
-      setPickedSiteId("");
-      setPickedRegisterId("");
       setOpeningFloat("0");
       setCashUpSummary(null);
       queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
@@ -345,40 +285,12 @@ export function PosShiftView() {
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
               <div className="space-y-4">
-                {/* Register */}
+                {/* The till: this device's, not a choice */}
                 <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
-                  <p className="mb-3 text-[13px] font-bold text-[var(--text-strong)]">Till</p>
-                  <div className="space-y-3">
-                    {/*
-                      One branch is not a choice. The till resolves it and moves
-                      the cashier straight to the register, which is the thing
-                      they actually pick.
-                    */}
-                    {siteOptions.length > 1 ? (
-                      <SearchableSelect
-                        label="Site"
-                        value={selectedSiteId}
-                        options={siteOptions}
-                        placeholder="Pick a site"
-                        onValueChange={setPickedSiteId}
-                      />
-                    ) : null}
-                    <SearchableSelect
-                      label="Till"
-                      value={selectedRegisterId}
-                      options={registerOptions}
-                      placeholder={
-                        !selectedSiteId
-                          ? "Pick a site first"
-                          : registerOptions.length > 0
-                            ? "Pick a till"
-                            : "No tills at this site"
-                      }
-                      searchPlaceholder="Search tills"
-                      onValueChange={setPickedRegisterId}
-                      disabled={!selectedSiteId || registerOptions.length === 0}
-                    />
-                  </div>
+                  <p className="mb-1 text-[13px] font-bold text-[var(--text-strong)]">Till</p>
+                  <p className="text-sm text-[var(--text-strong)]">
+                    {till ? `${till.till.name} · ${till.site.name}` : "…"}
+                  </p>
                 </div>
 
                 {/* Float */}
@@ -404,11 +316,7 @@ export function PosShiftView() {
             <Button
               type="button"
               onClick={() => openShiftMutation.mutate()}
-              disabled={
-                openShiftMutation.isPending ||
-                !selectedSiteId ||
-                !selectedRegisterId
-              }
+              disabled={openShiftMutation.isPending || !till}
             >
               Open shift
             </Button>

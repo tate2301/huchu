@@ -1,30 +1,17 @@
 /**
- * The till's PIN: a fast unlock of a device that is already signed in.
+ * The till's PIN: four digits that say who is selling at a paired till.
  *
- * S-7.5. `docs/design-system/portals/pos.html` signs a cashier in on four digits
- * and shows the digits next to their name. That is a demo. What this implements is
- * the part of it that is right — typing a password on a tablet between customers
- * is not a thing a queue tolerates — without the part that is not.
- *
- * ── What a PIN is here, and what it is not ─────────────────────────────────
- *
- * A cashier signs in **once**, with their password, through the existing flow at
- * `app/portal/pos/login`. That is the only credential path into the system and
- * this module does not add another. What the PIN does is lock and unlock a
- * terminal whose session is already open: same session, same user, no new way in.
- * Sign the session out and the password is the only way back.
+ * SET-04 (10-setup W-04 step 7). A device paired to a till carries a key in
+ * the POS host's httpOnly cookie; the key says which till, and the PIN says
+ * who. "Who is selling?" signs a person in with the `till-pin` provider
+ * (`lib/auth.ts`), which needs both — the device key is the second factor —
+ * and the session it makes is good on the POS host only. Signing in with a
+ * password stays, and a PIN also unlocks a till that is already signed in.
  *
  * Four digits is 10,000 possibilities. Against an offline attack on the hash that
- * is nothing, which is why the threat this defends against is stated narrowly:
- *
- *   The cashier steps away from an unattended, already-signed-in till and the
- *   next person along rings a sale up — or reads the day's takings — under
- *   their name.
- *
- * That attacker is standing at the counter, is being watched, and gets five
- * guesses before the terminal makes them fetch a password. It is a convenience
- * factor on an authenticated session, not a password, and nothing in the product
- * may treat it as one.
+ * is nothing; against someone at the counter of a paired till it is five
+ * guesses, then fifteen minutes. That is the threat it is sized for, and it is
+ * a factor beside the device key, never on its own.
  *
  * **A PIN never authorises a manager override.** `pos/sales/route.ts` compares a
  * manager's bcrypt password before a price or discount override is accepted, and

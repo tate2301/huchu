@@ -21,6 +21,8 @@ import { verifyEmailCode } from "@/lib/auth-core/email-code";
 import { consumeSessionHandoff } from "@/lib/auth-core/session-handoff";
 import { resolveSignInScope } from "@/lib/auth-core/sign-in-scope";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { checkTillPinSignIn } from "@/lib/retail/devices";
+import { DEVICE_COOKIE } from "@/lib/retail/device-words";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import {
   validateAuthConfiguration,
@@ -57,7 +59,22 @@ type AuthenticatedUserLike = {
   rememberMe?: boolean;
   sessionPolicy?: SessionPolicy;
   authExpiresAt?: string;
+  deviceId?: string;
+  registerId?: string;
 };
+
+/** One cookie out of a request's `Cookie` header. */
+function readRequestCookie(
+  headers: Headers | Record<string, string | string[] | undefined> | undefined,
+  name: string,
+): string | null {
+  const header = readHeaderValue(headers, "cookie") ?? "";
+  for (const part of header.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return null;
+}
 
 const AUTH_RUNTIME_CONFIG = getAuthRuntimeConfig();
 
@@ -676,6 +693,53 @@ export const authOptions: NextAuthOptions = {
       },
     }),
     CredentialsProvider({
+      // A PIN at a paired till (10-setup W-04 step 7, "Who is selling?"). The
+      // device key in the POS host's httpOnly cookie says which till; the
+      // four digits say who, with the till PIN's lockout. Only on the POS
+      // host, and the session it makes is good there only (`proxy.ts`,
+      // `resolveAccessContext`).
+      id: "till-pin",
+      name: "till-pin",
+      credentials: {
+        userId: { label: "Who", type: "text" },
+        pin: { label: "PIN", type: "password" },
+      },
+      async authorize(credentials, req) {
+        assertStrategyEnabled("till-pin");
+
+        const userId = credentials?.userId?.trim();
+        const pin = credentials?.pin?.trim();
+        if (!userId || !pin) throw new Error("WRONG_PIN");
+
+        const account = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+        if (!account) throw new Error("NOT_ON_THIS_TILL");
+        const ctx = buildSignInContext(account.email, "till-pin", req?.headers);
+        if (getPlatformHostContext(ctx.hostHeader).portalCanonicalPrefix !== "pos") {
+          return failSignIn(ctx, "NOT_A_TILL");
+        }
+        const scopedCompanyId = await resolveSignInCompanyScope(ctx);
+        const user = await findSignInUser(account.email, scopedCompanyId);
+        if (!user || user.id !== userId) return failSignIn(ctx, "NOT_ON_THIS_TILL");
+
+        const checked = await checkTillPinSignIn({
+          deviceKey: readRequestCookie(req?.headers, DEVICE_COOKIE),
+          userId: user.id,
+          verify: (pinHash) => bcrypt.compare(pin, pinHash),
+        });
+        if (!checked.ok) {
+          return failSignIn(ctx, checked.reason, {
+            companyId: user.companyId,
+            message: checked.reason === "WRONG_PIN" ? `WRONG_PIN:${checked.triesLeft ?? 0}` : checked.reason,
+          });
+        }
+        if (checked.device.companyId !== user.companyId) return failSignIn(ctx, "NOT_A_TILL");
+
+        await assertAccountUsable(user, ctx);
+        const signedIn = await completeSignIn(user, ctx, false);
+        return { ...signedIn, deviceId: checked.device.id, registerId: checked.device.registerId };
+      },
+    }),
+    CredentialsProvider({
       // Not something anyone chooses: the signup host hands a new admin to
       // their workspace host with a one-use ticket, because sessions are per
       // host. The ticket is spent here, on the workspace host, and only for
@@ -754,6 +818,8 @@ export const authOptions: NextAuthOptions = {
             companyId: typedUser.companyId,
             authStrategy,
             rememberMe: typedUser.rememberMe === true,
+            deviceId: typedUser.deviceId,
+            registerId: typedUser.registerId,
           }),
         );
       } else {

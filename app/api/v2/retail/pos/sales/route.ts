@@ -34,7 +34,8 @@ import {
   isPosSupportedPromotionType,
   requireRetailSession,
 } from "../../_helpers";
-import { createRetailSaleTransaction } from "../../_services";
+import { ShiftElsewhere, createRetailSaleTransaction } from "../../_services";
+import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 
 const saleLineSchema = z.object({
@@ -419,10 +420,16 @@ export async function POST(request: NextRequest) {
 
   const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
+  // Selling needs a till: this device's (SET-04). A device unpaired since may
+  // still send in what it sold offline before it was told.
+  const { device, response: deviceResponse } = await requirePosDevice(request, session, { allowUnpaired: true });
+  if (deviceResponse) return deviceResponse;
 
   try {
     const body = await request.json();
     const input = saleSchema.parse(body);
+    const unpaired = unpairedSaleGate(device, input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null);
+    if (unpaired.response) return unpaired.response;
     const { site, response: siteResponse } = await resolveRetailSite(
       session.user.companyId,
       input.siteId,
@@ -916,6 +923,8 @@ export async function POST(request: NextRequest) {
       clientRef: input.clientRef ?? null,
       shiftId: shift.id,
       siteId: site.id,
+      device: { id: device.id, registerId: device.registerId },
+      reviewReason: unpaired.reviewReason,
       customerName: resolvedCustomerName,
       subtotal,
       discountAmount: totalDiscount,
@@ -1011,6 +1020,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
+    if (error instanceof ShiftElsewhere) return errorResponse(error.message, 409);
     return errorResponse(error instanceof Error ? error.message : "Failed to post sale", 400);
   }
 }

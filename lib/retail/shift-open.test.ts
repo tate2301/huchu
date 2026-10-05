@@ -84,6 +84,7 @@ describe("planShiftOpen", () => {
         shiftNo: "SH-00001",
         registerCode: "TILL-2",
         registerName: "Back till",
+        registerId: backTillId,
         cashierId: people.farai!.id,
         cashierName: "Farai Moyo",
       },

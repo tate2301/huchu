@@ -66,8 +66,7 @@ import { resolveBaseCurrency } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { getRetailPosPolicy } from "@/lib/retail/pos-policy";
-import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
-import { loadShopProfile } from "@/lib/retail/shop-profile";
+import { requirePosDevice } from "@/lib/retail/devices";
 import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
 import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
 import { summariseShelfTax, summariseTillCapabilities } from "@/lib/retail/till-settings";
@@ -89,13 +88,14 @@ export async function GET(request: NextRequest) {
    */
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
+  // The till is this device's (SET-04), not a company-wide default.
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   try {
     const companyId = session.user.companyId;
 
-    const [profile, shop, posPolicy, tenderPolicy, baseCurrency, branding, shift] = await Promise.all([
-      getRetailSetupProfile(companyId),
-      loadShopProfile(companyId),
+    const [posPolicy, tenderPolicy, baseCurrency, branding, shift] = await Promise.all([
       getRetailPosPolicy(companyId),
       getRetailTenderPolicy(companyId),
       resolveBaseCurrency(companyId),
@@ -112,17 +112,15 @@ export async function GET(request: NextRequest) {
           defaultFooterText: true,
         },
       }),
-      // The shift names the register this device is actually on, which beats the
-      // company-wide default when the two disagree — and they disagree exactly
-      // when a shop runs a second till.
+      // The caller's shift on this till.
       prisma.retailShift.findFirst({
-        where: { companyId, cashierId: session.user.id, status: "OPEN" },
+        where: { companyId, cashierId: session.user.id, registerId: device.registerId, status: "OPEN" },
         orderBy: { openedAt: "desc" },
         select: { id: true, shiftNo: true, registerName: true, siteId: true, openedAt: true },
       }),
     ]);
 
-    const siteId = shift?.siteId ?? shop.defaultSiteId;
+    const siteId = device.register.site.id;
     const site = siteId
       ? await prisma.site.findFirst({
           where: { id: siteId, companyId },
@@ -181,8 +179,8 @@ export async function GET(request: NextRequest) {
           branchName: site?.name ?? null,
           branchCode: site?.code ?? null,
           branchLocation: site?.location ?? null,
-          registerName: shift?.registerName ?? profile.defaultRegisterName,
-          registerCode: profile.defaultRegisterCode,
+          registerName: device.register.name,
+          registerCode: device.register.code,
           shiftNo: shift?.shiftNo ?? null,
           shiftOpenedAt: shift?.openedAt ?? null,
         },
