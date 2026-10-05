@@ -1,7 +1,15 @@
 import { companyPage } from "./company";
+import { paymentsPage } from "./payments";
 import type { SettingsPage } from "./types";
 
-export type { SettingsAsideSection, SettingsPage, SettingsResponse, SettingsSaved, SettingsSection } from "./types";
+export type {
+  SettingsAsideSection,
+  SettingsLastChanged,
+  SettingsPage,
+  SettingsResponse,
+  SettingsSaved,
+  SettingsSection,
+} from "./types";
 
 /**
  * Every settings page, by the `[page]` of `/api/v2/retail/settings/[page]`.
@@ -9,6 +17,7 @@ export type { SettingsAsideSection, SettingsPage, SettingsResponse, SettingsSave
  */
 export const SETTINGS_PAGES: Record<string, SettingsPage> = {
   company: companyPage,
+  payments: paymentsPage,
 };
 
 export function settingsPage(key: string): SettingsPage | null {

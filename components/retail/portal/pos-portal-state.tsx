@@ -358,8 +358,8 @@ export function PosPortalProvider({
   const amountDue = Number((checkout.total + depositAmount).toFixed(2));
 
   const paymentSummary = useMemo(
-    () => getPaymentSummary(payments, amountDue),
-    [payments, amountDue],
+    () => getPaymentSummary(payments, amountDue, till?.zig ? Number(till.zig.rate) : null),
+    [payments, amountDue, till?.zig],
   );
 
   const shop = till?.shop ?? null;
@@ -511,6 +511,7 @@ export function PosPortalProvider({
       payments: paymentSummary.parsed.map((payment) => ({
         tenderType: payment.tenderType,
         amount: payment.amountValue,
+        ...(payment.currency ? { currency: payment.currency } : {}),
         reference: payment.reference.trim() || undefined,
       })),
     };
@@ -776,7 +777,7 @@ export function PosPortalProvider({
     // A genuine fallback now, for the moments before context lands — not the
     // permanent state it was while the old endpoint 403'd. Kept in step with
     // `DEFAULT_RETAIL_TENDER_POLICY` in `lib/retail/tender-policy.ts`.
-    requiredReferenceTenders: till?.rules.requiredReferenceTenders ?? ["CARD", "MOBILE_MONEY"],
+    requiredReferenceTenders: till?.rules.requiredReferenceTenders ?? ["CARD", "ECOCASH", "INNBUCKS"],
     minReferenceLength: till?.rules.minReferenceLength ?? 4,
     lastCompletedSale,
     dismissCompletedSale: () => setLastCompletedSale(null),

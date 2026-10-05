@@ -1,6 +1,9 @@
+import type { RetailTenderType } from "@prisma/client";
+
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import { prisma } from "@/lib/prisma";
 
-export type RetailTenderType = "CASH" | "CARD" | "MOBILE_MONEY" | "TRANSFER" | "VOUCHER";
+export type { RetailTenderType };
 
 export type RetailTenderPolicy = {
   requiredReferenceTenders: RetailTenderType[];
@@ -9,7 +12,7 @@ export type RetailTenderPolicy = {
 };
 
 export const DEFAULT_RETAIL_TENDER_POLICY: RetailTenderPolicy = {
-  requiredReferenceTenders: ["CARD", "MOBILE_MONEY"],
+  requiredReferenceTenders: ["CARD", "ECOCASH", "INNBUCKS"],
   minReferenceLength: 4,
   referencePattern: "^[A-Za-z0-9][A-Za-z0-9\\-/_ ]*$",
 };
@@ -27,7 +30,7 @@ export async function getRetailTenderPolicy(companyId: string): Promise<RetailTe
     const parsed = JSON.parse(record.metadataJson) as Partial<RetailTenderPolicy>;
     const requiredReferenceTenders = Array.isArray(parsed.requiredReferenceTenders)
       ? parsed.requiredReferenceTenders.filter((value): value is RetailTenderType =>
-          ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"].includes(String(value)),
+          (RETAIL_TENDER_TYPES as readonly string[]).includes(String(value)),
         )
       : DEFAULT_RETAIL_TENDER_POLICY.requiredReferenceTenders;
     return {

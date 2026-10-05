@@ -29,8 +29,8 @@ import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { Scale } from "@/lib/icons";
 import { tenderLabel } from "@/lib/retail/words";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 
-const TENDERS = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"] as const;
 
 /**
  * Where each failing check is fixed. A link is offered only to someone who can
@@ -128,7 +128,7 @@ export default function RetailPostingPage() {
           <FactList
             maxWidth={null}
             labelWidth={220}
-            items={TENDERS.map((tender) => {
+            items={RETAIL_TENDER_TYPES.map((tender) => {
               const mapping = (mappings.data ?? []).find(
                 (entry) => entry.tenderType === tender && entry.isActive,
               );

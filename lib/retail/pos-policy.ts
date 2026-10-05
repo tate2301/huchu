@@ -1,4 +1,5 @@
-﻿import { prisma } from "@/lib/prisma";
+﻿import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
+import { prisma } from "@/lib/prisma";
 import { DEFAULT_RETAIL_TENDER_POLICY, type RetailTenderType } from "@/lib/retail/tender-policy";
 
 export type RetailPosPolicy = {
@@ -25,7 +26,7 @@ export const RETAIL_POS_POLICY_PROVIDER_KEY = "RETAIL_POS_POLICY";
 
 function normalizeReferenceTenders(value: unknown): RetailTenderType[] {
   if (!Array.isArray(value)) return DEFAULT_RETAIL_POS_POLICY.requiredReferenceTenders;
-  const allowed: RetailTenderType[] = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"];
+  const allowed: readonly RetailTenderType[] = RETAIL_TENDER_TYPES;
   const normalized = value.filter((item): item is RetailTenderType => allowed.includes(String(item) as RetailTenderType));
   return normalized.length > 0 ? normalized : DEFAULT_RETAIL_POS_POLICY.requiredReferenceTenders;
 }

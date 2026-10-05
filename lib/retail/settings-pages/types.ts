@@ -15,8 +15,16 @@ export type SettingsSection = SheetSection & {
   note?: { text: string; link?: { label: string; href: string } };
 };
 
-/** One block of the aside: a list of bullets or a paragraph. */
-export type SettingsAsideSection = { title: string; bullets?: string[]; text?: string };
+/** One block of the aside: a list of bullets or a paragraph, and a link after it ("Posting to the books."). */
+export type SettingsAsideSection = {
+  title: string;
+  bullets?: string[];
+  text?: string;
+  link?: { label: string; href: string };
+};
+
+/** Who last changed the page and when; `what` names a change of the page's own kind ("rate"). */
+export type SettingsLastChanged = { by: string; at: string; what?: string };
 
 export type SettingsPage = {
   /** The page header's title. */
@@ -37,13 +45,24 @@ export type SettingsPage = {
   schema: z.ZodObject<Record<string, z.ZodType>>;
   /** Names for the fields it changes and does not draw, for Activity's lines. */
   labels?: Record<string, string>;
+  /**
+   * A narrower grant that changes some fields only (the manager's ZiG rate):
+   * a role with it and without `change` edits `fields` and reads the rest; a
+   * save that changes anything else is refused with `refused` (403).
+   */
+  partly?: { can: [RetailResource, RetailAction]; fields: string[]; refused: string };
+  /** The clean save bar's line for a change of the page's own kind (`lastChanged.what`). */
+  lastChangedLine?: (lastChanged: SettingsLastChanged, now: Date) => string | null;
 };
 
 /** `GET /api/v2/retail/settings/[page]`. */
 export type SettingsResponse = {
   values: Record<string, unknown>;
+  /** The caller may change something here. */
   canEdit: boolean;
-  lastChanged: { by: string; at: string } | null;
+  /** With `partly`: the only fields this caller may change. Absent: every field the page changes. */
+  editable?: string[];
+  lastChanged: SettingsLastChanged | null;
 };
 
 /** `PATCH /api/v2/retail/settings/[page]`. */

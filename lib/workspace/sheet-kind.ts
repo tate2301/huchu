@@ -110,6 +110,8 @@ export type FieldSpec = {
   ql?: string;
   cl?: string;
   cur?: SheetCurrency;
+  /** `money`: decimals kept, two at least (a rate keeps four). */
+  decimals?: number;
   nolabel?: boolean;
   /** `photo`: the value line while empty ("Add your logo"). */
   prompt?: string;
@@ -143,8 +145,8 @@ export type SheetSection = {
   title?: string;
   /** Folded behind a dashed button: [label, hint]. */
   fold?: [label: string, hint: string];
-  /** Shown only while that field has that value. */
-  when?: [field: string, value: string];
+  /** Shown only while that field has that value (a toggle's `true`). */
+  when?: [field: string, value: string | boolean];
   /** Shown only while this holds (a section for some roles, or once something is loaded). */
   show?: (values: SheetValues, ctx: SheetCtx) => boolean;
   /** Read by the danger action only: the primary neither checks nor needs its fields. */

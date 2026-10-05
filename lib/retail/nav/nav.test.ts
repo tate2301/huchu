@@ -98,6 +98,7 @@ describe("the Setup module per role (ADM-01)", () => {
       "Shop",
       "Sites",
       "Tills and devices",
+      "Payments",
       "Till rules",
       "Fiscal device",
       "Posting to the books",
@@ -117,11 +118,11 @@ describe("the Setup module per role (ADM-01)", () => {
   });
 
   it.each(["MANAGER", "SHOP_MANAGER"])("shows the %s all but Posting to the books", (role) => {
-    expect(panel(role)).toEqual(["Shop", "Sites", "Tills and devices", "Till rules", "Fiscal device", "Bin"]);
+    expect(panel(role)).toEqual(["Shop", "Sites", "Tills and devices", "Payments", "Till rules", "Fiscal device", "Bin"]);
   });
 
   it("shows the bookkeeper the shop, the fiscal device and posting", () => {
-    expect(panel("FINANCE_OFFICER")).toEqual(["Shop", "Sites", "Fiscal device", "Posting to the books"]);
+    expect(panel("FINANCE_OFFICER")).toEqual(["Shop", "Sites", "Payments", "Fiscal device", "Posting to the books"]);
   });
 
   it("gives the cashier no Setup", () => {

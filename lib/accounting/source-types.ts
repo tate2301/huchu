@@ -1,4 +1,4 @@
-import type { AccountingSourceType } from "@prisma/client";
+import type { AccountingSourceType, RetailTenderType } from "@prisma/client";
 
 export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType; label: string }> = [
   { value: "STOCK_RECEIPT", label: "Stock Receipt" },
@@ -98,7 +98,16 @@ export const SCHOOLS_REQUIRED_SOURCE_TYPES: AccountingSourceType[] = [
   "SCHOOL_FEE_REFUND",
 ];
 
-export const RETAIL_TENDER_TYPES = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"] as const;
+/** Every retail tender, in the order the payment screen lists them (SET-05). */
+export const RETAIL_TENDER_TYPES = [
+  "CASH",
+  "CARD",
+  "ECOCASH",
+  "INNBUCKS",
+  "TRANSFER",
+  "ON_ACCOUNT",
+  "VOUCHER",
+] as const satisfies readonly RetailTenderType[];
 
 export function formatAccountingSourceType(sourceType: string) {
   const match = ACCOUNTING_SOURCE_TYPE_OPTIONS.find((item) => item.value === sourceType);

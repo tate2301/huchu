@@ -1133,8 +1133,10 @@ export const DEFAULT_POSTING_RULES = BASE_POSTING_RULES;
 export const RETAIL_TENDER_ACCOUNT_MAPPINGS: DefaultTenderAccountMapping[] = [
   { tenderType: "CASH", clearingAccountCode: "1000", priority: 10 },
   { tenderType: "CARD", clearingAccountCode: "1015", priority: 20 },
-  { tenderType: "MOBILE_MONEY", clearingAccountCode: "1016", priority: 30 },
+  { tenderType: "ECOCASH", clearingAccountCode: "1016", priority: 30 },
+  { tenderType: "INNBUCKS", clearingAccountCode: "1016", priority: 35 },
   { tenderType: "TRANSFER", clearingAccountCode: "1017", priority: 40 },
+  { tenderType: "ON_ACCOUNT", clearingAccountCode: "1100", priority: 45 },
   { tenderType: "VOUCHER", clearingAccountCode: "1018", priority: 50 },
 ];
 

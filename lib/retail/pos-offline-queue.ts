@@ -1,6 +1,11 @@
+import type { RetailTenderType } from "@prisma/client";
+
 export type PosSalePaymentInput = {
-  tenderType: "CASH" | "CARD" | "MOBILE_MONEY" | "TRANSFER" | "VOUCHER";
+  tenderType: RetailTenderType;
+  /** In the tender's own currency. */
   amount: number;
+  /** ZiG cash; left out, the sale's currency. The server stamps the rate. */
+  currency?: "USD" | "ZWG";
   reference?: string;
 };
 

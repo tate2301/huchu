@@ -65,6 +65,7 @@ import { PosEmptyState, PosStatusPill } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, TenderType } from "./pos-types";
 import { money } from "./pos-utils";
+import { splitChange, type TillTender } from "@/lib/retail/payment-words";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 
@@ -92,8 +93,10 @@ function TenderIcon({ type, className }: { type: TenderType; className?: string 
   switch (type) {
     case "CASH": return <Coins className={cls} />;
     case "CARD": return <QrCode className={cls} />;
-    case "MOBILE_MONEY": return <Payments className={cls} />;
-    case "TRANSFER": return <ArrowRightLeft className={cls} />;
+    case "ECOCASH":
+    case "INNBUCKS": return <Payments className={cls} />;
+    case "TRANSFER":
+    case "ON_ACCOUNT": return <ArrowRightLeft className={cls} />;
     case "VOUCHER": return <Zap className={cls} />;
   }
 }
@@ -192,20 +195,42 @@ function NumField({
 const TENDER_TOKEN_KEYS: Record<TenderType, string> = {
   CASH: "cash",
   CARD: "card",
-  MOBILE_MONEY: "mobile",
+  ECOCASH: "mobile",
+  INNBUCKS: "mobile",
   TRANSFER: "transfer",
+  ON_ACCOUNT: "transfer",
   VOUCHER: "voucher",
 };
 
+/** Before the till's context lands: cash in the sale's currency. */
+const CASH_ONLY: TillTender[] = [{ tender: "CASH", currency: null, label: "Cash" }];
+
+/** Whether a payment row is this tender: cash by its currency, the rest by type. */
+function isTender(payment: PaymentRow, option: TillTender) {
+  if (payment.tenderType !== option.tender) return false;
+  return option.tender !== "CASH" || (payment.currency === "ZWG") === (option.currency === "ZWG");
+}
+
+/** A payment row's words: the till's own label for its tender ("Cash ZiG"). */
+function paymentLabel(payment: PaymentRow, options: TillTender[]) {
+  return options.find((option) => isTender(payment, option))?.label ?? tenderLabel(payment.tenderType);
+}
+
+/** What is due in the tender's own money: ZiG at today's rate. */
+function dueIn(total: number, currency: PaymentRow["currency"], zigRate: number | null) {
+  return currency === "ZWG" && zigRate ? (total * zigRate).toFixed(2) : total.toFixed(2);
+}
+
 function TenderButton({
-  type,
+  option,
   selected,
   onClick,
 }: {
-  type: TenderType;
+  option: TillTender;
   selected: boolean;
   onClick: () => void;
 }) {
+  const type = option.tender as TenderType;
   const key = TENDER_TOKEN_KEYS[type];
   const selectedStyle = {
     background: `var(--pos-tender-${key}-bg)`,
@@ -227,7 +252,7 @@ function TenderButton({
       style={selected ? selectedStyle : idleStyle}
     >
       <TenderIcon type={type} className="h-4 w-4" />
-      {tenderLabel(type)}
+      {option.label}
     </button>
   );
 }
@@ -281,7 +306,12 @@ export function PosCheckoutView() {
     requiredReferenceTenders, minReferenceLength,
     lastCompletedSale, dismissCompletedSale,
     needsIdCheck, checkId,
+    till,
   } = usePosPortalState();
+  // The tenders the shop takes, in the order Payments lists them, and today's ZiG rate (SET-05).
+  const tenderOptions = till?.tenders ?? CASH_ONLY;
+  const zigRate = till?.zig ? Number(till.zig.rate) : null;
+  const change = splitChange(changeAmount, till?.zig ? { rate: Number(till.zig.rate), rounding: till.zig.rounding } : null);
 
   /* ── Derived state ───────────────────────────── */
 
@@ -332,7 +362,7 @@ export function PosCheckoutView() {
     // This lets backspace reach "" without immediately bouncing back to the total.
     if (cart.length > 0 && !payments[0].amount.trim() && !paymentUserEditedRef.current) {
       setPayments((current) =>
-        current.map((p, i) => (i === 0 ? { ...p, amount: total.toFixed(2) } : p)),
+        current.map((p, i) => (i === 0 ? { ...p, amount: dueIn(total, p.currency, zigRate) } : p)),
       );
     }
     if (cart.length === 0 && payments[0].amount.trim()) {
@@ -342,7 +372,7 @@ export function PosCheckoutView() {
         current.map((p, i) => (i === 0 ? { ...p, amount: "" } : p)),
       );
     }
-  }, [cart.length, payments, setPayments, splitTenderMode, total]);
+  }, [cart.length, payments, setPayments, splitTenderMode, total, zigRate]);
 
   // Tracks whether the user has manually touched the payment amount via the
   // keypad. When true we stop auto-filling empty amounts so backspacing to ""
@@ -629,7 +659,15 @@ export function PosCheckoutView() {
     setPayments((current) => [...current, { tenderType: "CARD", amount: "", reference: "" }]);
   };
 
-  const TENDER_TYPES: TenderType[] = ["CASH", "CARD", "MOBILE_MONEY", "VOUCHER"];
+  /** Pick a tender for a payment row; one payment is the whole amount, in the tender's money. */
+  const chooseTender = (index: number, option: TillTender) => {
+    const currency = option.currency ?? undefined;
+    updatePayment(index, {
+      tenderType: option.tender as TenderType,
+      currency,
+      ...(splitTenderMode || cart.length === 0 ? {} : { amount: dueIn(total, currency, zigRate) }),
+    });
+  };
   const canCharge = cart.length > 0 && blockers.length === 0 && !postSalePending;
 
   /* ═══════════════════════════════════════════════════
@@ -972,7 +1010,9 @@ export function PosCheckoutView() {
                 className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-black ring-1"
                 style={{ background: "var(--pos-change-bg)", color: "var(--pos-change-text)", boxShadow: `inset 0 0 0 1px var(--pos-status-success-ring)` }}
               >
-                Change {money(changeAmount)}
+                {change.zig > 0
+                  ? `Change ${money(change.usd)} and ZiG ${money(change.zig)}`
+                  : `Change ${money(changeAmount)}`}
               </div>
             ) : tenderedTotal > 0 && tenderedTotal < total ? (
               <div
@@ -1260,12 +1300,12 @@ export function PosCheckoutView() {
 
                     {/* Tender type grid */}
                     <div className="grid grid-cols-4 gap-1.5">
-                      {TENDER_TYPES.map((type) => (
+                      {tenderOptions.map((option) => (
                         <TenderButton
-                          key={type}
-                          type={type}
-                          selected={payment.tenderType === type}
-                          onClick={() => updatePayment(index, { tenderType: type })}
+                          key={`${option.tender}:${option.currency ?? ""}`}
+                          option={option}
+                          selected={isTender(payment, option)}
+                          onClick={() => chooseTender(index, option)}
                         />
                       ))}
                     </div>
@@ -1282,7 +1322,7 @@ export function PosCheckoutView() {
                       )}
                     >
                       <span className="text-[13px] font-semibold text-[var(--text-muted)] opacity-70">
-                        {tenderLabel(payment.tenderType)}
+                        {paymentLabel(payment, tenderOptions)}
                       </span>
                       <span>{payment.amount || "0.00"}</span>
                     </button>
@@ -1576,15 +1616,17 @@ export function PosCheckoutView() {
 
                 {/* Tender buttons */}
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {TENDER_TYPES.slice(0, 4).map((type) => {
+                  {tenderOptions.slice(0, 4).map((option) => {
+                    const type = option.tender as TenderType;
                     const tKey = TENDER_TOKEN_KEYS[type];
-                    const isSelected = payments[0]?.tenderType === type;
+                    const isSelected = payments[0] ? isTender(payments[0], option) : false;
+                    const currency = option.currency ?? undefined;
                     return (
                       <button
-                        key={type}
+                        key={`${option.tender}:${option.currency ?? ""}`}
                         type="button"
                         onClick={() => {
-                          setPayments([{ tenderType: type, amount: String(total.toFixed(2)), reference: "" }]);
+                          setPayments([{ tenderType: type, currency, amount: dueIn(total, currency, zigRate), reference: "" }]);
                           setActiveTarget({ type: "tender_amount", index: 0 });
                         }}
                         className="flex h-14 items-center justify-center gap-2 rounded-xl border font-semibold transition-all duration-75 active:translate-y-[2px] active:shadow-none"
@@ -1595,7 +1637,7 @@ export function PosCheckoutView() {
                         }
                       >
                         <TenderIcon type={type} />
-                        <span className="text-sm">{tenderLabel(type)}</span>
+                        <span className="text-sm">{option.label}</span>
                       </button>
                     );
                   })}

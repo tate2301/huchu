@@ -710,7 +710,7 @@ async function processRefundSale(
     refundTotal: number;
     originalSaleNo?: string;
     payments?: Array<{
-      tenderType: "CASH" | "CARD" | "MOBILE_MONEY" | "TRANSFER" | "VOUCHER";
+      tenderType: RetailTenderType;
       amount: number;
       reference?: string;
     }>;

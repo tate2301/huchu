@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import type { RetailAuditActor } from "@/lib/retail/audit";
+import type { SettingsLastChanged } from "@/lib/retail/settings-pages";
 
 /**
  * Where a settings page's values live (the server's half of a page in
@@ -13,6 +14,16 @@ export type SettingsStore = {
   save(tx: Prisma.TransactionClient, actor: RetailAuditActor, changes: Record<string, unknown>): Promise<void>;
   /** Other rows whose events belong in this page's Activity. */
   related?(companyId: string): Array<{ entityType: string; ids: string[] }>;
+  /**
+   * Fields whose change the store records itself (a new ZiG rate is its own
+   * row and event), left out of `RETAIL_SETTINGS.CHANGED`.
+   */
+  auditsOwn?: string[];
+  /**
+   * Who last changed the page when the store keeps changes of its own (the
+   * rate's history): given the page's last save, the latest of the two.
+   */
+  lastChanged?(companyId: string, saved: SettingsLastChanged | null): Promise<SettingsLastChanged | null>;
 };
 
 /**

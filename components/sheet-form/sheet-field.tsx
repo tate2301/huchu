@@ -150,6 +150,8 @@ export function SheetField({
               <MoneyInput
                 {...control}
                 currency={field.cur ?? currency}
+                maxDecimals={field.decimals}
+                disabled={disabled}
                 value={typeof value === "string" ? value : ""}
                 onValueChange={onChange}
               />

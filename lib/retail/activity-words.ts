@@ -229,6 +229,11 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
     tone: "bad",
   }),
   [RETAIL_AUDIT_EVENTS.settingsChanged]: settingsChangedWords,
+  // "Set the ZiG rate to 27.10, from 26.80" (W-05).
+  [RETAIL_AUDIT_EVENTS.zigRateSet]: (payload) => ({
+    what: `Set the ZiG rate to ${text(payload.rate) ?? "a new rate"}${text(payload.previous) ? `, from ${text(payload.previous)}` : ""}`,
+    tone: "info",
+  }),
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,
     tone: "info",

@@ -32,7 +32,8 @@ import {
   tenderLabel,
 } from "@/lib/retail/words";
 
-const REFUND_TENDERS: TenderType[] = ["CASH", "CARD", "MOBILE_MONEY", "VOUCHER"];
+/** Money goes back as cash, card, a wallet or a voucher; a refund is in the sale's currency. */
+const REFUND_TENDERS: TenderType[] = ["CASH", "CARD", "ECOCASH", "INNBUCKS", "VOUCHER"];
 
 export function PosHistoryView() {
   const { toast } = useToast();

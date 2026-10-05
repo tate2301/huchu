@@ -108,7 +108,7 @@ const ENUM_LABELS: Record<string, readonly string[]> = {
   RetailGoodsReceiptStatus: ["POSTED"],
   RetailPromotionType: ["PERCENT", "AMOUNT", "BUY_X_GET_Y", "BUNDLE"],
   RetailPromotionStatus: ["ACTIVE", "SCHEDULED", "INACTIVE"],
-  RetailTenderType: ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"],
+  RetailTenderType: ["CASH", "CARD", "ECOCASH", "INNBUCKS", "TRANSFER", "ON_ACCOUNT", "VOUCHER"],
   RetailCashMovementType: ["DROP_TO_SAFE", "FLOAT_TOP_UP", "PAYOUT"],
   RetailCashMovementReason: [
     "CASH_LEVEL_TOO_HIGH",

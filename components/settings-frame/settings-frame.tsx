@@ -31,6 +31,7 @@ import type { FieldSpec, SheetCtx } from "@/lib/workspace/sheet-kind";
 import { SettingsActivity } from "./settings-activity";
 import { SettingsAside } from "./settings-aside";
 import {
+  canChangeField,
   changedValues,
   checkBeforeSave,
   cleanLine,
@@ -54,6 +55,8 @@ import { SaveBar } from "./save-bar";
 
 const controlId = (fieldId: string) => `cx-set-${fieldId}`;
 
+const noSubscription = () => () => {};
+
 function focusField(fieldId: string) {
   const node = document.getElementById(controlId(fieldId));
   const target = node?.matches("input, textarea, button")
@@ -63,11 +66,16 @@ function focusField(fieldId: string) {
 }
 
 /** "On", "Liquor store", "—": a value drawn as `read`. */
-function ReadField({ field, value }: { field: FieldSpec; value: unknown }) {
-  const hint = typeof field.h === "function" ? undefined : field.h;
+function ReadField({ field, value, values }: { field: FieldSpec; value: unknown; values: Record<string, unknown> }) {
+  const hint = typeof field.h === "function" ? field.h(values) : field.h;
   const empty = value === null || value === undefined || value === "";
   return (
-    <Field id={controlId(field.id)} label={field.l} hint={field.t === "toggle" ? hint : undefined} nolabel={field.t === "cards"}>
+    <Field
+      id={controlId(field.id)}
+      label={field.l}
+      hint={field.t === "toggle" || field.t === "seg" ? hint : undefined}
+      nolabel={field.t === "cards"}
+    >
       {(control) => {
         if (field.t === "photo") {
           return (
@@ -85,9 +93,22 @@ function ReadField({ field, value }: { field: FieldSpec; value: unknown }) {
           );
         }
         const shown =
-          field.t === "toggle" ? (value === true ? "On" : "Off") : empty ? null : String(value);
+          field.t === "toggle"
+            ? value === true
+              ? "On"
+              : "Off"
+            : empty
+              ? null
+              : field.t === "money" && field.cur
+                ? `${field.cur} ${String(value)}`
+                : String(value);
         return (
-          <ReadValue id={control.id} mono={field.mono} className={cn(field.t === "area" && "cx-read--area")}>
+          <ReadValue
+            id={control.id}
+            mono={field.mono || field.t === "money"}
+            right={field.t === "money"}
+            className={cn(field.t === "area" && "cx-read--area")}
+          >
             {shown ?? <span className="cx-sf-empty">—</span>}
           </ReadValue>
         );
@@ -118,6 +139,9 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
   const { data: session } = useSession();
   const role = session?.user?.role ?? "";
 
+  // The server renders the loading state; so does the client's first render,
+  // even when the page's values are already in the query cache.
+  const hydrated = React.useSyncExternalStore(noSubscription, () => true, () => false);
   const query = useQuery({
     queryKey: settingsQueryKey(pageKey),
     queryFn: () => fetchJson<SettingsResponse>(`/api/v2/retail/settings/${encodeURIComponent(pageKey)}`),
@@ -230,6 +254,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
       }
       queryClient.setQueryData<SettingsResponse>(settingsQueryKey(pageKey), (current) => ({
         canEdit: current?.canEdit ?? true,
+        editable: current?.editable,
         values: payload!.values,
         lastChanged: payload!.lastChanged,
       }));
@@ -252,7 +277,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
   );
 
   let body: React.ReactNode;
-  if (query.isPending) {
+  if (!hydrated || query.isPending) {
     body = (
       <div aria-busy="true" aria-label="Loading">
         {[0, 1, 2, 3].map((row) => (
@@ -290,7 +315,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
         <div className="sf-grid">
           {section.fields.map((field) => (
             <div key={field.id} className={field.half ? "sf-cell sf-cell--half" : "sf-cell"}>
-              {canEdit && isSettingsFieldEditable(page, field.id) ? (
+              {canChangeField(page, query.data, field.id) ? (
                 <SheetField
                   field={field}
                   controlId={controlId(field.id)}
@@ -300,8 +325,18 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
                   error={errors[field.id]}
                   onChange={(value) => setValue(field.id, value)}
                 />
+              ) : canEdit && isSettingsFieldEditable(page, field.id) ? (
+                // Changed here, but not by this role (the manager on Payments): the control, held.
+                <SheetField
+                  field={{ ...field, disabled: () => true }}
+                  controlId={controlId(field.id)}
+                  ctx={ctx}
+                  values={values}
+                  currency="US$"
+                  onChange={() => {}}
+                />
               ) : (
-                <ReadField field={field} value={values[field.id]} />
+                <ReadField field={field} value={values[field.id]} values={values} />
               )}
             </div>
           ))}
@@ -333,7 +368,7 @@ function Frame({ pageKey, page }: { pageKey: string; page: SettingsPage }) {
               </form>
               <SettingsAside sections={page.aside} under />
             </div>
-            {query.data ? (
+            {hydrated && query.data ? (
               <SaveBar
                 count={canEdit ? count : 0}
                 line={line}

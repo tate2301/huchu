@@ -24,6 +24,7 @@ import {
   type UnpairReason,
 } from "@/lib/retail/device-words";
 import { PAIRING_TTL_MS, PairingRefusal, checkTillRoom, hashCode } from "@/lib/retail/pairing";
+import { tillPayments, type TillTender } from "@/lib/retail/payment-settings";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
@@ -475,6 +476,10 @@ export type TillContext = {
   device: { id: string; kind: DeviceKind; label: string; pairedAt: string; pairedBy: string; paired: string };
   /** What kind of shop: the till asks for ID and keeps licence hours on a liquor store. */
   shop: ShopProfile;
+  /** The tenders the shop takes, in the order the payment screen shows them (SET-05). Anything off is not here. */
+  tenders: TillTender[];
+  /** Today's ZiG rate and how ZiG change rounds, while the shop takes ZiG cash and has a rate. */
+  zig: { rate: string; setAt: string; rounding: string } | null;
   /** The tender rules checkout enforces before the server checks them again (SET-06 widens these). */
   rules: { requiredReferenceTenders: RetailTenderType[]; minReferenceLength: number };
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
@@ -483,7 +488,7 @@ export type TillContext = {
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
-  const [places, defaultList, shop, tenderPolicy] = await Promise.all([
+  const [places, defaultList, shop, tenderPolicy, payments] = await Promise.all([
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
@@ -494,6 +499,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
         }),
     loadShopProfile(device.companyId),
     getRetailTenderPolicy(device.companyId),
+    tillPayments(device.companyId),
   ]);
   const pairedBy = device.pairedBy.name ?? "";
   return {
@@ -515,6 +521,8 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
       paired: pairedFootnote(device.pairedAt, pairedBy, now),
     },
     shop,
+    tenders: payments.tenders,
+    zig: payments.zig,
     rules: {
       requiredReferenceTenders: tenderPolicy.requiredReferenceTenders,
       minReferenceLength: tenderPolicy.minReferenceLength,

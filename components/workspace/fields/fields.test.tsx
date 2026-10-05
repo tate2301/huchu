@@ -49,6 +49,9 @@ describe("MoneyInput", () => {
     expect(normaliseMoney(" 7 ")).toBe("7.00");
     expect(normaliseMoney("")).toBe("");
     expect(normaliseMoney("abc")).toBe("abc");
+    expect(normaliseMoney("26.8", 4)).toBe("26.80");
+    expect(normaliseMoney("26.8125", 4)).toBe("26.8125");
+    expect(normaliseMoney("26.81257", 4)).toBe("26.8126");
   });
 
   it("joins the currency to a decimal input", () => {

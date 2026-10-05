@@ -2,18 +2,19 @@
  * The words retail says things in — one per thing, used by the back office and
  * the till alike.
  *
- * Every screen used to render the stored enum: `MOBILE_MONEY` in one place,
- * "Mobile" in another, "EcoCash / OneMoney" in a third — six spellings of one
- * tender — and `DROP_TO_SAFE` straight onto a shift's page. A value a person
- * reads goes through here, so the same value reads the same everywhere. The
+ * Every screen used to render the stored enum: one tender spelt six ways,
+ * and `DROP_TO_SAFE` straight onto a shift's page. A value a person reads
+ * goes through here, so the same value reads the same everywhere. The
  * names follow `docs/retail/retail-management-alignment-2026-09-29.md` §3.
  */
 
 const TENDER: Record<string, string> = {
   CASH: "Cash",
   CARD: "Card",
-  MOBILE_MONEY: "Mobile money",
+  ECOCASH: "EcoCash",
+  INNBUCKS: "InnBucks",
   TRANSFER: "Bank transfer",
+  ON_ACCOUNT: "On account",
   VOUCHER: "Voucher",
 };
 

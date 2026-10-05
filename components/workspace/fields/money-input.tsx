@@ -15,24 +15,30 @@ export type MoneyInputProps = Omit<React.ComponentProps<"input">, "value" | "onC
   value: string;
   onValueChange: (value: string) => void;
   currency?: MoneyCurrency;
+  /** Decimals kept on leaving the field, two at least (a rate keeps four). */
+  maxDecimals?: number;
 };
 
 /**
- * "1,284.6" → "1284.60", "7" → "7.00", "" → "". Anything that is not a plain
- * amount is returned as typed, for the field's schema to refuse.
+ * "1,284.6" → "1284.60", "7" → "7.00", "" → "". With `maxDecimals` 4,
+ * "26.8125" stays and "26.8" → "26.80". Anything that is not a plain amount
+ * is returned as typed, for the field's schema to refuse.
  */
-export function normaliseMoney(input: string): string {
+export function normaliseMoney(input: string, maxDecimals = 2): string {
   const trimmed = input.trim().replace(/,/g, "");
   if (trimmed === "") return "";
   if (!/^-?\d*(\.\d*)?$/.test(trimmed) || trimmed === "." || trimmed === "-") return input.trim();
   const amount = Number(trimmed);
-  return Number.isFinite(amount) ? amount.toFixed(2) : input.trim();
+  if (!Number.isFinite(amount)) return input.trim();
+  const decimals = Math.min(Math.max((trimmed.split(".")[1] ?? "").length, 2), Math.max(maxDecimals, 2));
+  return amount.toFixed(decimals);
 }
 
 export function MoneyInput({
   value,
   onValueChange,
   currency = "US$",
+  maxDecimals = 2,
   className,
   onBlur,
   "aria-invalid": invalid,
@@ -52,7 +58,7 @@ export function MoneyInput({
         aria-invalid={invalid}
         onChange={(event) => onValueChange(event.target.value)}
         onBlur={(event) => {
-          const next = normaliseMoney(event.target.value);
+          const next = normaliseMoney(event.target.value, maxDecimals);
           if (next !== event.target.value) onValueChange(next);
           onBlur?.(event);
         }}

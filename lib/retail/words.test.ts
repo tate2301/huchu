@@ -13,7 +13,9 @@ import {
 
 describe("retail words", () => {
   it("names a tender one way", () => {
-    expect(tenderLabel("MOBILE_MONEY")).toBe("Mobile money");
+    expect(tenderLabel("ECOCASH")).toBe("EcoCash");
+    expect(tenderLabel("INNBUCKS")).toBe("InnBucks");
+    expect(tenderLabel("ON_ACCOUNT")).toBe("On account");
     expect(tenderLabel("TRANSFER")).toBe("Bank transfer");
   });
 

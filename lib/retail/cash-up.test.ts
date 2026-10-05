@@ -297,7 +297,7 @@ describe("cash taken across the counter, when it is not all one currency", () =>
     // figure the cashier is counted against — however they were denominated.
     const net = getCashNetFromPayments([
       { tenderType: "CASH", baseAmount: "40.00" },
-      { tenderType: "MOBILE_MONEY", baseAmount: "35.00" },
+      { tenderType: "ECOCASH", baseAmount: "35.00" },
       { tenderType: "CARD", baseAmount: "18.50" },
       { tenderType: "TRANSFER", baseAmount: "60.00" },
     ]);

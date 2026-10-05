@@ -140,7 +140,7 @@ describe("saving the Shop page", () => {
   const actor = () => ({ companyId, userId, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" });
 
   it("reads every value as the page shows it, never changed before", async () => {
-    const read = await readSettings(companyId, "company", false);
+    const read = await readSettings(companyId, "company", { all: false, fields: [] });
     expect(read).toMatchObject({
       canEdit: false,
       lastChanged: null,
@@ -160,7 +160,7 @@ describe("saving the Shop page", () => {
         financialYearStarts: "1 January",
       },
     });
-    expect(await readSettings(companyId, "nowhere", true)).toBeNull();
+    expect(await readSettings(companyId, "nowhere", { all: true, fields: [] })).toBeNull();
   });
 
   it("saves one switch with one settings event and the profile's own", async () => {
@@ -198,7 +198,7 @@ describe("saving the Shop page", () => {
 
   it("switches to General retail, seeds its categories and keeps the liquor values", async () => {
     await saveSettings(actor(), "company", { businessType: "General retail" });
-    const read = await readSettings(companyId, "company", true);
+    const read = await readSettings(companyId, "company", { all: true, fields: [] });
     expect(read?.values).toMatchObject({ businessType: "General retail", casesAndSingles: false });
     expect(await prisma.retailCategory.count({ where: { companyId, name: "Groceries" } })).toBeGreaterThan(0);
   });
@@ -264,7 +264,7 @@ describe("saving the Shop page", () => {
   it("refuses to change the currency once a sale is recorded in it, and keeps the year", async () => {
     const site = await prisma.site.findFirstOrThrow({ where: { companyId }, select: { id: true } });
     await prisma.retailSale.create({ data: { companyId, saleNo: "SALE-00001", siteId: site.id, cashierId: userId } });
-    expect((await readSettings(companyId, "company", true))?.values.pricesLocked).toBe(true);
+    expect((await readSettings(companyId, "company", { all: true, fields: [] }))?.values.pricesLocked).toBe(true);
     const refused = saveSettings(actor(), "company", { currency: "US$", financialYearStarts: "1 July" });
     await expect(refused).rejects.toBeInstanceOf(SettingsRefused);
     await expect(refused).rejects.toMatchObject({

@@ -1,16 +1,16 @@
 "use client";
 
-export type TenderType =
-  | "CASH"
-  | "CARD"
-  | "MOBILE_MONEY"
-  | "TRANSFER"
-  | "VOUCHER";
+import type { RetailTenderType } from "@prisma/client";
+
+export type TenderType = RetailTenderType;
 
 export type PaymentRow = {
   tenderType: TenderType;
+  /** In the tender's own currency: ZiG for ZiG cash. */
   amount: string;
   reference: string;
+  /** ZiG cash; left out, the sale's currency. */
+  currency?: "USD" | "ZWG";
 };
 
 export type CartItem = {

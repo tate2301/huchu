@@ -315,6 +315,7 @@ model Company {
   retailPairingCodes            RetailPairingCode[]
   retailDeviceMessages          RetailDeviceMessage[]
   retailShopProfile             RetailShopProfile?
+  retailPaymentSettings         RetailPaymentSettings?
   retailCategories              RetailCategory[]
   retailPromotions              RetailPromotion[]
   retailPurchaseOrders          RetailPurchaseOrder[]
@@ -1385,6 +1386,8 @@ model User {
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
   retailShopProfilesUpdated         RetailShopProfile[]            @relation("RetailShopProfileUpdatedBy")
+  retailPaymentSettingsUpdated      RetailPaymentSettings[]        @relation("RetailPaymentSettingsUpdatedBy")
+  currencyRatesCreated              CurrencyRate[]                 @relation("CurrencyRateCreatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
   retailPurchaseOrdersClosed        RetailPurchaseOrder[]          @relation("RetailPurchaseOrderClosedBy")
@@ -4483,12 +4486,56 @@ enum RetailPromotionStatus {
 /// Mirrors `RetailTenderType` in `lib/retail/tender-policy.ts`, which is the set
 /// the checkout zod schemas already enforce at the edge. This puts the same set
 /// behind the column, so a payment row cannot disagree with the policy.
+/// The ways a shop is paid (SET-05): the two wallets Harare takes, and
+/// selling on account. Cash US$ and cash ZiG are both `CASH`, told apart by
+/// the payment's `currency`.
 enum RetailTenderType {
   CASH
   CARD
-  MOBILE_MONEY
+  ECOCASH
+  INNBUCKS
   TRANSFER
+  ON_ACCOUNT
   VOUCHER
+}
+
+/// How the ZiG rate is kept: typed in by hand, or the RBZ's daily rate.
+enum RetailRateSource {
+  MANUAL
+  RBZ_DAILY
+}
+
+/// Where a `CurrencyRate` row came from.
+enum CurrencyRateSource {
+  MANUAL
+  RBZ
+}
+
+/// Payments (SET-05, board PaymentsSettings): the tenders a shop takes, the
+/// ZiG rule and its EcoCash merchant. One row per company; no row reads as
+/// the defaults.
+model RetailPaymentSettings {
+  companyId           String           @id
+  takeCashUsd         Boolean          @default(true)
+  takeCashZig         Boolean          @default(true)
+  takeCard            Boolean          @default(false)
+  takeEcocash         Boolean          @default(true)
+  takeInnbucks        Boolean          @default(false)
+  takeBankTransfer    Boolean          @default(false)
+  takeOnAccount       Boolean          @default(false)
+  takeVouchers        Boolean          @default(false)
+  zigRateSource       RetailRateSource @default(MANUAL)
+  /// "Round ZiG change to": 0.50, 1 or 5.
+  zigChangeRounding   Decimal          @default(1) @db.Decimal(6, 2)
+  ecocashMerchantCode String?
+  /// "Shows customers as".
+  ecocashDisplayName  String?
+  updatedById         String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailPaymentSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
 /// What kind of shop a retail workspace is. It decides the categories a new
@@ -6776,9 +6823,13 @@ model CurrencyRate {
   quoteCurrency String
   rate          Float
   effectiveDate DateTime
-  createdAt     DateTime @default(now())
+  createdAt     DateTime           @default(now())
+  /// Who typed it in; null for a rate a feed brought (the RBZ's daily rate).
+  createdById   String?
+  source        CurrencyRateSource @default(MANUAL)
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("CurrencyRateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([companyId, effectiveDate])
 }

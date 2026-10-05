@@ -1,4 +1,5 @@
 import { purgeExpiredBin } from "@/lib/retail/bin";
+import { applyRbzRate } from "@/lib/retail/rbz-rate";
 
 import type { RetailJob } from "./schedule";
 
@@ -18,5 +19,11 @@ export const RETAIL_JOBS: RetailJob[] = [
       const { deleted, kept } = await purgeExpiredBin(now);
       return `${deleted} deleted, ${kept} kept for their history`;
     },
+  },
+  {
+    // The RBZ's rate for every shop that updates its ZiG rate daily (SET-05); nothing without a feed.
+    name: "rbz-rate",
+    when: { dailyAt: "07:00" },
+    run: (now) => applyRbzRate(now),
   },
 ];

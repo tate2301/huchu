@@ -35,6 +35,11 @@ export function changedValues(
   return changes;
 }
 
+/** Whether this caller changes the field here: the page changes it, and their grant reaches it (`editable`). */
+export function canChangeField(page: SettingsPage, response: Pick<SettingsResponse, "canEdit" | "editable">, id: string) {
+  return response.canEdit && isSettingsFieldEditable(page, id) && (!response.editable || response.editable.includes(id));
+}
+
 /** Sections whose `when` holds. Values in a hidden section are kept, and still saved. */
 export function shownSettingsSections(page: SettingsPage, values: Record<string, unknown>): SettingsSection[] {
   return page.sections.filter((section) => !section.when || values[section.when[0]] === section.when[1]);
@@ -68,5 +73,8 @@ export function cleanLine(input: {
   if (!input.canEdit) return input.page.whoCanChange;
   if (input.savedAt !== null && input.now.getTime() - input.savedAt < JUST_SAVED_MS) return "Saved just now.";
   if (!input.lastChanged) return null;
-  return `Last changed by ${input.lastChanged.by}, ${dayWords(input.lastChanged.at, input.now)}.`;
+  return (
+    input.page.lastChangedLine?.(input.lastChanged, input.now) ??
+    `Last changed by ${input.lastChanged.by}, ${dayWords(input.lastChanged.at, input.now)}.`
+  );
 }

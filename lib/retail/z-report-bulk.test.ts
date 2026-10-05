@@ -50,7 +50,7 @@ function report(registerCode: string, registerName: string, businessDate: string
     cashVariance: "-7.15",
     tenderBreakdown: [
       { tenderType: "CASH", count: 50, amount: "432.50", share: "48.77" },
-      { tenderType: "MOBILE_MONEY", count: 30, amount: "300.00", share: "33.83" },
+      { tenderType: "ECOCASH", count: 30, amount: "300.00", share: "33.83" },
       { tenderType: "CARD", count: 16, amount: "154.35", share: "17.40" },
     ],
     topItems: [],
@@ -158,9 +158,9 @@ describe("the files", () => {
     const { reports } = await findShiftZReports(client, COMPANY, ["a"]);
     const lines = zReportsCsv(reports).split("\r\n");
     expect(lines[0]).toBe(
-      "Date,Till,Z-report,Sales,Takings,Cash expected,Counted,Variance,Cash,Card,Mobile money,Bank transfer,Voucher",
+      "Date,Till,Z-report,Sales,Takings,Cash expected,Counted,Variance,Cash,Card,EcoCash,InnBucks,Bank transfer,On account,Voucher",
     );
-    expect(lines[1]).toBe("2026-09-30,Front till,Z-TILL1-20260930,96,886.85,532.50,525.35,-7.15,432.50,154.35,300.00,0.00,0.00");
+    expect(lines[1]).toBe("2026-09-30,Front till,Z-TILL1-20260930,96,886.85,532.50,525.35,-7.15,432.50,154.35,300.00,0.00,0.00,0.00,0.00");
     expect(lines).toHaveLength(2);
   });
 

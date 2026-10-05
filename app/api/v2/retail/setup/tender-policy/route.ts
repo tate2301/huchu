@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
@@ -11,7 +12,7 @@ import {
 
 const tenderPolicySchema = z.object({
   requiredReferenceTenders: z
-    .array(z.enum(["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"]))
+    .array(z.enum(RETAIL_TENDER_TYPES))
     .min(1),
   minReferenceLength: z.number().int().min(1).max(30),
   referencePattern: z.string().min(1).max(240),

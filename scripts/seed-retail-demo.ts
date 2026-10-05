@@ -187,7 +187,8 @@ const CUSTOMERS = [
   "Simba Mutasa", "Kudzai Zhou", "Munashe Chari", "Rutendo Banda",
 ]
 
-const ZWG_RATE = "27.5000"
+/** ZiG per US dollar: today's rate on Payments (SET-05), the one the seeded ZiG sales were taken at. */
+const ZWG_RATE = "26.8000"
 
 function daysAgo(days: number) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
@@ -857,7 +858,7 @@ async function main() {
           : roll < 0.5
             ? "CASH"
             : roll < 0.74
-              ? "MOBILE_MONEY"
+              ? "ECOCASH"
               : roll < 0.92
                 ? "CARD"
                 : "TRANSFER"
@@ -898,7 +899,7 @@ async function main() {
           currency,
           exchangeRate,
           baseAmount,
-          reference: tender === "MOBILE_MONEY" ? `EC${between(100000, 999999)}` : null,
+          reference: tender === "ECOCASH" ? `EC${between(100000, 999999)}` : null,
           createdAt: postedAt,
         })
         if (tender === "CASH") cashTaken = cashTaken.plus(baseAmount)
@@ -1215,6 +1216,7 @@ async function main() {
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
+  await seedPayments(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -2258,3 +2260,79 @@ main().catch((error: unknown) => {
   console.error(error)
   process.exit(1)
 })
+
+/**
+ * SET-05. Setup › Payments as the board draws it: every tender on but
+ * InnBucks, the rate by hand rounded to the nearest 1, EcoCash merchant
+ * "0921 774" showing as "HARARE BOTTLE", and today's ZiG rate 26.80 set at
+ * 07:30 by the owner (Tendai Mhlanga) over 2 October's 26.95 — so the save
+ * bar reads "Rate changed by Tendai Mhlanga today at 07:30." Every run puts
+ * the page back the way the board has it: rates, saves and rate events on
+ * Payments that test runs left are cleared first.
+ */
+async function seedPayments(companyId: string) {
+  const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
+  if (!owner) {
+    console.log("  payments: no owner to set the rate, skipped")
+    return
+  }
+  const settings = {
+    takeCashUsd: true,
+    takeCashZig: true,
+    takeCard: true,
+    takeEcocash: true,
+    takeInnbucks: false,
+    takeBankTransfer: true,
+    takeOnAccount: true,
+    takeVouchers: true,
+    zigRateSource: "MANUAL" as const,
+    zigChangeRounding: new Prisma.Decimal(1),
+    ecocashMerchantCode: "0921 774",
+    ecocashDisplayName: "HARARE BOTTLE",
+    updatedById: owner.id,
+  }
+  await prisma.retailPaymentSettings.upsert({ where: { companyId }, update: settings, create: { companyId, ...settings } })
+
+  await prisma.currencyRate.deleteMany({ where: { companyId, baseCurrency: "USD", quoteCurrency: "ZWG" } })
+  await prisma.platformAuditEvent.deleteMany({
+    where: {
+      companyId,
+      entityType: "RetailSettings",
+      entityId: "payments",
+      eventType: { in: [RETAIL_AUDIT_EVENTS.settingsChanged, RETAIL_AUDIT_EVENTS.zigRateSet] },
+    },
+  })
+  const morning = new Date(Math.min(harareTime(0, 7, 30).getTime(), Date.now() - 60_000))
+  const rates = [
+    { rate: 26.95, at: new Date("2026-10-02T07:25:00+02:00"), previous: null },
+    { rate: Number(ZWG_RATE), at: morning, previous: "26.95" },
+  ]
+  for (const entry of rates) {
+    await prisma.currencyRate.create({
+      data: {
+        companyId,
+        baseCurrency: "USD",
+        quoteCurrency: "ZWG",
+        rate: entry.rate,
+        effectiveDate: entry.at,
+        createdAt: entry.at,
+        createdById: owner.id,
+        source: "MANUAL",
+      },
+    })
+    await writeRetailAuditEvent(prisma, {
+      actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+      eventType: RETAIL_AUDIT_EVENTS.zigRateSet,
+      entityType: "RetailSettings",
+      entityId: "payments",
+      payload: { rate: entry.rate.toFixed(2), previous: entry.previous, source: "MANUAL" },
+    })
+    const written = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, eventType: RETAIL_AUDIT_EVENTS.zigRateSet, entityId: "payments" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    })
+    if (written) await prisma.platformAuditEvent.update({ where: { id: written.id }, data: { createdAt: entry.at } })
+  }
+  console.log(`  payments: all tenders on but InnBucks, ZiG ${ZWG_RATE} set by ${owner.name}`)
+}

@@ -463,6 +463,7 @@ describe("the chain", () => {
       transferCancelled: "RETAIL_STOCK_TRANSFER.CANCELLED",
       transferChanged: "RETAIL_STOCK_TRANSFER.CHANGED",
       transferReceived: "RETAIL_STOCK_TRANSFER.RECEIVED",
+      zigRateSet: "RETAIL_ZIG_RATE.SET",
     });
   });
 });

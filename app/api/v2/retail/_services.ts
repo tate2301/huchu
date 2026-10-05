@@ -701,13 +701,27 @@ export async function createRetailSaleTransaction(input: {
     throw new ShiftElsewhere(shift.registerName);
   }
 
-  const normalizedPayments = input.payments.map((payment) => ({
-    tenderType: payment.tenderType,
-    amount: round(payment.amount),
-    reference: payment.reference?.trim() || null,
-    currency: payment.currency ?? null,
-    exchangeRate: payment.exchangeRate ?? null,
-  }));
+  /**
+   * The sale is priced in the company's base currency at rate 1; a tender in
+   * another currency (ZiG cash on a US dollar shop) carries the rate the
+   * caller stamped from the shop's own rates (SET-05), never the till's.
+   */
+  const saleCurrency = await getCompanyBaseCurrency(input.actor.companyId);
+  const saleExchangeRate = rate(1);
+  const normalizedPayments = input.payments.map((payment) => {
+    const currency = payment.currency?.trim().toUpperCase() || saleCurrency;
+    const exchangeRate = currency === saleCurrency ? saleExchangeRate : rate(payment.exchangeRate ?? 1);
+    const amount = round(payment.amount);
+    return {
+      tenderType: payment.tenderType,
+      amount,
+      reference: payment.reference?.trim() || null,
+      currency,
+      exchangeRate,
+      // Every check below is in the sale's money, so ZiG notes and dollars add up.
+      baseAmount: toNumberOrZero(toBaseAmount(amount, exchangeRate)),
+    };
+  });
   const tenderPolicy = await getRetailTenderPolicy(input.actor.companyId);
   const paymentReferenceError = validateTenderReferences(tenderPolicy, normalizedPayments);
   if (paymentReferenceError) {
@@ -715,17 +729,17 @@ export async function createRetailSaleTransaction(input: {
   }
 
   const tenderedAmount = round(
-    normalizedPayments.reduce((total, payment) => total + payment.amount, 0),
+    normalizedPayments.reduce((total, payment) => total + payment.baseAmount, 0),
   );
   const nonCashTotal = round(
     normalizedPayments
       .filter((payment) => payment.tenderType !== "CASH")
-      .reduce((total, payment) => total + payment.amount, 0),
+      .reduce((total, payment) => total + payment.baseAmount, 0),
   );
   const cashTotal = round(
     normalizedPayments
       .filter((payment) => payment.tenderType === "CASH")
-      .reduce((total, payment) => total + payment.amount, 0),
+      .reduce((total, payment) => total + payment.baseAmount, 0),
   );
 
   // What the customer pays: the goods, and the deposit on their bottles.
@@ -783,23 +797,6 @@ export async function createRetailSaleTransaction(input: {
         siteId: site.id,
       }));
 
-    /**
-     * The sale is priced in the company's base currency at rate 1.
-     *
-     * That is what every retail sale has been implicitly since the module was
-     * written, and writing it down is the point: the columns exist now, so the
-     * value has to be *stated* rather than defaulted, or `baseAmount` lands at
-     * zero and a day's takings read as nothing.
-     *
-     * Quoting a basket in a second currency is a separate change — it needs a
-     * price list per currency and a rate the till can show the customer before
-     * they agree to it. What R-1.5 buys today is that a **payment** may be in
-     * ZWG against a USD-priced sale, which is the case a Harare bottle store
-     * actually has all day, and that is carried on the payment rows below.
-     */
-    const saleCurrency = await getCompanyBaseCurrency(input.actor.companyId);
-    const saleExchangeRate = rate(1);
-
     // Cash into the drawer, in base currency on both sides. Declared here and
     // not with the other totals above because it needs the sale's currency,
     // which is only known once the tenant's base currency has been read.
@@ -808,15 +805,10 @@ export async function createRetailSaleTransaction(input: {
     // in Harare, so each tender converts at its own rate; the change is handed
     // back in the currency the sale was priced in, so it converts at the sale's.
     const netCash = getCashNetFromPayments(
-      normalizedPayments.map((payment) => {
-        const paymentCurrency = payment.currency?.trim().toUpperCase() || saleCurrency;
-        const paymentRate =
-          paymentCurrency === saleCurrency ? saleExchangeRate : rate(payment.exchangeRate ?? 1);
-        return {
-          tenderType: payment.tenderType,
-          baseAmount: toBaseAmount(payment.amount, paymentRate),
-        };
-      }),
+      normalizedPayments.map((payment) => ({
+        tenderType: payment.tenderType,
+        baseAmount: toBaseAmount(payment.amount, payment.exchangeRate),
+      })),
       toBaseAmount(changeAmount, saleExchangeRate),
     );
 
@@ -856,7 +848,10 @@ export async function createRetailSaleTransaction(input: {
             status: "POSTED",
             notes: input.notes?.trim() || null,
             postedAt: input.postedAt ?? new Date(),
-            tenderSummary: normalizedPayments,
+            tenderSummary: normalizedPayments.map((payment) => ({
+              ...payment,
+              exchangeRate: payment.exchangeRate.toString(),
+            })),
             lines: {
               create: input.lines.map((line) => ({
                 companyId: input.actor.companyId,
@@ -878,21 +873,15 @@ export async function createRetailSaleTransaction(input: {
               // USD-priced basket settled in ZWG notes is the ordinary case in
               // Harare, and `normalizeRetailPostingPayments` has been carrying
               // this field the whole time with nowhere to put it.
-              create: normalizedPayments.map((payment) => {
-                const paymentCurrency =
-                  payment.currency?.trim().toUpperCase() || saleCurrency;
-                const paymentRate =
-                  paymentCurrency === saleCurrency ? saleExchangeRate : rate(payment.exchangeRate ?? 1);
-                return {
-                  companyId: input.actor.companyId,
-                  tenderType: payment.tenderType,
-                  amount: payment.amount,
-                  currency: paymentCurrency,
-                  exchangeRate: paymentRate,
-                  baseAmount: toBaseAmount(payment.amount, paymentRate),
-                  reference: payment.reference,
-                };
-              }),
+              create: normalizedPayments.map((payment) => ({
+                companyId: input.actor.companyId,
+                tenderType: payment.tenderType,
+                amount: payment.amount,
+                currency: payment.currency,
+                exchangeRate: payment.exchangeRate,
+                baseAmount: toBaseAmount(payment.amount, payment.exchangeRate),
+                reference: payment.reference,
+              })),
             },
           },
           include: { lines: true, payments: true },

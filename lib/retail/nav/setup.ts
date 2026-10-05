@@ -1,4 +1,4 @@
-import { DeviceMobile, ListChecks, Rows, Stamp, Storefront, Trash, Wrench } from "@/lib/icons";
+import { DeviceMobile, ListChecks, Money, Rows, Stamp, Storefront, Trash, Wrench } from "@/lib/icons";
 
 import type { RetailNavModule } from "./types";
 
@@ -29,6 +29,8 @@ export const setupNav: RetailNavModule = {
     // SET-02 (98-decisions, owner direction 8): shops, the places inside them and the default site.
     { href: "/retail/manage/sites", icon: Storefront, label: "Sites", requires: [["retail.sites", "view"]] },
     { href: "/retail/manage/tills", icon: DeviceMobile, label: "Tills and devices", requires: [["retail.tills", "view"]] },
+    // SET-05: the tenders, the ZiG rate and EcoCash.
+    { href: "/retail/manage/payments", icon: Money, label: "Payments", requires: [["retail.payments", "view"]] },
     {
       href: "/retail/manage/till-rules",
       icon: ListChecks,

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { Prisma, RetailSaleStatus, RetailSaleType } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
+import { atLeast, money, resolveBaseCurrency, sumMoney, toBaseAmount, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   getCustomerLoyaltyBalance,
@@ -20,6 +20,8 @@ import {
   requireRetailPermission,
 } from "@/lib/retail/permissions";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
+import { loadPaymentSettings, NoZigRate, paymentRate, tenderOffProblem } from "@/lib/retail/payment-settings";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
@@ -51,8 +53,15 @@ const saleLineSchema = z.object({
 });
 
 const salePaymentSchema = z.object({
-  tenderType: z.enum(["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"]),
+  tenderType: z.enum(RETAIL_TENDER_TYPES),
+  /** In the tender's own currency. */
   amount: z.number().positive(),
+  /**
+   * The tender's currency (ZiG cash); left out, the sale's. There is no rate
+   * here: the server stamps the shop's own (SET-05), and a rate the till
+   * sends is dropped with any other key it does not know.
+   */
+  currency: z.enum(["USD", "ZWG"]).optional(),
   reference: z.string().max(120).optional().nullable(),
 });
 
@@ -751,23 +760,53 @@ export async function POST(request: NextRequest) {
     });
     const depositAmount = depositsDue(depositLines);
     const amountDue = round(totalAmount + depositAmount);
-    const normalizedPayments = input.payments.map((payment) => ({
-      tenderType: payment.tenderType,
-      amount: round(payment.amount),
-      reference: payment.reference?.trim() || null,
-    }));
+    /*
+      SET-05. Only the tenders the shop takes (a sale rung offline before one
+      was turned off still comes in), each at the rate the server stamps:
+      the shop's own for the moment of the sale, never the till's.
+    */
+    const saleCurrency = await resolveBaseCurrency(session.user.companyId);
+    const paymentSettings = await loadPaymentSettings(session.user.companyId);
+    if (!replaySoldAt) {
+      for (const payment of input.payments) {
+        const off = tenderOffProblem(paymentSettings, payment.tenderType, payment.currency ?? saleCurrency);
+        if (off) return errorResponse(off, 400);
+      }
+    }
+    const rates = new Map<string, Prisma.Decimal>();
+    try {
+      for (const currency of new Set(input.payments.map((payment) => payment.currency ?? saleCurrency))) {
+        rates.set(currency, await paymentRate(session.user.companyId, saleCurrency, currency, soldAt));
+      }
+    } catch (error) {
+      if (error instanceof NoZigRate) return errorResponse(error.message, 400);
+      throw error;
+    }
+    const normalizedPayments = input.payments.map((payment) => {
+      const currency = payment.currency ?? saleCurrency;
+      const exchangeRate = rates.get(currency)!;
+      const amount = round(payment.amount);
+      return {
+        tenderType: payment.tenderType,
+        amount,
+        currency,
+        exchangeRate: exchangeRate.toNumber(),
+        baseAmount: toNumberOrZero(toBaseAmount(amount, exchangeRate)),
+        reference: payment.reference?.trim() || null,
+      };
+    });
     const tenderPolicy = await getRetailTenderPolicy(session.user.companyId);
     const paymentReferenceError = validateTenderReferences(tenderPolicy, normalizedPayments);
     if (paymentReferenceError) {
       return errorResponse(paymentReferenceError, 400);
     }
     const tenderedAmount = round(
-      normalizedPayments.reduce((total, payment) => total + payment.amount, 0),
+      normalizedPayments.reduce((total, payment) => total + payment.baseAmount, 0),
     );
     const nonCashTotal = round(
       normalizedPayments
         .filter((payment) => payment.tenderType !== "CASH")
-        .reduce((total, payment) => total + payment.amount, 0),
+        .reduce((total, payment) => total + payment.baseAmount, 0),
     );
     if (nonCashTotal > amountDue) {
       return errorResponse("Non-cash tenders cannot exceed the sale total", 400);

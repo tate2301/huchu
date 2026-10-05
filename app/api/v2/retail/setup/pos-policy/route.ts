@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
@@ -12,7 +13,7 @@ import {
 } from "@/lib/retail/pos-policy";
 
 const posPolicySchema = z.object({
-  requiredReferenceTenders: z.array(z.enum(["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"])).min(1),
+  requiredReferenceTenders: z.array(z.enum(RETAIL_TENDER_TYPES)).min(1),
   minReferenceLength: z.number().int().min(1).max(30),
   referencePattern: z.string().min(1).max(240),
   splitTenderEnabled: z.boolean(),

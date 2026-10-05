@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { cn } from "@/lib/utils";
 import type { SettingsAsideSection } from "@/lib/retail/settings-pages";
 
@@ -19,7 +21,17 @@ export function SettingsAside({ sections, under = false }: { sections: SettingsA
               ))}
             </ul>
           ) : null}
-          {section.text ? <p>{section.text}</p> : null}
+          {section.text || section.link ? (
+            <p>
+              {section.text}
+              {section.link ? (
+                <>
+                  {section.text ? " " : null}
+                  <Link href={section.link.href}>{section.link.label}</Link>.
+                </>
+              ) : null}
+            </p>
+          ) : null}
         </section>
       ))}
     </aside>

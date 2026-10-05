@@ -198,7 +198,7 @@ const report = buildRetailZReportFigures({
       sales: [
         sale(A1, [{ tenderType: "CASH", baseAmount: 100 }], 13.6),
         sale(A2, [{ tenderType: "CARD", baseAmount: 16.8 }]),
-        sale(A3, [{ tenderType: "MOBILE_MONEY", baseAmount: 36 }]),
+        sale(A3, [{ tenderType: "ECOCASH", baseAmount: 36 }]),
         sale(A4, [{ tenderType: "CASH", baseAmount: 57.6 }]),
         sale(A5, [{ tenderType: "CASH", baseAmount: 60 }]),
       ],
@@ -217,7 +217,7 @@ const report = buildRetailZReportFigures({
       ],
       sales: [
         sale(B1, [{ tenderType: "CASH", baseAmount: 172.8 }]),
-        sale(B2, [{ tenderType: "MOBILE_MONEY", baseAmount: 30 }]),
+        sale(B2, [{ tenderType: "ECOCASH", baseAmount: 30 }]),
         sale(B3, [{ tenderType: "CARD", baseAmount: 120 }]),
         sale(B4, [{ tenderType: "CASH", baseAmount: 20 }], 0.8),
         REFUND,
@@ -328,7 +328,7 @@ describe("how customers paid", () => {
     expect(report.tenderBreakdown.map((row) => row.tenderType)).toEqual([
       "CASH",
       "CARD",
-      "MOBILE_MONEY",
+      "ECOCASH",
     ]);
     expect(report.tenderBreakdown.map((row) => row.amount)).toEqual([
       "367.20",

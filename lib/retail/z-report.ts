@@ -134,8 +134,10 @@ import {
 export const RETAIL_Z_REPORT_TENDERS = [
   "CASH",
   "CARD",
-  "MOBILE_MONEY",
+  "ECOCASH",
+  "INNBUCKS",
   "TRANSFER",
+  "ON_ACCOUNT",
   "VOUCHER",
 ] as const;
 

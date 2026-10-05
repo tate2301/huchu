@@ -12,10 +12,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { RetailPosPolicy } from "@/lib/retail/pos-policy";
 import { tenderLabel } from "@/lib/retail/words";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 
 type PolicyResponse = { data: RetailPosPolicy; defaults: RetailPosPolicy; saved: boolean };
 
-const TENDERS = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"] as const;
 const POLICY_KEY = ["retail-pos-policy"] as const;
 
 function Rule({
@@ -106,7 +106,7 @@ export default function RetailTillRulesPage() {
         ) : (
           <>
             <SectionHeading variant="form">Tenders that need a reference</SectionHeading>
-            {TENDERS.map((tender) => (
+            {RETAIL_TENDER_TYPES.map((tender) => (
               <Rule
                 key={tender}
                 checked={policy.requiredReferenceTenders.includes(tender)}

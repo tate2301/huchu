@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePosDevice } from "@/lib/retail/devices";
 import { z } from "zod";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
@@ -18,7 +19,7 @@ const refundLineSchema = z.object({
 });
 
 const refundPaymentSchema = z.object({
-  tenderType: z.enum(["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"]),
+  tenderType: z.enum(RETAIL_TENDER_TYPES),
   amount: z.number().positive(),
   reference: z.string().max(120).optional().nullable(),
 });
