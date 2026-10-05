@@ -1,46 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { CategoryNameTaken, categoryPatch, updateRetailCategory } from "@/lib/retail/categories";
+import { categoryPatch, getCategory, updateCategory } from "@/lib/retail/categories";
+import { categoryActor, categoryFailure, isCategoryId, parseCategoryBody } from "@/lib/retail/category-routes";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 
-/**
- * Change a category.
- *
- * There is no DELETE. A category with products under it cannot simply go — the
- * products would lose their VAT and ID-check defaults — so it goes in the bin
- * (`POST /api/v2/retail/bin`, kind `category`): hidden from every product
- * field, still on the products filed under it, and restorable for 30 days.
- */
-export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+const NOT_FOUND = "That category is not one of this shop's.";
+
+type Context = { params: Promise<{ id: string }> };
+
+/** One category, for its edit sheet. `retail.categories:view`. */
+export async function GET(request: NextRequest, context: Context) {
   const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
+  if (response || !session) return response as NextResponse;
+
+  const gate = requireRetailPermission(session, "retail.categories", "view");
+  if (gate) return gate;
+
+  const { id } = await context.params;
+  if (!isCategoryId(id)) return errorResponse(NOT_FOUND, 404);
+  const data = await getCategory(session.user.companyId, id);
+  if (!data) return errorResponse(NOT_FOUND, 404);
+  return successResponse({ data });
+}
+
+/**
+ * Change a category: any of name, Inside, VAT, target margin, the age check,
+ * returnable. A VAT change rewrites every product's VAT in it in the same
+ * transaction. `{ data, changed }`; writes `RETAIL_CATEGORY.CHANGED`.
+ */
+export async function PATCH(request: NextRequest, context: Context) {
+  const { response, session } = await requireRetailSession(request);
+  if (response || !session) return response as NextResponse;
 
   const gate = requireRetailPermission(session, "retail.categories", "update");
   if (gate) return gate;
 
   const { id } = await context.params;
-  if (!z.string().uuid().safeParse(id).success) {
-    return errorResponse("That category is not in this workspace", 404);
-  }
+  if (!isCategoryId(id)) return errorResponse(NOT_FOUND, 404);
+
+  const parsed = await parseCategoryBody(request, categoryPatch);
+  if ("response" in parsed) return parsed.response;
 
   try {
-    const patch = categoryPatch.parse(await request.json());
-    const data = await updateRetailCategory(session.user.companyId, id, patch);
-    if (!data) return errorResponse("That category is not in this workspace", 404);
-    return successResponse({ data });
+    const { data, changed } = await updateCategory(categoryActor(session), id, parsed.data);
+    return successResponse({ data, changed });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return errorResponse("Validation failed", 400, error.issues);
-    }
-    if (error instanceof CategoryNameTaken) {
-      return errorResponse(error.message, 409);
-    }
-    console.error("[API] PATCH /api/v2/retail/categories/[id] error:", error);
-    return errorResponse("The category was not saved");
+    return categoryFailure(error, "PATCH /api/v2/retail/categories/[id]");
   }
 }

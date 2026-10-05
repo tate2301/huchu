@@ -249,12 +249,24 @@ function round(value: number): number {
   return Math.round(value * 10_000) / 10_000;
 }
 
+/** Σnum ÷ Σden × 100 over the rows, one place; null when the denominator is nothing. */
+export function ratioOf(rows: ReportRow[], ratio: { num: string; den: string }): ReportValue {
+  let num = 0;
+  let den = 0;
+  for (const row of rows) {
+    num += asNumber(row[ratio.num] ?? null) ?? 0;
+    den += asNumber(row[ratio.den] ?? null) ?? 0;
+  }
+  return den === 0 ? null : Math.round((num / den) * 1000) / 10;
+}
+
 export function totalsFor(rows: ReportRow[], columns: ReportColumn[], view: ReportView): Record<string, ReportValue> {
   const byKey = new Map(columns.map((column) => [column.key, column]));
   const totals: Record<string, ReportValue> = {};
   for (const [key, fn] of Object.entries(view.totals)) {
     const column = byKey.get(key);
-    if (column) totals[key] = aggregate(rows, column, fn);
+    if (column?.ratio && fn === "avg") totals[key] = ratioOf(rows, column.ratio);
+    else if (column) totals[key] = aggregate(rows, column, fn);
   }
   return totals;
 }

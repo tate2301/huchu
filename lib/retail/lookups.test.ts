@@ -85,7 +85,7 @@ describe("category quick add", () => {
     if (answer.status !== 400) return;
     expect(answer.body.fieldErrors).toEqual({
       name: "Name is needed.",
-      vat: "Give VAT as a percentage, like 15%.",
+      vat: "Give VAT as 15%, Zero-rated or Exempt.",
       age: "Say Yes or No.",
     });
   });
@@ -183,12 +183,16 @@ describe("the small rules", () => {
   });
 
   it("reads VAT and yes/no the way people type them", () => {
-    expect(parseVat("15%")).toBe(15);
-    expect(parseVat("7.5")).toBe(7.5);
-    expect(parseVat("Zero-rated")).toBe(0);
+    expect(parseVat("15%")).toBe("STANDARD");
+    expect(parseVat("0%")).toBe("ZERO_RATED");
+    expect(parseVat("Zero-rated")).toBe("ZERO_RATED");
+    expect(parseVat("Exempt")).toBe("EXEMPT");
+    expect(parseVat("7.5")).toBeNull();
     expect(parseVat("lots")).toBeNull();
     expect(parseYesNo("yes")).toBe(true);
     expect(parseYesNo("No")).toBe(false);
     expect(categorySub({ vatRate: "15.00", ageRestricted: false })).toBe("VAT 15%");
+    expect(categorySub({ vatRate: "0.00", vatExempt: false, ageRestricted: false })).toBe("VAT 0%");
+    expect(categorySub({ vatRate: "0.00", vatExempt: true, ageRestricted: false })).toBe("VAT exempt");
   });
 });

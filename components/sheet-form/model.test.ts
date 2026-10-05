@@ -5,7 +5,17 @@ import { FLOOR_SHEETS } from "@/lib/retail/sheet-kinds/floor";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import type { SheetCtx, SheetKind } from "@/lib/workspace/sheet-kind";
 
-import { checkValues, discardAsk, initialValues, isDirty, lineTotals, shownSections, submitFailure } from "./model";
+import {
+  checkValues,
+  discardAsk,
+  doneSentence,
+  initialValues,
+  isDirty,
+  lineTotals,
+  sheetText,
+  shownSections,
+  submitFailure,
+} from "./model";
 
 const ctxFor = (role: string, name = "Tafara Nyathi"): SheetCtx => ({
   params: new URLSearchParams("sheet=shift-open"),
@@ -108,5 +118,44 @@ describe("sections and lines", () => {
         { productId: "b", name: "B", sub: null, quantity: "2", cost: "10" },
       ]),
     ).toEqual({ count: 2, quantity: 26, value: 33.92 });
+  });
+});
+
+describe("sheets that load what they draw (PRD-02)", () => {
+  const kind: SheetKind = {
+    title: (_ctx, values) => String(values._name ?? ""),
+    sub: "Products › Categories",
+    cur: "US$",
+    sections: [
+      { fields: [{ id: "name", t: "text", l: "Name" }, { id: "returnable", t: "text", l: "Deposit", show: (values) => values._deposits === true }] },
+      { title: "Deleting", forDanger: true, show: (_values, ctx) => ctx.can("retail.categories", "delete"), fields: [{ id: "moveTo", t: "auto", l: "Move to" }] },
+    ],
+    note: "",
+    primary: "Save",
+    done: (result, values) => `${String(values._name)} saved as ${(result as { name: string }).name}.`,
+    submit: () => ({ method: "PATCH", url: "/x" }),
+    invalidate: [],
+    requires: [],
+  };
+
+  it("titles from what was loaded, shows sections by role, and leaves danger-only fields out of Save", () => {
+    const owner = ctxFor("SUPERADMIN");
+    const manager = ctxFor("MANAGER");
+    expect(sheetText(kind.title, owner, { _name: "Spirits" })).toBe("Spirits");
+    expect(shownSections(kind, {}, owner)).toHaveLength(2);
+    expect(shownSections(kind, {}, manager)).toHaveLength(1);
+    // Deposit is hidden without deposits, so not needed; Move to belongs to Delete, not Save.
+    expect(checkValues(kind, { name: "", returnable: "", moveTo: null }, owner)).toEqual({ name: "Name is needed." });
+    expect(checkValues(kind, { name: "Gin", returnable: "", moveTo: null, _deposits: true }, owner)).toEqual({
+      returnable: "Deposit is needed.",
+    });
+    expect(doneSentence(kind, { name: "Spirits" }, { _name: "Spirits" })).toBe("Spirits saved as Spirits.");
+    expect(discardAsk("Spirits", { record: true }).title).toBe("Discard changes to Spirits?");
+  });
+
+  it("puts a 409's field message under its field", () => {
+    expect(
+      submitFailure(409, { error: "x", fieldErrors: { name: "There is already a category called Mixers." } }, ["name"]),
+    ).toEqual({ fieldErrors: { name: "There is already a category called Mixers." }, footer: null });
   });
 });

@@ -22,7 +22,8 @@ import {
   fieldIds,
   initialValues,
   isDirty,
-  resolve,
+  sheetText,
+  shownFields,
   shownSections,
   submitFailure,
 } from "./model";
@@ -75,8 +76,7 @@ function focusField(fieldId: string) {
 export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const title = resolve(kind.title, ctx);
-  const sub = resolve(kind.sub, ctx);
+  const readOnly = kind.readOnly?.(ctx) ?? false;
 
   const [initial, setInitial] = React.useState<SheetValues>(() => initialValues(kind, ctx));
   const [values, setValues] = React.useState<SheetValues>(initial);
@@ -85,7 +85,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const [savedLine, setSavedLine] = React.useState<string | null>(null);
   const [unfolded, setUnfolded] = React.useState<Record<number, boolean>>({});
   const [saving, setSaving] = React.useState(false);
-  const [asking, setAsking] = React.useState<null | "discard" | "danger">(null);
+  const [asking, setAsking] = React.useState<null | "discard" | "danger" | "confirm">(null);
   const listsOpen = React.useRef(0);
   const bodyRef = React.useRef<HTMLDivElement>(null);
 
@@ -98,13 +98,17 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       if (!live) return;
       setInitial((current) => ({ ...current, ...loaded }));
       setValues((current) => ({ ...current, ...loaded }));
+    }, (error: unknown) => {
+      if (live) setFooterError(error instanceof Error ? error.message : "That could not be read. Close it and try again.");
     });
     return () => {
       live = false;
     };
   }, [load, ctx]);
 
-  const dirty = isDirty(initial, values);
+  const dirty = !readOnly && isDirty(initial, values);
+  const title = sheetText(kind.title, ctx, values);
+  const sub = sheetText(kind.sub, ctx, values);
 
   const requestClose = () => {
     if (saving) return;
@@ -130,14 +134,14 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
 
   const after = async (result: unknown, again: boolean) => {
     await Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
-    const sentence = doneSentence(kind, result);
+    const sentence = doneSentence(kind, result, values);
     if (again) {
       const fresh = initialValues(kind, ctx);
       setInitial(fresh);
       setValues(fresh);
       setSavedLine(sentence);
       requestAnimationFrame(() => {
-        const first = shownSections(kind, fresh)[0]?.fields[0];
+        const first = shownSections(kind, fresh, ctx)[0]?.fields[0];
         if (first) focusField(first.id);
       });
       return;
@@ -152,7 +156,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   };
 
   const submit = async (again: boolean) => {
-    if (saving) return;
+    if (saving || readOnly) return;
     setFooterError(null);
     setSavedLine(null);
     const problems = checkValues(kind, values, ctx);
@@ -169,6 +173,15 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       return;
     }
     setErrors({});
+    if (kind.confirm) {
+      setAsking("confirm");
+      return;
+    }
+    await sendChecked(again);
+  };
+
+  // After the check, and the ask when the kind has one.
+  const sendChecked = async (again: boolean) => {
     setSaving(true);
     try {
       const answer = await send(kind.submit(values, ctx));
@@ -191,21 +204,32 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
 
   const runDanger = async () => {
     if (!kind.danger) return;
-    const answer = await send(kind.danger.request(ctx));
+    const answer = await send(kind.danger.request(ctx, values));
     if (!answer.ok) {
-      const failure = submitFailure(answer.status, answer.payload, []);
+      const payload = answer.payload as { error?: unknown; fieldErrors?: Record<string, unknown> } | null;
+      const fieldMessage = Object.values(payload?.fieldErrors ?? {}).find((value) => typeof value === "string");
+      const failure = submitFailure(answer.status, { error: fieldMessage ?? payload?.error }, []);
       throw new Error(failure.footer ?? "That did not work.");
     }
     await Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
-    toast({ title: kind.danger.done, variant: "success" });
+    const done = kind.danger.done;
+    toast({ title: typeof done === "function" ? done(values, answer.payload) : done, variant: "success" });
     onClose();
   };
 
   const ask: Ask | null =
-    asking === "discard" ? discardAsk(title) : asking === "danger" && kind.danger ? kind.danger.ask(ctx) : null;
-  const secondary = kind.secondary ?? "Cancel";
-  const again = kind.secondary !== undefined && kind.secondary !== "Cancel";
-  const sections = shownSections(kind, values);
+    asking === "discard"
+      ? discardAsk(title, { record: typeof kind.title === "function" && kind.load !== undefined })
+      : asking === "danger" && kind.danger
+        ? kind.danger.ask(ctx, values)
+        : asking === "confirm" && kind.confirm
+          ? kind.confirm(values, ctx)
+          : null;
+  const secondary = readOnly ? "Close" : (kind.secondary ?? "Cancel");
+  const again = !readOnly && kind.secondary !== undefined && kind.secondary !== "Cancel";
+  const sections = shownSections(kind, values, ctx);
+  const danger = !readOnly && kind.danger && (kind.danger.show?.(ctx, values) ?? true) ? kind.danger : null;
+  const note = typeof kind.note === "function" ? kind.note(values) : kind.note;
   const steps = kind.steps ?? [];
   const at = kind.at ?? 0;
 
@@ -241,8 +265,10 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
             }}
             onInteractOutside={(event) => {
               event.preventDefault();
-              // A toast is not the scrim.
-              if ((event.target as HTMLElement | null)?.closest(".cx-toast-host")) return;
+              // A toast is not the scrim, nor is the sheet's own ask: focus
+              // moving into it is not a click outside.
+              if ((event.target as HTMLElement | null)?.closest(".cx-toast-host, [role='alertdialog']")) return;
+              if (asking !== null) return;
               requestClose();
             }}
           >
@@ -313,7 +339,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                       </button>
                     ) : (
                       <div className="sf-grid">
-                        {section.fields.map((field) => (
+                        {shownFields(section, values, ctx).map((field) => (
                           <div key={field.id} className={field.half ? "sf-cell sf-cell--half" : "sf-cell"}>
                             <SheetField
                               field={field}
@@ -322,6 +348,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                               values={values}
                               currency={kind.cur}
                               error={errors[field.id]}
+                              readOnly={readOnly}
                               onChange={(value) => setValue(field.id, value)}
                               onListOpen={onListOpen}
                             />
@@ -335,10 +362,10 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
             </div>
 
             <footer className="cx-sheet__foot">
-              {kind.danger ? (
+              {danger ? (
                 <button type="button" className="sf-danger" onClick={() => setAsking("danger")} disabled={saving}>
                   <Trash aria-hidden="true" />
-                  {kind.danger.label}
+                  {danger.label}
                 </button>
               ) : null}
               {footerError ? (
@@ -351,14 +378,16 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   <span className="sf-ellipsis">{savedLine}</span>
                 </span>
               ) : (
-                <span className="sf-foot__note">{kind.note}</span>
+                <span className="sf-foot__note">{readOnly ? "" : note}</span>
               )}
               <Button size="field" onClick={() => (again ? void submit(true) : requestClose())} disabled={saving}>
                 {secondary}
               </Button>
-              <Button size="field" variant="primary" busy={saving} onClick={() => void submit(false)}>
-                {kind.primary}
-              </Button>
+              {readOnly ? null : (
+                <Button size="field" variant="primary" busy={saving} onClick={() => void submit(false)}>
+                  {kind.primary}
+                </Button>
+              )}
             </footer>
           </Dialog.Content>
         </Dialog.Portal>
@@ -372,7 +401,10 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
           }}
           onConfirm={async () => {
             if (asking === "danger") await runDanger();
-            else onClose();
+            else if (asking === "confirm") {
+              setAsking(null);
+              await sendChecked(false);
+            } else onClose();
           }}
         />
       ) : null}

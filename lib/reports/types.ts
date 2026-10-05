@@ -39,6 +39,11 @@ export type ReportColumn = {
   hidden?: boolean;
   /** The total the footer shows until someone picks another. */
   total?: Aggregate;
+  /**
+   * A percentage of two summed row keys (`num ÷ den × 100`): its `avg` total
+   * is over the whole set ("24.6%" margin across categories), not a mean of rows.
+   */
+  ratio?: { num: string; den: string };
 };
 
 /** Something the rows are narrowed by before they are fetched. */
@@ -245,6 +250,10 @@ export type ListColumn = ReportColumn & {
   bar?: { pctKey: string; warnBelow: number };
   /** num: the row key holding the unit word printed after the figure ("13 bottles"). */
   unitKey?: string;
+  /** num: the figure is a percentage, printed "22.4%". */
+  percent?: boolean;
+  /** num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target). */
+  pillKey?: string;
   /** Dropped, values and all, for roles that may not see cost. */
   requires?: "view-cost";
 };

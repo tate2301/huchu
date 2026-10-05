@@ -7,6 +7,7 @@ import type { ListActionRun } from "./runs";
  */
 export { BIN_KEEP_DAYS, binAsk, restorableUntil } from "./frame";
 export { cancelRequisitionAsk, closeShortAsk, removeOrderAsk } from "./buying";
+export { categoryDeleteAsk, categoryMergeAsk } from "./categories";
 export { archiveAsk, archiveManyAsk } from "./products";
 export type { ListActionRun } from "./runs";
 

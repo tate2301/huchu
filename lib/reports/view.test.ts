@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ReportColumn, ReportRow, ReportView } from "./types";
-import { aggregate, applyView, decodeView, defaultView, encodeView, fitView, rowsWithin } from "./view";
+import { aggregate, applyView, decodeView, defaultView, encodeView, fitView, ratioOf, rowsWithin, totalsFor } from "./view";
 
 const COLUMNS: ReportColumn[] = [
   { key: "name", label: "Name", kind: "text" },
@@ -143,5 +143,20 @@ describe("rowsWithin", () => {
   it("takes from the flat list when ungrouped", () => {
     expect(rowsWithin(applyView(ROWS, COLUMNS, base()), 3)).toHaveLength(1);
     expect(rowsWithin(applyView(ROWS, COLUMNS, base()), 3)[0]).toHaveLength(3);
+  });
+});
+
+describe("ratio totals", () => {
+  it("totals a ratio column over the whole set, not as a mean of rows", () => {
+    const rows: ReportRow[] = [
+      { id: "a", margin: 50, profit: 50, sold: 100 },
+      { id: "b", margin: 10, profit: 100, sold: 1000 },
+    ];
+    expect(ratioOf(rows, { num: "profit", den: "sold" })).toBe(13.6);
+    expect(ratioOf([], { num: "profit", den: "sold" })).toBeNull();
+    const columns: ReportColumn[] = [{ key: "margin", label: "Margin", kind: "number", ratio: { num: "profit", den: "sold" } }];
+    expect(totalsFor(rows, columns, { ...defaultView({ columns, defaults: {} }), totals: { margin: "avg" } })).toEqual({
+      margin: 13.6,
+    });
   });
 });

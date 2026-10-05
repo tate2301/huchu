@@ -10,7 +10,7 @@ import type {
   ResolvedListQuery,
 } from "@/lib/reports/types";
 import { filterRows } from "@/lib/reports/view";
-import { formatCount, formatMoney, formatSigned } from "@/lib/workspace/format";
+import { formatCount, formatMoney, formatPercent, formatSigned } from "@/lib/workspace/format";
 
 /**
  * The ListFrame's arithmetic (00-foundations 5.4), kept out of the components
@@ -125,6 +125,7 @@ export function cellText(column: ListColumn, row: ReportRow): string {
     case "diff":
       return formatSigned(Number(value), currency);
     case "num": {
+      if (column.percent) return formatPercent(Number(value));
       const unit = column.unitKey ? row[column.unitKey] : null;
       return isBlank(unit) ? formatCount(Number(value)) : `${formatCount(Number(value))} ${String(unit)}`;
     }
@@ -138,7 +139,7 @@ export function totalText(column: ListColumn, value: ReportValue | undefined): s
   if (isBlank(value)) return "";
   const currency = column.currency ?? "USD";
   if (column.cell === "diff") return formatSigned(Number(value), currency);
-  if (column.cell === "num") return formatCount(Number(value));
+  if (column.cell === "num") return column.percent ? formatPercent(Number(value)) : formatCount(Number(value));
   if (isFigure(column)) return formatMoney(Number(value), currency);
   return String(value);
 }

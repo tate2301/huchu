@@ -151,6 +151,36 @@ function shopProfileWords(payload: Payload): ActivityWords {
   return { what: "Changed the shop's features", tone: "info" };
 }
 
+/** "Changed VAT to Zero-rated for 6 products", "Changed Target margin from 22% to 25%". */
+function categoryChangedWords(payload: Payload): ActivityWords {
+  const changes = Array.isArray(payload.changes) ? (payload.changes as Payload[]) : [];
+  const products = amount(payload.products) ?? 0;
+  const vat = changes.find((change) => change.field === "vat");
+  if (vat && changes.length === 1) {
+    const count = products > 0 ? ` for ${formatCount(products)} ${products === 1 ? "product" : "products"}` : "";
+    return { what: `Changed VAT to ${text(vat.to) ?? "nothing"}${count}`, tone: "info" };
+  }
+  if (changes.length === 1) {
+    const only = changes[0]!;
+    const label = text(only.label) ?? text(only.field) ?? "a value";
+    const from = text(only.from);
+    const to = text(only.to) ?? "nothing";
+    return { what: from === null ? `Set ${label} to ${to}` : `Changed ${label} from ${from} to ${to}`, tone: "info" };
+  }
+  const labels = changes.map((change) => text(change.label) ?? text(change.field)).filter(Boolean);
+  return { what: labels.length ? `Changed ${labels.join(", ")}` : "Changed it", tone: "info" };
+}
+
+/** "Deleted it and moved 61 products to Spirits and liqueurs". */
+function categoryDeletedWords(payload: Payload): ActivityWords {
+  const moved = amount(payload.moved) ?? 0;
+  const into = text(payload.into);
+  if (moved > 0 && into) {
+    return { what: `Deleted it and moved ${formatCount(moved)} ${moved === 1 ? "product" : "products"} to ${into}`, tone: "bad" };
+  }
+  return { what: "Deleted it", tone: "bad" };
+}
+
 /** The table. Keyed by event type; area specs add theirs here. */
 const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWords> = {
   [RETAIL_AUDIT_EVENTS.recordEdited]: recordEditedWords,
@@ -172,6 +202,9 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
   [RETAIL_AUDIT_EVENTS.shopProfileChanged]: shopProfileWords,
   [RETAIL_AUDIT_EVENTS.productArchived]: () => ({ what: "Stopped selling it", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.productUnarchived]: () => ({ what: "Put it on sale again", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.categoryCreated]: () => ({ what: "Added it", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.categoryChanged]: categoryChangedWords,
+  [RETAIL_AUDIT_EVENTS.categoryDeleted]: categoryDeletedWords,
 };
 
 /** "RETAIL_EXPORT.DOWNLOADED" → "Downloaded"; "STOCK.COUNT_POSTED" → "Count posted". */

@@ -5,6 +5,7 @@ import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
 import { auditRecordBin, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
+import { categoryBinRefusal } from "@/lib/retail/categories";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { archiveShelfListing, restoreShelfListing } from "@/lib/retail/shelf-listing";
 
@@ -85,8 +86,11 @@ const KINDS: Record<BinKind, BinKindSpec> = {
     deleteRight: ["retail.categories", "delete"],
     find: (tx, companyId, id) =>
       tx.retailCategory.findFirst({ where: { id, companyId }, select: { name: true, archivedAt: true } }),
-    // Products filed under it keep it, so no sale or report changes.
-    move: async (tx, _companyId, id, at) => {
+    // Only an empty one goes straight in: one with products is deleted from
+    // Products › Categories, which moves them first (PRD-02). Back empty.
+    move: async (tx, companyId, id, at) => {
+      const refusal = await categoryBinRefusal(tx, companyId, id);
+      if (refusal) return refusal;
       await tx.retailCategory.update({ where: { id }, data: { archivedAt: at } });
       return null;
     },
@@ -253,7 +257,7 @@ export async function listBin(companyId: string): Promise<BinEntry[]> {
     }),
     prisma.retailCategory.findMany({
       where: { companyId, archivedAt: { not: null } },
-      select: { id: true, name: true, archivedAt: true, _count: { select: { products: true } } },
+      select: { id: true, name: true, archivedAt: true },
     }),
   ]);
 
@@ -276,7 +280,8 @@ export async function listBin(companyId: string): Promise<BinEntry[]> {
       kind: "category" as const,
       id: row.id,
       name: row.name,
-      detail: `${row._count.products} ${row._count.products === 1 ? "product" : "products"} filed under it`,
+      // Its products went to another category when it was deleted.
+      detail: "Comes back with no products",
       removedAt: row.archivedAt!.toISOString(),
     })),
   ];

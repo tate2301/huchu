@@ -4520,14 +4520,23 @@ model RetailCategory {
   targetMarginPercent Decimal?  @db.Decimal(5, 2)
   sortOrder           Int       @default(0)
   archivedAt          DateTime?
+  /// "Inside": one level only. Null for a top-level category.
+  parentId            String?
+  /// VAT "Exempt" as opposed to "Zero-rated". Both have vatRate 0; the fiscal device needs the difference.
+  vatExempt           Boolean   @default(false)
+  /// The shop type whose seed made it ("Shop type" filter). Null when added by hand.
+  seededFor           RetailBusinessType?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   products Product[]
+  parent   RetailCategory?  @relation("RetailCategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children RetailCategory[] @relation("RetailCategoryParent")
 
   @@unique([companyId, name])
   @@index([companyId, archivedAt, sortOrder])
+  @@index([parentId])
 }
 
 model RetailRegister {

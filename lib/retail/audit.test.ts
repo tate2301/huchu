@@ -430,6 +430,9 @@ describe("the chain", () => {
       settingsChanged: "RETAIL_SETTINGS.CHANGED",
       productArchived: "RETAIL_PRODUCT.ARCHIVED",
       productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
+      categoryCreated: "RETAIL_CATEGORY.CREATED",
+      categoryChanged: "RETAIL_CATEGORY.CHANGED",
+      categoryDeleted: "RETAIL_CATEGORY.DELETED",
     });
   });
 });

@@ -7,7 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FormField } from "@/components/management/ui";
 import { CatalogImageField } from "@/components/retail/catalog-image-field";
-import { CategoryField } from "@/components/retail/category-field";
+import { LookupField } from "@/components/sheet-form/lookup-field";
 import { useShopFeatures } from "@/components/retail/use-shop-features";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import type { CategoryView } from "@/lib/retail/categories";
 
 /** A product as the products and prices screens read it. */
 export type RetailProduct = {
@@ -61,7 +62,7 @@ export function useInvalidateProducts() {
       ["retail-pricing-catalog"],
       ["retail-dashboard"],
       ["retail-pos-catalog"],
-      ["retail-categories"],
+      ["list", "retail-categories"],
     ]) {
       void queryClient.invalidateQueries({ queryKey: key });
     }
@@ -71,6 +72,7 @@ export function useInvalidateProducts() {
 type ProductForm = {
   name: string;
   categoryId: string | null;
+  categoryLabel: string;
   price: string;
   was: string;
   vat: string;
@@ -93,6 +95,7 @@ function formFor(product: RetailProduct | null, defaultVat: number): ProductForm
   return {
     name: product?.name ?? "",
     categoryId: product?.categoryId ?? null,
+    categoryLabel: product?.category ?? "",
     price: product ? String(product.unitPrice) : "",
     was: product?.compareAtPrice ? String(product.compareAtPrice) : "",
     vat: String(product?.taxPercent ?? defaultVat),
@@ -329,20 +332,33 @@ export function ProductDialog({
       </FormField>
 
       <FormField label="Category">
-        <CategoryField
-          value={form.categoryId}
-          onChange={(category) => {
-            setForm((current) => ({
-              ...current,
-              categoryId: category?.id ?? null,
+        {(id) => (
+          <LookupField
+            id={id}
+            label="Category"
+            noun="category"
+            placeholder="Choose a category"
+            value={form.categoryId ? { id: form.categoryId, label: form.categoryLabel } : null}
+            onValueChange={(picked) => {
+              setForm((current) => ({ ...current, categoryId: picked?.id ?? null, categoryLabel: picked?.label ?? "" }));
+              if (!picked) return;
               // A category brings its VAT, and a returnable category its deposit.
-              ...(category ? { vat: String(Number(category.vatRate)) } : {}),
-              ...(category?.returnable
-                ? { returnable: true, deposit: category.depositAmount ?? current.deposit }
-                : {}),
-            }));
-          }}
-        />
+              void fetchJson<{ data: CategoryView }>(`/api/v2/retail/categories/${picked.id}`).then(
+                ({ data }) =>
+                  setForm((current) =>
+                    current.categoryId === data.id
+                      ? {
+                          ...current,
+                          vat: data.vat === "STANDARD" ? "15" : "0",
+                          ...(data.returnable ? { returnable: true } : {}),
+                        }
+                      : current,
+                  ),
+                () => undefined,
+              );
+            }}
+          />
+        )}
       </FormField>
 
       <div className={FIELD_ROW}>

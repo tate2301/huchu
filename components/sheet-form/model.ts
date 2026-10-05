@@ -39,9 +39,27 @@ export function initialValues(kind: SheetKind, ctx: SheetCtx): SheetValues {
   return values;
 }
 
-/** Sections whose `when` holds. */
-export function shownSections(kind: SheetKind, values: SheetValues): SheetSection[] {
-  return kind.sections.filter((section) => !section.when || values[section.when[0]] === section.when[1]);
+/** A title or sub: fixed, or worked out from the context and what was loaded. */
+export function sheetText(
+  value: string | ((ctx: SheetCtx, values: SheetValues) => string),
+  ctx: SheetCtx,
+  values: SheetValues,
+): string {
+  return typeof value === "function" ? value(ctx, values) : value;
+}
+
+/** Sections whose `when` and `show` hold. */
+export function shownSections(kind: SheetKind, values: SheetValues, ctx?: SheetCtx): SheetSection[] {
+  return kind.sections.filter(
+    (section) =>
+      (!section.when || values[section.when[0]] === section.when[1]) &&
+      (!section.show || (ctx !== undefined && section.show(values, ctx))),
+  );
+}
+
+/** The fields of a section that are drawn now. */
+export function shownFields(section: SheetSection, values: SheetValues, ctx: SheetCtx): FieldSpec[] {
+  return section.fields.filter((field) => !field.show || field.show(values, ctx));
 }
 
 export function isEmptyValue(field: FieldSpec, value: unknown): boolean {
@@ -64,8 +82,9 @@ export function neededMessage(label: string): string {
  */
 export function checkValues(kind: SheetKind, values: SheetValues, ctx: SheetCtx): Record<string, string> {
   const errors: Record<string, string> = {};
-  for (const section of shownSections(kind, values)) {
-    for (const field of section.fields) {
+  for (const section of shownSections(kind, values, ctx)) {
+    if (section.forDanger) continue;
+    for (const field of shownFields(section, values, ctx)) {
       if (field.t === "read" || field.fixed?.(ctx)) continue;
       const value = values[field.id];
       if (isEmptyValue(field, value)) {
@@ -90,9 +109,10 @@ export function isDirty(initial: SheetValues, values: SheetValues): boolean {
 }
 
 /** The ask before closing with unsaved input (**Defined here** in 5.7.1). */
-export function discardAsk(title: string): Ask {
+export function discardAsk(title: string, { record = false }: { record?: boolean } = {}): Ask {
   return {
-    title: `Discard this ${title.charAt(0).toLowerCase()}${title.slice(1)}?`,
+    // A sheet titled by its record ("Spirits") names it as it is.
+    title: record ? `Discard changes to ${title}?` : `Discard this ${title.charAt(0).toLowerCase()}${title.slice(1)}?`,
     body: "What you typed is not saved.",
     keep: "Keep editing",
     go: "Discard",
@@ -117,7 +137,8 @@ export function submitFailure(status: number, payload: unknown, fieldIds: readon
     fieldErrors?: Record<string, unknown>;
   };
   const message = typeof body.error === "string" && body.error.trim() ? body.error : null;
-  if (status === 400 && body.fieldErrors && typeof body.fieldErrors === "object") {
+  // 400 for a wrong value, 409 for one already taken ("There is already a category called Mixers.").
+  if ((status === 400 || status === 409) && body.fieldErrors && typeof body.fieldErrors === "object") {
     const fieldErrors: Record<string, string> = {};
     const stray: string[] = [];
     for (const [key, value] of Object.entries(body.fieldErrors)) {
@@ -133,8 +154,8 @@ export function submitFailure(status: number, payload: unknown, fieldIds: readon
 }
 
 /** "SH-00243 open on the back till for Kuda Banda." */
-export function doneSentence(kind: SheetKind, result: unknown): string {
-  return typeof kind.done === "function" ? kind.done(result) : kind.done;
+export function doneSentence(kind: SheetKind, result: unknown, values: SheetValues = {}): string {
+  return typeof kind.done === "function" ? kind.done(result, values) : kind.done;
 }
 
 /** A money string as an amount ("1,284.6" → 1284.6), or 0. */

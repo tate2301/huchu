@@ -66,8 +66,14 @@ export function ListCell({
       return <span className="cx-lf-muted">{text}</span>;
     case "mono":
       return <span className="cx-lf-monocell">{text}</span>;
-    case "num":
-      return <span className="cx-lf-numcell">{text}</span>;
+    case "num": {
+      const pill = column.pillKey ? row[column.pillKey] : null;
+      return pill ? (
+        <span className={`cx-lf-pill cx-lf-pill--${String(pill)}`}>{text}</span>
+      ) : (
+        <span className="cx-lf-numcell">{text}</span>
+      );
+    }
     case "money":
       return <span className="cx-lf-moneycell">{text}</span>;
     case "zero":

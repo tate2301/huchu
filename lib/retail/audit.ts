@@ -111,6 +111,15 @@ export const RETAIL_AUDIT_EVENTS = {
   productArchived: "RETAIL_PRODUCT.ARCHIVED",
   /** A product put back on sale. Carries its name. */
   productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
+  /** A category added (W-19). Carries its name, VAT and target margin. */
+  categoryCreated: "RETAIL_CATEGORY.CREATED",
+  /**
+   * A category changed, alone or in a bulk change. Carries each change and
+   * how many products took a new VAT with it.
+   */
+  categoryChanged: "RETAIL_CATEGORY.CHANGED",
+  /** A category deleted: its products moved first. Carries how many and where to. */
+  categoryDeleted: "RETAIL_CATEGORY.DELETED",
 } as const;
 
 export type RetailAuditEvent =

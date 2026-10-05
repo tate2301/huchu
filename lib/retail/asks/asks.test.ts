@@ -96,3 +96,28 @@ describe("Products' asks (20-products 5.28)", () => {
     expect(LIST_ACTION_RUNS.unarchive!.done(3, [])).toBe("3 products are on sale again.");
   });
 });
+
+describe("the category asks (20-products 5.28)", () => {
+  it("categorydelete names the move, or only the bin when nothing is in it", async () => {
+    const { categoryDeleteAsk } = await import("./index");
+    expect(categoryDeleteAsk({ name: "Spirits", products: 61, into: "Spirits and liqueurs" })).toEqual({
+      title: "Delete Spirits?",
+      body: "Its 61 products move to Spirits and liqueurs first, with that category's VAT and age check. Spirits stays in the bin for 30 days.",
+      keep: "Keep it",
+      go: "Delete category",
+      fill: "bad",
+    });
+    expect(categoryDeleteAsk({ name: "Mixers", products: 0, into: null }).body).toBe("Mixers stays in the bin for 30 days.");
+  });
+
+  it("categorymerge", async () => {
+    const { categoryMergeAsk } = await import("./index");
+    expect(categoryMergeAsk({ count: 2, into: "Beer", products: 9 })).toEqual({
+      title: "Merge 2 categories into Beer?",
+      body: "Their 9 products move into Beer and take its VAT and age check. The others go to the bin for 30 days.",
+      keep: "Keep them apart",
+      go: "Merge",
+      fill: "action",
+    });
+  });
+});

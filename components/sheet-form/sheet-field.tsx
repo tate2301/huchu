@@ -57,15 +57,34 @@ export type SheetFieldProps = {
   error?: string | null;
   onChange: (value: unknown) => void;
   onListOpen?: (open: boolean) => void;
+  /** The sheet is open to read only: values are shown as they stand. */
+  readOnly?: boolean;
 };
 
-export function SheetField({ field, controlId, ctx, values, currency, error, onChange, onListOpen }: SheetFieldProps) {
+/** A value as words, for a sheet opened to read only. */
+function shownValue(value: unknown): string {
+  if (value && typeof value === "object" && "label" in value) return String((value as PickedOption).label);
+  if (typeof value === "string" && value.trim()) return value;
+  return "—";
+}
+
+export function SheetField({
+  field,
+  controlId,
+  ctx,
+  values,
+  currency,
+  error,
+  onChange,
+  onListOpen,
+  readOnly = false,
+}: SheetFieldProps) {
   const value = values[field.id];
   const hint = typeof field.h === "function" ? field.h(values) : field.h;
   const fixed = field.fixed?.(ctx) ?? null;
-  const t = fixed ? "read" : field.t;
+  const t = fixed || (readOnly && field.t !== "toggle") ? "read" : field.t;
   const nolabel = field.nolabel || t === "toggle" || t === "lines";
-  const disabled = field.disabled?.(values) ?? false;
+  const disabled = readOnly || (field.disabled?.(values) ?? false);
 
   if (t === "toggle") {
     return (
@@ -97,7 +116,7 @@ export function SheetField({ field, controlId, ctx, values, currency, error, onC
       {(control) => {
         switch (t) {
           case "read": {
-            const shown = fixed ? fixed.shown : typeof value === "string" ? value : String(value ?? "");
+            const shown = fixed ? fixed.shown : readOnly ? shownValue(value) : typeof value === "string" ? value : String(value ?? "");
             return (
               <ReadValue id={control.id} mono={field.mono} right={field.right} tone={field.tone}>
                 {shown}
@@ -129,7 +148,8 @@ export function SheetField({ field, controlId, ctx, values, currency, error, onC
                 {...control}
                 label={field.l}
                 noun={field.noun ?? field.id}
-                context={field.context}
+                context={typeof field.context === "function" ? field.context(ctx) : field.context}
+                disabled={disabled}
                 placeholder={field.p}
                 value={(value as PickedOption | null) ?? null}
                 onValueChange={onChange}

@@ -66,8 +66,8 @@ export type FieldSpec = {
   rows?: number;
   /** `auto` and `lines`: the lookup noun (`GET /api/v2/retail/lookup/<noun>`). */
   noun?: string;
-  /** `auto`: narrows the lookup (`?context=`), e.g. `{ can: "sell" }`. */
-  context?: Record<string, unknown>;
+  /** `auto`: narrows the lookup (`?context=`), e.g. `{ can: "sell" }`, or from the sheet's address. */
+  context?: Record<string, unknown> | ((ctx: SheetCtx) => Record<string, unknown>);
   /** `lines`: the quantity and cost column labels. */
   ql?: string;
   cl?: string;
@@ -84,6 +84,8 @@ export type FieldSpec = {
   schema?: ZodType;
   /** Drawn but not changeable while this holds (hours while licence hours are off). */
   disabled?: (values: SheetValues) => boolean;
+  /** Drawn only while this holds; a field not drawn is neither checked nor needed. */
+  show?: (values: SheetValues, ctx: SheetCtx) => boolean;
 };
 
 export type SheetSection = {
@@ -92,28 +94,47 @@ export type SheetSection = {
   fold?: [label: string, hint: string];
   /** Shown only while that field has that value. */
   when?: [field: string, value: string];
+  /** Shown only while this holds (a section for some roles, or once something is loaded). */
+  show?: (values: SheetValues, ctx: SheetCtx) => boolean;
+  /** Read by the danger action only: the primary neither checks nor needs its fields. */
+  forDanger?: boolean;
   fields: FieldSpec[];
 };
 
 export type SheetRequest = { method: "POST" | "PATCH" | "PUT" | "DELETE"; url: string; body?: unknown };
 
+/**
+ * Values whose keys start with `_` are what `load` brought that no field
+ * holds (a record's name for the title, its product count for the note).
+ */
 export type SheetKind = {
-  title: string | ((ctx: SheetCtx) => string);
-  sub: string | ((ctx: SheetCtx) => string);
+  title: string | ((ctx: SheetCtx, values: SheetValues) => string);
+  sub: string | ((ctx: SheetCtx, values: SheetValues) => string);
   wide?: boolean;
   steps?: string[];
   at?: number;
   guide?: string;
   sections: SheetSection[];
   cur: SheetCurrency;
-  note: string;
-  done: string | ((result: unknown) => string);
+  note: string | ((values: SheetValues) => string);
+  done: string | ((result: unknown, values: SheetValues) => string);
   /** Where the toast's "Open" goes for a created record. */
   open?: (result: unknown) => string | null;
   primary: string;
   /** "Cancel" unless the kind says otherwise ("Add, then another" keeps the sheet open). */
   secondary?: string;
-  danger?: { label: string; ask: (ctx: SheetCtx) => Ask; request: (ctx: SheetCtx) => SheetRequest; done: string };
+  danger?: {
+    label: string;
+    /** Offered only while this holds (the owner's "Delete category"). */
+    show?: (ctx: SheetCtx, values: SheetValues) => boolean;
+    ask: (ctx: SheetCtx, values: SheetValues) => Ask;
+    request: (ctx: SheetCtx, values: SheetValues) => SheetRequest;
+    done: string | ((values: SheetValues, result: unknown) => string);
+  };
+  /** Asked before the primary sends (Merge). */
+  confirm?: (values: SheetValues, ctx: SheetCtx) => Ask;
+  /** Opened to read only: every field drawn as it stands, and only "Close" (a bookkeeper on a category). */
+  readOnly?: (ctx: SheetCtx) => boolean;
   /** Edit kinds: the current values. */
   load?: (ctx: SheetCtx) => Promise<SheetValues>;
   submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest;

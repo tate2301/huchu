@@ -46,7 +46,7 @@ import { Prisma, WorkspaceProfile, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
-import { ensureRetailCategories } from "@/lib/retail/categories"
+import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 import { tradingDayKey } from "@/lib/retail/z-report"
@@ -448,6 +448,7 @@ async function main() {
     create: { companyId, ...liquorStore },
   })
   await ensureRetailCategories(prisma, companyId, "LIQUOR")
+  await seedCategories(companyId, reset)
   await seedShopSettingsSave(companyId)
   const categoryIds = new Map(
     (await prisma.retailCategory.findMany({ where: { companyId }, select: { id: true, name: true } })).map(
@@ -1314,6 +1315,46 @@ async function seedRecordActivity(input: {
  * the owner's save of the licence that day, written once. A later save on the
  * page (an acceptance walk) is newer and is what the bar then names.
  */
+/**
+ * PRD-02: the liquor set as the Categories board shows it — VAT 15% included,
+ * the 18+ check on the four alcohol categories, the board's target margins,
+ * top level, stamped as the liquor store's seed and out of the bin. With
+ * --reset a category a test run added goes: deleted when nothing is filed
+ * under it, else to the bin (the catalogue below files every line again).
+ */
+async function seedCategories(companyId: string, reset: boolean) {
+  const seeds = CATEGORY_SEEDS.LIQUOR
+  for (const seed of seeds) {
+    await prisma.retailCategory.update({
+      where: { companyId_name: { companyId, name: seed.name } },
+      data: {
+        vatRate: money(seed.vatRate),
+        vatExempt: false,
+        ageRestricted: seed.ageRestricted ?? false,
+        returnable: false,
+        depositAmount: null,
+        targetMarginPercent: seed.targetMarginPercent === undefined ? null : money(seed.targetMarginPercent),
+        seededFor: "LIQUOR",
+        parentId: null,
+        archivedAt: null,
+      },
+    })
+  }
+  if (!reset) return
+  const names = seeds.map((seed) => seed.name)
+  const others = await prisma.retailCategory.findMany({
+    where: { companyId, name: { notIn: names } },
+    select: { id: true, _count: { select: { products: true } } },
+  })
+  await prisma.retailCategory.updateMany({ where: { companyId, name: { notIn: names } }, data: { parentId: null } })
+  const empty = others.filter((row) => row._count.products === 0).map((row) => row.id)
+  const filed = others.filter((row) => row._count.products > 0).map((row) => row.id)
+  if (empty.length) await prisma.retailCategory.deleteMany({ where: { id: { in: empty } } })
+  if (filed.length) {
+    await prisma.retailCategory.updateMany({ where: { id: { in: filed }, archivedAt: null }, data: { archivedAt: new Date() } })
+  }
+}
+
 async function seedShopSettingsSave(companyId: string) {
   const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
   if (!owner) return

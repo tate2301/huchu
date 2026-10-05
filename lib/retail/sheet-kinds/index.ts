@@ -1,6 +1,7 @@
 import type { SheetKind } from "@/lib/workspace/sheet-kind";
 
 import { FLOOR_SHEETS } from "./floor";
+import { PRODUCT_SHEETS } from "./products";
 
 /**
  * Every sheet kind, by the `?sheet=` key that opens it (00-foundations 5.7.6).
@@ -8,4 +9,5 @@ import { FLOOR_SHEETS } from "./floor";
  */
 export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...FLOOR_SHEETS,
+  ...PRODUCT_SHEETS,
 };

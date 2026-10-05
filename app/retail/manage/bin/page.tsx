@@ -47,7 +47,7 @@ export default function RetailBinPage() {
     onSuccess: async (_result, entry) => {
       toast({ title: `${entry.name} restored`, description: RESTORED[entry.kind], variant: "success" });
       await Promise.all(
-        [BIN_KEY, ["retail-catalog"], ["retail-categories"], ["retail-promotions"]].map((queryKey) =>
+        [BIN_KEY, ["retail-catalog"], ["list", "retail-categories"], ["lookup", "category"], ["retail-promotions"]].map((queryKey) =>
           queryClient.invalidateQueries({ queryKey }),
         ),
       );

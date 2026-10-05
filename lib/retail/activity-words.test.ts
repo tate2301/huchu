@@ -32,6 +32,27 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     });
   });
 
+  it("categories: added, changed and deleted with the move (W-19)", () => {
+    expect(activityWords("RETAIL_CATEGORY.CREATED", { name: "Mixers" })).toEqual({ what: "Added it", tone: "ok" });
+    expect(
+      activityWords("RETAIL_CATEGORY.CHANGED", {
+        changes: [{ field: "vat", label: "VAT", from: "15% included", to: "Zero-rated" }],
+        products: 6,
+      }),
+    ).toEqual({ what: "Changed VAT to Zero-rated for 6 products", tone: "info" });
+    expect(
+      activityWords("RETAIL_CATEGORY.CHANGED", {
+        changes: [{ field: "targetMargin", label: "Target margin", from: "25%", to: "22%" }],
+        products: 0,
+      }),
+    ).toEqual({ what: "Changed Target margin from 25% to 22%", tone: "info" });
+    expect(activityWords("RETAIL_CATEGORY.DELETED", { moved: 61, into: "Spirits and liqueurs" })).toEqual({
+      what: "Deleted it and moved 61 products to Spirits and liqueurs",
+      tone: "bad",
+    });
+    expect(activityWords("RETAIL_CATEGORY.DELETED", { moved: 0, into: null })).toEqual({ what: "Deleted it", tone: "bad" });
+  });
+
   it("settings name every label changed", () => {
     expect(
       activityWords("RETAIL_SETTINGS.CHANGED", { changes: [{ label: "Cases and singles" }, { label: "Weekday hours" }] }),

@@ -95,6 +95,13 @@ describe("cells (5.4.7)", () => {
     expect(cellText(column("variance"), row({ variance: null }))).toBe("—");
   });
 
+  it("prints a percentage column as a percentage, one place (22.4%)", () => {
+    const margin = { ...column("sales"), key: "marginNow", percent: true };
+    expect(cellText(margin, row({ marginNow: 22.4 }))).toBe("22.4%");
+    expect(cellText(margin, row({ marginNow: 29 }))).toBe("29.0%");
+    expect(totalText(margin, 24.6)).toBe("24.6%");
+  });
+
   it("prints a count with its unit word when the column names one (13 bottles)", () => {
     const onHand = { ...column("sales"), key: "onHand", unitKey: "unitWord" };
     expect(cellText(onHand, row({ onHand: 13, unitWord: "bottles" }))).toBe("13 bottles");
