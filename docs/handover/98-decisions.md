@@ -127,3 +127,15 @@ These override 00-foundations §5.3 and every spec that disagrees.
 6. **Two owner calls on the shell:**
    - **The logo-tile account popover stays as it is.** The owner likes it. It holds identity, Search, Notifications, This device, Profile, Appearance, Guided tips, Help, the workspace switch and Sign out.
    - **The top app bar comes back** with everything it had: sidebar trigger, page title, search ⌘K, device status, notifications bell and the primary action. The page header's back link, title and subtitle sit inside that bar.
+7. **"What it says" becomes the headline summary.**
+   - **Where:** every page that has a "What it says" panel or aside: the Insights pages, the dashboards, and any record or list that draws one.
+   - **What replaces it:** the owner's reference (a Boarders page) puts the summary at the top of the content, under the tabs and filters and above the table or charts. It is two sentences in a large type:
+     - the first states the fact in ink, for example "86 boarders in six dorms.";
+     - the second says what to notice in muted ink, for example "7 are not in the house tonight.".
+   - **The words come from the page's real data**, computed on the server. For example: "US$18,940 taken this month across two shops." / "Sales are 12% down on last month, mostly at Borrowdale."
+   - **When there is too little data to say anything**, the headline still reads as a sentence about the data, never as a separate box, for example:
+     - "No sales yet this week."
+     - "Too few sales in these dates to compare. Widen the period."
+
+     "Not enough trade in this period to say" is no longer drawn as a panel.
+   - **Removed:** the separate "What it says" panel or aside.
