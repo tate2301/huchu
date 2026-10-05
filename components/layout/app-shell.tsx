@@ -9,7 +9,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { PageChromeProvider } from "@/components/layout/page-chrome";
 import { PageHeader } from "@/components/layout/page-header";
 import { RoleRefusal } from "@/components/layout/role-refusal";
-import { ShellNavProvider, useShellNav, type WorkspaceBrand } from "@/components/layout/shell-nav";
+import { ShellNavProvider, useShellNav, type ShopConditions, type WorkspaceBrand } from "@/components/layout/shell-nav";
 import { ShellProvider, useShell } from "@/components/layout/shell-state";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@/lib/public-routes";
@@ -30,12 +30,15 @@ export function AppShell({
   hostPortalPath,
   workspaceBrand,
   defaultPanelOpen = true,
+  shopConditions = null,
 }: {
   children: React.ReactNode;
   hostPortalPath?: string | null;
   workspaceBrand?: WorkspaceBrand | null;
   /** The `sidebar:state` cookie, read by the root layout. */
   defaultPanelOpen?: boolean;
+  /** The shop facts retail nav items wait on, worked out by the root layout. */
+  shopConditions?: ShopConditions | null;
 }) {
   const pathname = usePathname();
   const isAuthRoute = pathname === "/login";
@@ -72,7 +75,7 @@ export function AppShell({
 
   return (
     <ShellProvider defaultPanelOpen={defaultPanelOpen}>
-      <ShellNavProvider brand={workspaceBrand}>
+      <ShellNavProvider brand={workspaceBrand} shopConditions={shopConditions}>
         <PageChromeProvider>
           <ShellFrame>{children}</ShellFrame>
         </PageChromeProvider>

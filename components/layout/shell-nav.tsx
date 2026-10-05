@@ -36,6 +36,9 @@ export type WorkspaceBrand = {
   legalName: string | null;
 };
 
+/** The shop facts retail nav items wait on (`RetailNavItem.when`). */
+export type ShopConditions = Partial<Record<RetailNavCondition, boolean>>;
+
 export const NAV_BADGES_KEY = ["nav-badges"] as const;
 
 const NO_BADGES: Record<string, string> = {};
@@ -83,8 +86,6 @@ type ShellNav = {
   /** Where this person's workspace starts, for the refusal's way out. */
   homeHref: string;
   badges: Record<string, string>;
-  /** The shop facts items wait on (`RetailNavItem.when`); null until known. */
-  conditions: Partial<Record<RetailNavCondition, boolean>> | null;
   companyName: string;
   initials: string;
   logoUrl: string | null;
@@ -101,9 +102,12 @@ const ShellNavContext = React.createContext<ShellNav | null>(null);
  */
 export function ShellNavProvider({
   brand,
+  shopConditions = null,
   children,
 }: {
   brand?: WorkspaceBrand | null;
+  /** The shop facts as the server found them, so its HTML and the first client render agree. */
+  shopConditions?: ShopConditions | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -147,14 +151,17 @@ export function ShellNavProvider({
   const badgesQuery = useQuery({
     queryKey: NAV_BADGES_KEY,
     queryFn: () =>
-      fetchJson<{ badges: Record<string, string>; conditions?: Partial<Record<RetailNavCondition, boolean>> }>(
-        "/api/v2/retail/nav/badges",
-      ),
+      fetchJson<{ badges: Record<string, string>; conditions?: ShopConditions }>("/api/v2/retail/nav/badges"),
     enabled: hasRetail,
     staleTime: 60_000,
     refetchOnWindowFocus: true,
   });
-  const conditions = badgesQuery.data?.conditions ?? null;
+
+  // The query cache outlives the page (it is persisted for offline use), so
+  // what it holds is read after hydration rather than diverging from the
+  // server's HTML: until then the panel draws the facts the server found.
+  const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const conditions = (mounted ? badgesQuery.data?.conditions : undefined) ?? shopConditions;
 
   // An item whose shop condition does not hold is not drawn for anyone.
   const model = React.useMemo(() => {
@@ -214,11 +221,6 @@ export function ShellNavProvider({
     });
   }, [hasRetail, queryClient]);
 
-  // The query cache outlives the page (it is persisted for offline use), so
-  // the figures are drawn after hydration rather than diverging from the
-  // server's HTML.
-  const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
-
   const companyName = brand?.name ?? model.workspaceLabel;
   const value = React.useMemo<ShellNav>(
     () => ({
@@ -235,7 +237,6 @@ export function ShellNavProvider({
       refusalNoun,
       homeHref: model.homeHref,
       badges: (mounted && badgesQuery.data?.badges) || NO_BADGES,
-      conditions,
       companyName,
       initials: logoInitials(brand?.legalName, companyName),
       logoUrl: brand?.logoUrl ?? null,
@@ -249,7 +250,6 @@ export function ShellNavProvider({
       badgesQuery.data,
       brand,
       companyName,
-      conditions,
       currentArea,
       model,
       mounted,

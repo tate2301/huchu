@@ -10,7 +10,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { money, quantity } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { STOCK_TRANSFER_LOADERS } from "@/lib/reports/loaders/retail/stock-transfers";
+import { fetchListPage } from "@/lib/reports/request";
 import { LIST_ACTION_RUNS } from "@/lib/retail/asks";
 import { cancelTransferAsk, cancelTransfersAsk, cancelledToast } from "@/lib/retail/asks/stock";
 import { searchLookup } from "@/lib/retail/lookups";
@@ -168,6 +170,12 @@ describe("what a send is checked against", () => {
     expect(zero.fieldErrors).toEqual({ "lines.0": "Type how many to send." });
     expect(await onHand(jameson)).toBe(9);
   });
+
+  it("sends only whole bottles, cases and bags", async () => {
+    const half = await refusal(sendTransfer(actor(), input({ lines: [{ lineId: jameson, quantity: "0.5" }] })));
+    expect(half.fieldErrors).toEqual({ "lines.0": "Send whole ones." });
+    expect(await onHand(jameson)).toBe(9);
+  });
 });
 
 describe("sending", () => {
@@ -277,6 +285,19 @@ describe("the list", () => {
 
     const clerkRows = (await STOCK_TRANSFER_LOADERS["retail-stock-transfers"]!.load({ companyId, userId: clerkId, role: "STOCK_CLERK" }, {})).rows;
     expect(clerkRows.find((row) => row.transferNo === "TRF-0001")).toMatchObject({ value: null, figure: "14 units" });
+  });
+
+  it("is not there for a shop with one open site", async () => {
+    const session = { user: { id: managerId, companyId, role: "MANAGER" }, expires: "" } as AuthenticatedSession;
+    const query = { page: 1, size: 50, filters: {} };
+    const refusal = { status: 403, error: "Transfers need a second site." };
+    expect(await fetchListPage(session, "retail-stock-transfers", query)).not.toEqual(refusal);
+    await prisma.site.update({ where: { id: bdl }, data: { isActive: false } });
+    try {
+      expect(await fetchListPage(session, "retail-stock-transfers", query)).toEqual(refusal);
+    } finally {
+      await prisma.site.update({ where: { id: bdl }, data: { isActive: true } });
+    }
   });
 });
 

@@ -4,8 +4,8 @@ import type { ListGrant, ListSpec, ReportDefinition } from "@/lib/reports/types"
  * Transfers (30-stock 5.12, W-24): stock sent between the shop's sites, on the
  * way until the other site receives it. Opens on "On the way" (part received
  * included); "All" adds the cancelled. Value is at cost, so it is dropped for
- * roles that may not see cost. The page and its nav item exist only while the
- * shop has two open sites.
+ * roles that may not see cost. The list, its page and its nav item exist only
+ * while the shop has two open sites.
  */
 
 const VIEW: ListGrant[] = [["retail.transfers", "view"]];
@@ -17,6 +17,7 @@ const PRINT = { download: "/api/v2/retail/stock/transfers/print", open: true } a
 const transfers: ListSpec = {
   noun: "transfers",
   read: VIEW,
+  multiSiteOnly: { refusal: "Transfers need a second site." },
   search: { placeholder: "Transfer or product", keys: ["transferNo", "products"] },
   tabs: [
     { key: "on-the-way", label: "On the way", where: ON_THE_WAY },

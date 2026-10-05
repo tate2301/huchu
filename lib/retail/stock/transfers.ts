@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { auditAmount, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 
-import { onlyWords } from "./transfer-words";
+import { isCountedUnit, onlyWords } from "./transfer-words";
 
 /**
  * Moving stock between sites (30-stock W-24 steps 1–2, 4.5): send a transfer,
@@ -144,6 +144,10 @@ export async function sendTransfer(
         return;
       }
       const units = quantity(line.quantity);
+      if (isCountedUnit(item.unit) && !units.isInteger()) {
+        errors[key] = "Send whole ones.";
+        return;
+      }
       if (units.greaterThan(item.currentStock)) {
         errors[key] = onlyWords(item.currentStock.toNumber(), from?.name ?? "that site");
         return;

@@ -42,7 +42,7 @@
 import "dotenv/config"
 
 import { createHash, randomUUID } from "node:crypto"
-import { Prisma, WorkspaceProfile, type RetailTenderType } from "@prisma/client"
+import { Prisma, WorkspaceProfile, type NotificationType, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
@@ -1461,6 +1461,10 @@ async function seedTransfers(input: { companyId: string; mainSiteId: string; bor
     where: { sourceType: "RETAIL_STOCK_TRANSFER", reason: { in: ["TRANSFER_OUT", "TRANSFER_IN", "TRANSFER_BACK"] }, item: { site: { companyId } } },
   })
   await prisma.retailStockTransfer.deleteMany({ where: { companyId } })
+  // Their "sent" and "cancelled" notices would open transfers that are gone.
+  const notices = { companyId, type: { in: ["RETAIL_TRANSFER_SENT", "RETAIL_TRANSFER_CANCELLED"] as NotificationType[] } }
+  await prisma.notificationRecipient.deleteMany({ where: { notification: notices } })
+  await prisma.notification.deleteMany({ where: notices })
 
   const bdlFloor = await prisma.stockLocation.findUniqueOrThrow({ where: { siteId_code: { siteId: borrowdaleId, code: "SHOP" } } })
   const hreLines = await prisma.inventoryItem.findMany({

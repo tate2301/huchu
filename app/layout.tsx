@@ -22,6 +22,7 @@ import { getServerSession } from "next-auth";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
 import { PANEL_COOKIE } from "@/lib/rail/panel-cookie";
+import { navConditions } from "@/lib/retail/nav/conditions";
 import { isAdminPortalHost } from "@/lib/admin-portal";
 import {
   PLATFORM_APP_DESCRIPTION,
@@ -166,6 +167,10 @@ export default async function RootLayout({
     : null;
   // The module panel's open state, so the first paint draws it as it was left.
   const defaultPanelOpen = (await cookies()).get(PANEL_COOKIE)?.value !== "false";
+  // The shop facts retail nav items wait on, so the server's HTML draws the
+  // same panel the browser hydrates (the badges fetch keeps them current).
+  const companyId = session?.user?.companyId;
+  const shopConditions = product === "retail" && companyId ? await navConditions(companyId) : null;
   const hostContext = getPlatformHostContext(hostHeader);
 
   return (
@@ -201,6 +206,7 @@ export default async function RootLayout({
                 hostPortalPath={hostContext.portalPath}
                 workspaceBrand={workspaceBrand}
                 defaultPanelOpen={defaultPanelOpen}
+                shopConditions={shopConditions}
               >
                 {children}
               </AppShell>

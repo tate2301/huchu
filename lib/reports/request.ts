@@ -149,10 +149,11 @@ function needsSites(spec: ListSpec): boolean {
  * The source as this company has it: with one open site, no Site column or
  * filter (5.21 "a shop with one site never sees the word"), values and all.
  */
-async function forSites(spec: ListSpec, companyId: string): Promise<ListSpec> {
-  if (!needsSites(spec)) return spec;
+async function forSites(spec: ListSpec, companyId: string): Promise<ListSpec | ListRefusal> {
+  if (!needsSites(spec) && !spec.multiSiteOnly) return spec;
   const sites = await prisma.site.count({ where: { companyId, isActive: true } });
   if (sites >= 2) return spec;
+  if (spec.multiSiteOnly) return { status: 403, error: spec.multiSiteOnly.refusal };
   return {
     ...spec,
     columns: spec.columns.filter((column) => column.requires !== "multi-site"),
@@ -167,6 +168,7 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
   const { definition: declared, loader } = report;
   const reportCtx = contextFor(session);
   const spec = await forSites(declared.list!, reportCtx.companyId);
+  if (refused(spec)) return spec;
   const definition = spec === declared.list ? declared : { ...declared, columns: spec.columns, list: spec };
   // The list's own check first, so a role it refuses is told so in words
   // ("Your role cannot view shifts") rather than that the list does not exist.
@@ -193,7 +195,7 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
   };
 }
 
-function refused(opened: OpenList | ListRefusal): opened is ListRefusal {
+function refused<T extends object>(opened: T | ListRefusal): opened is ListRefusal {
   return "error" in opened;
 }
 

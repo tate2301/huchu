@@ -403,6 +403,11 @@ export type ListSpec = {
   sub?: string;
   /** Any of these grants reads the list. */
   read: ListGrant[];
+  /**
+   * The list exists only for a company with two or more open sites; with one,
+   * every read answers 403 with this sentence ("Transfers need a second site.").
+   */
+  multiSiteOnly?: { refusal: string };
   /** These roles see only the rows where `column` is their own user id; `filter` is hidden from them. */
   scopeOwn?: { roles: string[]; column: string; filter?: string };
   search: { placeholder: string; keys: string[] };

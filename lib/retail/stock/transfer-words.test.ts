@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDayTime, leftOutNote, onlyWords, sendNote, sentToast, stillToCome, transferState, unitsWords } from "./transfer-words";
+import {
+  atSiteWords,
+  formatDayTime,
+  isCountedUnit,
+  leftOutNote,
+  onlyWords,
+  sendNote,
+  sentToast,
+  stillToCome,
+  transferState,
+  unitsWords,
+} from "./transfer-words";
 
 const tally = (sent: number, received = 0, lost = 0) => ({ sent, received, lost });
 
@@ -39,5 +50,18 @@ describe("the sheet's and the toast's words", () => {
     expect(leftOutNote(1, "Borrowdale")).toBe("1 line was not at Borrowdale and was left out.");
     expect(unitsWords(540)).toBe("540 units");
     expect(unitsWords(1)).toBe("1 unit");
+  });
+
+  it("say what is on the shelf without rounding it", () => {
+    expect(atSiteWords(1204, "Borrowdale")).toBe("1,204 at Borrowdale");
+    expect(atSiteWords(3.5, "Harare Main Branch")).toBe("3.5 at Harare Main Branch");
+    expect(onlyWords(3.5, "Harare Main Branch")).toBe("Only 3.5 at Harare Main Branch.");
+  });
+});
+
+describe("what may be sent in parts", () => {
+  it("is only what is weighed or poured", () => {
+    for (const unit of ["bottle", "case", "bag", "each", "", null]) expect(isCountedUnit(unit)).toBe(true);
+    for (const unit of ["kg", "litre", "L", "ml"]) expect(isCountedUnit(unit)).toBe(false);
   });
 });

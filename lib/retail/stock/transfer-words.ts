@@ -72,14 +72,29 @@ export function leftOutNote(count: number, siteName: string): string {
     : `${formatCount(count)} lines were not at ${siteName} and were left out.`;
 }
 
+const ON_HAND = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+
+/** What is on the shelf, never rounded to a count it does not hold: "9", "3.5", "1,204". */
+function onHandFigure(onHand: number): string {
+  return onHand < 0 ? `−${ON_HAND.format(-onHand)}` : ON_HAND.format(onHand);
+}
+
 /** A line's sub in the sheet and the lookup: "9 at Harare Main Branch". */
 export function atSiteWords(onHand: number, siteName: string): string {
-  return `${formatCount(onHand)} at ${siteName}`;
+  return `${onHandFigure(onHand)} at ${siteName}`;
 }
 
 /** A line sent beyond what is on the shelf (W-24): "Only 9 at Harare Main Branch." */
 export function onlyWords(onHand: number, siteName: string): string {
-  return `Only ${formatCount(onHand)} at ${siteName}.`;
+  return `Only ${onHandFigure(onHand)} at ${siteName}.`;
+}
+
+/** Units weighed or poured rather than counted: these alone may be sent in parts. */
+const MEASURED_UNIT = /^(kg|kgs|kilogram|kilograms|g|gram|grams|l|litre|litres|liter|liters|ml|m|metre|metres|meter|meters)$/i;
+
+/** Whether a line's unit is counted (bottle, case, bag), so only whole ones can be sent. */
+export function isCountedUnit(unit: string | null | undefined): boolean {
+  return !MEASURED_UNIT.test((unit ?? "").trim());
 }
 
 /** The phone card's figure when cost is hidden: "540 units". */
