@@ -444,7 +444,7 @@ describe("workspace sidebar model", () => {
 
     it("puts the shop's settings under Setup, Posting for the owner only", () => {
       expect(itemsOf(retailModel("SUPERADMIN"), "retail-setup")).toEqual([
-        "/preferences/organization",
+        "/retail/manage/company",
         "/retail/manage/tills",
         "/retail/manage/till-rules",
         "/retail/manage/fiscal",

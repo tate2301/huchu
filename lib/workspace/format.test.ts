@@ -11,6 +11,7 @@ import {
   formatSigned,
   formatTime,
   formatWhen,
+  parseDay,
 } from "./format";
 
 describe("money", () => {
@@ -56,6 +57,16 @@ describe("dates, in the company's zone", () => {
     // 23:30 UTC on the 14th is already the 15th in Harare.
     expect(formatDay(new Date("2026-08-14T23:30:00Z"))).toBe("15 August 2026");
     expect(dayKey(new Date("2026-08-14T23:30:00Z"))).toBe("2026-08-15");
+  });
+
+  it("reads a typed day back, and refuses a day that does not exist", () => {
+    expect(parseDay("31 December 2026")).toBe("2026-12-31");
+    expect(parseDay(" 1 jan 2027 ")).toBe("2027-01-01");
+    expect(parseDay("2026-12-31")).toBe("2026-12-31");
+    expect(parseDay(formatDay("2026-02-28"))).toBe("2026-02-28");
+    expect(parseDay("31 February 2026")).toBeNull();
+    expect(parseDay("December 2026")).toBeNull();
+    expect(parseDay("31 Decembre 2026")).toBeNull();
   });
 
   it("prints a duration in hours and minutes", () => {

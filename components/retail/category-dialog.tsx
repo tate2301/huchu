@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FormField } from "@/components/management/ui";
 import { RETAIL_CATEGORIES_KEY } from "@/components/retail/category-field";
-import { useShopProfile } from "@/components/retail/shop-profile-fields";
+import { useShopFeatures } from "@/components/retail/use-shop-features";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -67,9 +67,9 @@ export function CategoryDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: session } = useSession();
-  const shop = useShopProfile();
-  const liquor = shop.data?.data.businessType === "LIQUOR";
-  const deposits = shop.data?.features.emptiesAndDeposits ?? false;
+  const shop = useShopFeatures();
+  const liquor = shop.liquor;
+  const deposits = shop.features.emptiesAndDeposits;
 
   // A different row opened the same dialog: start from its values.
   if (shownFor !== category) {

@@ -12,7 +12,7 @@ import {
   saveShopProfile,
   shopClock,
   shopFeatures,
-  type ShopProfileInput,
+  type ShopProfilePatch,
 } from "./shop-profile";
 
 const HOURS = {
@@ -119,7 +119,7 @@ describe("saving the profile", () => {
   let companyId: string;
   let userId: string;
 
-  const LIQUOR: ShopProfileInput = {
+  const LIQUOR: Required<ShopProfilePatch> = {
     businessType: "LIQUOR",
     ageCheck: true,
     licenceHours: true,
@@ -157,13 +157,14 @@ describe("saving the profile", () => {
   });
 
   const actor = () => ({ companyId, userId, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" });
+  const save = (patch: ShopProfilePatch) => prisma.$transaction((tx) => saveShopProfile(tx, actor(), patch));
 
   it("reads as the defaults before anyone has saved it", async () => {
     expect(await loadShopProfile(companyId)).toEqual(DEFAULT_SHOP_PROFILE);
   });
 
   it("saves the liquor store and seeds its categories", async () => {
-    const saved = await saveShopProfile(actor(), LIQUOR);
+    const saved = await save(LIQUOR);
     expect(saved).toMatchObject({ ...LIQUOR, saved: true });
 
     const names = (
@@ -178,7 +179,7 @@ describe("saving the profile", () => {
 
   it("adds the general set beside it when the type changes, and removes nothing", async () => {
     await prisma.retailCategory.updateMany({ where: { companyId, name: "Beer" }, data: { vatRate: 0 } });
-    await saveShopProfile(actor(), { ...LIQUOR, businessType: "GENERAL" });
+    await save({ businessType: "GENERAL" });
 
     const rows = await prisma.retailCategory.findMany({ where: { companyId } });
     const names = new Set(rows.map((row) => row.name));
@@ -206,7 +207,20 @@ describe("saving the profile", () => {
     expect(JSON.parse(events[1].payloadJson ?? "{}")).toMatchObject({
       businessTypeBefore: "LIQUOR",
       businessType: "GENERAL",
+      featuresBefore: { ageCheck: true, casesAndSingles: true, emptiesAndDeposits: false },
       actorRole: "SUPERADMIN",
+    });
+  });
+
+  it("changes only what the patch names", async () => {
+    await save({ casesAndSingles: false });
+    const profile = await loadShopProfile(companyId);
+    expect(profile).toMatchObject({
+      businessType: "GENERAL",
+      casesAndSingles: false,
+      ageCheck: true,
+      licenceNumber: "HRE/BL/2024/0711",
+      licenceExpiresOn: "2026-12-31",
     });
   });
 });

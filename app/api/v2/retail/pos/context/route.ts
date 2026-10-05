@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     getRetailTenderPolicy(session.user.companyId),
     /**
      * What kind of shop this is, for the same reason: the till asks for ID and
-     * keeps to licence hours on a liquor store, and `/shop-profile` is gated on
+     * keeps to licence hours on a liquor store, and `settings/company` is gated on
      * `retail.company`, which no cashier holds. The server checks every sale
      * again; this is so the cashier hears it before the customer has paid.
      */

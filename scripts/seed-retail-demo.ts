@@ -50,7 +50,14 @@ import { ensureRetailCategories } from "@/lib/retail/categories"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 import { tradingDayKey } from "@/lib/retail/z-report"
-import { auditCashMoved, auditRecordEdited, auditSalePosted, auditShiftOpened } from "@/lib/retail/audit"
+import {
+  auditCashMoved,
+  auditRecordEdited,
+  auditSalePosted,
+  auditShiftOpened,
+  RETAIL_AUDIT_EVENTS,
+  writeRetailAuditEvent,
+} from "@/lib/retail/audit"
 import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services"
 
 function readArg(name: string): string | undefined {
@@ -234,14 +241,25 @@ async function main() {
   })
 
   /*
-    The company's legal and trading names (the Company settings board). The
-    rail's logo tile is drawn from the legal name: "Hurudza Creative (Private)
-    Limited" is "HC" (00-foundations 5.3.2).
+    The company's names and numbers (the Company settings board, shown on
+    Setup › Shop and changed in Management's branding). The rail's logo tile
+    is drawn from the legal name: "Hurudza Creative (Private) Limited" is "HC"
+    (00-foundations 5.3.2). No logo: the board draws the empty drop zone.
   */
+  const businessDetails = {
+    legalName: "Hurudza Creative (Private) Limited",
+    tradingName: "Harare Bottle Store",
+    registrationNumber: "4471/2019",
+    vatNumber: "10023881",
+    taxNumber: "200118844",
+    phone: "+263 24 270 5521",
+    email: "hello@hararebottlestore.co.zw",
+    physicalAddress: "14 Samora Machel Avenue, Harare",
+  }
   await prisma.companyBranding.upsert({
     where: { companyId },
-    update: { legalName: "Hurudza Creative (Private) Limited", tradingName: "Harare Bottle Store" },
-    create: { companyId, legalName: "Hurudza Creative (Private) Limited", tradingName: "Harare Bottle Store" },
+    update: businessDetails,
+    create: { companyId, ...businessDetails },
   })
 
   console.log(`Seeding ${days} days of trade into ${company.name} (${slug})`)
@@ -320,12 +338,26 @@ async function main() {
     bottles and sells cases and singles. Its categories are the liquor set,
     and every line below is filed under one.
   */
+  const liquorStore = {
+    businessType: "LIQUOR" as const,
+    ageCheck: true,
+    licenceHours: true,
+    emptiesAndDeposits: true,
+    casesAndSingles: true,
+    weekdayOpensAt: "08:00",
+    weekdayClosesAt: "22:00",
+    sundayOpensAt: "10:00",
+    sundayClosesAt: "18:00",
+    licenceNumber: "HRE/BL/2024/0711",
+    licenceExpiresOn: new Date("2026-12-31T00:00:00.000Z"),
+  }
   await prisma.retailShopProfile.upsert({
     where: { companyId },
-    update: { businessType: "LIQUOR" },
-    create: { companyId, businessType: "LIQUOR", licenceNumber: "HRE/BL/2024/0711" },
+    update: liquorStore,
+    create: { companyId, ...liquorStore },
   })
   await ensureRetailCategories(prisma, companyId, "LIQUOR")
+  await seedShopSettingsSave(companyId)
   const categoryIds = new Map(
     (await prisma.retailCategory.findMany({ where: { companyId }, select: { id: true, name: true } })).map(
       (row) => [row.name, row.id],
@@ -1117,6 +1149,46 @@ async function seedRecordActivity(input: {
     }
   }
   console.log(`  ${events} activity events (open drawers and their sales, the Front till's drop, Amarula's price)`)
+}
+
+/**
+ * Setup › Shop's save bar reads "Last changed by Tendai Mhlanga, 2 October.":
+ * the owner's save of the licence that day, written once. A later save on the
+ * page (an acceptance walk) is newer and is what the bar then names.
+ */
+async function seedShopSettingsSave(companyId: string) {
+  const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
+  if (!owner) return
+  const already = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.settingsChanged, entityType: "RetailSettings", entityId: "company" },
+    select: { id: true },
+  })
+  if (already) return
+  await prisma.retailShopProfile.update({ where: { companyId }, data: { updatedById: owner.id } })
+  await writeRetailAuditEvent(prisma, {
+    actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+    eventType: RETAIL_AUDIT_EVENTS.settingsChanged,
+    entityType: "RetailSettings",
+    entityId: "company",
+    payload: {
+      page: "company",
+      changes: [
+        { field: "licenceNumber", label: "Liquor licence number", from: "", to: "HRE/BL/2024/0711" },
+        { field: "licenceExpiresOn", label: "Licence expires", from: "", to: "31 December 2026" },
+      ],
+    },
+  })
+  const written = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.settingsChanged, entityType: "RetailSettings", entityId: "company" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  })
+  if (written) {
+    await prisma.platformAuditEvent.update({
+      where: { id: written.id },
+      data: { createdAt: new Date("2026-10-02T14:40:00+02:00") },
+    })
+  }
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

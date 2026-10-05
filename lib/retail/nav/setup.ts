@@ -16,16 +16,15 @@ import type { RetailNavModule } from "./types";
  * `retail.people`, Approvals `retail.approvals`, Loyalty `retail.loyalty` (all
  * `view`).
  *
- * Shop opens the Shop section of the organisation settings, where the business
- * type and liquor features live today, until SET-01 builds
- * `/retail/manage/company` and moves this item there.
+ * Shop is `/retail/manage/company` (FND-08): the business type, the liquor
+ * features and the money rules, on the SettingsFrame.
  */
 export const setupNav: RetailNavModule = {
   id: "retail-setup",
   title: "Setup",
   icon: Wrench,
   items: [
-    { href: "/preferences/organization", icon: Storefront, label: "Shop", requires: [["retail.company", "view"]] },
+    { href: "/retail/manage/company", icon: Storefront, label: "Shop", requires: [["retail.company", "view"]] },
     { href: "/retail/manage/tills", icon: DeviceMobile, label: "Tills and devices", requires: [["retail.tills", "view"]] },
     {
       href: "/retail/manage/till-rules",

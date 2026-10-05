@@ -115,6 +115,33 @@ export function formatDay(value: Date | string, timeZone = DEFAULT_TIME_ZONE): s
   return `${w.day} ${MONTHS_LONG[w.month - 1]} ${w.year}`;
 }
 
+/**
+ * A day as a person types it, back to `YYYY-MM-DD`: "31 December 2026",
+ * "31 Dec 2026" or "2026-12-31". Null when it is not a real calendar day.
+ */
+export function parseDay(text: string): string | null {
+  const trimmed = text.trim();
+  let year: number;
+  let month: number;
+  let day: number;
+  const iso = ISO_DAY.exec(trimmed);
+  if (iso) {
+    [year, month, day] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  } else {
+    const words = /^(\d{1,2})\s+([A-Za-z]+)\.?,?\s+(\d{4})$/.exec(trimmed);
+    if (!words) return null;
+    const name = words[2]!.toLowerCase();
+    const index = MONTHS_LONG.findIndex(
+      (long, i) => long.toLowerCase() === name || MONTHS_SHORT[i]!.toLowerCase() === name,
+    );
+    if (index < 0) return null;
+    [year, month, day] = [Number(words[3]), index + 1, Number(words[1])];
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
 /** "30 Sep". */
 export function formatShortDay(value: Date | string, timeZone = DEFAULT_TIME_ZONE): string {
   const w = wall(value, timeZone);

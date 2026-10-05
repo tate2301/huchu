@@ -1,11 +1,10 @@
 import type { RetailBusinessType } from "@prisma/client";
-import { z } from "zod";
 
 /**
  * The shop's profile: what kind of shop it is, and the features that come with
  * that.
  *
- * The business type is chosen in Settings › General. It seeds the categories a
+ * The business type is chosen on Setup › Shop. It seeds the categories a
  * shop starts with (`lib/retail/categories.ts`) and decides which shop-type
  * features exist at all. Each feature then has its own switch, so an owner can
  * keep a liquor store's age check and turn its empties off.
@@ -178,23 +177,21 @@ export function liquorSaleRefusal(input: {
   return null;
 }
 
-const hourField = z.string().regex(HHMM, "Use a 24-hour time such as 08:00");
+/**
+ * A licence window as a person writes it: "08:00 to 22:00" → opens and
+ * closes, or null when it is not two 24-hour times joined by "to". A window
+ * may run past midnight (a bar open 10:00 to 01:00), so the order is free.
+ */
+export function parseHoursWindow(text: string): { opens: string; closes: string } | null {
+  const match = /^\s*(\d{1,2}:\d{2})\s*(?:to|-|–)\s*(\d{1,2}:\d{2})\s*$/i.exec(text);
+  if (!match) return null;
+  const pad = (hhmm: string) => hhmm.padStart(5, "0");
+  const opens = pad(match[1]!);
+  const closes = pad(match[2]!);
+  return HHMM.test(opens) && HHMM.test(closes) ? { opens, closes } : null;
+}
 
-export const shopProfileInput = z.object({
-  businessType: z.enum(RETAIL_BUSINESS_TYPES),
-  ageCheck: z.boolean(),
-  licenceHours: z.boolean(),
-  emptiesAndDeposits: z.boolean(),
-  casesAndSingles: z.boolean(),
-  weekdayOpensAt: hourField,
-  weekdayClosesAt: hourField,
-  sundayOpensAt: hourField,
-  sundayClosesAt: hourField,
-  licenceNumber: z.string().trim().max(80).nullable(),
-  licenceExpiresOn: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date such as 2026-12-31")
-    .nullable(),
-});
-
-export type ShopProfileInput = z.infer<typeof shopProfileInput>;
+/** "08:00", "22:00" → "08:00 to 22:00". */
+export function hoursWindowText(opens: string, closes: string): string {
+  return `${opens} to ${closes}`;
+}

@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 
 import { FormPage, StatusBadge, type StatusTone } from "@/components/management/ui";
 import { PreferencesShell } from "@/components/preferences/preferences-shell";
-import { ShopProfileFields, useShopProfileForm } from "@/components/retail/shop-profile-fields";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchPreferencesProfile } from "@/lib/preferences/api";
 
@@ -45,13 +44,8 @@ function tenantTone(status: string): StatusTone {
  * So the page keeps the board's frame exactly — 560px centred column, the
  * title line and its rule, bare section headings at `36px 0 14px` — and draws
  * the four facts it has in the row shape `Billing.dc.html` uses for the same
- * job.
- *
- * A retail workspace has one thing here it *can* write: the Shop section —
- * what kind of shop it is and the features that come with it, saved by
- * `PUT /api/v2/retail/shop-profile`. For the owner, `FormPage` grows its
- * `onSubmit` for that section alone; everyone else reads it disabled, and
- * outside retail the page is exactly the read-only overview it was.
+ * job. A shop's own settings (business type, liquor features) are on the
+ * retail sidebar's Setup › Shop.
  */
 export function OrganizationOverviewPreferences() {
   const profileQuery = useQuery({
@@ -60,27 +54,10 @@ export function OrganizationOverviewPreferences() {
   });
 
   const company = profileQuery.data?.company;
-  const shop = useShopProfileForm();
-  const editable = Boolean(shop?.canChange && shop.value);
 
   return (
     <PreferencesShell>
-      <FormPage
-        title="General"
-        className={styles.page}
-        onSubmit={
-          editable
-            ? (event) => {
-                event.preventDefault();
-                shop?.submit();
-              }
-            : undefined
-        }
-        submitLabel="Save shop"
-        busy={shop?.busy || !shop?.dirty}
-        onCancel={shop?.dirty ? shop.reset : undefined}
-        cancelLabel="Undo changes"
-      >
+      <FormPage title="General" className={styles.page}>
         {profileQuery.isLoading ? (
           <>
             <FormSection>Identity</FormSection>
@@ -116,8 +93,6 @@ export function OrganizationOverviewPreferences() {
                 </StatusBadge>
               )}
             </FactRow>
-
-            {shop ? <ShopProfileFields form={shop} /> : null}
           </>
         )}
       </FormPage>

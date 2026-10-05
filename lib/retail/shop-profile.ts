@@ -3,12 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { ensureRetailCategories } from "@/lib/retail/categories";
-import {
-  DEFAULT_SHOP_PROFILE,
-  shopFeatures,
-  type ShopProfile,
-  type ShopProfileInput,
-} from "@/lib/retail/shop-profile-rules";
+import { DEFAULT_SHOP_PROFILE, shopFeatures, type ShopProfile } from "@/lib/retail/shop-profile-rules";
 
 export * from "@/lib/retail/shop-profile-rules";
 
@@ -44,58 +39,61 @@ export async function loadShopProfile(companyId: string): Promise<ShopProfile> {
   return toProfile(row);
 }
 
+/** What a save may change: any of the profile's own fields. */
+export type ShopProfilePatch = Partial<Omit<ShopProfile, "saved" | "updatedAt">>;
+
 /**
- * Save the profile, seed the business type's categories, and say so in the
- * audit chain — all or nothing.
+ * Write part of the profile, seed the business type's categories, and say so
+ * in the audit chain, inside the caller's transaction so a settings page's
+ * save and its own event commit together.
  *
  * Categories are only ever added here. Switching from a liquor store to General
  * retail leaves Beer and Spirits where they are, because products are filed
  * under them; the owner archives what they no longer want.
  */
 export async function saveShopProfile(
+  tx: Prisma.TransactionClient,
   actor: RetailAuditActor,
-  input: ShopProfileInput,
+  patch: ShopProfilePatch,
 ): Promise<ShopProfile> {
-  const data = {
-    businessType: input.businessType,
-    ageCheck: input.ageCheck,
-    licenceHours: input.licenceHours,
-    emptiesAndDeposits: input.emptiesAndDeposits,
-    casesAndSingles: input.casesAndSingles,
-    weekdayOpensAt: input.weekdayOpensAt,
-    weekdayClosesAt: input.weekdayClosesAt,
-    sundayOpensAt: input.sundayOpensAt,
-    sundayClosesAt: input.sundayClosesAt,
-    licenceNumber: input.licenceNumber?.trim() || null,
-    licenceExpiresOn: input.licenceExpiresOn ? new Date(`${input.licenceExpiresOn}T00:00:00.000Z`) : null,
-    updatedById: actor.userId,
-  };
+  const data: Prisma.RetailShopProfileUncheckedUpdateInput = { updatedById: actor.userId };
+  for (const key of [
+    "businessType",
+    "ageCheck",
+    "licenceHours",
+    "emptiesAndDeposits",
+    "casesAndSingles",
+    "weekdayOpensAt",
+    "weekdayClosesAt",
+    "sundayOpensAt",
+    "sundayClosesAt",
+  ] as const) {
+    if (patch[key] !== undefined) (data as Record<string, unknown>)[key] = patch[key];
+  }
+  if (patch.licenceNumber !== undefined) data.licenceNumber = patch.licenceNumber?.trim() || null;
+  if (patch.licenceExpiresOn !== undefined) {
+    data.licenceExpiresOn = patch.licenceExpiresOn ? new Date(`${patch.licenceExpiresOn}T00:00:00.000Z`) : null;
+  }
 
-  const row = await prisma.$transaction(async (tx) => {
-    const before = await tx.retailShopProfile.findUnique({
-      where: { companyId: actor.companyId },
-      select: { businessType: true },
-    });
-    const saved = await tx.retailShopProfile.upsert({
-      where: { companyId: actor.companyId },
-      create: { companyId: actor.companyId, ...data },
-      update: data,
-    });
-    const seeded = await ensureRetailCategories(tx, actor.companyId, input.businessType);
-    await writeRetailAuditEvent(tx, {
-      actor,
-      eventType: RETAIL_AUDIT_EVENTS.shopProfileChanged,
-      entityType: "RetailShopProfile",
-      entityId: actor.companyId,
-      payload: {
-        businessTypeBefore: before?.businessType ?? null,
-        businessType: saved.businessType,
-        features: shopFeatures(saved),
-        categoriesAdded: seeded,
-      },
-    });
-    return saved;
+  const before = toProfile(await tx.retailShopProfile.findUnique({ where: { companyId: actor.companyId } }));
+  const saved = await tx.retailShopProfile.upsert({
+    where: { companyId: actor.companyId },
+    create: { ...(data as Prisma.RetailShopProfileUncheckedCreateInput), companyId: actor.companyId },
+    update: data,
   });
-
-  return toProfile(row);
+  const seeded = await ensureRetailCategories(tx, actor.companyId, saved.businessType);
+  await writeRetailAuditEvent(tx, {
+    actor,
+    eventType: RETAIL_AUDIT_EVENTS.shopProfileChanged,
+    entityType: "RetailShopProfile",
+    entityId: actor.companyId,
+    payload: {
+      businessTypeBefore: before.saved ? before.businessType : null,
+      businessType: saved.businessType,
+      featuresBefore: shopFeatures(before),
+      features: shopFeatures(saved),
+      categoriesAdded: seeded,
+    },
+  });
+  return toProfile(saved);
 }

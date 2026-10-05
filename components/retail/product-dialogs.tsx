@@ -8,7 +8,7 @@ import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FormField } from "@/components/management/ui";
 import { CatalogImageField } from "@/components/retail/catalog-image-field";
 import { CategoryField } from "@/components/retail/category-field";
-import { useShopProfile } from "@/components/retail/shop-profile-fields";
+import { useShopFeatures } from "@/components/retail/use-shop-features";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -189,9 +189,9 @@ export function ProductDialog({
   const set = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
-  const shop = useShopProfile(open);
-  const deposits = shop.data?.features.emptiesAndDeposits ?? false;
-  const cases = shop.data?.features.casesAndSingles ?? false;
+  const shop = useShopFeatures(open);
+  const deposits = shop.features.emptiesAndDeposits;
+  const cases = shop.features.casesAndSingles;
   // The singles a case can open into: this shop's products that are not
   // themselves cases, and not this one.
   const singlesQuery = useQuery({
