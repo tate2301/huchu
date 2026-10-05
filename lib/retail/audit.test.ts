@@ -453,6 +453,8 @@ describe("the chain", () => {
       siteChanged: "RETAIL_SITE.CHANGED",
       siteClosed: "RETAIL_SITE.CLOSED",
       priceListCreated: "RETAIL_PRICE_LIST.CREATED",
+      transferSent: "RETAIL_STOCK_TRANSFER.SENT",
+      transferCancelled: "RETAIL_STOCK_TRANSFER.CANCELLED",
     });
   });
 });

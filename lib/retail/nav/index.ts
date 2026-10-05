@@ -8,9 +8,18 @@ import { setupNav } from "./setup";
 import { productsNav } from "./products";
 import { reportsNav } from "./reports";
 import { stockNav } from "./stock";
-import type { RetailNavItem, RetailNavModule } from "./types";
+import type { RetailNavCondition, RetailNavItem, RetailNavModule } from "./types";
 
-export type { RetailNavItem, RetailNavModule } from "./types";
+export type { RetailNavCondition, RetailNavItem, RetailNavModule } from "./types";
+
+/**
+ * The items whose shop condition does not hold: hidden from everyone. A
+ * condition not yet known counts as not holding, so an item never shows and
+ * then vanishes.
+ */
+export function hiddenRetailNavHrefs(conditions: Partial<Record<RetailNavCondition, boolean>> | null): Set<string> {
+  return new Set(RETAIL_NAV_ITEMS.filter((item) => item.when && !conditions?.[item.when]).map((item) => item.href));
+}
 
 /**
  * The retail modules in rail order (00-foundations 5.3.4). An area unit adds

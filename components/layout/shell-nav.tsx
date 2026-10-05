@@ -13,7 +13,13 @@ import { GearSix } from "@/lib/icons";
 import type { RailArea } from "@/lib/rail/areas";
 import { logoInitials } from "@/lib/rail/initials";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
-import { canRoleOpenRetailPath, RETAIL_NAV_ITEMS, retailNavItemForPath } from "@/lib/retail/nav";
+import {
+  canRoleOpenRetailPath,
+  hiddenRetailNavHrefs,
+  RETAIL_NAV_ITEMS,
+  retailNavItemForPath,
+  type RetailNavCondition,
+} from "@/lib/retail/nav";
 import { RESOURCE_LABELS } from "@/lib/retail/permission-matrix";
 import {
   getWorkspaceSidebarModel,
@@ -77,6 +83,8 @@ type ShellNav = {
   /** Where this person's workspace starts, for the refusal's way out. */
   homeHref: string;
   badges: Record<string, string>;
+  /** The shop facts items wait on (`RetailNavItem.when`); null until known. */
+  conditions: Partial<Record<RetailNavCondition, boolean>> | null;
   companyName: string;
   initials: string;
   logoUrl: string | null;
@@ -121,7 +129,7 @@ export function ShellNavProvider({
 
   // The rail follows the page: when the chosen workspace has no item for this
   // page, the one that does is drawn instead. The choice itself is left alone.
-  const model = React.useMemo(() => {
+  const built = React.useMemo(() => {
     const chosen = getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId });
     if (getActiveNavHref(chosen.sections, pathname, searchParams, RETAIL_NAV_ITEMS)) return chosen;
     for (const workspace of chosen.workspaces) {
@@ -131,6 +139,35 @@ export function ShellNavProvider({
     }
     return chosen;
   }, [activeWorkspaceId, modelArgs, pathname, searchParams]);
+
+  // The figures beside panel items (00-foundations 4.3), and the shop facts
+  // some items wait on. Cached for a minute, refetched on focus, and
+  // refreshed after any change the person makes.
+  const hasRetail = built.sections.some((section) => section.id.startsWith("retail-"));
+  const badgesQuery = useQuery({
+    queryKey: NAV_BADGES_KEY,
+    queryFn: () =>
+      fetchJson<{ badges: Record<string, string>; conditions?: Partial<Record<RetailNavCondition, boolean>> }>(
+        "/api/v2/retail/nav/badges",
+      ),
+    enabled: hasRetail,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const conditions = badgesQuery.data?.conditions ?? null;
+
+  // An item whose shop condition does not hold is not drawn for anyone.
+  const model = React.useMemo(() => {
+    const hidden = hiddenRetailNavHrefs(conditions);
+    if (hidden.size === 0) return built;
+    return {
+      ...built,
+      sections: built.sections.map((section) => ({
+        ...section,
+        items: section.items.filter((item) => !hidden.has(item.href)),
+      })),
+    };
+  }, [built, conditions]);
 
   const selectWorkspace = React.useCallback(
     (id: string) => {
@@ -168,16 +205,6 @@ export function ShellNavProvider({
     [activeHref, currentArea],
   );
 
-  // The figures beside panel items (00-foundations 4.3). Cached for a minute,
-  // refetched on focus, and refreshed after any change the person makes.
-  const hasRetail = model.sections.some((section) => section.id.startsWith("retail-"));
-  const badgesQuery = useQuery({
-    queryKey: NAV_BADGES_KEY,
-    queryFn: () => fetchJson<{ badges: Record<string, string> }>("/api/v2/retail/nav/badges"),
-    enabled: hasRetail,
-    staleTime: 60_000,
-    refetchOnWindowFocus: true,
-  });
   React.useEffect(() => {
     if (!hasRetail) return;
     return queryClient.getMutationCache().subscribe((event) => {
@@ -208,6 +235,7 @@ export function ShellNavProvider({
       refusalNoun,
       homeHref: model.homeHref,
       badges: (mounted && badgesQuery.data?.badges) || NO_BADGES,
+      conditions,
       companyName,
       initials: logoInitials(brand?.legalName, companyName),
       logoUrl: brand?.logoUrl ?? null,
@@ -221,6 +249,7 @@ export function ShellNavProvider({
       badgesQuery.data,
       brand,
       companyName,
+      conditions,
       currentArea,
       model,
       mounted,

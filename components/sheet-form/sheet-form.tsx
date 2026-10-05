@@ -22,6 +22,7 @@ import {
   fieldIds,
   initialValues,
   isDirty,
+  lineErrorsOf,
   sheetText,
   shownFields,
   shownSections,
@@ -121,15 +122,30 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
 
   const setValue = (fieldId: string, value: unknown) => {
     touched.current.add(fieldId);
+    const next = withDerived(kind, { ...values, [fieldId]: value }, touched.current);
     setValues((current) => withDerived(kind, { ...current, [fieldId]: value }, touched.current));
     setSavedLine(null);
     setFooterError(null);
     setErrors((current) => {
-      if (!(fieldId in current)) return current;
-      const next = { ...current };
-      delete next[fieldId];
-      return next;
+      const stale = Object.keys(current).filter((key) => key === fieldId || key.startsWith(`${fieldId}.`));
+      if (stale.length === 0) return current;
+      const kept = { ...current };
+      for (const key of stale) delete kept[key];
+      return kept;
     });
+    // Other values that follow this one (From drops the lines not kept there).
+    const follow = kind.sections.flatMap((section) => section.fields).find((field) => field.id === fieldId)?.follow;
+    if (follow) {
+      void follow(value, next, ctx).then(
+        (followed) => {
+          if (!followed) return;
+          setValues((current) =>
+            current[fieldId] === value ? withDerived(kind, { ...current, ...followed }, touched.current) : current,
+          );
+        },
+        () => undefined,
+      );
+    }
   };
 
   const onListOpen = (isOpen: boolean) => {
@@ -357,6 +373,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                               values={values}
                               currency={kind.cur}
                               error={errors[field.id]}
+                              lineErrors={field.t === "lines" ? lineErrorsOf(field.id, errors) : undefined}
                               readOnly={readOnly}
                               onChange={(value) => setValue(field.id, value)}
                               onListOpen={onListOpen}

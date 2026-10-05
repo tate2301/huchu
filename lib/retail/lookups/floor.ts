@@ -81,6 +81,8 @@ const person: LookupNoun = {
   read: [
     ["retail.people", "view"],
     ["retail.cash-control", "open-shift"],
+    // "Taken by" on Move stock.
+    ["retail.transfers", "create"],
   ],
   quick: [],
   async search(ctx, q, context) {

@@ -60,6 +60,8 @@ export type SheetFieldProps = {
   values: SheetValues;
   currency: SheetCurrency;
   error?: string | null;
+  /** A `lines` field's messages by line ("Only 9 at Harare Main Branch."). */
+  lineErrors?: Record<number, string>;
   onChange: (value: unknown) => void;
   onListOpen?: (open: boolean) => void;
   /** The sheet is open to read only: values are shown as they stand. */
@@ -81,10 +83,12 @@ export function SheetField({
   values,
   currency,
   error,
+  lineErrors,
   onChange,
   onListOpen,
   readOnly = false,
 }: SheetFieldProps) {
+  const context = typeof field.context === "function" ? field.context(ctx, values) : field.context;
   const value = values[field.id];
   const hint = typeof field.h === "function" ? field.h(values) : field.h;
   const fixed = field.fixed?.(ctx) ?? null;
@@ -155,7 +159,7 @@ export function SheetField({
                 {...control}
                 label={field.l}
                 noun={field.noun ?? field.id}
-                context={typeof field.context === "function" ? field.context(ctx) : field.context}
+                context={context}
                 disabled={disabled}
                 placeholder={field.p}
                 value={(value as PickedOption | null) ?? null}
@@ -217,6 +221,9 @@ export function SheetField({
                 quantityLabel={field.ql}
                 costLabel={field.cl}
                 placeholder={field.p}
+                context={context}
+                showCost={ctx.can("retail.catalog", "view-cost")}
+                lineErrors={lineErrors}
                 value={Array.isArray(value) ? (value as SheetLine[]) : []}
                 onValueChange={onChange}
                 onOpenChange={onListOpen}

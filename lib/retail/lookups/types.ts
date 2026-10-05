@@ -9,7 +9,19 @@ import type { RetailAction, RetailResource, SessionLike } from "@/lib/retail/per
  */
 
 /** One row of an autocomplete: what it reads as, and the short line beside it. */
-export type LookupOption = { id: string; label: string; sub: string | null };
+export type LookupOption = {
+  id: string;
+  label: string;
+  sub: string | null;
+  /** A stock line's cost, for someone who may see cost ("22.15"). */
+  cost?: string | null;
+  /** The record this option is of: a stock line's product. */
+  of?: string | null;
+  /** A stock line's site and on hand. */
+  siteId?: string;
+  site?: string;
+  onHand?: number;
+};
 
 /**
  * One input of the inline "New <noun>" panel. `key` is what the POST body and

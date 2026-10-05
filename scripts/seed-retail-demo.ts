@@ -110,6 +110,8 @@ const CATALOGUE: CatalogueEntry[] = [
   { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.82", stock: 210, sold30: 350, min: 60, reorder: 120, weight: 350, category: "Beer" },
   { code: "CHIBUKU-12", name: "Chibuku crate of 12", unit: "crate", price: "12.50", cost: "9.84", stock: 17, sold30: 21, min: 4, reorder: 6, weight: 21, category: "Beer" },
   { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.52", stock: 180, sold30: 216, min: 48, reorder: 96, weight: 216, category: "Soft drinks" },
+  // STK-07: sent to Borrowdale on TRF-0008, 48 left at Harare Main Branch.
+  { code: "FANTA-500", name: "Fanta Orange 500ml", unit: "bottle", price: "1.00", cost: "0.76", stock: 48, sold30: 30, min: 24, reorder: 48, weight: 30, category: "Soft drinks" },
   { code: "COKE-6PK", name: "Coke 500ml six-pack", unit: "pack", price: "4.20", cost: "3.12", stock: 30, sold30: 36, min: 6, reorder: 12, weight: 36, category: "Soft drinks" },
   { code: "GORDONS-750", name: "Gordon’s Gin 750ml", unit: "bottle", price: "16.40", cost: "12.40", stock: 18, sold30: 67, min: 6, reorder: 12, weight: 67, category: "Spirits" },
   { code: "HUNTERS-330", name: "Hunter’s Gold 330ml", unit: "bottle", price: "1.85", cost: "1.31", stock: 60, sold30: 50, min: 24, reorder: 48, weight: 50, category: "Ciders and coolers" },
@@ -1168,6 +1170,8 @@ async function main() {
   }
 
   await seedSites({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
+  await seedStockPeople(companyId, passwordHash)
+  await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
 
@@ -1259,6 +1263,240 @@ async function seedSites(input: { companyId: string; mainSiteId: string; borrowd
       console.log(`  closed the site ${other.name} (it has history)`)
     }
   }
+}
+
+/**
+ * The stock area's people (30-stock 3.5): Rudo Moyo, the stock clerk who
+ * counts on her phone and receives at Borrowdale. Upserted by her email, so
+ * the admin seed and this one converge.
+ */
+async function seedStockPeople(companyId: string, passwordHash: string) {
+  const rudo = { name: "Rudo Moyo", role: "STOCK_CLERK" as const, phone: "+263 77 118 2044", companyId, isActive: true }
+  await prisma.user.upsert({
+    where: { email: "rudo.stock@bottlestore.test" },
+    update: rudo,
+    create: { email: "rudo.stock@bottlestore.test", password: passwordHash, ...rudo },
+  })
+}
+
+/**
+ * What Borrowdale keeps besides Bohlinger's: 664 units with its 96, before
+ * TRF-0008 arrives. Borrowdale sells nothing in the seeded history, so each
+ * line holds at least what the transfers below brought in.
+ */
+const BORROWDALE_STOCK: Array<[code: string, onHand: number]> = [
+  ["AMARULA-750", 6],
+  ["JAMESON-750", 2],
+  ["GORDONS-750", 4],
+  ["ICE-2KG", 20],
+  ["CASTLE-340", 240],
+  ["COKE-500", 150],
+  ["CHIBUKU-1L", 146],
+]
+
+type SeedTransfer = {
+  no: string
+  from: "HRE" | "BDL"
+  sentAt: Date
+  sentBy: string
+  /** Received at, by whom; absent while on the way. */
+  received?: { at: Date; by: string }
+  lines: Array<[code: string, sent: number, lost?: number]>
+  moving?: { vehicle: string; driver: string; note: string; arrives: string }
+}
+
+/**
+ * STK-07. Transfers as the TransfersList board shows them, between Harare
+ * Main Branch (HRE) and Borrowdale (BDL): TRF-0006 (Borrowdale's ice, 2 bags
+ * lost on the way), TRF-0007 (spirits, received by Rudo Moyo 37 minutes after
+ * it left) and TRF-0008 on the way this morning, with five older ones for the
+ * months before. Each leg is a `TRANSFER_OUT`/`TRANSFER_IN` movement; the
+ * ledger seed after this one works each line's opening back from its on
+ * hand, so Harare Main Branch still holds the catalogue's figures after
+ * sending. Every run starts again from these: what an acceptance run sent
+ * (and its movements) goes, and Borrowdale's lines are set back.
+ */
+async function seedTransfers(input: { companyId: string; mainSiteId: string; borrowdaleId: string; reset: boolean }) {
+  const { companyId, mainSiteId, borrowdaleId } = input
+  const people = await prisma.user.findMany({
+    where: { companyId, email: { in: ["tafara.manager@bottlestore.test", "rudo.stock@bottlestore.test"] } },
+    select: { id: true, email: true },
+  })
+  const tafara = people.find((person) => person.email.startsWith("tafara"))?.id
+  const rudo = people.find((person) => person.email.startsWith("rudo"))?.id
+  if (!tafara || !rudo) {
+    console.log("  transfers: Tafara Nyathi or Rudo Moyo missing, skipped")
+    return
+  }
+
+  await prisma.stockMovement.deleteMany({
+    where: { sourceType: "RETAIL_STOCK_TRANSFER", reason: { in: ["TRANSFER_OUT", "TRANSFER_IN", "TRANSFER_BACK"] }, item: { site: { companyId } } },
+  })
+  await prisma.retailStockTransfer.deleteMany({ where: { companyId } })
+
+  const bdlFloor = await prisma.stockLocation.findUniqueOrThrow({ where: { siteId_code: { siteId: borrowdaleId, code: "SHOP" } } })
+  const hreLines = await prisma.inventoryItem.findMany({
+    where: { siteId: mainSiteId },
+    select: { id: true, itemCode: true, name: true, unit: true, unitCost: true, productId: true },
+  })
+  const hre = new Map(hreLines.map((line) => [line.itemCode, line]))
+  const keepAtBdl = new Set(["BOHLINGER-330", ...BORROWDALE_STOCK.map(([code]) => code)])
+  for (const [code, onHand] of BORROWDALE_STOCK) {
+    const home = hre.get(code)
+    if (!home) throw new Error(`The transfers seed needs ${code} at Harare Main Branch.`)
+    const line = { name: home.name, unit: home.unit, unitCost: home.unitCost, productId: home.productId, currentStock: quantity(onHand), locationId: bdlFloor.id }
+    await prisma.inventoryItem.upsert({
+      where: { siteId_itemCode: { siteId: borrowdaleId, itemCode: code } },
+      update: line,
+      create: { siteId: borrowdaleId, itemCode: code, category: "OTHER", ...line },
+    })
+  }
+  // Lines an acceptance run made at Borrowdale by receiving something else.
+  const strays = await prisma.inventoryItem.findMany({
+    where: { siteId: borrowdaleId, itemCode: { notIn: [...keepAtBdl] } },
+    select: { id: true, name: true },
+  })
+  for (const stray of strays) {
+    try {
+      await prisma.$transaction([
+        prisma.stockMovement.deleteMany({ where: { itemId: stray.id } }),
+        prisma.inventoryItem.delete({ where: { id: stray.id } }),
+      ])
+    } catch {
+      await prisma.inventoryItem.update({ where: { id: stray.id }, data: { currentStock: quantity(0) } })
+    }
+  }
+  const bdlLines = await prisma.inventoryItem.findMany({
+    where: { siteId: borrowdaleId },
+    select: { id: true, itemCode: true, name: true, unit: true, unitCost: true, productId: true },
+  })
+  const bdl = new Map(bdlLines.map((line) => [line.itemCode, line]))
+
+  const sentToday = new Date(Math.min(harareTime(0, 8, 30).getTime(), Date.now() - 60 * 1000))
+  const older = (days: number, hour: number, minute: number) => harareTime(days, hour, minute)
+  const transfers: SeedTransfer[] = [
+    { no: "TRF-0001", from: "HRE", sentAt: older(205, 9, 40), sentBy: tafara, received: { at: older(205, 11, 5), by: rudo }, lines: [["CASTLE-340", 48], ["COKE-500", 24]] },
+    { no: "TRF-0002", from: "HRE", sentAt: older(175, 14, 10), sentBy: tafara, received: { at: older(175, 15, 0), by: rudo }, lines: [["CHIBUKU-1L", 60]] },
+    { no: "TRF-0003", from: "BDL", sentAt: older(145, 10, 20), sentBy: rudo, received: { at: older(145, 12, 30), by: tafara }, lines: [["CASTLE-340", 24]] },
+    { no: "TRF-0004", from: "HRE", sentAt: older(90, 8, 50), sentBy: tafara, received: { at: older(90, 10, 15), by: rudo }, lines: [["CASTLE-340", 24], ["COKE-500", 24]] },
+    { no: "TRF-0005", from: "HRE", sentAt: older(55, 13, 5), sentBy: tafara, received: { at: older(55, 14, 20), by: rudo }, lines: [["AMARULA-750", 2], ["GORDONS-750", 2]] },
+    { no: "TRF-0006", from: "BDL", sentAt: older(8, 16, 20), sentBy: rudo, received: { at: older(8, 18, 5), by: tafara }, lines: [["ICE-2KG", 46, 2]] },
+    {
+      no: "TRF-0007",
+      from: "HRE",
+      sentAt: older(4, 12, 3),
+      sentBy: tafara,
+      received: { at: older(4, 12, 40), by: rudo },
+      lines: [["AMARULA-750", 4], ["JAMESON-750", 2], ["GORDONS-750", 2]],
+    },
+    {
+      no: "TRF-0008",
+      from: "HRE",
+      sentAt: sentToday,
+      sentBy: tafara,
+      lines: [["CASTLE-340", 240], ["COKE-500", 120], ["CHIBUKU-1L", 120], ["FANTA-500", 60]],
+      moving: { vehicle: "Shop bakkie, AEZ 4471", driver: "Simba Mutasa", note: "For the weekend at Borrowdale", arrives: "Today, by 11:00" },
+    },
+  ]
+
+  const movements: Prisma.StockMovementCreateManyInput[] = []
+  for (const spec of transfers) {
+    const [fromLines, toLines] = spec.from === "HRE" ? [hre, bdl] : [bdl, hre]
+    const [fromSiteId, toSiteId] = spec.from === "HRE" ? [mainSiteId, borrowdaleId] : [borrowdaleId, mainSiteId]
+    const legs = spec.lines.map(([code, sent, lost = 0]) => {
+      const from = fromLines.get(code)
+      const to = toLines.get(code)
+      if (!from?.productId || (spec.received && !to)) throw new Error(`The transfers seed cannot move ${code} on ${spec.no}.`)
+      return { code, sent, lost, received: spec.received ? sent - lost : 0, from, to: spec.received ? to! : null }
+    })
+    const transfer = await prisma.retailStockTransfer.create({
+      data: {
+        companyId,
+        transferNo: spec.no,
+        fromSiteId,
+        toSiteId,
+        status: spec.received ? "RECEIVED" : "ON_THE_WAY",
+        sentAt: spec.sentAt,
+        sentById: spec.sentBy,
+        driver: spec.moving?.driver ?? null,
+        vehicle: spec.moving?.vehicle ?? null,
+        arrives: spec.moving?.arrives ?? null,
+        note: spec.moving?.note ?? null,
+        receivedAt: spec.received?.at ?? null,
+        receivedById: spec.received?.by ?? null,
+        createdAt: spec.sentAt,
+        lines: {
+          create: legs.map((leg) => ({
+            companyId,
+            productId: leg.from.productId!,
+            fromItemId: leg.from.id,
+            toItemId: leg.to?.id ?? null,
+            quantitySent: quantity(leg.sent),
+            quantityReceived: quantity(leg.received),
+            quantityLost: quantity(leg.lost),
+            unitCost: money(leg.from.unitCost ?? 0),
+          })),
+        },
+      },
+      select: { id: true, lines: { select: { id: true, fromItemId: true } } },
+    })
+    const lineId = new Map(transfer.lines.map((line) => [line.fromItemId, line.id]))
+    const toName = spec.from === "HRE" ? "Borrowdale" : "Harare Main Branch"
+    const fromName = spec.from === "HRE" ? "Harare Main Branch" : "Borrowdale"
+    for (const leg of legs) {
+      movements.push({
+        itemId: leg.from.id,
+        movementType: "ISSUE",
+        quantity: quantity(leg.sent),
+        unit: leg.from.unit,
+        issuedById: spec.sentBy,
+        notes: `Transfer to ${toName}`,
+        sourceType: "RETAIL_STOCK_TRANSFER",
+        sourceId: `${transfer.id}:${lineId.get(leg.from.id)}`,
+        reason: "TRANSFER_OUT",
+        reference: spec.no,
+        change: quantity(-leg.sent),
+        createdAt: spec.sentAt,
+        referenceId: "",
+      })
+      if (leg.to && leg.received > 0) {
+        movements.push({
+          itemId: leg.to.id,
+          movementType: "RECEIPT",
+          quantity: quantity(leg.received),
+          unit: leg.to.unit,
+          issuedById: spec.received!.by,
+          notes: `Transfer from ${fromName}`,
+          sourceType: "RETAIL_STOCK_TRANSFER",
+          sourceId: `${transfer.id}:${lineId.get(leg.from.id)}:in`,
+          reason: "TRANSFER_IN",
+          reference: spec.no,
+          change: quantity(leg.received),
+          createdAt: spec.received!.at,
+          referenceId: "",
+        })
+      }
+    }
+  }
+  // Movement numbers from the global sequence, one block under its lock.
+  const first = await prisma.$transaction(async (tx) => {
+    const reserved = await reserveIdentifier(tx, { companyId, entity: "STOCK_MOVEMENT" })
+    await tx.globalIdSequence.update({
+      where: { entityKey_scopeKey: { entityKey: "STOCK_MOVEMENT", scopeKey: "GLOBAL" } },
+      data: { lastNumber: { increment: movements.length - 1 } },
+    })
+    return Number(reserved.split("-").pop())
+  })
+  movements.forEach((row, index) => {
+    row.referenceId = `${ID_ENTITY_CONFIG.STOCK_MOVEMENT.prefix}-${String(first + index).padStart(4, "0")}`
+  })
+  await prisma.stockMovement.createMany({ data: movements })
+  await prisma.idSequence.upsert({
+    where: { companyId_entityKey_scopeKey: { companyId, entityKey: "RETAIL_STOCK_TRANSFER", scopeKey: "GLOBAL" } },
+    update: { lastNumber: transfers.length },
+    create: { companyId, entityKey: "RETAIL_STOCK_TRANSFER", scopeKey: "GLOBAL", lastNumber: transfers.length },
+  })
+  console.log(`  transfers: ${transfers.length} between Harare Main Branch and Borrowdale, ${movements.length} movement(s)`)
 }
 
 /**

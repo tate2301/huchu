@@ -13,7 +13,7 @@ export { cancelRequisitionAsk, closeShortAsk, removeOrderAsk } from "./buying";
 export { categoryDeleteAsk, categoryMergeAsk } from "./categories";
 export { archiveAsk, archiveManyAsk } from "./products";
 export { closeSiteAsk } from "./sites";
-export { reverseMovementsAsk } from "./stock";
+export { cancelTransferAsk, cancelTransfersAsk, reverseMovementsAsk } from "./stock";
 export type { ListActionRun } from "./runs";
 
 /** Every list action that posts, by its `run` key; each area adds its own. */

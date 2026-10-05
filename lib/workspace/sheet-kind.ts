@@ -22,10 +22,27 @@ export type SheetCtx = {
 };
 
 /** A picked `auto` option: what it sends and what it reads as. */
-export type PickedOption = { id: string; label: string; sub?: string | null; cost?: string | null };
+export type PickedOption = {
+  id: string;
+  label: string;
+  sub?: string | null;
+  cost?: string | null;
+  /** The record the option is of: a stock line's product. */
+  of?: string | null;
+};
 
 /** One line of a `lines` field. */
-export type SheetLine = { productId: string; name: string; sub: string | null; warn?: boolean; quantity: string; cost: string };
+export type SheetLine = {
+  /** What the line sends: a product, or a stock line for a noun over lines. */
+  productId: string;
+  name: string;
+  sub: string | null;
+  warn?: boolean;
+  quantity: string;
+  cost: string;
+  /** The record the picked option is of (a stock line's product). */
+  of?: string | null;
+};
 
 export type SheetValues = Record<string, unknown>;
 
@@ -75,8 +92,11 @@ export type FieldSpec = {
   rows?: number;
   /** `auto` and `lines`: the lookup noun (`GET /api/v2/retail/lookup/<noun>`). */
   noun?: string;
-  /** `auto`: narrows the lookup (`?context=`), e.g. `{ can: "sell" }`, or from the sheet's address. */
-  context?: Record<string, unknown> | ((ctx: SheetCtx) => Record<string, unknown>);
+  /**
+   * `auto` and `lines`: narrows the lookup (`?context=`), e.g. `{ can: "sell" }`,
+   * or from the sheet's address and the other values (the stock lines at From).
+   */
+  context?: Record<string, unknown> | ((ctx: SheetCtx, values: SheetValues) => Record<string, unknown>);
   /** `lines`: the quantity and cost column labels. */
   ql?: string;
   cl?: string;
@@ -102,6 +122,12 @@ export type FieldSpec = {
   disabled?: (values: SheetValues) => boolean;
   /** Drawn only while this holds; a field not drawn is neither checked nor needed. */
   show?: (values: SheetValues, ctx: SheetCtx) => boolean;
+  /**
+   * After the person changes this field, other values follow: worked out
+   * (from the server if need be) and merged in, unless the field has changed
+   * again meanwhile. Changing From drops the lines not kept at the new site.
+   */
+  follow?: (value: unknown, values: SheetValues, ctx: SheetCtx) => Promise<SheetValues | null>;
 };
 
 export type SheetSection = {

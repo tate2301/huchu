@@ -159,7 +159,8 @@ export function submitFailure(status: number, payload: unknown, fieldIds: readon
     const stray: string[] = [];
     for (const [key, value] of Object.entries(body.fieldErrors)) {
       if (typeof value !== "string") continue;
-      if (fieldIds.includes(key)) fieldErrors[key] = value;
+      // "lines.2" is the third line of the `lines` field: kept under its own key.
+      if (fieldIds.includes(key) || fieldIds.includes(key.split(".")[0]!)) fieldErrors[key] = value;
       else stray.push(value);
     }
     if (Object.keys(fieldErrors).length > 0) {
@@ -189,6 +190,18 @@ export function lineTotals(lines: readonly SheetLine[]) {
     },
     { count: 0, quantity: 0, value: 0 },
   );
+}
+
+/** A field's messages per line ("lines.2" → 2), from every message the sheet holds. */
+export function lineErrorsOf(fieldId: string, errors: Record<string, string>): Record<number, string> {
+  const prefix = `${fieldId}.`;
+  const out: Record<number, string> = {};
+  for (const [key, message] of Object.entries(errors)) {
+    if (!key.startsWith(prefix)) continue;
+    const index = Number(key.slice(prefix.length));
+    if (Number.isInteger(index)) out[index] = message;
+  }
+  return out;
 }
 
 /** Every field id the kind draws, in order. */

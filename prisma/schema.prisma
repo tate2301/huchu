@@ -316,6 +316,7 @@ model Company {
   retailPromotions              RetailPromotion[]
   retailPurchaseOrders          RetailPurchaseOrder[]
   retailPurchaseOrderLines      RetailPurchaseOrderLine[]
+  retailStockTransfers          RetailStockTransfer[]
   retailGoodsReceipts           RetailGoodsReceipt[]
   retailGoodsReceiptLines       RetailGoodsReceiptLine[]
   retailShifts                  RetailShift[]
@@ -1133,6 +1134,8 @@ model Site {
   retailShifts          RetailShift[]
   retailSales           RetailSale[]
   retailZReports        RetailZReport[]
+  retailTransfersOut    RetailStockTransfer[]  @relation("RetailStockTransferFrom")
+  retailTransfersIn     RetailStockTransfer[]  @relation("RetailStockTransferTo")
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1390,6 +1393,9 @@ model User {
   sessionHandoffs                   SessionHandoff[]
   reportTemplates                   ReportTemplate[]
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
+  retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
+  retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
+  retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
 
   @@index([companyId])
   @@index([email])
@@ -3041,6 +3047,7 @@ enum NotificationType {
   RETAIL_COUNT_ASSIGNED
   RETAIL_COUNT_SUBMITTED
   RETAIL_TRANSFER_SENT
+  RETAIL_TRANSFER_CANCELLED
 }
 
 enum NotificationSeverity {
@@ -4223,6 +4230,8 @@ model InventoryItem {
   retailPurchaseOrderLines RetailPurchaseOrderLine[]
   retailGoodsReceiptLines  RetailGoodsReceiptLine[]
   retailSaleLines          RetailSaleLine[]
+  retailTransferLinesFrom  RetailStockTransferLine[] @relation("RetailStockTransferLineFrom")
+  retailTransferLinesTo    RetailStockTransferLine[] @relation("RetailStockTransferLineTo")
 
   @@unique([siteId, itemCode])
   @@index([siteId])
@@ -13246,6 +13255,7 @@ model Product {
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
+  retailTransferLines RetailStockTransferLine[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
 
@@ -13789,4 +13799,74 @@ enum CrmWorkOrderStatus {
   BLOCKED
   COMPLETED
   CANCELLED
+}
+
+/// STK-07: stock sent from one site of a shop to another (W-24). It leaves the
+/// sending site when it is sent and joins the receiving site when received.
+enum RetailStockTransferStatus {
+  ON_THE_WAY
+  RECEIVED
+  CANCELLED
+}
+
+model RetailStockTransfer {
+  id            String                    @id @default(uuid())
+  companyId     String
+  /// "TRF-0008".
+  transferNo    String
+  fromSiteId    String
+  toSiteId      String
+  status        RetailStockTransferStatus @default(ON_THE_WAY)
+  sentAt        DateTime                  @default(now())
+  sentById      String
+  /// "Taken by" on the sheet, "Driver" in the rail: a name, which need not be staff.
+  driver        String?
+  vehicle       String?
+  /// As typed: "Today, by 11:00".
+  arrives       String?
+  note          String?
+  receivedAt    DateTime?
+  receivedById  String?
+  cancelledAt   DateTime?
+  cancelledById String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  company     Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromSite    Site                      @relation("RetailStockTransferFrom", fields: [fromSiteId], references: [id], onDelete: Restrict)
+  toSite      Site                      @relation("RetailStockTransferTo", fields: [toSiteId], references: [id], onDelete: Restrict)
+  sentBy      User                      @relation("RetailStockTransferSentBy", fields: [sentById], references: [id], onDelete: Restrict)
+  receivedBy  User?                     @relation("RetailStockTransferReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  cancelledBy User?                     @relation("RetailStockTransferCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  lines       RetailStockTransferLine[]
+
+  @@unique([companyId, transferNo])
+  @@index([companyId, status, sentAt])
+  @@index([companyId, fromSiteId, toSiteId])
+}
+
+/// One product on a transfer. Still to come = sent - received - lost.
+model RetailStockTransferLine {
+  id               String   @id @default(uuid())
+  companyId        String
+  transferId       String
+  productId        String
+  fromItemId       String
+  /// The line at the receiving site; set when the first units are received.
+  toItemId         String?
+  quantitySent     Decimal  @db.Decimal(12, 4)
+  quantityReceived Decimal  @default(0) @db.Decimal(12, 4)
+  quantityLost     Decimal  @default(0) @db.Decimal(12, 4)
+  /// The sending line's cost when it was sent.
+  unitCost         Decimal  @db.Decimal(14, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  transfer RetailStockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product  Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  fromItem InventoryItem       @relation("RetailStockTransferLineFrom", fields: [fromItemId], references: [id], onDelete: Restrict)
+  toItem   InventoryItem?      @relation("RetailStockTransferLineTo", fields: [toItemId], references: [id], onDelete: SetNull)
+
+  @@unique([transferId, productId])
+  @@index([companyId, productId])
 }

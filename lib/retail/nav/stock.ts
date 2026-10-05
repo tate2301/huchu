@@ -16,6 +16,8 @@ export const stockNav: RetailNavModule = {
       icon: ArrowsLeftRight,
       label: "Transfers",
       requires: [["retail.transfers", "view"]],
+      // Only a shop with somewhere to send stock (30-stock 5.12).
+      when: "multi-site",
     },
   ],
 };

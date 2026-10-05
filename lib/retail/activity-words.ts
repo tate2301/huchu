@@ -254,7 +254,23 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
     what: text(payload.from) ? `Added it, a copy of ${text(payload.from)}` : "Added it",
     tone: "ok",
   }),
+  // "Sent 540 units to Borrowdale" / "Cancelled: 540 units back at Harare Main Branch" (30-stock 3.3).
+  [RETAIL_AUDIT_EVENTS.transferSent]: (payload) => ({
+    what: `Sent ${unitWords(amount(payload.units) ?? 0)}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,
+    tone: "info",
+  }),
+  [RETAIL_AUDIT_EVENTS.transferCancelled]: (payload) => {
+    const returned = amount(payload.returned) ?? 0;
+    return {
+      what: returned > 0 && text(payload.from) ? `Cancelled: ${unitWords(returned)} back at ${text(payload.from)}` : "Cancelled",
+      tone: "bad",
+    };
+  },
 };
+
+function unitWords(units: number): string {
+  return `${formatCount(units)} ${units === 1 ? "unit" : "units"}`;
+}
 
 /** "RETAIL_EXPORT.DOWNLOADED" → "Downloaded"; "STOCK.COUNT_POSTED" → "Count posted". */
 export function fallbackWords(eventType: string): string {

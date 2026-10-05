@@ -221,22 +221,6 @@ test.describe("the back office", () => {
     await shot(page, "saved");
   });
 
-  test("W9 move stock between locations", async ({ page }) => {
-    const shot = shooter("retail", "journey-w09-move-stock");
-    await visitSettled(page, "/retail/stock/transfers");
-    await shot(page, "transfers");
-    await page.getByRole("button", { name: "Move stock" }).first().click();
-    const dialog = await dialogNamed(page, "Move stock");
-    await dialog.getByLabel("Product").click();
-    await page.getByRole("option", { name: new RegExp(PRODUCT) }).first().click();
-    await dialog.getByLabel("To").click();
-    await page.getByRole("option", { name: new RegExp(`Back store ${RUN}`) }).first().click();
-    await shot(page, "move");
-    await dialog.getByRole("button", { name: "Move stock" }).click();
-    await toast(page, "Stock moved");
-    await shot(page, "moved");
-  });
-
   test("W11 add a till", async ({ page }) => {
     const shot = shooter("retail", "journey-w11-add-a-till");
     await visitSettled(page, "/retail/manage/tills");

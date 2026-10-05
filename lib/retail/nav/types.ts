@@ -30,5 +30,12 @@ export type RetailNavModule = {
   }>;
 };
 
-/** A retail nav item always says who sees it. */
-export type RetailNavItem = NavItem & { requires: Array<[RetailResource, RetailAction]> };
+/**
+ * A fact about the shop an item needs before it is shown at all, whoever
+ * looks: `multi-site`, two or more open sites (Transfers). Worked out on the
+ * server (`navConditions`) and sent with the badges.
+ */
+export type RetailNavCondition = "multi-site";
+
+/** A retail nav item always says who sees it, and may say what the shop must have. */
+export type RetailNavItem = NavItem & { requires: Array<[RetailResource, RetailAction]>; when?: RetailNavCondition };
