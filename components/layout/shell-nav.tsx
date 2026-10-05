@@ -7,17 +7,19 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import { fetchStockLocations } from "@/lib/api";
+import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
+import { getActiveNavHref } from "@/lib/nav-match";
 import type { NavItem } from "@/lib/navigation";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import type { RailArea } from "@/lib/rail/areas";
 import { logoInitials } from "@/lib/rail/initials";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
+import { canRoleOpenRetailPath, RETAIL_NAV_ITEMS } from "@/lib/retail/nav";
 import {
   getWorkspaceSidebarModel,
   type WorkspaceOption,
   type WorkspaceSidebarModel,
 } from "@/lib/workspaces";
-import { getActiveNavHref } from "@/components/layout/app-sidebar/sidebar-helpers";
 import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
 
 /** The workspace's name and branding, resolved on the server by the root layout. */
@@ -39,6 +41,13 @@ type ShellNav = {
   currentArea: RailArea | null;
   activeHref: string | null;
   activeItem: NavItem | null;
+  /**
+   * The signed-in role may not open this retail page: its nav item's
+   * `requires` (00-foundations 5.3.4) refuse them. The page is not drawn.
+   */
+  refused: boolean;
+  /** Where this person's workspace starts, for the refusal's way out. */
+  homeHref: string;
   badges: Record<string, string>;
   companyName: string;
   initials: string;
@@ -65,7 +74,7 @@ export function ShellNavProvider({
   const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const user = session?.user as
     | { role?: string; enabledFeatures?: string[]; workspaceProfile?: string; companySlug?: string }
     | undefined;
@@ -82,7 +91,8 @@ export function ShellNavProvider({
   const stockLocationsQuery = useQuery({
     queryKey: ["stock-locations", "active"],
     queryFn: () => fetchStockLocations({ active: true, limit: 200 }),
-    enabled: hasTokenFeature(enabledFeatures, "stores.inventory"),
+    enabled:
+      hasTokenFeature(enabledFeatures, "stores.inventory") && isRouteAllowedForRole(role, "/api/stock-locations"),
     staleTime: 5 * 60_000,
   });
   const activeStockLocationSiteIds = React.useMemo(
@@ -99,11 +109,11 @@ export function ShellNavProvider({
   // page, the one that does is drawn instead. The choice itself is left alone.
   const model = React.useMemo(() => {
     const chosen = getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId });
-    if (getActiveNavHref(chosen.sections, pathname, searchParams)) return chosen;
+    if (getActiveNavHref(chosen.sections, pathname, searchParams, RETAIL_NAV_ITEMS)) return chosen;
     for (const workspace of chosen.workspaces) {
       if (workspace.id === chosen.activeWorkspaceId) continue;
       const owner = getWorkspaceSidebarModel({ ...modelArgs, activeWorkspaceId: workspace.id });
-      if (getActiveNavHref(owner.sections, pathname, searchParams)) return owner;
+      if (getActiveNavHref(owner.sections, pathname, searchParams, RETAIL_NAV_ITEMS)) return owner;
     }
     return chosen;
   }, [activeWorkspaceId, modelArgs, pathname, searchParams]);
@@ -118,10 +128,14 @@ export function ShellNavProvider({
   );
 
   const rail = React.useMemo(() => getRailModel(model.sections), [model.sections]);
+  // Every retail page is known, visible or not, so a page whose item this
+  // role cannot see lights nothing rather than its nearest visible ancestor.
   const activeHref = React.useMemo(
-    () => getActiveNavHref(model.sections, pathname, searchParams),
+    () => getActiveNavHref(model.sections, pathname, searchParams, RETAIL_NAV_ITEMS),
     [model.sections, pathname, searchParams],
   );
+  const refused =
+    sessionStatus === "authenticated" && !canRoleOpenRetailPath(role, pathname, searchParams);
   const currentArea = React.useMemo(() => areaForHref(rail, activeHref), [activeHref, rail]);
   const activeItem = React.useMemo(
     () => currentArea?.items.find((item) => item.href === activeHref) ?? null,
@@ -160,6 +174,8 @@ export function ShellNavProvider({
       currentArea,
       activeHref,
       activeItem,
+      refused,
+      homeHref: model.homeHref,
       badges: (mounted && badgesQuery.data?.badges) || NO_BADGES,
       companyName,
       initials: logoInitials(brand?.legalName, companyName),
@@ -168,7 +184,7 @@ export function ShellNavProvider({
       activeWorkspaceId: model.activeWorkspaceId,
       selectWorkspace,
     }),
-    [activeHref, activeItem, badgesQuery.data, brand, companyName, currentArea, model, mounted, rail, selectWorkspace],
+    [activeHref, activeItem, badgesQuery.data, brand, companyName, currentArea, model, mounted, rail, refused, selectWorkspace],
   );
 
   return <ShellNavContext.Provider value={value}>{children}</ShellNavContext.Provider>;

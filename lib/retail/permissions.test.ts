@@ -49,10 +49,12 @@ describe("the shop's own", () => {
     }
   });
 
-  it.each(["MANAGER", "SHOP_MANAGER"])("%s may do everything but read the money page", (role) => {
+  it.each(["MANAGER", "SHOP_MANAGER"])("%s may do everything but read the money page and post to the books", (role) => {
     for (const resource of RETAIL_RESOURCES) {
       for (const action of RETAIL_ACTIONS) {
-        expect(canRetailRoleDo(role, resource, action)).toBe(resource !== "retail.money");
+        expect(canRetailRoleDo(role, resource, action)).toBe(
+          resource !== "retail.money" && resource !== "retail.posting",
+        );
       }
     }
     expect(retailPermissionDenial(session(role), "retail.money", "view")).toBe(

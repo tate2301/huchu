@@ -9,7 +9,7 @@ export type NavBadgeContext = {
 
 /** One panel item's figure (00-foundations 4.3). */
 export type NavBadgeProvider = {
-  /** The nav item's href, exactly as `lib/navigation.ts` declares it. */
+  /** The nav item's href, exactly as its module file in `lib/retail/nav/` declares it. */
   href: string;
   /** Any of these grants shows the figure. */
   requires: ReadonlyArray<readonly [RetailResource, RetailAction]>;

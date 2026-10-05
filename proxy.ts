@@ -34,7 +34,6 @@ import { getAdminRootDomain, isAdminPortalHost, isPlatformSuperuser } from "@/li
 import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
 import { isAuthExpired } from "@/lib/auth-core/session-policy";
 import {
-  isRoleRouteRestricted,
   isRouteAllowedForRole,
   landingPathForRole,
 } from "@/lib/auth-core/role-routes";
@@ -505,15 +504,17 @@ export default withAuth(
     // covers validateSession routes, but matcher-covered legacy APIs (gold,
     // payroll, compliance) authenticate with bare getServerSession and
     // would otherwise never see the allowlist.
-    if (token && isRoleRouteRestricted(token.role) && !isRouteAllowedForRole(token.role, pathname)) {
+    // The shop-floor roles' limits (`ROLE_ROUTE_LIMITS`) apply here too, so a
+    // cashier who types /stores/inventory is refused before the page renders.
+    if (token && !isRouteAllowedForRole(token.role, pathname, request.method)) {
       if (isApiRequest) {
         return NextResponse.json(
           { error: "This area is not available for your role.", code: "ROLE_ROUTE_RESTRICTED", path: pathname },
           { status: 403 },
         );
       }
-      const landing = landingPathForRole(token.role) ?? "/";
-      return redirectToPath(request, landing);
+      const landing = landingPathForRole(token.role);
+      return landing ? redirectToPath(request, landing) : redirectToAccessBlocked(request);
     }
 
     if (

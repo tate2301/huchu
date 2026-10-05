@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Receipt } from "@/lib/icons";
 
-import { getActiveNavHref, matchesNavHref } from "./sidebar-helpers";
+import { getActiveNavHref, matchesNavHref } from "./nav-match";
 
 const q = (search: string) => new URLSearchParams(search);
 

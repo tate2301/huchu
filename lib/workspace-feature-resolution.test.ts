@@ -443,14 +443,15 @@ describe("workspace sidebar model", () => {
       ]);
     });
 
-    it("puts the moved settings pages under Management", () => {
-      expect(itemsOf(retailModel(), "retail-manage")).toEqual([
+    it("puts the moved settings pages under Management, Posting for the owner only", () => {
+      expect(itemsOf(retailModel(undefined, "SUPERADMIN"), "retail-manage")).toEqual([
         "/retail/manage/tills",
         "/retail/manage/till-rules",
         "/retail/manage/fiscal",
         "/retail/manage/posting",
         "/retail/manage/bin",
       ]);
+      expect(itemsOf(retailModel(), "retail-manage")).not.toContain("/retail/manage/posting");
     });
 
     it("gives the manager Insights without Money, and the owner Money", () => {

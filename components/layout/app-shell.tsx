@@ -8,7 +8,8 @@ import { GlobalCommandBar } from "@/components/layout/command-bar/global-command
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { PageChromeProvider } from "@/components/layout/page-chrome";
 import { PageHeader } from "@/components/layout/page-header";
-import { ShellNavProvider, type WorkspaceBrand } from "@/components/layout/shell-nav";
+import { RoleRefusal } from "@/components/layout/role-refusal";
+import { ShellNavProvider, useShellNav, type WorkspaceBrand } from "@/components/layout/shell-nav";
 import { ShellProvider, useShell } from "@/components/layout/shell-state";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@/lib/public-routes";
@@ -81,8 +82,9 @@ export function AppShell({
 
 function ShellFrame({ children }: { children: React.ReactNode }) {
   const { width } = useShell();
+  const { refused, homeHref } = useShellNav();
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-[var(--ground)] text-[13px] text-[var(--ink)]">
+    <div className="shell-frame flex h-[100dvh] overflow-hidden bg-[var(--ground)] text-[13px] text-[var(--ink)]">
       {width !== "phone" ? (
         <div className="flex h-full flex-none max-[719px]:hidden">
           <AppSidebar />
@@ -103,7 +105,9 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
                     Padding on `main` would move the scrollport edge every
                     sticky band pins to, so it is a wrapper instead; full-bleed
                     bands cancel it (`globals.css`). */}
-                <div className="pt-[var(--content-lede)]">{children}</div>
+                <div className="pt-[var(--content-lede)]">
+                  {refused ? <RoleRefusal homeHref={homeHref} /> : children}
+                </div>
               </OnboardingProvider>
             </RecordPeekProvider>
           </RecordTrailProvider>

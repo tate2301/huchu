@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { ChartBar, FileText, GearSix, Stack, Storefront, Tag, TrayArrowDown } from "@/lib/icons";
 import { getClientTemplateFeatureKeys } from "@/lib/platform/client-templates";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 
@@ -44,6 +45,29 @@ describe("the retail rail (00-foundations 5.3.2)", () => {
     const rail = retailRail("CASHIER");
     expect(rail.areas.map((area) => area.label)).toEqual(["The floor", "Products", "Buying"]);
     expect(rail.management).toBeNull();
+  });
+
+  it("leaves Posting to the books off the manager's gear (5.3.4: M column blank)", () => {
+    const rail = retailRail("MANAGER");
+    expect(rail.management?.items.map((item) => item.label)).toEqual([
+      "Tills and devices",
+      "Till rules",
+      "Fiscal device",
+      "Bin",
+    ]);
+  });
+
+  it("draws each module's mark from its registry file", () => {
+    const rail = retailRail("SUPERADMIN");
+    expect(rail.areas.map((area) => area.icon)).toEqual([
+      Storefront,
+      Tag,
+      Stack,
+      TrayArrowDown,
+      ChartBar,
+      FileText,
+    ]);
+    expect(rail.management?.icon).toBe(GearSix);
   });
 
   it("finds the module a page belongs to, the gear included", () => {

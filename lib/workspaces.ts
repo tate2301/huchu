@@ -6,7 +6,8 @@ import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
-import { canRetailRoleDo, type RetailAction, type RetailResource } from "@/lib/retail/permission-matrix";
+import { RETAIL_NAV_MODULES, roleMeetsRetailRequires } from "@/lib/retail/nav";
+import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { schoolAccess } from "@/lib/schools/access";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
@@ -133,14 +134,6 @@ type WorkspaceProfileRecipe = {
   nativeModules: WorkspaceModuleId[];
   sections: WorkspaceProfileSectionSpec[];
 };
-
-/** Whether a role holds any of these retail grants. */
-function roleMeets(
-  role: string | null | undefined,
-  requires: Array<[RetailResource, RetailAction]>,
-): boolean {
-  return requires.some(([resource, action]) => canRetailRoleDo(role, resource, action));
-}
 
 function retailHomeHref(role: string | null | undefined): string {
   const normalized = role?.trim().toUpperCase();
@@ -370,7 +363,7 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     label: "Retail",
     homeHref: "/retail",
     /**
-     * The retail nav section is already the definition — see `lib/navigation.ts`,
+     * The retail nav section is already the definition — see `lib/retail/nav/`,
      * where each item's `requires` decides who sees it (`buildContext`). This
      * adds the one thing a grant cannot express: a transfer needs somewhere to
      * transfer to.
@@ -592,77 +585,18 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
     nativeModules: ["retail", "reporting", "stores"],
     /**
      * The retail modules, one rail mark each, in the canvas's order
-     * (00-foundations 5.3.4). `retail-manage` is the gear at the foot of the
-     * rail rather than a mark among the others (`lib/rail/model.ts`).
+     * (00-foundations 5.3.4), read from `lib/retail/nav/`. `retail-manage` is
+     * the gear at the foot of the rail rather than a mark among the others
+     * (`lib/rail/model.ts`).
      */
-    sections: [
-      {
-        id: "retail-floor",
-        title: "The floor",
-        refs: [
-          { moduleId: "retail", href: "/retail" },
-          { moduleId: "retail", href: "/retail/sales" },
-          { moduleId: "retail", href: "/retail/shifts" },
-          { moduleId: "retail", href: "/retail/customers" },
-        ],
-      },
-      {
-        id: "retail-products",
-        title: "Products",
-        refs: [
-          { moduleId: "retail", href: "/retail/products" },
-          { moduleId: "retail", href: "/retail/products/price-lists" },
-          { moduleId: "retail", href: "/retail/products/promotions" },
-          { moduleId: "retail", href: "/retail/products/categories" },
-        ],
-      },
-      {
-        id: "retail-stock",
-        title: "Stock",
-        refs: [
-          { moduleId: "retail", href: "/retail/stock" },
-          { moduleId: "retail", href: "/retail/stock/movements" },
-          { moduleId: "retail", href: "/retail/stock/counts" },
-          { moduleId: "retail", href: "/retail/stock/transfers" },
-        ],
-      },
-      {
-        id: "retail-buy",
-        title: "Buying",
-        refs: [
-          { moduleId: "retail", href: "/retail/buying/orders" },
-          { moduleId: "retail", href: "/retail/buying/deliveries" },
-          { moduleId: "retail", href: "/retail/buying/requisitions" },
-        ],
-      },
-      {
-        id: "retail-control",
-        title: "Insights",
-        // The seven questions an owner asks of the shop, one page each.
-        refs: ["sales", "profit", "products", "stock", "losses", "customers", "money"].map((topic) => ({
-          moduleId: "retail" as const,
-          href: `/retail/insights/${topic}`,
-        })),
-      },
-      {
-        // Reports are their own place: every template, built in or saved by the
-        // team. Owner, manager and bookkeeper only (98-decisions C-35).
-        id: "retail-reports",
-        title: "Reports",
-        refs: [{ moduleId: "reporting", href: "/reports", requires: [["retail.reports", "view"]] }],
-      },
-      {
-        id: "retail-manage",
-        title: "Management",
-        refs: [
-          { moduleId: "retail", href: "/retail/manage/tills" },
-          { moduleId: "retail", href: "/retail/manage/till-rules" },
-          { moduleId: "retail", href: "/retail/manage/fiscal" },
-          { moduleId: "retail", href: "/retail/manage/posting" },
-          { moduleId: "retail", href: "/retail/manage/bin" },
-        ],
-      },
-    ],
+    sections: RETAIL_NAV_MODULES.map((module) => ({
+      id: module.id,
+      title: module.title,
+      refs: [
+        ...module.items.map((item) => ({ moduleId: "retail" as const, href: item.href })),
+        ...(module.borrowed ?? []),
+      ],
+    })),
   },
   PAYROLL: {
     label: "Payroll",
@@ -762,7 +696,7 @@ function buildContext(args: WorkspaceModelArgs): WorkspaceBuildContext {
       items: section.items.filter(
         (item) =>
           isRouteAllowedForRole(args.role, item.href) &&
-          (!item.requires || roleMeets(args.role, item.requires)),
+          (!item.requires || roleMeetsRetailRequires(args.role, item.requires)),
       ),
     }))
     .filter((section) => section.items.length > 0);
@@ -816,7 +750,7 @@ function buildProfileSections(
       for (const ref of section.refs) {
         const item = getVisibleItem(visibleModules, ref.moduleId, ref.href);
         if (!item || seen.has(item.href)) continue;
-        if (ref.requires && !roleMeets(role, ref.requires)) continue;
+        if (ref.requires && !roleMeetsRetailRequires(role, ref.requires)) continue;
         seen.add(item.href);
         // The arrangement's grouping wins over whatever band the item carried
         // in its own module — `/stores/inventory` is "Stock" in both, but the

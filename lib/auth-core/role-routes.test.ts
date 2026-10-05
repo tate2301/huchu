@@ -43,4 +43,41 @@ describe("role route allowlist", () => {
     expect(landingPathForRole("SALES_REP")).toBe("/crm");
     expect(landingPathForRole("MANAGER")).toBeNull();
   });
+
+  it("keeps the cashier out of the stores module and its unguarded handlers", () => {
+    for (const method of ["GET", "POST", "PATCH", "DELETE"]) {
+      expect(isRouteAllowedForRole("CASHIER", "/api/inventory/items", method)).toBe(false);
+      expect(isRouteAllowedForRole("CASHIER", "/api/inventory/items/abc", method)).toBe(false);
+      expect(isRouteAllowedForRole("CASHIER", "/api/inventory/movements", method)).toBe(false);
+      expect(isRouteAllowedForRole("CASHIER", "/api/stock-locations", method)).toBe(false);
+      expect(isRouteAllowedForRole("CASHIER", "/api/v2/inventory/products", method)).toBe(false);
+      expect(isRouteAllowedForRole("POS_CASHIER", "/api/inventory/items", method)).toBe(false);
+    }
+    expect(isRouteAllowedForRole("CASHIER", "/stores/inventory")).toBe(false);
+    // Retail's own routes are the matrix's to decide.
+    expect(isRouteAllowedForRole("CASHIER", "/retail/shifts")).toBe(true);
+    expect(isRouteAllowedForRole("CASHIER", "/api/v2/retail/catalog", "GET")).toBe(true);
+    expect(isRouteAllowedForRole("CASHIER", "/api/inventory-reports")).toBe(true);
+  });
+
+  it("lets the stock clerk read the stock module's items, locations and movements, never write them", () => {
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/inventory/items", "GET")).toBe(true);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/inventory/movements", "GET")).toBe(true);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/stock-locations", "GET")).toBe(true);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/inventory/items", "POST")).toBe(false);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/inventory/items/abc", "PATCH")).toBe(false);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/inventory/items/abc", "DELETE")).toBe(false);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/inventory/movements", "POST")).toBe(false);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/stock-locations", "POST")).toBe(false);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/v2/inventory/products", "GET")).toBe(false);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/stores/movements")).toBe(false);
+    // Retail's stock writes go through the matrix and the ledger.
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/v2/retail/stock/count", "POST")).toBe(true);
+  });
+
+  it("leaves the stores module to the roles that run it", () => {
+    expect(isRouteAllowedForRole("MANAGER", "/api/inventory/items", "POST")).toBe(true);
+    expect(isRouteAllowedForRole("CLERK", "/api/inventory/movements", "POST")).toBe(true);
+    expect(isRouteAllowedForRole("SUPERADMIN", "/stores/inventory")).toBe(true);
+  });
 });

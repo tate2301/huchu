@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailSession } from "../../_helpers";
 
@@ -24,11 +24,10 @@ import { requireRetailSession } from "../../_helpers";
  * apart from its products. A manager investigating a variance should not be
  * shown nothing because one line's item was deleted.
  *
- * ## `retail.cash-control`, not `retail.sell`
+ * ## `retail.cash-control`, or the cashier's own
  *
- * This is somebody else's drawer. A cashier reaches their own through
- * `pos/current-shift`, which is self-scoped; this is the back-office view of
- * every register, and the matrix keeps those apart deliberately.
+ * Cash control reads every register. A cashier holding `retail.sell` reads
+ * only the drawers they opened; anybody else's answers 404.
  */
 export async function GET(
   request: NextRequest,
@@ -39,15 +38,21 @@ export async function GET(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.cash-control", "view");
-  if (gate) return gate;
+  // Cash control reads every drawer; a cashier reads the ones they opened
+  // (their Shifts item is "own", 00-foundations 5.3.4). Someone else's shift
+  // answers as missing rather than confirming it exists.
+  const seesEveryDrawer = canRetailRoleDo(session.user.role, "retail.cash-control", "view");
+  if (!seesEveryDrawer) {
+    const gate = requireRetailPermission(session, "retail.sell", "open-shift");
+    if (gate) return gate;
+  }
 
   const path = await parseRetailParams(params, retailIdParams);
   if (path.response) return path.response;
 
   const companyId = session.user.companyId;
   const shift = await prisma.retailShift.findFirst({
-    where: { id: path.data.id, companyId },
+    where: { id: path.data.id, companyId, ...(seesEveryDrawer ? {} : { cashierId: session.user.id }) },
   });
   if (!shift) {
     return errorResponse("Shift not found", 404);

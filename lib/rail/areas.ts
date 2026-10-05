@@ -3,15 +3,12 @@ import {
   AddressBook,
   Bed,
   CashRegister,
-  ChartBar,
   ChartLineUp,
   ClipboardText,
   Coins,
   Drop,
   Factory,
-  FileText,
   Flag,
-  GearSix,
   Funnel,
   IdentificationCard,
   Lightning,
@@ -21,15 +18,13 @@ import {
   MedusaHandTruckIcon,
   Money,
   Package,
-  Stack,
-  Storefront,
   Sun,
   Tag,
-  TrayArrowDown,
   UsersThree,
   Wallet,
 } from "@/lib/icons";
 import type { NavItem, NavRank } from "@/lib/navigation";
+import { RETAIL_NAV_MODULES } from "@/lib/retail/nav";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 
 import { orderRows } from "./order";
@@ -80,13 +75,6 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   school: MedusaCogSixToothIcon,
   // Retail and stock
   // The retail modules (00-foundations 5.3.4).
-  "retail-floor": Storefront,
-  "retail-products": Tag,
-  "retail-stock": Stack,
-  "retail-buy": TrayArrowDown,
-  "retail-control": ChartBar,
-  "retail-reports": FileText,
-  "retail-manage": GearSix,
   selling: Tag,
   stock: Package,
   pos: CashRegister,
@@ -143,15 +131,8 @@ const AREA_LABELS: Record<string, string> = {
   teaching: "Learning",
   staff: "Staff and families",
   school: "The school",
-  "retail-floor": "The floor",
-  "retail-products": "Products",
-  "retail-stock": "Stock",
   selling: "Products",
   stock: "Stock",
-  "retail-buy": "Buying",
-  "retail-control": "Insights",
-  "retail-reports": "Reports",
-  "retail-manage": "Management",
   // Not "Money": the Finance area beside it is money too, and two areas that
   // both sound like money is a coin toss. Quotes, invoices, receipts and
   // collections are what the business bills.
@@ -163,8 +144,11 @@ const AREA_LABELS: Record<string, string> = {
   "gold-control": "Insights",
 };
 
+/** Retail's module marks are declared with their modules (`lib/retail/nav/`). */
+const RETAIL_MODULE_ICONS = new Map(RETAIL_NAV_MODULES.map((module) => [module.id as string, module.icon]));
+
 function iconFor(id: string, items: NavItem[]): LucideIcon {
-  return AREA_ICONS[id] ?? items[0]?.icon ?? MedusaCogSixToothIcon;
+  return AREA_ICONS[id] ?? RETAIL_MODULE_ICONS.get(id) ?? items[0]?.icon ?? MedusaCogSixToothIcon;
 }
 
 /**
@@ -180,7 +164,7 @@ function iconFor(id: string, items: NavItem[]): LucideIcon {
  * any new section gets for free.
  */
 function keyFor(id: string, items: NavItem[]): string {
-  if (id in AREA_LABELS || id in AREA_ICONS || id in AREA_MERGES) return id;
+  if (id in AREA_LABELS || id in AREA_ICONS || id in AREA_MERGES || RETAIL_MODULE_ICONS.has(id)) return id;
   const withoutPrefix = id.includes("-") ? id.slice(id.indexOf("-") + 1) : id;
   if (
     withoutPrefix in AREA_LABELS ||

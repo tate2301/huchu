@@ -51,9 +51,10 @@ export function PageHeader() {
   const folded = flatten(actions);
 
   return (
-    <header className="flex-none border-b border-[var(--line)] bg-[var(--surface)] pt-[env(safe-area-inset-top)]">
+    // 48px with its bottom border (border-box), plus the notch on a phone.
+    <header className="box-border h-[calc(48px+env(safe-area-inset-top))] flex-none border-b border-[var(--line)] bg-[var(--surface)] pt-[env(safe-area-inset-top)]">
       {/* ≥720px */}
-      <div className="flex h-12 items-center gap-2.5 px-4 max-[719px]:hidden">
+      <div className="flex h-full items-center gap-2.5 px-4 max-[719px]:hidden">
         {back ? (
           <>
             <Link
@@ -109,14 +110,14 @@ export function PageHeader() {
       </div>
 
       {/* <720px (Mobile board) */}
-      <div className="flex h-12 items-center gap-1 pl-1 pr-1 min-[720px]:hidden">
+      <div className="flex h-full items-center gap-1 pl-1 pr-1 min-[720px]:hidden">
         <button
           type="button"
           aria-label="Open the menu"
           onClick={() => shell.setDrawerOpen(true)}
           className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
         >
-          <List className="size-5" aria-hidden="true" />
+          <List weight="bold" className="size-5" aria-hidden="true" />
         </button>
         <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-[var(--ink)]">{title}</h1>
         {folded.length > 0 ? (
@@ -127,7 +128,7 @@ export function PageHeader() {
                 aria-label="More actions"
                 className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
               >
-                <DotsThree className="size-5" aria-hidden="true" />
+                <DotsThree weight="regular" className="size-5" aria-hidden="true" />
               </button>
             </MenuTrigger>
             <MenuContent align="end">

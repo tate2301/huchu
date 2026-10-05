@@ -16,6 +16,8 @@ import type { AuthGuardResult, AuthenticatedSession } from "@/lib/auth-core/type
 type ResolveAccessContextOptions = {
   session: AuthenticatedSession | null;
   pathname?: string;
+  /** The request's method; a page is a read. */
+  method?: string;
   hostHeader?: string | null;
   requireAdmin?: boolean;
   requireTenantContext?: boolean;
@@ -27,6 +29,7 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
   const {
     session,
     pathname,
+    method,
     hostHeader,
     requireAdmin = false,
     requireTenantContext = true,
@@ -127,7 +130,7 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
     // Role-level route pinning (e.g. SALES_REP → CRM only). Enforced before
     // the feature check and independent of it, so a restricted role can never
     // reach a module its tenant happens to have enabled.
-    if (pathname && !isRouteAllowedForRole(session.user.role, pathname)) {
+    if (pathname && !isRouteAllowedForRole(session.user.role, pathname, method)) {
       return {
         ok: false,
         reason: "ROLE_ROUTE_RESTRICTED",

@@ -173,7 +173,7 @@ export async function requireApiAuthLean(
 
     // ROLE_ROUTE_RESTRICTED — pure claims, same order as resolveAccessContext
     // (before the feature check, independent of it).
-    if (pathname && !isRouteAllowedForRole(session.user.role, pathname)) {
+    if (pathname && !isRouteAllowedForRole(session.user.role, pathname, request.method)) {
       return deny(session, pathname, hostHeader, {
         reason: "ROLE_ROUTE_RESTRICTED",
         status: 403,

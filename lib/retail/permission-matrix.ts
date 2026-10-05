@@ -27,6 +27,10 @@
  *   and paying it out. Anybody on staff may ask; the manager decides and pays.
  * - `retail.money` — the Money insight: where the shop's money went. The owner's
  *   alone among the shop's own ("Managers do not see Money", the Roles board).
+ * - `retail.posting` — Posting to the books: which ledger accounts the shop's
+ *   takings, cost and tax land in. The owner's and the bookkeeper's; the
+ *   manager runs the shop, not the books (00-foundations 5.3.4 leaves the M
+ *   column blank). The bookkeeper's grants arrive with ADM-01's matrix.
  */
 export const RETAIL_RESOURCES = [
   "retail.sell",
@@ -38,6 +42,7 @@ export const RETAIL_RESOURCES = [
   "retail.setup",
   "retail.requisitions",
   "retail.money",
+  "retail.posting",
 ] as const;
 
 export type RetailResource = (typeof RETAIL_RESOURCES)[number];
@@ -147,7 +152,7 @@ type Matrix = Partial<Record<string, Partial<Record<RetailResource, RetailAction
  * line in this table and a decision somebody makes.
  */
 const MATRIX: Matrix = {
-  SUPERADMIN: { ...MANAGE_THE_SHOP, "retail.money": ALL },
+  SUPERADMIN: { ...MANAGE_THE_SHOP, "retail.money": ALL, "retail.posting": ALL },
   MANAGER: MANAGE_THE_SHOP,
   SHOP_MANAGER: MANAGE_THE_SHOP,
 
@@ -196,6 +201,7 @@ const RESOURCE_LABELS: Record<RetailResource, string> = {
   "retail.setup": "retail setup",
   "retail.requisitions": "requisitions",
   "retail.money": "the money page",
+  "retail.posting": "posting to the books",
 };
 
 /**

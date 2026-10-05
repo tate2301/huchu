@@ -1861,3 +1861,11 @@
 .campus-pulse-dot {
   animation: campus-pulse 1.1s var(--ease-in-out, cubic-bezier(.65,0,.35,1)) infinite;
 }
+
+/* The shell's type (00-foundations 5.3.1): 13px from the body down while the
+   shell is mounted, so menus, sheets and dialogs portalled to the body read at
+   the page's size. Unlayered, because the design system's body size is too.
+   Login and the portals keep theirs. */
+body:has(.shell-frame) {
+  font-size: 13px;
+}

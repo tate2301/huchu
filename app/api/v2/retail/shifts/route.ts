@@ -3,7 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { pageArgs, pageResult, parseRetailQuery, retailPageQuery } from "@/lib/retail/request";
 import {
   requireRetailSession,
@@ -27,10 +27,14 @@ export async function GET(request: NextRequest) {
   }
 
   // R-2.3. The back-office shift list: every cashier's drawer and every
-  // variance. A cashier's own shift reaches them through `pos/current-shift`,
-  // which stays open — this is the till supervisor's view of everyone else.
-  const gate = requireRetailPermission(session, "retail.cash-control", "view");
-  if (gate) return gate;
+  // variance for cash control. A cashier's Shifts item is "own"
+  // (00-foundations 5.3.4): the same list, scoped here to the drawers they
+  // opened, so the page they land on answers rather than refuses.
+  const seesEveryDrawer = canRetailRoleDo(session.user.role, "retail.cash-control", "view");
+  if (!seesEveryDrawer) {
+    const gate = requireRetailPermission(session, "retail.sell", "open-shift");
+    if (gate) return gate;
+  }
 
   // R-3.2. Was a flat `take: 100`. A shop running two tills six days a week
   // passes a hundred shifts in two months, and the list simply stopped with
@@ -40,7 +44,10 @@ export async function GET(request: NextRequest) {
   const args = pageArgs(query.data, 100);
 
   const found = await prisma.retailShift.findMany({
-    where: { companyId: session.user.companyId },
+    where: {
+      companyId: session.user.companyId,
+      ...(seesEveryDrawer ? {} : { cashierId: session.user.id }),
+    },
     orderBy: [{ status: "asc" }, { openedAt: "desc" }, { id: "desc" }],
     take: args.take,
     ...(args.cursor ? { cursor: args.cursor, skip: args.skip } : {}),

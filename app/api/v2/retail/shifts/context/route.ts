@@ -10,8 +10,11 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
-  // R-2.4. The back-office shift screen: every cashier's drawer, not your own.
-  const gate = requireRetailPermission(session, "retail.cash-control", "view");
+  // R-2.4. The sites and registers a shift can be opened on: what cash
+  // control reads, and what a cashier opening their own drawer needs.
+  const gate =
+    requireRetailPermission(session, "retail.cash-control", "view") &&
+    requireRetailPermission(session, "retail.sell", "open-shift");
   if (gate) return gate;
 
   const [sites, registers, setupProfile] = await Promise.all([

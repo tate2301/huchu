@@ -89,7 +89,7 @@ export function AccountMenu() {
             <MenuContent
               side="right"
               align="start"
-              sideOffset={8}
+              sideOffset={20}
               style={{ width: 260 }}
               onCloseAutoFocus={(event) => {
                 const open = next.current;
