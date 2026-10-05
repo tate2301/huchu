@@ -254,6 +254,11 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
     tone: "info",
   }),
   [RETAIL_AUDIT_EVENTS.shiftClosed]: shiftClosedWords,
+  // "Opened the drawer without a sale, approved by Tafara Nyathi" (SET-06).
+  [RETAIL_AUDIT_EVENTS.drawerOpened]: (payload) => ({
+    what: `Opened the drawer without a sale${text(payload.approvedByName) ? `, approved by ${text(payload.approvedByName)}` : ""}`,
+    tone: "warn",
+  }),
   [RETAIL_AUDIT_EVENTS.cashMoved]: cashMovedWords,
   [RETAIL_AUDIT_EVENTS.salePosted]: (payload, type) => saleWords(type, payload),
   [RETAIL_AUDIT_EVENTS.saleRefunded]: (payload, type) => saleWords(type, payload),

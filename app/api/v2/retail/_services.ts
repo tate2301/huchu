@@ -27,7 +27,14 @@ import {
 } from "@/lib/retail/cash-up";
 import { reversalSubtotal } from "@/lib/retail/sale-totals";
 import { depositBack } from "@/lib/retail/deposits";
-import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
+import {
+  checkTillRule,
+  listedReason,
+  loadTillRules,
+  offlineReview,
+  tenderRuleProblem,
+} from "@/lib/retail/till-rules";
+import { approvalFor, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
 import {
   checkSaleTenders,
   loadPaymentSettings,
@@ -720,6 +727,8 @@ export async function stampSalePayments(input: {
   on: Date;
   /** Rung offline and sent in now: a tender turned off since is let in for a manager to look at. */
   replay: boolean;
+  /** When it reached the server, for how long it was kept offline. */
+  now?: Date;
 }) {
   const [saleCurrency, settings] = await Promise.all([
     getCompanyBaseCurrency(input.companyId),
@@ -756,11 +765,21 @@ export async function stampSalePayments(input: {
       baseAmount: toNumberOrZero(toBaseAmount(amount, exchangeRate)),
     };
   });
-  const tenderPolicy = await getRetailTenderPolicy(input.companyId);
-  const paymentReferenceError = validateTenderReferences(tenderPolicy, payments);
-  if (paymentReferenceError) {
-    throw new Error(paymentReferenceError);
+  /*
+    SET-06. The till rules on the tenders: one tender while split payments
+    are off, a reference on card and wallet payments while references are on.
+    A sale rung now is refused; one sent in from the offline queue has
+    already taken the money, so it is let in for a manager to look at, and so
+    is one the till kept offline longer than the rules allow.
+  */
+  const tillRules = await loadTillRules(input.companyId);
+  const tenderRule = tenderRuleProblem(tillRules, payments);
+  if (tenderRule && !input.replay) {
+    throw new Error(tenderRule);
   }
+  const ruleReviews = input.replay
+    ? [tenderRule, offlineReview(tillRules, input.on, input.now ?? new Date())].filter(Boolean)
+    : [];
   const totalOf = (rows: typeof payments) => round(rows.reduce((total, payment) => total + payment.baseAmount, 0));
   const tenderedAmount = totalOf(payments);
   const nonCashTotal = totalOf(payments.filter((payment) => payment.tenderType !== "CASH"));
@@ -773,7 +792,8 @@ export async function stampSalePayments(input: {
   }
   const owed = round(Math.max(cashTotal - Math.max(input.amountDue - nonCashTotal, 0), 0));
   const change = splitChange(owed, await zigChangeRule(input.companyId, saleCurrency, settings, input.on));
-  return { saleCurrency, payments, tenderedAmount, change, reviewReason: tenders.reviewReason };
+  const reviewReason = [tenders.reviewReason, ...ruleReviews].filter(Boolean).join(" ") || null;
+  return { saleCurrency, payments, tenderedAmount, change, reviewReason };
 }
 
 /**
@@ -1118,6 +1138,11 @@ export async function createRetailSaleTransaction(input: {
   throw new Error("Unable to generate sale number");
 }
 
+/** "Changed mind (approved by Tafara Nyathi)": the reason as the reversal keeps it. */
+function withApprover(reason: string, approvedBy: Approval | null): string {
+  return approvedBy ? `${reason} (approved by ${approvedBy.name})` : reason;
+}
+
 export async function refundRetailSaleTransaction(input: {
   actor: RetailActorContext;
   saleId: string;
@@ -1131,26 +1156,21 @@ export async function refundRetailSaleTransaction(input: {
   /** The device it is done on (SET-04); the till is the shift's. */
   deviceId?: string | null;
   /**
-   * S-7.7 — a manager who approved this at the counter, already verified.
-   *
-   * The actor stays the cashier: they rang it, the drawer is theirs, and the
-   * shift it lands against is theirs. This says somebody with the authority
-   * stood there and said yes. Only `lib/retail/manager-override.ts` produces
-   * one, and only after checking the approver's role against the matrix and
-   * their password with bcrypt.
+   * A manager approving this with their till PIN, when the till rules ask for
+   * one (SET-06). The actor stays the cashier: they rang it, the drawer is
+   * theirs, and the shift it lands against is theirs; the approver's name
+   * goes on the refund and into the audit chain.
    */
-  approvedBy?: { id: string; name: string } | null;
+  approver?: ApproverInput | null;
 }) {
   /*
-    Defence in depth, and it has to know about the approval or it is simply a
-    fourth opinion. This guard fired on the first refund driven end to end: the
-    route had verified a manager, and the service refused anyway because the
-    actor was still the cashier — a 400 reading "Only retail managers can
-    process refunds" on a refund a manager had just authorised.
+    SET-06. The reason is one of the shop's refund reasons; the refund's value
+    over "Manager PIN for refunds over" needs a manager's approval (checked
+    below, once the value is known). Someone who holds the approve right is
+    their own approval.
   */
-  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "approve") && !input.approvedBy) {
-    throw new Error("Only retail managers can process refunds");
-  }
+  const tillRules = await loadTillRules(input.actor.companyId);
+  const reason = listedReason(tillRules, "refund", input.reason);
 
   const [sourceSale, shift] = await Promise.all([
     prisma.retailSale.findFirst({
@@ -1206,10 +1226,12 @@ export async function refundRetailSaleTransaction(input: {
     reference: payment.reference?.trim() || null,
     currency: sourceSale.currency,
   }));
-  const tenderPolicy = await getRetailTenderPolicy(input.actor.companyId);
-  const paymentReferenceError = validateTenderReferences(tenderPolicy, refundPayments);
-  if (paymentReferenceError) {
-    throw new Error(paymentReferenceError);
+  const referenceProblem = tenderRuleProblem(
+    { splitTender: true, referenceRequired: tillRules.referenceRequired },
+    refundPayments,
+  );
+  if (referenceProblem) {
+    throw new Error(referenceProblem);
   }
   const negativePayments = refundPayments.map((payment) => ({
     ...payment,
@@ -1322,6 +1344,15 @@ export async function refundRetailSaleTransaction(input: {
       throw new Error("Refund payments must match the refund value");
     }
 
+    // The approval the refund's value needs. A wrong PIN still counts against
+    // the approver: the attempt is written outside this transaction.
+    const approvedBy = await approvalFor({
+      companyId: input.actor.companyId,
+      actorRole: input.actor.userRole,
+      decision: checkTillRule(tillRules, { act: "refund", amount: refundValue }),
+      approver: input.approver,
+    });
+
     const inventoryItems = await tx.inventoryItem.findMany({
       where: {
         id: { in: [...new Set(requestedLines.map((line) => line.sourceLine.inventoryItemId))] },
@@ -1359,7 +1390,7 @@ export async function refundRetailSaleTransaction(input: {
         currency: currentSourceSale.currency,
         exchangeRate: currentSourceSale.exchangeRate,
         baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
-        overrideReason: input.reason.trim(),
+        overrideReason: withApprover(reason, approvedBy),
         status: "POSTED",
         notes: input.notes?.trim() || null,
         postedAt: input.postedAt ?? new Date(),
@@ -1456,10 +1487,10 @@ export async function refundRetailSaleTransaction(input: {
 
       A reversal is how a till is stolen from — ring the sale, take the cash,
       refund it — and the question afterwards is always who allowed it.
-      A cashier holds `refund` but not `approve`, so they reach this only with
-      a manager's password verified at the counter, and `approvedBy` is that
-      manager. It already goes into `overrideReason` as free text on the sale
-      row; that row is mutable, and free text is not evidence.
+      Over the till rules' limit a cashier reaches this only with a manager's
+      PIN verified at the counter, and `approvedBy` is that manager. It also
+      goes into `overrideReason` as text on the sale row; that row is mutable,
+      and free text is not evidence.
     */
     await auditSaleReversed(tx, {
       actor: input.actor,
@@ -1471,8 +1502,8 @@ export async function refundRetailSaleTransaction(input: {
       shiftId: created.shiftId,
       totalAmount: created.totalAmount,
       currency: created.currency,
-      reason: input.reason,
-      approvedBy: input.approvedBy ?? null,
+      reason,
+      approvedBy,
     });
 
     return created;
@@ -1498,12 +1529,11 @@ export async function voidRetailSaleTransaction(input: {
   postedAt?: Date;
   /** The device it is done on (SET-04). */
   deviceId?: string | null;
-  /** A manager who approved this at the counter. See the refund above. */
-  approvedBy?: { id: string; name: string } | null;
+  /** A manager approving this with their till PIN, when the till rules ask for one. See the refund above. */
+  approver?: ApproverInput | null;
 }) {
-  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "approve") && !input.approvedBy) {
-    throw new Error("Only retail managers can void sales");
-  }
+  const tillRules = await loadTillRules(input.actor.companyId);
+  const reason = listedReason(tillRules, "void", input.reason);
 
   const [sourceSale, shift] = await Promise.all([
     prisma.retailSale.findFirst({
@@ -1532,6 +1562,18 @@ export async function voidRetailSaleTransaction(input: {
   if (shift.siteId !== sourceSale.siteId) {
     throw new Error("Void shift site does not match sale site");
   }
+
+  // "Voids need a manager PIN": always, after 5 minutes from the sale, or never.
+  const approvedBy = await approvalFor({
+    companyId: input.actor.companyId,
+    actorRole: input.actor.userRole,
+    decision: checkTillRule(tillRules, {
+      act: "void",
+      saleAt: sourceSale.postedAt ?? sourceSale.createdAt,
+      at: input.postedAt ?? new Date(),
+    }),
+    approver: input.approver,
+  });
 
   const voidNo = await reserveIdentifier(prisma, {
     companyId: input.actor.companyId,
@@ -1617,7 +1659,7 @@ export async function voidRetailSaleTransaction(input: {
           currentSourceSale.exchangeRate,
         ),
         promotionCode: currentSourceSale.promotionCode,
-        overrideReason: input.reason.trim(),
+        overrideReason: withApprover(reason, approvedBy),
         status: "POSTED",
         notes: input.notes?.trim() || null,
         postedAt: input.postedAt ?? new Date(),
@@ -1712,7 +1754,7 @@ export async function voidRetailSaleTransaction(input: {
       where: { id: currentSourceSale.id },
       data: {
         status: "VOIDED",
-        voidReason: input.reason.trim(),
+        voidReason: reason,
       },
     });
 
@@ -1727,8 +1769,8 @@ export async function voidRetailSaleTransaction(input: {
       shiftId: created.shiftId,
       totalAmount: created.totalAmount,
       currency: created.currency,
-      reason: input.reason,
-      approvedBy: input.approvedBy ?? null,
+      reason,
+      approvedBy,
     });
 
     return created;

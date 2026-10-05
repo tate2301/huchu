@@ -4,12 +4,8 @@ import { z } from "zod";
 import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
-import {
-  managerOverrideSchema,
-  verifyManagerOverride,
-  withApprover,
-} from "@/lib/retail/manager-override";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { approverSchema, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { requireRetailSession } from "../../../../_helpers";
 import { refundRetailSaleTransaction } from "../../../../_services";
 
@@ -26,20 +22,18 @@ const refundPaymentSchema = z.object({
 
 const refundSchema = z.object({
   shiftId: z.string().uuid(),
-  reason: z.string().min(3).max(240),
+  /** One of the till rules' refund reasons (SET-06). */
+  reason: z.string().min(1).max(240),
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(refundLineSchema).min(1),
   payments: z.array(refundPaymentSchema).min(1),
   /**
-   * A manager approving this at the till, when the cashier may not.
-   *
-   * The refund has to be rung at a till because the cash comes out of a real
-   * drawer and lands against `shiftId` at cash-up — a manager in the back
-   * office has no drawer to take it from. So the manager comes to the counter
-   * and approves the one act. See `lib/retail/manager-override.ts`.
+   * A manager approving this with their till PIN, when the till rules ask
+   * for one (a refund over "Manager PIN for refunds over"). Without it the
+   * server answers 409 `needsApprover` and the till opens its PIN dialog.
    */
-  managerOverride: managerOverrideSchema.optional(),
+  approver: approverSchema.optional().nullable(),
 });
 
 export async function POST(
@@ -69,28 +63,6 @@ export async function POST(
     const body = await request.json();
     const input = refundSchema.parse(body);
 
-    /*
-      Refunding is the cashier's as well (the Roles board's "Sales, refunds,
-      voids"); doing it without a manager is `retail.sell` `approve`. Anyone
-      without it brings a manager to the counter, whose name goes onto the
-      reversal. SET-06's till rules decide when a cashier needs one.
-    */
-    let reason = input.reason.trim();
-    let approvedBy: { id: string; name: string } | null = null;
-    if (!canRetailSessionDo(session, "retail.sell", "approve")) {
-      if (!input.managerOverride) {
-        return errorResponse("A manager must approve this refund", 403);
-      }
-      const approval = await verifyManagerOverride({
-        companyId: session.user.companyId,
-        override: input.managerOverride,
-        action: "refund",
-      });
-      if (!approval.ok) return errorResponse(approval.error, 403);
-      reason = withApprover(reason, approval.approver.name);
-      approvedBy = approval.approver;
-    }
-
     const { sale, accounting } = await refundRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
@@ -101,10 +73,8 @@ export async function POST(
       },
       saleId: id,
       shiftId: input.shiftId,
-      // Carries the approver's name when a manager signed this off at the counter.
-      reason,
-      // And the approval itself, so the service's own role guard knows about it.
-      approvedBy,
+      reason: input.reason,
+      approver: input.approver ?? null,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       lines: input.lines,
@@ -132,6 +102,8 @@ export async function POST(
       accountingError: accounting.accountingError,
     }, 201);
   } catch (error) {
+    const refused = tillRuleResponse(error);
+    if (refused) return refused;
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }

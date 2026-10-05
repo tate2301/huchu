@@ -35,11 +35,8 @@ import { upsertShelfListing } from "@/lib/retail/shelf-listing";
  * before they trust the screen. The four records above are infrastructure; a
  * product is an opinion about what this shop sells.
  *
- * **A tender policy.** `getRetailTenderPolicy` already returns
- * `DEFAULT_RETAIL_TENDER_POLICY` when no row exists, and that default is the
- * sensible one. Writing it to the database would turn "running on defaults"
- * into "somebody configured this", which is exactly the distinction the POS
- * policy screen renders as *Draft* against *Saved*.
+ * **Till rules.** `loadTillRules` reads the board's defaults when no row
+ * exists; a row appears when somebody saves the Till rules page.
  *
  * **Users.** Who works the till is the operator's decision and it is made
  * elsewhere.

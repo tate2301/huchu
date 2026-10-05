@@ -9,9 +9,8 @@
  *
  * ── Why this endpoint reads and does not write ─────────────────────────────
  *
- * The settings the demo shows already exist, in one place: `RetailPosPolicy` and
- * `RetailTenderPolicy` (both `FiscalisationProviderConfig` rows),
- * `RetailSetupProfile`, `CompanyBranding`, `Site` and `RetailRegister`. They are
+ * The settings the demo shows already exist, in one place: `RetailTillRules`
+ * (SET-06), `CompanyBranding`, `Site` and `RetailRegister`. They are
  * edited under `/retail/manage/**` through PUT handlers gated on
  * `requireRetailManager`. This composes those for the till and shapes them for a
  * cashier; it does not accept a write, and there is no second store.
@@ -65,10 +64,9 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { resolveBaseCurrency } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
-import { getRetailPosPolicy } from "@/lib/retail/pos-policy";
 import { requirePosDevice } from "@/lib/retail/devices";
 import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
-import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
+import { loadTillRules, tillRulesForTill } from "@/lib/retail/till-rules";
 import { summariseShelfTax, summariseTillCapabilities } from "@/lib/retail/till-settings";
 import { requireRetailSession } from "../../_helpers";
 
@@ -95,9 +93,8 @@ export async function GET(request: NextRequest) {
   try {
     const companyId = session.user.companyId;
 
-    const [posPolicy, tenderPolicy, baseCurrency, branding, shift] = await Promise.all([
-      getRetailPosPolicy(companyId),
-      getRetailTenderPolicy(companyId),
+    const [tillRules, baseCurrency, branding, shift] = await Promise.all([
+      loadTillRules(companyId),
       resolveBaseCurrency(companyId),
       prisma.companyBranding.findUnique({
         where: { companyId },
@@ -197,25 +194,14 @@ export async function GET(request: NextRequest) {
           taxInclusive: shelfPriceList?.taxInclusive ?? null,
           shelfTax,
         },
+        /**
+         * The till rules the caller works under (SET-06), and whether they
+         * need a manager's PIN for what the rules limit: a person holding the
+         * approve right is their own approval.
+         */
         rules: {
-          /**
-           * The discount rule as it actually is, not as a percentage.
-           *
-           * The prototype has a "Default discount limit (%)" and retail has no
-           * such column — `Product.maxDiscountPercent` exists in core and no
-           * retail surface reads it. What `pos/sales` really enforces is binary:
-           * a manager may change a price or give a discount with a reason, and
-           * anybody else needs a manager's password on the spot. Rendering that
-           * as "25%" would be a comforting lie on the one screen whose job is to
-           * tell a cashier what they are allowed to do.
-           */
-          discountsNeedApproval: !canRetailSessionDo(session, "retail.sell", "approve"),
-          refundRequiresReason: posPolicy.refundRequiresReason,
-          voidRequiresReason: posPolicy.voidRequiresReason,
-          requireSupervisorForRefunds: posPolicy.requireSupervisorForRefunds,
-          splitTenderEnabled: posPolicy.splitTenderEnabled,
-          requiredReferenceTenders: tenderPolicy.requiredReferenceTenders,
-          minReferenceLength: tenderPolicy.minReferenceLength,
+          ...tillRulesForTill(tillRules),
+          needsApproval: !canRetailSessionDo(session, "retail.sell", "approve"),
         },
         receipt: {
           displayName: branding?.displayName ?? branding?.tradingName ?? company?.name ?? null,

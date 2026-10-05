@@ -96,7 +96,6 @@
 import type { RetailSale, RetailSaleLine } from "@prisma/client";
 import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { fiscalDeviceWhere } from "@/lib/accounting/fiscal-device-scope";
 import {
   FiscalMappingError,
   centsFromMoneyLike,
@@ -804,7 +803,7 @@ export function buildRetailSalePayload(input: {
  *  therefore SKIPPED and silent, not FAILED. */
 async function hasFiscalDevice(companyId: string): Promise<boolean> {
   const provider = await prisma.fiscalisationProviderConfig.findFirst({
-    where: fiscalDeviceWhere(companyId),
+    where: { companyId, isActive: true },
     select: { id: true },
   });
   return Boolean(provider);

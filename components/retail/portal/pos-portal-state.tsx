@@ -308,8 +308,8 @@ export function PosPortalProvider({
     enabled: Boolean(siteId) && hasPromotions,
   });
   /*
-    Tender rules ride on `devices/me` (the till's context), which a cashier
-    can always read; `setup/tender-policy` is gated on `retail.payments`.
+    The till rules ride on `devices/me` (the till's context), which a cashier
+    can always read (SET-06).
   */
   const customerSearchQuery = useQuery({
     queryKey: ["retail-pos-customer-search", customerName],
@@ -777,9 +777,7 @@ export function PosPortalProvider({
       void syncOfflineSales();
     },
     syncOfflineSalesPending,
-    // A genuine fallback now, for the moments before context lands — not the
-    // permanent state it was while the old endpoint 403'd. Kept in step with
-    // `DEFAULT_RETAIL_TENDER_POLICY` in `lib/retail/tender-policy.ts`.
+    // For the moments before context lands: the till rules' defaults (SET-06).
     requiredReferenceTenders: till?.rules.requiredReferenceTenders ?? ["CARD", "ECOCASH", "INNBUCKS"],
     minReferenceLength: till?.rules.minReferenceLength ?? 4,
     lastCompletedSale,

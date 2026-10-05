@@ -96,7 +96,7 @@ const RETAIL_SCREENS: Screen[] = [
   { name: "retail-purchasing-receipts", path: "/retail/buying/deliveries" },
   { name: "retail-reports", path: "/retail/reports" },
   { name: "retail-setup-operations", path: "/retail/manage/tills" },
-  { name: "retail-setup-pos-policy", path: "/retail/manage/till-rules" },
+  { name: "retail-till-rules", path: "/retail/manage/till-rules" },
   { name: "retail-setup-accounting", path: "/retail/manage/posting" },
   { name: "retail-setup-fiscal", path: "/retail/manage/fiscal" },
 ];

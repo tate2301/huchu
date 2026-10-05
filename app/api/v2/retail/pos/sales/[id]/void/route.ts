@@ -3,22 +3,19 @@ import { requirePosDevice } from "@/lib/retail/devices";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
-import {
-  managerOverrideSchema,
-  verifyManagerOverride,
-  withApprover,
-} from "@/lib/retail/manager-override";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { approverSchema, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { requireRetailSession } from "../../../../_helpers";
 import { voidRetailSaleTransaction } from "../../../../_services";
 
 const voidSchema = z.object({
   shiftId: z.string().uuid(),
-  reason: z.string().min(3).max(240),
+  /** One of the till rules' void reasons (SET-06). */
+  reason: z.string().min(1).max(240),
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
-  /** A manager approving this at the till. See the refund route beside this one. */
-  managerOverride: managerOverrideSchema.optional(),
+  /** A manager's till PIN, when "Voids need a manager PIN" asks for one. See the refund route beside this one. */
+  approver: approverSchema.optional().nullable(),
 });
 
 export async function POST(
@@ -49,26 +46,6 @@ export async function POST(
     const body = await request.json();
     const input = voidSchema.parse(body);
 
-    /*
-      Voiding without a manager is `retail.sell` `approve`; anyone else brings a
-      manager to the counter. See the refund route beside this one.
-    */
-    let reason = input.reason.trim();
-    let approvedBy: { id: string; name: string } | null = null;
-    if (!canRetailSessionDo(session, "retail.sell", "approve")) {
-      if (!input.managerOverride) {
-        return errorResponse("A manager must approve this void", 403);
-      }
-      const approval = await verifyManagerOverride({
-        companyId: session.user.companyId,
-        override: input.managerOverride,
-        action: "void",
-      });
-      if (!approval.ok) return errorResponse(approval.error, 403);
-      reason = withApprover(reason, approval.approver.name);
-      approvedBy = approval.approver;
-    }
-
     const { sale, accounting } = await voidRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
@@ -79,10 +56,8 @@ export async function POST(
       },
       saleId: id,
       shiftId: input.shiftId,
-      // Carries the approver's name when a manager signed this off at the counter.
-      reason,
-      // And the approval itself, so the service's own role guard knows about it.
-      approvedBy,
+      reason: input.reason,
+      approver: input.approver ?? null,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       deviceId: device.id,
@@ -107,6 +82,8 @@ export async function POST(
       accountingError: accounting.accountingError,
     }, 201);
   } catch (error) {
+    const refused = tillRuleResponse(error);
+    if (refused) return refused;
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }

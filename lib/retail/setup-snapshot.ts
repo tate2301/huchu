@@ -1,6 +1,5 @@
 ﻿import { getEffectiveBrandingForCompany } from "@/lib/platform/branding";
 import { prisma } from "@/lib/prisma";
-import { getRetailPosPolicy, RETAIL_POS_POLICY_PROVIDER_KEY } from "@/lib/retail/pos-policy";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 
 export const RETAIL_REQUIRED_POSTING_RULES = [
@@ -19,7 +18,6 @@ export async function getRetailSetupSnapshot(companyId: string) {
   const [
     company,
     setupProfile,
-    posPolicy,
     branding,
     accountingSettings,
     chartOfAccounts,
@@ -29,7 +27,7 @@ export async function getRetailSetupSnapshot(companyId: string) {
     openShiftCount,
     openShiftCountsBySite,
     pairedDevices,
-    activePosPolicyRecord,
+    tillRulesRecord,
     effectiveBranding,
     openPeriods,
     postedJournals,
@@ -41,7 +39,6 @@ export async function getRetailSetupSnapshot(companyId: string) {
     }),
     // The default site from the shop profile. A till is where its device is (SET-04).
     loadShopProfile(companyId).then((shop) => ({ defaultSiteId: shop.defaultSiteId })),
-    getRetailPosPolicy(companyId),
     prisma.companyBranding.findUnique({
       where: { companyId },
       select: {
@@ -99,10 +96,7 @@ export async function getRetailSetupSnapshot(companyId: string) {
       where: { companyId, unpairedAt: null },
       select: { registerId: true },
     }),
-    prisma.fiscalisationProviderConfig.findFirst({
-      where: { companyId, providerKey: RETAIL_POS_POLICY_PROVIDER_KEY, isActive: true },
-      select: { id: true, updatedAt: true },
-    }),
+    prisma.retailTillRules.findUnique({ where: { companyId }, select: { companyId: true } }),
     getEffectiveBrandingForCompany(companyId),
     prisma.accountingPeriod.count({ where: { companyId, status: "OPEN" } }),
     prisma.journalEntry.count({ where: { companyId, status: "POSTED" } }),
@@ -150,16 +144,9 @@ export async function getRetailSetupSnapshot(companyId: string) {
   ];
   const brandingCompleted = brandingChecks.filter(Boolean).length;
 
-  const posPolicyChecks = [
-    posPolicy.requiredReferenceTenders.length > 0,
-    posPolicy.minReferenceLength >= 4,
-    posPolicy.referencePattern.length > 0,
-    posPolicy.splitTenderEnabled === false || posPolicy.splitTenderEnabled === true,
-    posPolicy.refundRequiresReason === false || posPolicy.refundRequiresReason === true,
-    posPolicy.voidRequiresReason === false || posPolicy.voidRequiresReason === true,
-    posPolicy.requireSupervisorForRefunds === false || posPolicy.requireSupervisorForRefunds === true,
-  ];
-  const posPolicyCompleted = posPolicyChecks.filter(Boolean).length;
+  // Till rules (SET-06) always hold a value: saved, or the defaults.
+  const posPolicyChecks = [true];
+  const posPolicyCompleted = 1;
 
   const accountingChecks = [
     Object.values(accountCounts).reduce((sum, value) => sum + value, 0) > 0,
@@ -205,15 +192,15 @@ export async function getRetailSetupSnapshot(companyId: string) {
     },
     {
       id: "policy",
-      label: "POS policy",
+      label: "Till rules",
       href: "/retail/manage/till-rules",
       total: posPolicyChecks.length,
       completed: posPolicyCompleted,
       missing: Math.max(posPolicyChecks.length - posPolicyCompleted, 0),
       note:
-        activePosPolicyRecord
-          ? "A custom POS policy is saved and active."
-          : "The POS policy is still using the setup defaults.",
+        tillRulesRecord
+          ? "The shop's till rules are saved."
+          : "The till rules are the defaults.",
     },
     {
       id: "accounting",
@@ -235,7 +222,6 @@ export async function getRetailSetupSnapshot(companyId: string) {
   return {
     company,
     setupProfile,
-    posPolicy,
     branding,
     effectiveBranding,
     accountingSettings,

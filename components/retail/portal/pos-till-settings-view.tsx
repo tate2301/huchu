@@ -36,6 +36,8 @@ import {
   X,
 } from "@/lib/icons";
 import type { TillCapability } from "@/lib/retail/till-settings";
+import type { TillRulesForTill } from "@/lib/retail/till-rules";
+import { hoursWords, percentWords, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { tenderLabel } from "@/lib/retail/words";
 import { cn } from "@/lib/utils";
 
@@ -71,15 +73,7 @@ type TillSettings = {
       productCount: number;
     };
   };
-  rules: {
-    discountsNeedApproval: boolean;
-    refundRequiresReason: boolean;
-    voidRequiresReason: boolean;
-    requireSupervisorForRefunds: boolean;
-    splitTenderEnabled: boolean;
-    requiredReferenceTenders: string[];
-    minReferenceLength: number;
-  };
+  rules: TillRulesForTill & { needsApproval: boolean };
   receipt: {
     displayName: string | null;
     legalName: string | null;
@@ -298,29 +292,39 @@ export function PosTillSettingsView() {
           <PosPanelHeader title="Till rules" />
 
           <Rule
-            on={rules.discountsNeedApproval}
-            when="Changing a price or giving a discount needs a manager's password."
-            otherwise="You may change a price or give a discount, with a reason."
+            on={rules.needsApproval}
+            when={`Refunds over US$${rules.refundPinOver} need a manager's PIN.`}
+            otherwise="You approve refunds yourself."
           />
           <Rule
-            on={rules.refundRequiresReason}
-            when="A refund needs a reason typed in."
-            otherwise="A refund does not need a reason."
+            on={rules.needsApproval && rules.voidPin !== "NEVER"}
+            when={voidPinSentence(rules.voidPin)}
+            otherwise="Voids need no manager's PIN."
           />
           <Rule
-            on={rules.requireSupervisorForRefunds}
-            when="A refund also needs a supervisor to approve it."
-            otherwise="You may complete a refund on your own."
+            on={rules.needsApproval}
+            when={`Discounts over ${percentWords(rules.maxCashierDiscountPercent)} need a manager's PIN.`}
+            otherwise="You approve discounts yourself."
           />
           <Rule
-            on={rules.voidRequiresReason}
-            when="Voiding a sale needs a reason typed in."
-            otherwise="Voiding a sale does not need a reason."
+            on={!rules.drawerOpenWithoutSale}
+            when="The drawer only opens on a sale or with a manager's PIN."
+            otherwise="The drawer opens without a sale."
           />
           <Rule
-            on={rules.splitTenderEnabled}
+            on={rules.splitTender}
             when="One sale may be paid with more than one tender."
             otherwise="One sale takes one tender only."
+          />
+          <Rule
+            on
+            when={`Drop cash to the safe above US$${rules.cashDropPromptOver}.`}
+            otherwise=""
+          />
+          <Rule
+            on
+            when={`The till sells offline for up to ${hoursWords(rules.offlineHours)}.`}
+            otherwise=""
           />
 
           {rules.requiredReferenceTenders.length > 0 ? (

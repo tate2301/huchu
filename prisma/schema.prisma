@@ -334,6 +334,7 @@ model Company {
   retailCashMovements           RetailCashMovement[]
   retailZReports                RetailZReport[]
   retailTillPins                RetailTillPin[]
+  retailTillRules               RetailTillRules?
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -1403,6 +1404,7 @@ model User {
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
+  retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
   sessionHandoffs                   SessionHandoff[]
   reportTemplates                   ReportTemplate[]
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
@@ -5059,6 +5061,38 @@ model RetailCashMovement {
 
   @@index([companyId, shiftId, createdAt])
   @@index([companyId, type])
+}
+
+/// "Voids need a manager PIN" on Till rules (SET-06).
+enum RetailVoidPinRule {
+  ALWAYS
+  AFTER_5_MINUTES
+  NEVER
+}
+
+/// Till rules (SET-06, board TillRules): what every till asks before money goes
+/// back or out, and what the server enforces. One row per company; no row
+/// reads as the defaults.
+model RetailTillRules {
+  companyId                 String            @id
+  /// "Manager PIN for refunds over".
+  refundPinOver             Decimal           @default(20) @db.Decimal(14, 2)
+  voidPin                   RetailVoidPinRule @default(ALWAYS)
+  refundReasons             String[]          @default(["Damaged", "Wrong item", "Changed mind", "Overcharged"])
+  voidReasons               String[]          @default(["Rang up wrong", "Customer left", "Test sale"])
+  splitTender               Boolean           @default(true)
+  /// "Card and EcoCash need a reference" (applies to CARD, ECOCASH, INNBUCKS; 4 characters minimum).
+  referenceRequired         Boolean           @default(true)
+  maxCashierDiscountPercent Decimal           @default(10) @db.Decimal(5, 2)
+  drawerOpenWithoutSale     Boolean           @default(false)
+  cashDropPromptOver        Decimal           @default(500) @db.Decimal(14, 2)
+  offlineHours              Int               @default(24)
+  updatedById               String?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailTillRulesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
 /// S-7.5 — the four digits that unlock a till that is already signed in.

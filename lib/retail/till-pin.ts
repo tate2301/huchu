@@ -13,11 +13,10 @@
  * guesses, then fifteen minutes. That is the threat it is sized for, and it is
  * a factor beside the device key, never on its own.
  *
- * **A PIN never authorises a manager override.** `pos/sales/route.ts` compares a
- * manager's bcrypt password before a price or discount override is accepted, and
- * that gate exists precisely so the person approving is not the person ringing up.
- * A four-digit code shared across a shift would collapse the two. The prototype's
- * "Supervisor PIN 4321" is the thing we are deliberately not building.
+ * A manager's PIN also approves, at the till, what a cashier may not do alone
+ * under the till rules (SET-06, `lib/retail/manager-pin.ts`): the device key,
+ * the lockout and the approver's name on every record are what make four
+ * digits enough there.
  *
  * ── Storage ────────────────────────────────────────────────────────────────
  *

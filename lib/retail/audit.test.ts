@@ -466,6 +466,7 @@ describe("the chain", () => {
       zigRateSet: "RETAIL_ZIG_RATE.SET",
       postingRun: "RETAIL_POSTING.RUN",
       postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",
+      drawerOpened: "RETAIL_DRAWER.OPENED",
     });
   });
 });

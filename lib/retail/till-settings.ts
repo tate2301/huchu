@@ -146,21 +146,12 @@ export type TillCapability = {
  * that showed six identical red crosses would teach the cashier to stop reading it.
  */
 /**
- * What actually happens when a cashier cannot reverse a sale.
- *
- * S-7.7. This used to read "A manager approves it at the till with their
- * password", which described a flow that does not exist. `pos/sales` has a
- * `managerOverride` field in its schema and **nothing in `components/` sends
- * it**; there is no approval dialog anywhere in the till. A capability list
- * whose refusals describe an imaginary remedy is worse than one that says
- * nothing, because a cashier follows it in front of a customer and finds no
- * button.
- *
- * Building that dialog is a real ticket. Until it exists the screen says where
- * the work genuinely gets done.
+ * What happens when the till rules ask for more than the cashier may do alone
+ * (SET-06): a manager standing at the till approves that one act with their
+ * PIN, and their name goes on the record.
  */
-const REVERSAL_IS_A_BACK_OFFICE_JOB =
-  "Ask the manager — reversals are done in the back office, not at the till.";
+const A_MANAGER_APPROVES =
+  "Within the till rules you do it yourself; past them a manager approves it with their PIN.";
 
 export function summariseTillCapabilities(role: string | null | undefined): TillCapability[] {
   return [
@@ -180,21 +171,21 @@ export function summariseTillCapabilities(role: string | null | undefined): Till
     },
     {
       id: "refund",
-      label: "Refund a posted sale",
+      label: "Refund a sale over the till rules' limit on your own",
       allowed: canRetailRoleDo(role, "retail.sell", "refund") && canRetailRoleDo(role, "retail.sell", "approve"),
-      whenRefused: REVERSAL_IS_A_BACK_OFFICE_JOB,
+      whenRefused: A_MANAGER_APPROVES,
     },
     {
       id: "void",
-      label: "Void a receipt",
+      label: "Void a sale the till rules lock, on your own",
       allowed: canRetailRoleDo(role, "retail.sell", "void") && canRetailRoleDo(role, "retail.sell", "approve"),
-      whenRefused: REVERSAL_IS_A_BACK_OFFICE_JOB,
+      whenRefused: A_MANAGER_APPROVES,
     },
     {
       id: "price-override",
-      label: "Change a price or give a discount",
-      allowed: canRetailRoleDo(role, "retail.sell", "update"),
-      whenRefused: REVERSAL_IS_A_BACK_OFFICE_JOB,
+      label: "Give a discount over the till rules' largest on your own",
+      allowed: canRetailRoleDo(role, "retail.sell", "approve"),
+      whenRefused: A_MANAGER_APPROVES,
     },
     {
       id: "cost-price",

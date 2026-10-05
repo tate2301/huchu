@@ -283,12 +283,17 @@ describe("a void of a ZiG cash sale with rounded change", () => {
     expect([sold.changeZig.toString(), sold.changeAmount?.toString()]).toEqual(["5", "0.19"]);
     expect(Number(await expectedCash())).toBeCloseTo(Number(before) + 4.07 - 0.19, 2);
 
+    // The cashier voids on her own: this shop's till rules ask no PIN for a void (SET-06).
+    await prisma.retailTillRules.upsert({
+      where: { companyId },
+      update: { voidPin: "NEVER" },
+      create: { companyId, voidPin: "NEVER" },
+    });
     const { sale: voided, accounting } = await voidRetailSaleTransaction({
       actor: { companyId, userId: cashierId, userRole: "CASHIER", userName: "Chipo Dube", userEmail: null },
       saleId: sold.id,
       shiftId,
-      reason: "Rang the wrong tender",
-      approvedBy: { id: cashierId, name: "Tafara Nyathi" },
+      reason: "Rang up wrong",
     });
     expect(accounting.accountingStatus).toBe("POSTED");
     expect(await expectedCash()).toBe(before);

@@ -171,6 +171,8 @@ export const RETAIL_AUDIT_EVENTS = {
   postingRun: "RETAIL_POSTING.RUN",
   /** An account added from an account field on Posting to the books (SET-09). Entity `RetailSettings`, id `posting`; carries its code, name and type. */
   postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",
+  /** The drawer opened without a sale (SET-06). Entity `RetailRegister`; carries the till, the shift and who approved it. */
+  drawerOpened: "RETAIL_DRAWER.OPENED",
 } as const;
 
 export type RetailAuditEvent =

@@ -29,7 +29,6 @@ vi.mock("@/lib/accounting/fdms-device", async () => {
 
 vi.mock("@/lib/accounting/zimra-tax-mapping", () => ({ applyZimraTaxMapping: applyMappingMock }));
 
-import { SETTINGS_PROVIDER_KEYS } from "@/lib/accounting/fiscal-device-scope";
 import { POST } from "./route";
 
 const COMPANY_ID = "company-1";
@@ -103,7 +102,6 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
         where: {
           companyId: COMPANY_ID,
           isActive: true,
-          providerKey: { notIn: [...SETTINGS_PROVIDER_KEYS] },
         },
       }),
     );

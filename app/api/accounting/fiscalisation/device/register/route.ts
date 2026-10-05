@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { fiscalDeviceWhere } from "@/lib/accounting/fiscal-device-scope";
 import {
   buildCertificateBundle,
   buildCertificateSigningRequest,
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest) {
     const companyId = session.user.companyId;
 
     const provider = await prisma.fiscalisationProviderConfig.findFirst({
-      where: fiscalDeviceWhere(companyId),
+      where: { companyId, isActive: true },
       orderBy: { updatedAt: "desc" },
     });
     if (!provider) {

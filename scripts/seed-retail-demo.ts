@@ -1398,6 +1398,8 @@ const TILL_PINS: Array<{ email: string; name: string; pin: string }> = [
   { email: "chipo.till@bottlestore.test", name: "Chipo Dube", pin: "2580" },
   { email: "kuda.till@bottlestore.test", name: "Kuda Banda", pin: "1470" },
   { email: "farai.till@bottlestore.test", name: "Farai Moyo", pin: "3691" },
+  // The manager approves at the till with hers (SET-06).
+  { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", pin: "4826" },
 ]
 
 async function seedTillPins(companyId: string, passwordHash: string) {
@@ -1418,6 +1420,40 @@ async function seedTillPins(companyId: string, passwordHash: string) {
     })
   }
   console.log(`  till PINs: ${TILL_PINS.map((person) => `${person.name} ${person.pin}`).join(", ")}`)
+  await seedTillRules(companyId)
+}
+
+/**
+ * Till rules (SET-06, board TillRules): the board's values, which are the
+ * defaults, last changed by Tafara Nyathi on 28 September — so the page's
+ * footer reads "Last changed by Tafara Nyathi, 28 September." Saves of the
+ * page that test runs left are cleared, so every run puts it back.
+ */
+async function seedTillRules(companyId: string) {
+  const tafara = await prisma.user.findFirst({
+    where: { companyId, email: "tafara.manager@bottlestore.test" },
+    select: { id: true },
+  })
+  const rules = {
+    refundPinOver: new Prisma.Decimal(20),
+    voidPin: "ALWAYS" as const,
+    refundReasons: ["Damaged", "Wrong item", "Changed mind", "Overcharged"],
+    voidReasons: ["Rang up wrong", "Customer left", "Test sale"],
+    splitTender: true,
+    referenceRequired: true,
+    maxCashierDiscountPercent: new Prisma.Decimal(10),
+    drawerOpenWithoutSale: false,
+    cashDropPromptOver: new Prisma.Decimal(500),
+    offlineHours: 24,
+    updatedById: tafara?.id ?? null,
+  }
+  await prisma.retailTillRules.upsert({ where: { companyId }, update: rules, create: { companyId, ...rules } })
+  const changedAt = new Date("2026-09-28T16:12:00+02:00")
+  await prisma.$executeRaw`UPDATE "RetailTillRules" SET "updatedAt" = ${changedAt} WHERE "companyId" = ${companyId}`
+  await prisma.platformAuditEvent.deleteMany({
+    where: { companyId, entityType: "RetailSettings", entityId: "till-rules", eventType: RETAIL_AUDIT_EVENTS.settingsChanged },
+  })
+  console.log("  till rules: the board's, last changed by Tafara Nyathi on 28 September")
 }
 
 /**

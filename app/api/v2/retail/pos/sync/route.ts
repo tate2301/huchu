@@ -46,6 +46,7 @@ import {
 } from "../../_services";
 import { fiscaliseRetailSales } from "@/lib/retail/fiscalisation";
 import { requirePosDevice, type PosDevice } from "@/lib/retail/devices";
+import { approverSchema } from "@/lib/retail/manager-pin";
 import { SOLD_AFTER_UNPAIR, UNPAIRED_REVIEW_REASON, unpairedSaleVerdict } from "@/lib/retail/device-words";
 
 // ── Request Schemas ─────────────────────────────────────────────────────────
@@ -652,6 +653,12 @@ async function processCreateSale(
   }
 }
 
+/** The approver an offline refund or void carries, when it is well formed (SET-06). */
+function replayedApprover(value: unknown) {
+  const parsed = approverSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 async function processVoidSale(
   op: z.infer<typeof syncOperationSchema>,
   ctx: SyncContext
@@ -663,6 +670,8 @@ async function processVoidSale(
     shiftId?: string;
     notes?: string;
     periodOverrideReason?: string;
+    /** A manager's PIN taken at the till, when the void rule asked for one. */
+    approver?: unknown;
   };
 
   try {
@@ -687,6 +696,7 @@ async function processVoidSale(
       saleId: resolvedSaleId,
       shiftId: resolvedShiftId,
       reason: payload.reason,
+      approver: replayedApprover(payload.approver),
       notes: payload.notes ?? null,
       periodOverrideReason: payload.periodOverrideReason ?? null,
       postedAt: new Date(payload.voidedAt),
@@ -732,6 +742,8 @@ async function processRefundSale(
     notes?: string;
     refundedAt?: string;
     periodOverrideReason?: string;
+    /** A manager's PIN taken at the till, when the refund was over the till rules' limit. */
+    approver?: unknown;
   };
 
   try {
@@ -783,6 +795,7 @@ async function processRefundSale(
       saleId: resolvedSaleId,
       shiftId: resolvedShiftId,
       reason: payload.reason,
+      approver: replayedApprover(payload.approver),
       lines: requestedLines,
       payments:
         payload.payments && payload.payments.length > 0

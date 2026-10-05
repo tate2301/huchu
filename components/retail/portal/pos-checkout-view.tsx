@@ -1042,19 +1042,22 @@ export function PosCheckoutView() {
                 <Sparkles className="h-3 w-3" />
                 Discount
               </button>
-              <button
-                type="button"
-                onClick={() => setSplitTenderMode(!splitTenderMode)}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition-all duration-100",
-                  splitTenderMode
-                    ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] text-[var(--action-primary-bg)]"
-                    : "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]",
-                )}
-              >
-                <Payments className="h-3 w-3" />
-                {splitTenderMode ? "One payment" : "Split payment"}
-              </button>
+              {/* Split payments only while the till rules allow them (SET-06). */}
+              {till?.rules.splitTender !== false || splitTenderMode ? (
+                <button
+                  type="button"
+                  onClick={() => setSplitTenderMode(!splitTenderMode)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition-all duration-100",
+                    splitTenderMode
+                      ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] text-[var(--action-primary-bg)]"
+                      : "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]",
+                  )}
+                >
+                  <Payments className="h-3 w-3" />
+                  {splitTenderMode ? "One payment" : "Split payment"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setHoldDialog(true)}

@@ -205,29 +205,9 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
     fetcher: async () => fetchJson("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
   },
   /*
-    There is no `retail-tender-policy` preload any more, and that is the fix
-    rather than an omission.
-
-    It fetched `/api/v2/retail/setup/tender-policy`, which is gated on
-    `retail.payments` `view` — a permission no cashier holds — so it 403'd on
-    every till warm-up. Pointing it at the till's own context route instead
-    fixed the cashier and broke everyone else: that route additionally
-    enforced `canAccessPosPortal(role)`, so a CRM owner warming this module
-    took a 403 on every page. The e2e suite caught that within one run of the
-    change.
-
-    The entry is gone because nothing needs it. Nothing reads the
-    `["retail-pos-tender-policy"]` cache key, and the two rules it carried now
-    reach the till live through `pos-portal-state.tsx`, which reads them off
-    `devices/me` — and that query is persisted with the rest of the tenant's
-    cache, so the till has them offline too. A second copy warmed for every
-    session in the product was buying nothing.
-
-    The general lesson is worth keeping: a preload in a *module* runs for
-    anybody whose session warms that module, and feature keys cannot express
-    "only a cashier" — `retail.pos` is a tenant feature and a CRM superadmin
-    holds it. A route that also checks a role is therefore not safe to preload
-    from here at all.
+    No till rules preload: they reach the till through `devices/me`
+    (`pos-portal-state.tsx`, SET-06), and that query is persisted with the
+    rest of the tenant's cache, so the till has them offline too.
   */
   {
     key: "retail-catalog-default",

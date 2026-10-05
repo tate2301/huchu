@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { voidPinSentence } from "@/lib/retail/till-rule-words";
 import { History, Plus, RefreshCcw, Search, Trash2, XCircle } from "@/lib/icons";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
@@ -38,7 +39,7 @@ const REFUND_TENDERS: TenderType[] = ["CASH", "CARD", "ECOCASH", "INNBUCKS", "VO
 export function PosHistoryView() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { currentShift, canOverride } = usePosPortalState();
+  const { currentShift, canOverride, till } = usePosPortalState();
   const [search, setSearch] = useState("");
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [refundDialog, setRefundDialog] = useState(false);
@@ -56,39 +57,22 @@ export function PosHistoryView() {
   const [voidNotes, setVoidNotes] = useState("");
 
   /**
-   * S-7.7 — the manager standing at the counter.
-   *
-   * Refund and Void used to render only when `canOverride`, which is
-   * `retail.sell:approve` for the shift's actor. The POS portal admits `CASHIER`
-   * and `POS_CASHIER` and nobody else, so that condition could never be true
-   * at a till: **both buttons were unreachable by every user who can reach this
-   * screen.** The contract lists refunding and voiding as POS surfaces and they
-   * were, in practice, not there at all.
-   *
-   * They render now for whoever has the shift open, and a cashier is asked for
-   * a manager's approval inside the dialog — verified server-side against the
-   * same matrix, with the approver's name written onto the reversal. Kept in
-   * component state and cleared the moment the dialog closes: this is one
-   * approval for one act, never a session.
+   * The manager standing at the counter (SET-06). When the till rules ask for
+   * a manager — a refund over the limit, a void the rule locks — the cashier
+   * picks who approves and that person types their four-digit PIN. The server
+   * decides again and answers 409 `needsApprover` if the till guessed wrong;
+   * the PIN stays in component state for this one act and is cleared when the
+   * dialog closes. FLR-09 replaces this with the till's approval dialog.
    */
-  const [approverEmail, setApproverEmail] = useState("");
-  const [approverPassword, setApproverPassword] = useState("");
+  const [approverId, setApproverId] = useState("");
+  const [approverPin, setApproverPin] = useState("");
+  const [askedFor, setAskedFor] = useState<string | null>(null);
+  // When Void was opened: "After 5 minutes" is judged from then.
+  const [voidOpenedAt, setVoidOpenedAt] = useState<number | null>(null);
+  const rules = till?.rules ?? null;
+  const approvers = till?.approvers ?? [];
 
-  /**
-   * The two fields a manager fills in at the counter.
-   *
-   * Deliberately plain: no "remember me", no autofill hint, `autoComplete` off,
-   * and the value never leaves component state. A till is a shared device on a
-   * shop floor, and a manager's password lingering in it — in a form, in a
-   * password manager, in the next cashier's session — is a worse outcome than
-   * the refund being slightly slower to key.
-   *
-   * An element, not a component. Declaring `const ManagerApproval = () => …`
-   * inside the render and mounting it as `<ManagerApproval />` makes a fresh
-   * component *type* every render, so React unmounts and remounts the subtree —
-   * and the manager loses the caret after each character they type.
-   */
-  const managerApproval = (
+  const managerApproval = (reason: string) => (
     <div
       className="space-y-3 rounded-xl px-4 py-4 ring-1"
       style={{
@@ -96,51 +80,62 @@ export function PosHistoryView() {
         boxShadow: `inset 0 0 0 1px var(--pos-status-warning-ring)`,
       }}
     >
-      <div className="text-sm font-semibold text-[var(--pos-status-warning-text)]">
-        A manager has to approve this
+      <div className="text-sm font-semibold text-[var(--pos-status-warning-text)]">{reason}</div>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Manager">
+        {approvers.length === 0 ? (
+          <span className="text-sm text-[var(--text-muted)]">Nobody here can approve it with a PIN yet.</span>
+        ) : (
+          approvers.map((person) => (
+            <Button
+              key={person.userId}
+              type="button"
+              role="radio"
+              aria-checked={approverId === person.userId}
+              variant={approverId === person.userId ? "default" : "outline"}
+              className="h-11"
+              onClick={() => setApproverId(person.userId)}
+            >
+              {person.name}
+            </Button>
+          ))
+        )}
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Input
-          type="email"
-          autoComplete="off"
-          value={approverEmail}
-          onChange={(event) => setApproverEmail(event.target.value)}
-          placeholder="Manager email"
-          aria-label="Manager email"
-          className="h-11"
-        />
-        <Input
-          type="password"
-          autoComplete="new-password"
-          value={approverPassword}
-          onChange={(event) => setApproverPassword(event.target.value)}
-          placeholder="Manager password"
-          aria-label="Manager password"
-          className="h-11"
-        />
-      </div>
+      <Input
+        type="password"
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={4}
+        value={approverPin}
+        onChange={(event) => setApproverPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+        placeholder="Manager PIN"
+        aria-label="Manager PIN"
+        className="h-11 font-mono tracking-[0.4em]"
+      />
     </div>
   );
 
-  const needsApproval = !canOverride;
-  const approvalReady =
-    !needsApproval || (approverEmail.trim().length > 0 && approverPassword.length > 0);
-
   const forgetApproval = () => {
-    setApproverEmail("");
-    setApproverPassword("");
+    setApproverId("");
+    setApproverPin("");
+    setAskedFor(null);
   };
 
-  /** The `managerOverride` body field, or nothing when the caller may act alone. */
+  /** The `approver` body field once a manager has been picked and typed their PIN. */
   const approvalPayload = () =>
-    needsApproval
-      ? {
-          managerOverride: {
-            managerEmail: approverEmail.trim(),
-            managerPassword: approverPassword,
-          },
-        }
-      : {};
+    approverId && approverPin.length === 4 ? { approver: { userId: approverId, pin: approverPin } } : {};
+
+  /** A 409 `needsApprover` opens the approval with the server's sentence; a refused PIN is cleared. */
+  const onRefused = (error: unknown) => {
+    if (error instanceof ApiError) {
+      const details = error.details as { needsApprover?: boolean; reason?: string } | undefined;
+      if (error.status === 409 && details?.needsApprover) {
+        setAskedFor(details.reason ?? error.message);
+        return true;
+      }
+      if (error.status === 400 || error.status === 423) setApproverPin("");
+    }
+    return false;
+  };
 
   const salesQuery = useQuery({
     queryKey: ["retail-pos-sales", search],
@@ -184,6 +179,19 @@ export function PosHistoryView() {
   );
   const refundTenderGap = round(refundPaymentSummary.tenderedTotal - refundTotal);
 
+  // What the till rules ask before the server is asked: the server decides again.
+  const refundAsks =
+    askedFor ??
+    (!canOverride && rules && refundTotal > Number(rules.refundPinOver)
+      ? `Refunds over US$${rules.refundPinOver} need a manager PIN.`
+      : null);
+  const saleAgeMs =
+    voidOpenedAt !== null && selectedSale?.postedAt ? voidOpenedAt - new Date(selectedSale.postedAt).getTime() : 0;
+  const voidLocked =
+    rules?.voidPin === "ALWAYS" || (rules?.voidPin === "AFTER_5_MINUTES" && saleAgeMs > 5 * 60 * 1000);
+  const voidAsks = askedFor ?? (!canOverride && rules && voidLocked ? voidPinSentence(rules.voidPin) : null);
+  const approvalReady = (asks: string | null) => !asks || (Boolean(approverId) && approverPin.length === 4);
+
   const refundMutation = useMutation({
     mutationFn: () =>
       fetchJson(`/api/v2/retail/pos/sales/${selectedSale?.id}/refund`, {
@@ -220,12 +228,14 @@ export function PosHistoryView() {
       queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
       queryClient.invalidateQueries({ queryKey: ["retail-pos-sale-detail"] });
     },
-    onError: (error) =>
+    onError: (error) => {
+      if (onRefused(error)) return;
       toast({
         title: "That refund was not saved",
         description: getApiErrorMessage(error),
         variant: "destructive",
-      }),
+      });
+    },
   });
 
   const voidMutation = useMutation({
@@ -249,12 +259,14 @@ export function PosHistoryView() {
       queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
       queryClient.invalidateQueries({ queryKey: ["retail-pos-sale-detail"] });
     },
-    onError: (error) =>
+    onError: (error) => {
+      if (onRefused(error)) return;
       toast({
         title: "That sale was not voided",
         description: getApiErrorMessage(error),
         variant: "destructive",
-      }),
+      });
+    },
   });
 
   const startRefund = () => {
@@ -275,6 +287,7 @@ export function PosHistoryView() {
         reference: "",
       },
     ]);
+    forgetApproval();
     setRefundDialog(true);
   };
 
@@ -581,7 +594,11 @@ export function PosHistoryView() {
                             size="sm"
                             variant="outline"
                             className="flex-1 h-10 border-red-200 text-red-600 hover:bg-red-50"
-                            onClick={() => setVoidDialog(true)}
+                            onClick={() => {
+                              forgetApproval();
+                              setVoidOpenedAt(Date.now());
+                              setVoidDialog(true);
+                            }}
                             disabled={(selectedSale.reversals ?? []).length > 0}
                           >
                             <XCircle className="h-4 w-4" />
@@ -696,11 +713,11 @@ export function PosHistoryView() {
                       <label className="block text-sm font-medium text-[var(--text-strong)]">
                         Reason
                       </label>
-                      <Input
+                      <ReasonPicker
+                        label="Refund reason"
+                        reasons={rules?.refundReasons ?? []}
                         value={refundReason}
-                        onChange={(event) => setRefundReason(event.target.value)}
-                        placeholder="Damaged, wrong product, customer return"
-                        className="h-11"
+                        onChange={setRefundReason}
                       />
                     </div>
                     <div className="space-y-2">
@@ -813,7 +830,7 @@ export function PosHistoryView() {
               </div>
             </div>
 
-            {needsApproval ? managerApproval : null}
+            {refundAsks ? managerApproval(refundAsks) : null}
           </div>
           <DialogFooter>
             <Button
@@ -834,7 +851,7 @@ export function PosHistoryView() {
                 refundTotal <= 0 ||
                 !refundReason.trim() ||
                 Math.abs(refundPaymentSummary.tenderedTotal - refundTotal) > 0.01 ||
-                !approvalReady
+                !approvalReady(refundAsks)
               }
             >
               Refund the sale
@@ -881,11 +898,11 @@ export function PosHistoryView() {
               <label className="block text-sm font-medium text-[var(--text-strong)]">
                 Reason
               </label>
-              <Input
+              <ReasonPicker
+                label="Void reason"
+                reasons={rules?.voidReasons ?? []}
                 value={voidReason}
-                onChange={(event) => setVoidReason(event.target.value)}
-                placeholder="Duplicate, wrong till, test sale"
-                className="h-11"
+                onChange={setVoidReason}
               />
             </div>
             <div className="space-y-2">
@@ -899,7 +916,7 @@ export function PosHistoryView() {
               />
             </div>
 
-            {needsApproval ? managerApproval : null}
+            {voidAsks ? managerApproval(voidAsks) : null}
           </div>
           <DialogFooter>
             <Button
@@ -916,13 +933,44 @@ export function PosHistoryView() {
               type="button"
               variant="destructive"
               onClick={() => voidMutation.mutate()}
-              disabled={voidMutation.isPending || !voidReason.trim() || !approvalReady}
+              disabled={voidMutation.isPending || !voidReason.trim() || !approvalReady(voidAsks)}
             >
               Void the sale
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** The till rules' reasons as buttons: a reason is picked, never typed (SET-06). */
+function ReasonPicker({
+  label,
+  reasons,
+  value,
+  onChange,
+}: {
+  label: string;
+  reasons: string[];
+  value: string;
+  onChange: (reason: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
+      {reasons.map((reason) => (
+        <Button
+          key={reason}
+          type="button"
+          role="radio"
+          aria-checked={value === reason}
+          variant={value === reason ? "default" : "outline"}
+          className="h-11"
+          onClick={() => onChange(reason)}
+        >
+          {reason}
+        </Button>
+      ))}
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { Prisma, RetailSaleStatus, RetailSaleType } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
@@ -13,7 +12,6 @@ import {
   parseLoyaltyRedeemPoints,
 } from "@/lib/retail/loyalty";
 import {
-  canRetailRoleDo,
   canRetailSessionDo,
   canSeeRetailCostPrice,
   retailRoleKey,
@@ -36,6 +34,9 @@ import {
 import { ShiftElsewhere, createRetailSaleTransaction, postedChange, stampSalePayments } from "../../_services";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
+import { approverSchema, approvalFor, tillRuleResponse } from "@/lib/retail/manager-pin";
+import { checkTillRule, discountPercent, loadTillRules } from "@/lib/retail/till-rules";
+import { offlineDiscountReview } from "@/lib/retail/till-rule-words";
 
 const saleLineSchema = z.object({
   /**
@@ -63,18 +64,6 @@ const salePaymentSchema = z.object({
   reference: z.string().max(120).optional().nullable(),
 });
 
-const managerOverrideSchema = z
-  .object({
-    managerUserId: z.string().uuid().optional(),
-    managerEmail: z.string().email().optional(),
-    managerPassword: z.string().min(1).max(200),
-    reason: z.string().max(240).optional().nullable(),
-  })
-  .refine((value) => Boolean(value.managerUserId || value.managerEmail), {
-    message: "Manager approver is required",
-    path: ["managerUserId"],
-  });
-
 const saleSchema = z.object({
   saleNo: z.string().min(1).max(50).optional(),
   /**
@@ -96,7 +85,11 @@ const saleSchema = z.object({
   discountAmount: z.number().min(0).optional(),
   overrideReason: z.string().max(240).optional().nullable(),
   periodOverrideReason: z.string().max(500).optional().nullable(),
-  managerOverride: managerOverrideSchema.optional(),
+  /**
+   * A manager's till PIN, when the till rules ask for one (SET-06): a discount
+   * over "Largest discount a cashier can give", or a price above the shelf.
+   */
+  approver: approverSchema.optional().nullable(),
   promotionId: z.string().uuid().optional().nullable(),
   items: z.array(saleLineSchema).min(1),
   payments: z.array(salePaymentSchema).min(1),
@@ -652,47 +645,51 @@ export async function POST(request: NextRequest) {
             Math.abs(line.unitPrice - line.shelf.unitPrice) > 0.009),
       );
 
-    let overrideReason = input.overrideReason?.trim() || input.managerOverride?.reason?.trim() || null;
-
-    if (hasOverride && !canRetailSessionDo(session, "retail.sell", "approve")) {
-      if (!input.managerOverride) {
-        return errorResponse("Manager approval is required for price or discount overrides", 403);
-      }
-
-      const manager = await prisma.user.findFirst({
-        where: {
-          companyId: session.user.companyId,
-          isActive: true,
-          ...(input.managerOverride.managerUserId
-            ? { id: input.managerOverride.managerUserId }
-            : {
-                email: {
-                  equals: input.managerOverride.managerEmail ?? "",
-                  mode: "insensitive",
-                },
-              }),
-        },
-        select: { id: true, name: true, email: true, password: true, role: true },
-      });
-      if (!manager || !canRetailRoleDo(manager.role, "retail.sell", "approve")) {
-        return errorResponse("Manager approval is invalid", 403);
-      }
-      if (!manager.password) {
-        return errorResponse("Manager approval is invalid", 403);
-      }
-
-      const validPassword = await bcrypt.compare(input.managerOverride.managerPassword, manager.password);
-      if (!validPassword) {
-        return errorResponse("Manager approval is invalid", 403);
-      }
-      if (!overrideReason) {
-        return errorResponse("Add an override reason before posting this sale", 400);
-      }
-      overrideReason = `${overrideReason} (approved by ${manager.name || manager.email})`;
-    }
-
+    let overrideReason = input.overrideReason?.trim() || null;
     if (hasOverride && !overrideReason) {
       return errorResponse("Add an override reason before posting this sale", 400);
+    }
+
+    /*
+      SET-06. What the cashier took off — the order's discount (less points
+      redeemed), the lines' discounts and any price cut below the shelf — as a
+      share of the basket at the shelf. Over the till rules' largest, or a
+      price above the shelf, needs a manager's PIN; someone who holds the
+      approve right is their own approval. A replay cannot be approved after
+      the fact: it goes in, marked for a manager to look at.
+    */
+    const tillRules = await loadTillRules(session.user.companyId);
+    const shelfValue = preNormalizedLines.reduce((sum, line) => sum + line.shelf.unitPrice * line.quantity, 0);
+    const priceCut =
+      replayReview === null
+        ? preNormalizedLines.reduce(
+            (sum, line) => sum + Math.max(line.shelf.unitPrice - line.unitPrice, 0) * line.quantity,
+            0,
+          )
+        : 0;
+    const discountGiven =
+      Math.max(orderDiscountAmount - loyaltyDiscountAmount, 0) +
+      preNormalizedLines.reduce((sum, line) => sum + line.baseDiscountAmount, 0) +
+      priceCut;
+    const discountRule = checkTillRule(tillRules, {
+      act: "discount",
+      percent: discountPercent(round(discountGiven), round(shelfValue)),
+      priceUp:
+        replayReview === null && preNormalizedLines.some((line) => line.unitPrice - line.shelf.unitPrice > 0.009),
+    });
+    let ruleReview: string | null = null;
+    if (replaySoldAt && discountRule.needsApprover) {
+      if (!canRetailSessionDo(session, "retail.sell", "approve")) {
+        ruleReview = offlineDiscountReview(discountRule.reason, tillRules.maxCashierDiscountPercent.toFixed(2));
+      }
+    } else {
+      const approvedBy = await approvalFor({
+        companyId: session.user.companyId,
+        actorRole: session.user.role,
+        decision: discountRule,
+        approver: input.approver,
+      });
+      if (approvedBy) overrideReason = `${overrideReason} (approved by ${approvedBy.name})`;
     }
 
     // What the review found, written onto the sale. This is the record a manager
@@ -913,7 +910,7 @@ export async function POST(request: NextRequest) {
       shiftId: shift.id,
       siteId: site.id,
       device: { id: device.id, registerId: device.registerId },
-      reviewReason: unpaired.reviewReason,
+      reviewReason: [unpaired.reviewReason, ruleReview].filter(Boolean).join(" ") || null,
       customerName: resolvedCustomerName,
       subtotal,
       discountAmount: totalDiscount,
@@ -1011,6 +1008,8 @@ export async function POST(request: NextRequest) {
           : null,
     }, 201);
   } catch (error) {
+    const refused = tillRuleResponse(error);
+    if (refused) return refused;
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }

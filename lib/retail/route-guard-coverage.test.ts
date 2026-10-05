@@ -269,7 +269,7 @@ describe("retail API handler guards", () => {
  * above asks only "is there a gate?"; these two handlers are held to the
  * specific gates.
  */
-describe("reversing a sale needs a manager unless you approve", () => {
+describe("reversing a sale past the till rules needs a manager unless you approve", () => {
   const REVERSALS: Array<{ key: string; action: "refund" | "void" }> = [
     { key: "pos/sales/[id]/refund/route.ts POST", action: "refund" },
     { key: "pos/sales/[id]/void/route.ts POST", action: "void" },
@@ -280,17 +280,18 @@ describe("reversing a sale needs a manager unless you approve", () => {
     return allHandlers.find((candidate) => candidate.key.endsWith(key));
   }
 
-  it.each(REVERSALS)("$key gates on retail.sell $action, then approve", ({ key, action }) => {
+  it.each(REVERSALS)("$key gates on retail.sell $action, then the till rules' approval", ({ key, action }) => {
     const handler = findHandler(key);
     expect(handler, `no handler found for ${key}`).toBeDefined();
     if (!handler) return;
 
     const source = stripComments(handler.body);
     expect(source).toContain(`requireRetailPermission(session, "retail.sell", "${action}")`);
-    expect(source).toContain('canRetailSessionDo(session, "retail.sell", "approve")');
-    // … and the only way past a missing `approve` is a verified manager approval.
-    expect(source).toContain("verifyManagerOverride");
-    expect(source).toContain(`action: "${action}"`);
+    // SET-06: the service asks the till rules whether a manager must approve
+    // (\`approvalFor\`, which lets \`approve\` through); the route hands it the
+    // manager's PIN and answers its refusals (409 needsApprover, 400, 423).
+    expect(source).toContain("approver: input.approver");
+    expect(source).toContain("tillRuleResponse(error)");
   });
 
   it.each(REVERSALS)("$key does not fall back to the role list", ({ key }) => {

@@ -29,7 +29,7 @@ import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import type { ShopProfile } from "@/lib/retail/shop-profile-rules";
-import { getRetailTenderPolicy, type RetailTenderType } from "@/lib/retail/tender-policy";
+import { loadTillRules, tillRulesForTill, type TillRulesForTill } from "@/lib/retail/till-rules";
 import { TILL_PIN_LOCK_MS, evaluateTillPinAttempt } from "@/lib/retail/till-pin";
 import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
 
@@ -480,15 +480,17 @@ export type TillContext = {
   tenders: TillTender[];
   /** Today's ZiG rate and how ZiG change rounds, while the shop takes ZiG cash and has a rate. */
   zig: { rate: string; setAt: string; rounding: string } | null;
-  /** The tender rules checkout enforces before the server checks them again (SET-06 widens these). */
-  rules: { requiredReferenceTenders: RetailTenderType[]; minReferenceLength: number };
+  /** The till rules (SET-06): the till asks first, the server checks them again. */
+  rules: TillRulesForTill;
+  /** Who can approve with their PIN at this till: active staff with a till PIN who hold the approve right. */
+  approvers: Array<{ userId: string; name: string }>;
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
   priceListId: string | null;
 };
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
-  const [places, defaultList, shop, tenderPolicy, payments] = await Promise.all([
+  const [places, defaultList, shop, tillRules, payments, pins] = await Promise.all([
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
@@ -498,8 +500,12 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
           select: { id: true },
         }),
     loadShopProfile(device.companyId),
-    getRetailTenderPolicy(device.companyId),
+    loadTillRules(device.companyId),
     tillPayments(device.companyId),
+    prisma.retailTillPin.findMany({
+      where: { companyId: device.companyId, user: { isActive: true, companyId: device.companyId } },
+      select: { user: { select: { id: true, name: true, role: true } } },
+    }),
   ]);
   const pairedBy = device.pairedBy.name ?? "";
   return {
@@ -523,10 +529,11 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     shop,
     tenders: payments.tenders,
     zig: payments.zig,
-    rules: {
-      requiredReferenceTenders: tenderPolicy.requiredReferenceTenders,
-      minReferenceLength: tenderPolicy.minReferenceLength,
-    },
+    rules: tillRulesForTill(tillRules),
+    approvers: pins
+      .filter((pin) => canRetailRoleDo(pin.user.role, "retail.sell", "approve"))
+      .map((pin) => ({ userId: pin.user.id, name: pin.user.name ?? "" }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     priceListId: register.priceListId ?? register.site.priceListId ?? defaultList?.id ?? null,
   };
 }

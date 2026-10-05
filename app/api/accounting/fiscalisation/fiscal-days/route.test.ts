@@ -42,7 +42,6 @@ vi.mock("@/lib/accounting/fiscal-day", async () => {
 });
 
 import { FiscalDayAlreadyOpenError, FiscalDayConfigError } from "@/lib/accounting/fiscal-day";
-import { SETTINGS_PROVIDER_KEYS } from "@/lib/accounting/fiscal-device-scope";
 import { GET, POST } from "./route";
 
 const COMPANY_ID = "company-1";
@@ -142,7 +141,7 @@ describe("GET /api/accounting/fiscalisation/fiscal-days", () => {
     // console listed RETAIL_SETUP_PROFILE as one until they were kept out.
     expect(prismaMock.fiscalisationProviderConfig.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { companyId: COMPANY_ID, providerKey: { notIn: [...SETTINGS_PROVIDER_KEYS] } },
+        where: { companyId: COMPANY_ID },
       }),
     );
     expect(prismaMock.fiscalDay.findMany).toHaveBeenCalledWith(
