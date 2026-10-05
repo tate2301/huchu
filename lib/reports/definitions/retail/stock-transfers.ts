@@ -18,6 +18,7 @@ const transfers: ListSpec = {
   noun: "transfers",
   read: VIEW,
   multiSiteOnly: { refusal: "Transfers need a second site." },
+  // `products` (every line's product name) is a row field, not a column: a hidden column's key is not searched.
   search: { placeholder: "Transfer or product", keys: ["transferNo", "products"] },
   tabs: [
     { key: "on-the-way", label: "On the way", where: ON_THE_WAY },
@@ -83,10 +84,9 @@ const transfers: ListSpec = {
     },
     { key: "sent", label: "Sent", kind: "text", cell: "text", width: "140px", align: "start", priority: 2 },
     { key: "state", label: "State", kind: "status", cell: "state", toneKey: "tone", width: "150px", align: "start", priority: 1 },
-    // Not drawn: when it left to the minute (sorts and exports), what it carried, and the phone card's title and figure.
+    // Not drawn: when it left to the minute (sorts and exports), the units, and the phone card's title and figure.
     { key: "sentAt", label: "Sent at", kind: "date", cell: "when", sortable: true, hidden: true, width: "140px", align: "start", priority: 3 },
     { key: "units", label: "Units", kind: "number", cell: "num", total: "sum", hidden: true, width: "90px", align: "end", priority: 3 },
-    { key: "products", label: "Products", kind: "text", cell: "muted", hidden: true, width: "minmax(200px,1fr)", align: "start", priority: 3 },
     { key: "route", label: "From and to", kind: "text", cell: "text", hidden: true, width: "minmax(200px,1fr)", align: "start", priority: 3 },
     { key: "figure", label: "Value or units", kind: "text", cell: "mono", hidden: true, width: "110px", align: "end", priority: 3 },
   ],

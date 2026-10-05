@@ -253,6 +253,9 @@ describe("cancelling", () => {
       go: "Cancel the transfer",
       fill: "bad",
     });
+    expect(cancelTransferAsk({ transferNo: "TRF-0009", units: 1, from: "Harare Main Branch", to: "Borrowdale" }).body).toBe(
+      "The 1 unit on the way goes back on Harare Main Branch’s stock, as if it never left. Borrowdale is told.",
+    );
     expect(LIST_ACTION_RUNS.canceltransfers!.ask!(1, [{ id: "t", transferNo: "TRF-0008", status: "ON_THE_WAY", units: 540, from: "Harare Main Branch", to: "Borrowdale" }]).title).toBe(
       "Cancel TRF-0008?",
     );
@@ -287,8 +290,21 @@ describe("the list", () => {
     expect(clerkRows.find((row) => row.transferNo === "TRF-0001")).toMatchObject({ value: null, figure: "14 units" });
   });
 
+  it("finds a transfer by any line's product name, and by its number", async () => {
+    const session = { user: { id: managerId, companyId, role: "MANAGER", enabledFeatures: ["retail.core"] }, expires: "" } as AuthenticatedSession;
+    const search = async (q: string) => {
+      const page = await fetchListPage(session, "retail-stock-transfers", { page: 1, size: 50, tab: "all", q, filters: {} });
+      if ("error" in page) throw new Error(page.error);
+      return page.rows.map((row) => row.transferNo);
+    };
+    expect(await search("jameson")).toContain("TRF-0001");
+    expect(await search("Ice 2kg")).toContain("TRF-0001");
+    expect(await search("TRF-0001")).toEqual(["TRF-0001"]);
+    expect(await search("Nothing sold here")).toEqual([]);
+  });
+
   it("is not there for a shop with one open site", async () => {
-    const session = { user: { id: managerId, companyId, role: "MANAGER" }, expires: "" } as AuthenticatedSession;
+    const session = { user: { id: managerId, companyId, role: "MANAGER", enabledFeatures: ["retail.core"] }, expires: "" } as AuthenticatedSession;
     const query = { page: 1, size: 50, filters: {} };
     const refusal = { status: 403, error: "Transfers need a second site." };
     expect(await fetchListPage(session, "retail-stock-transfers", query)).not.toEqual(refusal);

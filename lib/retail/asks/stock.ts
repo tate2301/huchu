@@ -29,7 +29,10 @@ export function reverseMovementsAsk(count: number): Ask {
 export function cancelTransferAsk(input: { transferNo: string; units: number; from: string; to: string }): Ask {
   return {
     title: `Cancel ${input.transferNo}?`,
-    body: `The ${formatCount(input.units)} ${input.units === 1 ? "unit" : "units"} on the way go back on ${input.from}’s stock, as if they never left. ${input.to} is told.`,
+    body:
+      input.units === 1
+        ? `The 1 unit on the way goes back on ${input.from}’s stock, as if it never left. ${input.to} is told.`
+        : `The ${formatCount(input.units)} units on the way go back on ${input.from}’s stock, as if they never left. ${input.to} is told.`,
     keep: "Keep it on the way",
     go: "Cancel the transfer",
     fill: "bad",

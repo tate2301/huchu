@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { checkValues, doneSentence, lineErrorsOf, submitFailure, fieldIds } from "@/components/sheet-form/model";
 import type { SheetCtx, SheetValues } from "@/lib/workspace/sheet-kind";
 
-import { STOCK_SHEETS } from "./stock";
+import { siteHoldingMost, STOCK_SHEETS } from "./stock";
 
 const kind = STOCK_SHEETS["transfer-new"]!;
 const ctx: SheetCtx = {
@@ -22,6 +22,7 @@ describe("Move stock (30-stock 5.13)", () => {
     expect(kind.requires).toEqual([["retail.transfers", "create"]]);
     expect(fieldIds(kind)).toEqual(["from", "to", "lines", "who", "when"]);
     expect(kind.sections.map((section) => section.title ?? null)).toEqual([null, "What goes", "On the way"]);
+    expect(kind.sections[1]!.fields[0]).toMatchObject({ t: "lines", noun: "stock-line", p: "Add a product: search or scan" });
   });
 
   it("asks for every field before it sends", () => {
@@ -59,5 +60,14 @@ describe("Move stock (30-stock 5.13)", () => {
     const failure = submitFailure(400, { error: "Only 9 at Harare Main Branch.", fieldErrors: { "lines.0": "Only 9 at Harare Main Branch.", to: "Pick a different site." } }, fieldIds(kind));
     expect(failure).toEqual({ fieldErrors: { "lines.0": "Only 9 at Harare Main Branch.", to: "Pick a different site." }, footer: null });
     expect(lineErrorsOf("lines", failure.fieldErrors)).toEqual({ 0: "Only 9 at Harare Main Branch." });
+  });
+
+  it("leaves from the site most of the ticked lines are at, the default site on a tie", () => {
+    const at = (...sites: string[]) => sites.map((siteId) => ({ siteId }));
+    expect(siteHoldingMost(at("hre", "hre", "bdl"), "hre")).toBe("hre");
+    expect(siteHoldingMost(at("bdl", "hre", "hre"), "bdl")).toBe("hre");
+    expect(siteHoldingMost(at("bdl", "hre"), "hre")).toBe("hre");
+    expect(siteHoldingMost(at("bdl", "hre"), "avd")).toBe("bdl");
+    expect(siteHoldingMost([], "hre")).toBeNull();
   });
 });

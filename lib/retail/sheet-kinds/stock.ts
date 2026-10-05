@@ -50,6 +50,23 @@ const invalidateTransfers = [
 ];
 
 /**
+ * The site most of the ticked lines are at, so the fewest are left out; the
+ * default site when it ties for most.
+ */
+export function siteHoldingMost(ticked: Pick<LookupOption, "siteId">[], defaultId: string | null): string | null {
+  const counts = new Map<string, number>();
+  for (const option of ticked) {
+    if (option.siteId) counts.set(option.siteId, (counts.get(option.siteId) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [siteId, count] of counts) {
+    const top = best === null ? 0 : counts.get(best)!;
+    if (count > top || (count === top && siteId === defaultId)) best = siteId;
+  }
+  return best;
+}
+
+/**
  * Move stock (`K.transfer`, board TransferNew). From is the default site and
  * To the other one when there are exactly two; `?from=&to=` (Add a site's
  * "Move some from …") and `?ids=` (On hand's ticked lines, arriving with an
@@ -113,6 +130,8 @@ const transferNew: SheetKind = {
           noun: "stock-line",
           ql: "Sending",
           cl: "Cost",
+          // Only what is kept at From can go; a new product cannot be added here.
+          p: "Add a product: search or scan",
           context: (_ctx, values) => ({ siteId: site(values, "from")?.id ?? "", for: FOR_TRANSFER }),
         },
       ],
@@ -142,12 +161,8 @@ const transferNew: SheetKind = {
     const ids = (ctx.params.get("ids") ?? ctx.id ?? "").split(",").filter(Boolean);
     const ticked = ids.length > 0 ? await lookup("stock-line", { lineIds: ids, for: FOR_TRANSFER }) : [];
 
-    const from =
-      byId(ctx.params.get("from")) ??
-      byId(ticked[0]?.siteId ?? null) ??
-      sites.find((option) => option.sub === "Default") ??
-      sites[0] ??
-      null;
+    const fallback = sites.find((option) => option.sub === "Default") ?? sites[0] ?? null;
+    const from = byId(ctx.params.get("from")) ?? byId(siteHoldingMost(ticked, fallback?.id ?? null)) ?? fallback;
     const others = sites.filter((option) => option.id !== from?.id);
     const asked = byId(ctx.params.get("to"));
     const to = asked && asked.id !== from?.id ? asked : others.length === 1 ? others[0]! : null;
