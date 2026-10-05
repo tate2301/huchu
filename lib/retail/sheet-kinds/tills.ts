@@ -353,8 +353,8 @@ const tillEdit: SheetKind = {
   danger: {
     label: "Unpair",
     show: (ctx, values) => ctx.can("retail.tills", "update") && values._wasPaired === true,
-    // With a shift open the server refuses, and the dialog shows its sentence.
-    ask: (_ctx, values) => unpairAsk(String(values._name ?? "this till"), String(values._device ?? "Its device")),
+    // With a shift open the server would refuse: the dialog says why and offers only "Keep it".
+    ask: (_ctx, values) => unpairAskOf(values),
     request: (ctx) => ({ method: "POST", url: tillUrl(ctx.id ?? "", "/unpair") }),
     done: (values) => `${String(values._name ?? "The till")} unpaired.`,
   },

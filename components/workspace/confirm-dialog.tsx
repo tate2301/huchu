@@ -76,14 +76,16 @@ export function ConfirmDialog({ ask, open, onOpenChange, onConfirm }: ConfirmDia
                   {ask.keep}
                 </Button>
               </AlertDialog.Cancel>
-              <Button
-                size="field"
-                variant={ask.fill === "bad" ? "danger-fill" : "primary"}
-                busy={busy}
-                onClick={go}
-              >
-                {ask.go}
-              </Button>
+              {ask.go ? (
+                <Button
+                  size="field"
+                  variant={ask.fill === "bad" ? "danger-fill" : "primary"}
+                  busy={busy}
+                  onClick={go}
+                >
+                  {ask.go}
+                </Button>
+              ) : null}
             </div>
           </AlertDialog.Content>
         </div>

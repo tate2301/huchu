@@ -4,7 +4,7 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { binAsk, closeShortAsk } from "@/lib/retail/asks";
+import { binAsk, closeShortAsk, unpairAsk } from "@/lib/retail/asks";
 import type { Ask } from "@/lib/workspace/ask";
 import { ConfirmDialog } from "./confirm-dialog";
 
@@ -90,5 +90,13 @@ describe("ConfirmDialog", () => {
     act(() => button("Keep it").click());
     expect(onConfirm).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("ConfirmDialog with nothing to go ahead with", () => {
+  it("offers only keep when the ask has no go (Unpair while a shift is open)", () => {
+    mount(unpairAsk("Front till", "CounterMini", "Close Chipo Dube’s shift on Front till first."), vi.fn(async () => {}));
+    expect(dialog()?.textContent).toContain("Close Chipo Dube’s shift on Front till first.");
+    expect(Array.from(document.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Keep it"]);
   });
 });

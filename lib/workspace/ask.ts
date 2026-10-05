@@ -9,6 +9,7 @@ export type Ask = {
   title: string;
   body: string;
   keep: string;
+  /** Empty when there is nothing to go ahead with (a refusal known before asking): only `keep` is offered. */
   go: string;
   fill: "bad" | "action";
 };

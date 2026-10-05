@@ -9,6 +9,7 @@ import {
   LIST_ACTION_RUNS,
   removeOrderAsk,
   restorableUntil,
+  unpairAsk,
 } from "./index";
 
 describe("the Record board's asks", () => {
@@ -118,6 +119,23 @@ describe("the category asks (20-products 5.28)", () => {
       keep: "Keep them apart",
       go: "Merge",
       fill: "action",
+    });
+  });
+});
+
+describe("Unpair on a till (10-setup 5.5)", () => {
+  it("says what stops and what stays, and offers only Keep it while a shift is open", () => {
+    expect(unpairAsk("Back till", "Browser, Windows PC")).toEqual({
+      title: "Unpair Back till?",
+      body: "Browser, Windows PC stops being a till at its next request. Sales it holds offline still come in, flagged for you. The till stays, ready for another device.",
+      keep: "Keep it",
+      go: "Unpair",
+      fill: "bad",
+    });
+    expect(unpairAsk("Front till", "CounterMini", "Close Chipo Dube’s shift on Front till first.")).toMatchObject({
+      body: "Close Chipo Dube’s shift on Front till first.",
+      keep: "Keep it",
+      go: "",
     });
   });
 });
