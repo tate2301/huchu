@@ -20,7 +20,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.catalog", "update");
+  const gate = requireRetailPermission(session, "retail.categories", "update");
   if (gate) return gate;
 
   const { id } = await context.params;

@@ -59,6 +59,12 @@ const ROLE_ROUTE_LIMITS: Record<string, { denied: string[]; readOnly: string[] }
     denied: ["/stores", "/api/v2/inventory"],
     readOnly: ["/api/inventory", "/api/stock-locations"],
   },
+  // The bookkeeper reads stock and the fiscal device for the retail pages
+  // (the Roles board: Fiscal device R); they change neither.
+  FINANCE_OFFICER: {
+    denied: ["/stores", "/api/v2/inventory"],
+    readOnly: ["/api/inventory", "/api/stock-locations", "/api/accounting/fiscalisation"],
+  },
 };
 
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);

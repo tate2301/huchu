@@ -6,14 +6,11 @@ import { listBin, restoreFromBin, restoreInput } from "@/lib/retail/bin";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../_helpers";
 
-/**
- * The bin. Removing a product, promotion or category is `delete` on the
- * catalogue, so seeing and emptying the bin is the same right.
- */
+/** The bin: seeing it is `retail.bin` `view`; restoring from it is `update`. */
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
-  const gate = requireRetailPermission(session, "retail.catalog", "delete");
+  const gate = requireRetailPermission(session, "retail.bin", "view");
   if (gate) return gate;
   return successResponse({ data: await listBin(session.user.companyId) });
 }
@@ -22,7 +19,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
-  const gate = requireRetailPermission(session, "retail.catalog", "delete");
+  const gate = requireRetailPermission(session, "retail.bin", "update");
   if (gate) return gate;
   try {
     const input = restoreInput.parse(await request.json());

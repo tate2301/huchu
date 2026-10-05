@@ -15,7 +15,10 @@ export const buyingNav: RetailNavModule = {
       icon: Money,
       label: "Requisitions",
       // A cashier's and a stock clerk's are their own: the list's server scopes it.
-      requires: [["retail.requisitions", "view"]],
+      requires: [
+        ["retail.requisitions", "view"],
+        ["retail.requisitions", "view-own"],
+      ],
     },
   ],
 };

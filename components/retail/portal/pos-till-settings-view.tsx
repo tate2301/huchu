@@ -12,7 +12,7 @@
  * ── It reads. It does not write. ───────────────────────────────────────────
  *
  * Every group here is a rule the cashier is already operating under, so
- * withholding it is theatre — but `retail.setup` is not a cashier grant and
+ * withholding it is theatre — but `retail.till-rules` is not a cashier grant and
  * there is no PUT handler on this endpoint at all. So the screen shows where
  * each setting lives rather than pretending to a control it does not have.
  * `lib/retail/till-settings.ts` carries the full reasoning.

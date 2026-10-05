@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 
 import { CATEGORY_SEEDS } from "./categories";
 import {
-  canChangeShopProfile,
   DEFAULT_SHOP_PROFILE,
   isWithinLicenceHours,
   licenceWindowLabel,
@@ -113,16 +112,6 @@ describe("a liquor sale at the till", () => {
     expect(liquorSaleRefusal({ profile: noCheck, ageRestricted: ["Gin"], idChecked: false, at: monday8pm })).toBeNull();
     const general = { ...liquor, businessType: "GENERAL" as const };
     expect(liquorSaleRefusal({ profile: general, ageRestricted: ["Gin"], idChecked: false, at: monday11pm })).toBeNull();
-  });
-});
-
-describe("who may change the shop type", () => {
-  it("is the owner alone", () => {
-    expect(canChangeShopProfile("SUPERADMIN")).toBe(true);
-    expect(canChangeShopProfile("MANAGER")).toBe(false);
-    expect(canChangeShopProfile("SHOP_MANAGER")).toBe(false);
-    expect(canChangeShopProfile("CASHIER")).toBe(false);
-    expect(canChangeShopProfile(null)).toBe(false);
   });
 });
 

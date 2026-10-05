@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { canRetailRoleDo } from "@/lib/retail/permissions";
+import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import {
   managerOverrideSchema,
   verifyManagerOverride,
@@ -48,6 +48,8 @@ export async function POST(
   if (response || !session) {
     return response as NextResponse;
   }
+  const gate = requireRetailPermission(session, "retail.sell", "refund");
+  if (gate) return gate;
 
   try {
     /*
@@ -63,26 +65,15 @@ export async function POST(
     const body = await request.json();
     const input = refundSchema.parse(body);
 
-    /**
-     * S-7.7 — the matrix, or a manager standing here.
-     *
-     * This used to be `requireRetailPos`, which admits `RETAIL_MANAGER_ROLES`
-     * **plus `CASHIER`** — so a cashier could POST a refund straight at this
-     * endpoint and reverse a posted sale that the till's own history screen
-     * would never have offered them a button for. `RUN_A_TILL` in
-     * `lib/retail/permissions.ts` withholds `refund` deliberately. The endpoint
-     * being the only thing that disagreed is what made it a hole rather than a
-     * difference of opinion, and `route-guard-coverage.test.ts` could not see
-     * it because there *was* a gate here — just the wrong one.
-     *
-     * The override is the other half. Withholding `refund` from a cashier left
-     * reversals unreachable from the shop floor entirely, because the portal
-     * admits nobody else. A manager approves the one act at the counter, and
-     * their name goes onto the reversal.
-     */
+    /*
+      Refunding is the cashier's as well (the Roles board's "Sales, refunds,
+      voids"); doing it without a manager is `retail.sell` `approve`. Anyone
+      without it brings a manager to the counter, whose name goes onto the
+      reversal. SET-06's till rules decide when a cashier needs one.
+    */
     let reason = input.reason.trim();
     let approvedBy: { id: string; name: string } | null = null;
-    if (!canRetailRoleDo(session.user.role, "retail.sell", "refund")) {
+    if (!canRetailSessionDo(session, "retail.sell", "approve")) {
       if (!input.managerOverride) {
         return errorResponse("A manager must approve this refund", 403);
       }

@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   }
 
   // R-2.3. Registers, branches and terminal bindings.
-  const gate = requireRetailPermission(session, "retail.setup", "view");
+  const gate = requireRetailPermission(session, "retail.tills", "view");
   if (gate) return gate;
 
   try {
@@ -62,12 +62,17 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.setup", "update");
+  const gate = requireRetailPermission(session, "retail.tills", "update");
   if (gate) return gate;
 
   try {
     const body = await request.json();
     const validated = operationSchema.parse(body);
+    // Adding a till is `create` as well.
+    if (validated.newRegisterName?.trim() && !validated.defaultRegisterId) {
+      const createGate = requireRetailPermission(session, "retail.tills", "create");
+      if (createGate) return createGate;
+    }
     const site = await ensureSiteAccess(
       session.user.companyId,
       validated.defaultSiteId,

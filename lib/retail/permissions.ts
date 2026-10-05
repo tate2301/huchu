@@ -1,38 +1,11 @@
 /**
- * What a member of staff may do in Retail.
+ * What a member of staff may do in retail, for route handlers.
  *
- * Mirrors `lib/hr/permissions.ts` in shape and for the same reason. Retail's
- * users are the tenant's own `UserRole` values — SHOP_MANAGER, CASHIER,
- * STOCK_CLERK — so this is a matrix over those rather than a persona lookup.
- *
- * ── Why this exists ────────────────────────────────────────────────────────
- *
- * Retail's only gates today are three role sets in `app/api/v2/retail/_helpers.ts`
- * (`RETAIL_MANAGER_ROLES`, `RETAIL_STOCK_ROLES`, `RETAIL_POS_ROLES`) and the POS
- * host's `canAccessPosPortal`. A role set can answer "is this person a stock
- * person". It cannot answer "may a cashier read the catalogue but not its cost
- * price", because that is a field on a row rather than a route, and it is exactly
- * the question a bottle store asks: the shelf price is public, the buying price is
- * the owner's business.
- *
- * Nor do the gates cover the reads. 22 of retail's 24 `GET` handlers have no role
- * check at all (`lib/retail/route-guard-coverage.test.ts` pins the list), so a
- * cashier can currently pull the trading dashboard and the catalogue's margin
- * column. The route registry does not close that: it answers "is retail switched
- * on for this tenant" and never "which signed-in person is calling".
- *
- * The default is deny. A role absent from the matrix below can do nothing in
- * retail, which is deliberate — `UserRole` is one enum shared by every vertical,
- * so TEACHER, BURSAR and SALES_EXEC all exist alongside CASHIER and none of them
- * has any business at the till.
- *
- * ── On `lib/platform/personas.ts` ──────────────────────────────────────────
- *
- * That catalogue also carries retail grants, under a different vocabulary
- * (`retail.pos`, `retail.refunds`, `retail.shifts`, `retail.promotions`). They are
- * not the resources this plan names and nothing in retail reads them. Rather than
- * bend one vocabulary to the other in passing, this module owns retail's answer
- * and the divergence is written down; reconciling the catalogue is its own ticket.
+ * The matrix itself — 37 resources, the grant table per role key, the labels
+ * and the session form — is `permission-matrix.ts`, re-exported here. The
+ * board it transcribes is `roles-matrix.ts` (80-admin 3.1). This file adds
+ * only the door check, which needs `next/server` and so cannot ride in a
+ * client bundle.
  */
 
 import { NextResponse } from "next/server";
@@ -44,11 +17,9 @@ import { retailPermissionDenial, type RetailAction, type RetailResource, type Se
 export * from "./permission-matrix";
 
 /**
- * The door check, in the shape every retail route already uses.
- *
- * Returns a 403 to hand straight back, or null to carry on — the same
- * `gate && return gate` idiom as `requireRetailManager` and friends, so applying
- * the matrix to a handler is a two-line change rather than a rewrite.
+ * The door check: a 403 `{ error: "Your role cannot <verb> <label>" }` to hand
+ * straight back, or null to carry on. Measured with the session's role key, so
+ * a support session is answered as `CORELITH_SUPPORT`.
  */
 export function requireRetailPermission(
   session: SessionLike,

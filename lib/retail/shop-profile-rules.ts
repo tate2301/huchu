@@ -1,8 +1,6 @@
 import type { RetailBusinessType } from "@prisma/client";
 import { z } from "zod";
 
-import { hasRole } from "@/lib/roles";
-
 /**
  * The shop's profile: what kind of shop it is, and the features that come with
  * that.
@@ -178,11 +176,6 @@ export function liquorSaleRefusal(input: {
     return `Check the customer's ID before selling ${what}.`;
   }
   return null;
-}
-
-/** May this person change what kind of shop it is? The owner only. */
-export function canChangeShopProfile(role: string | null | undefined) {
-  return hasRole(role, ["SUPERADMIN"]);
 }
 
 const hourField = z.string().regex(HHMM, "Use a 24-hour time such as 08:00");

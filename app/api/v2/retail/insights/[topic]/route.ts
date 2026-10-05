@@ -21,7 +21,7 @@ const query = z.object({
 export async function GET(request: NextRequest, context: { params: Promise<{ topic: string }> }) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
-  const gate = requireRetailPermission(session, "retail.reports", "view");
+  const gate = requireRetailPermission(session, "retail.insights", "view");
   if (gate) return gate;
 
   const path = params.safeParse(await context.params);

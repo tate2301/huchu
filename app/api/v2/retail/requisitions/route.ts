@@ -22,7 +22,10 @@ function actorOf(session: { user: { companyId: string; id: string; role?: string
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
-  const gate = requireRetailPermission(session, "retail.requisitions", "view");
+  // Every requisition, or only your own (`view-own`); the service scopes the rows.
+  const gate =
+    requireRetailPermission(session, "retail.requisitions", "view") &&
+    requireRetailPermission(session, "retail.requisitions", "view-own");
   if (gate) return gate;
 
   const query = listQuery.safeParse(Object.fromEntries(request.nextUrl.searchParams));

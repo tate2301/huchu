@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   // R-2.3. The customer list is a selling tool: loyalty is applied mid-sale, so
   // a cashier needs it. A stock clerk does not — knowing who shops here is not
   // part of counting what is on the shelf.
-  const gate = requireRetailPermission(session, "retail.sell", "view");
+  const gate = requireRetailPermission(session, "retail.customers", "view");
   if (gate) return gate;
 
   const query = parseRetailQuery(request, customerListQuery);
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.sell", "create");
+  const gate = requireRetailPermission(session, "retail.customers", "create");
   if (gate) return gate;
 
   try {

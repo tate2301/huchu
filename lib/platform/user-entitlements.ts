@@ -158,6 +158,18 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "accounting.ar",
     "accounting.banking",
     "accounting.tax",
+    /*
+      The retail bookkeeper (the Roles board's FINANCE_OFFICER column): reads
+      sales, shifts, stock, buying, customers, insights and reports, and keeps
+      posting, bills and accounts. These open the modules; what each request
+      may do is `lib/retail/permission-matrix.ts`. In a tenant without retail
+      the company's own features keep them shut.
+    */
+    "retail.",
+    "crm.customers",
+    "stores.inventory",
+    "stores.movements",
+    "accounting.zimra.fiscalisation",
   ],
   /*
     `crm.customers` on both till roles, because the till has a customer screen.

@@ -206,7 +206,7 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
     rather than an omission.
 
     It fetched `/api/v2/retail/setup/tender-policy`, which is gated on
-    `retail.setup` `view` — a permission no cashier holds — so it 403'd on
+    `retail.payments` `view` — a permission no cashier holds — so it 403'd on
     every till warm-up. Pointing it at `pos/context` instead fixed the cashier
     and broke everyone else: that route additionally enforces
     `canAccessPosPortal(role)`, so a CRM owner warming this module took a 403

@@ -10,15 +10,15 @@ import { requireRetailSession, resolveRetailSite } from "../../../_helpers";
 /**
  * Open cases into singles. `{id}` is the case's `Product.id`.
  *
- * A stock movement, so `retail.stock` `create` — what a stock clerk can do and
- * a cashier cannot.
+ * A stock adjustment, so `retail.adjustments` `create` — owner, manager and
+ * stock clerk (the Roles board's "Adjustments, breakage").
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) {
     return response as NextResponse;
   }
-  const gate = requireRetailPermission(session, "retail.stock", "create");
+  const gate = requireRetailPermission(session, "retail.adjustments", "create");
   if (gate) return gate;
 
   const path = await parseRetailParams(params, retailIdParams);

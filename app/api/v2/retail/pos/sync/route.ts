@@ -27,7 +27,7 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
-import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
+import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
 import { lineDeposit } from "@/lib/retail/deposits";
@@ -468,7 +468,7 @@ async function processCreateSale(
       })),
       soldAt,
       snapshotPricedAt: payload.pricedAt ? new Date(payload.pricedAt) : null,
-      actorCanOverride: canRetailRoleDo(ctx.session.user.role, "retail.sell", "approve"),
+      actorCanOverride: canRetailSessionDo(ctx.session, "retail.sell", "approve"),
       overrideReason: payload.overrideReason?.trim() || null,
     });
 

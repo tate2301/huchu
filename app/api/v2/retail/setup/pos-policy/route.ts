@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   // R-2.3. Checkout guardrails — discount ceilings, override rules. Reading
   // them tells you exactly how far you can push a price before anyone is asked.
-  const gate = requireRetailPermission(session, "retail.setup", "view");
+  const gate = requireRetailPermission(session, "retail.till-rules", "view");
   if (gate) return gate;
 
   const [policy, record] = await Promise.all([
@@ -56,7 +56,7 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.setup", "update");
+  const gate = requireRetailPermission(session, "retail.till-rules", "update");
   if (gate) return gate;
 
   try {

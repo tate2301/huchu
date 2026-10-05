@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   }
 
   // R-2.3. Setup is the shop's configuration, not a cashier's business.
-  const gate = requireRetailPermission(session, "retail.setup", "view");
+  const gate = requireRetailPermission(session, "retail.company", "view");
   if (gate) return gate;
 
   try {

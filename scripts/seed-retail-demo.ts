@@ -114,6 +114,8 @@ const STAFF = [
   { email: "chipo.till@bottlestore.test", name: "Chipo Dube", role: "CASHIER" as const, cashier: true },
   { email: "farai.till@bottlestore.test", name: "Farai Moyo", role: "CASHIER" as const, cashier: true },
   { email: "tendai.stock@bottlestore.test", name: "Tendai Sibanda", role: "STOCK_CLERK" as const, cashier: false },
+  // The bookkeeper (98-decisions C-40): reads the shop and keeps the books.
+  { email: "bookkeeper@bottlestore.test", name: "Ruvimbo Chari", role: "FINANCE_OFFICER" as const, cashier: false },
 ]
 
 const STAFF_PASSWORD = "RetailDemo123!"

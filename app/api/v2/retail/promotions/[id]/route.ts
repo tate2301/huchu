@@ -32,7 +32,7 @@ export async function PATCH(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.catalog", "update");
+  const gate = requireRetailPermission(session, "retail.promotions", "update");
   if (gate) return gate;
 
   try {
@@ -86,7 +86,7 @@ export async function DELETE(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.catalog", "delete");
+  const gate = requireRetailPermission(session, "retail.promotions", "delete");
   if (gate) return gate;
 
   const path = await parseRetailParams(params, retailIdParams);

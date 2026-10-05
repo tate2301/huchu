@@ -71,6 +71,11 @@ function mayPay(actor: RequisitionActor) {
   return canRetailRoleDo(actor.role, "retail.requisitions", "update");
 }
 
+/** `view` reads every requisition; `view-own` (cashier, stock clerk) only the caller's. */
+function readsEveryRequisition(actor: RequisitionActor) {
+  return canRetailRoleDo(actor.role, "retail.requisitions", "view");
+}
+
 /** What this person may do with this requisition, for the page to draw. */
 export function requisitionPermissions(actor: RequisitionActor, requisition: Pick<CrmRequisition, "status" | "requestedById">) {
   const own = requisition.requestedById === actor.userId;
@@ -99,7 +104,7 @@ export async function listRetailRequisitions(actor: RequisitionActor, options: {
     where: {
       companyId: actor.companyId,
       siteId: { not: null },
-      ...(mayDecide(actor) || mayPay(actor) ? {} : { requestedById: actor.userId }),
+      ...(readsEveryRequisition(actor) ? {} : { requestedById: actor.userId }),
       ...(options.status ? { status: options.status } : {}),
     },
     orderBy: [{ createdAt: "desc" }],
@@ -114,8 +119,8 @@ export async function loadRetailRequisition(actor: RequisitionActor, id: string)
     include: detailInclude,
   });
   if (!requisition) return null;
-  // Somebody who can neither decide nor pay sees only their own.
-  if (requisition.requestedById !== actor.userId && !mayDecide(actor) && !mayPay(actor)) return null;
+  // `view-own` (cashier, stock clerk) sees only their own; `view` sees every one.
+  if (requisition.requestedById !== actor.userId && !readsEveryRequisition(actor)) return null;
   return requisition;
 }
 

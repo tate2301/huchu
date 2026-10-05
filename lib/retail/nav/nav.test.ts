@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { getActiveNavHref } from "@/lib/nav-match";
 
-import { canRoleOpenRetailPath, RETAIL_NAV_ITEMS, RETAIL_NAV_MODULES, retailNavItemForPath } from "./index";
+import {
+  canRoleOpenRetailPath,
+  RETAIL_NAV_ITEMS,
+  RETAIL_NAV_MODULES,
+  retailNavItemForPath,
+  roleMeetsRetailRequires,
+} from "./index";
+import { manageNav } from "./manage";
 
 const q = (search = "") => new URLSearchParams(search);
 
@@ -75,5 +82,46 @@ describe("the current item", () => {
     const owner = visible(["/retail", "/retail/stock", "/retail/products"]);
     expect(getActiveNavHref(owner, "/retail", q(), RETAIL_NAV_ITEMS)).toBe("/retail");
     expect(getActiveNavHref(owner, "/retail/products/abc", q(), RETAIL_NAV_ITEMS)).toBe("/retail/products");
+  });
+});
+
+describe("the Management panel per role (ADM-01)", () => {
+  const panel = (role: string) =>
+    manageNav.items.filter((item) => roleMeetsRetailRequires(role, item.requires)).map((item) => item.label);
+
+  it("shows the owner every item", () => {
+    expect(panel("SUPERADMIN")).toEqual(manageNav.items.map((item) => item.label));
+  });
+
+  it.each(["MANAGER", "SHOP_MANAGER"])("shows the %s all but Posting to the books", (role) => {
+    expect(panel(role)).toEqual(["Tills and devices", "Till rules", "Fiscal device", "Bin"]);
+  });
+
+  it("shows the bookkeeper the fiscal device and posting", () => {
+    expect(panel("FINANCE_OFFICER")).toEqual(["Fiscal device", "Posting to the books"]);
+  });
+
+  it.each(["CASHIER", "STOCK_CLERK"])("gives the %s no gear", (role) => {
+    expect(panel(role)).toEqual([]);
+  });
+});
+
+describe("who sees what, from the Roles matrix (00-foundations 5.3.4)", () => {
+  const sees = (role: string) =>
+    RETAIL_NAV_ITEMS.filter((item) => roleMeetsRetailRequires(role, item.requires)).map((item) => item.href);
+
+  it("gives the bookkeeper the books and the readings, never the till", () => {
+    const bookkeeper = sees("FINANCE_OFFICER");
+    for (const href of ["/retail", "/retail/sales", "/retail/shifts", "/retail/customers", "/retail/products/categories", "/retail/insights/money"]) {
+      expect(bookkeeper).toContain(href);
+    }
+    expect(bookkeeper).not.toContain("/retail/manage/tills");
+  });
+
+  it("gives the cashier and the stock clerk their own requisitions", () => {
+    expect(sees("CASHIER")).toContain("/retail/buying/requisitions");
+    expect(sees("STOCK_CLERK")).toContain("/retail/buying/requisitions");
+    expect(sees("STOCK_CLERK")).not.toContain("/retail/products/categories");
+    expect(sees("CASHIER")).toContain("/retail/products/price-lists");
   });
 });

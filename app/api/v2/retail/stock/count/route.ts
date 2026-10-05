@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   // R-2.4. Posting a counted-vs-system variance is an `ADJUSTMENT` on the stock
   // ledger — `create` on `retail.stock`, which is what `MOVE_STOCK` grants a
   // clerk and withholds from everybody at a till.
-  const gate = requireRetailPermission(session, "retail.stock", "create");
+  const gate = requireRetailPermission(session, "retail.counts", "create");
   if (gate) return gate;
 
   try {

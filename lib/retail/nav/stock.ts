@@ -10,12 +10,12 @@ export const stockNav: RetailNavModule = {
   items: [
     { href: "/retail/stock", icon: Stack, label: "On hand", requires: [["retail.stock", "view"]] },
     { href: "/retail/stock/movements", icon: Clock, label: "Movements", requires: [["retail.stock", "view"]] },
-    { href: "/retail/stock/counts", icon: ClipboardText, label: "Counts", requires: [["retail.stock", "view"]] },
+    { href: "/retail/stock/counts", icon: ClipboardText, label: "Counts", requires: [["retail.counts", "view"]] },
     {
       href: "/retail/stock/transfers",
       icon: ArrowsLeftRight,
       label: "Transfers",
-      requires: [["retail.stock", "view"]],
+      requires: [["retail.transfers", "view"]],
     },
   ],
 };

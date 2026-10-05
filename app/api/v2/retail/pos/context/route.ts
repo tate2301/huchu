@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
      * is the request the till already makes.
      *
      * They used to be fetched separately from `/api/v2/retail/setup/tender-policy`,
-     * which is gated on `retail.setup` `view` — a permission no cashier holds.
+     * which is gated on `retail.payments` `view` — a permission no cashier holds.
      * It returned 403 on every till on every load, the query failed silently,
      * and checkout fell back to hard-coded defaults, so a shop's configured
      * reference requirements were accepted in the back office and then ignored
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     /**
      * What kind of shop this is, for the same reason: the till asks for ID and
      * keeps to licence hours on a liquor store, and `/shop-profile` is gated on
-     * `retail.setup`, which no cashier holds. The server checks every sale
+     * `retail.company`, which no cashier holds. The server checks every sale
      * again; this is so the cashier hears it before the customer has paid.
      */
     loadShopProfile(session.user.companyId),

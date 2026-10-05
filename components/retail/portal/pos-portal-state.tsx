@@ -314,7 +314,7 @@ export function PosPortalProvider({
   /*
     Tender rules now ride on `pos/context` above — see the comment on that
     route. There used to be a separate query here against
-    `/api/v2/retail/setup/tender-policy`, which is gated on `retail.setup`
+    `/api/v2/retail/setup/tender-policy`, which is gated on `retail.payments`
     `view`, a permission no cashier holds. It returned 403 on every till on
     every load, failed silently, and left checkout on the hard-coded defaults —
     so a shop's configured reference requirements were accepted in the back

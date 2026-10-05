@@ -21,14 +21,14 @@
  *    a reference, whether a refund needs a reason, that the shelf price already
  *    contains the VAT. Withholding the rules from the person they constrain is
  *    theatre, and it costs the shop a cashier who has to ask.
- *  - **None of it editable**, because `retail.setup` is not a cashier grant in
+ *  - **None of it editable**, because `retail.till-rules` is not a cashier grant in
  *    `lib/retail/permissions.ts` and a cashier who can raise the discount ceiling
  *    has removed the control the ceiling exists to be. That is not enforced by
  *    hiding a button: there is no write handler on `pos/till-settings` at all, so
  *    the capability does not exist to be found.
  *
  * The one exception is the cashier's **own unlock PIN**, which is not a setting
- * and is not `retail.setup`. It is a personal credential, it has its own endpoint
+ * and is not `retail.till-rules`. It is a personal credential, it has its own endpoint
  * at `pos/pin`, and that endpoint requires the caller's own account password
  * before it will mint one — so changing it is an act of authentication rather than
  * of configuration. Conflating the two would either lock a cashier out of their own
@@ -136,10 +136,10 @@ export type TillCapability = {
 /**
  * The capability list the settings screen renders, straight off the matrix.
  *
- * Read from `canRetailRoleDo` rather than from `canManageRetailTransactions` so
- * there is one authority. The two agree today — `RUN_A_TILL` grants a cashier
- * neither `update` nor `refund` nor `void`, and `MANAGE_THE_SHOP` grants
- * everything — and the point is that they cannot drift.
+ * Read from `canRetailRoleDo` so there is one authority with the API. A
+ * cashier holds `refund` and `void` (the Roles board) but not `approve`, so a
+ * reversal at the counter still needs a manager there; the rows below answer
+ * "on your own".
  *
  * `whenRefused` is the honest half. Three of these are refusals a cashier can
  * work around at the counter with a manager present, and three are not; a screen
@@ -181,13 +181,13 @@ export function summariseTillCapabilities(role: string | null | undefined): Till
     {
       id: "refund",
       label: "Refund a posted sale",
-      allowed: canRetailRoleDo(role, "retail.sell", "refund"),
+      allowed: canRetailRoleDo(role, "retail.sell", "refund") && canRetailRoleDo(role, "retail.sell", "approve"),
       whenRefused: REVERSAL_IS_A_BACK_OFFICE_JOB,
     },
     {
       id: "void",
       label: "Void a receipt",
-      allowed: canRetailRoleDo(role, "retail.sell", "void"),
+      allowed: canRetailRoleDo(role, "retail.sell", "void") && canRetailRoleDo(role, "retail.sell", "approve"),
       whenRefused: REVERSAL_IS_A_BACK_OFFICE_JOB,
     },
     {
@@ -205,7 +205,7 @@ export function summariseTillCapabilities(role: string | null | undefined): Till
     {
       id: "setup",
       label: "Change any of the settings on this screen",
-      allowed: canRetailRoleDo(role, "retail.setup", "update"),
+      allowed: canRetailRoleDo(role, "retail.till-rules", "update"),
       whenRefused: "The shop manager changes these in the back office.",
     },
   ];
@@ -219,5 +219,5 @@ export function summariseTillCapabilities(role: string | null | undefined): Till
  * lives instead of offering a door that leads to `/access-blocked`.
  */
 export function canEditTillSettings(role: string | null | undefined): boolean {
-  return canRetailRoleDo(role, "retail.setup", "update");
+  return canRetailRoleDo(role, "retail.till-rules", "update");
 }

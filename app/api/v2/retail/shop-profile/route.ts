@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import {
-  canChangeShopProfile,
   DEFAULT_SHOP_PROFILE,
   loadShopProfile,
   saveShopProfile,
@@ -16,9 +15,9 @@ import { requireRetailSession } from "../_helpers";
 /**
  * The shop's business type and the features it switches on.
  *
- * Read by Settings › General and by every screen that changes with the shop
- * type. Written by the owner alone: whether a till checks ID is a licence
- * question, not a shift manager's.
+ * Read by every screen that changes with the shop type. Written with
+ * `retail.company` `update` — the owner (and Corelith support): whether a till
+ * checks ID is a licence question, not a shift manager's.
  */
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -26,7 +25,7 @@ export async function GET(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.setup", "view");
+  const gate = requireRetailPermission(session, "retail.company", "view");
   if (gate) return gate;
 
   const profile = await loadShopProfile(session.user.companyId);
@@ -34,7 +33,7 @@ export async function GET(request: NextRequest) {
     data: profile,
     features: shopFeatures(profile),
     defaults: DEFAULT_SHOP_PROFILE,
-    canChange: canChangeShopProfile(session.user.role),
+    canChange: canRetailSessionDo(session, "retail.company", "update"),
   });
 }
 
@@ -44,11 +43,8 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.setup", "update");
+  const gate = requireRetailPermission(session, "retail.company", "update");
   if (gate) return gate;
-  if (!canChangeShopProfile(session.user.role)) {
-    return errorResponse("Only the owner can change what kind of shop this is", 403);
-  }
 
   try {
     const input = shopProfileInput.parse(await request.json());

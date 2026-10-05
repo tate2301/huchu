@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   // R-2.3. The lookup the counter runs mid-sale. Same gate as the list it
   // searches, because it is the same data reached a faster way.
-  const gate = requireRetailPermission(session, "retail.sell", "view");
+  const gate = requireRetailPermission(session, "retail.customers", "view");
   if (gate) return gate;
 
   const query = parseRetailQuery(request, customerSearchQuery);

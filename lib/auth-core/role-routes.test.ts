@@ -69,6 +69,16 @@ describe("role route allowlist", () => {
     expect(isRouteAllowedForRole("STOCK_CLERK", "/api/v2/retail/stock/count", "POST")).toBe(true);
   });
 
+  it("lets the bookkeeper read stock and the fiscal device, never change them", () => {
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/inventory/items", "GET")).toBe(true);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/inventory/items/abc", "PATCH")).toBe(false);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/inventory/movements", "POST")).toBe(false);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/stores/inventory")).toBe(false);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/retail/shifts")).toBe(true);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/accounting/fiscalisation/config", "GET")).toBe(true);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/accounting/fiscalisation/config", "PUT")).toBe(false);
+  });
+
   it("leaves the stores module to the roles that run it", () => {
     expect(isRouteAllowedForRole("MANAGER", "/api/inventory/items", "POST")).toBe(true);
     expect(isRouteAllowedForRole("CLERK", "/api/inventory/movements", "POST")).toBe(true);

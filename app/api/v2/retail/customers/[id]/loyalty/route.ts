@@ -18,7 +18,7 @@ export async function GET(
 
   // R-2.3. One customer's points and the history behind them, read at the
   // counter while they wait. Selling, not reporting.
-  const gate = requireRetailPermission(session, "retail.sell", "view");
+  const gate = requireRetailPermission(session, "retail.customers", "view");
   if (gate) return gate;
 
   /*

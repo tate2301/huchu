@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   }
 
   // R-2.3. Which tenders the shop accepts and at what rate.
-  const gate = requireRetailPermission(session, "retail.setup", "view");
+  const gate = requireRetailPermission(session, "retail.payments", "view");
   if (gate) return gate;
 
   const policy = await getRetailTenderPolicy(session.user.companyId);
@@ -37,7 +37,7 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.setup", "update");
+  const gate = requireRetailPermission(session, "retail.payments", "update");
   if (gate) return gate;
 
   try {

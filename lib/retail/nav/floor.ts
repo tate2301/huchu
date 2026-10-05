@@ -21,6 +21,6 @@ export const floorNav: RetailNavModule = {
         ["retail.sell", "open-shift"],
       ],
     },
-    { href: "/retail/customers", icon: Users, label: "Customers", requires: [["retail.sell", "view"]] },
+    { href: "/retail/customers", icon: Users, label: "Customers", requires: [["retail.customers", "view"]] },
   ],
 };

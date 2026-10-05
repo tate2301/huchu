@@ -1,48 +1,71 @@
 /**
- * The retail permission matrix, with nothing server-only in it.
+ * Who can do what in retail: the Roles board as code (80-admin 3.1, ADM-01).
  *
- * `permissions.ts` re-exports all of this and adds the 403 helper for route
- * handlers. The split exists because the shell reads the matrix in the browser
- * (each nav item's `requires`, 00-foundations 5.3.4), and the route helper
- * pulls `next/server` and the request-scoped activity log, which a client
- * bundle cannot load.
+ * One explicit grant table per role key, default deny. The board itself — its
+ * sections, rows, letters and limit sentences — is `roles-matrix.ts`, and
+ * `roles-matrix.test.ts` derives every letter on the board from the grants
+ * below, cell by cell. Change a grant here and that test says which cell of
+ * the board no longer holds.
+ *
+ * Nothing in this file is server-only. `permissions.ts` re-exports all of it
+ * and adds the 403 helper for route handlers; the split exists because the
+ * shell reads the matrix in the browser (each nav item's `requires`,
+ * 00-foundations 5.3.4).
+ *
+ * Row-level rules the matrix cannot state live in their services: managers add
+ * and change cashiers and stock clerks only (ADM-02); managers limited to sites
+ * see those sites' activity (ADM-06); a manager approves requisitions at or
+ * under the owner limit and never their own (BUY-04); cashiers refund and void
+ * within the till rules (SET-06); `view-own` lists only the caller's own
+ * requisitions (BUY-04); a cashier sees only their own shifts and sales.
  */
 
 /**
- * The seven surfaces retail authorises against.
+ * The 37 surfaces retail authorises against. Not a list of routes: several
+ * routes map onto one resource, and one route may ask two questions.
  *
- * Not a list of routes. Several routes map onto one resource, and one route can
- * ask two questions of the matrix:
- *
- * - `retail.sell` — the till. Sales, held carts, the cashier's own shift, and the
- *   customer and loyalty lookups the till performs mid-sale.
- * - `retail.catalog` — what is on the shelf, its price, and its promotions.
- * - `retail.purchasing` — purchase orders and goods receipts.
- * - `retail.stock` — counts, adjustments and transfers.
- * - `retail.cash-control` — cash-up: every cashier's shift, its variance, and
- *   signing it off. The back-office half of a shift, not the till's half.
- * - `retail.reports` — the trading dashboard. Takings, margin and cost in one view.
- * - `retail.setup` — registers, trading hours, tender and POS policy.
- * - `retail.requisitions` — asking for money to spend on the shop, deciding,
- *   and paying it out. Anybody on staff may ask; the manager decides and pays.
- * - `retail.money` — the Money insight: where the shop's money went. The owner's
- *   alone among the shop's own ("Managers do not see Money", the Roles board).
- * - `retail.posting` — Posting to the books: which ledger accounts the shop's
- *   takings, cost and tax land in. The owner's and the bookkeeper's; the
- *   manager runs the shop, not the books (00-foundations 5.3.4 leaves the M
- *   column blank). The bookkeeper's grants arrive with ADM-01's matrix.
+ * Three have no board row of their own: `retail.stock` (On hand and Movements,
+ * under the Stock section), `retail.money` (the Money insight, under Insights)
+ * and `retail.reports` (report templates and the floor Overview).
  */
 export const RETAIL_RESOURCES = [
-  "retail.sell",
-  "retail.catalog",
-  "retail.purchasing",
-  "retail.stock",
-  "retail.cash-control",
-  "retail.reports",
-  "retail.setup",
-  "retail.requisitions",
-  "retail.money",
+  "retail.company",
+  "retail.sites",
+  "retail.tills",
+  "retail.payments",
+  "retail.zig-rate",
+  "retail.till-rules",
+  "retail.receipts",
+  "retail.fiscal",
   "retail.posting",
+  "retail.billing",
+  "retail.catalog",
+  "retail.prices",
+  "retail.promotions",
+  "retail.categories",
+  "retail.stock",
+  "retail.counts",
+  "retail.adjustments",
+  "retail.transfers",
+  "retail.empties",
+  "retail.suppliers",
+  "retail.purchasing",
+  "retail.requisitions",
+  "retail.bills",
+  "retail.sell",
+  "retail.cash-control",
+  "retail.laybys",
+  "retail.end-of-day",
+  "retail.customers",
+  "retail.accounts",
+  "retail.loyalty",
+  "retail.people",
+  "retail.approvals",
+  "retail.activity",
+  "retail.bin",
+  "retail.insights",
+  "retail.money",
+  "retail.reports",
 ] as const;
 
 export type RetailResource = (typeof RETAIL_RESOURCES)[number];
@@ -50,24 +73,19 @@ export type RetailResource = (typeof RETAIL_RESOURCES)[number];
 /**
  * Everything a retail resource can be asked to do.
  *
- * The five ordinary ones plus six the module genuinely has routes for:
- *
- * - `view-cost` is the reason a matrix replaces the role sets. It is field-level,
- *   not route-level: `pos/catalog` must stay open to a cashier — a till that
- *   cannot list its stock cannot sell — while the cost and margin columns it
- *   carries must not. No role-set gate can express that.
- * - `refund` and `void` are separate from `create` because reversing a posted sale
- *   is the act a shop watches. They are also separate from each other, as the
- *   ledger already treats them (`RetailSaleType.REFUND` vs `VOID`).
- * - `open-shift` and `close-shift` are separate from `create`/`update` because a
- *   shift is the cash drawer, not a record. Note that "their own shift" is a
- *   row-level scope the matrix cannot state; the route enforces the ownership,
- *   this states the capability.
- * - `receive` is separate from `create` on purchasing so that a stock clerk can
- *   book a delivery in against an order without being able to raise one.
+ * - `view-cost` is field-level: `pos/catalog` stays open to a cashier while the
+ *   cost and margin columns it carries do not.
+ * - `refund` and `void` are separate from `create` because reversing a posted
+ *   sale is the act a shop watches; `approve` on `retail.sell` is the right to
+ *   approve one without a manager.
+ * - `open-shift` and `close-shift` are the cash drawer, not a record.
+ * - `receive` lets a stock clerk book a delivery in without raising an order.
+ * - `view-own` reads only the caller's own rows (requisitions). It never makes
+ *   an R on the board: a route that lists for it scopes to the caller.
  */
 export const RETAIL_ACTIONS = [
   "view",
+  "view-own",
   "view-cost",
   "create",
   "update",
@@ -82,135 +100,270 @@ export const RETAIL_ACTIONS = [
 
 export type RetailAction = (typeof RETAIL_ACTIONS)[number];
 
-const ALL: RetailAction[] = [...RETAIL_ACTIONS];
+/** The role keys that hold grants. Every other role holds nothing. */
+export const RETAIL_ROLE_KEYS = [
+  "CORELITH_SUPPORT",
+  "SUPERADMIN",
+  "MANAGER",
+  "SHOP_MANAGER",
+  "CASHIER",
+  "STOCK_CLERK",
+  "FINANCE_OFFICER",
+] as const;
 
-/**
- * Run a till for a shift and nothing else. Sell, park a cart, look a customer up,
- * open the drawer at seven and cash it up at close.
- *
- * No `refund` and no `void`: reversing a posted sale is how a till is stolen from,
- * and in a shop this size the manager is on the floor. No `update` or `delete`
- * either — a mistake at the till is corrected by a reversal that leaves a trail,
- * not by editing the sale.
- */
-const RUN_A_TILL: RetailAction[] = ["view", "create", "open-shift", "close-shift"];
+export type RetailRoleKey = (typeof RETAIL_ROLE_KEYS)[number];
 
-/**
- * Read the shelf. Deliberately `view` without `view-cost`: this is the whole
- * point of the field-level action, and it is what a cashier gets on the catalogue.
- */
-const READ_THE_SHELF: RetailAction[] = ["view"];
+type Grants = Partial<Record<RetailResource, readonly RetailAction[]>>;
 
-/**
- * Count it, move it, correct it. What a stock clerk needs on the stock ledger.
- *
- * Not `approve` — a write-off is the owner's decision — and not `delete`, because
- * a stock movement that can be deleted is a stock ledger that cannot be trusted.
- */
-const MOVE_STOCK: RetailAction[] = ["view", "create", "update"];
+/** Every action except `view-own`: holding `view` already reads every row. */
+const ALL: readonly RetailAction[] = RETAIL_ACTIONS.filter((action) => action !== "view-own");
+const VIEW: readonly RetailAction[] = ["view"];
+const VIEW_UPDATE: readonly RetailAction[] = ["view", "update"];
+const CRUD: readonly RetailAction[] = ["view", "create", "update", "delete"];
+const CRU: readonly RetailAction[] = ["view", "create", "update"];
 
-/**
- * Book a delivery in against an order that already exists.
- *
- * `view` is included on purpose: a clerk cannot receive against an order they
- * cannot see. It is also the grant that carries supplier unit cost, which is why
- * it stops at the two actions and does not extend to raising or approving an
- * order — deciding what the shop buys, and at what price, is not the clerk's.
- */
-const BOOK_A_DELIVERY_IN: RetailAction[] = ["view", "receive"];
+/** Owner: the tenant's SUPERADMIN. */
+const OWNER: Grants = {
+  "retail.company": VIEW_UPDATE,
+  "retail.sites": CRUD,
+  "retail.tills": CRUD,
+  "retail.payments": VIEW_UPDATE,
+  "retail.zig-rate": VIEW_UPDATE,
+  "retail.till-rules": VIEW_UPDATE,
+  "retail.receipts": VIEW_UPDATE,
+  "retail.fiscal": VIEW_UPDATE,
+  "retail.posting": VIEW_UPDATE,
+  "retail.billing": VIEW_UPDATE,
+  "retail.catalog": ["view", "view-cost", "create", "update", "delete"],
+  "retail.prices": ["view", "create", "update", "delete", "approve"],
+  "retail.promotions": CRUD,
+  "retail.categories": CRUD,
+  "retail.stock": VIEW_UPDATE,
+  "retail.counts": ["view", "create", "update", "delete", "approve"],
+  "retail.adjustments": ["view", "create", "update", "delete", "approve"],
+  "retail.transfers": CRUD,
+  "retail.empties": CRUD,
+  "retail.suppliers": CRUD,
+  "retail.purchasing": ["view", "create", "update", "delete", "approve", "receive"],
+  "retail.requisitions": ["view", "create", "update", "delete", "approve"],
+  "retail.bills": CRUD,
+  "retail.sell": ["view", "create", "update", "delete", "approve", "refund", "void", "open-shift", "close-shift"],
+  "retail.cash-control": ["view", "create", "update", "delete", "approve", "open-shift", "close-shift"],
+  "retail.laybys": CRUD,
+  "retail.end-of-day": CRU,
+  "retail.customers": CRUD,
+  "retail.accounts": ["view", "create", "update", "delete", "approve"],
+  "retail.loyalty": VIEW_UPDATE,
+  "retail.people": CRUD,
+  "retail.approvals": VIEW_UPDATE,
+  "retail.activity": VIEW,
+  "retail.bin": ["view", "update", "delete"],
+  "retail.insights": VIEW,
+  "retail.money": VIEW,
+  "retail.reports": CRUD,
+};
 
-/**
- * The shop's own. SUPERADMIN, MANAGER and SHOP_MANAGER are the set
- * `RETAIL_MANAGER_ROLES` already names in `_helpers.ts`, and they do everything.
- */
-const MANAGE_THE_SHOP: Partial<Record<RetailResource, RetailAction[]>> = {
-  "retail.sell": ALL,
-  "retail.catalog": ALL,
-  "retail.purchasing": ALL,
-  "retail.stock": ALL,
-  "retail.cash-control": ALL,
-  "retail.reports": ALL,
-  "retail.setup": ALL,
-  "retail.requisitions": ALL,
+/** Manager: MANAGER and SHOP_MANAGER. Runs the shop, not the books or the plan. */
+const MANAGER: Grants = {
+  "retail.company": VIEW,
+  "retail.sites": VIEW_UPDATE,
+  "retail.tills": CRUD,
+  "retail.payments": VIEW,
+  "retail.zig-rate": VIEW_UPDATE,
+  "retail.till-rules": VIEW_UPDATE,
+  "retail.receipts": VIEW_UPDATE,
+  "retail.fiscal": VIEW,
+  "retail.catalog": ["view", "view-cost", "create", "update", "delete"],
+  "retail.prices": CRU,
+  "retail.promotions": CRUD,
+  "retail.categories": CRU,
+  "retail.stock": VIEW_UPDATE,
+  "retail.counts": ["view", "create", "update", "delete", "approve"],
+  "retail.adjustments": ["view", "create", "update", "approve"],
+  "retail.transfers": CRUD,
+  "retail.empties": CRUD,
+  "retail.suppliers": CRUD,
+  "retail.purchasing": ["view", "create", "update", "delete", "approve", "receive"],
+  "retail.requisitions": ["view", "create", "update", "approve"],
+  "retail.bills": VIEW,
+  "retail.sell": OWNER["retail.sell"],
+  "retail.cash-control": OWNER["retail.cash-control"],
+  "retail.laybys": CRUD,
+  "retail.end-of-day": CRU,
+  "retail.customers": CRUD,
+  "retail.accounts": CRU,
+  "retail.loyalty": VIEW,
+  "retail.people": CRU,
+  "retail.approvals": VIEW,
+  "retail.activity": VIEW,
+  "retail.bin": VIEW_UPDATE,
+  "retail.insights": VIEW,
+  "retail.reports": CRUD,
 };
 
 /**
- * Ask for money and follow your own request. `view` reaches only the asker's
- * own requisitions — the route scopes it — and nothing here decides or pays.
+ * Cashier: sells, refunds and voids within the till rules, opens and closes
+ * their own drawer, adds customers and lay-bys, takes empties back, and asks
+ * for money. Never sees cost.
  */
-const ASK_FOR_MONEY: RetailAction[] = ["view", "create"];
-
-type Matrix = Partial<Record<string, Partial<Record<RetailResource, RetailAction[]>>>>;
-
-/**
- * Role to what it may do. Absent role, absent resource, absent action — deny.
- *
- * CLERK and FINANCE_OFFICER appear in `VERTICAL_ROLE_REGISTRY.RETAIL` and are
- * absent here on purpose: none of retail's three gates admits them today, so
- * granting them anything now would be a widening of access dressed up as a
- * refactor. If the shop wants a finance reviewer on `retail.reports`, that is a
- * line in this table and a decision somebody makes.
- */
-const MATRIX: Matrix = {
-  SUPERADMIN: { ...MANAGE_THE_SHOP, "retail.money": ALL, "retail.posting": ALL },
-  MANAGER: MANAGE_THE_SHOP,
-  SHOP_MANAGER: MANAGE_THE_SHOP,
-
-  // The person behind the counter. They sell, they see the shelf price, they open
-  // and close their own drawer. They do not see what the shop paid for a bottle,
-  // they do not see the day's margin, they do not touch the ordering, and cash-up
-  // — the reconciliation of every till against the takings — is not theirs.
-  CASHIER: {
-    "retail.sell": RUN_A_TILL,
-    "retail.catalog": READ_THE_SHELF,
-    "retail.requisitions": ASK_FOR_MONEY,
-  },
-
-  // The person with the stock. Counts, transfers, adjustments, and receiving what
-  // the supplier drops off. Not the till: a shop that lets the person who counts
-  // the stock also sell it has removed its own separation of duties.
-  STOCK_CLERK: {
-    "retail.catalog": READ_THE_SHELF,
-    "retail.stock": MOVE_STOCK,
-    "retail.purchasing": BOOK_A_DELIVERY_IN,
-    "retail.requisitions": ASK_FOR_MONEY,
-  },
+const CASHIER: Grants = {
+  "retail.catalog": VIEW,
+  "retail.prices": VIEW,
+  "retail.promotions": VIEW,
+  "retail.empties": ["create"],
+  "retail.requisitions": ["view-own", "create"],
+  "retail.sell": ["view", "create", "refund", "void", "open-shift", "close-shift"],
+  "retail.laybys": CRU,
+  "retail.customers": ["view", "create"],
 };
 
+/** Stock clerk: counts, moves and receives stock; never sells or orders. */
+const STOCK_CLERK: Grants = {
+  "retail.sites": VIEW,
+  "retail.catalog": VIEW,
+  "retail.stock": VIEW,
+  "retail.counts": CRU,
+  "retail.adjustments": ["create"],
+  "retail.transfers": CRU,
+  "retail.empties": CRU,
+  "retail.suppliers": VIEW,
+  "retail.purchasing": ["view", "receive"],
+  "retail.requisitions": ["view-own", "create"],
+};
+
+/** Bookkeeper: FINANCE_OFFICER. Reads the shop, keeps the books and the bills. */
+const BOOKKEEPER: Grants = {
+  "retail.company": VIEW,
+  "retail.sites": VIEW,
+  "retail.payments": VIEW,
+  "retail.zig-rate": VIEW,
+  "retail.fiscal": VIEW,
+  "retail.posting": VIEW_UPDATE,
+  "retail.billing": VIEW,
+  "retail.catalog": ["view", "view-cost"],
+  "retail.prices": VIEW,
+  "retail.promotions": VIEW,
+  "retail.categories": VIEW,
+  "retail.stock": VIEW,
+  "retail.counts": VIEW,
+  "retail.adjustments": VIEW,
+  "retail.transfers": VIEW,
+  "retail.empties": VIEW,
+  "retail.suppliers": VIEW_UPDATE,
+  "retail.purchasing": VIEW,
+  "retail.requisitions": VIEW,
+  "retail.bills": CRUD,
+  "retail.sell": VIEW,
+  "retail.cash-control": VIEW,
+  "retail.laybys": VIEW,
+  "retail.end-of-day": VIEW,
+  "retail.customers": VIEW,
+  "retail.accounts": VIEW_UPDATE,
+  "retail.approvals": VIEW,
+  "retail.activity": VIEW,
+  "retail.insights": VIEW,
+  "retail.money": VIEW,
+  "retail.reports": VIEW,
+};
+
+/**
+ * Superuser: Corelith support acting for the shop, always logged. Everything,
+ * except that activity, insights and money are read only. Applies only while a
+ * support session is on (`retailRoleKey`).
+ */
+const VIEW_ONLY_FOR_SUPPORT = new Set<RetailResource>(["retail.activity", "retail.insights", "retail.money"]);
+const CORELITH_SUPPORT: Grants = Object.fromEntries(
+  RETAIL_RESOURCES.map((resource) => [resource, VIEW_ONLY_FOR_SUPPORT.has(resource) ? VIEW : ALL]),
+);
+
+const GRANTS: Record<RetailRoleKey, Grants> = {
+  CORELITH_SUPPORT,
+  SUPERADMIN: OWNER,
+  MANAGER,
+  SHOP_MANAGER: MANAGER,
+  CASHIER,
+  STOCK_CLERK,
+  FINANCE_OFFICER: BOOKKEEPER,
+};
+
+function grantsFor(role: string | null | undefined): Grants | null {
+  if (!role) return null;
+  const key = role.trim().toUpperCase();
+  return (RETAIL_ROLE_KEYS as readonly string[]).includes(key) ? GRANTS[key as RetailRoleKey] : null;
+}
+
+/** Whether a role key holds `action` on `resource`. Absent role, resource or action: deny. */
 export function canRetailRoleDo(
   role: string | null | undefined,
   resource: RetailResource,
   action: RetailAction,
 ): boolean {
-  if (!role) return false;
-  const grants = MATRIX[role.trim().toUpperCase()];
-  if (!grants) return false;
-  return grants[resource]?.includes(action) ?? false;
+  return grantsFor(role)?.[resource]?.includes(action) ?? false;
 }
 
-export type SessionLike = { user: { role?: string | null } };
-
-/** Reads as a noun after any of the verbs below. */
-const RESOURCE_LABELS: Record<RetailResource, string> = {
-  "retail.sell": "sales",
-  "retail.catalog": "catalogue items",
-  "retail.purchasing": "purchase orders",
-  "retail.stock": "stock",
-  "retail.cash-control": "cash control",
-  "retail.reports": "retail reports",
-  "retail.setup": "retail setup",
-  "retail.requisitions": "requisitions",
-  "retail.money": "the money page",
-  "retail.posting": "posting to the books",
+export type SessionLike = {
+  user: { role?: string | null; supportSessionId?: string | null };
 };
 
 /**
- * The verb the refusal uses. A table rather than the action name interpolated,
- * because "view-cost catalogue items" is not a sentence and the person reading it
- * is a cashier mid-queue, not a developer.
+ * The role key a session is measured with: `CORELITH_SUPPORT` while a support
+ * session is on, else the user's own role.
  */
+export function retailRoleKey(session: SessionLike): string | null {
+  if (session.user.supportSessionId) return "CORELITH_SUPPORT";
+  return session.user.role ?? null;
+}
+
+/** The question every guard asks: may this signed-in caller do it. */
+export function canRetailSessionDo(session: SessionLike, resource: RetailResource, action: RetailAction): boolean {
+  return canRetailRoleDo(retailRoleKey(session), resource, action);
+}
+
+/** Reads as a noun after any verb below: "Your role cannot <verb> <label>". */
+export const RESOURCE_LABELS: Record<RetailResource, string> = {
+  "retail.company": "company settings",
+  "retail.sites": "sites",
+  "retail.tills": "tills and devices",
+  "retail.payments": "payment settings",
+  "retail.zig-rate": "the ZiG rate",
+  "retail.till-rules": "till rules",
+  "retail.receipts": "receipt settings",
+  "retail.fiscal": "the fiscal device",
+  "retail.posting": "posting to the books",
+  "retail.billing": "the plan and billing",
+  "retail.catalog": "products",
+  "retail.prices": "price lists",
+  "retail.promotions": "promotions, bundles and vouchers",
+  "retail.categories": "categories",
+  "retail.stock": "stock",
+  "retail.counts": "stock counts",
+  "retail.adjustments": "stock adjustments",
+  "retail.transfers": "transfers",
+  "retail.empties": "empties",
+  "retail.suppliers": "suppliers",
+  "retail.purchasing": "orders and deliveries",
+  "retail.requisitions": "requisitions",
+  "retail.bills": "bills and supplier payments",
+  "retail.sell": "sales",
+  "retail.cash-control": "shifts and cash",
+  "retail.laybys": "lay-bys",
+  "retail.end-of-day": "the end of day",
+  "retail.customers": "customers",
+  "retail.accounts": "accounts",
+  "retail.loyalty": "loyalty settings",
+  "retail.people": "people",
+  "retail.approvals": "approvals",
+  "retail.activity": "activity",
+  "retail.bin": "the bin",
+  "retail.insights": "insights",
+  "retail.money": "the money page",
+  "retail.reports": "reports",
+};
+
+/** The verb a refusal uses, so the person at the counter reads a sentence. */
 const ACTION_VERBS: Record<RetailAction, string> = {
   view: "view",
+  "view-own": "view",
   "view-cost": "see cost price on",
   create: "create",
   update: "change",
@@ -224,30 +377,20 @@ const ACTION_VERBS: Record<RetailAction, string> = {
 };
 
 /**
- * Returns null when allowed, or the message to refuse with.
- *
- * A message rather than a thrown error, for the same reason as the HR and schools
- * versions: every retail route returns through `errorResponse`, and a throw would
- * be caught by the generic handler and reported as a 500 — telling a cashier the
- * shop's system is broken when in fact they simply may not.
+ * Null when allowed, else the sentence to refuse with. A message rather than a
+ * throw: retail routes answer through `errorResponse`, and a throw would read
+ * as a 500.
  */
 export function retailPermissionDenial(
   session: SessionLike,
   resource: RetailResource,
   action: RetailAction,
 ): string | null {
-  if (canRetailRoleDo(session.user.role, resource, action)) return null;
+  if (canRetailSessionDo(session, resource, action)) return null;
   return `Your role cannot ${ACTION_VERBS[action]} ${RESOURCE_LABELS[resource]}`;
 }
 
-/**
- * Whether this caller may see what the shop paid.
- *
- * A single boolean because that is what the serialisers need: `pos/catalog`,
- * `catalog`, `purchasing/*` and the trading dashboard all carry cost, margin or
- * supplier price on rows a cashier is otherwise entitled to read, so the decision
- * has to be passed down into the row shaping rather than taken at the door.
- */
+/** Whether this role may see what the shop paid: cost, margin, supplier price. */
 export function canSeeRetailCostPrice(role: string | null | undefined): boolean {
   return canRetailRoleDo(role, "retail.catalog", "view-cost");
 }

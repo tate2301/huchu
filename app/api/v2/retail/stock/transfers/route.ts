@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   // R-2.4. A transfer moves stock between locations. Same grant as a count.
-  const gate = requireRetailPermission(session, "retail.stock", "create");
+  const gate = requireRetailPermission(session, "retail.transfers", "create");
   if (gate) return gate;
 
   try {

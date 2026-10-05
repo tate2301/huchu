@@ -17,9 +17,8 @@
  * cashier; it does not accept a write, and there is no second store.
  *
  * That is not timidity, it is the permissions matrix applied honestly. In
- * `lib/retail/permissions.ts` a CASHIER holds `retail.sell` and `retail.catalog`
- * and nothing else — `retail.setup` is the shop's configuration and is not
- * theirs. A cashier who could raise the discount ceiling from the till has
+ * `lib/retail/permissions.ts` a CASHIER holds no `retail.till-rules` and no
+ * `retail.payments` — the shop's configuration is not theirs. A cashier who could raise the discount ceiling from the till has
  * removed the control the ceiling exists to be. So the till *shows* the rules it
  * is operating under, which is genuinely useful to the person operating under
  * them, and the place to change them is a link to the back office.
@@ -65,7 +64,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { resolveBaseCurrency } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
+import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { getRetailPosPolicy } from "@/lib/retail/pos-policy";
 import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
 import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
@@ -80,11 +79,11 @@ export async function GET(request: NextRequest) {
   }
 
   /**
-   * `retail.sell`, not `retail.setup`. Everything returned below is a rule the
+   * `retail.sell`, not `retail.till-rules`. Everything returned below is a rule the
    * caller is already operating under at the counter — which register they are
    * on, whether a reference is required for EcoCash, whether a refund needs a
    * reason. Withholding it from the person it constrains would be theatre. What
-   * `retail.setup` decides is whether they may *change* any of it, which is the
+   * `retail.till-rules` decides is whether they may *change* any of it, which is the
    * `canEdit` flag at the bottom and is enforced by the PUT handlers, not here.
    */
   const gate = requireRetailPermission(session, "retail.sell", "view");
@@ -210,7 +209,7 @@ export async function GET(request: NextRequest) {
            * as "25%" would be a comforting lie on the one screen whose job is to
            * tell a cashier what they are allowed to do.
            */
-          discountsNeedApproval: !canRetailRoleDo(session.user.role, "retail.sell", "approve"),
+          discountsNeedApproval: !canRetailSessionDo(session, "retail.sell", "approve"),
           refundRequiresReason: posPolicy.refundRequiresReason,
           voidRequiresReason: posPolicy.voidRequiresReason,
           requireSupervisorForRefunds: posPolicy.requireSupervisorForRefunds,
@@ -233,7 +232,7 @@ export async function GET(request: NextRequest) {
          */
         capabilities: summariseTillCapabilities(session.user.role),
         /** Whether this caller may change any of it, and therefore see the link. */
-        canEdit: canRetailRoleDo(session.user.role, "retail.setup", "update"),
+        canEdit: canRetailSessionDo(session, "retail.till-rules", "update"),
       },
     });
   } catch (error) {

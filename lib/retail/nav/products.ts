@@ -13,25 +13,19 @@ export const productsNav: RetailNavModule = {
       href: "/retail/products/price-lists",
       icon: Tag,
       label: "Price lists",
-      requires: [
-        ["retail.catalog", "update"],
-        ["retail.sell", "view"],
-      ],
+      requires: [["retail.prices", "view"]],
     },
     {
       href: "/retail/products/promotions",
       icon: Megaphone,
       label: "Promotions",
-      requires: [
-        ["retail.catalog", "update"],
-        ["retail.sell", "view"],
-      ],
+      requires: [["retail.promotions", "view"]],
     },
     {
       href: "/retail/products/categories",
       icon: Folder,
       label: "Categories",
-      requires: [["retail.catalog", "update"]],
+      requires: [["retail.categories", "view"]],
     },
   ],
 };

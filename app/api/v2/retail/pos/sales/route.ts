@@ -12,7 +12,12 @@ import {
   LOYALTY_REDEEM_POINTS_PER_USD,
   parseLoyaltyRedeemPoints,
 } from "@/lib/retail/loyalty";
-import { canRetailRoleDo, canSeeRetailCostPrice, requireRetailPermission } from "@/lib/retail/permissions";
+import {
+  canRetailRoleDo,
+  canRetailSessionDo,
+  canSeeRetailCostPrice,
+  requireRetailPermission,
+} from "@/lib/retail/permissions";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
@@ -615,7 +620,7 @@ export async function POST(request: NextRequest) {
           })),
           soldAt: replaySoldAt,
           snapshotPricedAt: input.pricedAt ? new Date(input.pricedAt) : null,
-          actorCanOverride: canRetailRoleDo(session.user.role, "retail.sell", "approve"),
+          actorCanOverride: canRetailSessionDo(session, "retail.sell", "approve"),
           overrideReason: input.overrideReason?.trim() || null,
         })
       : null;
@@ -645,7 +650,7 @@ export async function POST(request: NextRequest) {
 
     let overrideReason = input.overrideReason?.trim() || input.managerOverride?.reason?.trim() || null;
 
-    if (hasOverride && !canRetailRoleDo(session.user.role, "retail.sell", "approve")) {
+    if (hasOverride && !canRetailSessionDo(session, "retail.sell", "approve")) {
       if (!input.managerOverride) {
         return errorResponse("Manager approval is required for price or discount overrides", 403);
       }

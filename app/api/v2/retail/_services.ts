@@ -1007,7 +1007,7 @@ export async function refundRetailSaleTransaction(input: {
     actor was still the cashier — a 400 reading "Only retail managers can
     process refunds" on a refund a manager had just authorised.
   */
-  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "refund") && !input.approvedBy) {
+  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "approve") && !input.approvedBy) {
     throw new Error("Only retail managers can process refunds");
   }
 
@@ -1307,8 +1307,8 @@ export async function refundRetailSaleTransaction(input: {
 
       A reversal is how a till is stolen from — ring the sale, take the cash,
       refund it — and the question afterwards is always who allowed it.
-      `RUN_A_TILL` withholds `refund`, so a cashier reaches this only with a
-      manager's password verified at the counter, and `approvedBy` is that
+      A cashier holds `refund` but not `approve`, so they reach this only with
+      a manager's password verified at the counter, and `approvedBy` is that
       manager. It already goes into `overrideReason` as free text on the sale
       row; that row is mutable, and free text is not evidence.
     */
@@ -1350,7 +1350,7 @@ export async function voidRetailSaleTransaction(input: {
   /** A manager who approved this at the counter. See the refund above. */
   approvedBy?: { id: string; name: string } | null;
 }) {
-  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "void") && !input.approvedBy) {
+  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "approve") && !input.approvedBy) {
     throw new Error("Only retail managers can void sales");
   }
 

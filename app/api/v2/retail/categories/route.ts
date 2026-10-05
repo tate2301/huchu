@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.catalog", "create");
+  const gate = requireRetailPermission(session, "retail.categories", "create");
   if (gate) return gate;
 
   try {

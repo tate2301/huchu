@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { canRetailRoleDo } from "@/lib/retail/permissions";
+import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import {
   managerOverrideSchema,
   verifyManagerOverride,
@@ -29,11 +29,9 @@ export async function POST(
     return response as NextResponse;
   }
 
-  /*
-    The matrix, not the role list — `requireRetailPos` admitted a cashier, who
-    `RUN_A_TILL` deliberately does not grant `void`. See the refund route beside
-    this one for the full reasoning.
-  */
+  const gate = requireRetailPermission(session, "retail.sell", "void");
+  if (gate) return gate;
+
   try {
     /*
     R-3.1. The segment, through a schema.
@@ -49,14 +47,12 @@ export async function POST(
     const input = voidSchema.parse(body);
 
     /*
-      The matrix, or a manager standing here. `requireRetailPos` used to admit a
-      cashier, who `RUN_A_TILL` deliberately does not grant `void`; the override
-      is what keeps voids reachable at a till the portal admits only cashiers
-      to. See the refund route beside this one for the full reasoning.
+      Voiding without a manager is `retail.sell` `approve`; anyone else brings a
+      manager to the counter. See the refund route beside this one.
     */
     let reason = input.reason.trim();
     let approvedBy: { id: string; name: string } | null = null;
-    if (!canRetailRoleDo(session.user.role, "retail.sell", "void")) {
+    if (!canRetailSessionDo(session, "retail.sell", "approve")) {
       if (!input.managerOverride) {
         return errorResponse("A manager must approve this void", 403);
       }
