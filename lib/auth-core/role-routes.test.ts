@@ -76,7 +76,12 @@ describe("role route allowlist", () => {
     expect(isRouteAllowedForRole("FINANCE_OFFICER", "/stores/inventory")).toBe(false);
     expect(isRouteAllowedForRole("FINANCE_OFFICER", "/retail/shifts")).toBe(true);
     expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/accounting/fiscalisation/config", "GET")).toBe(true);
-    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/accounting/fiscalisation/config", "PUT")).toBe(false);
+    // The config, register, fiscal-day and replay handlers refuse with the
+    // matrix's sentence themselves; the two that never ask it stay read only.
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/accounting/fiscalisation/config", "POST")).toBe(true);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/accounting/fiscalisation/device/register", "POST")).toBe(true);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/accounting/fiscalisation/issue", "POST")).toBe(false);
+    expect(isRouteAllowedForRole("FINANCE_OFFICER", "/api/accounting/fiscalisation/receipts/abc/sync", "POST")).toBe(false);
   });
 
   it("leaves the stores module to the roles that run it", () => {

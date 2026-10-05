@@ -260,6 +260,23 @@ const RETAIL_TEMPLATE_PREFIXES: Record<string, readonly string[]> = {
   FINANCE_OFFICER: ["crm.customers", "stores.inventory", "stores.movements", "accounting.zimra.fiscalisation"],
 };
 
+/**
+ * The only accounting features a MANAGER keeps in a company that runs retail.
+ *
+ * The Roles board gives the shop manager no Posting to the books and only
+ * reads the fiscal device (80-admin 3.1): they run the shop, not the books.
+ * The fiscal device page needs `accounting.zimra.fiscalisation`, which depends
+ * on `accounting.core` and `accounting.tax`; every other accounting feature
+ * (chart of accounts, journals, periods, posting rules, statements, payables,
+ * receivables, banking) is off their template, so its pages and APIs refuse
+ * them before a handler runs. Outside retail a MANAGER keeps the whole module.
+ */
+const RETAIL_MANAGER_ACCOUNTING_ALLOW = new Set([
+  "accounting.core",
+  "accounting.tax",
+  "accounting.zimra.fiscalisation",
+]);
+
 
 const MANAGED_USER_ROLE_VALUES = [
   "SUPERADMIN",
@@ -373,6 +390,13 @@ export function isTemplateAllowedForRole(
   }
 
   if (normalizedRole === "MANAGER") {
+    if (
+      companyRunsRetail &&
+      normalizedFeatureKey.startsWith("accounting.") &&
+      !RETAIL_MANAGER_ACCOUNTING_ALLOW.has(normalizedFeatureKey)
+    ) {
+      return false;
+    }
     return !MANAGER_TEMPLATE_DENY.has(normalizedFeatureKey);
   }
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { requireRetailSession, resolveRetailSite } from "../../_helpers";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { openRetailShiftTransaction } from "../../_services";
 
 const openPosShiftSchema = z.object({
@@ -22,6 +23,8 @@ export async function POST(request: NextRequest) {
   if (!canAccessPosPortal(session.user.role)) {
     return errorResponse("POS access denied", 403);
   }
+  const gate = requireRetailPermission(session, "retail.sell", "open-shift");
+  if (gate) return gate;
 
   try {
     const body = await request.json();

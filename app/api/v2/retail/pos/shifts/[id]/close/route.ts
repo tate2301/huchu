@@ -4,6 +4,7 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailSession } from "../../../../_helpers";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { closeRetailShiftTransaction } from "../../../../_services";
 
 const closePosShiftSchema = z.object({
@@ -23,6 +24,8 @@ export async function POST(
   if (!canAccessPosPortal(session.user.role)) {
     return errorResponse("POS access denied", 403);
   }
+  const gate = requireRetailPermission(session, "retail.sell", "close-shift");
+  if (gate) return gate;
 
   try {
     /*

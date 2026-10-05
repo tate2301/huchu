@@ -316,8 +316,9 @@ export function retailRoleKey(session: SessionLike): string | null {
 
 /**
  * The feature that makes a company a shop. The session test below and the
- * bookkeeper's retail-only template (`lib/platform/user-entitlements.ts`)
- * both read this key, so the two never disagree about who works in a shop.
+ * retail-only templates in `lib/platform/user-entitlements.ts` (the
+ * bookkeeper's shop reads, the manager's closed books) all read this key, so
+ * they never disagree about who works in a shop.
  */
 export const RETAIL_CORE_FEATURE = "retail.core";
 

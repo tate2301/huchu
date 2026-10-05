@@ -59,11 +59,19 @@ const ROLE_ROUTE_LIMITS: Record<string, { denied: string[]; readOnly: string[] }
     denied: ["/stores", "/api/v2/inventory"],
     readOnly: ["/api/inventory", "/api/stock-locations"],
   },
-  // The bookkeeper reads stock and the fiscal device for the retail pages
-  // (the Roles board: Fiscal device R); they change neither.
+  // The bookkeeper reads stock for the retail pages and changes it nowhere.
+  // The fiscal device (the Roles board: Fiscal device R) is the matrix's to
+  // refuse: its config, registration, fiscal-day and replay handlers ask
+  // `retail.fiscal:update` and answer "Your role cannot change the fiscal
+  // device". Only the two fiscal writes that never ask it stay read only here.
   FINANCE_OFFICER: {
     denied: ["/stores", "/api/v2/inventory"],
-    readOnly: ["/api/inventory", "/api/stock-locations", "/api/accounting/fiscalisation"],
+    readOnly: [
+      "/api/inventory",
+      "/api/stock-locations",
+      "/api/accounting/fiscalisation/issue",
+      "/api/accounting/fiscalisation/receipts",
+    ],
   },
 };
 

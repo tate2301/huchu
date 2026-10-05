@@ -35,8 +35,8 @@ const TENDERS = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"] as const
 /**
  * Where each failing check is fixed. A link is offered only to someone who can
  * open it — the bookkeeper's template leaves posting rules, periods and the
- * rest of the ledger's set-up shut — and otherwise the check reads "Set up the
- * accounts", the header's own verb.
+ * rest of the ledger's set-up shut — and otherwise the check states its fact,
+ * "Not ready", which reads as a status rather than a verb nobody can click.
  */
 const FIX: Record<string, { label: string; href: string }> = {
   accounts: { label: "Open the chart of accounts", href: "/accounting/chart-of-accounts" },
@@ -113,7 +113,7 @@ export default function RetailPostingPage() {
               return {
                 id: check.id,
                 label: check.label,
-                value: check.ready ? "Ready" : (fix?.label ?? "Set up the accounts"),
+                value: check.ready ? "Ready" : (fix?.label ?? "Not ready"),
                 tone: check.ready ? ("muted" as const) : ("warn" as const),
                 href: check.ready ? undefined : fix?.href,
               };

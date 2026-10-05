@@ -74,13 +74,13 @@ const GUARD_MARKERS = [
   "canRetailRoleDo",
   /** The same, measured with the session's role key (support sessions included). */
   "canRetailSessionDo",
-  /**
-   * `lib/retail/pos-host.ts` — which portal you may sign into. Deliberately not
-   * folded into the matrix: it is a question about hosts and sessions, not about
-   * resources, and the till routes ask it *as well as* the matrix rather than
-   * instead of it.
-   */
-  "canAccessPosPortal",
+  /*
+    `canAccessPosPortal` (`lib/retail/pos-host.ts`) is not here. It answers
+    which portal you may sign into, a question about hosts rather than
+    resources, so the till routes ask it *as well as* the matrix. It used to
+    count on its own, and the POS shift open, close and context handlers asked
+    nothing else (80-admin's endpoint convention: the matrix on every route).
+  */
 ];
 
 /**

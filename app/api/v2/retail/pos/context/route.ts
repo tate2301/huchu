@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRetailSession } from "../../_helpers";
 import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
 
@@ -15,6 +16,8 @@ export async function GET(request: NextRequest) {
   if (!canAccessPosPortal(session.user.role)) {
     return errorResponse("POS access denied", 403);
   }
+  const gate = requireRetailPermission(session, "retail.sell", "view");
+  if (gate) return gate;
 
   const [sites, registers, setupProfile, tenderPolicy, shop] = await Promise.all([
     prisma.site.findMany({

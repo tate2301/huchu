@@ -31,6 +31,10 @@ vi.mock("@/lib/platform/entitlements", () => ({
   getCompanyFeatureMap: mockGetCompanyFeatureMap,
 }));
 
+import { resolveAccessContext } from "@/lib/auth-core/access";
+import type { AuthenticatedSession } from "@/lib/auth-core/types";
+import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
+
 import {
   getEffectiveFeaturesForUser,
   getManagedUserFeatureAccessEntries,
@@ -139,6 +143,98 @@ describe("getEffectiveFeaturesForUser", () => {
     setupCompanyMap({ "gold.home": true, ...Object.fromEntries(reads.map((key) => [key, true])) });
     const inMine = await getEffectiveFeaturesForUser({ companyId: COMPANY_ID, userId: USER_ID, role: "FINANCE_OFFICER" });
     for (const key of reads) expect(inMine).not.toContain(key);
+  });
+});
+
+describe("the books in a shop (Roles board: Posting to the books, manager none)", () => {
+  const ACCOUNTING = FEATURE_CATALOG.map((feature) => feature.key).filter((key) => key.startsWith("accounting."));
+  const KEPT = ["accounting.core", "accounting.tax", "accounting.zimra.fiscalisation"];
+  const SHOP = { "retail.core": true, ...Object.fromEntries(ACCOUNTING.map((key) => [key, true])) };
+
+  function session(role: string, enabledFeatures: string[]): AuthenticatedSession {
+    return {
+      expires: new Date(Date.now() + 60_000).toISOString(),
+      user: {
+        id: USER_ID,
+        email: "someone@shop.test",
+        role,
+        companyId: COMPANY_ID,
+        tenantStatus: "ACTIVE",
+        enabledFeatures,
+        authExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    } as AuthenticatedSession;
+  }
+
+  async function door(role: string, method: string, pathname: string) {
+    const enabledFeatures = await getEffectiveFeaturesForUser({ companyId: COMPANY_ID, userId: USER_ID, role });
+    return resolveAccessContext({
+      session: session(role, enabledFeatures),
+      pathname,
+      method,
+      enforceRouteFeatureCheck: true,
+      enforceTenantHost: false,
+    });
+  }
+
+  const LEDGER_WRITES: Array<[string, string]> = [
+    ["POST", "/api/accounting/posting-rules"],
+    ["PATCH", "/api/accounting/posting-rules/a52951e7-0000-4000-8000-000000000000"],
+    ["DELETE", "/api/accounting/posting-rules/a52951e7-0000-4000-8000-000000000000"],
+    ["POST", "/api/accounting/posting-rules/preview"],
+    ["POST", "/api/accounting/periods"],
+    ["PATCH", "/api/accounting/periods/a52951e7-0000-4000-8000-000000000000"],
+    ["POST", "/api/accounting/journals"],
+    ["POST", "/api/accounting/coa"],
+  ];
+
+  beforeEach(() => {
+    setupOverrides([]);
+    setupCompanyMap(SHOP);
+  });
+
+  it("leaves a shop manager the fiscal device's features and none of the ledger's", async () => {
+    const features = await getEffectiveFeaturesForUser({ companyId: COMPANY_ID, userId: USER_ID, role: "MANAGER" });
+    expect(features.filter((key) => key.startsWith("accounting.")).sort()).toEqual([...KEPT].sort());
+  });
+
+  it("refuses a shop manager every posting-rules, periods, journals and chart write before the handler", async () => {
+    for (const [method, pathname] of LEDGER_WRITES) {
+      const result = await door("MANAGER", method, pathname);
+      expect(result, `${method} ${pathname}`).toMatchObject({ ok: false, reason: "FEATURE_DISABLED", status: 403 });
+    }
+    for (const pathname of ["/accounting/posting-rules", "/accounting/periods", "/accounting/journals"]) {
+      expect(await door("MANAGER", "GET", pathname), pathname).toMatchObject({ ok: false, status: 403 });
+    }
+  });
+
+  it("still lets a shop manager read the fiscal device", async () => {
+    expect((await door("MANAGER", "GET", "/api/accounting/fiscalisation/config")).ok).toBe(true);
+    expect((await door("MANAGER", "GET", "/retail/manage/fiscal")).ok).toBe(true);
+  });
+
+  it("leaves the owner's books open in a shop", async () => {
+    for (const [method, pathname] of LEDGER_WRITES) {
+      expect((await door("SUPERADMIN", method, pathname)).ok, `${method} ${pathname}`).toBe(true);
+    }
+  });
+
+  it("leaves the bookkeeper's template as it was: their accounting reads, the ledger's set-up shut", async () => {
+    const features = await getEffectiveFeaturesForUser({ companyId: COMPANY_ID, userId: USER_ID, role: "FINANCE_OFFICER" });
+    expect(features).toEqual(
+      expect.arrayContaining(["accounting.core", "accounting.ar", "accounting.banking", "accounting.tax", "accounting.zimra.fiscalisation"]),
+    );
+    expect((await door("FINANCE_OFFICER", "GET", "/api/accounting/setup/readiness")).ok).toBe(true);
+    expect((await door("FINANCE_OFFICER", "POST", "/api/accounting/setup/seed-pack")).ok).toBe(true);
+  });
+
+  it("keeps the whole accounting module for a manager outside retail", async () => {
+    const { "retail.core": _retail, ...mine } = SHOP;
+    void _retail;
+    setupCompanyMap(mine);
+    const features = await getEffectiveFeaturesForUser({ companyId: COMPANY_ID, userId: USER_ID, role: "MANAGER" });
+    expect(features).toEqual(expect.arrayContaining(ACCOUNTING));
+    expect((await door("MANAGER", "POST", "/api/accounting/posting-rules")).ok).toBe(true);
   });
 });
 

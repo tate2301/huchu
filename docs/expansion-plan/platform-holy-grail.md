@@ -204,7 +204,7 @@ Provide ledger control, receivables/payables operations, finance governance, and
 - `/accounting` plus all accounting subroutes (`chart-of-accounts`, `journals`, `periods`, `posting-rules`, `receivables`, `payables`, `sales`, `purchases`, `banking`, `assets`, `budgets`, `cost-centers`, `currency`, `tax`, `fiscalisation`, `trial-balance`, `financial-reports`, `financial-statements`)
 
 **Key APIs**
-- setup and governance: `/api/accounting/setup`, `/api/accounting/summary`, `/api/accounting/closing/*`
+- setup and governance: `/api/accounting/setup/seed-pack`, `/api/accounting/setup/readiness`, `/api/accounting/summary`, `/api/accounting/closing/*`
 - core masters and posting: `/api/accounting/coa`, `/api/accounting/journals`, `/api/accounting/periods`, `/api/accounting/posting-rules`
 - receivables: `/api/accounting/sales/*`
 - payables: `/api/accounting/purchases/*`
