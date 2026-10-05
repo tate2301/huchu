@@ -48,7 +48,7 @@ type Settings = {
   email: string | null;
 };
 
-type ConfigResponse = { provider: Provider | null; settings: Settings | null };
+type ConfigResponse = { provider: Provider | null; settings: Settings | null; canEdit: boolean };
 
 type Form = {
   apiBaseUrl: string;
@@ -78,6 +78,11 @@ function formFrom(config: ConfigResponse | undefined): Form {
   };
 }
 
+const DEVICE_FIELDS: Array<{ key: keyof Form; label: string; mono?: boolean }> = [
+  { key: "deviceId", label: "Device ID", mono: true },
+  { key: "apiBaseUrl", label: "FDMS address", mono: true },
+];
+
 const FIELDS: Array<{ key: keyof Form; label: string; mono?: boolean }> = [
   { key: "legalName", label: "Legal name" },
   { key: "tradingName", label: "Trading name" },
@@ -99,6 +104,11 @@ const FIELDS: Array<{ key: keyof Form; label: string; mono?: boolean }> = [
  * this is, say who is selling, register the device with its activation key,
  * and open the day. The accounting page keeps the full configuration for
  * anyone who needs the rest.
+ *
+ * The Roles board's Fiscal device row: the owner changes it; the manager and
+ * the bookkeeper read it, so for them the page is facts with no verbs. The
+ * server says which (`canEdit` on the config, `canManage` on the fleet) and
+ * refuses the writes on its own.
  */
 export default function RetailFiscalDevicePage() {
   const { toast } = useToast();
@@ -115,6 +125,8 @@ export default function RetailFiscalDevicePage() {
   const provider = config.data?.provider ?? null;
   const form = draft ?? formFrom(config.data);
   const registered = Boolean(provider?.certificateRef);
+  const canEdit = config.data?.canEdit === true;
+  const canRunDays = fleet.data?.canManage === true;
   const device = fleet.data?.devices.find((entry) => entry.providerConfigId === provider?.id) ?? null;
   const day = device?.activeDay ?? null;
 
@@ -198,16 +210,20 @@ export default function RetailFiscalDevicePage() {
           provider && !registered ? <StatusBadge tone="warn">Not registered</StatusBadge> : null
         }
         action={
-          provider?.deviceId && !registered ? (
+          canEdit && provider?.deviceId && !registered ? (
             <HeaderAction icon={ShieldCheck} onClick={() => setRegistering(true)}>
               Register with ZIMRA
             </HeaderAction>
           ) : null
         }
-        onSubmit={(event) => {
-          event.preventDefault();
-          save.mutate();
-        }}
+        onSubmit={
+          canEdit
+            ? (event) => {
+                event.preventDefault();
+                save.mutate();
+              }
+            : undefined
+        }
         submitLabel="Save fiscal device"
         busy={save.isPending}
         onCancel={draft ? () => setDraft(null) : undefined}
@@ -222,41 +238,16 @@ export default function RetailFiscalDevicePage() {
           />
         ) : (
           <>
-            <SectionHeading variant="form">Device</SectionHeading>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField label="Device ID">
-                {(id) => (
-                  <Input id={id} className="font-mono" value={form.deviceId} onChange={(event) => set("deviceId", event.target.value)} />
-                )}
-              </FormField>
-              <FormField label="FDMS address">
-                {(id) => (
-                  <Input
-                    id={id}
-                    className="font-mono"
-                    value={form.apiBaseUrl}
-                    onChange={(event) => set("apiBaseUrl", event.target.value)}
-                    placeholder="https://fdmsapi.zimra.co.zw"
-                  />
-                )}
-              </FormField>
-            </div>
-
-            <SectionHeading variant="form">Seller</SectionHeading>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {FIELDS.map((field) => (
-                <FormField key={field.key} label={field.label}>
-                  {(id) => (
-                    <Input
-                      id={id}
-                      className={field.mono ? "font-mono" : undefined}
-                      value={form[field.key]}
-                      onChange={(event) => set(field.key, event.target.value)}
-                    />
-                  )}
-                </FormField>
-              ))}
-            </div>
+            {canEdit ? (
+              <DeviceForm form={form} set={set} />
+            ) : (
+              <>
+                <SectionHeading variant="form">Device</SectionHeading>
+                <FactList maxWidth={null} items={readOnlyFacts(DEVICE_FIELDS, form)} />
+                <SectionHeading variant="form">Seller</SectionHeading>
+                <FactList maxWidth={null} items={readOnlyFacts(FIELDS, form)} />
+              </>
+            )}
 
             {provider ? (
               <>
@@ -264,7 +255,7 @@ export default function RetailFiscalDevicePage() {
                   variant="form"
                   maxWidth={9999}
                   action={
-                    day ? (
+                    !canRunDays ? null : day ? (
                       <SectionAction disabled={closeDay.isPending} onClick={() => closeDay.mutate()}>
                         Close the fiscal day
                       </SectionAction>
@@ -333,6 +324,60 @@ export default function RetailFiscalDevicePage() {
       />
     </ShopSettingsShell>
   );
+}
+
+/** The owner's form: where FDMS is, which device this is, and who is selling. */
+function DeviceForm({ form, set }: { form: Form; set: (key: keyof Form, value: string) => void }) {
+  return (
+    <>
+      <SectionHeading variant="form">Device</SectionHeading>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Device ID">
+          {(id) => (
+            <Input id={id} className="font-mono" value={form.deviceId} onChange={(event) => set("deviceId", event.target.value)} />
+          )}
+        </FormField>
+        <FormField label="FDMS address">
+          {(id) => (
+            <Input
+              id={id}
+              className="font-mono"
+              value={form.apiBaseUrl}
+              onChange={(event) => set("apiBaseUrl", event.target.value)}
+              placeholder="https://fdmsapi.zimra.co.zw"
+            />
+          )}
+        </FormField>
+      </div>
+
+      <SectionHeading variant="form">Seller</SectionHeading>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {FIELDS.map((field) => (
+          <FormField key={field.key} label={field.label}>
+            {(id) => (
+              <Input
+                id={id}
+                className={field.mono ? "font-mono" : undefined}
+                value={form[field.key]}
+                onChange={(event) => set(field.key, event.target.value)}
+              />
+            )}
+          </FormField>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** The same fields as facts, for a role that reads the device. */
+function readOnlyFacts(fields: Array<{ key: keyof Form; label: string; mono?: boolean }>, form: Form) {
+  return fields.map((field) => ({
+    id: field.key,
+    label: field.label,
+    value: form[field.key] || "Not set",
+    mono: field.mono && Boolean(form[field.key]),
+    tone: form[field.key] ? ("default" as const) : ("muted" as const),
+  }));
 }
 
 function RegisterDeviceDialog({

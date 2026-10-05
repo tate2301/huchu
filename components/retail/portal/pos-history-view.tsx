@@ -58,7 +58,7 @@ export function PosHistoryView() {
    * S-7.7 — the manager standing at the counter.
    *
    * Refund and Void used to render only when `canOverride`, which is
-   * `isManagerRole(currentShift?.actorRole)`. The POS portal admits `CASHIER`
+   * `retail.sell:approve` for the shift's actor. The POS portal admits `CASHIER`
    * and `POS_CASHIER` and nobody else, so that condition could never be true
    * at a till: **both buttons were unreachable by every user who can reach this
    * screen.** The contract lists refunding and voiding as POS surfaces and they
@@ -559,7 +559,7 @@ export function PosHistoryView() {
 
                       {/*
                         `canOverride` no longer gates this. It is
-                        `isManagerRole(shift.actorRole)`, and the POS portal
+                        `retail.sell:approve` for the shift's actor, and the POS portal
                         admits only cashiers — so gating on it hid both buttons
                         from every user who can open this screen. A cashier sees
                         them now and is asked for a manager's approval inside

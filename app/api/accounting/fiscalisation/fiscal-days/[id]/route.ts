@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { hasRole } from "@/lib/roles";
+import { requireOnSharedRoute } from "@/lib/retail/permissions";
 import {
   closeFiscalDay,
   FiscalDayHasPendingReceiptsError,
@@ -224,9 +224,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { session } = sessionResult;
     const { id } = await params;
 
-    if (!hasRole(session.user.role, [...MANAGE_ROLES])) {
-      return errorResponse("Insufficient permissions to close a fiscal day", 403);
-    }
+    const refused = requireOnSharedRoute(
+      session,
+      "retail.fiscal",
+      "update",
+      MANAGE_ROLES,
+      "Insufficient permissions to close a fiscal day",
+    );
+    if (refused) return refused;
 
     const body = await request.json().catch(() => ({}));
     actionSchema.parse(body);

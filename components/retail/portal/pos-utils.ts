@@ -18,10 +18,6 @@ export function round(value: number) {
   return Number(value.toFixed(2));
 }
 
-export function isManagerRole(role: string | null | undefined) {
-  return role === "SUPERADMIN" || role === "MANAGER" || role === "SHOP_MANAGER";
-}
-
 export function getPaymentSummary(payments: PaymentRow[], total: number) {
   const parsed = payments.map((payment) => ({
     ...payment,

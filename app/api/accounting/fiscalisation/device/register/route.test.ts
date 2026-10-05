@@ -81,6 +81,16 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
     expect(registerDeviceMock).not.toHaveBeenCalled();
   });
 
+  it("in a shop, is the owner's to do: the manager reads the fiscal device", async () => {
+    validateSessionMock.mockResolvedValue({
+      session: { user: { companyId: COMPANY_ID, role: "MANAGER", workspaceProfile: "RETAIL" } },
+    });
+    const response = await POST(request({ activationKey: "00112233", serialNumber: "SN-1" }));
+    expect(response.status).toBe(403);
+    expect((await response.json()).error).toBe("Your role cannot change the fiscal device");
+    expect(prismaMock.fiscalisationProviderConfig.findFirst).not.toHaveBeenCalled();
+  });
+
   it("looks for a device, never a retail settings row", async () => {
     signedInAs("MANAGER");
     prismaMock.fiscalisationProviderConfig.findFirst.mockResolvedValue(null);

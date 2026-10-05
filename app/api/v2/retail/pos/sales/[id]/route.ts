@@ -3,8 +3,7 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { canSeeRetailCostPrice, requireRetailPermission, retailRoleKey } from "@/lib/retail/permissions";
 import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -21,7 +20,7 @@ export async function GET(
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
 
-  const showCost = canSeeRetailCostPrice(session.user.role);
+  const showCost = canSeeRetailCostPrice(retailRoleKey(session));
 
   /*
     R-3.1. The segment, through a schema.

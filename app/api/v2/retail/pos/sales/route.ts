@@ -16,6 +16,7 @@ import {
   canRetailRoleDo,
   canRetailSessionDo,
   canSeeRetailCostPrice,
+  retailRoleKey,
   requireRetailPermission,
 } from "@/lib/retail/permissions";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
@@ -358,7 +359,7 @@ export async function GET(request: NextRequest) {
     sourceSaleMap,
     shiftMap,
     siteMap,
-    canSeeRetailCostPrice(session.user.role),
+    canSeeRetailCostPrice(retailRoleKey(session)),
   );
   const postedMapped = mapped.filter((sale) => sale.status === "POSTED");
 

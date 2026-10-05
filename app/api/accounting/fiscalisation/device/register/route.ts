@@ -12,7 +12,7 @@ import {
 import { applyZimraTaxMapping } from "@/lib/accounting/zimra-tax-mapping";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { hasRole } from "@/lib/roles";
+import { requireOnSharedRoute } from "@/lib/retail/permissions";
 
 const schema = z.object({
   /** Issued by ZIMRA with the device id. Single-use. */
@@ -40,9 +40,14 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
-    if (!hasRole(session.user.role, ["SUPERADMIN", "MANAGER"])) {
-      return errorResponse("Registering the fiscal device is a manager's to do", 403);
-    }
+    const refused = requireOnSharedRoute(
+      session,
+      "retail.fiscal",
+      "update",
+      ["SUPERADMIN", "MANAGER"],
+      "Registering the fiscal device is a manager's to do",
+    );
+    if (refused) return refused;
 
     const input = schema.parse(await request.json());
     const companyId = session.user.companyId;

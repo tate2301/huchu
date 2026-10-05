@@ -73,9 +73,11 @@ export default function RetailPostingPage() {
         icon={Scale}
         badge={failing > 0 ? <StatusBadge tone="warn">{`${failing} to fix`}</StatusBadge> : null}
         action={
-          <HeaderAction icon={Scale} onClick={() => setSettingUp(true)}>
-            Set up the accounts
-          </HeaderAction>
+          readiness.data?.canSetUp ? (
+            <HeaderAction icon={Scale} onClick={() => setSettingUp(true)}>
+              Set up the accounts
+            </HeaderAction>
+          ) : null
         }
       >
         <SectionHeading variant="form" count={checks.length}>

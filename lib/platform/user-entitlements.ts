@@ -159,17 +159,13 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "accounting.banking",
     "accounting.tax",
     /*
-      The retail bookkeeper (the Roles board's FINANCE_OFFICER column): reads
-      sales, shifts, stock, buying, customers, insights and reports, and keeps
-      posting, bills and accounts. These open the modules; what each request
-      may do is `lib/retail/permission-matrix.ts`. In a tenant without retail
-      the company's own features keep them shut.
+      The retail bookkeeper (the Roles board's FINANCE_OFFICER column): the
+      retail modules here, and the other modules' reads the retail pages lean
+      on in `RETAIL_TEMPLATE_PREFIXES`. What each request may do is
+      `lib/retail/permission-matrix.ts`. In a tenant without retail the
+      company's own features keep `retail.` shut.
     */
     "retail.",
-    "crm.customers",
-    "stores.inventory",
-    "stores.movements",
-    "accounting.zimra.fiscalisation",
   ],
   /*
     `crm.customers` on both till roles, because the till has a customer screen.
@@ -249,6 +245,22 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "portal.pos",
   ],
 };
+
+/**
+ * Other modules' features a role reaches only in a company that runs retail.
+ *
+ * The bookkeeper's retail pages read the stock ledger (On hand, Movements),
+ * the shop's customers and the fiscal device, which live in the stores, CRM
+ * and accounting modules. In a mine or a school a finance officer has no
+ * business in stores or the fiscal device, so these stay off their template
+ * there; `lib/auth-core/role-routes.ts` keeps them read only where they open.
+ */
+const RETAIL_TEMPLATE_PREFIXES: Record<string, readonly string[]> = {
+  FINANCE_OFFICER: ["crm.customers", "stores.inventory", "stores.movements", "accounting.zimra.fiscalisation"],
+};
+
+/** A company runs retail when its retail core is on. */
+const RETAIL_COMPANY_FEATURE = "retail.core";
 
 const MANAGED_USER_ROLE_VALUES = [
   "SUPERADMIN",
@@ -348,9 +360,18 @@ function getAllCompanyEnabledFeatureKeys(companyMap: FeatureMap): string[] {
   return [...enabled].sort();
 }
 
-export function isTemplateAllowedForRole(role: string, featureKey: string): boolean {
+export function isTemplateAllowedForRole(
+  role: string,
+  featureKey: string,
+  companyRunsRetail = false,
+): boolean {
   const normalizedRole = role.trim().toUpperCase();
   const normalizedFeatureKey = normalizeFeatureKey(featureKey);
+
+  const retailPrefixes = RETAIL_TEMPLATE_PREFIXES[normalizedRole];
+  if (companyRunsRetail && retailPrefixes && featureMatchesAnyPrefix(normalizedFeatureKey, retailPrefixes)) {
+    return true;
+  }
 
   if (normalizedRole === "MANAGER") {
     return !MANAGER_TEMPLATE_DENY.has(normalizedFeatureKey);
@@ -368,9 +389,13 @@ export function isTemplateAllowedForRole(role: string, featureKey: string): bool
   return true;
 }
 
-function getRoleDefaultForFeature(templateRole: string, featureKey: string): boolean {
+function getRoleDefaultForFeature(templateRole: string, featureKey: string, companyMap: FeatureMap): boolean {
   if (!isManagedUserRole(templateRole)) return true;
-  return isTemplateAllowedForRole(templateRole, featureKey);
+  return isTemplateAllowedForRole(
+    templateRole,
+    featureKey,
+    isCompanyFeatureEnabled(RETAIL_COMPANY_FEATURE, companyMap),
+  );
 }
 
 export async function getUserFeatureOverrideMap(userId: string): Promise<Map<string, boolean>> {
@@ -446,7 +471,7 @@ export async function getEffectiveFeaturesForUser(input: {
   return companyEnabled.filter((featureKey) => {
     const override = overrideMap.get(featureKey);
     if (override !== undefined) return override;
-    return getRoleDefaultForFeature(templateRole, featureKey);
+    return getRoleDefaultForFeature(templateRole, featureKey, companyMap);
   });
 }
 
@@ -468,7 +493,7 @@ export async function getManagedUserFeatureAccessEntries(input: {
   const entries: ManagedUserFeatureAccessEntry[] = [];
   for (const featureKey of getAllCompanyEnabledFeatureKeys(companyMap)) {
     const catalog = CATALOG_BY_KEY.get(featureKey);
-    const roleDefault = getRoleDefaultForFeature(templateRole, featureKey);
+    const roleDefault = getRoleDefaultForFeature(templateRole, featureKey, companyMap);
     const override = overrideMap.get(featureKey);
 
     entries.push({
@@ -525,7 +550,7 @@ export async function setManagedUserFeatureOverride(input: {
     select: { id: true },
   });
 
-  const roleDefault = getRoleDefaultForFeature(templateRole, normalizedFeatureKey);
+  const roleDefault = getRoleDefaultForFeature(templateRole, normalizedFeatureKey, companyMap);
 
   if (input.isEnabled === roleDefault) {
     // Matches the role default, so no override is needed.

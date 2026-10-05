@@ -31,7 +31,7 @@ import type {
   ResolvedListQuery,
 } from "@/lib/reports/types";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
-import { canRetailRoleDo, canSeeRetailCostPrice } from "@/lib/retail/permissions";
+import { canRetailSessionDo, canSeeRetailCostPrice, retailRoleKey } from "@/lib/retail/permissions";
 import { DEFAULT_TIME_ZONE } from "@/lib/workspace/format";
 
 /**
@@ -117,8 +117,8 @@ export function listContext(session: AuthenticatedSession, now = new Date()): Li
     userId: session.user.id,
     now,
     timeZone: DEFAULT_TIME_ZONE,
-    can: ([resource, action]) => canRetailRoleDo(role, resource, action),
-    seeCost: canSeeRetailCostPrice(role),
+    can: ([resource, action]) => canRetailSessionDo(session, resource, action),
+    seeCost: canSeeRetailCostPrice(retailRoleKey(session)),
   };
 }
 

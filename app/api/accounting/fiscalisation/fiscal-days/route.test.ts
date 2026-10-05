@@ -352,6 +352,17 @@ describe("POST /api/accounting/fiscalisation/fiscal-days", () => {
     expect(openFiscalDayMock).not.toHaveBeenCalled();
   });
 
+  it("in a shop, opens a day only for a role that may change the fiscal device", async () => {
+    validateSessionMock.mockResolvedValue({
+      session: { user: { companyId: COMPANY_ID, role: "MANAGER", workspaceProfile: "RETAIL" } },
+    });
+    const response = await POST(postRequest({ providerConfigId: "8f2b1d1e-0a2c-4c7f-9a1b-1f2e3d4c5b6a" }));
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).error).toBe("Your role cannot change the fiscal device");
+    expect(openFiscalDayMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a malformed body", async () => {
     const response = await POST(postRequest({ providerConfigId: "not-a-uuid" }));
     expect(response.status).toBe(400);

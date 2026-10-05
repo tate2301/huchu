@@ -2640,6 +2640,8 @@ export type AccountingReadinessCheck = {
 
 export type AccountingSetupReadiness = {
   companyId: string;
+  /** Whether the caller may run "Set up the accounts" (the seed pack). */
+  canSetUp: boolean;
   packCode: string;
   summary: {
     completed: number;

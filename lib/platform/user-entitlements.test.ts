@@ -127,6 +127,19 @@ describe("getEffectiveFeaturesForUser", () => {
 
     expect(features).not.toContain(STORES_KEY);
   });
+
+  it("opens the bookkeeper's stock, customer and fiscal reads only where the company runs retail", async () => {
+    const reads = ["stores.inventory", "stores.movements", "crm.customers", "accounting.zimra.fiscalisation"];
+    setupOverrides([]);
+
+    setupCompanyMap({ "retail.core": true, ...Object.fromEntries(reads.map((key) => [key, true])) });
+    const inShop = await getEffectiveFeaturesForUser({ companyId: COMPANY_ID, userId: USER_ID, role: "FINANCE_OFFICER" });
+    expect(inShop).toEqual(expect.arrayContaining(["retail.core", ...reads]));
+
+    setupCompanyMap({ "gold.home": true, ...Object.fromEntries(reads.map((key) => [key, true])) });
+    const inMine = await getEffectiveFeaturesForUser({ companyId: COMPANY_ID, userId: USER_ID, role: "FINANCE_OFFICER" });
+    for (const key of reads) expect(inMine).not.toContain(key);
+  });
 });
 
 describe("getManagedUserFeatureAccessEntries", () => {

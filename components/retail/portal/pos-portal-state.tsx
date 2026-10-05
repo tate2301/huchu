@@ -38,6 +38,7 @@ import {
 import type { OfflineOutboxOperation } from "@/lib/offline/types";
 // Type-only: erased at build, so the server module never reaches the client bundle.
 import type { TillFiscalStatus } from "@/lib/retail/fiscalisation";
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import type {
   CartItem,
   CurrentShift,
@@ -46,7 +47,7 @@ import type {
   PosSite,
   Promotion,
 } from "./pos-types";
-import { getPaymentSummary, isManagerRole } from "./pos-utils";
+import { getPaymentSummary } from "./pos-utils";
 import { usePosSignedOut } from "./use-pos-signed-out";
 
 type CompletedSale = {
@@ -746,7 +747,8 @@ export function PosPortalProvider({
       setIdChecked(false);
     },
     clearCart,
-    canOverride: isManagerRole(currentShift?.actorRole),
+    // Approving without a manager is `retail.sell:approve` on the Roles board.
+    canOverride: canRetailRoleDo(currentShift?.actorRole, "retail.sell", "approve"),
     activePromotion,
     subtotal: checkout.subtotal,
     discountAmount: checkout.discountAmount,

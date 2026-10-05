@@ -3,7 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { SETTINGS_PROVIDER_KEYS } from "@/lib/accounting/fiscal-device-scope";
-import { hasRole } from "@/lib/roles";
+import { canOnSharedRoute, requireOnSharedRoute } from "@/lib/retail/permissions";
 import {
   FISCAL_DAY_STATUS,
   FiscalDayAlreadyOpenError,
@@ -307,7 +307,7 @@ export async function GET(request: NextRequest) {
         blockingReceipts: devices.reduce((sum, d) => sum + d.receiptCounts.blocking, 0),
         oldestBlockingAt,
       },
-      canManage: hasRole(session.user.role, [...MANAGE_ROLES]),
+      canManage: canOnSharedRoute(session, "retail.fiscal", "update", MANAGE_ROLES),
     };
 
     return successResponse(response);
@@ -332,9 +332,14 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session.user.role, [...MANAGE_ROLES])) {
-      return errorResponse("Insufficient permissions to open a fiscal day", 403);
-    }
+    const refused = requireOnSharedRoute(
+      session,
+      "retail.fiscal",
+      "update",
+      MANAGE_ROLES,
+      "Insufficient permissions to open a fiscal day",
+    );
+    if (refused) return refused;
 
     const body = await request.json().catch(() => ({}));
     const validated = openSchema.parse(body);
