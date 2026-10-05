@@ -249,6 +249,16 @@ describe("a page of shifts", () => {
     expect(shown.bulk!.map((action) => action.key)).toEqual(["export", "copy"]);
   });
 
+  it("offers the empty guide's Open shift only to a role that may open one, as the header does", () => {
+    const bookkeeper = contextFor("FINANCE_OFFICER", "u-rc");
+    expect(canReadList(SHIFTS, bookkeeper)).toBe(true);
+    const theirs = publicListSpec(SHIFTS, bookkeeper, LOADED);
+    expect(theirs.primary).toBeNull();
+    expect(theirs.empty.title).toBe("No shifts yet");
+    expect(theirs.empty.primary).toBeUndefined();
+    expect(publicListSpec(SHIFTS, OWNER, LOADED).empty.primary).toEqual({ label: "Open shift", sheet: "shift-open" });
+  });
+
   it("caps ids at 5,000 and says so", () => {
     const many = shiftRows(LIST_IDS_CAP + 7);
     const ids = listIds(run(many, { filters: { opened: "any" } }));

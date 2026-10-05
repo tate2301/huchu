@@ -1,11 +1,9 @@
-import "./empty-guide.css";
-
 import * as React from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/workspace/button";
 import * as Icons from "@/lib/icons";
-import type { EmptyGuideSpec } from "@/lib/reports/types";
+import type { EmptyGuidePublic } from "@/lib/reports/types";
 import { cn } from "@/lib/utils";
 
 type IconComponent = React.ComponentType<{ "aria-hidden"?: boolean }>;
@@ -25,7 +23,7 @@ export function EmptyGuide({
   primaryHref,
   className,
 }: {
-  guide: EmptyGuideSpec;
+  guide: EmptyGuidePublic;
   primaryHref: string | null;
   className?: string;
 }) {

@@ -2,12 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { getReportDefinition } from "@/lib/reports/registry";
-import type { EmptyGuideSpec } from "@/lib/reports/types";
+import type { EmptyGuidePublic } from "@/lib/reports/types";
 
 import { EmptyGuide } from "./empty-guide";
 
 /** The buying area's Suppliers guide, as the Guided board draws it. */
-const SUPPLIERS: EmptyGuideSpec = {
+const SUPPLIERS: EmptyGuidePublic = {
   title: "Who do you buy from?",
   line: "Add a supplier once, and ordering becomes a tap from anything running low.",
   steps: [

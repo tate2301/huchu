@@ -183,7 +183,7 @@ const products: ListSpec = {
     icon: "Rows",
     title: "What do you sell?",
     line: "Add a product with a name, a category and a price. It is on every till the moment you save.",
-    primary: { label: "Add your first product", sheet: "product-new" },
+    primary: { label: "Add your first product", sheet: "product-new", requires: [["retail.catalog", "create"]] },
   },
   catalog: false,
 };

@@ -342,9 +342,19 @@ export type EmptyGuideSpec = {
   line: string;
   /** Each step: the bold clause, then the rest of the sentence. */
   steps?: Array<[bold: string, rest: string]>;
-  /** Record tabs carry none: their rows arrive from elsewhere. */
-  primary?: { label: string; sheet?: string; href?: string };
-  secondary?: { label: string; href: string };
+  /**
+   * Record tabs carry none: their rows arrive from elsewhere. Any of
+   * `requires` offers it, as with the list's own primary; a caller with none
+   * of them sees the guide without the button.
+   */
+  primary?: { label: string; sheet?: string; href?: string; requires: ListGrant[] };
+  secondary?: { label: string; href: string; requires: ListGrant[] };
+};
+
+/** The guide as one caller sees it: only the actions their grants allow, no grants. */
+export type EmptyGuidePublic = Omit<EmptyGuideSpec, "primary" | "secondary"> & {
+  primary?: Omit<NonNullable<EmptyGuideSpec["primary"]>, "requires">;
+  secondary?: Omit<NonNullable<EmptyGuideSpec["secondary"]>, "requires">;
 };
 
 export type ListSort = { key: string; label: string; rules: SortRule[] };
@@ -384,8 +394,9 @@ export type ListSpec = {
  * scoping rule; only the columns, filters and actions that role has; choice
  * options resolved for the company.
  */
-export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras"> & {
+export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty"> & {
   primary: Omit<NonNullable<ListSpec["primary"]>, "requires"> | null;
+  empty: EmptyGuidePublic;
   exportExtras?: Array<{ label: string; href: string }>;
 };
 

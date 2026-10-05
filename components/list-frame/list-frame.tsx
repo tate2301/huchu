@@ -487,9 +487,6 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   const firstLoad = !data && !listQuery.error;
   const loadError = !data && listQuery.error ? getApiErrorMessage(listQuery.error, "") : null;
   const stale = listQuery.isPlaceholderData || (listQuery.isFetching && !listQuery.isPending);
-  const primaryHref = primarySpec?.sheet
-    ? sheetHref(pathname, searchParams.toString(), primarySpec.sheet, [])
-    : (primarySpec?.href ?? null);
   const emptyHref = spec?.empty.primary?.sheet
     ? sheetHref(pathname, searchParams.toString(), spec.empty.primary.sheet, [])
     : (spec?.empty.primary?.href ?? null);
@@ -707,7 +704,7 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
         {stale && !firstLoad ? <div className="cx-lf-progress" aria-hidden="true" /> : null}
         <div className="cx-lf-scroll" ref={scrollRef} onScroll={onScroll}>
           {everEmpty && spec ? (
-            <EmptyGuide guide={spec.empty} primaryHref={emptyHref ?? primaryHref} />
+            <EmptyGuide guide={spec.empty} primaryHref={emptyHref} />
           ) : (
             <ListTable
               title={title}

@@ -3,6 +3,8 @@ import {
   LIST_PAGE_SIZES,
   PERIOD_PRESETS,
   type Condition,
+  type EmptyGuidePublic,
+  type EmptyGuideSpec,
   type ListAction,
   type ListColumn,
   type ListGrant,
@@ -594,7 +596,7 @@ export function publicListSpec(
   const keys = new Set(columns.map((column) => column.key));
   const cost = new Set(spec.columns.filter((column) => !keys.has(column.key)).map((column) => column.key));
   const scope = scopedFor(spec, ctx.role);
-  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, ...rest } = spec;
+  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, empty, ...rest } = spec;
   void _read;
   void _scopeOwn;
   const extras = exportExtras
@@ -613,6 +615,7 @@ export function publicListSpec(
     rowMenu: spec.rowMenu?.filter((action) => allowed(action, ctx)),
     bulk: spec.bulk?.filter((action) => !("requires" in action) || allowed(action, ctx)),
     ...(extras?.length ? { exportExtras: extras } : {}),
+    empty: publicEmptyGuide(empty, ctx),
     primary:
       primary && primary.requires.some((grant) => ctx.can(grant))
         ? {
@@ -622,6 +625,25 @@ export function publicListSpec(
             ...(primary.href ? { href: primary.href } : {}),
           }
         : null,
+  };
+}
+
+/** The empty-list guide with only the actions this caller may take, and no grants. */
+function publicEmptyGuide(guide: EmptyGuideSpec, ctx: Pick<ListContext, "can">): EmptyGuidePublic {
+  const { primary, secondary, ...rest } = guide;
+  const may = (requires: ListGrant[]) => requires.some((grant) => ctx.can(grant));
+  return {
+    ...rest,
+    ...(primary && may(primary.requires)
+      ? {
+          primary: {
+            label: primary.label,
+            ...(primary.sheet ? { sheet: primary.sheet } : {}),
+            ...(primary.href ? { href: primary.href } : {}),
+          },
+        }
+      : {}),
+    ...(secondary && may(secondary.requires) ? { secondary: { label: secondary.label, href: secondary.href } } : {}),
   };
 }
 

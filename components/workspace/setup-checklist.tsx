@@ -1,5 +1,3 @@
-import "./setup-checklist.css";
-
 import * as React from "react";
 import Link from "next/link";
 

@@ -237,7 +237,14 @@ const shifts: ListSpec = {
     icon: "CashRegister",
     title: "No shifts yet",
     line: "A shift starts when a cashier opens a till with its float. Each one closes with a count.",
-    primary: { label: "Open shift", sheet: "shift-open" },
+    primary: {
+      label: "Open shift",
+      sheet: "shift-open",
+      requires: [
+        ["retail.cash-control", "open-shift"],
+        ["retail.sell", "open-shift"],
+      ],
+    },
   },
   catalog: false,
 };
