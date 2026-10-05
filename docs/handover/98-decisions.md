@@ -139,3 +139,6 @@ These override 00-foundations §5.3 and every spec that disagrees.
 
      "Not enough trade in this period to say" is no longer drawn as a panel.
    - **Removed:** the separate "What it says" panel or aside.
+8. **Two follow-ups to the Management direction:**
+   - **Sites (shops, the places inside them, the default site) is a retail Setup page.** SET-02 builds it at `/retail/manage/sites` on the same `Site` model that Management uses. Management's operations sites page is a mining master-data screen, and shops are not managed there.
+   - **Plan and billing stays in Management.** SET-10 is not built. The paired-till limit (`maxTills`, C-07) still lands with SET-03.
