@@ -5,6 +5,7 @@ import type { ListSpecPublic, ReportRow } from "@/lib/reports/types";
 
 import {
   bulkHref,
+  runEndpoint,
   bulkKeys,
   canClear,
   cellPadding,
@@ -223,5 +224,13 @@ describe("actions", () => {
 
   it("asks Select all for the columns its bulk actions read", () => {
     expect(bulkKeys(spec).sort()).toEqual(["openedAt", "shiftNo"]);
+  });
+});
+
+describe("runEndpoint", () => {
+  it("posts a fixed endpoint as it stands, and fills a row's own from that one row", () => {
+    expect(runEndpoint("/api/v2/retail/bin/delete", [])).toBe("/api/v2/retail/bin/delete");
+    expect(runEndpoint("/api/v2/retail/tills/{id}/unpair", [{ id: "t 1" }])).toBe("/api/v2/retail/tills/t%201/unpair");
+    expect(runEndpoint("/api/v2/retail/tills/{id}/unpair", [{ id: "a" }, { id: "b" }])).toBeNull();
   });
 });

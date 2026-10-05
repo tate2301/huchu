@@ -66,9 +66,12 @@ export type TillRow = {
   id: string;
   name: string;
   code: string;
-  site: { id: string; name: string };
+  /** `isDefault`: the shop's default site, listed first. */
+  site: { id: string; name: string; isDefault: boolean };
   /** "CounterMini", "Kora", "Browser, Windows PC", "No device yet". */
   device: string;
+  /** What the paired device is; null with none. */
+  pairedKind: DeviceKind | null;
   lastSaleAt: string | null;
   /** "Today, 11:42". */
   lastSale: string | null;
@@ -122,12 +125,17 @@ export const tillPatch = z
   .partial();
 export type TillPatch = z.infer<typeof tillPatch>;
 
-export const pairingCodeInput = z.object({ purpose: z.enum(["PAIR", "REPLACE"]).default("PAIR") });
+export const pairingCodeInput = z.object({
+  purpose: z.enum(["PAIR", "REPLACE"], { error: "Say whether the code pairs a till or replaces its device." }).default("PAIR"),
+}, { error: "Say whether the code pairs a till or replaces its device." });
 
 export const tillMessageInput = z.object({
-  tillIds: z.array(z.string().uuid("Choose the tills.")).min(1, "Choose the tills.").max(100),
-  body: z.string().trim().min(1, "Write the message.").max(280, "Keep the message to 280 characters."),
-});
+  tillIds: z
+    .array(z.string().uuid("Choose the tills."), { error: "Choose the tills." })
+    .min(1, "Choose the tills.")
+    .max(100, "Send to at most 100 tills at once."),
+  body: z.string({ error: "Write the message." }).trim().min(1, "Write the message.").max(280, "Keep the message to 280 characters."),
+}, { error: "Send the tills and the message." });
 
 /** The zod issues as `{ field: sentence }`, first issue per field. */
 export function tillFieldErrors(error: z.ZodError): Record<string, string> {
@@ -155,7 +163,9 @@ const tillSelect = {
   hasPrinter: true,
   hasDrawer: true,
   hasScale: true,
-  site: { select: { id: true, name: true, priceList: { select: { name: true } } } },
+  site: {
+    select: { id: true, name: true, priceList: { select: { name: true } }, _count: { select: { retailDefaultFor: true } } },
+  },
   devices: {
     where: { unpairedAt: null },
     take: 1,
@@ -220,8 +230,9 @@ function rowOf(till: TillRecord, shift: OpenShift | undefined, lastSale: Date | 
     id: till.id,
     name: till.name,
     code: till.code,
-    site: { id: till.site.id, name: till.site.name },
+    site: { id: till.site.id, name: till.site.name, isDefault: till.site._count.retailDefaultFor > 0 },
     device: deviceWords(device),
+    pairedKind: device?.kind ?? null,
     lastSaleAt: lastSale?.toISOString() ?? null,
     lastSale: lastSale ? lastSaleWords(lastSale, now, DEFAULT_TIME_ZONE) : null,
     onItNow: shift?.cashierName ?? null,
@@ -232,7 +243,7 @@ function rowOf(till: TillRecord, shift: OpenShift | undefined, lastSale: Date | 
 
 export type TillFilters = { siteId?: string | null; state?: TillState | null; q?: string | null };
 
-/** Every working till of the shop, by site then name, with what the list shows. */
+/** Every working till of the shop — the default site's first, then by site and name — with what the list shows. */
 export async function listTills(
   companyId: string,
   filters: TillFilters = {},
@@ -250,6 +261,8 @@ export async function listTills(
   ]);
   const data = tills
     .map((till) => rowOf(till, shifts.get(till.code), sales.get(till.code), now))
+    // Stable: within each site the query's name order stays.
+    .sort((a, b) => Number(b.site.isDefault) - Number(a.site.isDefault))
     .filter((row) => !filters.state || row.state === filters.state)
     .filter((row) => !q || row.name.toLowerCase().includes(q) || row.device.toLowerCase().includes(q));
   return { data, totals: { count: data.length } };

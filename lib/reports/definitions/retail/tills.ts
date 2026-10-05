@@ -26,13 +26,27 @@ const tills: ListSpec = {
         { value: "not-paired", label: "Not paired", where: [{ column: "stateKey", op: "is", value: ["NOT_PAIRED"] }] },
       ],
     },
+    // Inside Filters: what runs each till.
+    {
+      key: "device",
+      label: "Device",
+      type: "choice",
+      any: "Any",
+      options: [
+        { value: "counter-mini", label: "CounterMini", where: [{ column: "deviceKey", op: "is", value: ["COUNTER_MINI"] }] },
+        { value: "kora", label: "Kora", where: [{ column: "deviceKey", op: "is", value: ["KORA"] }] },
+        { value: "browser", label: "Browser", where: [{ column: "deviceKey", op: "is", value: ["BROWSER"] }] },
+        { value: "none", label: "No device yet", where: [{ column: "deviceKey", op: "is", value: ["NONE"] }] },
+      ],
+    },
   ],
   sorts: [
     {
       key: "site",
       label: "Site, then name",
+      // The default site first, then the others by name.
       rules: [
-        { column: "site", dir: "asc" },
+        { column: "siteOrder", dir: "asc" },
         { column: "name", dir: "asc" },
       ],
     },
@@ -50,7 +64,8 @@ const tills: ListSpec = {
     { key: "name", label: "Till", kind: "text", cell: "link", width: "minmax(160px,1.2fr)", align: "start", priority: 1 },
     { key: "site", label: "Site", kind: "text", cell: "text", width: "160px", align: "start", priority: 2 },
     { key: "device", label: "Device", kind: "text", cell: "muted", width: "150px", align: "start", priority: 2 },
-    { key: "lastSale", label: "Last sale", kind: "text", cell: "text", width: "150px", align: "start", priority: 3 },
+    // "Today, 11:42"; blank before a till's first sale.
+    { key: "lastSale", label: "Last sale", kind: "text", cell: "mono", empty: "blank", width: "150px", align: "start", priority: 3 },
     { key: "onItNow", label: "On it now", kind: "text", cell: "text", width: "150px", align: "start", priority: 1 },
     {
       key: "state",
@@ -80,7 +95,8 @@ const tills: ListSpec = {
       tone: "bad",
       requires: [["retail.tills", "update"]],
       when: [{ column: "stateKey", op: "isNot", value: ["NOT_PAIRED"] }],
-      do: { sheet: "till-unpair" },
+      // The TillEdit confirm; with a shift open it says why and offers only "Keep it".
+      do: { run: "unpairtill", endpoint: "/api/v2/retail/tills/{id}/unpair" },
     },
     {
       key: "pair",
@@ -97,7 +113,7 @@ const tills: ListSpec = {
     { key: "export" },
   ],
   primary: { label: "Pair a till", icon: "plus", requires: [["retail.tills", "create"]], sheet: "till-new" },
-  card: { title: "name", badge: "state", figure: "", meta: "{site} · {device} · {lastSaleCard} · {onItNow}" },
+  card: { title: "name", badge: "state", figure: "", meta: "{site} · {device}", meta2: "{lastSaleCard} · {onItNow}" },
   empty: {
     icon: "DeviceMobile",
     title: "No tills yet",
@@ -116,7 +132,13 @@ const tillsSource: ReportDefinition = {
   profiles: ["RETAIL"],
   params: [],
   columns: tills.columns,
-  defaults: { sort: tills.sorts[0]!.rules },
+  // The report view sorts by columns only; the list's own "Site, then name" puts the default site first.
+  defaults: {
+    sort: [
+      { column: "site", dir: "asc" },
+      { column: "name", dir: "asc" },
+    ],
+  },
   list: tills,
 };
 

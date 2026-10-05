@@ -45,6 +45,7 @@ import {
   gridMinWidth,
   gridTemplate,
   nextColumnSort,
+  runEndpoint,
   selectionTotals,
   shownColumns,
 } from "./model";
@@ -370,7 +371,9 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
     const how = action.do;
     if (!("endpoint" in how)) return;
     const run = "run" in how ? LIST_ACTION_RUNS[how.run] : undefined;
-    const response = await fetch(how.endpoint, {
+    const endpoint = runEndpoint(how.endpoint, targetRows);
+    if (!endpoint) throw new Error("That did not work. Nothing was changed; try again.");
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(run?.body ? run.body(ids, targetRows) : { ids }),

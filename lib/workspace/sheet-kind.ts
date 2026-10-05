@@ -202,11 +202,14 @@ export type SheetKind = {
   /**
    * Asked again every `every` ms while open; what it returns is merged into
    * the values and into what counts as unchanged (a pairing code's state).
+   * `left` aborts the moment the sheet is left: a run in flight must not
+   * start anything new after it (no fresh code once Cancel expired one).
    */
-  poll?: { every: number; run: (ctx: SheetCtx, values: SheetValues) => Promise<SheetValues | null> };
+  poll?: { every: number; run: (ctx: SheetCtx, values: SheetValues, left: AbortSignal) => Promise<SheetValues | null> };
   /**
-   * Sent when the sheet is left without saving (Cancel, ×, Esc, Discard): the
-   * till Pair a till made goes, a pairing code stops.
+   * Sent once when the sheet is left without saving — Cancel, ×, Esc,
+   * Discard, Back, another page, a reload — after any poll in flight has
+   * settled: the till Pair a till made goes, a pairing code stops.
    */
   cancel?: (ctx: SheetCtx, values: SheetValues) => SheetRequest | null;
   /** The secondary as a way on instead of Cancel ("Pair another device"), while this gives one. */

@@ -239,6 +239,16 @@ export function bulkHref(template: string, rows: ReportRow[]): string | null {
   return rows[0] ? fillTemplate(filled, rows[0], true) : filled.includes("{") ? null : filled;
 }
 
+/**
+ * Where a `run` action posts. A row's own endpoint (`/tills/{id}/unpair`)
+ * fills from its one row; with several rows, or a hole the row leaves blank,
+ * there is nowhere to post (null).
+ */
+export function runEndpoint(endpoint: string, rows: ReportRow[]): string | null {
+  if (!endpoint.includes("{")) return endpoint;
+  return rows.length === 1 ? fillTemplate(endpoint, rows[0]!) : null;
+}
+
 /** The row keys a bulk action reads, so "Select all" can fetch them beside the ids. */
 export function bulkKeys(spec: Pick<ListSpecPublic, "bulk">): string[] {
   const keys = new Set<string>();

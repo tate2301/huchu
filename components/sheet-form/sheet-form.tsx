@@ -51,10 +51,12 @@ export type SheetFormProps = {
   onClose: () => void;
 };
 
-async function send(request: SheetRequest): Promise<{ ok: boolean; status: number; payload: unknown }> {
+async function send(request: SheetRequest, keepalive = false): Promise<{ ok: boolean; status: number; payload: unknown }> {
   const response = await fetch(request.url, {
     method: request.method,
     credentials: "include",
+    // A cancel sent as the page goes (a reload, another address) still lands.
+    keepalive,
     headers: { "Content-Type": "application/json" },
     body: request.body === undefined ? undefined : JSON.stringify(request.body),
   });
@@ -95,10 +97,14 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
 
   // An edit kind starts from the record's current values.
   const { load } = kind;
+  // What the load made, for an undo sent before it arrived (Pair a till's till).
+  const loading = React.useRef<Promise<SheetValues | null>>(Promise.resolve(null));
   React.useEffect(() => {
     if (!load) return;
     let live = true;
-    void load(ctx).then((loaded) => {
+    const loadedPromise = load(ctx);
+    loading.current = loadedPromise.catch(() => null);
+    void loadedPromise.then((loaded) => {
       if (!live) return;
       setInitial((current) => withDerived(kind, { ...current, ...loaded }, touched.current));
       setValues((current) => withDerived(kind, { ...current, ...loaded }, touched.current));
@@ -110,51 +116,110 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     };
   }, [kind, load, ctx]);
 
-  // A kind that polls (a pairing code's state) merges each answer into the
-  // values and into what counts as unchanged, so polling never makes it dirty.
   const valuesRef = React.useRef(values);
   valuesRef.current = values;
+
+  // Leaving, once: polling stops at once, and what the kind opened with (the
+  // till Pair a till made, a live pairing code) is undone after the load and
+  // any poll in flight have settled, so nothing either does lands after the
+  // undo. Saving leaves without the undo.
+  const [left] = React.useState(() => new AbortController());
+  const inflight = React.useRef<Promise<unknown>>(Promise.resolve());
+  const latest = React.useRef({ kind, ctx });
+  latest.current = { kind, ctx };
+  const settle = React.useCallback(
+    (undo: boolean, keepalive = false) => {
+      if (left.signal.aborted) return;
+      left.abort();
+      if (!undo) return;
+      const { kind: leaving, ctx: leavingCtx } = latest.current;
+      if (!leaving.cancel) return;
+      const go = (loaded: SheetValues | null) => {
+        const request = leaving.cancel?.(leavingCtx, { ...loaded, ...valuesRef.current }) ?? null;
+        if (!request) return;
+        void send(request, keepalive)
+          .then(() => Promise.all(leaving.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key }))))
+          .catch(() => undefined);
+      };
+      // A page that is going cannot wait.
+      if (keepalive) go(null);
+      else void Promise.all([loading.current, inflight.current]).then(([loaded]) => go(loaded));
+    },
+    [left, queryClient],
+  );
+
+  // A kind that polls (a pairing code's state) merges each answer into the
+  // values and into what counts as unchanged, so polling never makes it dirty.
   const { poll } = kind;
   React.useEffect(() => {
     if (!poll || !open) return;
     let live = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const signal = left.signal;
+    const stopped = () => !live || signal.aborted;
     const tick = async () => {
+      if (stopped()) return;
+      const run = poll.run(ctx, valuesRef.current, signal);
+      inflight.current = run.catch(() => null);
       try {
-        const polled = await poll.run(ctx, valuesRef.current);
-        if (live && polled) {
+        const polled = await run;
+        if (!stopped() && polled) {
           setInitial((current) => ({ ...current, ...polled }));
           setValues((current) => ({ ...current, ...polled }));
         }
       } catch {
         // The next tick asks again.
       }
-      if (live) timer = setTimeout(() => void tick(), poll.every);
+      if (!stopped()) timer = setTimeout(() => void tick(), poll.every);
     };
     timer = setTimeout(() => void tick(), poll.every);
     return () => {
       live = false;
       if (timer) clearTimeout(timer);
     };
-  }, [poll, open, ctx]);
+  }, [poll, open, ctx, left]);
+
+  // Left some other way than the sheet's own buttons: Back or a link took
+  // `?sheet=` out of the address, another sheet replaced it, or the page is
+  // going (reload, another address). Each still undoes. The unmount check
+  // waits a tick, so React's development double mount is not a leave.
+  const wasOpen = React.useRef(open);
+  React.useEffect(() => {
+    if (open) wasOpen.current = true;
+    else if (wasOpen.current) settle(true);
+  }, [open, settle]);
+  const mounted = React.useRef(false);
+  React.useEffect(() => {
+    mounted.current = true;
+    const onHide = () => settle(true, true);
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      mounted.current = false;
+      window.removeEventListener("pagehide", onHide);
+      setTimeout(() => {
+        if (!mounted.current) settle(true);
+      }, 0);
+    };
+  }, [settle]);
 
   const dirty = !readOnly && isDirty(initial, values);
   const title = sheetText(kind.title, ctx, values);
   const sub = sheetText(kind.sub, ctx, values);
 
-  // Leaving without saving: what the kind undoes (the till Pair a till made), then close.
+  // Leaving without saving: what the kind undoes, then close — or go on to
+  // `to` (the secondary link, "Pair another device").
+  const leaveTo = React.useRef<string | null>(null);
   const leave = () => {
-    const undo = kind.cancel?.(ctx, values) ?? null;
-    if (undo) {
-      void send(undo)
-        .then(() => Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key }))))
-        .catch(() => undefined);
-    }
-    onClose();
+    settle(true);
+    const to = leaveTo.current;
+    if (to) router.replace(to, { scroll: false });
+    else onClose();
   };
 
-  const requestClose = () => {
+  /** Close, or follow `to`; with unsaved input it asks first. */
+  const requestClose = (to: string | null = null) => {
     if (saving) return;
+    leaveTo.current = to;
     if (dirty) setAsking("discard");
     else leave();
   };
@@ -211,6 +276,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       variant: "success",
       ...(href ? { action: { label: kind.openLabel ?? "Open", onClick: () => router.push(href) } } : {}),
     });
+    settle(false);
     const next = kind.next?.(result, values) ?? null;
     if (next) router.replace(next);
     else onClose();
@@ -280,6 +346,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     await Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
     const done = kind.danger.done;
     toast({ title: typeof done === "function" ? done(values, answer.payload) : done, variant: "success" });
+    settle(false);
     onClose();
   };
 
@@ -347,7 +414,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                 <Dialog.Title className="cx-sheet__title sf-ellipsis">{title}</Dialog.Title>
                 <span className="cx-sheet__sub sf-ellipsis">{sub}</span>
               </div>
-              <button type="button" className="sf-close" aria-label="Close" onClick={requestClose}>
+              <button type="button" className="sf-close" aria-label="Close" onClick={() => requestClose()}>
                 <X aria-hidden="true" />
               </button>
             </header>
@@ -464,7 +531,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
               <Button
                 size="field"
                 onClick={() => {
-                  if (secondaryLink) router.replace(secondaryLink.href, { scroll: false });
+                  if (secondaryLink) requestClose(secondaryLink.href);
                   else if (again) void submit(true);
                   else requestClose();
                 }}

@@ -16,10 +16,11 @@ import type { FieldSpec, PickedOption, SheetCtx, SheetKind, SheetRequest, SheetV
 
 /**
  * Tills and devices' sheets (10-setup 5.5; W-04, W-76): Pair a till, a till,
- * Pair another device, and the list's Unpair and Send a message. Each talks
- * to `/api/v2/retail/tills*`. A sheet that shows a pairing code polls the
- * till every 2 seconds, swaps in a new code when one runs out, and flips to
- * "Paired" when the device redeems it.
+ * Pair another device, and the list's Send a message. Each talks to
+ * `/api/v2/retail/tills*`. A sheet that shows a pairing code polls the till
+ * every 2 seconds while it is open, swaps in a new code when one runs out,
+ * and flips to "Paired" when the device redeems it. Leaving it expires the
+ * code (or removes the till Pair a till made); nothing is issued after that.
  */
 
 const TILLS = "/retail/manage/tills";
@@ -28,10 +29,11 @@ const invalidateTills = [["list", "retail-tills"], ["list", "retail-sites"], ["l
 
 type Answer = { ok: boolean; status: number; payload: Record<string, unknown> | null };
 
-async function call(url: string, method = "GET", body?: unknown): Promise<Answer> {
+async function call(url: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<Answer> {
   const response = await fetch(url, {
     method,
     credentials: "include",
+    signal,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -85,15 +87,17 @@ function codeValues(coded: Coded): SheetValues {
 const tillIdOf = (ctx: SheetCtx, values: SheetValues) => (values._id as string | undefined) ?? ctx.id;
 
 /**
- * One poll: paired → the device it made; a code that ran out → a fresh one
- * (or the plan's refusal); waiting → nothing new.
+ * One poll: paired → the device it made; a code that ran out while the sheet
+ * is still open → a fresh one (or the plan's refusal); waiting → nothing new.
+ * Once the sheet is left (`left`), a code reads "expired" because Cancel
+ * expired it, and it stays that way.
  */
-function pollPairing(purpose: "PAIR" | "REPLACE") {
-  return async (ctx: SheetCtx, values: SheetValues): Promise<SheetValues | null> => {
+export function pollPairing(purpose: "PAIR" | "REPLACE") {
+  return async (ctx: SheetCtx, values: SheetValues, left: AbortSignal): Promise<SheetValues | null> => {
     const id = tillIdOf(ctx, values);
-    if (!id || !values._code || values._state === "paired") return null;
-    const answer = await call(tillUrl(id, "/pairing"));
-    if (!answer.ok) return null;
+    if (left.aborted || !id || !values._code || values._state === "paired") return null;
+    const answer = await call(tillUrl(id, "/pairing"), "GET", undefined, left);
+    if (left.aborted || !answer.ok) return null;
     const state = answer.payload?.state;
     if (state === "paired") {
       const device = (answer.payload?.device ?? null) as DeviceSummary | null;
@@ -447,35 +451,11 @@ const tillReplace: SheetKind = {
   requires: [["retail.tills", "update"]],
 };
 
-/* ── The list's Unpair (row menu, inferred) ───────────────────────────────── */
-
-const loadUnpair = async (ctx: SheetCtx): Promise<SheetValues> => {
-  const till = await readTill(ctx.id ?? "");
-  return { _name: till.name, _device: till.current?.label ?? "Its device", _openShift: till.openShift, _sub: till.sub };
-};
-
 function unpairAskOf(values: SheetValues) {
   const name = String(values._name ?? "this till");
   const shift = openShiftOf(values);
   return unpairAsk(name, String(values._device ?? "Its device"), shift ? unpairShiftOpen(name, shift.cashier) : null);
 }
-
-const tillUnpair: SheetKind = {
-  title: (_ctx, values) => (values._name ? unpairAskOf(values).title : "Unpair"),
-  sub: (_ctx, values) => String(values._sub ?? SUB),
-  cur: "US$",
-  guide: (values) => (values._name ? unpairAskOf(values).body : ""),
-  sections: [],
-  note: "",
-  primary: "Unpair",
-  primaryTone: "danger",
-  primaryDisabled: (values) => openShiftOf(values) !== null,
-  done: (result) => `${(result as TillDetail).name} unpaired.`,
-  load: loadUnpair,
-  submit: (_values, ctx) => ({ method: "POST", url: tillUrl(ctx.id ?? "", "/unpair") }),
-  invalidate: invalidateTills,
-  requires: [["retail.tills", "update"]],
-};
 
 /* ── Send a message (bulk, inferred, not drawn) ───────────────────────────── */
 
@@ -518,6 +498,5 @@ export const TILL_SHEETS: Record<string, SheetKind> = {
   "till-new": tillNew,
   till: tillEdit,
   "till-replace": tillReplace,
-  "till-unpair": tillUnpair,
   "till-message": tillMessage,
 };

@@ -145,6 +145,9 @@ export function ListCards({
                 )
               ) : null}
             </span>
+            {spec.card.meta2 ? (
+              <span className="cx-lf-card__meta cx-lf-card__meta--2">{fillTemplate(spec.card.meta2, row, false) ?? ""}</span>
+            ) : null}
             {cardAction && !selecting ? (
               <button
                 type="button"

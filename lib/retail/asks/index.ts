@@ -1,6 +1,7 @@
 import { BIN_LIST_RUNS } from "./bin";
 import { PRODUCT_LIST_RUNS } from "./products";
 import { STOCK_LIST_RUNS } from "./stock";
+import { TILL_LIST_RUNS } from "./tills";
 import type { ListActionRun } from "./runs";
 
 /**
@@ -13,9 +14,9 @@ export { cancelRequisitionAsk, closeShortAsk, removeOrderAsk } from "./buying";
 export { categoryDeleteAsk, categoryMergeAsk } from "./categories";
 export { archiveAsk, archiveManyAsk } from "./products";
 export { closeSiteAsk } from "./sites";
-export { unpairAsk } from "./tills";
+export { unpairAsk, unpairRowAsk } from "./tills";
 export { cancelTransferAsk, cancelTransfersAsk, reverseMovementsAsk } from "./stock";
 export type { ListActionRun } from "./runs";
 
 /** Every list action that posts, by its `run` key; each area adds its own. */
-export const LIST_ACTION_RUNS: Readonly<Record<string, ListActionRun>> = { ...PRODUCT_LIST_RUNS, ...STOCK_LIST_RUNS, ...BIN_LIST_RUNS };
+export const LIST_ACTION_RUNS: Readonly<Record<string, ListActionRun>> = { ...PRODUCT_LIST_RUNS, ...STOCK_LIST_RUNS, ...BIN_LIST_RUNS, ...TILL_LIST_RUNS };

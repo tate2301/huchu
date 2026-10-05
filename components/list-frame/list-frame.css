@@ -225,6 +225,7 @@
 .cx-lf-card__fig { text-align: right; font-family: var(--font-mono); font-weight: 500; }
 .cx-lf-card__meta { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cx-lf-card__fig2 { text-align: right; }
+.cx-lf-card__meta--2 { grid-column: 1 / -1; }
 .cx-lf-card__fig2 .cx-lf-pill { font-size: 12px; padding: 1px 5px; }
 .cx-lf-card__action { grid-column: 1 / -1; justify-self: start; height: 32px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 4px; }
 .cx-lf-mfoot { flex: none; box-shadow: var(--shadow-pin); }

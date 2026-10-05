@@ -1366,9 +1366,12 @@ async function seedTills(companyId: string) {
   const now = Date.now()
   const minutesAgo = (minutes: number) => new Date(now - minutes * 60 * 1000)
   const pairedAt = new Date("2026-08-02T09:20:00+02:00")
+  // Front and Back till are seen now, so both read Selling. Nothing calls in
+  // for them until the device heartbeat lands (SET-04): five minutes after
+  // seeding they read "Offline", as a real till that stopped calling would.
   const devices: Array<{ code: string; kind: "COUNTER_MINI" | "KORA" | "BROWSER"; label?: string; lastSeenAt: Date }> = [
     { code: "TILL-1", kind: "COUNTER_MINI", lastSeenAt: new Date(now) },
-    { code: "TILL-2", kind: "BROWSER", label: "Windows PC", lastSeenAt: minutesAgo(4) },
+    { code: "TILL-2", kind: "BROWSER", label: "Windows PC", lastSeenAt: new Date(now) },
     { code: "TILL-3", kind: "KORA", lastSeenAt: harareTime(1, 21, 55) },
     { code: "TILL-4", kind: "COUNTER_MINI", lastSeenAt: minutesAgo(2 * 60 + 3) },
   ]

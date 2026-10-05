@@ -10,6 +10,7 @@ import {
   removeOrderAsk,
   restorableUntil,
   unpairAsk,
+  unpairRowAsk,
 } from "./index";
 
 describe("the Record board's asks", () => {
@@ -137,5 +138,20 @@ describe("Unpair on a till (10-setup 5.5)", () => {
       keep: "Keep it",
       go: "",
     });
+  });
+
+  it("asks the same from a list row, where who is on it now is the open shift", () => {
+    expect(unpairRowAsk({ id: "t", name: "Handheld 1", device: "Kora", cashier: null })).toMatchObject({
+      title: "Unpair Handheld 1?",
+      body: expect.stringMatching(/^Kora stops being a till/),
+      go: "Unpair",
+    });
+    expect(unpairRowAsk({ id: "t", name: "Front till", device: "CounterMini", cashier: "Chipo Dube" })).toMatchObject({
+      body: "Close Chipo Dube’s shift on Front till first.",
+      go: "",
+    });
+    const run = LIST_ACTION_RUNS.unpairtill!;
+    expect(run.ask?.(1, [{ id: "t", name: "Back till", device: "Browser, Windows PC", cashier: null }]).go).toBe("Unpair");
+    expect(run.done(1, [{ id: "t", name: "Back till" }])).toBe("Back till unpaired.");
   });
 });

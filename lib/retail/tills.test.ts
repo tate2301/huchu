@@ -12,6 +12,7 @@ import {
   getTill,
   issueTillCode,
   listTills,
+  pairingCodeInput,
   sendTillMessages,
   tillMessageInput,
   tillPairing,
@@ -296,6 +297,15 @@ describe("the list and Send a message", () => {
     expect((await listTills(otherCompanyId)).data).toEqual([]);
   });
 
+  it("lists the default site's tills first, then the other sites by name", async () => {
+    const { data } = await listTills(companyId);
+    const sites = data.map((till) => till.site.name);
+    // Harare Main Branch is the default, so it comes before Borrowdale.
+    expect(sites.indexOf("Borrowdale")).toBeGreaterThan(sites.lastIndexOf("Harare Main Branch"));
+    expect(data.find((till) => till.site.name === "Harare Main Branch")?.site.isDefault).toBe(true);
+    expect(data.find((till) => till.site.name === "Borrowdale")).toMatchObject({ site: { isDefault: false }, pairedKind: "COUNTER_MINI" });
+  });
+
   it("sends one message per till and records each", async () => {
     const two = (await listTills(companyId)).data.slice(0, 2).map((till) => till.id);
     expect(await sendTillMessages(actor(), two, "Count the floats before 18:00.")).toEqual({ sent: 2 });
@@ -311,5 +321,16 @@ describe("the list and Send a message", () => {
     );
     expect(tillMessageInput.safeParse({ tillIds: [], body: "Hi" }).success).toBe(false);
     expect(tillMessageInput.safeParse({ tillIds: [randomUUID()], body: "  " }).error?.issues[0]?.message).toBe("Write the message.");
+  });
+
+  it("answers a missing or malformed body in sentences, not zod's defaults", () => {
+    const first = (schema: { safeParse: (value: unknown) => { error?: { issues: Array<{ message: string }> } } }, value: unknown) =>
+      schema.safeParse(value).error?.issues.map((issue) => issue.message);
+    expect(first(tillMessageInput, {})).toEqual(["Choose the tills.", "Write the message."]);
+    expect(first(tillMessageInput, { tillIds: "a", body: 3 })).toEqual(["Choose the tills.", "Write the message."]);
+    expect(first(tillMessageInput, [])).toEqual(["Send the tills and the message."]);
+    expect(first(pairingCodeInput, { purpose: "SWAP" })).toEqual(["Say whether the code pairs a till or replaces its device."]);
+    expect(first(pairingCodeInput, "PAIR")).toEqual(["Say whether the code pairs a till or replaces its device."]);
+    expect(pairingCodeInput.parse({})).toEqual({ purpose: "PAIR" });
   });
 });

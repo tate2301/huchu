@@ -269,6 +269,8 @@ export type ListColumn = ReportColumn & {
   toneKey?: string;
   /** action: the key of the row menu action the cell does; drawn only when the row's menu offers it. */
   action?: string;
+  /** No value draws nothing rather than "—", where the board leaves the cell blank (a till's Last sale before its first). */
+  empty?: "blank";
   /**
    * `view-cost`: dropped, values and all, for roles that may not see cost.
    * `multi-site`: dropped while the company has one open site.
@@ -345,6 +347,8 @@ export type ListAction = {
     /**
      * POSTs `{ ids }` to the endpoint, asking first when the named entry of
      * the list runs (`lib/retail/asks`) has an ask, and toasts its done words.
+     * A row menu action's endpoint may hold `{key}` holes, filled from its row
+     * (`/api/v2/retail/tills/{id}/unpair`).
      */
     | { run: string; endpoint: string }
     | {
@@ -429,6 +433,8 @@ export type ListSpec = {
     badge?: string;
     figure: string;
     meta: RowTemplate;
+    /** A second meta line under the first ("Last sale Today, 11:42 · Chipo Dube"). */
+    meta2?: RowTemplate;
     figure2?: string;
     /** A button on the card doing this row menu action ("Restore"), when the row's menu offers it. */
     action?: string;
