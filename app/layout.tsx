@@ -11,6 +11,8 @@ import "./themes/corelith-bridge.css";
 // After the bridge: the roles answer the package's tokens, so they have the
 // last word (00-foundations 5.1).
 import "./themes/roles.css";
+// The workspace components read the roles (5.2).
+import "./themes/workspace.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cache, Suspense } from "react";

@@ -1,100 +1,58 @@
 "use client";
 
-import * as React from "react";
-import { toast as dsToast, useToasts, type ToastTone } from "@corelithzw/react";
-
-import type { ToastProps, ToastActionElement } from "@/components/ui/toast";
+import type * as React from "react";
+import { toast as dsToast, type ToastTone } from "@corelithzw/react";
 
 /**
- * useToast — the design system's toast store, behind this repo's older shape.
+ * useToast — the app's toast call: `toast({ title, description, variant })`.
  *
- * 134 files call `const { toast } = useToast()` and then `toast({ title,
- * description, variant })`, so that object-argument signature is preserved
- * exactly rather than migrated call site by call site. The DS takes
- * `toast(title, { description, tone })` and returns a bare id string; this
- * module does the translation in both directions.
- *
- * Behaviour that changes, deliberately:
- *   - The old store closed a toast visually and only garbage-collected it five
- *     minutes later. The DS drives both from one `duration` (default 5s), and
- *     pauses the countdown while the pointer is over the toast.
- *   - The stack renders oldest-first at the top rather than newest-first.
- *
- * New code should import `toast` from `@corelithzw/react` directly.
+ * It writes to the design system's store, which `toaster.tsx` renders one at
+ * a time (00-foundations 5.9). `variant` picks the mark: `success` and
+ * `default` a check in `--ok`, `warning` a triangle in `--warn` (a partial
+ * result), `destructive` an alert in `--bad`. `action` is the one follow-up
+ * ("Open", "Undo"). New code may call `toast` from `@corelithzw/react`
+ * directly; both land in the same place.
  */
-const VARIANT_TO_TONE: Record<string, ToastTone> = {
+export type ToastVariant = "default" | "success" | "warning" | "destructive";
+
+const VARIANT_TO_TONE: Record<ToastVariant, ToastTone> = {
   default: "default",
   success: "success",
   warning: "warn",
   destructive: "danger",
 };
 
-type ToasterToast = ToastProps & {
-  id: string;
+export type ToastInput = {
   title?: React.ReactNode;
   description?: React.ReactNode;
-  action?: ToastActionElement;
+  variant?: ToastVariant;
+  action?: { label: string; onClick: () => void };
+  /** Auto-dismiss timeout in ms (default 5000). */
+  duration?: number;
 };
-
-type ToastInput = Omit<ToasterToast, "id">;
-
-interface State {
-  toasts: ToasterToast[];
-}
-
-/**
- * The DS action is data (`{ label, onClick }`); the local one was a React
- * element. No call site in this repo passes one, but the shape is read off the
- * element's props rather than dropped outright so anything that does keeps
- * working.
- */
-function toActionData(action: ToastActionElement | undefined) {
-  if (!React.isValidElement(action)) return undefined;
-  const props = action.props as { children?: React.ReactNode; onClick?: () => void };
-  if (typeof props.children !== "string" || !props.onClick) return undefined;
-  return { label: props.children, onClick: props.onClick };
-}
 
 function emit(id: string | undefined, { title, description, variant, action, duration }: ToastInput) {
   return dsToast(title, {
     id,
     description,
-    tone: VARIANT_TO_TONE[variant ?? "default"] ?? "default",
-    action: toActionData(action),
+    tone: VARIANT_TO_TONE[variant ?? "default"],
+    action,
     ...(duration === undefined ? {} : { duration }),
   });
 }
 
-function toast(props: ToastInput) {
-  const id = emit(undefined, props);
-
+function toast(input: ToastInput) {
+  const id = emit(undefined, input);
   return {
     id,
     dismiss: () => dsToast.dismiss(id),
-    // The DS store upserts when an id is reused, so an update is just a
-    // re-emit under the same id.
-    update: (next: ToasterToast) => emit(id, next),
+    // The store upserts when an id is reused, so an update is a re-emit.
+    update: (next: ToastInput) => emit(id, next),
   };
 }
 
-function useToast(): State & {
-  toast: typeof toast;
-  dismiss: (toastId?: string) => void;
-} {
-  const entries = useToasts();
-
-  const toasts = React.useMemo<ToasterToast[]>(
-    () =>
-      entries.map((entry) => ({
-        id: entry.id,
-        title: entry.title,
-        description: entry.description,
-        open: true,
-      })),
-    [entries],
-  );
-
-  return { toasts, toast, dismiss: (toastId?: string) => dsToast.dismiss(toastId) };
+function useToast() {
+  return { toast, dismiss: (toastId?: string) => dsToast.dismiss(toastId) };
 }
 
 export { useToast, toast };
