@@ -1,6 +1,6 @@
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 
-import { areasFromSections, type RailArea } from "./areas";
+import { areaRows, areasFromSections, type RailArea } from "./areas";
 
 /**
  * The rail never scrolls.
@@ -47,7 +47,8 @@ const MAX_AREAS = 10;
 /**
  * `flat`: every area and every item in the panel at once, under headings, with
  * the rail carrying pins alone. `areas`: one mark per area in the rail, and the
- * panel shows either the workspace's module list or one module's items.
+ * panel shows the workspace's module list, one module's items or, in a module
+ * read whole, one of its folders.
  */
 export type RailShape = "flat" | "areas";
 
@@ -61,8 +62,13 @@ export type RailModel = {
   /** How many pins the rail can hold beside the marks it must show. */
   pinCapacity: number;
   /**
-   * Areas whose own panel would still overflow. Reported rather than clipped
-   * so it cannot be mistaken for a rail that fits.
+   * Areas whose panel would still overflow at some level — the area's own rows
+   * and folder rows together, or one folder's destinations.
+   *
+   * An area read whole carries its groups as folders, which is the third level
+   * the design puts on the page, so a module of twenty-odd destinations is a
+   * panel of seven rows. Reported rather than clipped so a list that grows
+   * past it cannot be mistaken for a rail that fits.
    */
   overflowing: RailArea[];
 };
@@ -104,7 +110,11 @@ export function getRailModel(sections: WorkspaceNavSection[]): RailModel {
     areas,
     cost,
     budget,
-    overflowing: areas.filter((area) => area.items.length > panelRows),
+    overflowing: areas.filter(
+      (area) =>
+        areaRows(area).length + (area.folders?.length ?? 0) > panelRows ||
+        (area.folders ?? []).some((folder) => folder.items.length > panelRows),
+    ),
     pinCapacity: pinCapacityFor(areas.length, shape),
   };
 }

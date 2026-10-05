@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Funnel } from "@/lib/icons";
 import { navSections } from "@/lib/navigation";
 
-import { areasFromSections } from "./areas";
+import { areaRows, areasFromSections, folderForHref } from "./areas";
 import { orderRows } from "./order";
 
 describe("areasFromSections", () => {
@@ -62,10 +62,8 @@ describe("areasFromSections", () => {
       "Pipeline",
       "Contacts",
       "Projects",
-      "Finance",
-      "Billing",
+      "Money",
       "Work",
-      "Team",
       "Insights",
       "Setup",
     ]);
@@ -81,8 +79,67 @@ describe("areasFromSections", () => {
     expect(rows("Pipeline")).toEqual(["Leads", "Deals", "Intake forms"]);
     expect(rows("Contacts")).toEqual(["Companies", "People", "Sites"]);
     expect(rows("Work")).toEqual(["Site visits", "Follow-ups", "Tasks"]);
-    expect(rows("Team")).toEqual(["My performance", "Team"]);
-    expect(rows("Finance")).toEqual(["Money in and out", "Requisitions", "Cost tracker", "Daily reports"]);
-    expect(rows("Billing")).toEqual(["Quotes", "Invoices", "Receipts", "Collections"]);
+    // The index heads the group, then billing, then spending.
+    expect(rows("Money")).toEqual([
+      "Money in and out",
+      "Quotes",
+      "Invoices",
+      "Receipts",
+      "Collections",
+      "Requisitions",
+      "Cost tracker",
+      "Daily reports",
+    ]);
+    expect(rows("Insights")).toEqual(["My performance", "Insights", "Sales reports", "Team"]);
+    // Workflow activity and the site-visit questions live on their index pages.
+    expect(rows("Setup")).toEqual(["Import", "Settings", "Workflows"]);
+  });
+
+  it("keeps the CRM's Home out of every area", () => {
+    const crm = navSections.find((section) => section.id === "crm")!;
+    const home = areasFromSections([crm]).find((area) => area.items.some((item) => item.href === "/crm"))!;
+    expect(home.items.map((item) => item.label)).toEqual(["Home"]);
+  });
+});
+
+describe("a section read whole", () => {
+  const section = {
+    id: "sales",
+    title: "Sales",
+    flattenGroups: true,
+    ranked: true,
+    groups: [
+      { id: "setup", label: "Setup" },
+      { id: "pipeline", label: "Pipeline", rank: "flow" as const },
+    ],
+    items: [
+      { href: "/sales", label: "Home", icon: Funnel },
+      { href: "/sales/settings", label: "Settings", icon: Funnel, group: "setup" },
+      { href: "/sales/leads", label: "Leads", icon: Funnel, group: "pipeline" },
+      { href: "/sales/deals", label: "Deals", icon: Funnel, group: "pipeline" },
+    ],
+  };
+
+  it("keeps its groups one level down, as folders", () => {
+    const [area] = areasFromSections([section], { flatten: false });
+    expect(area.items).toHaveLength(4);
+    expect(area.folders?.map((folder) => folder.label)).toEqual(["Pipeline", "Setup"]);
+    expect(areaRows(area).map((item) => item.label)).toEqual(["Home"]);
+    expect(folderForHref(area, "/sales/deals")?.label).toBe("Pipeline");
+    expect(folderForHref(area, "/sales")).toBeNull();
+  });
+
+  it("has no folders when it is flattened into areas", () => {
+    const areas = areasFromSections([section]);
+    expect(areas.every((area) => area.folders === undefined)).toBe(true);
+    expect(areaRows(areas[0]!)).toBe(areas[0]!.items);
+  });
+
+  it("has no folders when it has one group", () => {
+    const [area] = areasFromSections(
+      [{ ...section, groups: [section.groups[1]!], items: section.items.filter((item) => item.group !== "setup") }],
+      { flatten: false },
+    );
+    expect(area.folders).toBeUndefined();
   });
 });

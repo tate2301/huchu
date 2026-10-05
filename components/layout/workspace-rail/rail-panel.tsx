@@ -11,8 +11,9 @@ import styles from "./workspace-rail.module.css";
  * The panel beside the rail (00-foundations 5.3.3, `Main.dc.html`): 240px on
  * `--ground`.
  *
- * Its 48px head is either the workspace (the module list) or the module you
- * are in, with the chevron before the title going back to the module list.
+ * Its 48px head is either the workspace (the module list) or the module (or
+ * folder in one) you are in, with the chevron before the title going back up
+ * one level.
  * Collapsing the panel is its own button at the right of the head (and
  * Cmd/Ctrl+B). Search sits under the head in both, because it is about the
  * whole workspace. The shelf at the foot holds Help and Management.
@@ -29,9 +30,9 @@ export function RailPanel({
   shelf,
 }: {
   title: string;
-  /** What the chevron goes back to: the workspace's name. */
+  /** What the chevron goes back to: the workspace's name, or the module a folder sits in. */
   backLabel?: string;
-  /** Shown while a module is open: back to the module list. */
+  /** Shown while a module or a folder is open: back up one level. */
   onBack?: () => void;
   /** Drawn over the page (720–1099px) rather than beside it. */
   overlay?: boolean;

@@ -11,7 +11,6 @@ import {
   Flag,
   Funnel,
   IdentificationCard,
-  Lightning,
   Medal,
   MedusaBookOpenIcon,
   MedusaCogSixToothIcon,
@@ -21,7 +20,6 @@ import {
   Sun,
   Tag,
   UsersThree,
-  Wallet,
 } from "@/lib/icons";
 import type { NavItem, NavRank } from "@/lib/navigation";
 import { RETAIL_NAV_MODULES } from "@/lib/retail/nav";
@@ -42,11 +40,30 @@ export type RailArea = {
   id: string;
   label: string;
   icon: LucideIcon;
+  /** Every destination in the area, its folders' included. */
   items: NavItem[];
   /** Where the area sits among its section's areas. See `NavRank`. */
   rank?: NavRank;
   /** Its section is `ranked`: its rows read pinned, flow, own, then A to Z. */
   ranked?: boolean;
+  /**
+   * The level under the area, when it has one.
+   *
+   * Only an area read whole — a module taken at its own level because its
+   * groups would not fit as marks — has folders: its groups, drawn as rows
+   * in its panel, each opening onto its own destinations. That is the third
+   * level and the last; anything deeper is a page's business, not the rail's.
+   */
+  folders?: RailFolder[];
+};
+
+/** A group inside an area, opened in the panel one level down. */
+export type RailFolder = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items: NavItem[];
+  rank?: NavRank;
 };
 
 /**
@@ -82,16 +99,10 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   pipeline: Funnel,
   contacts: AddressBook,
   work: ClipboardText,
-  // Two marks for money, because the CRM has two: what passes through
-  // people's hands (floats, spend, the day's report) and what the business
-  // bills its customers.
-  money: Wallet,
-  documents: Money,
-  // The people inside the business. UsersThree is Pupils in a school, but a
-  // workspace is one business, so the two never sit in one column.
-  team: UsersThree,
+  // One mark for money: billing and spending sit behind "Money in and out",
+  // the page that adds both up.
+  money: Money,
   learn: ChartLineUp,
-  workflows: Lightning,
   setup: MedusaCogSixToothIcon,
   // Gold, plant and stores
   "gold-operations": Factory,
@@ -133,12 +144,7 @@ const AREA_LABELS: Record<string, string> = {
   school: "The school",
   selling: "Products",
   stock: "Stock",
-  // Not "Money": the Finance area beside it is money too, and two areas that
-  // both sound like money is a coin toss. Quotes, invoices, receipts and
-  // collections are what the business bills.
-  documents: "Billing",
   learn: "Insights",
-  workflows: "Automation",
   "gold-operations": "Production",
   "gold-chain": "Movement",
   "gold-control": "Insights",
@@ -201,7 +207,7 @@ export function areasFromSections(
     rawId: string,
     label: string,
     items: NavItem[],
-    { rank, ranked }: Pick<RailArea, "rank" | "ranked"> = {},
+    { rank, ranked, folders }: Pick<RailArea, "rank" | "ranked" | "folders"> = {},
   ) => {
     if (items.length === 0) return;
     const id = keyFor(rawId, items);
@@ -209,6 +215,7 @@ export function areasFromSections(
     const existing = byId.get(targetId);
     if (existing) {
       existing.items = [...existing.items, ...items];
+      if (folders) existing.folders = [...(existing.folders ?? []), ...folders];
       return;
     }
     const area: RailArea = {
@@ -218,6 +225,7 @@ export function areasFromSections(
       items,
       ...(rank ? { rank } : {}),
       ...(ranked ? { ranked } : {}),
+      ...(folders && folders.length > 0 ? { folders } : {}),
     };
     byId.set(targetId, area);
     areas.push(area);
@@ -248,7 +256,27 @@ export function areasFromSections(
         );
       }
     } else {
-      push(section.id, AREA_LABELS[section.id] ?? section.title, section.items, { ranked });
+      // Read whole, a section that divides keeps its division one level
+      // down: its groups become folders in its panel rather than marks.
+      // Twenty-odd CRM rows in one list was a panel nobody could scan.
+      const folders =
+        populated.length > 1
+          ? populated.map((group) => {
+              const items = section.items.filter((item) => item.group === group.id);
+              const key = keyFor(group.id, items);
+              return {
+                id: key,
+                label: AREA_LABELS[key] ?? group.label,
+                icon: iconFor(key, items),
+                items,
+                ...(group.rank ? { rank: group.rank } : {}),
+              };
+            })
+          : undefined;
+      push(section.id, AREA_LABELS[section.id] ?? section.title, section.items, {
+        ranked,
+        folders: folders && ranked ? orderRows(folders, { label: (f) => f.label, rank: (f) => f.rank }) : folders,
+      });
     }
     if (ranked) {
       areas.splice(
@@ -260,4 +288,17 @@ export function areasFromSections(
   }
 
   return areas;
+}
+
+/** The destinations an area shows as rows of its own, outside its folders. */
+export function areaRows(area: RailArea): NavItem[] {
+  if (!area.folders) return area.items;
+  const foldered = new Set(area.folders.flatMap((folder) => folder.items.map((item) => item.href)));
+  return area.items.filter((item) => !foldered.has(item.href));
+}
+
+/** The folder inside an area that holds a destination, or null. */
+export function folderForHref(area: RailArea, href: string | null): RailFolder | null {
+  if (!href || !area.folders) return null;
+  return area.folders.find((folder) => folder.items.some((item) => item.href === href)) ?? null;
 }

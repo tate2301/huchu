@@ -372,6 +372,17 @@ describe("workspace sidebar model", () => {
     expect(hrefs).toContain("/retail/customers");
   });
 
+  it("leaves the retail ledger out once the CRM proper is on", () => {
+    const model = getWorkspaceSidebarModel({
+      role: "MANAGER",
+      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER").concat(["crm.customers", "crm.core"]),
+      workspaceProfile: "GENERAL",
+    });
+    const hrefs = model.sections.flatMap((section) => section.items.map((item) => item.href));
+    expect(hrefs).toContain("/crm");
+    expect(hrefs).not.toContain("/retail/customers");
+  });
+
   it("general business sidebar contains no mining hrefs anywhere", () => {
     const model = getWorkspaceSidebarModel({
       role: "MANAGER",
@@ -445,6 +456,7 @@ describe("workspace sidebar model", () => {
     it("puts the shop's settings under Setup, Posting for the owner only", () => {
       expect(itemsOf(retailModel("SUPERADMIN"), "retail-setup")).toEqual([
         "/retail/manage/company",
+        "/retail/manage/sites",
         "/retail/manage/tills",
         "/retail/manage/till-rules",
         "/retail/manage/fiscal",
@@ -471,13 +483,14 @@ describe("workspace sidebar model", () => {
       });
     });
 
-    it("shows the stock clerk Products, Stock and Buying, landing on On hand", () => {
+    it("shows the stock clerk Products, Stock, Buying and the shop's Sites, landing on On hand", () => {
       const model = retailModel("STOCK_CLERK");
       expect(model.homeHref).toBe("/retail/stock");
       expect(Object.fromEntries(model.sections.map((section) => [section.id, section.items.map((i) => i.href)]))).toEqual({
         "retail-products": ["/retail/products"],
         "retail-stock": ["/retail/stock", "/retail/stock/movements", "/retail/stock/counts", "/retail/stock/transfers"],
         "retail-buy": ["/retail/buying/orders", "/retail/buying/deliveries", "/retail/buying/requisitions"],
+        "retail-setup": ["/retail/manage/sites"],
       });
     });
 

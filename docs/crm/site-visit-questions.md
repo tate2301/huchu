@@ -66,7 +66,7 @@ settings field should not take the visit page down.
 
 ## Editing
 
-**CRM settings → Site visit questions**, at `/crm/settings/site-visit-questions`.
+**CRM settings → Site visit questions**, at `/crm/settings?tab=site-visit-questions`.
 Reading is open to anyone who can see the CRM; writing is gated on
 `settings.manage`.
 

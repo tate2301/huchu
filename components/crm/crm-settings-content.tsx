@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import {
+  Checklist,
   Coins,
   Dataset,
   Funnel,
@@ -27,6 +28,7 @@ import { FacebookPanel } from "@/components/crm/settings/facebook-panel";
 import { FieldCameraPanel } from "@/components/crm/settings/field-camera-panel";
 import { LeadSourcesPanel } from "@/components/crm/settings/lead-sources-panel";
 import { PipelinesPanel } from "@/components/crm/settings/pipelines-panel";
+import { QuestionSetsContent } from "@/components/crm/settings/question-sets-content";
 
 /**
  * CRM settings, on the settings shell rather than a tab strip.
@@ -110,6 +112,15 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     countKey: "catalogue",
     addLabel: "Add item",
     render: (props) => <CataloguePanel {...props} />,
+  },
+  // Beside the catalogue because a visit asks one set per product quoted. A
+  // section here rather than a page of its own: it was a second sidebar row
+  // under Setup for something configured once, like everything else here.
+  {
+    id: "site-visit-questions",
+    label: "Site visit questions",
+    icon: Checklist,
+    render: () => <QuestionSetsContent />,
   },
   {
     id: "resources",

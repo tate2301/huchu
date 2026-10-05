@@ -703,32 +703,34 @@ export const navSections: NavSection[] = [
       { href: "/reports/gold-chain", icon: ChartLine, label: "Reports" },
     ],
   },
-  // The CRM is not one thing you open, it is six. A single parent entry meant
-  // every route inside it cost two clicks and hid behind a word — "CRM" — that
-  // names a category rather than a place. Its groups are root entries now,
-  // each expanding to its own children, which is how the reference works and
-  // how anybody actually describes where they are going: "the pipeline",
-  // "records", "the paperwork".
+  // The CRM is not one thing you open, it is several. A single parent entry
+  // meant every route inside it cost two clicks and hid behind a word — "CRM"
+  // — that names a category rather than a place. Its groups are root entries
+  // instead, each opening onto its own short list, the way retail's floor,
+  // products, stock, buying and insights do.
   //
   // They share `crm.core`, so a tenant without the module loses the whole set
-  // rather than being left with six empty headings.
+  // rather than being left with empty headings.
   {
     id: "crm",
     title: "CRM",
     description: "Leads, clients, site visits, and sales pipeline",
     featureKey: "crm.core",
-    // Rendered flat: each group below becomes its own root entry in the
-    // sidebar rather than a band inside a "CRM" parent. "CRM" names a category,
-    // not a place — nobody says "I'm going to CRM", they say "the pipeline" or
-    // "the paperwork", and burying six of those behind one word cost a click
-    // each and told you nothing on the way past.
+    // Each group below becomes its own root entry in the sidebar rather than
+    // a band inside a "CRM" parent. Nobody says "I'm going to CRM", they say
+    // "the pipeline" or "the money".
     flattenGroups: true,
     ranked: true,
-    // One group per question somebody opens the CRM to answer. What is in
-    // the pipeline? Who are we dealing with? What is on today? What are we
-    // delivering? Where did the money go? What have we billed? Who is on the
-    // team? A group that answered two of those — leads beside the team list
-    // under "Pipeline" — was one nobody could find anything in.
+    // One group per question somebody opens the CRM to answer, and no more
+    // of them than a rail can hold beside the back office. Ten marks was the
+    // whole of tier one; a tenant with payroll and stock beside its CRM went
+    // over and lost the groups altogether.
+    //
+    // A group is a short list. Where a list would have grown a level under it
+    // — workflow activity under workflows, the site-visit questions under
+    // settings, billing and spending under money — the page at the head of
+    // the group is the index, and the rows under it live on that page rather
+    // than in the rail.
     //
     // Ranked: the rail reads pinned first, then the groups the business's
     // work moves through (flow) in the order declared here, then the
@@ -739,30 +741,27 @@ export const navSections: NavSection[] = [
       { id: "pipeline", label: "Pipeline", rank: "flow" },
       // Who we deal with, outside the business.
       { id: "contacts", label: "Contacts", rank: "flow" },
+      // Delivery: what a won deal turns into, and the jobs inside it. A
+      // project is a place people go to — its jobs, its money, its team — not
+      // another queue of things to do today.
+      { id: "projects", label: "Projects", rank: "flow" },
+      // All of the money, behind its one index. Billing (what we ask the
+      // customer for) and spending (the float a rep draws and what they spent
+      // it on) were two marks; "Money in and out" is the page that already
+      // adds both up and links to every list it adds, so it heads one group.
+      { id: "money", label: "Money", rank: "flow" },
       // What is on today: the tasks, visits and calls somebody owes.
       { id: "work", label: "Work", rank: "own" },
-      // Delivery: what a won deal turns into, and the jobs inside it. Its own
-      // group rather than two lines under Work, because a project is a place
-      // people go to — its jobs, its money, its team — not another queue of
-      // things to do today.
-      { id: "projects", label: "Projects", rank: "flow" },
-      // The money that moves through people's hands, as opposed to the
-      // paperwork that asks for it: the float a rep draws, what they spent it
-      // on, what they collected, and each day's report. Quotes and invoices
-      // are Billing.
-      { id: "money", label: "Finance", rank: "flow" },
-      { id: "documents", label: "Billing", rank: "flow" },
-      // The people inside the business, and your own page among them.
-      { id: "team", label: "Team", rank: "own" },
+      // How we are doing: the reports, and the team whose numbers they are.
       { id: "learn", label: "Insights" },
-      // How the CRM is set up, and what it does by itself once it is: the
-      // workflows are configuration, and a group of their own was the mark
-      // that pushed the rail past ten and collapsed every group into one list.
+      // How the CRM is set up, and what it does by itself once it is.
       { id: "setup", label: "Setup" },
     ],
     items: [
       // "Home", not "Overview": it is where the day starts, and the CRM's one
       // page with no subject of its own — every other row names what it holds.
+      // Ungrouped, so it stands at the top of the rail rather than inside an
+      // area it does not belong to.
       { href: "/crm", icon: Home, label: "Home" },
 
       { href: "/crm/leads", icon: Funnel, label: "Leads", group: "pipeline", rank: "flow" },
@@ -773,15 +772,6 @@ export const navSections: NavSection[] = [
       { href: "/crm/companies", icon: Building2, label: "Companies", group: "contacts" },
       { href: "/crm/sites", icon: MapPin, label: "Sites", group: "contacts" },
 
-      { href: "/crm/reps", icon: UserRound, label: "Team", group: "team" },
-      // Whoever is signed in: `/crm/reps/me` redirects to their own page,
-      // which is how they are doing — what they won, finished and collected.
-      { href: "/crm/reps/me", icon: UserCheck, label: "My performance", group: "team", rank: "own" },
-
-      { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
-      { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
-      { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
-
       // A project is what a won deal turns into, and somebody is answerable
       // for what it costs. Jobs sit under it because that is where they are
       // raised; a job is still labelled "Jobs" because that is what the page,
@@ -789,17 +779,21 @@ export const navSections: NavSection[] = [
       { href: "/crm/projects", icon: Work, label: "Projects", group: "projects", rank: "flow" },
       { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects", rank: "flow" },
 
+      // The index first, then in the order the money moves: billed, paid,
+      // chased; then asked for, spent, reported.
       {
         href: "/crm/finance",
         icon: Dashboard,
-        // What the page answers, not what kind of page it is: "overview" on
-        // three rows said nothing about any of them.
+        // What the page answers, not what kind of page it is.
         label: "Money in and out",
         roles: ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"],
         group: "money",
         rank: "flow",
       },
-      // In the order the money moves: asked for, spent, reported.
+      { href: "/crm/quotes", icon: FileText, label: "Quotes", group: "money", rank: "flow" },
+      { href: "/crm/invoices", icon: ReceiptLong, label: "Invoices", group: "money", rank: "flow" },
+      { href: "/crm/receipts", icon: Payments, label: "Receipts", group: "money", rank: "flow" },
+      { href: "/crm/collections", icon: Scale, label: "Collections", group: "money", rank: "flow" },
       { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money", rank: "flow" },
       { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money", rank: "flow" },
       {
@@ -811,37 +805,20 @@ export const navSections: NavSection[] = [
         rank: "flow",
       },
 
-      { href: "/crm/quotes", icon: FileText, label: "Quotes", group: "documents", rank: "flow" },
-      { href: "/crm/invoices", icon: ReceiptLong, label: "Invoices", group: "documents", rank: "flow" },
-      { href: "/crm/receipts", icon: Payments, label: "Receipts", group: "documents", rank: "flow" },
-      { href: "/crm/collections", icon: Scale, label: "Collections", group: "documents", rank: "flow" },
+      { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
+      { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
+      { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
 
       { href: "/crm/insights", icon: BarChart3, label: "Insights", group: "learn" },
       { href: "/crm/reports", icon: ChartLine, label: "Sales reports", group: "learn" },
+      // The team as a directory of the numbers each member carries, and your
+      // own line in it: `/crm/reps/me` redirects to whoever is signed in.
+      { href: "/crm/reps", icon: UserRound, label: "Team", group: "learn" },
+      { href: "/crm/reps/me", icon: UserCheck, label: "My performance", group: "learn", rank: "own" },
 
-      {
-        href: "/crm/workflows",
-        icon: Zap,
-        label: "Workflows",
-        roles: ["SUPERADMIN", "MANAGER"],
-        group: "setup",
-      },
-      {
-        href: "/crm/workflows/runs",
-        icon: History,
-        label: "Workflow activity",
-        roles: ["SUPERADMIN", "MANAGER"],
-        group: "setup",
-      },
-
-      { href: "/crm/import", icon: Upload, label: "Import", group: "setup" },
-      {
-        href: "/crm/settings/site-visit-questions",
-        icon: Checklist,
-        label: "Site visit questions",
-        roles: ["SUPERADMIN", "MANAGER"],
-        group: "setup",
-      },
+      // Settings is the index for everything configured once — pipelines,
+      // fields, sources, the site-visit questions — and Workflows for the
+      // rules and what they did.
       {
         href: "/crm/settings",
         icon: ManageAccounts,
@@ -849,6 +826,14 @@ export const navSections: NavSection[] = [
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
       },
+      {
+        href: "/crm/workflows",
+        icon: Zap,
+        label: "Workflows",
+        roles: ["SUPERADMIN", "MANAGER"],
+        group: "setup",
+      },
+      { href: "/crm/import", icon: Upload, label: "Import", group: "setup" },
     ],
   },
   {

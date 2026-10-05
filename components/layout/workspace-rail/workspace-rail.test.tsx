@@ -1,11 +1,41 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
 
-import { CashRegister, FileText, GearSix, Receipt, Stack, Storefront, Tag } from "@/lib/icons";
+import * as React from "react";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { CashRegister, FileText, Funnel, GearSix, Receipt, Stack, Storefront, Tag } from "@/lib/icons";
+import type { NavItem } from "@/lib/navigation";
 import type { RailArea } from "@/lib/rail/areas";
-import type { RailModel } from "@/lib/rail/model";
+import { getRailModel, type RailModel } from "@/lib/rail/model";
+import type { WorkspaceNavSection } from "@/lib/workspaces";
 
 import { WorkspaceRail } from "./workspace-rail";
+
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    onClick,
+    children,
+    ...rest
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a
+      {...rest}
+      href={href}
+      onClick={(event) => {
+        // Following a link is the page's business; the rail only has to react.
+        event.preventDefault();
+        onClick?.(event);
+      }}
+    >
+      {children}
+    </a>
+  ),
+}));
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const floor: RailArea = {
   id: "retail-floor",
@@ -138,5 +168,122 @@ describe("WorkspaceRail (00-foundations 5.3.2–5.3.3, 98-decisions 5 October)",
     const html = render({ model: { ...areasModel, areas: [], shape: "flat" }, activeHref: null });
     expect(html).toContain("No modules yet");
     expect(html).toContain("Turn one on");
+  });
+});
+
+const rows = (prefix: string, count: number, group?: string): NavItem[] =>
+  Array.from({ length: count }, (_, index) => ({
+    href: `/${prefix}/${index}`,
+    label: `${prefix} ${index}`,
+    icon: Funnel,
+    ...(group ? { group } : {}),
+  }));
+
+/**
+ * A CRM beside six other modules: fourteen areas flattened, so each module is
+ * read whole — the CRM's Home as a row of its own, its seven groups as folders.
+ */
+const groups = Array.from({ length: 7 }, (_, index) => ({ id: `g${index}`, label: `Group ${index}` }));
+const SECTIONS: WorkspaceNavSection[] = [
+  {
+    id: "crm",
+    title: "CRM",
+    flattenGroups: true,
+    groups,
+    items: [
+      { href: "/crm", label: "Home", icon: Funnel },
+      ...groups.flatMap((group) => rows(group.id, 4, group.id)),
+    ],
+  },
+  ...Array.from({ length: 5 }, (_, index) => ({
+    id: `module-${index}`,
+    title: `Module ${index}`,
+    items: rows(`module-${index}`, 3),
+  })),
+  { id: "reports", title: "Reports", items: [{ href: "/reports", label: "Reports", icon: Funnel }] },
+];
+
+let root: Root | null = null;
+let container: HTMLDivElement | null = null;
+
+function mount(activeHref: string | null) {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+  act(() => {
+    root!.render(
+      <WorkspaceRail
+        model={getRailModel(SECTIONS)}
+        workspaceLabel="Sales & CRM"
+        activeHref={activeHref}
+        badges={{}}
+        tile={<button type="button">HC</button>}
+        management={management}
+        panelShown
+        onOpenPanel={() => {}}
+        onCollapse={() => {}}
+      />,
+    );
+  });
+}
+
+// The panel's nav, not the rail's column of marks.
+const panel = () => container!.querySelector<HTMLElement>('nav:not([aria-label="Modules"])')!;
+const title = () => panel().getAttribute("aria-label");
+const rowLabels = () => Array.from(panel().querySelectorAll("li a")).map((link) => link.textContent);
+const back = () => container!.querySelector<HTMLButtonElement>('button[aria-label^="Back to"]');
+const click = (element: Element | null) => act(() => (element as HTMLElement).click());
+const rowNamed = (label: string) =>
+  Array.from(panel().querySelectorAll("li a")).find((link) => link.textContent === label)!;
+
+describe("WorkspaceRail, a module read whole", () => {
+  afterEach(() => {
+    act(() => root?.unmount());
+    container?.remove();
+    root = null;
+    container = null;
+  });
+
+  it("opens at the folder of the page you are on, and goes back up one level at a time", () => {
+    mount("/g2/1");
+    expect(title()).toBe("Group 2");
+    expect(rowLabels()).toEqual(["g2 0", "g2 1", "g2 2", "g2 3"]);
+
+    expect(back()!.getAttribute("aria-label")).toBe("Back to CRM");
+    click(back());
+    expect(title()).toBe("CRM");
+    expect(rowLabels()).toEqual(["Home", ...groups.map((group) => group.label)]);
+    expect(rowNamed("Group 2").getAttribute("aria-current")).toBe("page");
+
+    expect(back()!.getAttribute("aria-label")).toBe("Back to Sales & CRM");
+    click(back());
+    expect(title()).toBe("Sales & CRM");
+    expect(back()).toBeNull();
+    // The module list: a module of one is a module like the rest.
+    expect(rowLabels()).toEqual(["CRM", "Module 0", "Module 1", "Module 2", "Module 3", "Module 4", "Reports"]);
+  });
+
+  it("goes down a level from a row, even into the page already open", () => {
+    mount("/g2/0");
+    click(back());
+    click(back());
+    click(rowNamed("CRM"));
+    expect(title()).toBe("CRM");
+    click(rowNamed("Group 2"));
+    expect(title()).toBe("Group 2");
+  });
+
+  it("opens the module, not a folder, on a page outside its folders", () => {
+    mount("/crm");
+    expect(title()).toBe("CRM");
+    expect(rowNamed("Home").getAttribute("aria-current")).toBe("page");
+    expect(back()!.getAttribute("aria-label")).toBe("Back to Sales & CRM");
+  });
+
+  it("keeps a module of one as a module: its own panel, its page current", () => {
+    mount("/reports");
+    expect(title()).toBe("Reports");
+    expect(rowNamed("Reports").getAttribute("aria-current")).toBe("page");
+    expect(container!.querySelector('nav[aria-label="Modules"] a[aria-label="Reports"]')).not.toBeNull();
   });
 });

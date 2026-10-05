@@ -340,16 +340,15 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     homeHref: "/crm",
     /**
      * Two sections feed this module: the CRM proper and retail's customer
-     * ledger. They used to share the id "crm" and rely on gating to leave
-     * exactly one standing — the ledger surfaced only when `crm.core` was off
-     * and the CRM section had already been filtered away. That worked and read
-     * as a bug, so the ids are distinct now and the module names both.
+     * ledger. The ledger is the stand-in for a tenant with `crm.customers` and
+     * no CRM: where the CRM proper is on, its People and Companies are the
+     * customers, and the ledger beside them was a second answer to "who do we
+     * deal with" sitting in an area of its own next to Home.
      */
     getItems(context) {
-      return [
-        ...(context.navSectionById.get("crm")?.items ?? []),
-        ...(context.navSectionById.get("retail-customers")?.items ?? []),
-      ];
+      const crm = context.navSectionById.get("crm")?.items ?? [];
+      if (crm.length > 0) return crm;
+      return context.navSectionById.get("retail-customers")?.items ?? [];
     },
     getGroups(context) {
       return context.navSectionById.get("crm")?.groups;
