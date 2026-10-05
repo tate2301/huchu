@@ -124,3 +124,6 @@ These override 00-foundations §5.3 and every spec that disagrees.
    - notifications.
 
    A unit may restyle a sidebar function to the canvas. It may only add to the sidebar.
+6. **Two owner calls on the shell:**
+   - **The logo-tile account popover stays as it is.** The owner likes it. It holds identity, Search, Notifications, This device, Profile, Appearance, Guided tips, Help, the workspace switch and Sign out.
+   - **The top app bar comes back** with everything it had: sidebar trigger, page title, search ⌘K, device status, notifications bell and the primary action. The page header's back link, title and subtitle sit inside that bar.
