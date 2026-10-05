@@ -1,14 +1,16 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
+/**
+ * The shop's default till, kept as JSON until the device context replaces it
+ * (SET-04). The default site is `RetailShopProfile.defaultSiteId` (SET-01).
+ */
 export type RetailSetupProfile = {
-  defaultSiteId: string | null;
   defaultRegisterId: string | null;
   defaultRegisterName: string | null;
   defaultRegisterCode: string | null;
 };
 
 export const DEFAULT_RETAIL_SETUP_PROFILE: RetailSetupProfile = {
-  defaultSiteId: null,
   defaultRegisterId: null,
   defaultRegisterName: null,
   defaultRegisterCode: null,
@@ -30,7 +32,6 @@ function parseProfile(metadataJson: string | null | undefined): RetailSetupProfi
   try {
     const parsed = JSON.parse(metadataJson) as Partial<RetailSetupProfile>;
     return {
-      defaultSiteId: typeof parsed.defaultSiteId === "string" && parsed.defaultSiteId.trim() ? parsed.defaultSiteId : null,
       defaultRegisterId:
         typeof parsed.defaultRegisterId === "string" && parsed.defaultRegisterId.trim()
           ? parsed.defaultRegisterId

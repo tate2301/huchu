@@ -206,7 +206,8 @@ describe("a shop that has just been opened", () => {
 
   it("points the till portal at the branch and register it just made", async () => {
     const profile = await getRetailSetupProfile(companyId);
-    expect(profile.defaultSiteId).toBe(result.site.id);
+    const shop = await prisma.retailShopProfile.findUniqueOrThrow({ where: { companyId } });
+    expect(shop.defaultSiteId).toBe(result.site.id);
     expect(profile.defaultRegisterId).toBe(result.register.id);
     expect(profile.defaultRegisterCode).toBe(result.register.code);
   });
@@ -356,7 +357,6 @@ describe("running it twice", () => {
       },
     });
     await saveRetailSetupProfile(companyId, {
-      defaultSiteId: first.site.id,
       defaultRegisterId: second.id,
       defaultRegisterName: second.name,
       defaultRegisterCode: second.code,

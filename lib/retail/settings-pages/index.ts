@@ -22,7 +22,7 @@ export function settingsFields(page: SettingsPage) {
 
 /** "Cases and singles", for an audit line or a message. */
 export function settingsFieldLabel(page: SettingsPage, id: string): string {
-  return settingsFields(page).find((field) => field.id === id)?.l ?? id;
+  return settingsFields(page).find((field) => field.id === id)?.l ?? page.labels?.[id] ?? id;
 }
 
 /** Whether the page changes this field (anything else it draws is `read`). */

@@ -60,7 +60,7 @@ export type FieldSpec = {
   right?: boolean;
   tone?: "ok" | "warn";
   warn?: boolean;
-  /** `seg` labels, or `cards` as [label, description?, badge?]. */
+  /** `seg` labels, `text` choices (a select drawn as text), or `cards` as [label, description?, badge?]. */
   o?: string[] | Array<[label: string, sub?: string, badge?: string]>;
   cols?: number;
   rows?: number;
@@ -82,6 +82,8 @@ export type FieldSpec = {
   fixed?: (ctx: SheetCtx) => { value: unknown; shown: string } | null;
   /** Checked on a non-empty value before sending: the endpoint's own rule. */
   schema?: ZodType;
+  /** Drawn but not changeable while this holds (hours while licence hours are off). */
+  disabled?: (values: SheetValues) => boolean;
 };
 
 export type SheetSection = {

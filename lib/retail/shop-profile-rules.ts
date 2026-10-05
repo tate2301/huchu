@@ -49,6 +49,12 @@ export type ShopProfile = ShopSwitches &
     licenceNumber: string | null;
     /** `YYYY-MM-DD`, the day the licence runs out. */
     licenceExpiresOn: string | null;
+    /** The shop's WhatsApp number, shown to customers. */
+    whatsapp: string | null;
+    /** Registered for VAT: no means categories seed at 0% and receipts carry no VAT line. */
+    vatRegistered: boolean;
+    /** Where new products, orders and stock go unless another site is chosen. */
+    defaultSiteId: string | null;
     /** False until somebody has saved the profile once. */
     saved: boolean;
     updatedAt: string | null;
@@ -68,6 +74,9 @@ export const DEFAULT_SHOP_PROFILE: ShopProfile = {
   sundayClosesAt: "18:00",
   licenceNumber: null,
   licenceExpiresOn: null,
+  whatsapp: null,
+  vatRegistered: true,
+  defaultSiteId: null,
   saved: false,
   updatedAt: null,
 };

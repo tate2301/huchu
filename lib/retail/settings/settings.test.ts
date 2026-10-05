@@ -4,17 +4,63 @@ import { prisma } from "@/lib/prisma";
 import { companyPage } from "@/lib/retail/settings-pages/company";
 import { checkSettingsChanges, isSettingsFieldEditable } from "@/lib/retail/settings-pages";
 
-import { companyProfilePatch, currencyLabel } from "./company";
+import { isPhoneNumber, YEAR_STARTS } from "@/lib/retail/settings-pages/company";
+
+import { companyProfilePatch, currencyCode, currencyLabel, yearStartMonth } from "./company";
 import { readSettings, readSettingsActivity, saveSettings } from "./index";
+import { SettingsRefused } from "./types";
 
 describe("the Shop page's rules", () => {
-  it("changes the shop profile and only shows the business and money", () => {
-    for (const id of ["businessType", "ageCheck", "weekdayHours", "casesAndSingles", "licenceExpiresOn"]) {
+  it("changes the shop profile and the money, and only shows the business", () => {
+    for (const id of [
+      "businessType",
+      "ageCheck",
+      "weekdayHours",
+      "casesAndSingles",
+      "licenceExpiresOn",
+      "currency",
+      "financialYearStarts",
+      "whatsapp",
+      "vatRegistered",
+      "defaultSiteId",
+    ]) {
       expect(isSettingsFieldEditable(companyPage, id)).toBe(true);
     }
-    for (const id of ["tradingName", "vatNumber", "logoUrl", "currency", "financialYearStarts"]) {
+    for (const id of ["tradingName", "vatNumber", "logoUrl"]) {
       expect(isSettingsFieldEditable(companyPage, id)).toBe(false);
     }
+  });
+
+  it("offers the twelve months the year can start in, and the two currencies", () => {
+    expect(YEAR_STARTS).toHaveLength(12);
+    expect([YEAR_STARTS[0], YEAR_STARTS[11]]).toEqual(["1 January", "1 December"]);
+    expect(yearStartMonth("1 March")).toBe(3);
+    expect(currencyCode("ZiG")).toBe("ZWG");
+    expect(currencyCode("US$")).toBe("USD");
+    expect(checkSettingsChanges(companyPage, { financialYearStarts: "15 March", currency: "GBP" })).toEqual({
+      ok: false,
+      fieldErrors: { financialYearStarts: "Choose the month it starts.", currency: "Choose US$ or ZiG." },
+    });
+  });
+
+  it("checks the WhatsApp number with its country code, spaces allowed", () => {
+    expect(isPhoneNumber("+263 77 412 0098")).toBe(true);
+    expect(isPhoneNumber("0774120098")).toBe(false);
+    expect(checkSettingsChanges(companyPage, { whatsapp: "077 412" })).toEqual({
+      ok: false,
+      fieldErrors: { whatsapp: "Write the number with its country code, +263 77 412 0098." },
+    });
+    expect(checkSettingsChanges(companyPage, { whatsapp: "" })).toEqual({ ok: true, values: { whatsapp: "" } });
+  });
+
+  it("holds the hours while licence hours are off, and the currency once prices are locked", () => {
+    const field = (id: string) => companyPage.sections.flatMap((section) => section.fields).find((f) => f.id === id)!;
+    expect(field("weekdayHours").disabled?.({ licenceHours: false })).toBe(true);
+    expect(field("sundayHours").disabled?.({ licenceHours: true })).toBe(false);
+    expect(field("currency").disabled?.({ pricesLocked: true })).toBe(true);
+    const hint = field("currency").h as (values: Record<string, unknown>) => string;
+    expect(hint({ pricesLocked: true, currency: "US$" })).toBe("Prices stay in US$ because sales are recorded in it.");
+    expect(hint({ pricesLocked: false, currency: "US$" })).toBe("");
   });
 
   it("refuses hours that are not two times joined by 'to', with the board's sentence", () => {
@@ -80,7 +126,11 @@ describe("saving the Shop page", () => {
   afterAll(async () => {
     if (!companyId) return;
     await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
+    await prisma.retailSale.deleteMany({ where: { companyId } });
     await prisma.retailShopProfile.deleteMany({ where: { companyId } });
+    await prisma.site.deleteMany({ where: { companyId } });
+    await prisma.priceList.deleteMany({ where: { companyId } });
+    await prisma.accountingSettings.deleteMany({ where: { companyId } });
     await prisma.retailCategory.deleteMany({ where: { companyId } });
     await prisma.companyBranding.deleteMany({ where: { companyId } });
     await prisma.user.deleteMany({ where: { companyId } });
@@ -166,5 +216,65 @@ describe("saving the Shop page", () => {
       "Turned cases and singles off",
     ]);
     expect(page?.rows[0]?.actor.name).toBe("Tendai Mhlanga");
+  });
+
+  it("moves prices to ZiG and the year to March while nothing is sold", async () => {
+    const list = await prisma.priceList.create({
+      data: { companyId, name: "Retail", isDefault: true, currency: "USD" },
+      select: { id: true },
+    });
+    const saved = await saveSettings(actor(), "company", { currency: "ZiG", financialYearStarts: "1 March" });
+    expect(saved).toMatchObject({ ok: true, values: { currency: "ZiG", financialYearStarts: "1 March", pricesLocked: false } });
+    expect(
+      await prisma.accountingSettings.findUniqueOrThrow({
+        where: { companyId },
+        select: { baseCurrency: true, fiscalYearStartMonth: true },
+      }),
+    ).toEqual({ baseCurrency: "ZWG", fiscalYearStartMonth: 3 });
+    expect((await prisma.priceList.findUniqueOrThrow({ where: { id: list.id } })).currency).toBe("ZWG");
+    // Money alone is not a shop-profile change.
+    expect(await prisma.platformAuditEvent.count({ where: { companyId, eventType: "RETAIL_SHOP.PROFILE_CHANGED" } })).toBe(2);
+  });
+
+  it("keeps a site of another tenant out of the default site", async () => {
+    await expect(
+      saveSettings(actor(), "company", { defaultSiteId: "00000000-0000-4000-8000-000000000000" }),
+    ).rejects.toMatchObject({ message: "Choose one of your sites.", refusal: { status: 400, field: "defaultSiteId" } });
+    const site = await prisma.site.create({ data: { companyId, name: "Harare Main Branch", code: "HRE" }, select: { id: true } });
+    const saved = await saveSettings(actor(), "company", {
+      defaultSiteId: site.id,
+      whatsapp: "+263 77 412 0098",
+      vatRegistered: false,
+    });
+    expect(saved).toMatchObject({
+      ok: true,
+      values: { defaultSiteId: site.id, whatsapp: "+263 77 412 0098", vatRegistered: false },
+    });
+    const event = await prisma.platformAuditEvent.findFirstOrThrow({
+      where: { companyId, eventType: "RETAIL_SETTINGS.CHANGED" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(JSON.parse(event.payloadJson ?? "{}").changes.map((change: { label: string }) => change.label).sort()).toEqual([
+      "Default site",
+      "Registered for VAT",
+      "WhatsApp",
+    ]);
+  });
+
+  it("refuses to change the currency once a sale is recorded in it, and keeps the year", async () => {
+    const site = await prisma.site.findFirstOrThrow({ where: { companyId }, select: { id: true } });
+    await prisma.retailSale.create({ data: { companyId, saleNo: "SALE-00001", siteId: site.id, cashierId: userId } });
+    expect((await readSettings(companyId, "company", true))?.values.pricesLocked).toBe(true);
+    const refused = saveSettings(actor(), "company", { currency: "US$", financialYearStarts: "1 July" });
+    await expect(refused).rejects.toBeInstanceOf(SettingsRefused);
+    await expect(refused).rejects.toMatchObject({
+      message: "Prices stay in ZiG because sales are recorded in it.",
+      refusal: { status: 409, code: "PRICES_LOCKED" },
+    });
+    expect(
+      await prisma.accountingSettings.findUniqueOrThrow({ where: { companyId }, select: { baseCurrency: true, fiscalYearStartMonth: true } }),
+    ).toEqual({ baseCurrency: "ZWG", fiscalYearStartMonth: 3 });
+    // The year alone still saves.
+    expect(await saveSettings(actor(), "company", { financialYearStarts: "1 July" })).toMatchObject({ ok: true });
   });
 });

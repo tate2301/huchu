@@ -67,6 +67,7 @@ import { prisma } from "@/lib/prisma";
 import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { getRetailPosPolicy } from "@/lib/retail/pos-policy";
 import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
+import { loadShopProfile } from "@/lib/retail/shop-profile";
 import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
 import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
 import { summariseShelfTax, summariseTillCapabilities } from "@/lib/retail/till-settings";
@@ -92,8 +93,9 @@ export async function GET(request: NextRequest) {
   try {
     const companyId = session.user.companyId;
 
-    const [profile, posPolicy, tenderPolicy, baseCurrency, branding, shift] = await Promise.all([
+    const [profile, shop, posPolicy, tenderPolicy, baseCurrency, branding, shift] = await Promise.all([
       getRetailSetupProfile(companyId),
+      loadShopProfile(companyId),
       getRetailPosPolicy(companyId),
       getRetailTenderPolicy(companyId),
       resolveBaseCurrency(companyId),
@@ -120,7 +122,7 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    const siteId = shift?.siteId ?? profile.defaultSiteId;
+    const siteId = shift?.siteId ?? shop.defaultSiteId;
     const site = siteId
       ? await prisma.site.findFirst({
           where: { id: siteId, companyId },

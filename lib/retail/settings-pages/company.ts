@@ -12,8 +12,13 @@ import type { SettingsPage } from "./types";
  * direction, 5 October" items 2–4).
  *
  * The business's names, numbers and logo are Management's (Branding): they
- * show here as `read`, with a link to where they change. Money is read-only
- * until SET-01 decides what changing it does.
+ * show here as `read`, with a link to where they change. Money changes here
+ * (98-decisions, Foundations 11): the currency prices are in, until the first
+ * sale is recorded in it, and the month the financial year starts.
+ *
+ * The page also carries three values onboarding and Sites set and nothing on
+ * this board draws (SET-01): the shop's WhatsApp number, whether it is
+ * registered for VAT, and its default site.
  */
 
 export const GENERAL_RETAIL = BUSINESS_TYPE_LABELS.GENERAL;
@@ -22,6 +27,27 @@ export const LIQUOR_STORE = BUSINESS_TYPE_LABELS.LIQUOR;
 const hours = z
   .string()
   .refine((value) => parseHoursWindow(value) !== null, "Write it as 08:00 to 22:00.");
+
+/** "1 January" … "1 December": when the financial year starts. */
+export const YEAR_STARTS = Array.from(
+  { length: 12 },
+  (_, index) =>
+    `1 ${new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(Date.UTC(2000, index, 1))}`,
+);
+
+export const PRICE_CURRENCIES = ["US$", "ZiG"] as const;
+
+/** The Money field's sentence once a sale is recorded in the shop's currency. */
+export function pricesLockedHint(currency: unknown): string {
+  return `Prices stay in ${currency === "ZiG" ? "ZiG" : "US$"} because sales are recorded in it.`;
+}
+
+/** A phone number as typed ("+263 77 412 0098"), checked as E.164 once spaces and dashes go. */
+export function isPhoneNumber(value: string): boolean {
+  return /^\+[1-9][0-9]{7,14}$/.test(value.replace(/[\s()-]/g, ""));
+}
+
+const licenceHoursOff = (values: Record<string, unknown>) => values.licenceHours !== true;
 
 export const companyPage: SettingsPage = {
   title: "Shop",
@@ -63,8 +89,24 @@ export const companyPage: SettingsPage = {
           l: "Licence trading hours",
           h: "The till stops selling alcohol outside your licence hours. Soft drinks and snacks still sell.",
         },
-        { id: "weekdayHours", t: "text", l: "Mondays to Saturdays", half: true, mono: true, p: "08:00 to 22:00" },
-        { id: "sundayHours", t: "text", l: "Sundays and public holidays", half: true, mono: true, p: "10:00 to 18:00" },
+        {
+          id: "weekdayHours",
+          t: "text",
+          l: "Mondays to Saturdays",
+          half: true,
+          mono: true,
+          p: "08:00 to 22:00",
+          disabled: licenceHoursOff,
+        },
+        {
+          id: "sundayHours",
+          t: "text",
+          l: "Sundays and public holidays",
+          half: true,
+          mono: true,
+          p: "10:00 to 18:00",
+          disabled: licenceHoursOff,
+        },
         {
           id: "emptiesAndDeposits",
           t: "toggle",
@@ -102,8 +144,16 @@ export const companyPage: SettingsPage = {
     {
       title: "Money",
       fields: [
-        { id: "currency", t: "seg", l: "Prices in", half: true, o: ["US$", "ZiG"] },
-        { id: "financialYearStarts", t: "text", l: "Financial year starts", half: true },
+        {
+          id: "currency",
+          t: "seg",
+          l: "Prices in",
+          half: true,
+          o: [...PRICE_CURRENCIES],
+          disabled: (values) => values.pricesLocked === true,
+          h: (values) => (values.pricesLocked === true ? pricesLockedHint(values.currency) : ""),
+        },
+        { id: "financialYearStarts", t: "text", l: "Financial year starts", half: true, o: YEAR_STARTS },
       ],
     },
   ],
@@ -135,5 +185,14 @@ export const companyPage: SettingsPage = {
     licenceExpiresOn: z
       .string()
       .refine((value) => value.trim() === "" || parseDay(value) !== null, "Write a date such as 31 December 2026."),
+    currency: z.enum(PRICE_CURRENCIES, { message: "Choose US$ or ZiG." }),
+    financialYearStarts: z.enum(YEAR_STARTS as [string, ...string[]], { message: "Choose the month it starts." }),
+    whatsapp: z
+      .string()
+      .trim()
+      .refine((value) => value === "" || isPhoneNumber(value), "Write the number with its country code, +263 77 412 0098."),
+    vatRegistered: z.boolean({ message: "Say yes or no." }),
+    defaultSiteId: z.string().uuid("Choose one of your sites.").nullable(),
   }),
+  labels: { whatsapp: "WhatsApp", vatRegistered: "Registered for VAT", defaultSiteId: "Default site" },
 };

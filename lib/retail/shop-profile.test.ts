@@ -131,6 +131,9 @@ describe("saving the profile", () => {
     sundayClosesAt: "18:00",
     licenceNumber: "HRE/BL/2024/0711",
     licenceExpiresOn: "2026-12-31",
+    whatsapp: "+263 77 412 0098",
+    vatRegistered: true,
+    defaultSiteId: null,
   };
 
   beforeAll(async () => {

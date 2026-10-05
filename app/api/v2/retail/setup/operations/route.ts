@@ -8,10 +8,8 @@ import {
   ensureSiteAccess,
   upsertRetailRegister,
 } from "../../_helpers";
-import {
-  getRetailSetupProfile,
-  saveRetailSetupProfile,
-} from "@/lib/retail/setup-profile";
+import { prisma } from "@/lib/prisma";
+import { saveRetailSetupProfile } from "@/lib/retail/setup-profile";
 import { getRetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
 
 const operationSchema = z
@@ -46,10 +44,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const snapshot = await getRetailSetupSnapshot(session.user.companyId);
-    return successResponse({
-      profile: await getRetailSetupProfile(session.user.companyId),
-      ...snapshot,
-    });
+    return successResponse({ profile: snapshot.setupProfile, ...snapshot });
   } catch (error) {
     console.error("[API] GET /api/v2/retail/setup/operations error:", error);
     return errorResponse("The tills would not load");
@@ -98,20 +93,26 @@ export async function PUT(request: NextRequest) {
     }
 
     if (validated.makeDefault === false) {
-      return successResponse({ ok: true, profile: await getRetailSetupProfile(session.user.companyId), register });
+      const { setupProfile } = await getRetailSetupSnapshot(session.user.companyId);
+      return successResponse({ ok: true, profile: setupProfile, register });
     }
 
-    const profile = {
-      defaultSiteId: site.id,
+    const till = {
       defaultRegisterId: register.id,
       defaultRegisterName: register.name,
       defaultRegisterCode: register.code,
     };
-    await saveRetailSetupProfile(session.user.companyId, profile);
+    await saveRetailSetupProfile(session.user.companyId, till);
+    // The default till's site is the shop's default site.
+    await prisma.retailShopProfile.upsert({
+      where: { companyId: session.user.companyId },
+      create: { companyId: session.user.companyId, defaultSiteId: site.id },
+      update: { defaultSiteId: site.id },
+    });
 
     return successResponse({
       ok: true,
-      profile,
+      profile: { ...till, defaultSiteId: site.id },
       register,
     });
   } catch (error) {

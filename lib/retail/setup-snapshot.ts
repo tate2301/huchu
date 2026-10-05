@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { getRetailPosPolicy, RETAIL_POS_POLICY_PROVIDER_KEY } from "@/lib/retail/pos-policy";
 import { getRetailSetupProfile, RETAIL_SETUP_PROFILE_PROVIDER_KEY } from "@/lib/retail/setup-profile";
+import { loadShopProfile } from "@/lib/retail/shop-profile";
 
 export const RETAIL_REQUIRED_POSTING_RULES = [
   "RETAIL_SHIFT_OPEN",
@@ -39,7 +40,11 @@ export async function getRetailSetupSnapshot(companyId: string) {
       where: { id: companyId },
       select: { id: true, name: true, slug: true },
     }),
-    getRetailSetupProfile(companyId),
+    // The default till from the JSON profile, the default site from the shop profile.
+    Promise.all([getRetailSetupProfile(companyId), loadShopProfile(companyId)]).then(([till, shop]) => ({
+      ...till,
+      defaultSiteId: shop.defaultSiteId,
+    })),
     getRetailPosPolicy(companyId),
     prisma.companyBranding.findUnique({
       where: { companyId },

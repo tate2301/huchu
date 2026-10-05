@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
+import { loadShopProfile } from "@/lib/retail/shop-profile";
 
 /**
  * Adding a till: a `RetailRegister` with the next `TILL-<n>` code, at the
@@ -37,7 +37,7 @@ export function nextTillCode(codes: readonly string[]): string {
 }
 
 async function defaultSiteId(companyId: string): Promise<string | null> {
-  const profile = await getRetailSetupProfile(companyId);
+  const profile = await loadShopProfile(companyId);
   if (profile.defaultSiteId) {
     const site = await prisma.site.findFirst({
       where: { id: profile.defaultSiteId, companyId, isActive: true },

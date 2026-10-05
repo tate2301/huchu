@@ -13,6 +13,7 @@ import { OptionCardGroup } from "@/components/workspace/option-card";
 import { Segmented } from "@/components/workspace/segmented";
 import { SwitchRow } from "@/components/workspace/switch";
 import { fetchJson } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import type { FieldSpec, PickedOption, SheetCtx, SheetCurrency, SheetLine, SheetValues } from "@/lib/workspace/sheet-kind";
 
 import { LinesField } from "./lines-field";
@@ -64,11 +65,19 @@ export function SheetField({ field, controlId, ctx, values, currency, error, onC
   const fixed = field.fixed?.(ctx) ?? null;
   const t = fixed ? "read" : field.t;
   const nolabel = field.nolabel || t === "toggle" || t === "lines";
+  const disabled = field.disabled?.(values) ?? false;
 
   if (t === "toggle") {
     return (
       <div className="cx-field" data-field={field.id}>
-        <SwitchRow id={controlId} checked={value === true} onCheckedChange={onChange} label={field.l} hint={hint} />
+        <SwitchRow
+          id={controlId}
+          checked={value === true}
+          onCheckedChange={onChange}
+          label={field.l}
+          hint={hint}
+          disabled={disabled}
+        />
         {error ? <span className="cx-error">{error}</span> : null}
       </div>
     );
@@ -133,6 +142,7 @@ export function SheetField({ field, controlId, ctx, values, currency, error, onC
                 id={control.id}
                 aria-label={field.l}
                 block
+                disabled={disabled}
                 items={segItems(field)}
                 value={typeof value === "string" ? value : ""}
                 onValueChange={onChange}
@@ -184,8 +194,26 @@ export function SheetField({ field, controlId, ctx, values, currency, error, onC
               />
             );
           default:
+            if (field.o) {
+              return (
+                <select
+                  {...control}
+                  className={cn("cx-input cx-input--select", field.mono && "cx-input--mono")}
+                  disabled={disabled}
+                  value={typeof value === "string" ? value : ""}
+                  onChange={(event) => onChange(event.target.value)}
+                >
+                  {segItems(field).map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              );
+            }
             return (
               <TextInput
+                disabled={disabled}
                 {...control}
                 mono={field.mono}
                 right={field.right}

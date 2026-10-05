@@ -29,6 +29,9 @@ function toProfile(row: ProfileRow | null): ShopProfile {
     sundayClosesAt: row.sundayClosesAt,
     licenceNumber: row.licenceNumber,
     licenceExpiresOn: row.licenceExpiresOn ? row.licenceExpiresOn.toISOString().slice(0, 10) : null,
+    whatsapp: row.whatsapp,
+    vatRegistered: row.vatRegistered,
+    defaultSiteId: row.defaultSiteId,
     saved: true,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -67,10 +70,13 @@ export async function saveShopProfile(
     "weekdayClosesAt",
     "sundayOpensAt",
     "sundayClosesAt",
+    "vatRegistered",
+    "defaultSiteId",
   ] as const) {
     if (patch[key] !== undefined) (data as Record<string, unknown>)[key] = patch[key];
   }
   if (patch.licenceNumber !== undefined) data.licenceNumber = patch.licenceNumber?.trim() || null;
+  if (patch.whatsapp !== undefined) data.whatsapp = patch.whatsapp?.trim() || null;
   if (patch.licenceExpiresOn !== undefined) {
     data.licenceExpiresOn = patch.licenceExpiresOn ? new Date(`${patch.licenceExpiresOn}T00:00:00.000Z`) : null;
   }

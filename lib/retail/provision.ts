@@ -205,14 +205,24 @@ export async function provisionRetail(
     default register must not have that choice reverted by somebody re-running
     provisioning to fix something else.
   */
-  const profile = await getRetailSetupProfile(companyId);
-  const setupProfileWritten = !profile.defaultSiteId || !profile.defaultRegisterId;
-  if (setupProfileWritten) {
+  const [profile, shop] = await Promise.all([
+    getRetailSetupProfile(companyId),
+    prisma.retailShopProfile.findUnique({ where: { companyId }, select: { defaultSiteId: true } }),
+  ]);
+  const setupProfileWritten = !shop?.defaultSiteId || !profile.defaultRegisterId;
+  if (!shop?.defaultSiteId) {
+    // The shop's default site (SET-01): new products, orders and stock go here.
+    await prisma.retailShopProfile.upsert({
+      where: { companyId },
+      create: { companyId, defaultSiteId: site.id },
+      update: { defaultSiteId: site.id },
+    });
+  }
+  if (!profile.defaultRegisterId) {
     await saveRetailSetupProfile(companyId, {
-      defaultSiteId: profile.defaultSiteId ?? site.id,
-      defaultRegisterId: profile.defaultRegisterId ?? register.id,
-      defaultRegisterName: profile.defaultRegisterName ?? register.name,
-      defaultRegisterCode: profile.defaultRegisterCode ?? register.code,
+      defaultRegisterId: register.id,
+      defaultRegisterName: register.name,
+      defaultRegisterCode: register.code,
     });
   }
 

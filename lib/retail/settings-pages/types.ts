@@ -35,6 +35,8 @@ export type SettingsPage = {
    * makes editable).
    */
   schema: z.ZodObject<Record<string, z.ZodType>>;
+  /** Names for the fields it changes and does not draw, for Activity's lines. */
+  labels?: Record<string, string>;
 };
 
 /** `GET /api/v2/retail/settings/[page]`. */

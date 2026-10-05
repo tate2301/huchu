@@ -115,3 +115,7 @@
 .sf-lines__totals { height: 40px; background: var(--ground); border-radius: 0 0 10px 10px; font-family: var(--font-mono); font-weight: 600; }
 .sf-lines__count { padding: 0 12px; font-family: var(--font-sans); font-weight: 500; color: var(--ink-3); }
 .sf-lines__count .cx-mono { color: var(--ink); }
+
+/* A `text` field with choices: a select that reads as the text box it replaces. */
+.cx-input--select { appearance: none; cursor: pointer; }
+.cx-input:disabled { background: var(--ground); color: var(--ink-3); cursor: default; }

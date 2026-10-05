@@ -1114,6 +1114,7 @@ model Site {
   goldLedgerImports     GoldLedgerImport[]
   goldPeriodCloses      GoldPeriodClose[]
   retailRegisters       RetailRegister[]
+  retailDefaultFor      RetailShopProfile[]    @relation("RetailDefaultSite")
   retailPurchaseOrders  RetailPurchaseOrder[]
   crmRequisitions       CrmRequisition[]
   retailGoodsReceipts   RetailGoodsReceipt[]
@@ -4486,12 +4487,19 @@ model RetailShopProfile {
   casesAndSingles    Boolean            @default(true)
   licenceNumber      String?
   licenceExpiresOn   DateTime?          @db.Date
+  /// The shop's WhatsApp number, from onboarding. Shown to customers; nothing is sent from it.
+  whatsapp           String?
+  /// "Registered for VAT". No: the type's categories seed at 0%, receipts omit the VAT line, posting skips VAT.
+  vatRegistered      Boolean            @default(true)
+  /// "Default site": new products, orders and stock go here unless another is chosen.
+  defaultSiteId      String?
   updatedById        String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  updatedBy User?   @relation("RetailShopProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  defaultSite Site?   @relation("RetailDefaultSite", fields: [defaultSiteId], references: [id], onDelete: SetNull)
+  updatedBy   User?   @relation("RetailShopProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
 /// A shop's product category: Beer, Spirits, Soft drinks. The shop's own list,

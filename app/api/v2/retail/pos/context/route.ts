@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
 
   return successResponse({
     data: {
-      defaultSiteId: setupProfile.defaultSiteId,
+      defaultSiteId: shop.defaultSiteId,
       defaultRegisterId: setupProfile.defaultRegisterId,
       sites: sites.map((site) => ({
         ...site,

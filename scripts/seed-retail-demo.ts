@@ -345,6 +345,10 @@ async function main() {
     update: businessDetails,
     create: { companyId, ...businessDetails },
   })
+  // SET-01: Setup › Shop's Money — prices in US$, the year from January; the
+  // fiscal signer reads the VAT number from here.
+  const shopMoney = { vatNumber: "10023881", taxNumber: "2000118844", baseCurrency: "USD", fiscalYearStartMonth: 1 }
+  await prisma.accountingSettings.upsert({ where: { companyId }, update: shopMoney, create: { companyId, ...shopMoney } })
 
   console.log(`Seeding ${days} days of trade into ${company.name} (${slug})`)
 
@@ -410,7 +414,6 @@ async function main() {
    * nothing.
    */
   await saveRetailSetupProfile(companyId, {
-    defaultSiteId: site.id,
     defaultRegisterId: register.id,
     defaultRegisterName: register.name,
     defaultRegisterCode: register.code,
@@ -434,6 +437,10 @@ async function main() {
     sundayClosesAt: "18:00",
     licenceNumber: "HRE/BL/2024/0711",
     licenceExpiresOn: new Date("2026-12-31T00:00:00.000Z"),
+    // SET-01: the shop's WhatsApp, registered for VAT, and Harare Main Branch as the default site.
+    whatsapp: "+263 77 412 0098",
+    vatRegistered: true,
+    defaultSiteId: site.id,
   }
   await prisma.retailShopProfile.upsert({
     where: { companyId },
