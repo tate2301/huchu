@@ -11,7 +11,7 @@ import type {
   ResolvedListQuery,
   Tone,
 } from "@/lib/reports/types";
-import { filterRows } from "@/lib/reports/view";
+import { filterRows, ratioOf } from "@/lib/reports/view";
 import { formatCount, formatMoney, formatPercent, formatSigned, formatSignedCount } from "@/lib/workspace/format";
 
 /**
@@ -165,10 +165,18 @@ export function diffTone(column: Pick<ListColumn, "diff">, value: ReportValue | 
   return column.diff === "gain" ? "ok" : "warn";
 }
 
-/** The ticked rows' totals, worked out in the browser from the rows it holds (5.4.8). */
+/**
+ * The ticked rows' totals, worked out in the browser from the rows it holds
+ * (5.4.8): sums, and a ratio column over the ticked set as the Σ row does it.
+ */
 export function selectionTotals(columns: ListColumn[], rows: ReportRow[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const column of columns) {
+    if (column.ratio && column.total === "avg") {
+      const ratio = ratioOf(rows, column.ratio);
+      if (ratio !== null) out[column.key] = Number(ratio);
+      continue;
+    }
     if (column.total !== "sum") continue;
     out[column.key] = Math.round(rows.reduce((sum, row) => sum + (Number(row[column.key]) || 0), 0) * 100) / 100;
   }

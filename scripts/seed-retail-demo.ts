@@ -451,7 +451,7 @@ async function main() {
   await seedCategories(companyId, reset)
   await seedShopSettingsSave(companyId)
   const categoryIds = new Map(
-    (await prisma.retailCategory.findMany({ where: { companyId }, select: { id: true, name: true } })).map(
+    (await prisma.retailCategory.findMany({ where: { companyId, archivedAt: null }, select: { id: true, name: true } })).map(
       (row) => [row.name, row.id],
     ),
   )
@@ -1324,10 +1324,20 @@ async function seedRecordActivity(input: {
  */
 async function seedCategories(companyId: string, reset: boolean) {
   const seeds = CATEGORY_SEEDS.LIQUOR
+  const kept: string[] = []
   for (const seed of seeds) {
+    // The live one by that name, else the latest in the bin (brought back).
+    const row = await prisma.retailCategory.findFirst({
+      where: { companyId, name: { equals: seed.name, mode: "insensitive" } },
+      orderBy: [{ archivedAt: { sort: "desc", nulls: "first" } }, { createdAt: "desc" }],
+      select: { id: true },
+    })
+    if (!row) throw new Error(`The ${seed.name} category was not seeded.`)
+    kept.push(row.id)
     await prisma.retailCategory.update({
-      where: { companyId_name: { companyId, name: seed.name } },
+      where: { id: row.id },
       data: {
+        name: seed.name,
         vatRate: money(seed.vatRate),
         vatExempt: false,
         ageRestricted: seed.ageRestricted ?? false,
@@ -1341,12 +1351,11 @@ async function seedCategories(companyId: string, reset: boolean) {
     })
   }
   if (!reset) return
-  const names = seeds.map((seed) => seed.name)
   const others = await prisma.retailCategory.findMany({
-    where: { companyId, name: { notIn: names } },
+    where: { companyId, id: { notIn: kept } },
     select: { id: true, _count: { select: { products: true } } },
   })
-  await prisma.retailCategory.updateMany({ where: { companyId, name: { notIn: names } }, data: { parentId: null } })
+  await prisma.retailCategory.updateMany({ where: { companyId, id: { notIn: kept } }, data: { parentId: null } })
   const empty = others.filter((row) => row._count.products === 0).map((row) => row.id)
   const filed = others.filter((row) => row._count.products > 0).map((row) => row.id)
   if (empty.length) await prisma.retailCategory.deleteMany({ where: { id: { in: empty } } })

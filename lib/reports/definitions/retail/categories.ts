@@ -23,6 +23,27 @@ const categories: ListSpec = {
       default: "own",
       primary: true,
     },
+    {
+      key: "vat",
+      label: "VAT",
+      type: "choice",
+      any: "Any",
+      options: [
+        { value: "standard", label: "15% included", where: [{ column: "vat", op: "is", value: ["15% included"] }] },
+        { value: "zero-rated", label: "Zero-rated", where: [{ column: "vat", op: "is", value: ["Zero-rated"] }] },
+        { value: "exempt", label: "Exempt", where: [{ column: "vat", op: "is", value: ["Exempt"] }] },
+      ],
+    },
+    {
+      key: "ageCheck",
+      label: "Age check",
+      type: "choice",
+      any: "Any",
+      options: [
+        { value: "yes", label: "Yes", where: [{ column: "ageCheck", op: "is", value: ["Yes"] }] },
+        { value: "no", label: "No", where: [{ column: "ageCheck", op: "is", value: ["No"] }] },
+      ],
+    },
   ],
   sorts: [
     {

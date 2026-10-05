@@ -138,6 +138,19 @@ describe("cells (5.4.7)", () => {
     ];
     expect(selectionTotals(list.columns, rows)).toEqual({ sales: 217, takings: 1984.05, variance: -15.79 });
   });
+
+  it("totals a ratio column over the ticked rows, as the Σ row does", () => {
+    const categories = getReportDefinition("retail-categories")!.list!;
+    const rows = [
+      row({ products: 6, sold30: 8371.2, profit30: 1866.78, marginNow: 22.3 }),
+      row({ products: 1, sold30: 252, profit30: 64.01, marginNow: 25.4 }),
+    ];
+    expect(selectionTotals(categories.columns, rows)).toEqual({ products: 7, sold30: 8623.2, marginNow: 22.4 });
+    expect(selectionTotals(categories.columns, [row({ products: 2, sold30: 0, profit30: 0 })])).toEqual({
+      products: 2,
+      sold30: 0,
+    });
+  });
 });
 
 describe("the toolbar's words", () => {

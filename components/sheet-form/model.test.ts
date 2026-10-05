@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { FLOOR_SHEETS } from "@/lib/retail/sheet-kinds/floor";
+import { PRODUCT_SHEETS } from "@/lib/retail/sheet-kinds/products";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import type { SheetCtx, SheetKind } from "@/lib/workspace/sheet-kind";
 
@@ -157,5 +158,38 @@ describe("sheets that load what they draw (PRD-02)", () => {
     expect(
       submitFailure(409, { error: "x", fieldErrors: { name: "There is already a category called Mixers." } }, ["name"]),
     ).toEqual({ fieldErrors: { name: "There is already a category called Mixers." }, footer: null });
+  });
+});
+
+describe("the category sheets (PRD-02)", () => {
+  const owner = ctxFor("SUPERADMIN");
+  const loaded = { name: "Wine", vat: "15%", margin: "", ageCheck: true, returnable: false, moveTo: null, _name: "Wine", _children: 0 };
+
+  it("asks for a target margin on a new category only; elsewhere empty means none", () => {
+    const fresh = { ...initialValues(PRODUCT_SHEETS["category-new"]!, owner), name: "Mixers" };
+    expect(checkValues(PRODUCT_SHEETS["category-new"]!, fresh, owner)).toEqual({ margin: "Target margin is needed." });
+    expect(checkValues(PRODUCT_SHEETS["category-edit"]!, { ...loaded, _products: 1, _filed: 1 }, owner)).toEqual({});
+    expect(checkValues(PRODUCT_SHEETS["category-margin"]!, { margin: "" }, owner)).toEqual({});
+    expect(checkValues(PRODUCT_SHEETS["category-edit"]!, { ...loaded, margin: "120%" }, owner)).toEqual({
+      margin: "Write the target margin as a percentage under 100, like 30%.",
+    });
+  });
+
+  it("offers the move whenever something is filed under it, binned products included", () => {
+    const edit = PRODUCT_SHEETS["category-edit"]!;
+    const remove = PRODUCT_SHEETS["category-delete"]!;
+    const binnedOnly = { ...loaded, _products: 0, _filed: 1 };
+    expect(shownSections(edit, binnedOnly, owner).map((section) => section.title ?? "")).toEqual(["", "Deleting"]);
+    expect(shownSections(remove, binnedOnly, owner)).toHaveLength(1);
+    expect(shownSections(edit, { ...loaded, _products: 0, _filed: 0, _children: 1 }, owner)).toHaveLength(2);
+
+    const empty = { ...loaded, _products: 0, _filed: 0 };
+    expect(shownSections(edit, empty, owner)).toHaveLength(1);
+    expect(shownSections(remove, empty, owner)).toHaveLength(0);
+    expect(typeof remove.guide === "function" ? remove.guide(empty) : remove.guide).toBe(
+      "Nothing is filed under Wine, so nothing moves.",
+    );
+    expect(typeof remove.guide === "function" ? remove.guide(binnedOnly) : remove.guide).toBe("");
+    expect(remove.primaryTone).toBe("danger");
   });
 });

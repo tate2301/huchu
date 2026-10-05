@@ -230,6 +230,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const sections = shownSections(kind, values, ctx);
   const danger = !readOnly && kind.danger && (kind.danger.show?.(ctx, values) ?? true) ? kind.danger : null;
   const note = typeof kind.note === "function" ? kind.note(values) : kind.note;
+  const guide = typeof kind.guide === "function" ? kind.guide(values) : kind.guide;
   const steps = kind.steps ?? [];
   const at = kind.at ?? 0;
 
@@ -315,9 +316,9 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                 }
               }}
             >
-              {kind.guide ? (
+              {guide ? (
                 <div role="note" className="cx-note sf-guide">
-                  {kind.guide}
+                  {guide}
                 </div>
               ) : null}
               {sections.map((section) => {
@@ -384,7 +385,12 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                 {secondary}
               </Button>
               {readOnly ? null : (
-                <Button size="field" variant="primary" busy={saving} onClick={() => void submit(false)}>
+                <Button
+                  size="field"
+                  variant={kind.primaryTone === "danger" ? "danger" : "primary"}
+                  busy={saving}
+                  onClick={() => void submit(false)}
+                >
                   {kind.primary}
                 </Button>
               )}

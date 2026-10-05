@@ -7,6 +7,7 @@ import {
   CATEGORY_SEEDS,
   CategoryRefusal,
   categoryInput,
+  categoryPatch,
   categorySubline,
   createCategory,
   deleteCategory,
@@ -187,6 +188,21 @@ describe("a shop's categories", () => {
     expect((await events(groceries)).length).toBe(before);
   });
 
+  it("changes only what a PATCH sends: the 18+ check and returnable stay as they were", async () => {
+    const wine = await createCategory(
+      actor(),
+      categoryInput.parse({ name: "Wine", vat: "STANDARD", ageCheck: true, returnable: true, targetMargin: "30%" }),
+    );
+    const patch = categoryPatch.parse({ targetMargin: "20" });
+    expect(patch).toEqual({ targetMargin: "20" });
+    const answer = await updateCategory(actor(), wine.id, patch);
+    expect(answer.changed).toEqual(["targetMargin"]);
+    expect(answer.data).toMatchObject({ targetMargin: "20", ageCheck: true, returnable: true });
+    // An empty margin clears it.
+    const cleared = await updateCategory(actor(), wine.id, categoryPatch.parse({ targetMargin: "" }));
+    expect(cleared.data.targetMargin).toBeNull();
+  });
+
   it("refuses another company's category", async () => {
     const theirs = await prisma.retailCategory.create({ data: { companyId: otherCompanyId, name: "Theirs" } });
     expect(await getCategory(companyId, theirs.id)).toBeNull();
@@ -223,16 +239,33 @@ describe("deleting moves the products first", () => {
     const deleted = (await events(groceries)).find((event) => event.eventType === "RETAIL_CATEGORY.DELETED");
     expect(JSON.parse(deleted!.payloadJson!)).toMatchObject({ moved: 2, into: "Snacks" });
 
-    // A new Groceries waits for the binned one.
-    expect(await refusal(createCategory(actor(), categoryInput.parse({ name: "Groceries", vat: "STANDARD" })))).toMatchObject({
+    // The binned one does not hold its name: a new Groceries can be added.
+    const again = await createCategory(actor(), categoryInput.parse({ name: "Groceries", vat: "STANDARD" }));
+    // While it is live, the binned one cannot come back under the same name.
+    await expect(restoreFromBin(actor(), { kind: "category", id: groceries })).rejects.toMatchObject({
       status: 409,
-      message: "Groceries is in the bin. Restore it from Setup › Bin.",
+      message: "There is already a category called Groceries. Rename it, then restore this one.",
     });
+    await deleteCategory(actor(), again.id, null);
 
     // Restore brings it back empty.
     await restoreFromBin(actor(), { kind: "category", id: groceries });
     const back = await getCategory(companyId, groceries);
     expect(back).toMatchObject({ archived: false, products: 0 });
+  });
+
+  it("asks where binned products go too, and counts them as filed", async () => {
+    const wine = (await prisma.retailCategory.findFirstOrThrow({ where: { companyId, name: "Wine" } })).id;
+    const other = (await prisma.retailCategory.findFirstOrThrow({ where: { companyId, name: "Other" } })).id;
+    const binned = await product("Old red", wine);
+    await prisma.product.update({ where: { id: binned }, data: { archivedAt: new Date() } });
+    expect(await getCategory(companyId, wine)).toMatchObject({ products: 0, filed: 1 });
+    expect(await refusal(deleteCategory(actor(), wine, null))).toMatchObject({
+      field: "moveTo",
+      message: "Choose where its products go.",
+    });
+    expect(await deleteCategory(actor(), wine, other)).toEqual({ moved: 0, into: "Other" });
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: binned } })).categoryId).toBe(other);
   });
 
   it("moves the categories inside it too, and will not move into one of them", async () => {

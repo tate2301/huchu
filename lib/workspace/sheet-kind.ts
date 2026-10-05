@@ -113,7 +113,8 @@ export type SheetKind = {
   wide?: boolean;
   steps?: string[];
   at?: number;
-  guide?: string;
+  /** A note at the top of the body, fixed or from what was loaded; nothing when empty. */
+  guide?: string | ((values: SheetValues) => string);
   sections: SheetSection[];
   cur: SheetCurrency;
   note: string | ((values: SheetValues) => string);
@@ -121,6 +122,8 @@ export type SheetKind = {
   /** Where the toast's "Open" goes for a created record. */
   open?: (result: unknown) => string | null;
   primary: string;
+  /** "danger": the primary is the danger outline — a sheet whose one job is a delete, asked before it sends. */
+  primaryTone?: "danger";
   /** "Cancel" unless the kind says otherwise ("Add, then another" keeps the sheet open). */
   secondary?: string;
   danger?: {

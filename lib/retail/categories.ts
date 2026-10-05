@@ -167,6 +167,8 @@ export type CategoryView = {
   returnable: boolean;
   /** Products filed under it, not in the bin. */
   products: number;
+  /** Every product filed under it, binned ones too: what a delete moves. */
+  filed: number;
   /** Categories inside it. */
   children: number;
   sub: string;
@@ -230,7 +232,11 @@ async function moveTargets(db: Db, companyId: string, id: string) {
 async function toView(db: Db, companyId: string, record: ViewRecord): Promise<CategoryView> {
   const products = record._count.products;
   const ageCheck = record.ageRestricted;
-  const [targets, shop] = await Promise.all([moveTargets(db, companyId, record.id), categoryShop(companyId, db)]);
+  const [targets, shop, filed] = await Promise.all([
+    moveTargets(db, companyId, record.id),
+    categoryShop(companyId, db),
+    db.product.count({ where: { companyId, categoryId: record.id } }),
+  ]);
   return {
     id: record.id,
     name: record.name,
@@ -242,6 +248,7 @@ async function toView(db: Db, companyId: string, record: ViewRecord): Promise<Ca
     ageCheck,
     returnable: record.returnable,
     products,
+    filed,
     children: record._count.children,
     sub: categorySubline({ products, vatRate: record.vatRate, vatExempt: record.vatExempt, ageCheck }),
     moveTo: nearestByName(record.name, targets),
@@ -286,16 +293,27 @@ const targetMargin = z
   .optional()
   .refine((value) => value === undefined || parseMargin(value) !== undefined, MARGIN_MESSAGE);
 
-export const categoryInput = z.object({
+const categoryFields = z.object({
   name: z.string().trim().min(1, "Name is needed.").max(80, "Keep the name to 80 characters."),
   parentId: z.string().uuid("That category is not one of this shop's.").nullable().optional(),
   vat: z.enum(CATEGORY_VATS, { message: "Choose 15%, Zero-rated or Exempt." }),
   targetMargin,
-  ageCheck: z.boolean().default(false),
-  returnable: z.boolean().default(false),
+  ageCheck: z.boolean(),
+  returnable: z.boolean(),
 });
 
-export const categoryPatch = categoryInput.partial();
+/** A new category: the age check and returnable start off when not sent. */
+export const categoryInput = categoryFields.extend({
+  ageCheck: categoryFields.shape.ageCheck.default(false),
+  returnable: categoryFields.shape.returnable.default(false),
+});
+
+/**
+ * A change: only what is sent. Built from the fields without defaults — a
+ * default inside `.partial()` still applies, and would switch the 18+ check
+ * off on any PATCH that left it out.
+ */
+export const categoryPatch = categoryFields.partial();
 
 export type CategoryInput = z.infer<typeof categoryInput>;
 export type CategoryPatch = z.infer<typeof categoryPatch>;
@@ -342,17 +360,18 @@ async function lockCompanyCategories(tx: Tx, companyId: string) {
   await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`retail-categories:${companyId}`}))::text`;
 }
 
-/** The name is free among live categories, and not held by one in the bin. */
+/** The name is free among live categories; one in the bin does not hold it. */
 async function checkName(tx: Tx, companyId: string, name: string, self: string | null) {
   const clash = await tx.retailCategory.findFirst({
-    where: { companyId, name: { equals: name, mode: "insensitive" }, ...(self ? { id: { not: self } } : {}) },
-    select: { name: true, archivedAt: true },
+    where: {
+      companyId,
+      archivedAt: null,
+      name: { equals: name, mode: "insensitive" },
+      ...(self ? { id: { not: self } } : {}),
+    },
+    select: { name: true },
   });
-  if (!clash) return;
-  if (clash.archivedAt) {
-    throw new CategoryRefusal(409, `${clash.name} is in the bin. Restore it from Setup › Bin.`, "name");
-  }
-  throw new CategoryRefusal(409, `There is already a category called ${clash.name}.`, "name");
+  if (clash) throw new CategoryRefusal(409, `There is already a category called ${clash.name}.`, "name");
 }
 
 /** "Inside": a live top-level category of this shop, never itself, and only for a category with none inside it. */
@@ -688,6 +707,24 @@ export async function categoryBinRefusal(tx: Tx, companyId: string, id: string):
   ]);
   if (products === 0 && inside === 0) return null;
   return "Delete it from Products › Categories, which asks where its products go.";
+}
+
+/**
+ * Bring a category out of the bin (`POST /api/v2/retail/bin/restore`), empty:
+ * its products went elsewhere when it was deleted. Refused while a live
+ * category holds its name.
+ */
+export async function restoreCategory(tx: Tx, companyId: string, id: string): Promise<string | null> {
+  await lockCompanyCategories(tx, companyId);
+  const found = await tx.retailCategory.findFirst({ where: { id, companyId }, select: { name: true } });
+  if (!found) return NOT_FOUND;
+  const clash = await tx.retailCategory.findFirst({
+    where: { companyId, archivedAt: null, id: { not: id }, name: { equals: found.name, mode: "insensitive" } },
+    select: { name: true },
+  });
+  if (clash) return `There is already a category called ${clash.name}. Rename it, then restore this one.`;
+  await tx.retailCategory.update({ where: { id }, data: { archivedAt: null } });
+  return null;
 }
 
 /**

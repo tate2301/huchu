@@ -16,6 +16,7 @@ const VAT_SEG = ["15%", "Zero-rated", "Exempt"];
 const VAT_OF_SEG: Record<string, CategoryVat> = { "15%": "STANDARD", "Zero-rated": "ZERO_RATED", Exempt: "EXEMPT" };
 const SEG_OF_VAT: Record<CategoryVat, string> = { STANDARD: "15%", ZERO_RATED: "Zero-rated", EXEMPT: "Exempt" };
 
+// Empty means none (parseMargin("") is null), as the API reads it.
 const marginSchema = z
   .string()
   .refine((value) => parseMargin(value) !== undefined, "Write the target margin as a percentage under 100, like 30%.");
@@ -55,6 +56,7 @@ function categoryValues(view: CategoryView): SheetValues {
     _name: view.name,
     _sub: view.sub,
     _products: view.products,
+    _filed: view.filed,
     _children: view.children,
     _liquor: view.shop.liquor,
     _deposits: view.shop.deposits,
@@ -64,13 +66,19 @@ function categoryValues(view: CategoryView): SheetValues {
 
 const nameField: FieldSpec = { id: "name", t: "text", l: "Name" };
 const vatField: FieldSpec = { id: "vat", t: "seg", l: "VAT", half: true, o: VAT_SEG, v: "15%" };
-const marginField = (hint: boolean): FieldSpec => ({
+/**
+ * Target margin is optional to the API (none shows "—"). New category asks
+ * for it, as the board draws; a category without one can still be changed,
+ * and the bulk sheet can clear it.
+ */
+const marginField = (hint: boolean, opt = false): FieldSpec => ({
   id: "margin",
   t: "text",
   l: "Target margin",
   half: true,
   mono: true,
   p: "30%",
+  ...(opt ? { opt: true } : {}),
   ...(hint ? { h: "Prices below it are flagged." } : {}),
   schema: marginSchema,
 });
@@ -106,6 +114,9 @@ function deletedSentence(values: SheetValues, result: unknown): string {
   if (moved > 0 && answer.into) return `${name} deleted. Its ${productWords(moved)} are in ${answer.into} now.`;
   return `${name} deleted.`;
 }
+
+/** Something must move first: products filed under it (binned ones too), or categories inside it. */
+const somethingMoves = (values: SheetValues) => Number(values._filed ?? 0) > 0 || Number(values._children ?? 0) > 0;
 
 const moveToField: FieldSpec = {
   id: "moveTo",
@@ -167,11 +178,11 @@ const categoryEdit: SheetKind = {
   sub: (_ctx, values) => String(values._sub ?? "Products › Categories"),
   cur: "US$",
   sections: [
-    { fields: [nameField, vatField, marginField(false), ageField(false), returnableField(false)] },
+    { fields: [nameField, vatField, marginField(false, true), ageField(false), returnableField(false)] },
     {
       title: "Deleting",
       forDanger: true,
-      show: (values, ctx) => ctx.can("retail.categories", "delete") && Number(values._products ?? 0) > 0,
+      show: (values, ctx) => ctx.can("retail.categories", "delete") && somethingMoves(values),
       fields: [moveToField],
     },
   ],
@@ -204,14 +215,12 @@ const categoryDelete: SheetKind = {
   title: (_ctx, values) => (values._name ? `Delete ${String(values._name)}` : "Delete category"),
   sub: (_ctx, values) => String(values._sub ?? "Products › Categories"),
   cur: "US$",
-  sections: [
-    {
-      show: (values) => Number(values._products ?? 0) > 0 || Number(values._children ?? 0) > 0,
-      fields: [moveToField],
-    },
-  ],
+  guide: (values) =>
+    values._name !== undefined && !somethingMoves(values) ? `Nothing is filed under ${String(values._name)}, so nothing moves.` : "",
+  sections: [{ show: somethingMoves, fields: [moveToField] }],
   note: "It stays in the bin for 30 days.",
   primary: "Delete category",
+  primaryTone: "danger",
   confirm: (values) => deleteAsk(values),
   done: (result, values) => deletedSentence(values, result),
   load: async (ctx) => categoryValues(await readCategory(ctx.id ?? "")),
@@ -246,7 +255,7 @@ const categoryMargin: SheetKind = {
   title: "Set target margin",
   sub: (ctx) => countWords(idsOf(ctx).length),
   cur: "US$",
-  sections: [{ fields: [{ ...marginField(true), half: false }] }],
+  sections: [{ fields: [{ ...marginField(true, true), half: false }] }],
   note: "Prices below it are flagged on the price lists.",
   primary: "Set target margin",
   done: (result) => `Target margin set on ${countWords((result as { changed: number }).changed)}.`,

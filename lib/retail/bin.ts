@@ -5,7 +5,7 @@ import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
 import { auditRecordBin, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
-import { categoryBinRefusal } from "@/lib/retail/categories";
+import { categoryBinRefusal, restoreCategory } from "@/lib/retail/categories";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { archiveShelfListing, restoreShelfListing } from "@/lib/retail/shelf-listing";
 
@@ -42,7 +42,8 @@ export type BinKindSpec = {
   find(tx: Tx, companyId: string, id: string): Promise<Found | null>;
   /** Into the bin. A sentence refuses it (409), passed through as it is. */
   move(tx: Tx, companyId: string, id: string, at: Date): Promise<string | null>;
-  restore(tx: Tx, companyId: string, id: string): Promise<void>;
+  /** Out of the bin. A sentence refuses it (409), passed through as it is. */
+  restore(tx: Tx, companyId: string, id: string): Promise<string | null>;
 };
 
 const KINDS: Record<BinKind, BinKindSpec> = {
@@ -60,6 +61,7 @@ const KINDS: Record<BinKind, BinKindSpec> = {
     },
     restore: async (tx, companyId, id) => {
       await restoreShelfListing(tx, { companyId, productId: id });
+      return null;
     },
   },
   promotion: {
@@ -77,6 +79,7 @@ const KINDS: Record<BinKind, BinKindSpec> = {
     },
     restore: async (tx, _companyId, id) => {
       await tx.retailPromotion.update({ where: { id }, data: { archivedAt: null, status: "INACTIVE" } });
+      return null;
     },
   },
   category: {
@@ -94,9 +97,8 @@ const KINDS: Record<BinKind, BinKindSpec> = {
       await tx.retailCategory.update({ where: { id }, data: { archivedAt: at } });
       return null;
     },
-    restore: async (tx, _companyId, id) => {
-      await tx.retailCategory.update({ where: { id }, data: { archivedAt: null } });
-    },
+    // Back empty, unless a live category has taken its name since.
+    restore: (tx, companyId, id) => restoreCategory(tx, companyId, id),
   },
 };
 
@@ -178,7 +180,8 @@ export async function restoreFromBin(
     if (!stillRestorable(found.archivedAt, now)) {
       throw new BinRefusal(410, "It has been in the bin more than 30 days");
     }
-    await spec.restore(tx, actor.companyId, input.id);
+    const refusal = await spec.restore(tx, actor.companyId, input.id);
+    if (refusal) throw new BinRefusal(409, refusal);
     await auditRecordBin(tx, {
       actor,
       action: "restored",

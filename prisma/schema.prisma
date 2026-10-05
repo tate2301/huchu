@@ -4532,9 +4532,12 @@ model RetailCategory {
   company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   products Product[]
   parent   RetailCategory?  @relation("RetailCategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
+  /// The name is unique among the shop's live categories, whatever its case: a
+  /// partial unique index on ("companyId", lower("name")) WHERE "archivedAt" IS
+  /// NULL, in migration 20261005142607_retail_category_live_name. This file
+  /// cannot express it, so a `\d` on the database shows an index it does not.
   children RetailCategory[] @relation("RetailCategoryParent")
 
-  @@unique([companyId, name])
   @@index([companyId, archivedAt, sortOrder])
   @@index([parentId])
 }
