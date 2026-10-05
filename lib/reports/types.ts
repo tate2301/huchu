@@ -293,10 +293,28 @@ export type ListAction = {
   when?: Condition[];
   do:
     | { sheet: string }
+    /**
+     * A row's link, or for a bulk action a link built from the ticked rows:
+     * `{min:key}` and `{max:key}` are the smallest and largest of that column.
+     */
     | { href: RowTemplate }
     | { confirm: ConfirmSpec; endpoint: string }
-    | { download: string }
-    | { copy: string };
+    | {
+        /** POSTed with the ids; the answer is a file. */
+        download: string;
+        /** The body key the ids go under. Default `ids`. */
+        idsAs?: string;
+        /** More of the body, fixed. */
+        with?: Record<string, string>;
+        /** Opened in a new tab (a PDF to print) rather than saved. */
+        open?: boolean;
+        /** A response header holding a count, and the toast that says it: `{n}` is the count. */
+        notice?: { header: string; text: string };
+        /** At most this many ids per request. */
+        cap?: number;
+      }
+    /** Copies that column's values, comma-separated; `done` is the toast, `{n}` the count. */
+    | { copy: string; done?: string };
 };
 
 export type EmptyGuideSpec = {
@@ -410,4 +428,10 @@ export type ListPageResponse = ListPageResult & {
 
 /** "Select all" fetches at most this many ids. */
 export const LIST_IDS_CAP = 5000;
-export type ListIdsResponse = { ids: string[]; total: number; capped: boolean };
+export type ListIdsResponse = {
+  ids: string[];
+  total: number;
+  capped: boolean;
+  /** With `pick=a,b`: those columns' values, in the order of `ids` (what bulk actions read). */
+  picked?: Record<string, ReportValue[]>;
+};

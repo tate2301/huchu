@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { sumMoney, toNumberOrZero } from "@/lib/money";
-import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { readsEveryCashier } from "@/lib/retail/own-rows";
-import { pageArgs, pageResult, parseRetailQuery, retailPageQuery } from "@/lib/retail/request";
 import {
   requireRetailSession,
   resolveRetailSite,
@@ -20,73 +16,6 @@ const openShiftSchema = z.object({
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
 });
-
-export async function GET(request: NextRequest) {
-  const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
-
-  // R-2.3. The back-office shift list: every cashier's drawer and every
-  // variance for cash control. A cashier's Shifts item is "own"
-  // (00-foundations 5.3.4): the same list, scoped here to the drawers they
-  // opened, so the page they land on answers rather than refuses.
-  const seesEveryDrawer = readsEveryCashier(session.user.role);
-  if (!seesEveryDrawer) {
-    const gate = requireRetailPermission(session, "retail.sell", "open-shift");
-    if (gate) return gate;
-  }
-
-  // R-3.2. Was a flat `take: 100`. A shop running two tills six days a week
-  // passes a hundred shifts in two months, and the list simply stopped with
-  // nothing saying it had.
-  const query = parseRetailQuery(request, retailPageQuery);
-  if (query.response) return query.response;
-  const args = pageArgs(query.data, 100);
-
-  const found = await prisma.retailShift.findMany({
-    where: {
-      companyId: session.user.companyId,
-      ...(seesEveryDrawer ? {} : { cashierId: session.user.id }),
-    },
-    orderBy: [{ status: "asc" }, { openedAt: "desc" }, { id: "desc" }],
-    take: args.take,
-    ...(args.cursor ? { cursor: args.cursor, skip: args.skip } : {}),
-  });
-  const { rows: shifts, nextCursor, hasMore } = pageResult(found, args.limit);
-
-  const sites = await prisma.site.findMany({
-    where: { id: { in: shifts.map((shift) => shift.siteId) } },
-    select: { id: true, name: true, code: true },
-  });
-  const siteMap = new Map(sites.map((site) => [site.id, site]));
-
-  const sales = await prisma.retailSale.findMany({
-    where: { companyId: session.user.companyId, shiftId: { in: shifts.map((shift) => shift.id) } },
-    include: { payments: true },
-  });
-
-  return successResponse({
-    data: shifts.map((shift) => {
-      const shiftSales = sales.filter((sale) => sale.shiftId === shift.id);
-      return {
-        ...shift,
-        site: siteMap.get(shift.siteId) ?? null,
-        saleCount: shiftSales.length,
-        salesValue: toNumberOrZero(sumMoney(shiftSales.map((sale) => sale.totalAmount))),
-        tenderMix: shiftSales.flatMap((sale) => sale.payments).reduce<Record<string, number>>(
-          (accumulator, payment) => {
-            accumulator[payment.tenderType] =
-              (accumulator[payment.tenderType] ?? 0) + toNumberOrZero(payment.amount);
-            return accumulator;
-          },
-          {},
-        ),
-      };
-    }),
-    page: { limit: args.limit, cursor: query.data.cursor ?? null, nextCursor, hasMore },
-  });
-}
 
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

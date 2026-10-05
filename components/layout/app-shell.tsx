@@ -82,7 +82,7 @@ export function AppShell({
 
 function ShellFrame({ children }: { children: React.ReactNode }) {
   const { width } = useShell();
-  const { pending, refused, homeHref } = useShellNav();
+  const { pending, refused } = useShellNav();
   return (
     <div className="shell-frame flex h-[100dvh] overflow-hidden bg-[var(--ground)] text-[13px] text-[var(--ink)]">
       {width !== "phone" ? (
@@ -106,7 +106,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
                     sticky band pins to, so it is a wrapper instead; full-bleed
                     bands cancel it (`globals.css`). */}
                 <div className="pt-[var(--content-lede)]">
-                  {pending ? null : refused ? <RoleRefusal homeHref={homeHref} /> : children}
+                  {pending ? null : refused ? <RoleRefusal /> : children}
                 </div>
               </OnboardingProvider>
             </RecordPeekProvider>

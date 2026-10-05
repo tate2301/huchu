@@ -57,7 +57,7 @@ export type ListContext = {
    Reading the address
    ────────────────────────────────────────────────────────────────────────── */
 
-const RESERVED = new Set(["page", "size", "tab", "q", "sort", "group", "cols", "idsOnly", "preview", "template", "v"]);
+const RESERVED = new Set(["page", "size", "tab", "q", "sort", "group", "cols", "idsOnly", "pick", "preview", "template", "v"]);
 
 export function parseListQuery(search: URLSearchParams): ListQuery {
   const filters: Record<string, string> = {};
@@ -550,12 +550,26 @@ export function runList(
   };
 }
 
-/** Every matching id, in order, for "Select all". At most `LIST_IDS_CAP`. */
-export function listIds(run: Pick<ListRun, "ordered">): ListIdsResponse {
+/**
+ * Every matching id, in order, for "Select all". At most `LIST_IDS_CAP`.
+ *
+ * `pick` adds those columns' values beside the ids — what a bulk action reads
+ * from the rows (the shift numbers to copy, the days to compare) — limited to
+ * the columns this caller may see.
+ */
+export function listIds(
+  run: Pick<ListRun, "ordered">,
+  pick: string[] = [],
+  columns: ListColumn[] = [],
+): ListIdsResponse {
+  const rows = run.ordered.slice(0, LIST_IDS_CAP);
+  const readable = new Set(columns.flatMap((column) => [column.key, ...(column.timeKey ? [column.timeKey] : [])]));
+  const keys = [...new Set(pick)].filter((key) => readable.has(key));
   return {
-    ids: run.ordered.slice(0, LIST_IDS_CAP).map((row) => row.id),
+    ids: rows.map((row) => row.id),
     total: run.ordered.length,
     capped: run.ordered.length > LIST_IDS_CAP,
+    ...(keys.length ? { picked: Object.fromEntries(keys.map((key) => [key, rows.map((row) => row[key] ?? null)])) } : {}),
   };
 }
 

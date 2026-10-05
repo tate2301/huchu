@@ -100,8 +100,11 @@ async function loadShifts(ctx: ReportContext) {
         takings: Math.round((figures.takings.get(shift.id) ?? 0) * 100) / 100,
         variance: state === "Not counted" ? null : variance,
         varianceSize: state === "Not counted" || variance === null ? null : Math.abs(variance),
-        // The phone card's last words: how long it has run, or the day it ran.
-        cardWhen: running ? `${formatDuration(durationMinutes)} live` : formatShortDay(shift.openedAt, timeZone),
+        // The phone card's last words: how long it has run ("live" while it is
+        // still a shift, not a drawer left open from another day), or the day it ran.
+        cardWhen: running
+          ? `${formatDuration(durationMinutes)}${durationMinutes <= STALE_SHIFT_MINUTES ? " live" : ""}`
+          : formatShortDay(shift.openedAt, timeZone),
       };
     }),
   );

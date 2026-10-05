@@ -49,6 +49,8 @@ import { prisma } from "@/lib/prisma"
 import { ensureRetailCategories } from "@/lib/retail/categories"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 import { upsertShelfListing } from "@/lib/retail/shelf-listing"
+import { tradingDayKey } from "@/lib/retail/z-report"
+import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services"
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -144,6 +146,13 @@ const ZWG_RATE = "27.5000"
 
 function daysAgo(days: number) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+}
+
+/** A wall-clock time in Harare (UTC+2, no summer time), `daysBack` days before today. */
+function harareTime(daysBack: number, hour: number, minute: number) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare" }).format(new Date())
+  const midnight = Date.parse(`${today}T00:00:00+02:00`)
+  return new Date(midnight - daysBack * 24 * 60 * 60 * 1000 + (hour * 60 + minute) * 60 * 1000)
 }
 
 function pick<T>(items: T[]): T {
@@ -260,11 +269,15 @@ async function main() {
   console.log(`  ${staff.length} staff (password ${STAFF_PASSWORD})`)
 
   // ── Site, register, stock, catalogue ─────────────────────────────────────
-  const site =
-    (await prisma.site.findFirst({ where: { companyId, code: "MAIN" } })) ??
-    (await prisma.site.create({
-      data: { companyId, code: "MAIN", name: "Samora Machel Bottle Store", location: "Harare CBD" },
-    }))
+  // Two branches: Harare Main Branch, where both tills are, and Borrowdale.
+  async function branch(code: string, name: string, location: string) {
+    const found = await prisma.site.findFirst({ where: { companyId, code }, select: { id: true } })
+    return found
+      ? prisma.site.update({ where: { id: found.id }, data: { name } })
+      : prisma.site.create({ data: { companyId, code, name, location } })
+  }
+  const site = await branch("MAIN", "Harare Main Branch", "Harare CBD")
+  await branch("BORROWDALE", "Borrowdale", "Borrowdale, Harare")
 
   const location =
     (await prisma.stockLocation.findFirst({ where: { siteId: site.id, code: "SHOP" } })) ??
@@ -276,6 +289,11 @@ async function main() {
     where: { companyId_code: { companyId, code: "TILL-1" } },
     update: { name: "Front till", siteId: site.id, isActive: true },
     create: { companyId, code: "TILL-1", name: "Front till", siteId: site.id },
+  })
+  const backRegister = await prisma.retailRegister.upsert({
+    where: { companyId_code: { companyId, code: "TILL-2" } },
+    update: { name: "Back till", siteId: site.id, isActive: true },
+    create: { companyId, code: "TILL-2", name: "Back till", siteId: site.id },
   })
 
   /**
@@ -431,6 +449,8 @@ async function main() {
     await prisma.retailSaleLine.deleteMany({ where: { saleId: { in: saleIds } } })
     await prisma.retailSale.deleteMany({ where: { companyId } })
     await prisma.retailHeldCart.deleteMany({ where: { companyId } })
+    // The days' Z-reports were taken over the history being replaced.
+    await prisma.retailZReport.deleteMany({ where: { companyId } })
     await prisma.retailShift.deleteMany({ where: { companyId } })
     console.log(`  reset: cleared ${saleIds.length} previous sale(s) and their shifts`)
   }
@@ -446,31 +466,91 @@ async function main() {
   const lineRows: LineRow[] = []
   const paymentRows: PaymentRow[] = []
 
-  let shiftSeq = 0
   let saleSeq = 0
   let refunds = 0
   let voids = 0
   let zwgSales = 0
 
+  /*
+    FND 3.4. Two shifts a day for the whole history: the Front till in the
+    morning and the Back till in the evening, about seven hours each, run by
+    Chipo Dube, Farai Moyo and Tafara Nyathi. Two are still open at the run:
+    the Front till, Chipo Dube, since 07:58 today, and the Back till, Farai
+    Moyo, opened 52 hours ago and never closed — the stale drawer the list
+    flags in amber, which is why the Back till has nothing after it. Shift
+    numbers follow the opening times, so the Front till's open shift has the
+    highest.
+  */
+  const now = new Date()
+  const HOUR_MS = 60 * 60 * 1000
+  const staffNamed = (name: string) => tills.find((person) => person.name === name) ?? tills[0]!
+  const staleOpenedAt = new Date(now.getTime() - 52 * HOUR_MS)
+  const frontToday = harareTime(0, 7, 58)
+  type Slot = {
+    register: typeof register
+    openedAt: Date
+    open: boolean
+    cashier: (typeof tills)[number]
+    float: string
+  }
+  const slots: Slot[] = []
   for (let dayOffset = days; dayOffset >= 0; dayOffset -= 1) {
-    const date = daysAgo(dayOffset)
-    const busy = dayBusyness(date)
-    const shiftsToday = busy > 1.6 ? 2 : 1
+    if (dayOffset === 0) {
+      slots.push({
+        register,
+        openedAt: frontToday.getTime() < now.getTime() ? frontToday : new Date(now.getTime() - HOUR_MS),
+        open: true,
+        cashier: staffNamed("Chipo Dube"),
+        float: "200.00",
+      })
+    } else {
+      slots.push({ register, openedAt: harareTime(dayOffset, 7, between(48, 70)), open: false, cashier: pick(tills), float: "100.00" })
+    }
+    const back = harareTime(dayOffset, 15, between(0, 20))
+    if (back.getTime() + 7 * HOUR_MS < staleOpenedAt.getTime()) {
+      slots.push({ register: backRegister, openedAt: back, open: false, cashier: pick(tills), float: "100.00" })
+    }
+  }
+  slots.push({ register: backRegister, openedAt: staleOpenedAt, open: true, cashier: staffNamed("Farai Moyo"), float: "100.00" })
+  slots.sort((a, b) => a.openedAt.getTime() - b.openedAt.getTime())
 
-    for (let shiftIndex = 0; shiftIndex < shiftsToday; shiftIndex += 1) {
-      const cashier = pick(tills)
-      const openHour = shiftIndex === 0 ? 9 : 16
-      const openedAt = new Date(date)
-      openedAt.setUTCHours(openHour, between(0, 25), 0, 0)
+  // Three closed without a count (about a week, a month and three months ago).
+  const closedSlots = slots.filter((slot) => !slot.open)
+  const uncounted = new Set(
+    [14, 61, 180].map((back) => closedSlots[closedSlots.length - back]).filter((slot): slot is Slot => Boolean(slot)),
+  )
+  /*
+    The counted drawers' differences: one in fourteen short (−US$0.50 to
+    −US$12.00), one in twenty over — small change mostly, and one drawer a
+    month and a half ago US$42.80 over — and the rest balanced. Exact counts
+    rather than dice, so the history always nets short, as a till does.
+  */
+  const counted = closedSlots.filter((slot) => !uncounted.has(slot))
+  const shuffled = [...counted]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(Math.random() * (index + 1))
+    ;[shuffled[index], shuffled[other]] = [shuffled[other]!, shuffled[index]!]
+  }
+  const shortCount = Math.round(counted.length / 14)
+  const overCount = Math.round(counted.length / 20)
+  const differences = new Map<Slot, Prisma.Decimal>()
+  shuffled.slice(0, shortCount).forEach((slot) => differences.set(slot, money(String(-(between(50, 1200) / 100)))))
+  shuffled.slice(shortCount, shortCount + overCount).forEach((slot) => differences.set(slot, money(String(between(50, 400) / 100))))
+  const bigOver = counted[counted.length - 90]
+  if (bigOver) differences.set(bigOver, money("42.80"))
 
-      // The very last shift stays open, so the demo can walk up to a live till.
-      const isOpenShift = dayOffset === 0 && shiftIndex === shiftsToday - 1
-      const closedAt = isOpenShift ? null : new Date(openedAt.getTime() + 7 * 60 * 60 * 1000)
+  for (const [slotIndex, slot] of slots.entries()) {
+    {
+      const date = slot.openedAt
+      const busy = dayBusyness(date)
+      const cashier = slot.cashier
+      const openedAt = slot.openedAt
+      const isOpenShift = slot.open
+      const closedAt = isOpenShift ? null : new Date(openedAt.getTime() + (7 * 60 + between(-4, 5)) * 60 * 1000)
 
-      shiftSeq += 1
       const shiftId = randomUUID()
-      const shiftNo = `SH-${String(shiftSeq).padStart(5, "0")}`
-      const openingFloat = money("50.00")
+      const shiftNo = `SH-${String(slotIndex + 1).padStart(5, "0")}`
+      const openingFloat = money(slot.float)
 
       const saleCount = Math.max(3, Math.round(between(9, 17) * busy))
       let cashTaken = money(0)
@@ -481,6 +561,7 @@ async function main() {
         const postedAt = new Date(
           openedAt.getTime() + between(5, 6 * 60) * 60 * 1000 + saleIndex * 1000,
         )
+        if (postedAt.getTime() > now.getTime()) continue
 
         const lineCount = between(1, 4)
         const lines: LineRow[] = []
@@ -696,30 +777,22 @@ async function main() {
       }
 
       const expectedCash = openingFloat.plus(cashTaken)
-      // Most cash-ups balance. Some do not, and those are the ones a manager has
-      // to explain, so they are seeded rather than hoped for.
-      const varianceRoll = Math.random()
-      const varianceAmount =
-        varianceRoll < 0.72
-          ? money(0)
-          : varianceRoll < 0.9
-            ? money(String(-(between(50, 850) / 100)))
-            : money(String(between(20, 400) / 100))
-      const countedCash = closedAt ? expectedCash.plus(varianceAmount) : null
+      const varianceAmount = differences.get(slot) ?? money(0)
+      const wasCounted = Boolean(closedAt) && !uncounted.has(slot)
 
       shiftRows.push({
         id: shiftId,
         companyId,
         shiftNo,
-        registerCode: register.code,
-        registerName: register.name,
+        registerCode: slot.register.code,
+        registerName: slot.register.name,
         siteId: site.id,
         cashierId: cashier.id,
         cashierName: cashier.name,
         openingFloat,
         expectedCash,
-        countedCash,
-        variance: closedAt ? varianceAmount : null,
+        countedCash: wasCounted ? expectedCash.plus(varianceAmount) : null,
+        variance: wasCounted ? varianceAmount : null,
         status: closedAt ? "CLOSED" : "OPEN",
         openedAt,
         closedAt,
@@ -751,6 +824,31 @@ async function main() {
   await insert("payments", paymentRows, (batch) =>
     prisma.retailSalePayment.createMany({ data: batch, skipDuplicates: true }),
   )
+
+  // ── Every closed day, closed ─────────────────────────────────────────────
+  /*
+    Each till's trading days before today get their Z-report, taken by the
+    manager through the same service the end-of-day screen calls, so the
+    Shifts list's "Print Z-reports" has documents to print. A day with a
+    drawer still open (the stale Back till) cannot be closed and stays open.
+  */
+  const manager = staff.find((person) => person.name === "Tafara Nyathi") ?? staff[0]
+  const today = tradingDayKey(now)
+  const openDays = new Set(
+    shiftRows.filter((row) => row.status === "OPEN").map((row) => `${row.registerCode}|${tradingDayKey(row.openedAt as Date)}`),
+  )
+  const closeDays = [
+    ...new Set(shiftRows.map((row) => `${row.registerCode}|${tradingDayKey(row.openedAt as Date)}`)),
+  ].filter((key) => !openDays.has(key) && key.split("|")[1]! < today)
+  for (const key of closeDays) {
+    const [registerCode, businessDate] = key.split("|") as [string, string]
+    await generateRetailZReportTransaction({
+      actor: { companyId, userId: manager.id, userName: manager.name, userRole: "MANAGER" },
+      registerCode,
+      businessDate,
+    })
+  }
+  console.log(`  ${closeDays.length} Z-reports (every closed till-day before today)`)
 
   // ── A cart nobody came back for ──────────────────────────────────────────
   const openShift = shiftRows.find((row) => row.status === "OPEN")
@@ -860,7 +958,7 @@ async function main() {
   console.log(
     `\n  ${refunds} refund(s), ${voids} void(s) flagged, ${zwgSales} sale(s) settled in ZWG` +
       `\n  takings across the period: $${takings.toFixed(2)}` +
-      `\n  one shift left OPEN so the till is live` +
+      `\n  two shifts left OPEN: the Front till this morning, the Back till 52 hours ago` +
       `\n\nSign in as any of:\n${STAFF.map((s) => `  ${s.role.padEnd(12)} ${s.email}`).join("\n")}` +
       `\n  password: ${STAFF_PASSWORD}`,
   )

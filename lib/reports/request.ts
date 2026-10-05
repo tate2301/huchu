@@ -203,10 +203,11 @@ export async function fetchListIds(
   session: AuthenticatedSession,
   key: string,
   query: ListQuery,
+  pick: string[] = [],
 ): Promise<ListIdsResponse | ListRefusal> {
   const opened = await openList(session, key, query);
   if (refused(opened)) return opened;
-  return listIds(await runOpened(opened));
+  return listIds(await runOpened(opened), pick, listColumnsFor(opened.definition.list, opened.ctx.seeCost));
 }
 
 export type ListExport = ListRun &

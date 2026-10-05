@@ -258,6 +258,15 @@ describe("a page of shifts", () => {
     expect(listIds(run(rows, { filters: { opened: "any" } }))).toMatchObject({ total: 312, capped: false });
   });
 
+  it("picks the columns a bulk action reads beside the ids, and only columns the role may see", () => {
+    const ids = listIds(run(rows, { filters: { opened: "any" } }), ["shiftNo", "openedAt", "cashierId"], SHIFTS.columns);
+    expect(ids.picked!.shiftNo).toHaveLength(312);
+    // In the order of the ids.
+    expect(ids.picked!.shiftNo![5]).toBe(rows.find((entry) => entry.id === ids.ids[5])!.shiftNo);
+    expect(Object.keys(ids.picked!)).toEqual(["shiftNo", "openedAt"]);
+    expect(listIds(run(rows, { filters: { opened: "any" } }))).not.toHaveProperty("picked");
+  });
+
   it("knows a list with no rows at all from one the filters emptied", () => {
     expect(run([]).result).toMatchObject({ total: 0, pages: 1, page: 1, everEmpty: true });
     expect(run(rows, { q: "nobody" }).result).toMatchObject({ total: 0, everEmpty: false });

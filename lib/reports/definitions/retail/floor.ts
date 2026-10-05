@@ -158,6 +158,9 @@ const shifts: ListSpec = {
     },
   ],
   rowHref: "/retail/shifts/{id}",
+  // The row menu is the floor spec's (C-25, 50-floor 5.4): Open, and the
+  // closed day's Z-report. Its shift actions (cash in or out, count and close,
+  // the X-report, sign-off) arrive with the pages and sheets they open.
   rowMenu: [
     {
       key: "open",
@@ -169,35 +172,11 @@ const shifts: ListSpec = {
       do: { href: "/retail/shifts/{id}" },
     },
     {
-      key: "cash-move",
-      label: "Record cash in or out",
-      requires: [
-        ["retail.cash-control", "update"],
-        ["retail.sell", "create"],
-      ],
-      when: [{ column: "state", op: "is", value: ["Open"] }],
-      do: { sheet: "cash-move" },
-    },
-    {
-      key: "shift-close",
-      label: "Count and close",
-      requires: [["retail.sell", "close-shift"]],
-      when: [{ column: "state", op: "is", value: ["Open"] }],
-      do: { sheet: "shift-close" },
-    },
-    {
-      key: "x-report",
-      label: "Print X-report",
-      requires: [["retail.cash-control", "view"]],
-      when: [{ column: "state", op: "is", value: ["Open"] }],
-      do: { download: "/api/v2/retail/z-reports/print" },
-    },
-    {
       key: "z-report",
       label: "Print Z-report",
       requires: [["retail.cash-control", "view"]],
       when: [{ column: "state", op: "isNot", value: ["Open"] }],
-      do: { download: "/api/v2/retail/z-reports/print" },
+      do: { download: "/api/v2/retail/z-reports/print", idsAs: "shiftIds", open: true },
     },
   ],
   bulk: [
@@ -205,7 +184,13 @@ const shifts: ListSpec = {
       key: "print-z",
       label: "Print Z-reports",
       requires: [["retail.cash-control", "view"]],
-      do: { download: "/api/v2/retail/z-reports/print" },
+      do: {
+        download: "/api/v2/retail/z-reports/print",
+        idsAs: "shiftIds",
+        open: true,
+        cap: 500,
+        notice: { header: "X-Not-Closed", text: "{n} of these days are not closed yet." },
+      },
     },
     { key: "export" },
     {
@@ -215,21 +200,27 @@ const shifts: ListSpec = {
         ["retail.cash-control", "view"],
         ["retail.sell", "view"],
       ],
-      do: { copy: "shiftNo" },
+      do: { copy: "shiftNo", done: "{n} shift numbers copied." },
     },
     {
       key: "z-csv",
       label: "Download Z-reports as CSV",
       more: true,
       requires: [["retail.cash-control", "view"]],
-      do: { download: "/api/v2/retail/z-reports/export" },
+      do: {
+        download: "/api/v2/retail/z-reports/export",
+        idsAs: "shiftIds",
+        with: { format: "csv" },
+        cap: 500,
+        notice: { header: "X-Not-Closed", text: "{n} of these days are not closed yet." },
+      },
     },
     {
       key: "compare",
       label: "Compare cashiers",
       more: true,
       requires: [["retail.reports", "view"]],
-      do: { href: "/retail/insights/sales?tab=cashier" },
+      do: { href: "/retail/insights/sales?tab=cashier&from={min:openedAt}&to={max:openedAt}" },
     },
   ],
   primary: {

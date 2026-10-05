@@ -12,8 +12,9 @@ import { readTemplate } from "@/lib/reports/templates";
  * **List mode** (`?page=`, 00-foundations 4.1): one page of a working list,
  * with totals over every filtered row, group subtotals, tab counts and the
  * query as resolved; `idsOnly=1` returns every matching id instead (at most
- * 5,000) for "Select all". Refused with 403 "Your role cannot view <noun>"
- * when the list's own check says no.
+ * 5,000) for "Select all", and `pick=a,b` adds those columns' values beside
+ * them. Refused with 403 "Your role cannot view <noun>" when the list's own
+ * check says no.
  *
  * **Report mode** (no `page`): a report's rows, narrowed by its params. The
  * view is applied by whoever reads them. Opened as a template (`?template=`),
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const query = parseListQuery(search);
       const answer =
         search.get("idsOnly") === "1"
-          ? await fetchListIds(session, key, query)
+          ? await fetchListIds(session, key, query, (search.get("pick") ?? "").split(",").filter(Boolean))
           : await fetchListPage(session, key, query);
       if ("error" in answer) return errorResponse(answer.error, answer.status);
       return successResponse(answer);
