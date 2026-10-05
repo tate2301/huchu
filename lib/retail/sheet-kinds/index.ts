@@ -1,0 +1,11 @@
+import type { SheetKind } from "@/lib/workspace/sheet-kind";
+
+import { FLOOR_SHEETS } from "./floor";
+
+/**
+ * Every sheet kind, by the `?sheet=` key that opens it (00-foundations 5.7.6).
+ * Each area adds its kinds in its own file and one line here.
+ */
+export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
+  ...FLOOR_SHEETS,
+};

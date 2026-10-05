@@ -241,16 +241,22 @@ export async function openRetailShiftTransaction(input: {
   notes?: string | null;
   periodOverrideReason?: string | null;
   openedAt?: Date;
+  /**
+   * Whose drawer it is, when a manager opens it for them (FND-07). Left out,
+   * it is the actor's own. The audit event's actor stays the caller.
+   */
+  cashier?: { id: string; name: string };
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
     throw new Error("Invalid site");
   }
 
+  const cashierId = input.cashier?.id ?? input.actor.userId;
   const existing = await prisma.retailShift.findFirst({
     where: {
       companyId: input.actor.companyId,
-      cashierId: input.actor.userId,
+      cashierId,
       status: "OPEN",
     },
   });
@@ -301,8 +307,8 @@ export async function openRetailShiftTransaction(input: {
           registerCode: register.code,
           registerName: register.name,
           siteId: site.id,
-          cashierId: input.actor.userId,
-          cashierName: resolveCashierName(input.actor),
+          cashierId,
+          cashierName: input.cashier?.name ?? resolveCashierName(input.actor),
           openingFloat: input.openingFloat ?? 0,
           notes: input.notes?.trim() || null,
           status: "OPEN",

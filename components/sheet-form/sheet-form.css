@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHEET FORM — the parts of a sheet `workspace.css` does not already draw
+   (00-foundations 5.7): where it sits and how it moves, the steps, the fold,
+   the field grid, the footer note, the autocomplete with its inline add, and
+   the lines table. Every value reads a role, so it answers in every theme.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sf-scrim[data-state="open"] { animation: sf-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1); }
+.sf-scrim[data-state="closed"] { animation: sf-fade-out 150ms ease-in; }
+.sf-sheet { position: fixed; z-index: 51; top: 0; right: 0; bottom: 0; color: var(--ink); font-family: var(--font-sans); font-size: 13px; line-height: 1.4; outline: none; }
+.sf-sheet[data-state="open"] { animation: sf-slide-in 200ms cubic-bezier(0.16, 1, 0.3, 1); }
+.sf-sheet[data-state="closed"] { animation: sf-slide-out 150ms ease-in; }
+@keyframes sf-fade-in { from { opacity: 0; } }
+@keyframes sf-fade-out { to { opacity: 0; } }
+@keyframes sf-slide-in { from { transform: translateX(100%); } }
+@keyframes sf-slide-out { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .sf-scrim[data-state], .sf-sheet[data-state] { animation: none; }
+}
+
+.sf-ellipsis { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sf-head__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sf-close { flex: none; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ink-3); cursor: pointer; }
+.sf-close:hover { background: var(--hover); color: var(--ink); }
+.sf-close svg { width: 16px; height: 16px; }
+.sf-close:focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+
+/* Steps: what happens next. */
+.sf-steps { flex: none; margin: 0; padding: 12px 24px; list-style: none; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); background: var(--ground); overflow-x: auto; }
+.sf-step { display: flex; align-items: center; gap: 6px; color: var(--ink-3); white-space: nowrap; }
+.sf-step__mark { width: 18px; height: 18px; flex: none; border-radius: 99px; border: 1.5px solid var(--faint); background: transparent; color: var(--on-sel); font-family: var(--font-mono); font-size: 10px; display: inline-flex; align-items: center; justify-content: center; }
+.sf-step[data-state="todo"] .sf-step__mark { color: var(--ink-3); }
+.sf-step[data-state="done"] { color: var(--ink-2); }
+.sf-step[data-state="done"] .sf-step__mark, .sf-step[data-state="current"] .sf-step__mark { border-color: var(--ink); background: var(--ink); }
+.sf-step[data-state="current"] { color: var(--ink); font-weight: 600; }
+.sf-step__joint { width: 14px; height: 1px; background: var(--line-strong); }
+
+.sf-guide { margin-top: 20px; }
+
+/* A folded section: a dashed button that unfolds in place. */
+.sf-fold { width: 100%; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px dashed var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.sf-fold:hover { background: var(--hover); }
+.sf-fold svg { width: 14px; height: 14px; flex: none; }
+.sf-fold__label { font-weight: 500; white-space: nowrap; }
+.sf-fold__hint { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink-3); }
+.sf-fold:focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+
+/* Fields: two columns, gap 14 12; a half field takes one. */
+.sf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+.sf-cell { grid-column: span 2; min-width: 0; }
+.sf-cell--half { grid-column: span 1; }
+@media (max-width: 719px) { .sf-cell--half { grid-column: span 2; } }
+
+/* Footer: the note, or the saved line, or what went wrong. */
+.sf-foot__note { flex: 1; min-width: 0; color: var(--ink-3); line-height: 1.4; }
+.sf-foot__note--bad { color: var(--bad); }
+.sf-foot__note--ok { display: flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 500; }
+.sf-foot__note--ok svg { width: 16px; height: 16px; flex: none; }
+.sf-danger { flex: none; height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--bad); font: inherit; font-size: 13px; cursor: pointer; }
+.sf-danger svg { width: 14px; height: 14px; }
+.sf-danger:hover { background: var(--bad-soft); }
+@media (max-width: 719px) {
+  .sf-sheet .cx-sheet__foot { height: auto; min-height: 68px; flex-wrap: wrap; padding: 12px 16px; }
+  .sf-sheet .sf-foot__note { flex-basis: 100%; }
+  .sf-sheet .cx-sheet__body { padding: 4px 16px 24px; }
+  .sf-sheet .cx-sheet__head { padding: 0 12px 0 16px; }
+}
+
+/* ── Autocomplete with inline add (5.7.5) ──────────────────── */
+.sf-auto { position: relative; display: flex; flex-direction: column; gap: 10px; }
+.cx-pick[data-open="true"] { border-color: var(--action); }
+.cx-pick[data-invalid="true"] { border-color: var(--bad); }
+.cx-pick input:disabled { color: var(--ink-3); }
+.sf-auto__chev { flex: none; display: inline-flex; color: var(--ink-3); }
+.sf-auto__chev svg { width: 14px; height: 14px; }
+.sf-auto__list { position: absolute; z-index: 5; top: 40px; left: 0; right: 0; max-height: 340px; overflow-y: auto; padding: 6px; border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-float); display: flex; flex-direction: column; }
+.sf-auto__option { min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: 8px; color: var(--ink); cursor: pointer; user-select: none; }
+.sf-auto__option[aria-selected="true"], .sf-auto__option:hover { background: var(--hover); }
+.sf-auto__label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
+.sf-auto__sub { flex: none; max-width: 50%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink-3); font-size: 12px; }
+.sf-auto__none { padding: 6px 8px; color: var(--ink-3); }
+.sf-auto__rule { height: 1px; margin: 4px 0; background: var(--line); }
+.sf-auto__add { height: 36px; color: var(--action-ink); font-weight: 600; }
+.sf-auto__add svg { width: 14px; height: 14px; flex: none; }
+
+.sf-quick { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--ground); }
+.sf-quick__title { font-weight: 600; }
+.sf-quick__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.sf-quick__go { border-color: transparent; background: var(--ink); color: var(--on-sel); font-weight: 600; }
+.sf-quick__go:hover, .sf-quick__go:active { background: var(--ink); filter: brightness(1.15); }
+
+/* ── Lines (5.7.4) ─────────────────────────────────────────── */
+.sf-lines { display: block; border: 1px solid var(--line); border-radius: 10px; overflow: visible; }
+.sf-lines__head, .sf-lines__row, .sf-lines__totals { display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px 112px 36px; align-items: center; }
+.sf-lines__head { height: 34px; padding: 0; background: var(--ground); border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; color: var(--ink-3); font-size: 12.5px; font-weight: 500; }
+.sf-lines__head > :first-child { padding: 0 12px; }
+.sf-lines__num { padding: 0 10px; text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sf-lines__head .sf-lines__num { font-family: inherit; }
+.sf-lines__row { height: 48px; border-bottom: 1px solid var(--line-soft); }
+.sf-lines__row:hover { background: var(--hover); }
+.sf-lines__name { padding: 0 12px; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sf-lines__title { font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sf-lines__sub { font-size: 12px; color: var(--ink-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sf-lines__sub--warn { color: var(--warn); }
+.sf-lines__qty { padding: 0 6px; display: flex; justify-content: flex-end; }
+.sf-lines__qty input { width: 72px; height: 30px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 600; text-align: right; }
+.sf-lines__cost { color: var(--ink-2); }
+.sf-lines__remove { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--faint); cursor: pointer; }
+.sf-lines__remove svg { width: 16px; height: 16px; }
+.sf-lines__remove:hover { background: var(--active); color: var(--ink); }
+.sf-lines__add { min-height: 44px; display: flex; align-items: flex-start; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--line); color: var(--ink-3); }
+.sf-lines__add > svg { width: 14px; height: 14px; flex: none; margin-top: 15px; }
+.sf-lines__add .sf-auto { flex: 1; min-width: 0; }
+.sf-lines__add .cx-pick { border-color: transparent; padding: 0; }
+.sf-lines__totals { height: 40px; background: var(--ground); border-radius: 0 0 10px 10px; font-family: var(--font-mono); font-weight: 600; }
+.sf-lines__count { padding: 0 12px; font-family: var(--font-sans); font-weight: 500; color: var(--ink-3); }
+.sf-lines__count .cx-mono { color: var(--ink); }

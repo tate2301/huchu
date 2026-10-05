@@ -50,6 +50,8 @@ type EntityConfig = {
   // True: use GlobalIdSequence (no companyId FK) so the counter is shared across tenants.
   // Required when the underlying table has a global @unique on the reference field.
   globalSequence?: boolean;
+  /** Digits after the prefix, when not the usual four. */
+  padWidth?: number;
 };
 
 const PAD = 4;
@@ -81,7 +83,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
   RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
   RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
-  RETAIL_SHIFT: { prefix: "RSH", requiresSiteId: true },
+  // "SH-00243", the number the floor, the boards and the seeded history use.
+  RETAIL_SHIFT: { prefix: "SH", requiresSiteId: true, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
   RETAIL_SALE: { prefix: "RSL", requiresSiteId: true },
   RETAIL_PROMOTION: { prefix: "RPM", requiresSiteId: false },
@@ -639,7 +642,7 @@ export async function reserveIdentifier(
               ),
               padWidth: PAD,
             }
-          : { prefix: config.prefix, separator: "-", max: 0, padWidth: PAD };
+          : { prefix: config.prefix, separator: "-", max: 0, padWidth: config.padWidth ?? PAD };
 
     if (!existing) {
       const maxExisting = SCHOOL_NUMBERED_ENTITIES.has(input.entity)

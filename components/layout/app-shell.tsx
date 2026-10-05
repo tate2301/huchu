@@ -16,6 +16,7 @@ import { isPublicPath } from "@/lib/public-routes";
 import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
+import { SheetHost } from "@/components/sheet-form/sheet-host";
 
 /**
  * The shell every signed-in page sits in (00-foundations 5.3.1):
@@ -92,6 +93,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       ) : null}
       <MobileNav />
       <GlobalCommandBar />
+      {/* `?sheet=<kind>` over whatever page is open (00-foundations 5.7.1). */}
+      <SheetHost />
       <div className="flex min-w-0 flex-1 flex-col bg-[var(--surface)]">
         <PageHeader />
         <main className="content-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pb-[env(safe-area-inset-bottom)]">

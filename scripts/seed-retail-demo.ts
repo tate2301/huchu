@@ -453,6 +453,9 @@ async function main() {
     // The days' Z-reports were taken over the history being replaced.
     await prisma.retailZReport.deleteMany({ where: { companyId } })
     await prisma.retailShift.deleteMany({ where: { companyId } })
+    // The next shift number is worked out again from the history written below
+    // (SH-<n> after the last seeded one), not from the run before.
+    await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_SHIFT" } })
     console.log(`  reset: cleared ${saleIds.length} previous sale(s) and their shifts`)
   }
 
