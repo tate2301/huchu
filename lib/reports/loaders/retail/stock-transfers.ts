@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { result, TAKE } from "@/lib/reports/loaders/shared";
-import type { ReportContext, ReportLoader, ReportOption, ReportRow } from "@/lib/reports/types";
+import type { ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow } from "@/lib/reports/types";
 import { canSeeRetailCostPrice } from "@/lib/retail/permission-matrix";
 import { formatDayTime, transferState, unitsWords } from "@/lib/retail/stock/transfer-words";
 import { formatMoney } from "@/lib/workspace/format";
@@ -87,6 +87,55 @@ async function transferOptions(ctx: ReportContext): Promise<Record<string, Repor
   return { from: options, to: options };
 }
 
+/**
+ * A transfer's lines (`retail-stock-transfer-lines`, the `transfer` parent):
+ * sent, received (blank until anything of it has been), cost and value at
+ * the cost each line left at, for roles that may see cost.
+ */
+async function loadTransferLines(ctx: ReportContext, params: ReportParams) {
+  if (!params.transfer) return result([]);
+  const seeCost = canSeeRetailCostPrice(ctx.role);
+  const transfer = await prisma.retailStockTransfer.findFirst({
+    where: { id: params.transfer, companyId: ctx.companyId },
+    select: {
+      id: true,
+      lines: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          productId: true,
+          quantitySent: true,
+          quantityReceived: true,
+          quantityLost: true,
+          unitCost: true,
+          product: { select: { name: true } },
+        },
+      },
+    },
+  });
+  if (!transfer) return result([]);
+  const anyReceived = transfer.lines.some((line) => line.quantityReceived.greaterThan(0) || line.quantityLost.greaterThan(0));
+  return result(
+    transfer.lines.map((line, index): ReportRow => {
+      const sent = line.quantitySent.toNumber();
+      const received = line.quantityReceived.toNumber();
+      return {
+        id: line.id,
+        transferId: transfer.id,
+        productId: line.productId,
+        order: index,
+        product: line.product.name,
+        sent,
+        received: anyReceived ? received : null,
+        receivedWords: anyReceived ? `${received} received` : "Not received yet",
+        cost: seeCost ? line.unitCost.toNumber() : null,
+        value: seeCost ? Math.round(sent * line.unitCost.toNumber() * 100) / 100 : null,
+      };
+    }),
+  );
+}
+
 export const STOCK_TRANSFER_LOADERS: Record<string, ReportLoader> = {
   "retail-stock-transfers": { load: loadTransfers, options: transferOptions },
+  "retail-stock-transfer-lines": { load: loadTransferLines },
 };

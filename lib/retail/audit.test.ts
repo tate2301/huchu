@@ -459,6 +459,8 @@ describe("the chain", () => {
       tillMessageSent: "RETAIL_TILL.MESSAGE_SENT",
       transferSent: "RETAIL_STOCK_TRANSFER.SENT",
       transferCancelled: "RETAIL_STOCK_TRANSFER.CANCELLED",
+      transferChanged: "RETAIL_STOCK_TRANSFER.CHANGED",
+      transferReceived: "RETAIL_STOCK_TRANSFER.RECEIVED",
     });
   });
 });

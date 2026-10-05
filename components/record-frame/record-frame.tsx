@@ -7,6 +7,8 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useHydrated } from "@/hooks/use-hydrated";
+
 import { PageChrome, type PageMenuItem, type PagePrimary } from "@/components/layout/page-chrome";
 import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { useToast } from "@/components/ui/use-toast";
@@ -53,9 +55,13 @@ export function RecordFrame<R>({
   const { toast } = useToast();
   const { data: session } = useSession();
   const [asking, setAsking] = React.useState(false);
+  const [range, setRange] = React.useState<string | null>(kind.chartRanges?.initial ?? null);
 
   const query = useQuery({ queryKey: kind.queryKey(id), queryFn: () => kind.load(id), enabled: Boolean(id) });
-  const record = query.data;
+  // A reload restores the record from the device's cache before this hydrates;
+  // the first paint stays the server's loading frame so the two agree.
+  const hydrated = useHydrated();
+  const record = hydrated ? query.data : undefined;
 
   const user = session?.user as { id?: string; role?: string; supportSessionId?: string | null } | undefined;
   const can = React.useCallback(
@@ -166,7 +172,7 @@ export function RecordFrame<R>({
     </PageChrome>
   );
 
-  if (query.isPending) {
+  if (query.isPending || !hydrated) {
     return (
       <div className="cx-rf" aria-busy="true">
         {chrome}
@@ -213,7 +219,7 @@ export function RecordFrame<R>({
     );
   }
 
-  const chart = kind.chart?.(record) ?? null;
+  const chart = kind.chart?.(record, range) ?? null;
   const kpis = kind.kpis?.(record) ?? [];
   const canReadActivity = can(["retail.activity", "view"]);
   const tabs = kind.tabs.filter((tab) => !("requires" in tab) || !tab.requires || can(tab.requires));
@@ -237,7 +243,12 @@ export function RecordFrame<R>({
       <div className="cx-rf-body" aria-hidden={binned || undefined}>
         <div className="cx-rf-main">
           <KpiStrip kpis={kpis} />
-          {chart ? <ChartPanel chart={chart} /> : null}
+          {chart ? (
+            <ChartPanel
+              chart={chart}
+              range={kind.chartRanges && range ? { options: kind.chartRanges.options, value: range, onChange: setRange } : null}
+            />
+          ) : null}
           {mainEmpty ? (
             <p className="cx-rf-empty">Your role sees only this record&rsquo;s details.</p>
           ) : (

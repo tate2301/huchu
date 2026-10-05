@@ -157,6 +157,23 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     );
   });
 
+  it("transfers sent, changed, received and cancelled (30-stock 3.3)", () => {
+    expect(activityWords("RETAIL_STOCK_TRANSFER.SENT", { units: 540, to: "Borrowdale" })).toEqual({ what: "Sent 540 units to Borrowdale", tone: "info" });
+    expect(activityWords("RETAIL_STOCK_TRANSFER.CHANGED", { units: 560 })).toEqual({ what: "Changed the lines: 560 units on the way", tone: "info" });
+    expect(activityWords("RETAIL_STOCK_TRANSFER.RECEIVED", { to: "Borrowdale", received: 538, lost: 2, stillComing: 0 })).toEqual({
+      what: "Received at Borrowdale: 538 units, 2 lost on the way",
+      tone: "warn",
+    });
+    expect(activityWords("RETAIL_STOCK_TRANSFER.RECEIVED", { to: "Borrowdale", received: 4, lost: 0, stillComing: 2 })).toEqual({
+      what: "Received at Borrowdale: 4 units, 2 still to come",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_STOCK_TRANSFER.CANCELLED", { returned: 540, from: "Harare Main Branch" })).toEqual({
+      what: "Cancelled: 540 units back at Harare Main Branch",
+      tone: "bad",
+    });
+  });
+
   it("anything else reads as its type's last segment", () => {
     expect(fallbackWords("RETAIL_EXPORT.DOWNLOADED")).toBe("Downloaded");
     expect(activityWords("STOCK.COUNT_POSTED", null)).toEqual({ what: "Count posted", tone: "hollow" });

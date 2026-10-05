@@ -102,6 +102,10 @@ export type FieldSpec = {
    * or from the sheet's address and the other values (the stock lines at From).
    */
   context?: Record<string, unknown> | ((ctx: SheetCtx, values: SheetValues) => Record<string, unknown>);
+  /** `lines`: only the lines loaded — no add row, no remove (a receipt: nothing arrives that was not sent). */
+  closed?: boolean;
+  /** `lines`: a line drawn in `--warn` while this holds (Came less than was sent). */
+  lineWarn?: (line: SheetLine, values: SheetValues) => boolean;
   /** `lines`: the quantity and cost column labels. */
   ql?: string;
   cl?: string;

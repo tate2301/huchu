@@ -5,3 +5,4 @@
 export type * from "./types";
 export { shiftKind } from "./floor";
 export { productKind } from "./products";
+export { transferKind } from "./stock";

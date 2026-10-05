@@ -154,6 +154,10 @@ export const RETAIL_AUDIT_EVENTS = {
   transferSent: "RETAIL_STOCK_TRANSFER.SENT",
   /** A transfer called off: what was still on the way went back to the site it left. Carries the units returned. */
   transferCancelled: "RETAIL_STOCK_TRANSFER.CANCELLED",
+  /** A transfer's lines changed while on the way. Carries the units now on the way. */
+  transferChanged: "RETAIL_STOCK_TRANSFER.CHANGED",
+  /** Some or all of a transfer counted in at the site it went to. Carries received, lost and still to come. */
+  transferReceived: "RETAIL_STOCK_TRANSFER.RECEIVED",
 } as const;
 
 export type RetailAuditEvent =

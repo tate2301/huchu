@@ -259,6 +259,19 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
     what: `Sent ${unitWords(amount(payload.units) ?? 0)}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,
     tone: "info",
   }),
+  // "Changed the lines: 560 units on the way" (30-stock 3.3).
+  [RETAIL_AUDIT_EVENTS.transferChanged]: (payload) => ({
+    what: `Changed the lines: ${unitWords(amount(payload.units) ?? 0)} on the way`,
+    tone: "info",
+  }),
+  // "Received at Borrowdale: 538 units, 2 lost on the way" (`warn` when lost); still coming says so.
+  [RETAIL_AUDIT_EVENTS.transferReceived]: (payload) => {
+    const lost = amount(payload.lost) ?? 0;
+    const coming = amount(payload.stillComing) ?? 0;
+    const at = text(payload.to) ? ` at ${text(payload.to)}` : "";
+    const rest = lost > 0 ? `, ${formatCount(lost)} lost on the way` : coming > 0 ? `, ${formatCount(coming)} still to come` : "";
+    return { what: `Received${at}: ${unitWords(amount(payload.received) ?? 0)}${rest}`, tone: lost > 0 ? "warn" : "ok" };
+  },
   [RETAIL_AUDIT_EVENTS.transferCancelled]: (payload) => {
     const returned = amount(payload.returned) ?? 0;
     return {

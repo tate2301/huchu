@@ -235,6 +235,8 @@ export function SheetField({
                 context={context}
                 showCost={ctx.can("retail.catalog", "view-cost")}
                 lineErrors={lineErrors}
+                closed={field.closed}
+                lineWarn={field.lineWarn ? (line) => field.lineWarn!(line, values) : undefined}
                 value={Array.isArray(value) ? (value as SheetLine[]) : []}
                 onValueChange={onChange}
                 onOpenChange={onListOpen}

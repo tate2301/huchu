@@ -11,6 +11,7 @@ import { requireRetailSession } from "../../../../_helpers";
  * One transfer's delivery note (30-stock 4.5): number, from, to, sent, by,
  * driver, vehicle, the lines with what was sent and received, and a line for
  * each side to sign. `retail.transfers:view`; 404 when it is not this shop's.
+ * The record's "Print delivery note" asks for it inline (`?print=1`); "Export as PDF" downloads it.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);
@@ -30,7 +31,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse(pdf, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${deliveryNotesFileName(notes)}"`,
+        // `?print=1` (the record's "Print delivery note") opens it in the browser to print.
+        "Content-Disposition": `${request.nextUrl.searchParams.get("print") === "1" ? "inline" : "attachment"}; filename="${deliveryNotesFileName(notes)}"`,
       },
     });
   } catch (error) {

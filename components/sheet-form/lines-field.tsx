@@ -31,6 +31,10 @@ export type LinesFieldProps = {
   showCost?: boolean;
   lineErrors?: Record<number, string>;
   onOpenChange?: (open: boolean) => void;
+  /** Only the lines given: no add row and no remove. */
+  closed?: boolean;
+  /** A line's sub in `--warn` while this holds, as typed. */
+  lineWarn?: (line: SheetLine) => boolean;
 };
 
 export function LinesField({
@@ -47,6 +51,8 @@ export function LinesField({
   showCost = true,
   lineErrors = {},
   onOpenChange,
+  closed = false,
+  lineWarn,
 }: LinesFieldProps) {
   const money = (n: number) => formatMoney(n, currency === "ZiG" ? "ZiG" : "USD");
   const totals = lineTotals(value);
@@ -82,7 +88,7 @@ export function LinesField({
                 {lineErrors[index]}
               </span>
             ) : line.sub ? (
-              <span className={line.warn ? "sf-lines__sub sf-lines__sub--warn" : "sf-lines__sub"}>{line.sub}</span>
+              <span className={line.warn || lineWarn?.(line) ? "sf-lines__sub sf-lines__sub--warn" : "sf-lines__sub"}>{line.sub}</span>
             ) : null}
           </span>
           <span role="cell" className="sf-lines__qty">
@@ -109,30 +115,34 @@ export function LinesField({
             </>
           ) : null}
           <span role="cell">
-            <button
-              type="button"
-              className="sf-lines__remove"
-              aria-label={`Remove ${line.name}`}
-              onClick={() => onValueChange(value.filter((row) => row.productId !== line.productId))}
-            >
-              <X aria-hidden="true" />
-            </button>
+            {closed ? null : (
+              <button
+                type="button"
+                className="sf-lines__remove"
+                aria-label={`Remove ${line.name}`}
+                onClick={() => onValueChange(value.filter((row) => row.productId !== line.productId))}
+              >
+                <X aria-hidden="true" />
+              </button>
+            )}
           </span>
         </div>
       ))}
-      <div className="sf-lines__add">
-        <Plus aria-hidden="true" />
-        <LookupField
-          id={`${id}-add`}
-          label={`Add to ${label}`}
-          noun={noun}
-          value={null}
-          onValueChange={add}
-          placeholder={placeholder}
-          context={context}
-          onOpenChange={onOpenChange}
-        />
-      </div>
+      {closed ? null : (
+        <div className="sf-lines__add">
+          <Plus aria-hidden="true" />
+          <LookupField
+            id={`${id}-add`}
+            label={`Add to ${label}`}
+            noun={noun}
+            value={null}
+            onValueChange={add}
+            placeholder={placeholder}
+            context={context}
+            onOpenChange={onOpenChange}
+          />
+        </div>
+      )}
       <div role="row" className="sf-lines__totals">
         <span role="cell" className="sf-lines__count">
           Σ <span className="cx-mono">{formatCount(totals.count)}</span> {totals.count === 1 ? "line" : "lines"}

@@ -1,11 +1,22 @@
 import type { LookupOption } from "@/lib/retail/lookups/types";
+import type { ChangedTransfer, ReceivedTransfer } from "@/lib/retail/stock/transfer-changes";
+import type { TransferView } from "@/lib/retail/stock/transfer-record";
 import type { SentTransfer } from "@/lib/retail/stock/transfers";
-import { leftOutNote, sendNote, sentToast } from "@/lib/retail/stock/transfer-words";
+import {
+  cameSub,
+  leftOutNote,
+  receiveHint,
+  routeWords,
+  sendNote,
+  sentToast,
+  sentWords,
+  type ShortLine,
+} from "@/lib/retail/stock/transfer-words";
 import type { PickedOption, SheetKind, SheetLine, SheetValues } from "@/lib/workspace/sheet-kind";
 
 /**
- * Stock's sheets (30-stock 5.13): Move stock, over Transfers. It sends
- * through `POST /api/v2/retail/stock/transfers`.
+ * Stock's sheets (30-stock 5.13, 5.15, 5.16): Move stock, over Transfers;
+ * Receive a transfer and Change the lines, over the transfer (or the list).
  */
 
 async function readJson<T>(url: string): Promise<T> {
@@ -196,6 +207,177 @@ async function otherSite(fromId: string): Promise<PickedOption | null> {
   return others.length === 1 ? picked(others[0]!) : null;
 }
 
+/** The transfer a sheet is opened for (`?id=`). */
+async function transferFor(id: string | null): Promise<TransferView> {
+  if (!id) throw new Error("Open this from a transfer.");
+  return readJson<TransferView>(`/api/v2/retail/stock/transfers/${id}`);
+}
+
+const invalidateTransfer = [...invalidateTransfers, ["retail-stock-transfer"], ["record-activity"], ["reports"], ["nav-badges"]];
+
+/** What each receive line still has to come, by transfer line. */
+const toComeOf = (values: SheetValues) => (values._toCome as Record<string, number> | undefined) ?? {};
+
+/** Lines whose Came is less than what is still to come, and by how much. */
+export function shortOf(values: SheetValues): ShortLine[] {
+  const toCome = toComeOf(values);
+  return linesOf(values).flatMap((line) => {
+    const came = Number(line.quantity.trim() || "0");
+    const short = (toCome[line.productId] ?? 0) - (Number.isFinite(came) ? came : 0);
+    return short > 0 ? [{ name: line.name, short }] : [];
+  });
+}
+
+const SHORT = { still: "Still coming", lost: "Lost on the way" } as const;
+
+/**
+ * Receive a transfer (`K.transferreceive`, board TransferReceive): the lines
+ * still to come, prefilled with what is to come; Came less than that turns
+ * the line's sub `--warn`, says what is short under the lines, and asks
+ * whether it is still coming or lost on the way.
+ */
+const transferReceive: SheetKind = {
+  title: (_ctx, values) => `Receive ${String(values._transferNo ?? "the transfer")}`,
+  sub: (_ctx, values) => String(values._sub ?? ""),
+  wide: true,
+  cur: "US$",
+  sections: [
+    {
+      title: "Count what came",
+      fields: [
+        {
+          id: "lines",
+          t: "lines",
+          l: "What came",
+          noun: "stock-line",
+          ql: "Came",
+          cl: "Cost",
+          // Nothing can arrive that was not sent.
+          closed: true,
+          lineWarn: (line, values) => Number(line.quantity.trim() || "0") < (toComeOf(values)[line.productId] ?? 0),
+          h: (values) => receiveHint(shortOf(values), String(values._from ?? "the other site")),
+        },
+      ],
+    },
+    {
+      title: "The difference",
+      show: (values) => shortOf(values).length > 0,
+      fields: [{ id: "short", t: "seg", l: "What is short", o: [SHORT.still, SHORT.lost], v: SHORT.lost }],
+    },
+  ],
+  note: (values) => `Received stock is on sale at ${String(values._to ?? "the other site")} at once.`,
+  done: (result) => (result as ReceivedTransfer).message,
+  primary: "Receive",
+  load: async (ctx) => {
+    const transfer = await transferFor(ctx.id ?? ctx.params.get("id"));
+    const open = transfer.lines.filter((line) => line.toCome > 0);
+    return {
+      _transferNo: transfer.transferNo,
+      _sub: `From ${transfer.from.name} · sent ${sentWords(transfer.sentAt, new Date(transfer.now))} by ${transfer.sentBy}`,
+      _from: transfer.from.name,
+      _to: transfer.to.name,
+      _toCome: Object.fromEntries(open.map((line) => [line.id, line.toCome])),
+      lines: open.map(
+        (line): SheetLine => ({
+          productId: line.id,
+          name: line.product.name,
+          sub: cameSub(line.sent, line.toCome),
+          quantity: String(line.toCome),
+          cost: (line.unitCost ?? 0).toFixed(2),
+          of: line.product.id,
+        }),
+      ),
+      short: SHORT.lost,
+    };
+  },
+  submit: (values, ctx) => ({
+    method: "POST",
+    url: `/api/v2/retail/stock/transfers/${ctx.id ?? ctx.params.get("id")}/receive`,
+    body: {
+      lines: linesOf(values).map((line) => ({ id: line.productId, received: line.quantity.trim() })),
+      short: values.short === SHORT.still ? "STILL_COMING" : "LOST",
+    },
+  }),
+  invalidate: invalidateTransfer,
+  requires: [["retail.transfers", "update"]],
+};
+
+/**
+ * Change the lines (5.16, **Defined here**, reuses TransferNew): From and To
+ * read only, the "What goes" lines prefilled with what is on the way; each
+ * difference leaves or comes back to From's stock when saved.
+ */
+const transferLines: SheetKind = {
+  title: "Change the lines",
+  sub: (_ctx, values) => `${String(values._transferNo ?? "")} · ${routeWords(String(values._from ?? ""), String(values._to ?? ""))}`,
+  wide: true,
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        { id: "from", t: "read", l: "From", half: true },
+        { id: "to", t: "read", l: "To", half: true },
+      ],
+    },
+    {
+      title: "What goes",
+      fields: [
+        {
+          id: "lines",
+          t: "lines",
+          l: "What goes",
+          noun: "stock-line",
+          ql: "Sending",
+          cl: "Cost",
+          p: "Add a product: search or scan",
+          context: (_ctx, values) => ({ siteId: String(values._fromId ?? ""), for: FOR_TRANSFER }),
+        },
+      ],
+    },
+  ],
+  note: (values) => `Changes leave or come back to ${String(values._from ?? "the site it left")}’s stock now.`,
+  done: (result) => (result as ChangedTransfer).message,
+  primary: "Save",
+  load: async (ctx) => {
+    const transfer = await transferFor(ctx.id ?? ctx.params.get("id"));
+    const found = await lookup("stock-line", {
+      lineIds: transfer.lines.map((line) => line.fromLineId),
+      for: FOR_TRANSFER,
+    });
+    const byLine = new Map(found.map((option) => [option.id, option]));
+    return {
+      _transferNo: transfer.transferNo,
+      _from: transfer.from.name,
+      _fromId: transfer.from.id,
+      _to: transfer.to.name,
+      from: transfer.from.name,
+      to: transfer.to.name,
+      lines: transfer.lines.map((line): SheetLine => {
+        const option = byLine.get(line.fromLineId);
+        return option
+          ? asLine(option, String(line.sent))
+          : {
+              productId: line.fromLineId,
+              name: line.product.name,
+              sub: null,
+              quantity: String(line.sent),
+              cost: (line.unitCost ?? 0).toFixed(2),
+              of: line.product.id,
+            };
+      }),
+    };
+  },
+  submit: (values, ctx) => ({
+    method: "PUT",
+    url: `/api/v2/retail/stock/transfers/${ctx.id ?? ctx.params.get("id")}/lines`,
+    body: { lines: linesOf(values).map((line) => ({ lineId: line.productId, quantity: line.quantity.trim() })) },
+  }),
+  invalidate: invalidateTransfer,
+  requires: [["retail.transfers", "update"]],
+};
+
 export const STOCK_SHEETS: Record<string, SheetKind> = {
   "transfer-new": transferNew,
+  "transfer-receive": transferReceive,
+  "transfer-lines": transferLines,
 };

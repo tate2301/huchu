@@ -10,6 +10,7 @@ import type { ListGrant, ListSpec, ReportDefinition } from "@/lib/reports/types"
 
 const VIEW: ListGrant[] = [["retail.transfers", "view"]];
 const CREATE: ListGrant[] = [["retail.transfers", "create"]];
+const UPDATE: ListGrant[] = [["retail.transfers", "update"]];
 const CANCEL: ListGrant[] = [["retail.transfers", "delete"]];
 const ON_THE_WAY = [{ column: "status", op: "is" as const, value: ["ON_THE_WAY"] }];
 const PRINT = { download: "/api/v2/retail/stock/transfers/print", open: true } as const;
@@ -93,6 +94,13 @@ const transfers: ListSpec = {
   rowHref: "/retail/stock/transfers/{id}",
   rowMenu: [
     { key: "open", label: "Open", requires: VIEW, do: { href: "/retail/stock/transfers/{id}" } },
+    {
+      key: "receive",
+      label: "Receive it",
+      requires: UPDATE,
+      when: ON_THE_WAY,
+      do: { href: "/retail/stock/transfers/{id}?sheet=transfer-receive&id={id}" },
+    },
     { key: "print", label: "Print delivery note", requires: VIEW, do: PRINT },
     {
       key: "cancel",
@@ -138,4 +146,63 @@ const transfersSource: ReportDefinition = {
   list: transfers,
 };
 
-export const STOCK_TRANSFER_REPORTS: ReportDefinition[] = [transfersSource];
+/**
+ * A transfer's Lines tab (30-stock 5.14, `retail-stock-transfer-lines`): what
+ * it carries, sent and received, at the cost each line left at. Without a
+ * transfer it has no rows: it is a record's table, not a list of its own.
+ */
+const lines: ListSpec = {
+  noun: "lines",
+  read: VIEW,
+  search: { placeholder: "Product", keys: ["product"] },
+  filters: [{ key: "transfer", type: "parent", column: "transferId" }],
+  sorts: [{ key: "sent", label: "As sent", rules: [{ column: "order", dir: "asc" }] }],
+  columns: [
+    { key: "product", label: "Product", kind: "text", cell: "text", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "sent", label: "Sent", kind: "number", cell: "num", total: "sum", width: "90px", align: "end", priority: 1 },
+    // Blank, so "—", until something of the transfer has been received.
+    { key: "received", label: "Received", kind: "number", cell: "num", total: "sum", width: "100px", align: "end", priority: 2 },
+    {
+      key: "cost",
+      label: "Cost",
+      kind: "money",
+      currency: "USD",
+      cell: "money",
+      requires: "view-cost",
+      width: "90px",
+      align: "end",
+      priority: 3,
+    },
+    {
+      key: "value",
+      label: "Value",
+      kind: "money",
+      currency: "USD",
+      cell: "money",
+      total: "sum",
+      requires: "view-cost",
+      width: "110px",
+      align: "end",
+      priority: 1,
+    },
+    { key: "order", label: "Order", kind: "number", cell: "num", hidden: true, width: "60px", align: "end", priority: 3 },
+  ],
+  rowHref: "/retail/products/{productId}",
+  card: { title: "product", figure: "sent", meta: "{receivedWords}" },
+  empty: { icon: "ArrowsLeftRight", title: "Nothing on this transfer", line: "Change the lines to add what goes." },
+  catalog: false,
+};
+
+const linesSource: ReportDefinition = {
+  key: "retail-stock-transfer-lines",
+  title: "Lines on a transfer",
+  area: "Stock",
+  href: "/retail/stock/transfers",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: lines.columns,
+  defaults: { sort: lines.sorts[0]!.rules },
+  list: lines,
+};
+
+export const STOCK_TRANSFER_REPORTS: ReportDefinition[] = [transfersSource, linesSource];

@@ -1464,6 +1464,11 @@ async function seedTransfers(input: { companyId: string; mainSiteId: string; bor
     where: { sourceType: "RETAIL_STOCK_TRANSFER", reason: { in: ["TRANSFER_OUT", "TRANSFER_IN", "TRANSFER_BACK"] }, item: { site: { companyId } } },
   })
   await prisma.retailStockTransfer.deleteMany({ where: { companyId } })
+  // STK-08: what the gone transfers wrote — their Activity, and the losses an acceptance run wrote off.
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailStockTransfer" } })
+  const losses = { companyId, sourceType: "RETAIL_STOCK_ADJUSTMENT" as const, description: { startsWith: "Lost on the way, TRF-" } }
+  await prisma.journalEntry.deleteMany({ where: losses })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId, sourceType: "RETAIL_STOCK_ADJUSTMENT", sourceId: { contains: ":lost:" } } })
   // Their "sent" and "cancelled" notices would open transfers that are gone.
   const notices = { companyId, type: { in: ["RETAIL_TRANSFER_SENT", "RETAIL_TRANSFER_CANCELLED"] as NotificationType[] } }
   await prisma.notificationRecipient.deleteMany({ where: { notification: notices } })
@@ -1535,6 +1540,7 @@ async function seedTransfers(input: { companyId: string; mainSiteId: string; bor
   ]
 
   const movements: Prisma.StockMovementCreateManyInput[] = []
+  const written: Array<{ id: string; spec: SeedTransfer }> = []
   for (const spec of transfers) {
     const [fromLines, toLines] = spec.from === "HRE" ? [hre, bdl] : [bdl, hre]
     const [fromSiteId, toSiteId] = spec.from === "HRE" ? [mainSiteId, borrowdaleId] : [borrowdaleId, mainSiteId]
@@ -1561,8 +1567,10 @@ async function seedTransfers(input: { companyId: string; mainSiteId: string; bor
         receivedById: spec.received?.by ?? null,
         createdAt: spec.sentAt,
         lines: {
-          create: legs.map((leg) => ({
+          // A moment apart, so the record lists them in the order they were packed.
+          create: legs.map((leg, index) => ({
             companyId,
+            createdAt: new Date(spec.sentAt.getTime() + index),
             productId: leg.from.productId!,
             fromItemId: leg.from.id,
             toItemId: leg.to?.id ?? null,
@@ -1575,6 +1583,7 @@ async function seedTransfers(input: { companyId: string; mainSiteId: string; bor
       },
       select: { id: true, lines: { select: { id: true, fromItemId: true } } },
     })
+    written.push({ id: transfer.id, spec })
     const lineId = new Map(transfer.lines.map((line) => [line.fromItemId, line.id]))
     const toName = spec.from === "HRE" ? "Borrowdale" : "Harare Main Branch"
     const fromName = spec.from === "HRE" ? "Harare Main Branch" : "Borrowdale"
@@ -1632,6 +1641,70 @@ async function seedTransfers(input: { companyId: string; mainSiteId: string; bor
     create: { companyId, entityKey: "RETAIL_STOCK_TRANSFER", scopeKey: "GLOBAL", lastNumber: transfers.length },
   })
   console.log(`  transfers: ${transfers.length} between Harare Main Branch and Borrowdale, ${movements.length} movement(s)`)
+  await seedTransferActivity({ companyId, written, names: { [tafara]: "Tafara Nyathi", [rudo]: "Rudo Moyo" } })
+}
+
+/**
+ * STK-08. Each transfer's Activity as sending and receiving it wrote it:
+ * "Sent 540 units to Borrowdale", "Received at Harare Main Branch: 44 units,
+ * 2 lost on the way", and on TRF-0008 Tafara Nyathi's vehicle, set four
+ * minutes after it left (the TransferRecord board's "Activity 2").
+ */
+async function seedTransferActivity(input: {
+  companyId: string
+  written: Array<{ id: string; spec: SeedTransfer }>
+  names: Record<string, string>
+}) {
+  const { companyId, written, names } = input
+  const actor = (userId: string) => ({ companyId, userId, userName: names[userId] ?? null, userRole: null })
+  const stamp = async (entityId: string, eventType: string, at: Date) => {
+    const latest = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, entityId, eventType },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    })
+    if (latest) await prisma.platformAuditEvent.update({ where: { id: latest.id }, data: { createdAt: at } })
+  }
+  let events = 0
+  for (const { id, spec } of written) {
+    const [fromName, toName] = spec.from === "HRE" ? ["Harare Main Branch", "Borrowdale"] : ["Borrowdale", "Harare Main Branch"]
+    const units = spec.lines.reduce((sum, [, sent]) => sum + sent, 0)
+    const lost = spec.lines.reduce((sum, [, , gone = 0]) => sum + gone, 0)
+    await writeRetailAuditEvent(prisma, {
+      actor: actor(spec.sentBy),
+      eventType: RETAIL_AUDIT_EVENTS.transferSent,
+      entityType: "RetailStockTransfer",
+      entityId: id,
+      payload: { transferNo: spec.no, lines: spec.lines.length, units, from: fromName, to: toName },
+    })
+    await stamp(id, RETAIL_AUDIT_EVENTS.transferSent, spec.sentAt)
+    events += 1
+    if (spec.received) {
+      await writeRetailAuditEvent(prisma, {
+        actor: actor(spec.received.by),
+        eventType: RETAIL_AUDIT_EVENTS.transferReceived,
+        entityType: "RetailStockTransfer",
+        entityId: id,
+        payload: { transferNo: spec.no, to: toName, received: units - lost, lost, stillComing: 0 },
+      })
+      await stamp(id, RETAIL_AUDIT_EVENTS.transferReceived, spec.received.at)
+      events += 1
+    }
+    if (spec.moving) {
+      await auditRecordEdited(prisma, {
+        actor: actor(spec.sentBy),
+        entityType: "RetailStockTransfer",
+        entityId: id,
+        field: "vehicle",
+        label: "Vehicle",
+        from: null,
+        to: spec.moving.vehicle,
+      })
+      await stamp(id, RETAIL_AUDIT_EVENTS.recordEdited, new Date(Math.min(spec.sentAt.getTime() + 4 * 60 * 1000, Date.now())))
+      events += 1
+    }
+  }
+  console.log(`  ${events} transfer activity events`)
 }
 
 /**

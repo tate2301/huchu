@@ -154,7 +154,9 @@ export type RecordKind<R> = {
   chips?: (record: R) => RecordChip[];
   figure?: (record: R) => RecordFigure | null;
   kpis?: (record: R) => RecordKpi[];
-  chart?: (record: R) => RecordChart | null;
+  /** The chart's range control (decision 10: only where the kind has one); `chart` gets the chosen key. */
+  chartRanges?: { options: Array<{ key: string; label: string }>; initial: string };
+  chart?: (record: R, range: string | null) => RecordChart | null;
   tabs: RecordTab<R>[];
   railTop?: (record: R) => RailTop | null;
   rail: (record: R) => RailGroup[];
