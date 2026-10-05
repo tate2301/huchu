@@ -10,6 +10,8 @@ import { hashDeviceKey } from "@/lib/retail/devices";
  * ignores any rate the till sends — on a sale replayed from the offline queue
  * too, which takes the same path (`createRetailSaleTransaction`) as one rung now.
  * Against the test database, on a paired till, with only the sign-in faked.
+ * A void of a ZiG cash sale undoes it exactly: the ZiG back as ZiG at the
+ * rate stamped on it, the change back into the drawer, the journal reversed.
  */
 
 const { validateSessionMock } = vi.hoisted(() => ({ validateSessionMock: vi.fn() }));
@@ -20,6 +22,7 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 }));
 
 import { POST } from "./route";
+import { voidRetailSaleTransaction } from "../../_services";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const key = `sync-key-${stamp}`;
@@ -256,5 +259,60 @@ describe("tenders on a sale sent in from the offline queue", () => {
     expect(result).toMatchObject({ status: "synced" });
     const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: result.serverId! } });
     expect(stored.reviewReason).toBe("Paid by InnBucks, turned off in Payments since.");
+  });
+});
+
+describe("a void of a ZiG cash sale with rounded change", () => {
+  it("puts the drawer back where it was and reverses the sale's journal exactly", async () => {
+    await prisma.retailPaymentSettings.upsert({
+      where: { companyId },
+      update: { zigChangeRounding: "1" },
+      create: { companyId, zigChangeRounding: "1" },
+    });
+    const expectedCash = async () =>
+      (await prisma.retailShift.findUniqueOrThrow({ where: { id: shiftId } })).expectedCash.toString();
+    const before = await expectedCash();
+
+    // ZiG 109 at 26.80 is US$4.07 for US$3.90: 17 cents owed, ZiG 4.56, which
+    // the shop's nearest 1 hands back as ZiG 5 (US$0.19), two cents given.
+    const result = (await sync([sale("zig-void", { tenderType: "CASH", currency: "ZWG", amount: 109 })])).get("zig-void")!;
+    expect(result).toMatchObject({ status: "synced", accountingStatus: "POSTED" });
+    const { sale: sold } = await storedPayment(result.serverId!);
+    expect([sold.changeZig.toString(), sold.changeAmount?.toString()]).toEqual(["5", "0.19"]);
+    expect(Number(await expectedCash())).toBeCloseTo(Number(before) + 4.07 - 0.19, 2);
+
+    const { sale: voided, accounting } = await voidRetailSaleTransaction({
+      actor: { companyId, userId: cashierId, userRole: "CASHIER", userName: "Chipo Dube", userEmail: null },
+      saleId: sold.id,
+      shiftId,
+      reason: "Rang the wrong tender",
+      approvedBy: { id: cashierId, name: "Tafara Nyathi" },
+    });
+    expect(accounting.accountingStatus).toBe("POSTED");
+    expect(await expectedCash()).toBe(before);
+    expect(voided.payments).toHaveLength(1);
+    expect(voided.payments[0]).toMatchObject({ tenderType: "CASH", currency: "ZWG" });
+    expect(
+      [voided.payments[0]!.amount, voided.payments[0]!.exchangeRate, voided.payments[0]!.baseAmount].map(String),
+    ).toEqual(["-109", "26.8", "-4.07"]);
+    expect([voided.changeZig.toString(), voided.changeAmount?.toString()]).toEqual(["-5", "-0.19"]);
+
+    const journal = async (sourceType: "RETAIL_SALE" | "RETAIL_VOID", sourceId: string) => {
+      const entry = await prisma.journalEntry.findFirstOrThrow({
+        where: { companyId, sourceType, sourceId },
+        select: { lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } },
+      });
+      const byAccount = new Map<string, number>();
+      for (const line of entry.lines) {
+        const net = Number(line.debit) - Number(line.credit);
+        byAccount.set(line.account.code, Number(((byAccount.get(line.account.code) ?? 0) + net).toFixed(2)));
+      }
+      return byAccount;
+    };
+    const saleBooks = await journal("RETAIL_SALE", sold.id);
+    const voidBooks = await journal("RETAIL_VOID", voided.id);
+    expect(saleBooks.get("5420")).toBe(0.02);
+    expect([...voidBooks.entries()].sort()).toEqual([...saleBooks.entries()].map(([code, net]) => [code, -net]).sort());
+    expect([...voidBooks.values()].reduce((total, net) => total + net, 0)).toBeCloseTo(0, 2);
   });
 });

@@ -152,7 +152,9 @@ function getRetailSaleDescription(saleType: string, saleNo: string) {
  * both), and what rounding the ZiG left against what was owed (tendered less
  * the goods and deposits) — kept by the shop, or given to the customer.
  * With ZiG in the change the dollars are the whole dollars owed, as
- * `splitChange` hands them back.
+ * `splitChange` hands them back. A void carries its sale's figures negated,
+ * so it reads back the same split and its journal reverses the sale's; a
+ * refund hands back no change.
  */
 export function postedChange(sale: {
   saleType: string;
@@ -163,11 +165,14 @@ export function postedChange(sale: {
   changeZig: MoneyLike;
 }): { usd: number; zig: number; kept: number; given: number } {
   const change = money(sale.changeAmount ?? 0).abs();
-  if (sale.saleType !== "SALE" || sale.tenderedAmount == null) {
+  if (sale.saleType === "REFUND" || sale.tenderedAmount == null) {
     return { usd: toNumberOrZero(change), zig: 0, kept: 0, given: 0 };
   }
-  const owed = money(sale.tenderedAmount).minus(money(sale.totalAmount)).minus(money(sale.depositAmount));
-  const usd = money(sale.changeZig).greaterThan(0) ? Prisma.Decimal.min(owed.floor(), change) : change;
+  const owed = money(sale.tenderedAmount)
+    .minus(money(sale.totalAmount))
+    .minus(money(sale.depositAmount))
+    .times(sale.saleType === "VOID" ? -1 : 1);
+  const usd = money(sale.changeZig).abs().greaterThan(0) ? Prisma.Decimal.min(owed.floor(), change) : change;
   const rounding = owed.minus(change);
   return {
     usd: toNumberOrZero(usd),
@@ -1189,11 +1194,17 @@ export async function refundRetailSaleTransaction(input: {
     quantity,
   }));
 
+  // Paid back in the sale's own currency, at its rate, so the money out of the
+  // drawer is what the refund is worth; a tender in other money is refused
+  // rather than written down as that many of the sale's.
+  if (input.payments.some((payment) => payment.currency && payment.currency.trim().toUpperCase() !== sourceSale.currency)) {
+    throw new Error("A refund is paid back in the sale's currency.");
+  }
   const refundPayments = input.payments.map((payment) => ({
     tenderType: payment.tenderType,
     amount: round(payment.amount),
     reference: payment.reference?.trim() || null,
-    currency: payment.currency ?? null,
+    currency: sourceSale.currency,
   }));
   const tenderPolicy = await getRetailTenderPolicy(input.actor.companyId);
   const paymentReferenceError = validateTenderReferences(tenderPolicy, refundPayments);
@@ -1549,11 +1560,16 @@ export async function voidRetailSaleTransaction(input: {
       throw new Error("Sales with refunds or existing reversals cannot be voided");
     }
 
-    const negativePayments = currentSourceSale.payments.map((payment) => ({
+    // A void undoes its sale exactly (SET-05, W-05): each tender goes back in
+    // its own currency at the rate stamped on it — ZiG notes as ZiG, never as
+    // that many dollars — and the change the drawer gave goes back into it.
+    const reversedPayments = currentSourceSale.payments.map((payment) => ({
       tenderType: payment.tenderType,
-      amount: toNumberOrZero(money(payment.amount).abs().negated()),
+      amount: money(payment.amount).negated(),
+      currency: payment.currency,
+      exchangeRate: payment.exchangeRate,
+      baseAmount: money(payment.baseAmount).negated(),
       reference: payment.reference?.trim() || null,
-      currency: null,
     }));
 
     const inventoryItems = await tx.inventoryItem.findMany({
@@ -1583,13 +1599,14 @@ export async function voidRetailSaleTransaction(input: {
         totalAmount: money(currentSourceSale.totalAmount).abs().negated(),
         // The deposit goes back with the bottles' sale, or the ledger keeps a
         // liability for empties nobody owes.
-        depositAmount: money(currentSourceSale.depositAmount).abs().negated(),
-        tenderedAmount: money(
-          currentSourceSale.tenderedAmount ?? currentSourceSale.totalAmount,
-        )
-          .abs()
-          .negated(),
-        changeAmount: 0,
+        depositAmount: money(currentSourceSale.depositAmount).negated(),
+        // What was tendered and the change handed back, negated: the drawer
+        // and the journal take off exactly what the sale put on.
+        tenderedAmount:
+          currentSourceSale.tenderedAmount == null ? null : money(currentSourceSale.tenderedAmount).negated(),
+        changeAmount:
+          currentSourceSale.changeAmount == null ? null : money(currentSourceSale.changeAmount).negated(),
+        changeZig: money(currentSourceSale.changeZig).negated(),
         // R-1.5 — same reasoning as the refund above: a void is denominated by
         // the sale it cancels. Defaulting these made a void of a ZWG sale post
         // as USD with a zero base amount, so the two never cancelled out.
@@ -1604,7 +1621,12 @@ export async function voidRetailSaleTransaction(input: {
         status: "POSTED",
         notes: input.notes?.trim() || null,
         postedAt: input.postedAt ?? new Date(),
-        tenderSummary: negativePayments,
+        tenderSummary: reversedPayments.map((payment) => ({
+          ...payment,
+          amount: toNumberOrZero(payment.amount),
+          exchangeRate: payment.exchangeRate.toString(),
+          baseAmount: toNumberOrZero(payment.baseAmount),
+        })),
         lines: {
           create: currentSourceSale.lines.map((line) => ({
             companyId: input.actor.companyId,
@@ -1625,22 +1647,13 @@ export async function voidRetailSaleTransaction(input: {
             costTotal: money(line.costTotal).isZero()
               ? multiplyMoney(money(line.quantity).abs(), money(line.costUnit))
               : money(line.costTotal),
-            depositAmount: money(line.depositAmount).abs().negated(),
+            depositAmount: money(line.depositAmount).negated(),
           })),
         },
         payments: {
-          // R-1.5 — the reversal is settled in the currency the sale was taken
-          // in. Without these three the tender defaulted to USD at 1 with a zero
-          // base amount, which is how a refund could balance against the sale on
-          // the receipt and still not net off in the ledger.
-          create: negativePayments.map((payment) => ({
+          create: reversedPayments.map((payment) => ({
             companyId: input.actor.companyId,
-            tenderType: payment.tenderType,
-            amount: payment.amount,
-            currency: currentSourceSale.currency,
-            exchangeRate: currentSourceSale.exchangeRate,
-            baseAmount: toBaseAmount(payment.amount, currentSourceSale.exchangeRate),
-            reference: payment.reference,
+            ...payment,
           })),
         },
       },
@@ -1670,13 +1683,12 @@ export async function voidRetailSaleTransaction(input: {
       });
     }
 
+    // What the sale left in the drawer, taken back out: its cash tenders at
+    // their base amounts, less the change it gave, read the way cash-up reads
+    // every sale.
     const netCash = getCashNetFromPayments(
-      // A reversal is denominated by the sale it reverses, so the money leaving
-      // the drawer converts at that sale's rate rather than today's.
-      negativePayments.map((payment) => ({
-        tenderType: payment.tenderType,
-        baseAmount: toBaseAmount(payment.amount, currentSourceSale.exchangeRate),
-      })),
+      created.payments,
+      toBaseAmount(created.changeAmount ?? 0, created.exchangeRate),
     );
     if (!netCash.isZero()) {
       const updatedShift = await tx.retailShift.updateMany({

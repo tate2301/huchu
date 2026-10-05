@@ -69,6 +69,9 @@ describe("payments in words", () => {
     expect(rateSetHint("2026-10-05T18:10:00+02:00", "Tafara Nyathi", new Date("2026-10-05T20:00:00+02:00"))).toBe(
       "Set today at 18:10 by Tafara Nyathi.",
     );
+    expect(rateSetHint("2026-10-05T00:52:00+02:00", "Tafara Nyathi", now)).toBe(
+      "Set today at 00:52 by Tafara Nyathi.",
+    );
     expect(rateSetHint("2026-10-02T07:25:00+02:00", "Tendai Mhlanga", now)).toBe(
       "Set on 2 October at 07:25 by Tendai Mhlanga.",
     );

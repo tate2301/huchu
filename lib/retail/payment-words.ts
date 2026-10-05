@@ -116,10 +116,12 @@ function dayWithoutThisYear(at: Date, now: Date): string {
 export function rateSetHint(setAt: string | null, setBy: string | null, now: Date): string {
   if (!setAt) return "No rate set yet.";
   const at = new Date(setAt);
+  // Before five is not yet the morning: a rate set at 00:52 was set "today".
+  const hour = hourOf(at);
   const when = sameDay(at, now)
-    ? hourOf(at) < 12
+    ? hour >= 5 && hour < 12
       ? "this morning"
-      : hourOf(at) < 17
+      : hour >= 12 && hour < 17
         ? "this afternoon"
         : "today"
     : `on ${dayWithoutThisYear(at, now)}`;

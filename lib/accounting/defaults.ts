@@ -954,6 +954,23 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         memoTemplate: "{description} / bottle deposits",
         sortOrder: 35,
       },
+      // A void reverses its sale's change rounding too (SET-05, W-05).
+      {
+        accountCode: "5420",
+        direction: "CREDIT",
+        basis: "DEDUCTIONS",
+        valuePath: "changeRoundingKept",
+        memoTemplate: "{description} / change rounding",
+        sortOrder: 36,
+      },
+      {
+        accountCode: "5420",
+        direction: "DEBIT",
+        basis: "DEDUCTIONS",
+        valuePath: "changeRoundingGiven",
+        memoTemplate: "{description} / change rounding",
+        sortOrder: 37,
+      },
       {
         accountCode: "5000",
         direction: "DEBIT",
