@@ -275,6 +275,51 @@ describe("places inside a site (W-66)", () => {
     expect((await getSite(companyId, mainId, true))!.state).toBe("OPEN");
     await updateSite(actor(), mainId, { isDefault: true });
   });
+
+  it("changes only what a PATCH sends: Make default and a places edit leave phone, address and hours", async () => {
+    // Left out stays left out; sent empty clears.
+    expect(sitePatch.parse({ isDefault: true }).phone).toBeUndefined();
+    expect(sitePatch.parse({ isDefault: true }).address).toBeUndefined();
+    expect(sitePatch.parse({ isDefault: true }).openingHours).toBeUndefined();
+    expect(sitePatch.parse({ phone: "", address: null, openingHours: " " })).toEqual({ phone: null, address: null, openingHours: null });
+
+    const details = { phone: "+263 24 270 5521", address: "14 Samora Machel Avenue, Harare", openingHours: "Mon to Sat 08:00 to 22:00" };
+    await updateSite(actor(), mainId, sitePatch.parse({ phone: "0242705521", address: details.address, openingHours: details.openingHours }));
+    const kept = () => getSite(companyId, mainId, true).then((site) => site && { phone: site.phone, address: site.address, openingHours: site.openingHours });
+    expect(await kept()).toEqual(details);
+
+    const borrowdale = await prisma.site.findFirstOrThrow({ where: { companyId, code: "BDL" } });
+    await updateSite(actor(), borrowdale.id, sitePatch.parse({ isDefault: true }));
+    await updateSite(actor(), mainId, sitePatch.parse({ isDefault: true }));
+    expect(await kept()).toEqual(details);
+
+    const shop = (await getSite(companyId, mainId, true))!.placeList[0]!;
+    await updateSite(actor(), mainId, sitePatch.parse({ places: [{ id: shop.id, name: "Shop floor" }] }));
+    await updateSite(actor(), mainId, sitePatch.parse({ name: "Harare Main Branch" }));
+    expect(await kept()).toEqual(details);
+    expect((await prisma.site.findUniqueOrThrow({ where: { id: borrowdale.id } })).phone).toBe("+263 24 288 1100");
+  });
+
+  it("refuses another site's place by id, even under a name this site has", async () => {
+    const avondale = await getSite(companyId, (await prisma.site.findFirstOrThrow({ where: { companyId, code: "AVD" } })).id, true);
+    const theirs = avondale!.placeList.find((place) => place.name === "Shop floor")!;
+    const refused = await refusal(updateSite(actor(), mainId, sitePatch.parse({ places: [{ id: theirs.id, name: "Shop floor" }] })));
+    expect(refused).toMatchObject({ status: 400, message: "One of those places is not at this site.", opts: { field: "places" } });
+    expect((await prisma.stockLocation.findUniqueOrThrow({ where: { id: theirs.id } })).siteId).toBe(avondale!.id);
+  });
+
+  it("records the price list it sold from before", async () => {
+    await updateSite(actor(), mainId, sitePatch.parse({ priceListId: wholesaleListId }));
+    await updateSite(actor(), mainId, sitePatch.parse({ priceListId: retailListId }));
+    const changed = (await events(mainId))
+      .filter((event) => event.eventType === "RETAIL_SITE.CHANGED")
+      .map((event) => JSON.parse(event.payloadJson ?? "{}").changes?.priceList)
+      .filter(Boolean);
+    expect(changed.slice(-2)).toEqual([
+      { from: "Retail", to: "Wholesale" },
+      { from: "Wholesale", to: "Retail" },
+    ]);
+  });
 });
 
 describe("closing a site", () => {

@@ -95,13 +95,17 @@ const NOT_FOUND = "That site is not one of this shop's.";
 
 /* ── Input ────────────────────────────────────────────────────────────────── */
 
+/**
+ * Left out stays left out (undefined), so a PATCH that does not send a field
+ * leaves it as it is; sent empty or null clears it.
+ */
 const optionalText = (max: number, message: string) =>
   z
     .string()
     .trim()
     .max(max, message)
     .nullish()
-    .transform((value) => (value ? value : null));
+    .transform((value) => (value === undefined ? undefined : value ? value : null));
 
 const placeInput = z.object({
   id: z.string().uuid().optional(),
@@ -118,6 +122,7 @@ const fields = {
     .string()
     .nullish()
     .transform((value, issue) => {
+      if (value === undefined) return undefined;
       const typed = (value ?? "").trim();
       if (!typed) return null;
       const phone = zimbabwePhone(typed);
@@ -464,17 +469,19 @@ async function applyPlaces(
   const added: string[] = [];
 
   for (const place of places) {
-    // A known id, or a place already there under that name.
-    const existing =
-      (place.id ? active.find((row) => row.id === place.id) : undefined) ??
-      active.find((row) => !kept.has(row.id) && row.name.toLowerCase() === place.name.toLowerCase());
+    // A known id must be one of this site's places; without one, a place already there under that name.
+    const existing = place.id
+      ? active.find((row) => row.id === place.id)
+      : active.find((row) => !kept.has(row.id) && row.name.toLowerCase() === place.name.toLowerCase());
+    if (place.id && (!existing || kept.has(existing.id))) {
+      throw new SiteRefusal(400, "One of those places is not at this site.", { field: "places" });
+    }
     if (existing) {
       kept.add(existing.id);
       order.push(existing.id);
       if (existing.name !== place.name) await tx.stockLocation.update({ where: { id: existing.id }, data: { name: place.name } });
       continue;
     }
-    if (place.id) throw new SiteRefusal(400, "One of those places is not at this site.", { field: "places" });
     // A place removed before comes back under its old code.
     const returning = all.find((row) => !row.isActive && row.name.toLowerCase() === place.name.toLowerCase());
     if (returning) {
@@ -538,7 +545,17 @@ export async function updateSite(actor: SiteActor, id: string, patch: SitePatch)
     await prisma.$transaction(async (tx) => {
       const site = await tx.site.findFirst({
         where: { id, companyId },
-        select: { id: true, name: true, code: true, location: true, phone: true, openingHours: true, priceListId: true, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          location: true,
+          phone: true,
+          openingHours: true,
+          priceListId: true,
+          isActive: true,
+          priceList: { select: { name: true } },
+        },
       });
       if (!site) throw new SiteRefusal(404, NOT_FOUND);
       if (!site.isActive) throw new SiteRefusal(409, `${site.name} is closed. A closed site keeps its details as they were.`);
@@ -579,7 +596,7 @@ export async function updateSite(actor: SiteActor, id: string, patch: SitePatch)
       if (patch.priceListId !== undefined && patch.priceListId !== site.priceListId) {
         const name = await checkPriceList(tx, companyId, patch.priceListId);
         data.priceList = { connect: { id: patch.priceListId } };
-        changes.priceList = { from: null, to: name };
+        note("priceList", site.priceList?.name ?? null, name);
       }
       if (Object.keys(data).length > 0) await tx.site.update({ where: { id: site.id }, data });
 

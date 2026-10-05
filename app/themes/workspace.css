@@ -63,7 +63,7 @@
 .cx-seg__item:hover { background: var(--active); color: var(--ink); }
 .cx-seg__item:disabled { opacity: 0.6; cursor: default; }
 .cx-seg__item[aria-pressed="true"], .cx-seg__item[aria-checked="true"], .cx-seg__item[aria-selected="true"] { background: var(--sel-fill); color: var(--on-sel); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
-.cx-seg--field .cx-seg__item { min-height: 30px; font-size: 14px; }
+.cx-seg--field .cx-seg__item { min-height: 30px; font-size: 14px; white-space: normal; text-align: center; }
 
 /* Switch: on is ink, not a state colour. */
 .cx-switch { flex: none; position: relative; width: 34px; height: 20px; padding: 0; border: 0; border-radius: 99px; background: var(--line-strong); cursor: pointer; }

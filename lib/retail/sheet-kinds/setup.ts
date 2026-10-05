@@ -43,15 +43,30 @@ const codeField = (hint: boolean): FieldSpec => ({
   ...(hint ? { h: "On receipts and transfers." } : {}),
   schema: codeSchema,
 });
-const phoneField: FieldSpec = { id: "phone", t: "text", l: "Phone", half: true, mono: true, opt: true, schema: phoneSchema };
-const addressField = (opt: boolean): FieldSpec => ({ id: "address", t: "area", l: "Address", rows: 2, ...(opt ? { opt: true } : {}) });
-const placesField = (placeholder: string, hint: string): FieldSpec => ({
+/**
+ * Phone, address and hours may be left empty. The boards mark only Add a
+ * site's phone as optional; the site sheet marks none, and Add a site asks
+ * for the address.
+ */
+const phoneField = (quiet: boolean): FieldSpec => ({
+  id: "phone",
+  t: "text",
+  l: "Phone",
+  half: true,
+  mono: true,
+  opt: true,
+  optQuiet: quiet,
+  schema: phoneSchema,
+});
+const addressField = (opt: boolean): FieldSpec => ({ id: "address", t: "area", l: "Address", rows: 2, ...(opt ? { opt: true, optQuiet: true } : {}) });
+/** The site sheet keeps its last place (no ×); Add a site may clear it and is then asked for one. */
+const placesField = (placeholder: string, hint: string, keepOne: boolean): FieldSpec => ({
   id: "places",
   t: "tags",
   l: "Places inside it",
   p: placeholder,
   h: hint,
-  keepOne: true,
+  keepOne,
 });
 const priceListField: FieldSpec = { id: "priceListId", t: "auto", l: "Price list", noun: "price-list" };
 const hoursField: FieldSpec = {
@@ -59,6 +74,7 @@ const hoursField: FieldSpec = {
   t: "text",
   l: "Open",
   opt: true,
+  optQuiet: true,
   p: "Mon to Sat 08:00 to 21:00, Sun 10:00 to 17:00",
 };
 
@@ -110,7 +126,7 @@ const siteNew: SheetKind = {
           ...codeField(true),
           derive: (values) => suggestSiteCode(text(values.name), (values._takenCodes ?? []) as string[]),
         },
-        phoneField,
+        phoneField(false),
         addressField(false),
       ],
     },
@@ -121,6 +137,7 @@ const siteNew: SheetKind = {
           ...placesField(
             "Back store, cold room… then Enter",
             "Leave it as one place unless you move stock between rooms. A site with one place never asks which.",
+            false,
           ),
           v: ["Shop floor"],
         },
@@ -212,7 +229,7 @@ const siteEdit: SheetKind = {
       fields: [
         nameField,
         codeField(false),
-        phoneField,
+        phoneField(true),
         addressField(true),
         {
           id: "isDefault",
@@ -225,7 +242,7 @@ const siteEdit: SheetKind = {
     },
     {
       title: "Where stock sits",
-      fields: [placesField("Add a place, then Enter", "Removing a place moves its stock to the shop floor.")],
+      fields: [placesField("Add a place, then Enter", "Removing a place moves its stock to the shop floor.", true)],
     },
     { title: "Selling there", fields: [priceListField, hoursField] },
   ],

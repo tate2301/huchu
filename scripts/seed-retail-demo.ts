@@ -1230,6 +1230,19 @@ async function seedSites(input: { companyId: string; mainSiteId: string; borrowd
   }
 
   if (!input.reset) return
+  // An acceptance run's moves between places at the two sites (a place removed,
+  // a line moved to the back store) go with the places it changed, which are
+  // restored above. Seeded lines sit on the shop floor.
+  const seededSites = [mainSiteId, borrowdaleId]
+  for (const siteId of seededSites) {
+    const shopFloor = await prisma.stockLocation.findUniqueOrThrow({ where: { siteId_code: { siteId, code: "SHOP" } } })
+    await prisma.inventoryItem.updateMany({ where: { siteId, locationId: { not: shopFloor.id } }, data: { locationId: shopFloor.id } })
+  }
+  const placeMoves = await prisma.stockMovement.deleteMany({
+    where: { reason: "PLACE_MOVE", item: { siteId: { in: seededSites } } },
+  })
+  if (placeMoves.count > 0) console.log(`  removed ${placeMoves.count} move(s) between places`)
+
   const others = await prisma.site.findMany({
     where: { companyId, id: { notIn: [mainSiteId, borrowdaleId] } },
     select: { id: true, name: true },

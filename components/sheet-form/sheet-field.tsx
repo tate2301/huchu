@@ -113,7 +113,7 @@ export function SheetField({
     <Field
       id={controlId}
       label={field.l}
-      optional={field.opt}
+      optional={field.opt && !field.optQuiet}
       hint={hint}
       warn={warn}
       error={error}

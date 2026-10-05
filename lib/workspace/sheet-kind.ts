@@ -56,6 +56,8 @@ export type FieldSpec = {
   half?: boolean;
   /** Optional: a field without it is required. */
   opt?: boolean;
+  /** With `opt`: optional without the word "optional" beside the label (the board leaves it off). */
+  optQuiet?: boolean;
   mono?: boolean;
   right?: boolean;
   /** `text`: upper case as typed (a short code). */
