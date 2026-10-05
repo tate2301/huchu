@@ -6,7 +6,7 @@ import { useShellNav } from "@/components/layout/shell-nav";
 /** Where this person's workspace starts, named as its nav item is: "Back to Shifts". */
 export function useHomeLink(): { href: string; label: string } {
   const nav = useShellNav();
-  const home = [...nav.rail.areas, ...(nav.rail.management ? [nav.rail.management] : [])]
+  const home = nav.rail.areas
     .flatMap((area) => area.items)
     .find((item) => item.href === nav.homeHref);
   return { href: nav.homeHref, label: home?.label ?? "your start page" };

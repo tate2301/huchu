@@ -1,5 +1,6 @@
-/* The shell's navigation (00-foundations 5.3.2–5.3.3): a 56px rail of module
-   marks and a 240px panel of the current module's items. Role tokens only. */
+/* The shell's navigation (00-foundations 5.3.2–5.3.3, `Main.dc.html`): a 56px
+   rail of module marks and pins, and a 240px panel that lists the workspace's
+   modules or one module's items. Role tokens only. */
 
 .nav {
   position: relative;
@@ -94,10 +95,55 @@
   flex: 1;
 }
 
+/* Between the module marks and the pins. */
+.divider {
+  display: block;
+  flex: none;
+  width: 24px;
+  height: 1px;
+  margin: 2px 0;
+  background: var(--line);
+}
+
+/* The person at the foot of the rail. */
+.avatarButton {
+  flex: none;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--tray);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.avatarPhoto {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .tile:focus-visible,
 .mark:focus-visible,
 .item:focus-visible,
-.collapse:focus-visible {
+.iconButton:focus-visible,
+.find:focus-visible,
+.pin:focus-visible,
+.avatarButton:focus-visible {
   outline: 2px solid var(--action);
   outline-offset: 2px;
 }
@@ -134,14 +180,13 @@
   padding: 0 12px;
 }
 
-.collapse {
+.iconButton {
   width: 28px;
   height: 28px;
   flex: none;
-  margin: 0 -6px 0 -6px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--ink-3);
   display: flex;
@@ -150,16 +195,33 @@
   cursor: pointer;
 }
 
-.collapseIcon {
+.iconButton:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.iconButtonIcon {
   width: 16px;
   height: 16px;
 }
 
-.collapse:hover {
-  background: var(--hover);
+/* The chevron sits on the title's left edge. */
+.back {
+  margin-left: -6px;
+  margin-right: -4px;
+}
+
+/* The canvas's collapse glyph: the panel's strip on the right. */
+.collapse {
+  margin-right: -6px;
+}
+
+.collapse .iconButtonIcon {
+  transform: scaleX(-1);
 }
 
 .panelTitle {
+  flex: 1;
   min-width: 0;
   font-size: 14px;
   font-weight: 600;
@@ -169,6 +231,56 @@
   text-overflow: ellipsis;
 }
 
+/* Search, under the head (`Main.dc.html`). */
+.panelTools {
+  flex: none;
+  padding: 0 10px 8px;
+}
+
+.find {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.find:hover {
+  border-color: var(--line-strong);
+}
+
+.findIcon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.findLabel {
+  flex: 1;
+}
+
+.findHint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .items {
   display: flex;
   flex-direction: column;
@@ -176,7 +288,29 @@
   margin: 0;
   padding: 4px 10px;
   list-style: none;
-  overflow-y: auto;
+}
+
+/* A module's title over its items, in the flat panel. */
+.heading {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.heading:first-child {
+  margin-top: 0;
+}
+
+/* Help and Management, at the foot of the panel. */
+.shelf {
+  flex: none;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
 }
 
 .item {
@@ -234,6 +368,42 @@
   color: var(--on-sel);
 }
 
+/* The pin appears on hover, and stays while the item is pinned. */
+.pin {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.pinIcon {
+  width: 13px;
+  height: 13px;
+}
+
+.item:hover .pin,
+.pin:focus-visible,
+.pinOn {
+  display: inline-flex;
+}
+
+.pinOn {
+  color: var(--ink);
+}
+
+.itemCurrent .pin {
+  color: var(--on-sel);
+}
+
 .itemCurrent .badge {
   background: rgba(255, 255, 255, 0.16);
   color: var(--on-sel);
@@ -241,4 +411,34 @@
 
 .extra {
   padding: 4px 10px;
+}
+
+/* A workspace with no modules turned on. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.emptyMark {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--tray);
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emptyLabel {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-3);
 }

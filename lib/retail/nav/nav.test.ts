@@ -1,3 +1,6 @@
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { getActiveNavHref } from "@/lib/nav-match";
@@ -9,7 +12,7 @@ import {
   retailNavItemForPath,
   roleMeetsRetailRequires,
 } from "./index";
-import { manageNav } from "./manage";
+import { setupNav } from "./setup";
 
 const q = (search = "") => new URLSearchParams(search);
 
@@ -22,7 +25,7 @@ describe("the retail nav registry (00-foundations 5.3.4)", () => {
       "Buying",
       "Insights",
       "Reports",
-      "Management",
+      "Setup",
     ]);
   });
 
@@ -51,7 +54,7 @@ describe("who may open a retail page", () => {
     }
   });
 
-  it("keeps the stock clerk out of the overview and Management", () => {
+  it("keeps the stock clerk out of the overview and Setup", () => {
     expect(canRoleOpenRetailPath("STOCK_CLERK", "/retail/stock/counts", q())).toBe(true);
     expect(canRoleOpenRetailPath("STOCK_CLERK", "/retail/buying/deliveries", q())).toBe(true);
     expect(canRoleOpenRetailPath("STOCK_CLERK", "/retail", q())).toBe(false);
@@ -85,23 +88,42 @@ describe("the current item", () => {
   });
 });
 
-describe("the Management panel per role (ADM-01)", () => {
+describe("the Setup module per role (ADM-01)", () => {
   const panel = (role: string) =>
-    manageNav.items.filter((item) => roleMeetsRetailRequires(role, item.requires)).map((item) => item.label);
+    setupNav.items.filter((item) => roleMeetsRetailRequires(role, item.requires)).map((item) => item.label);
 
   it("shows the owner every item", () => {
-    expect(panel("SUPERADMIN")).toEqual(manageNav.items.map((item) => item.label));
+    expect(panel("SUPERADMIN")).toEqual(setupNav.items.map((item) => item.label));
+    expect(panel("SUPERADMIN")).toEqual([
+      "Shop",
+      "Tills and devices",
+      "Till rules",
+      "Fiscal device",
+      "Posting to the books",
+      "Bin",
+    ]);
+  });
+
+  it("lists every retail settings page that exists, and no Management page", () => {
+    const manage = setupNav.items.map((item) => item.href).filter((href) => href.startsWith("/retail/manage/"));
+    expect(manage.sort()).toEqual(
+      readdirSync(join(process.cwd(), "app/retail/manage"), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => `/retail/manage/${entry.name}`)
+        .sort(),
+    );
+    expect(RETAIL_NAV_MODULES.map((module) => module.title)).not.toContain("Management");
   });
 
   it.each(["MANAGER", "SHOP_MANAGER"])("shows the %s all but Posting to the books", (role) => {
-    expect(panel(role)).toEqual(["Tills and devices", "Till rules", "Fiscal device", "Bin"]);
+    expect(panel(role)).toEqual(["Shop", "Tills and devices", "Till rules", "Fiscal device", "Bin"]);
   });
 
-  it("shows the bookkeeper the fiscal device and posting", () => {
-    expect(panel("FINANCE_OFFICER")).toEqual(["Fiscal device", "Posting to the books"]);
+  it("shows the bookkeeper the shop, the fiscal device and posting", () => {
+    expect(panel("FINANCE_OFFICER")).toEqual(["Shop", "Fiscal device", "Posting to the books"]);
   });
 
-  it.each(["CASHIER", "STOCK_CLERK"])("gives the %s no gear", (role) => {
+  it.each(["CASHIER", "STOCK_CLERK"])("gives the %s no Setup", (role) => {
     expect(panel(role)).toEqual([]);
   });
 });

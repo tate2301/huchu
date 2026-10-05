@@ -50,6 +50,8 @@ export type WorkspaceSidebarModel = {
   workspaceIcon: LucideIcon;
   quickActions: NavItem[];
   sections: WorkspaceNavSection[];
+  /** Help: the shelf at the foot of the panel, above Management. */
+  supportItems: NavItem[];
   /** Every workspace this person can switch to. One entry means no switcher. */
   workspaces: WorkspaceOption[];
   /** The one the sections above were built for. */
@@ -538,9 +540,8 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
     nativeModules: ["retail", "reporting", "stores"],
     /**
      * The retail modules, one rail mark each, in the canvas's order
-     * (00-foundations 5.3.4), read from `lib/retail/nav/`. `retail-manage` is
-     * the gear at the foot of the rail rather than a mark among the others
-     * (`lib/rail/model.ts`).
+     * (00-foundations 5.3.4), read from `lib/retail/nav/`, Setup last. The
+     * gear at the foot of the rail is the Management surface, not a module.
      */
     sections: RETAIL_NAV_MODULES.map((module) => ({
       id: module.id,
@@ -1242,6 +1243,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
       workspaceProfile: profile,
     }),
     sections,
+    supportItems: getSupportItems(context),
     workspaces,
     activeWorkspaceId: activeWorkspace.id,
   };

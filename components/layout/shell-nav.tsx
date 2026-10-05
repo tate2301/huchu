@@ -8,6 +8,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api-client";
 import { getActiveNavHref } from "@/lib/nav-match";
 import type { NavItem } from "@/lib/navigation";
+import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
+import { GearSix } from "@/lib/icons";
 import type { RailArea } from "@/lib/rail/areas";
 import { logoInitials } from "@/lib/rail/initials";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
@@ -30,6 +32,16 @@ export type WorkspaceBrand = {
 export const NAV_BADGES_KEY = ["nav-badges"] as const;
 
 const NO_BADGES: Record<string, string> = {};
+
+/**
+ * The Management surface (`ManagementShell`, its own settings rail): the gear
+ * at the foot of the rail and the shelf row above it, in every workspace.
+ */
+export const MANAGEMENT_NAV_ITEM: NavItem = {
+  href: "/management/master-data",
+  label: "Management",
+  icon: GearSix,
+};
 const noopSubscribe = () => () => {};
 
 type ShellNav = {
@@ -38,6 +50,8 @@ type ShellNav = {
   currentArea: RailArea | null;
   activeHref: string | null;
   activeItem: NavItem | null;
+  /** Management, for every role allowed to open it. */
+  management: NavItem | null;
   /**
    * The header's title when the page sets none (00-foundations 5.3.5): the
    * current item's label, or the label of the retail page's item when this
@@ -140,7 +154,7 @@ export function ShellNavProvider({
   const pending = isRetailPage && sessionStatus === "loading";
   const refused =
     sessionStatus === "authenticated" && !canRoleOpenRetailPath(role, pathname, searchParams);
-  const currentArea = React.useMemo(() => areaForHref(rail, activeHref), [activeHref, rail]);
+  const currentArea = React.useMemo(() => areaForHref(rail.areas, activeHref), [activeHref, rail]);
   const activeItem = React.useMemo(
     () => currentArea?.items.find((item) => item.href === activeHref) ?? null,
     [activeHref, currentArea],
@@ -178,6 +192,7 @@ export function ShellNavProvider({
       currentArea,
       activeHref,
       activeItem,
+      management: isRouteAllowedForRole(role, MANAGEMENT_NAV_ITEM.href) ? MANAGEMENT_NAV_ITEM : null,
       pageLabel: activeItem?.label ?? pageItem?.label ?? null,
       setNotFound,
       pending,
@@ -204,6 +219,7 @@ export function ShellNavProvider({
       pending,
       rail,
       refused,
+      role,
       selectWorkspace,
     ],
   );

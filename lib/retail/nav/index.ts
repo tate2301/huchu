@@ -4,7 +4,7 @@ import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { buyingNav } from "./buying";
 import { floorNav } from "./floor";
 import { insightsNav } from "./insights";
-import { manageNav } from "./manage";
+import { setupNav } from "./setup";
 import { productsNav } from "./products";
 import { reportsNav } from "./reports";
 import { stockNav } from "./stock";
@@ -23,7 +23,7 @@ export const RETAIL_NAV_MODULES: RetailNavModule[] = [
   buyingNav,
   insightsNav,
   reportsNav,
-  manageNav,
+  setupNav,
 ];
 
 /** Every retail page in the nav, whoever may see it. */

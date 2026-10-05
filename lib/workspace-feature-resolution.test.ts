@@ -412,7 +412,7 @@ describe("workspace sidebar model", () => {
       return (model.sections.find((section) => section.id === id)?.items ?? []).map((item) => item.href);
     }
 
-    it("lists the design's modules, in its order, Management last", () => {
+    it("lists the design's modules, in its order, Setup last", () => {
       expect(retailModel().sections.map((section) => section.title)).toEqual([
         "The floor",
         "Products",
@@ -420,7 +420,7 @@ describe("workspace sidebar model", () => {
         "Buying",
         "Insights",
         "Reports",
-        "Management",
+        "Setup",
       ]);
     });
 
@@ -442,15 +442,16 @@ describe("workspace sidebar model", () => {
       ]);
     });
 
-    it("puts the moved settings pages under Management, Posting for the owner only", () => {
-      expect(itemsOf(retailModel("SUPERADMIN"), "retail-manage")).toEqual([
+    it("puts the shop's settings under Setup, Posting for the owner only", () => {
+      expect(itemsOf(retailModel("SUPERADMIN"), "retail-setup")).toEqual([
+        "/preferences/organization",
         "/retail/manage/tills",
         "/retail/manage/till-rules",
         "/retail/manage/fiscal",
         "/retail/manage/posting",
         "/retail/manage/bin",
       ]);
-      expect(itemsOf(retailModel(), "retail-manage")).not.toContain("/retail/manage/posting");
+      expect(itemsOf(retailModel(), "retail-setup")).not.toContain("/retail/manage/posting");
     });
 
     it("gives the manager Insights without Money, and the owner Money", () => {

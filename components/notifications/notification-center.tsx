@@ -74,17 +74,27 @@ export function useUnreadNotificationCount(): number {
 }
 
 /**
- * The notification panel, opened from the account menu's "Notifications" and
- * drawn to the right of the rail, anchored to `children` (the logo tile).
+ * The notification panel, anchored to `children`: drawn to the right of the
+ * rail from the account menu's "Notifications" (the logo tile), or under the
+ * app bar's bell (`side="bottom"`).
+ *
+ * One instance holds the live stream (`live`); the stream refreshes every
+ * `["notifications"]` query, so a second instance stays current without one.
  */
 export function NotificationCenter({
   open,
   onOpenChange,
   children,
+  side = "right",
+  align = "start",
+  live = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
+  side?: "right" | "bottom";
+  align?: "start" | "end";
+  live?: boolean;
 }) {
   const centerEnabled = useNotificationsEnabled();
   const [filterMode, setFilterMode] = useState<FilterMode>("unread");
@@ -108,7 +118,7 @@ export function NotificationCenter({
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
   }, [queryClient]);
 
-  useNotificationStream(invalidateNotifications, centerEnabled);
+  useNotificationStream(invalidateNotifications, centerEnabled && live);
 
   const items = useMemo(() => data?.data ?? [], [data]);
   const unreadCount = data?.unreadCount ?? 0;
@@ -216,7 +226,7 @@ export function NotificationCenter({
       }}
     >
       <PopoverAnchor asChild>{children}</PopoverAnchor>
-      <PopoverContent side="right" align="start" sideOffset={12} className="w-[min(96vw,520px)] p-0">
+      <PopoverContent side={side} align={align} sideOffset={side === "right" ? 12 : 6} className="w-[min(96vw,520px)] p-0">
         <div className="flex items-center justify-between px-3 py-2">
           <p className="m-0 text-[13px] font-semibold">Notifications</p>
           <div className="flex items-center gap-1">

@@ -17,9 +17,9 @@ export function useShopSetup() {
 }
 
 /**
- * A Management page as FND-03 moved it: inside the app shell, under the
- * Management panel, with the page header naming it from the nav. Its area unit
- * rebuilds it on the SettingsFrame.
+ * A Setup page: inside the app shell, under the retail sidebar's Setup
+ * module, with the page header naming it from the nav. Its area unit rebuilds
+ * it on the SettingsFrame.
  */
 export function ShopSettingsShell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">{children}</div>;

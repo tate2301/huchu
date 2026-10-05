@@ -2,6 +2,7 @@
 
 import {
   Children,
+  createElement,
   Fragment,
   isValidElement,
   type ReactElement,
@@ -11,12 +12,36 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { getCurrentPageTitle } from "@/components/layout/breadcrumbs";
+import {
+  DeviceStatus,
+  NotificationsBell,
+  SearchTrigger,
+  SidebarToggle,
+} from "@/components/layout/app-bar-tools";
 import { usePageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
 import { Button } from "@/components/workspace/button";
 import { Menu, MenuContent, MenuTrigger } from "@/components/workspace/menu";
-import { CaretLeft, DotsThree, List, Plus } from "@/lib/icons";
+import { CrmMembers } from "@/components/crm/crm-members";
+import { CaretLeft, DotsThree, List, Plus, type LucideIcon } from "@/lib/icons";
+import { navSections } from "@/lib/navigation";
+
+/**
+ * The icon the nav shows for this route, for a page outside the current
+ * workspace's panel. Longest match wins: `/crm/leads` beats `/crm`.
+ */
+function routeIcon(pathname: string): LucideIcon | undefined {
+  let best: { length: number; icon: LucideIcon } | undefined;
+  for (const section of navSections) {
+    for (const item of section.items) {
+      const path = item.href.split("?")[0] ?? item.href;
+      if (pathname !== path && !pathname.startsWith(`${path}/`)) continue;
+      if (!best || path.length > best.length) best = { length: path.length, icon: item.icon };
+    }
+  }
+  return best?.icon;
+}
 
 /** Where a primary goes when it names a sheet: this page, with `?sheet=<kind>`. */
 function sheetHref(pathname: string, search: string, sheet: string) {
@@ -26,12 +51,16 @@ function sheetHref(pathname: string, search: string, sheet: string) {
 }
 
 /**
- * The 48px page header (00-foundations 5.3.5): back link, title, reference or
- * sub and sub link, then the page's own actions and its one primary. No search
- * box, bell or device icon: those live in the account menu now.
+ * The 48px app bar (00-foundations 5.3.5, and the bar the app had before it):
+ * the sidebar toggle, back link, the page's icon and title, reference or sub
+ * and sub link; then, on the right, the CRM's members, Search (⌘K), the
+ * device's sync state, the notifications bell with its unread count, the
+ * page's own actions and its one primary. Search and notifications are also in
+ * the account menu.
  *
- * Below 720px it is "≡ <title> +": the menu button opens the drawer and the
- * primary becomes a 44px plus; the page's other actions fold into ⋯.
+ * Below 720px it is "≡ <title> search, device, bell, ⋯ +": the menu button
+ * opens the drawer and the primary becomes a 44px plus; the page's other
+ * actions fold into ⋯.
  */
 export function PageHeader() {
   const { actions, identity, primary } = usePageChrome();
@@ -49,12 +78,17 @@ export function PageHeader() {
     else if (primaryHref) router.push(primaryHref);
   };
   const folded = flatten(actions);
+  // Held lowercase and drawn with `createElement`: a capitalised binding read
+  // during render looks to the lint rule like a component made in render.
+  const pageIcon = nav.activeItem?.icon ?? routeIcon(pathname);
+  const showMembers = pathname === "/crm" || pathname.startsWith("/crm/");
 
   return (
     // 48px with its bottom border (border-box), plus the notch on a phone.
     <header className="box-border h-[calc(48px+env(safe-area-inset-top))] flex-none border-b border-[var(--line)] bg-[var(--surface)] pt-[env(safe-area-inset-top)]">
       {/* ≥720px */}
-      <div className="flex h-full items-center gap-2.5 px-4 max-[719px]:hidden">
+      <div className="flex h-full items-center gap-2.5 pl-2.5 pr-4 max-[719px]:hidden">
+        <SidebarToggle />
         {back ? (
           <>
             <Link
@@ -70,6 +104,9 @@ export function PageHeader() {
             </span>
           </>
         ) : null}
+        {pageIcon && !back
+          ? createElement(pageIcon, { className: "size-4 shrink-0 text-[var(--ink-3)]", "aria-hidden": true })
+          : null}
         <h1 className="m-0 min-w-0 truncate text-[15px] font-semibold text-[var(--ink)]">{title}</h1>
         {identity?.reference ? (
           <span className="shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
@@ -88,6 +125,12 @@ export function PageHeader() {
           </Link>
         ) : null}
         <div className="flex-1" />
+        <div className="flex shrink-0 items-center gap-1">
+          {showMembers ? <CrmMembers className="mr-1" /> : null}
+          <SearchTrigger />
+          <DeviceStatus />
+          <NotificationsBell />
+        </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
         {primary ? (
           primaryHref && !primary.onClick ? (
@@ -120,6 +163,9 @@ export function PageHeader() {
           <List weight="bold" className="size-5" aria-hidden="true" />
         </button>
         <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-[var(--ink)]">{title}</h1>
+        <SearchTrigger compact />
+        <DeviceStatus compact />
+        <NotificationsBell compact />
         {folded.length > 0 ? (
           <Menu>
             <MenuTrigger asChild>
