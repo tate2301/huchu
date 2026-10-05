@@ -420,6 +420,7 @@ describe("the chain", () => {
       shiftClosed: "RETAIL_SHIFT.CLOSED",
       cashMoved: "RETAIL_CASH.MOVED",
       goodsReceived: "RETAIL_GOODS.RECEIVED",
+      movementsReversed: "RETAIL_STOCK.MOVEMENTS_REVERSED",
       orderClosed: "RETAIL_PURCHASE_ORDER.CLOSED",
       orderReopened: "RETAIL_PURCHASE_ORDER.REOPENED",
       shopProfileChanged: "RETAIL_SHOP.PROFILE_CHANGED",

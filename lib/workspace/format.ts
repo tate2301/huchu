@@ -71,6 +71,12 @@ export function formatCount(n: number): string {
   return value < 0 ? `${MINUS}${whole.format(-value)}` : whole.format(value);
 }
 
+/** A count that says which way it went: "+40", "−1", "0". */
+export function formatSignedCount(n: number): string {
+  const text = formatCount(n);
+  return Math.round(n) > 0 ? `+${text}` : text;
+}
+
 /** "28.6%"; signed: "+6.1%", "−2.4%". `n` is the percentage, not the fraction. */
 export function formatPercent(n: number, { signed = false }: { signed?: boolean } = {}): string {
   const value = Math.round(n * 10) / 10;

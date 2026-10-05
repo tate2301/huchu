@@ -1,6 +1,6 @@
 import { fetchJson } from "@/lib/api-client";
 import type { ProductRecord } from "@/lib/retail/product-record";
-import { formatCount, formatMoney } from "@/lib/workspace/format";
+import { formatCount, formatMoney, formatSignedCount } from "@/lib/workspace/format";
 
 import type { Grant, RecordKind } from "./types";
 
@@ -78,7 +78,24 @@ export const productKind: RecordKind<ProductRecord> = {
     ...(product.ageRestricted ? [{ label: "ID check at the till", tone: "plain" as const }] : []),
   ],
   figure: (product) => ({ label: "Selling at", value: formatMoney(product.unitPrice, product.currency) }),
-  tabs: [{ key: "activity", label: "Activity" }],
+  tabs: [
+    {
+      // W-28: the product's ledger, its last 30 days, newest first.
+      key: "stock-movements",
+      label: "Stock movements",
+      source: "retail-stock-movements",
+      parent: "product",
+      requires: ["retail.stock", "view"],
+      columns: ["at", { key: "movementLong", label: "Movement" }, "reference", "by", "change", "balance"],
+      allLink: { label: "All movements", href: (product) => `/retail/stock/movements?product=${product.id}` },
+      totalsText: (_product, totals) => ({
+        at: "Σ 30 days",
+        movementLong: `in ${formatSignedCount(Number(totals.in ?? 0))} · out ${formatSignedCount(Number(totals.out ?? 0))}`,
+        balance: formatCount(Number(totals.onHand ?? 0)),
+      }),
+    },
+    { key: "activity", label: "Activity" },
+  ],
   railTop: (product) => ({
     photo: {
       url: product.imageUrl,

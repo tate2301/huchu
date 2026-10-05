@@ -166,6 +166,8 @@ export type ReportLoader = {
    * which the in-memory path does for `load`.
    */
   page?: (ctx: ReportContext, query: ResolvedListQuery) => Promise<ListPageResult>;
+  /** The name of the record a `parent` filter with `all` scopes the list to ("Amarula Cream 750ml"). */
+  parentLabel?: (ctx: ReportContext, filters: Record<string, string>) => Promise<string | null>;
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -254,8 +256,15 @@ export type ListColumn = ReportColumn & {
   percent?: boolean;
   /** num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target). */
   pillKey?: string;
-  /** Dropped, values and all, for roles that may not see cost. */
-  requires?: "view-cost";
+  /** num: always signed ("+40", "−1"); `gain` also colours a rise `--ok`, without a pill. */
+  sign?: "plain" | "gain";
+  /** state and dot: the row key holding the tone, when the words vary row to row ("Count, two broken"). */
+  toneKey?: string;
+  /**
+   * `view-cost`: dropped, values and all, for roles that may not see cost.
+   * `multi-site`: dropped while the company has one open site.
+   */
+  requires?: "view-cost" | "multi-site";
 };
 
 /** A choice. `where` narrows the rows itself, for a choice that is a range or a word rather than a value. */
@@ -281,6 +290,8 @@ export type ListFilter =
       default?: string;
       /** Not offered while the company has fewer options than this (Site, with one site). */
       hideBelow?: number;
+      /** Dropped while the company has one open site. */
+      requires?: "multi-site";
     }
   | {
       key: string;
@@ -292,8 +303,12 @@ export type ListFilter =
       primary?: boolean;
       default?: PeriodPreset;
     }
-  /** Never drawn: the record a record tab or an "all" link is scoped to. Passed to the loader too. */
-  | { key: string; type: "parent"; column: string };
+  /**
+   * Never drawn: the record a record tab or an "all" link is scoped to. Passed
+   * to the loader too. With `all`, a list opened on it says whose rows these
+   * are as its header sub (the loader's `parentLabel`) and `all` clears it.
+   */
+  | { key: string; type: "parent"; column: string; all?: string };
 
 export type ConfirmSpec = { title: string; body: string; confirm: string; tone?: "bad" };
 
@@ -336,7 +351,9 @@ export type ListAction = {
         cap?: number;
       }
     /** Copies that column's values, comma-separated; `done` is the toast, `{n}` the count. */
-    | { copy: string; done?: string };
+    | { copy: string; done?: string }
+    /** The list's own Export over the ticked rows, in this format ("Print" is the PDF). */
+    | { export: "pdf" | "csv" | "xlsx" };
 };
 
 /**
@@ -468,6 +485,8 @@ export type ListPageResult = {
 
 export type ListPageResponse = ListPageResult & {
   report: ReportMeta & { list: ListSpecPublic };
+  /** The record a parent filter with `all` scopes the list to: the header sub, and the filter `all` clears. */
+  parent: { key: string; label: string; all: string } | null;
   query: ResolvedListQuery;
   size: ListPageSize;
 };

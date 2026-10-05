@@ -163,7 +163,7 @@ export function ListTable(props: Props) {
               <MenuContent align="end" style={{ width: 240 }}>
                 {menu.map((action) => (
                   <MenuItem key={action.key} danger={action.tone === "bad"} onSelect={() => props.onRowAction(action, row)}>
-                    {action.label}
+                    {fillTemplate(action.label, row, false) ?? action.label}
                   </MenuItem>
                 ))}
               </MenuContent>

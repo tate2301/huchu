@@ -60,6 +60,15 @@ function saleWords(eventType: string, payload: Payload): ActivityWords {
   return { what: figure ? `${verb} ${ref} for ${figure}` : `${verb} ${ref}`, tone };
 }
 
+/** "Reversed ADJ-0031", "Reversed ADJ-0030 and BRK-0012". */
+function movementsReversedWords(payload: Payload): ActivityWords {
+  const references = Array.isArray(payload.references) ? payload.references.map(text).filter((ref): ref is string => Boolean(ref)) : [];
+  if (references.length === 0) return { what: "Reversed a movement", tone: "hollow" };
+  const list =
+    references.length === 1 ? references[0]! : `${references.slice(0, -1).join(", ")} and ${references[references.length - 1]!}`;
+  return { what: `Reversed ${list}`, tone: "hollow" };
+}
+
 function shiftClosedWords(payload: Payload): ActivityWords {
   const variance = amount(payload.variance);
   if (variance === null || amount(payload.countedCash) === null) {
@@ -184,6 +193,7 @@ function categoryDeletedWords(payload: Payload): ActivityWords {
 /** The table. Keyed by event type; area specs add theirs here. */
 const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWords> = {
   [RETAIL_AUDIT_EVENTS.recordEdited]: recordEditedWords,
+  [RETAIL_AUDIT_EVENTS.movementsReversed]: movementsReversedWords,
   [RETAIL_AUDIT_EVENTS.recordBinned]: () => ({ what: "Moved to the bin", tone: "bad" }),
   [RETAIL_AUDIT_EVENTS.recordRestored]: () => ({ what: "Restored from the bin", tone: "ok" }),
   [RETAIL_AUDIT_EVENTS.settingsChanged]: settingsChangedWords,

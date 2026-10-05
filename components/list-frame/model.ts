@@ -5,12 +5,14 @@ import type {
   ListColumn,
   ListFilter,
   ListSpecPublic,
+  ReportColumn,
   ReportRow,
   ReportValue,
   ResolvedListQuery,
+  Tone,
 } from "@/lib/reports/types";
 import { filterRows } from "@/lib/reports/view";
-import { formatCount, formatMoney, formatPercent, formatSigned } from "@/lib/workspace/format";
+import { formatCount, formatMoney, formatPercent, formatSigned, formatSignedCount } from "@/lib/workspace/format";
 
 /**
  * The ListFrame's arithmetic (00-foundations 5.4), kept out of the components
@@ -111,6 +113,15 @@ export function durationState(column: ListColumn, row: ReportRow): DurationState
   return Number(row[column.key] ?? 0) > STALE_MINUTES ? "stale" : "running";
 }
 
+/** A state or dot cell's tone: from the row's own key when the words vary, else by the words. */
+export function toneOf(column: Pick<ListColumn, "key" | "tones" | "toneKey">, row: ReportRow): Tone | null {
+  if (column.toneKey) {
+    const tone = row[column.toneKey];
+    return isBlank(tone) ? null : (String(tone) as Tone);
+  }
+  return column.tones?.[String(row[column.key] ?? "")] ?? null;
+}
+
 /** The words a cell prints, and its `title` (the full value). */
 export function cellText(column: ListColumn, row: ReportRow): string {
   const value = row[column.key];
@@ -125,6 +136,7 @@ export function cellText(column: ListColumn, row: ReportRow): string {
     case "diff":
       return formatSigned(Number(value), currency);
     case "num": {
+      if (column.sign) return formatSignedCount(Number(value));
       if (column.percent) return formatPercent(Number(value));
       const unit = column.unitKey ? row[column.unitKey] : null;
       return isBlank(unit) ? formatCount(Number(value)) : `${formatCount(Number(value))} ${String(unit)}`;
@@ -139,6 +151,7 @@ export function totalText(column: ListColumn, value: ReportValue | undefined): s
   if (isBlank(value)) return "";
   const currency = column.currency ?? "USD";
   if (column.cell === "diff") return formatSigned(Number(value), currency);
+  if (column.cell === "num" && column.sign) return formatSignedCount(Number(value));
   if (column.cell === "num") return column.percent ? formatPercent(Number(value)) : formatCount(Number(value));
   if (isFigure(column)) return formatMoney(Number(value), currency);
   return String(value);
@@ -165,9 +178,15 @@ export function selectionTotals(columns: ListColumn[], rows: ReportRow[]): Recor
 /** Whether a row matches a row action's `when`. */
 export function rowMatches(row: ReportRow, columns: ListColumn[], when: Condition[] | undefined): boolean {
   if (!when?.length) return true;
+  // A row key the list does not draw ("saleId") is still something to ask about.
+  const declared = new Set(columns.map((column) => column.key));
+  const extra = when
+    .filter((condition) => !declared.has(condition.column))
+    .map((condition): ReportColumn => ({ key: condition.column, label: condition.column, kind: "text", hidden: true }));
+  const all: ReportColumn[] = [...columns, ...extra];
   return (
-    filterRows([row], columns, {
-      columns: columns.map((column) => ({ key: column.key, hidden: false })),
+    filterRows([row], all, {
+      columns: all.map((column) => ({ key: column.key, hidden: false })),
       conditions: when,
       search: "",
       sort: [],

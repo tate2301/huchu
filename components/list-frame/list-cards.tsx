@@ -10,7 +10,7 @@ import { fillTemplate } from "@/lib/reports/actions";
 import { PERIOD_PRESETS, type ListColumn, type ListSpecPublic, type ReportRow, type ReportValue, type ResolvedListQuery } from "@/lib/reports/types";
 import { formatCount } from "@/lib/workspace/format";
 
-import { PERIOD_LABELS, cellText, diffTone, drawnFilters, filterValueLabel, isBlank, sortLabel, totalText } from "./model";
+import { PERIOD_LABELS, cellText, diffTone, drawnFilters, filterValueLabel, isBlank, sortLabel, toneOf, totalText } from "./model";
 
 /**
  * A list on a phone (00-foundations 5.4.12, Mobile board): a 52px toolbar of
@@ -119,7 +119,7 @@ export function ListCards({
             <span className="cx-lf-card__top">
               <span className="cx-lf-card__title">{titleColumn ? cellText(titleColumn, row) : row.id}</span>
               {badgeColumn && !isBlank(badge) ? (
-                <StateBadge tone={badgeColumn.tones?.[String(badge)] ?? "neutral"}>{String(badge)}</StateBadge>
+                <StateBadge tone={toneOf(badgeColumn, row) ?? "neutral"}>{String(badge)}</StateBadge>
               ) : null}
             </span>
             <span className="cx-lf-card__fig">{figureColumn ? cellText(figureColumn, row) : null}</span>

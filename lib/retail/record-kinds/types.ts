@@ -75,10 +75,17 @@ export type SourceTab<R> = {
   source: string;
   /** The source's `parent` filter key: `shift`. */
   parent: string;
+  /** Drawn only for roles holding this (the source refuses everyone else). */
+  requires?: Grant;
   /** The link to everything, filtered to this record. */
   allLink?: { label: string; href: (record: R) => string };
-  /** A totals cell the engine cannot sum: "cash US$21.50 · card US$6.00". */
-  totalsText?: (record: R) => Record<string, string>;
+  /**
+   * The source's columns this tab draws, in this order, and the header each
+   * reads when it differs from the list's. Absent: every column the list shows.
+   */
+  columns?: Array<string | { key: string; label: string }>;
+  /** Totals cells the engine cannot sum, from the record and the source's totals: "cash US$21.50 · card US$6.00". */
+  totalsText?: (record: R, totals: Record<string, number | string | boolean | null>) => Record<string, string>;
 };
 
 export type ActivityTab = { key: "activity"; label: "Activity" };

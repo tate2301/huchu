@@ -1,25 +1,19 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-import { RetailShell } from "@/components/retail/retail-shell";
-import { StockMovementsFeed } from "@/components/stores/stock-movements-feed";
+import { ListFrame } from "@/components/list-frame/list-frame";
 
 /**
- * Stock › Movements — every bottle in and out, newest first.
- *
- * The same feed the stores module reads, drawn in the retail frame so a shop
- * never leaves its own sidebar to answer "where did those go".
+ * Stock › Movements (30-stock 5.4, W-28): every in and out with its reason,
+ * its document and what it left on the shelf, drawn by ListFrame from the
+ * `retail-stock-movements` source. `?product=<id>` scopes it to one product,
+ * named in the header with "All products" to clear it.
  */
 export default function RetailStockMovementsPage() {
-  const searchParams = useSearchParams();
-
   return (
-    <RetailShell title="Movements">
-      <StockMovementsFeed
-        siteId={searchParams.get("siteId") ?? undefined}
-        initialSearch={searchParams.get("q") ?? ""}
-      />
-    </RetailShell>
+    <Suspense>
+      <ListFrame source="retail-stock-movements" title="Movements" />
+    </Suspense>
   );
 }

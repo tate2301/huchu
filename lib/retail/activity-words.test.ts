@@ -119,6 +119,16 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     ).toBe("Turned cases and singles off");
   });
 
+  it("reversed movements name their references (W-28)", () => {
+    expect(activityWords("RETAIL_STOCK.MOVEMENTS_REVERSED", { references: ["ADJ-0031"] })).toEqual({
+      what: "Reversed ADJ-0031",
+      tone: "hollow",
+    });
+    expect(activityWords("RETAIL_STOCK.MOVEMENTS_REVERSED", { references: ["ADJ-0030", "BRK-0012"] }).what).toBe(
+      "Reversed ADJ-0030 and BRK-0012",
+    );
+  });
+
   it("anything else reads as its type's last segment", () => {
     expect(fallbackWords("RETAIL_EXPORT.DOWNLOADED")).toBe("Downloaded");
     expect(activityWords("STOCK.COUNT_POSTED", null)).toEqual({ what: "Count posted", tone: "hollow" });

@@ -74,6 +74,11 @@ export const RETAIL_AUDIT_EVENTS = {
   /** A delivery booked in against a purchase order. */
   goodsReceived: "RETAIL_GOODS.RECEIVED",
   /**
+   * Movements put back by a movement the other way (W-28). One event per
+   * product, entity `Product`; carries the references reversed.
+   */
+  movementsReversed: "RETAIL_STOCK.MOVEMENTS_REVERSED",
+  /**
    * The shop stopped waiting for the rest of an order, or started waiting
    * again. Carries what was still owed, because a supplier who short-delivers
    * every month is a conversation the owner needs the figures for.

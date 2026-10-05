@@ -15,6 +15,7 @@ import {
 import { resolveParams } from "@/lib/reports/params";
 import { getReport } from "@/lib/reports/server";
 import { readReportSetting } from "@/lib/reports/settings";
+import { prisma } from "@/lib/prisma";
 import type {
   ListIdsResponse,
   ListOption,
@@ -133,13 +134,40 @@ type OpenList = {
   resolved: ResolvedListQuery;
   rows: () => Promise<ReportLoadResult>;
   page: ((query: ResolvedListQuery) => Promise<ListPageResult>) | null;
+  parentLabel: ((filters: Record<string, string>) => Promise<string | null>) | null;
 };
+
+/** Whether a source has a column or filter that only a company with two open sites sees. */
+function needsSites(spec: ListSpec): boolean {
+  return (
+    spec.columns.some((column) => column.requires === "multi-site") ||
+    spec.filters.some((filter) => filter.type === "choice" && filter.requires === "multi-site")
+  );
+}
+
+/**
+ * The source as this company has it: with one open site, no Site column or
+ * filter (5.21 "a shop with one site never sees the word"), values and all.
+ */
+async function forSites(spec: ListSpec, companyId: string): Promise<ListSpec> {
+  if (!needsSites(spec)) return spec;
+  const sites = await prisma.site.count({ where: { companyId, isActive: true } });
+  if (sites >= 2) return spec;
+  return {
+    ...spec,
+    columns: spec.columns.filter((column) => column.requires !== "multi-site"),
+    filters: spec.filters.filter((filter) => filter.type !== "choice" || filter.requires !== "multi-site"),
+    groups: spec.groups?.filter((key) => spec.columns.find((column) => column.key === key)?.requires !== "multi-site"),
+  };
+}
 
 async function openList(session: AuthenticatedSession, key: string, query: ListQuery): Promise<OpenList | ListRefusal> {
   const report = getReport(key);
   if (!report?.definition.list) return { status: 404, error: "Report not found" };
-  const { definition, loader } = report;
-  const spec = definition.list!;
+  const { definition: declared, loader } = report;
+  const reportCtx = contextFor(session);
+  const spec = await forSites(declared.list!, reportCtx.companyId);
+  const definition = spec === declared.list ? declared : { ...declared, columns: spec.columns, list: spec };
   // The list's own check first, so a role it refuses is told so in words
   // ("Your role cannot view shifts") rather than that the list does not exist.
   const ctx = listContext(session);
@@ -148,7 +176,6 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
     return { status: 404, error: "Report not found" };
   }
 
-  const reportCtx = contextFor(session);
   const saved = await readReportSetting(reportCtx.companyId, key);
   if (saved && !saved.enabled) return { status: 404, error: "Report not found" };
 
@@ -162,6 +189,7 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
     resolved,
     rows: () => loader.load(reportCtx, loaderParams(resolved)),
     page: loader.page ? (resolved) => loader.page!(reportCtx, resolved) : null,
+    parentLabel: loader.parentLabel ? (filters) => loader.parentLabel!(reportCtx, filters) : null,
   };
 }
 
@@ -192,10 +220,22 @@ export async function fetchListPage(
   const list = publicListSpec(definition.list, ctx, loaded);
   return {
     ...result,
+    parent: await parentOf(opened),
     report: { ...opened.meta, columns: list.columns, list },
     query: { ...resolved, page: result.page },
     size: resolved.size,
   };
+}
+
+/** The record a parent filter with `all` scopes this list to, named by the loader. */
+async function parentOf(opened: OpenList): Promise<ListPageResponse["parent"]> {
+  const filter = opened.definition.list.filters.find(
+    (candidate): candidate is Extract<ListSpec["filters"][number], { type: "parent" }> =>
+      candidate.type === "parent" && Boolean(candidate.all) && Boolean(opened.resolved.filters[candidate.key]),
+  );
+  if (!filter || !opened.parentLabel) return null;
+  const label = await opened.parentLabel(opened.resolved.filters);
+  return label ? { key: filter.key, label, all: filter.all! } : null;
 }
 
 /** Every matching id, for "Select all <n>". */

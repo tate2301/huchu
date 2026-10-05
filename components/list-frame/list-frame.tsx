@@ -373,15 +373,20 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
       throw new Error(body?.error ?? "That did not work. Nothing was changed; try again.");
     }
+    const answer: unknown = await response.json().catch(() => null);
     clearSelection();
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["list", source] }),
       queryClient.invalidateQueries({ queryKey: ["nav-badges"] }),
     ]);
     const run = "run" in how ? LIST_ACTION_RUNS[how.run] : undefined;
-    if (run) toast({ title: run.done(ids.length, targetRows), variant: "success" });
+    if (run) toast({ title: run.done(ids.length, targetRows, answer), variant: "success" });
   };
   const act = async (action: ListAction, ids: string[], targetRows: ReportRow[]) => {
+    if ("export" in action.do) {
+      await doExport(action.do.export, ids);
+      return;
+    }
     const run = "run" in action.do ? LIST_ACTION_RUNS[action.do.run] : undefined;
     if ("confirm" in action.do || run?.ask) {
       setConfirming({ action, ids, rows: targetRows });
@@ -469,7 +474,19 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   );
 
   const refusal = listQuery.error instanceof ApiError && listQuery.error.status === 403;
-  const chrome = <PageChrome title={title} primary={refusal ? null : primary} />;
+  // Scoped to one record ("?product="): its name as the sub, and the link that clears it.
+  const parent = data?.parent ?? null;
+  const clearParent = React.useMemo(() => {
+    if (!parent) return null;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(parent.key);
+    params.delete("page");
+    const query = params.toString();
+    return { href: query ? `${pathname}?${query}` : pathname, label: parent.all };
+  }, [parent, pathname, searchParams]);
+  const chrome = (
+    <PageChrome title={title} sub={parent?.label ?? null} subLink={clearParent} primary={refusal ? null : primary} />
+  );
 
   if (refusal) {
     const noun = definition?.list?.noun ?? title.toLowerCase();

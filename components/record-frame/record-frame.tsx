@@ -216,10 +216,11 @@ export function RecordFrame<R>({
   const chart = kind.chart?.(record) ?? null;
   const kpis = kind.kpis?.(record) ?? [];
   const canReadActivity = can(["retail.activity", "view"]);
+  const tabs = kind.tabs.filter((tab) => !("requires" in tab) || !tab.requires || can(tab.requires));
   // A role that sees no figures, chart or tab (a cashier on a product) still
   // gets a main column that says so, not an empty one.
   const mainEmpty =
-    kpis.length === 0 && !chart && !kind.tabs.some((tab) => tab.key !== "activity" || canReadActivity);
+    kpis.length === 0 && !chart && !tabs.some((tab) => tab.key !== "activity" || canReadActivity);
 
   return (
     <div className={`cx-rf${binned ? " is-binned" : ""}`}>
@@ -240,7 +241,7 @@ export function RecordFrame<R>({
           {mainEmpty ? (
             <p className="cx-rf-empty">Your role sees only this record&rsquo;s details.</p>
           ) : (
-            <RecordTabs tabs={kind.tabs} record={record} recordId={id} type={kind.type} canReadActivity={canReadActivity} />
+            <RecordTabs tabs={tabs} record={record} recordId={id} type={kind.type} canReadActivity={canReadActivity} />
           )}
         </div>
         <DetailsRail

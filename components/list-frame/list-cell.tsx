@@ -6,7 +6,7 @@ import { fillTemplate } from "@/lib/reports/actions";
 import type { ListColumn, ReportRow } from "@/lib/reports/types";
 import { formatDay, formatDuration, formatWhen } from "@/lib/workspace/format";
 
-import { cellText, diffTone, durationState, isBlank } from "./model";
+import { cellText, diffTone, durationState, isBlank, toneOf } from "./model";
 
 /**
  * The cell resolver (00-foundations 5.4.7, Cells board): one component that
@@ -59,7 +59,8 @@ export function ListCell({
           {text}
         </Link>
       ) : (
-        <span className={className}>{text}</span>
+        // A reference with no page to open is a plain mono number, not a link.
+        <span className={column.cell === "ref" ? "cx-lf-ref cx-lf-ref--plain" : className}>{text}</span>
       );
     }
     case "muted":
@@ -68,11 +69,9 @@ export function ListCell({
       return <span className="cx-lf-monocell">{text}</span>;
     case "num": {
       const pill = column.pillKey ? row[column.pillKey] : null;
-      return pill ? (
-        <span className={`cx-lf-pill cx-lf-pill--${String(pill)}`}>{text}</span>
-      ) : (
-        <span className="cx-lf-numcell">{text}</span>
-      );
+      if (pill) return <span className={`cx-lf-pill cx-lf-pill--${String(pill)}`}>{text}</span>;
+      const gain = column.sign === "gain" && Number(value) > 0;
+      return <span className={`cx-lf-numcell${gain ? " cx-lf-numcell--gain" : ""}`}>{text}</span>;
     }
     case "money":
       return <span className="cx-lf-moneycell">{text}</span>;
@@ -85,11 +84,11 @@ export function ListCell({
       return <span className={`cx-lf-pill cx-lf-pill--${tone}`}>{text}</span>;
     }
     case "state": {
-      const tone = column.tones?.[String(value)] ?? "neutral";
+      const tone = toneOf(column, row) ?? "neutral";
       return <StateBadge tone={tone}>{String(value)}</StateBadge>;
     }
     case "dot": {
-      const tone = column.tones?.[String(value)] ?? "hollow";
+      const tone = toneOf(column, row) ?? "hollow";
       return <span className={`cx-lf-dotcell cx-lf-dotcell--${tone}`}>{String(value)}</span>;
     }
     case "date": {

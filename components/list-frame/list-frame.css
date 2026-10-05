@@ -254,3 +254,7 @@
 .cx-lf-dotcell--warn::before, .cx-lf-dotcell--gold::before, .cx-lf-dotcell--pending::before { background: var(--warn-dot); }
 .cx-lf-dotcell--bad::before { background: var(--bad-dot); }
 .cx-lf-dotcell--hollow::before { background: transparent; border: 1.5px solid var(--ink-3); box-sizing: border-box; }
+/* `sign: "gain"`: a rise reads in --ok, no pill (Movements' "+40"). */
+.cx-lf-numcell--gain { color: var(--ok); }
+/* A reference with no page: the number alone. */
+.cx-lf-ref--plain { text-decoration: none; font-weight: 400; }

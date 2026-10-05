@@ -26,8 +26,20 @@ const SHOWN = 10;
 const isSource = <R,>(tab: RecordTab<R>): tab is SourceTab<R> => tab.key !== "activity";
 
 /** The list query a tab is: the first page of its source, scoped to this record. */
-function tabQuery(tab: SourceTab<unknown>, id: string) {
-  return { page: 1, size: 25, filters: { [tab.parent]: id } };
+function tabQuery(tab: SourceTab<unknown>, id: string, hidden?: string[]) {
+  return { page: 1, size: 25, filters: { [tab.parent]: id }, ...(hidden ? { hidden } : {}) };
+}
+
+/** A tab that names its columns draws those, in its order, under its own headers. */
+function tabColumns(tab: SourceTab<unknown>, all: ListColumn[]): ListColumn[] {
+  if (!tab.columns) return all.filter((column) => !column.hidden);
+  return tab.columns
+    .map((entry) => {
+      const key = typeof entry === "string" ? entry : entry.key;
+      const column = all.find((candidate) => candidate.key === key);
+      return column && typeof entry !== "string" ? { ...column, label: entry.label } : column;
+    })
+    .filter((column): column is ListColumn => Boolean(column));
 }
 
 function tabUrl(tab: SourceTab<unknown>, id: string) {
@@ -89,7 +101,11 @@ export function RecordTabs<R>({
 
   const onExport = async (format: ExportFormat) => {
     if (!isSource(current)) return;
-    const failed = await exportList(current.source, format, tabQuery(current as SourceTab<unknown>, recordId));
+    const tab = current as SourceTab<unknown>;
+    const all = (page?.data?.report.list.columns ?? []) as ListColumn[];
+    const shownKeys = new Set(tabColumns(tab, all).map((column) => column.key));
+    const hidden = tab.columns ? all.map((column) => column.key).filter((key) => !shownKeys.has(key)) : undefined;
+    const failed = await exportList(current.source, format, tabQuery(tab, recordId, hidden));
     if (failed) toast({ title: failed, variant: "destructive" });
   };
 
@@ -147,11 +163,11 @@ function SourceTable<R>({ tab, record, result }: { tab: SourceTab<R>; record: R;
   }
   const data = result.data;
   const spec = data.report.list;
-  const columns = spec.columns as ListColumn[];
+  const columns = tabColumns(tab as SourceTab<unknown>, spec.columns as ListColumn[]);
   const template = columns.map((column) => column.width).join(" ");
   const rows = data.rows.slice(0, SHOWN);
   const last = columns.length - 1;
-  const extra = tab.totalsText?.(record) ?? {};
+  const extra = tab.totalsText?.(record, data.totals) ?? {};
   const allLink = tab.allLink ? { label: tab.allLink.label, href: tab.allLink.href(record) } : null;
 
   if (data.total === 0) {
