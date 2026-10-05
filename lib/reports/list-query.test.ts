@@ -349,4 +349,22 @@ describe("tabs and cost", () => {
     const theirs = runList(PRODUCTS, PRODUCT_ROWS, resolveListQuery(PRODUCTS, query({ tab: "all" }), {}, owner), owner);
     expect(theirs.result.totals).toEqual({ price: 30.95, cost: 19.4 });
   });
+
+  it("offers Export's extras to the roles they name, and a choice only when the company can make it", () => {
+    const spec: ListSpec = {
+      ...PRODUCTS,
+      filters: [
+        ...PRODUCTS.filters,
+        { key: "site", label: "Site", type: "choice", any: "All sites", optionsFromLoader: true, hideBelow: 2 },
+      ],
+      exportExtras: [{ label: "Import a spreadsheet", href: "/retail/products/import", requires: [["retail.catalog", "create"]] }],
+    };
+    const oneSite = { site: [{ value: "s1", label: "Harare Main Branch" }] };
+    const twoSites = { site: [...oneSite.site, { value: "s2", label: "Borrowdale" }] };
+    const owner = publicListSpec(spec, contextFor("SUPERADMIN"), twoSites);
+    expect(owner.exportExtras).toEqual([{ label: "Import a spreadsheet", href: "/retail/products/import" }]);
+    expect(owner.filters.map((filter) => filter.key)).toContain("site");
+    expect(publicListSpec(spec, contextFor("SUPERADMIN"), oneSite).filters.map((filter) => filter.key)).not.toContain("site");
+    expect(publicListSpec(spec, contextFor("CASHIER", "u-chipo"), twoSites).exportExtras).toBeUndefined();
+  });
 });

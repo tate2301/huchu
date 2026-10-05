@@ -594,19 +594,25 @@ export function publicListSpec(
   const keys = new Set(columns.map((column) => column.key));
   const cost = new Set(spec.columns.filter((column) => !keys.has(column.key)).map((column) => column.key));
   const scope = scopedFor(spec, ctx.role);
-  const { read: _read, scopeOwn: _scopeOwn, primary, ...rest } = spec;
+  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, ...rest } = spec;
   void _read;
   void _scopeOwn;
+  const extras = exportExtras
+    ?.filter((extra) => extra.requires.some((grant) => ctx.can(grant)))
+    .map((extra) => ({ label: extra.label, href: extra.href }));
   return {
     ...rest,
     columns,
     filters: spec.filters
       .filter((filter) => filter.key !== scope?.filter && !("column" in filter && filter.column && cost.has(filter.column)))
+      // A choice the company cannot make (one site) is not offered.
+      .filter((filter) => filter.type !== "choice" || !filter.hideBelow || choiceOptions(filter, loaded).length >= filter.hideBelow)
       .map((filter) => (filter.type === "choice" ? { ...filter, options: choiceOptions(filter, loaded) } : filter)),
     groups: spec.groups?.filter((key) => keys.has(key)),
     sorts: spec.sorts.filter((sort) => sort.rules.every((rule) => !cost.has(rule.column))),
     rowMenu: spec.rowMenu?.filter((action) => allowed(action, ctx)),
     bulk: spec.bulk?.filter((action) => !("requires" in action) || allowed(action, ctx)),
+    ...(extras?.length ? { exportExtras: extras } : {}),
     primary:
       primary && primary.requires.some((grant) => ctx.can(grant))
         ? {

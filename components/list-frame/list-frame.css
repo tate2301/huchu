@@ -153,10 +153,10 @@
 .cx-lf-dur--running::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 99px; background: var(--info); box-shadow: 0 0 0 3px var(--info-soft); }
 .cx-lf-dur--stale { background: var(--warn-soft); color: var(--warn); }
 .cx-lf-meter { display: flex; align-items: center; gap: 8px; }
-.cx-lf-meter__track { flex: none; width: 64px; height: 6px; border-radius: 3px; background: var(--tray); overflow: hidden; }
+.cx-lf-meter__track { flex: 1; min-width: 24px; height: 6px; border-radius: 3px; background: var(--tray); overflow: hidden; }
 .cx-lf-meter__fill { height: 100%; background: var(--data); }
 .cx-lf-meter__fill.is-low { background: var(--warn-dot); }
-.cx-lf-meter__words { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+.cx-lf-meter__words { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
 .cx-lf-none { color: var(--faint); }
 .cx-lf-edit { height: 28px; display: inline-flex; align-items: center; gap: 2px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); font-family: var(--font-mono); font-size: 12.5px; }
 .cx-lf-edit span { color: var(--ink-3); }

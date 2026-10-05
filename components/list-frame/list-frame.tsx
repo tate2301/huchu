@@ -25,6 +25,7 @@ import type {
   ReportRow,
   ReportValue,
 } from "@/lib/reports/types";
+import { LIST_ACTION_RUNS } from "@/lib/retail/asks";
 import type { Ask } from "@/lib/workspace/ask";
 import { formatCount } from "@/lib/workspace/format";
 
@@ -122,7 +123,14 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   const rootRef = React.useRef<HTMLDivElement>(null);
   const width = useElementWidth(rootRef);
   const fold = foldAt(phone ? 390 : width);
-  const hidden = React.useMemo(() => resolved?.hidden ?? address.hidden ?? [], [address.hidden, resolved?.hidden]);
+  // Before the first answer, the source's own folded columns stay folded.
+  const hidden = React.useMemo(
+    () =>
+      resolved?.hidden ??
+      address.hidden ??
+      (definition?.list?.columns ?? []).filter((column) => column.hidden).map((column) => column.key),
+    [address.hidden, definition, resolved?.hidden],
+  );
   const columns = React.useMemo(() => {
     const all = spec?.columns ?? (definition?.list?.columns ?? []).filter((column) => column.requires !== "view-cost");
     return shownColumns(all, hidden, width);
@@ -349,10 +357,42 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   };
 
   // ── Actions ──────────────────────────────────────────────────────────
-  const [confirming, setConfirming] = React.useState<{ action: ListAction; ids: string[] } | null>(null);
+  const [confirming, setConfirming] = React.useState<{ action: ListAction; ids: string[]; rows: ReportRow[] } | null>(
+    null,
+  );
+  /** A `run` action's POST, its done toast, and the list (and nav badges) read again. */
+  const post = async (action: ListAction, ids: string[], targetRows: ReportRow[]) => {
+    const how = action.do;
+    if (!("endpoint" in how)) return;
+    const response = await fetch(how.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? "That did not work. Nothing was changed; try again.");
+    }
+    clearSelection();
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["list", source] }),
+      queryClient.invalidateQueries({ queryKey: ["nav-badges"] }),
+    ]);
+    const run = "run" in how ? LIST_ACTION_RUNS[how.run] : undefined;
+    if (run) toast({ title: run.done(ids.length, targetRows), variant: "success" });
+  };
   const act = async (action: ListAction, ids: string[], targetRows: ReportRow[]) => {
-    if ("confirm" in action.do) {
-      setConfirming({ action, ids });
+    const run = "run" in action.do ? LIST_ACTION_RUNS[action.do.run] : undefined;
+    if ("confirm" in action.do || run?.ask) {
+      setConfirming({ action, ids, rows: targetRows });
+      return;
+    }
+    if (run) {
+      try {
+        await post(action, ids, targetRows);
+      } catch (error) {
+        toast({ title: getApiErrorMessage(error, "That did not work. Try again."), variant: "destructive" });
+      }
       return;
     }
     try {
@@ -464,7 +504,10 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
     sentQ.current = "";
     write({ q: null, filters: Object.fromEntries(Object.keys(defaults.filters).map((key) => [key, null])) });
   };
-  const bulk = spec?.bulk ?? [];
+  // Bulk actions that belong to other tabs ("Sell them again" on Archived) are not offered here.
+  const bulk = (spec?.bulk ?? []).filter(
+    (action) => !("tabs" in action) || !action.tabs || action.tabs.includes(resolved?.tab ?? ""),
+  );
   const selectionFold = phone ? bulk.length : fold.hints ? 2 : fold.chips ? 1 : 0;
 
   const selectionBar =
@@ -485,15 +528,19 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
       />
     ) : null;
 
-  const confirmAsk: Ask | null = confirming && "confirm" in confirming.action.do
-    ? {
-        title: confirming.action.do.confirm.title,
-        body: confirming.action.do.confirm.body,
-        keep: "Keep",
-        go: confirming.action.do.confirm.confirm,
-        fill: confirming.action.do.confirm.tone === "bad" ? "bad" : "action",
-      }
-    : null;
+  const confirmRun = confirming && "run" in confirming.action.do ? LIST_ACTION_RUNS[confirming.action.do.run] : undefined;
+  const confirmAsk: Ask | null =
+    confirming && "confirm" in confirming.action.do
+      ? {
+          title: confirming.action.do.confirm.title,
+          body: confirming.action.do.confirm.body,
+          keep: "Keep",
+          go: confirming.action.do.confirm.confirm,
+          fill: confirming.action.do.confirm.tone === "bad" ? "bad" : "action",
+        }
+      : confirming && confirmRun?.ask
+        ? confirmRun.ask(confirming.ids.length, confirming.rows)
+        : null;
 
   const dialogs = (
     <>
@@ -504,6 +551,10 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
           onOpenChange={(open) => !open && setConfirming(null)}
           onConfirm={async () => {
             const how = confirming.action.do;
+            if ("run" in how) {
+              await post(confirming.action, confirming.ids, confirming.rows);
+              return;
+            }
             if (!("endpoint" in how)) return;
             const response = await fetch(how.endpoint, {
               method: "POST",

@@ -21,6 +21,17 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_RECORD.RESTORED", {})).toEqual({ what: "Restored from the bin", tone: "ok" });
   });
 
+  it("stopping and restarting a product's sale (20-products 3.4)", () => {
+    expect(activityWords("RETAIL_PRODUCT.ARCHIVED", { name: "Zambezi Lager 375ml" })).toEqual({
+      what: "Stopped selling it",
+      tone: "hollow",
+    });
+    expect(activityWords("RETAIL_PRODUCT.UNARCHIVED", { name: "Zambezi Lager 375ml" })).toEqual({
+      what: "Put it on sale again",
+      tone: "ok",
+    });
+  });
+
   it("settings name every label changed", () => {
     expect(
       activityWords("RETAIL_SETTINGS.CHANGED", { changes: [{ label: "Cases and singles" }, { label: "Weekday hours" }] }),

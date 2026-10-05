@@ -243,6 +243,8 @@ export type ListColumn = ReportColumn & {
   href?: RowTemplate;
   /** bar: the fill % key, and the % under which the bar warns. */
   bar?: { pctKey: string; warnBelow: number };
+  /** num: the row key holding the unit word printed after the figure ("13 bottles"). */
+  unitKey?: string;
   /** Dropped, values and all, for roles that may not see cost. */
   requires?: "view-cost";
 };
@@ -268,6 +270,8 @@ export type ListFilter =
       /** On the toolbar row; otherwise inside Filters. */
       primary?: boolean;
       default?: string;
+      /** Not offered while the company has fewer options than this (Site, with one site). */
+      hideBelow?: number;
     }
   | {
       key: string;
@@ -293,6 +297,8 @@ export type ListAction = {
   requires: ListGrant[];
   /** Row menu: only for rows that match. */
   when?: Condition[];
+  /** Bulk: only on these tabs ("Sell them again" on Archived). */
+  tabs?: string[];
   do:
     | { sheet: string }
     /**
@@ -301,6 +307,11 @@ export type ListAction = {
      */
     | { href: RowTemplate }
     | { confirm: ConfirmSpec; endpoint: string }
+    /**
+     * POSTs `{ ids }` to the endpoint, asking first when the named entry of
+     * the list runs (`lib/retail/asks`) has an ask, and toasts its done words.
+     */
+    | { run: string; endpoint: string }
     | {
         /** POSTed with the ids; the answer is a file. */
         download: string;
@@ -362,6 +373,8 @@ export type ListSpec = {
   card: { title: string; badge?: string; figure: string; meta: RowTemplate; figure2?: string };
   empty: EmptyGuideSpec;
   edit?: { column: string; endpoint: string; changedLabel: string; note: string; save: string };
+  /** Links under Export's formats, after a separator: other ways in ("Import a spreadsheet"). */
+  exportExtras?: Array<{ label: string; href: string; requires: ListGrant[] }>;
   /** Listed in the Reports catalogue. Default false. */
   catalog?: boolean;
 };
@@ -371,8 +384,9 @@ export type ListSpec = {
  * scoping rule; only the columns, filters and actions that role has; choice
  * options resolved for the company.
  */
-export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary"> & {
+export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras"> & {
   primary: Omit<NonNullable<ListSpec["primary"]>, "requires"> | null;
+  exportExtras?: Array<{ label: string; href: string }>;
 };
 
 /** A list request as the address carries it. */

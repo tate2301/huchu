@@ -170,6 +170,8 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
   [RETAIL_AUDIT_EVENTS.orderClosed]: orderClosedWords,
   [RETAIL_AUDIT_EVENTS.orderReopened]: () => ({ what: "Reopened", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.shopProfileChanged]: shopProfileWords,
+  [RETAIL_AUDIT_EVENTS.productArchived]: () => ({ what: "Stopped selling it", tone: "hollow" }),
+  [RETAIL_AUDIT_EVENTS.productUnarchived]: () => ({ what: "Put it on sale again", tone: "ok" }),
 };
 
 /** "RETAIL_EXPORT.DOWNLOADED" → "Downloaded"; "STOCK.COUNT_POSTED" → "Count posted". */

@@ -71,28 +71,62 @@ function readArg(name: string): string | undefined {
 }
 
 /**
- * A Harare bottle store's shelf, priced in USD at 15% VAT.
+ * A Harare bottle store's shelf, priced in USD at 15% VAT (20-products 3.5).
  *
- * `weight` is how often the line sells, which is what makes the top-sellers chart
- * say something: lager and scuds move all day, single-malt does not. `stock` and
- * `min` put Castle Lager 340ml under its reorder point deliberately.
+ * `sold30` is exactly what the Products list shows under "Sold, 30 days": the
+ * last 30 days of history are dealt out of these quotas, so the figure, the
+ * Cover bar and the Low stock tab read as the ProductsList board does.
+ * `stock` is the on hand the ledger lands on, `min` is "Reorder at" and
+ * `reorder` is "Reorder". Low stock is exactly Amarula (6 days of cover),
+ * Castle Lager 340ml, Jameson and Johnnie Walker. `weight` is how often the
+ * line sold before the window, so older history has the same shape.
+ * Bohlinger's sits at Borrowdale; Zambezi and Bols are no longer sold.
  */
-const CATALOGUE = [
-  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.85", stock: 36, min: 96, weight: 26, category: "Beer", deposit: "0.10" },
-  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.72", stock: 210, min: 60, weight: 22, category: "Beer" },
-  { code: "ZAMBEZI-375", name: "Zambezi Lager 375ml", unit: "bottle", price: "1.35", cost: "0.95", stock: 144, min: 48, weight: 16, category: "Beer", deposit: "0.10" },
-  { code: "BOHLINGER-330", name: "Bohlinger's 330ml", unit: "bottle", price: "1.55", cost: "1.10", stock: 96, min: 36, weight: 10, category: "Beer" },
-  { code: "SAVANNA-330", name: "Savanna Dry 330ml", unit: "bottle", price: "1.85", cost: "1.32", stock: 72, min: 24, weight: 8, category: "Ciders and coolers" },
-  { code: "HUNTERS-330", name: "Hunter's Gold 330ml", unit: "bottle", price: "1.85", cost: "1.30", stock: 60, min: 24, weight: 7, category: "Ciders and coolers" },
-  { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.48", stock: 180, min: 48, weight: 12, category: "Soft drinks" },
-  { code: "ICE-2KG", name: "Ice 2kg bag", unit: "bag", price: "1.50", cost: "0.60", stock: 40, min: 20, weight: 6, category: "Ice and mixers" },
-  { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.40", stock: 22, min: 8, weight: 5, category: "Beer" },
-  { code: "TWOKEYS-750", name: "Two Keys Whisky 750ml", unit: "bottle", price: "9.75", cost: "7.20", stock: 28, min: 12, weight: 4, category: "Spirits" },
-  { code: "NEDERBURG-750", name: "Nederburg Cabernet 750ml", unit: "bottle", price: "12.60", cost: "9.45", stock: 24, min: 8, weight: 3, category: "Wine" },
-  { code: "GORDONS-750", name: "Gordon's Gin 750ml", unit: "bottle", price: "16.40", cost: "12.65", stock: 18, min: 6, weight: 3, category: "Spirits" },
-  { code: "AMARULA-750", name: "Amarula Cream 750ml", unit: "bottle", price: "18.25", cost: "14.10", stock: 14, min: 6, weight: 2, category: "Spirits" },
-  { code: "JAMESON-750", name: "Jameson Irish Whiskey 750ml", unit: "bottle", price: "27.90", cost: "22.15", stock: 9, min: 4, weight: 2, category: "Spirits" },
-  { code: "BLKLABEL-750", name: "Johnnie Walker Black 750ml", unit: "bottle", price: "42.00", cost: "34.80", stock: 6, min: 3, weight: 1, category: "Spirits" },
+type CatalogueEntry = {
+  code: string
+  name: string
+  unit: string
+  price: string
+  cost: string
+  stock: number
+  sold30: number
+  min: number
+  reorder: number
+  weight: number
+  category: string
+  deposit?: string
+  archived?: boolean
+  site?: "BORROWDALE"
+}
+const CATALOGUE: CatalogueEntry[] = [
+  { code: "AMARULA-750", name: "Amarula Cream 750ml", unit: "bottle", price: "18.25", cost: "13.03", stock: 13, sold30: 64, min: 12, reorder: 24, weight: 64, category: "Spirits" },
+  { code: "BERNINI-275", name: "Bernini Blush 275ml", unit: "bottle", price: "1.75", cost: "1.20", stock: 48, sold30: 40, min: 24, reorder: 48, weight: 40, category: "Ciders and coolers" },
+  { code: "BOHLINGER-330", name: "Bohlinger’s 330ml", unit: "bottle", price: "1.55", cost: "1.08", stock: 96, sold30: 70, min: 36, reorder: 48, weight: 70, category: "Beer", site: "BORROWDALE" },
+  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.86", stock: 26, sold30: 88, min: 96, reorder: 96, weight: 88, category: "Beer", deposit: "0.10" },
+  { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.10", stock: 22, sold30: 55, min: 8, reorder: 10, weight: 55, category: "Beer" },
+  { code: "CHARCOAL-4KG", name: "Charcoal 4kg", unit: "bag", price: "3.90", cost: "2.40", stock: 11, sold30: 20, min: 6, reorder: 12, weight: 20, category: "Snacks" },
+  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.82", stock: 210, sold30: 350, min: 60, reorder: 120, weight: 350, category: "Beer" },
+  { code: "CHIBUKU-12", name: "Chibuku crate of 12", unit: "crate", price: "12.50", cost: "9.84", stock: 17, sold30: 21, min: 4, reorder: 6, weight: 21, category: "Beer" },
+  { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.52", stock: 180, sold30: 216, min: 48, reorder: 96, weight: 216, category: "Soft drinks" },
+  { code: "COKE-6PK", name: "Coke 500ml six-pack", unit: "pack", price: "4.20", cost: "3.12", stock: 30, sold30: 36, min: 6, reorder: 12, weight: 36, category: "Soft drinks" },
+  { code: "GORDONS-750", name: "Gordon’s Gin 750ml", unit: "bottle", price: "16.40", cost: "12.40", stock: 18, sold30: 67, min: 6, reorder: 12, weight: 67, category: "Spirits" },
+  { code: "HUNTERS-330", name: "Hunter’s Gold 330ml", unit: "bottle", price: "1.85", cost: "1.31", stock: 60, sold30: 50, min: 24, reorder: 48, weight: 50, category: "Ciders and coolers" },
+  { code: "ICE-2KG", name: "Ice 2kg bag", unit: "bag", price: "1.50", cost: "1.00", stock: 40, sold30: 86, min: 20, reorder: 40, weight: 86, category: "Ice and mixers" },
+  { code: "JAMESON-750", name: "Jameson Irish Whiskey 750ml", unit: "bottle", price: "27.90", cost: "22.15", stock: 9, sold30: 121, min: 12, reorder: 12, weight: 121, category: "Spirits" },
+  { code: "BLKLABEL-750", name: "Johnnie Walker Black 750ml", unit: "bottle", price: "42.00", cost: "33.60", stock: 6, sold30: 58, min: 12, reorder: 12, weight: 58, category: "Spirits" },
+  { code: "NEDERBURG-750", name: "Nederburg Cabernet 750ml", unit: "bottle", price: "12.60", cost: "9.40", stock: 24, sold30: 20, min: 8, reorder: 12, weight: 20, category: "Wine" },
+  { code: "SAVANNA-330", name: "Savanna Dry 330ml", unit: "bottle", price: "1.85", cost: "1.38", stock: 72, sold30: 45, min: 24, reorder: 48, weight: 45, category: "Ciders and coolers" },
+  { code: "TONIC-200", name: "Schweppes Tonic 200ml", unit: "can", price: "0.60", cost: "0.38", stock: 96, sold30: 40, min: 24, reorder: 48, weight: 40, category: "Ice and mixers" },
+  { code: "TWOKEYS-750", name: "Two Keys Whisky 750ml", unit: "bottle", price: "9.75", cost: "7.10", stock: 28, sold30: 30, min: 12, reorder: 12, weight: 30, category: "Spirits" },
+  { code: "ZAMBEZI-375", name: "Zambezi Lager 375ml", unit: "bottle", price: "1.35", cost: "0.95", stock: 144, sold30: 0, min: 48, reorder: 48, weight: 40, category: "Beer", deposit: "0.10", archived: true },
+  { code: "BOLS-750", name: "Bols Brandy 750ml", unit: "bottle", price: "14.20", cost: "11.22", stock: 6, sold30: 0, min: 6, reorder: 6, weight: 6, category: "Spirits", archived: true },
+]
+
+/** The cases: what each opens into and how many (W-12's packs). */
+const PACKS: Array<[pack: string, single: string, size: number]> = [
+  ["CASTLE-CASE", "CASTLE-340", 24],
+  ["CHIBUKU-12", "CHIBUKU-1L", 12],
+  ["COKE-6PK", "COKE-500", 6],
 ]
 
 const VAT_PERCENT = "15.00"
@@ -179,7 +213,57 @@ function pickProduct() {
     roll -= item.weight
     if (roll <= 0) return item
   }
-  return CATALOGUE[0]
+  return CATALOGUE[0]!
+}
+
+/**
+ * The last 30 days' sales, dealt so each product's "Sold, 30 days" lands on
+ * its `sold30` exactly. Every product's quota is cut into a line's worth (one
+ * unit, or up to three of the fast movers) and shuffled; each sale in the
+ * window takes its share of what is left, and the last takes the rest. A
+ * refund or void in the window puts its units back to be sold again, so the
+ * net is still the quota.
+ */
+class WindowQuota {
+  private chunks: Array<{ code: string; units: number }> = []
+  constructor(entries: CatalogueEntry[]) {
+    for (const entry of entries) {
+      let left = entry.archived ? 0 : entry.sold30
+      while (left > 0) {
+        const units = Math.min(left, entry.sold30 >= 200 ? between(1, 3) : 1)
+        this.chunks.push({ code: entry.code, units })
+        left -= units
+      }
+    }
+    this.shuffle()
+  }
+  private shuffle() {
+    for (let index = this.chunks.length - 1; index > 0; index -= 1) {
+      const other = Math.floor(Math.random() * (index + 1))
+      ;[this.chunks[index], this.chunks[other]] = [this.chunks[other]!, this.chunks[index]!]
+    }
+  }
+  /** Put units back (a refund or a void in the window). */
+  giveBack(code: string, units: number) {
+    if (units > 0) this.chunks.push({ code, units })
+  }
+  /** One sale's lines, `salesLeft` counting this one. */
+  take(salesLeft: number): Array<{ code: string; units: number }> {
+    if (this.chunks.length === 0) return []
+    if (salesLeft <= 1) return this.merge(this.chunks.splice(0))
+    const share = this.chunks.length / salesLeft
+    const count = Math.floor(share) + (Math.random() < share - Math.floor(share) ? 1 : 0)
+    return this.merge(this.chunks.splice(0, count))
+  }
+  /** One line per product on a sale. */
+  private merge(chunks: Array<{ code: string; units: number }>) {
+    const byCode = new Map<string, number>()
+    for (const chunk of chunks) byCode.set(chunk.code, (byCode.get(chunk.code) ?? 0) + chunk.units)
+    return [...byCode].map(([code, units]) => ({ code, units }))
+  }
+  get left() {
+    return this.chunks.reduce((sum, chunk) => sum + chunk.units, 0)
+  }
 }
 
 /**
@@ -296,7 +380,7 @@ async function main() {
       : prisma.site.create({ data: { companyId, code, name, location } })
   }
   const site = await branch("MAIN", "Harare Main Branch", "Harare CBD")
-  await branch("BORROWDALE", "Borrowdale", "Borrowdale, Harare")
+  const borrowdale = await branch("BORROWDALE", "Borrowdale", "Borrowdale, Harare")
 
   const location =
     (await prisma.stockLocation.findFirst({ where: { siteId: site.id, code: "SHOP" } })) ??
@@ -367,31 +451,34 @@ async function main() {
   type Stocked = { inventoryItemId: string; productId: string; unit: string }
   const stocked = new Map<string, Stocked>()
 
+  const borrowdaleLocation =
+    (await prisma.stockLocation.findFirst({ where: { siteId: borrowdale.id, code: "SHOP" } })) ??
+    (await prisma.stockLocation.create({
+      data: { siteId: borrowdale.id, code: "SHOP", name: "Shop floor" },
+    }))
+
   for (const entry of CATALOGUE) {
-    const existing = await prisma.inventoryItem.findFirst({
-      where: { siteId: site.id, itemCode: entry.code },
-      select: { id: true },
-    })
+    const home = entry.site === "BORROWDALE" ? { siteId: borrowdale.id, locationId: borrowdaleLocation.id } : { siteId: site.id, locationId: location.id }
+    // The line at its home site, or the same line moved there from the other branch.
+    const existing =
+      (await prisma.inventoryItem.findFirst({ where: { siteId: home.siteId, itemCode: entry.code }, select: { id: true } })) ??
+      (await prisma.inventoryItem.findFirst({
+        where: { site: { companyId }, itemCode: entry.code },
+        select: { id: true },
+      }))
+    const levels = {
+      name: entry.name,
+      unit: entry.unit,
+      ...home,
+      currentStock: entry.stock,
+      minStock: entry.min,
+      reorderQty: entry.reorder,
+      unitCost: Number(entry.cost),
+    }
     const item = existing
-      ? await prisma.inventoryItem.update({
-          where: { id: existing.id },
-          data: { currentStock: entry.stock, minStock: entry.min, reorderQty: entry.min * 2, unitCost: Number(entry.cost) },
-          select: { id: true, unit: true },
-        })
+      ? await prisma.inventoryItem.update({ where: { id: existing.id }, data: levels, select: { id: true, unit: true } })
       : await prisma.inventoryItem.create({
-          data: {
-            itemCode: entry.code,
-            name: entry.name,
-            category: "OTHER",
-            unit: entry.unit,
-            siteId: site.id,
-            locationId: location.id,
-            currentStock: entry.stock,
-            minStock: entry.min,
-            // "Reorder": two levels' worth, a case of 12 on Amarula's 6.
-            reorderQty: entry.min * 2,
-            unitCost: Number(entry.cost),
-          },
+          data: { itemCode: entry.code, category: "OTHER", ...levels },
           select: { id: true, unit: true },
         })
 
@@ -415,12 +502,15 @@ async function main() {
       unitPrice: money(entry.price),
       taxPercent: money(VAT_PERCENT),
       barcode: `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
-      isActive: true,
+      // Zambezi and Bols are archived: off every till, their stock kept.
+      isActive: !entry.archived,
       categoryId: categoryIds.get(entry.category) ?? null,
       costPrice: money(entry.cost),
       returnable: Boolean(entry.deposit),
       depositAmount: entry.deposit ? money(entry.deposit) : null,
     })
+    // Out of the bin, if a run before this one left it there.
+    await prisma.product.updateMany({ where: { id: productId, archivedAt: { not: null } }, data: { archivedAt: null } })
 
     stocked.set(entry.code, {
       inventoryItemId: item.id,
@@ -428,12 +518,31 @@ async function main() {
       unit: item.unit,
     })
   }
-  // The case opens into the singles: one Castle case is 24 × 340ml.
-  await prisma.product.update({
-    where: { id: stocked.get("CASTLE-CASE")!.productId },
-    data: { packOfId: stocked.get("CASTLE-340")!.productId, packSize: 24 },
-  })
-  console.log(`  ${CATALOGUE.length} lines on the shelf (Castle 340ml is under its minimum)`)
+  // The cases open into the singles: one Castle case is 24 × 340ml.
+  for (const [pack, single, size] of PACKS) {
+    await prisma.product.update({
+      where: { id: stocked.get(pack)!.productId },
+      data: { packOfId: stocked.get(single)!.productId, packSize: size },
+    })
+  }
+  /*
+    The range is exactly the catalogue. Anything else ranged on this tenant —
+    a product a test run added by hand — goes to the bin with --reset, so the
+    tabs read Selling 19 · Low stock 4 · Archived 2 · All 21.
+  */
+  if (reset) {
+    const strays = await prisma.product.updateMany({
+      where: {
+        companyId,
+        archivedAt: null,
+        code: { notIn: CATALOGUE.map((entry) => entry.code) },
+        inventoryItems: { some: {} },
+      },
+      data: { archivedAt: new Date() },
+    })
+    if (strays.count) console.log(`  ${strays.count} product(s) not in the catalogue moved to the bin`)
+  }
+  console.log(`  ${CATALOGUE.length} lines on the shelf (4 low, 2 archived, Bohlinger’s at Borrowdale)`)
 
   // ── Customers ────────────────────────────────────────────────────────────
   for (const name of CUSTOMERS) {
@@ -577,10 +686,32 @@ async function main() {
   const bigOver = counted[counted.length - 90]
   if (bigOver) differences.set(bigOver, money("42.80"))
 
+  /*
+    PRD-01. Each shift's sale times, planned before any is written, so the
+    last 30 days know how many sales they hold and can deal each product's
+    `sold30` across them exactly (`WindowQuota`). The six hours after the
+    window opens carry no sale: the list counts the 30 days before it is
+    read, so for six hours after a run nothing slides out of the window.
+  */
+  const windowOpens = now.getTime() - 30 * DAY_MS
+  const windowCounts = windowOpens + 6 * HOUR_MS
+  const salePlans = slots.map((slot) => {
+    const count = Math.max(3, Math.round(between(9, 17) * dayBusyness(slot.openedAt)))
+    return Array.from(
+      { length: count },
+      (_, saleIndex) => new Date(slot.openedAt.getTime() + between(5, 6 * 60) * 60 * 1000 + saleIndex * 1000),
+    ).filter((postedAt) => {
+      const at = postedAt.getTime()
+      return at <= now.getTime() && !(at >= windowOpens && at < windowCounts)
+    })
+  })
+  let windowSalesLeft = salePlans.flat().filter((postedAt) => postedAt.getTime() >= windowCounts).length
+  const quota = new WindowQuota(CATALOGUE)
+  const byCode = new Map(CATALOGUE.map((entry) => [entry.code, entry]))
+  const codeOfProduct = new Map([...stocked].map(([code, line]) => [line.productId, code]))
+
   for (const [slotIndex, slot] of slots.entries()) {
     {
-      const date = slot.openedAt
-      const busy = dayBusyness(date)
       const cashier = slot.cashier
       const openedAt = slot.openedAt
       const isOpenShift = slot.open
@@ -590,24 +721,26 @@ async function main() {
       const shiftNo = `SH-${String(slotIndex + 1).padStart(5, "0")}`
       const openingFloat = money(slot.float)
 
-      const saleCount = Math.max(3, Math.round(between(9, 17) * busy))
       let cashTaken = money(0)
 
-      for (let saleIndex = 0; saleIndex < saleCount; saleIndex += 1) {
+      for (const postedAt of salePlans[slotIndex]!) {
         saleSeq += 1
         const saleId = randomUUID()
-        const postedAt = new Date(
-          openedAt.getTime() + between(5, 6 * 60) * 60 * 1000 + saleIndex * 1000,
-        )
-        if (postedAt.getTime() > now.getTime()) continue
+        const inWindow = postedAt.getTime() >= windowCounts
 
-        const lineCount = between(1, 4)
+        // In the window, this sale's share of the quotas; before it, a weighted pick.
+        const picks = inWindow
+          ? quota.take(windowSalesLeft--)
+          : Array.from({ length: between(1, 2) }, () => {
+              const product = pickProduct()
+              return { code: product.code, units: product.weight >= 200 ? between(1, 3) : 1 }
+            })
         const lines: LineRow[] = []
-        for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
-          const product = pickProduct()
+        for (const pickedLine of picks) {
+          const product = byCode.get(pickedLine.code)!
           const target = stocked.get(product.code)
           if (!target) continue
-          const quantity = rate(String(product.weight > 10 ? between(1, 6) : between(1, 2)))
+          const quantity = rate(String(pickedLine.units))
           // The shelf price is what the customer hands over, so the VAT comes
           // *out of* it rather than being added on top. A Castle marked $1.20
           // costs $1.20 at the counter; charging $1.38 for a $1.20 tag is not
@@ -714,13 +847,17 @@ async function main() {
         })
         if (tender === "CASH") cashTaken = cashTaken.plus(baseAmount)
 
-        // A refund every so often, against the sale just posted.
-        if (Math.random() < 0.02 && !isOpenShift) {
+        // A refund every so often, against the sale just posted. Never one
+        // landing in the window's quiet first hours; one inside the window
+        // puts its units back to be sold again, so the quotas still net out.
+        const refundAt = postedAt.getTime() + 20 * 60 * 1000
+        if (Math.random() < 0.02 && !isOpenShift && !(refundAt >= windowOpens && refundAt < windowCounts)) {
           saleSeq += 1
           refunds += 1
           const refundId = randomUUID()
-          const refundedAt = new Date(postedAt.getTime() + 20 * 60 * 1000)
-          const source = lines[0]
+          const refundedAt = new Date(refundAt)
+          const source = lines[0]!
+          if (refundAt >= windowCounts) quota.giveBack(codeOfProduct.get(source.productId as string)!, Number(source.quantity))
           saleRows.push({
             id: refundId,
             companyId,
@@ -805,12 +942,24 @@ async function main() {
       if (Math.random() < 0.06 && !isOpenShift) {
         const candidate = [...saleRows]
           .reverse()
-          .find((row) => row.shiftId === shiftId && row.saleType === "SALE" && row.status === "POSTED")
+          .find(
+            (row) =>
+              row.shiftId === shiftId &&
+              row.saleType === "SALE" &&
+              row.status === "POSTED" &&
+              !saleRows.some((other) => other.sourceSaleId === row.id),
+          )
 
         if (candidate) {
           candidate.status = "VOIDED"
           candidate.voidReason = pick(VOID_REASONS)
           voids += 1
+          // A voided sale in the window sold nothing: its units go back.
+          if ((candidate.postedAt as Date).getTime() >= windowCounts) {
+            for (const line of lineRows.filter((row) => row.saleId === candidate.id)) {
+              quota.giveBack(codeOfProduct.get(line.productId as string)!, Number(line.quantity))
+            }
+          }
         }
       }
 
@@ -839,6 +988,8 @@ async function main() {
       })
     }
   }
+
+  if (quota.left > 0) console.warn(`  ${quota.left} unit(s) of the 30-day quotas were not sold: run again`)
 
   // Bulk, in batches — thousands of nested creates would be thousands of round
   // trips to a pooled endpoint.

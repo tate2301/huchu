@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { binAsk, cancelRequisitionAsk, closeShortAsk, removeOrderAsk, restorableUntil } from "./index";
+import {
+  archiveAsk,
+  archiveManyAsk,
+  binAsk,
+  cancelRequisitionAsk,
+  closeShortAsk,
+  LIST_ACTION_RUNS,
+  removeOrderAsk,
+  restorableUntil,
+} from "./index";
 
 describe("the Record board's asks", () => {
   it("bin: restorable for 30 days, said as a day and month in Harare", () => {
@@ -50,5 +59,40 @@ describe("the Record board's asks", () => {
       go: "Cancel the requisition",
       fill: "bad",
     });
+  });
+});
+
+describe("Products' asks (20-products 5.28)", () => {
+  it("archive names the product and its stock; archivemany counts them", () => {
+    expect(archiveAsk({ name: "Amarula Cream 750ml", onHand: "13 bottles" })).toEqual({
+      title: "Stop selling Amarula Cream 750ml?",
+      body: "It leaves every till and reorder suggestion now. Its 13 bottles in stock stay and still count. You can sell it again from its page.",
+      keep: "Keep selling it",
+      go: "Stop selling it",
+      fill: "action",
+    });
+    expect(archiveManyAsk(4)).toEqual({
+      title: "Stop selling 4 products?",
+      body: "They leave every till and reorder suggestion now. Their stock stays and still counts. You can sell them again from the Archived tab.",
+      keep: "Keep selling them",
+      go: "Stop selling them",
+      fill: "action",
+    });
+  });
+
+  it("the list's runs: one ticked row reads as that product, more as a count", () => {
+    const amarula = { id: "a", name: "Amarula Cream 750ml", onHandLabel: "13 bottles" };
+    const run = LIST_ACTION_RUNS.archivemany!;
+    expect(run.ask!(1, [amarula]).title).toBe("Stop selling Amarula Cream 750ml?");
+    expect(run.ask!(2, [amarula, { id: "b", name: "Jameson" }]).title).toBe("Stop selling 2 products?");
+    // "Select all" past the page: a count, without rows.
+    expect(run.ask!(1, []).title).toBe("Stop selling 1 product?");
+    expect(run.done(2, [])).toBe("2 products are off every till.");
+    expect(LIST_ACTION_RUNS.archive!.done(1, [amarula])).toBe("Amarula Cream 750ml is off every till.");
+    expect(LIST_ACTION_RUNS.unarchive!.ask).toBeUndefined();
+    expect(LIST_ACTION_RUNS.unarchive!.done(1, [{ id: "z", name: "Zambezi Lager 375ml" }])).toBe(
+      "Zambezi Lager 375ml is on sale again.",
+    );
+    expect(LIST_ACTION_RUNS.unarchive!.done(3, [])).toBe("3 products are on sale again.");
   });
 });

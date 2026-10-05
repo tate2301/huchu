@@ -124,8 +124,10 @@ export function cellText(column: ListColumn, row: ReportRow): string {
       return formatMoney(Number(value), currency);
     case "diff":
       return formatSigned(Number(value), currency);
-    case "num":
-      return formatCount(Number(value));
+    case "num": {
+      const unit = column.unitKey ? row[column.unitKey] : null;
+      return isBlank(unit) ? formatCount(Number(value)) : `${formatCount(Number(value))} ${String(unit)}`;
+    }
     default:
       return String(value);
   }

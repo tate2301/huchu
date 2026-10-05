@@ -112,7 +112,7 @@ export function ListToolbar({
         onHidden={onHidden}
         folded={fold.view}
       />
-      <ExportMenu caption={exportCaption(total ?? 0, spec.noun)} onExport={onExport} />
+      <ExportMenu caption={exportCaption(total ?? 0, spec.noun)} onExport={onExport} extras={spec.exportExtras} />
     </div>
   );
 }

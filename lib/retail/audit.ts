@@ -107,6 +107,10 @@ export const RETAIL_AUDIT_EVENTS = {
    * carries every field changed in the one save.
    */
   settingsChanged: "RETAIL_SETTINGS.CHANGED",
+  /** A product taken off every till ("Stop selling it"), its stock kept. Carries its name. */
+  productArchived: "RETAIL_PRODUCT.ARCHIVED",
+  /** A product put back on sale. Carries its name. */
+  productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
 } as const;
 
 export type RetailAuditEvent =

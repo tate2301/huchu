@@ -428,6 +428,8 @@ describe("the chain", () => {
       recordBinned: "RETAIL_RECORD.BINNED",
       recordRestored: "RETAIL_RECORD.RESTORED",
       settingsChanged: "RETAIL_SETTINGS.CHANGED",
+      productArchived: "RETAIL_PRODUCT.ARCHIVED",
+      productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
     });
   });
 });

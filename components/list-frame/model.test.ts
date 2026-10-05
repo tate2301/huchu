@@ -95,6 +95,13 @@ describe("cells (5.4.7)", () => {
     expect(cellText(column("variance"), row({ variance: null }))).toBe("—");
   });
 
+  it("prints a count with its unit word when the column names one (13 bottles)", () => {
+    const onHand = { ...column("sales"), key: "onHand", unitKey: "unitWord" };
+    expect(cellText(onHand, row({ onHand: 13, unitWord: "bottles" }))).toBe("13 bottles");
+    expect(cellText(onHand, row({ onHand: 1200, unitWord: "cartons" }))).toBe("1,200 cartons");
+    expect(cellText(onHand, row({ onHand: 4, unitWord: "" }))).toBe("4");
+  });
+
   it("colours a difference by its sign, and only a difference", () => {
     expect(diffTone(column("variance"), -7.15)).toBe("bad");
     expect(diffTone(column("variance"), 3.17)).toBe("warn");

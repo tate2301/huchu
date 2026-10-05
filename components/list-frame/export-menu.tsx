@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 
-import { Menu, MenuCaption, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
+import { Menu, MenuCaption, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/workspace/menu";
 import { ChevronDown, Download } from "@/lib/icons";
 import { formatCount } from "@/lib/workspace/format";
 
@@ -42,12 +43,16 @@ export function ExportMenu({
   caption,
   onExport,
   trigger,
+  extras,
 }: {
   caption: string;
   onExport: (format: ExportFormat) => void;
   /** Defaults to the toolbar's "Export ⌄" button. */
   trigger?: React.ReactElement;
+  /** Other ways in, under a separator ("Import a spreadsheet"): the list's `exportExtras`. */
+  extras?: Array<{ label: string; href: string }>;
 }) {
+  const router = useRouter();
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -63,6 +68,16 @@ export function ExportMenu({
       </MenuTrigger>
       <MenuContent align="end" roomy style={{ width: 260 }}>
         <ExportItems caption={caption} onExport={onExport} />
+        {extras?.length ? (
+          <>
+            <MenuSeparator />
+            {extras.map((extra) => (
+              <MenuItem key={extra.href} onSelect={() => router.push(extra.href)}>
+                {extra.label}
+              </MenuItem>
+            ))}
+          </>
+        ) : null}
       </MenuContent>
     </Menu>
   );
