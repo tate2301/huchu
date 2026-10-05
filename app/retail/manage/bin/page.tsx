@@ -26,7 +26,7 @@ const RESTORED: Record<BinKind, string> = {
 };
 
 /**
- * Settings › Bin — what the shop removed, and the way back.
+ * Setup › Bin — what the shop removed, and the way back.
  *
  * Nothing is deleted from here, because nothing a shop removes is deleted:
  * sales, receipts and products point at these. Restore puts each back where

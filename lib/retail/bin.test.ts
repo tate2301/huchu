@@ -157,4 +157,15 @@ describe("the bin", () => {
       ),
     ).toEqual({ status: 404, message: "That is not in the bin" });
   });
+
+  it("takes one of two moves of the same record at once, with one event", async () => {
+    const id = (await prisma.retailCategory.create({ data: { companyId, name: "Rum" }, select: { id: true } })).id;
+    const outcomes = await Promise.all([
+      refusal(moveToBin(actor(), { kind: "category", id })),
+      refusal(moveToBin(actor(), { kind: "category", id })),
+    ]);
+    expect(outcomes.filter((outcome) => outcome === null)).toHaveLength(1);
+    expect(outcomes).toContainEqual({ status: 409, message: "It is already in the bin" });
+    expect((await events(id)).filter((event) => event.eventType === "RETAIL_RECORD.BINNED")).toHaveLength(1);
+  });
 });

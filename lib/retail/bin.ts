@@ -120,6 +120,15 @@ export class BinRefusal extends Error {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * One move or restore of a record at a time: two at once would both read it
+ * out of (or in) the bin and both write their event. The second waits here,
+ * then reads what the first committed and is refused.
+ */
+async function lockRecord(tx: Tx, spec: BinKindSpec, id: string): Promise<void> {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`retail-bin:${spec.entityType}:${id}`}))::text`;
+}
+
 /** Whether something binned at `binnedAt` can still come back at `now`. */
 export function stillRestorable(binnedAt: Date, now: Date = new Date()): boolean {
   return now.getTime() - binnedAt.getTime() <= BIN_KEEP_DAYS * DAY_MS;
@@ -133,6 +142,7 @@ export async function moveToBin(
 ): Promise<{ binnedAt: string; keptUntil: string }> {
   const spec = KINDS[input.kind];
   return prisma.$transaction(async (tx) => {
+    await lockRecord(tx, spec, input.id);
     const found = await spec.find(tx, actor.companyId, input.id);
     if (!found) throw new BinRefusal(404, "That is not this shop's");
     if (found.archivedAt) throw new BinRefusal(409, "It is already in the bin");
@@ -158,6 +168,7 @@ export async function restoreFromBin(
 ): Promise<{ restored: true }> {
   const spec = KINDS[input.kind];
   return prisma.$transaction(async (tx) => {
+    await lockRecord(tx, spec, input.id);
     const found = await spec.find(tx, actor.companyId, input.id);
     if (!found?.archivedAt) throw new BinRefusal(404, "That is not in the bin");
     if (!stillRestorable(found.archivedAt, now)) {
@@ -229,7 +240,7 @@ export type BinEntry = {
   removedAt: string;
 };
 
-/** Management › Bin's list (the admin spec owns the page). */
+/** Setup › Bin's list (the admin spec owns the page). */
 export async function listBin(companyId: string): Promise<BinEntry[]> {
   const [products, promotions, categories] = await Promise.all([
     prisma.product.findMany({

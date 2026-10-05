@@ -5,7 +5,7 @@ import { binInput, binKind, BinRefusal, listBin, moveToBin } from "@/lib/retail/
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../_helpers";
 
-/** The bin's list: `retail.bin` `view`. Management › Bin reads it. */
+/** The bin's list: `retail.bin` `view`. Setup › Bin reads it. */
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;

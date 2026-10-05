@@ -90,6 +90,8 @@ export const productKind: RecordKind<ProductRecord> = {
   rail: (product) => {
     const unit = product.inventoryItem?.unit ?? "unit";
     const reorder = product.inventoryItem?.reorderLevel ?? null;
+    const reorderQty = product.inventoryItem?.reorderQty ?? null;
+    const units = (count: number) => `${formatCount(count)} ${unit}${count === 1 ? "" : "s"}`;
     return [
       {
         title: "Price",
@@ -148,13 +150,27 @@ export const productKind: RecordKind<ProductRecord> = {
           {
             key: "reorder-at",
             label: "Reorder at",
-            value: reorder === null ? "Never asked" : `${formatCount(reorder)} ${unit}${reorder === 1 ? "" : "s"}`,
+            value: reorder === null ? "Never asked" : units(reorder),
             mono: reorder !== null,
             muted: reorder === null,
             edit: {
               field: "reorderLevel",
               type: "number",
               initial: reorder === null ? "" : String(reorder),
+              parse: (text) => figure(text, { optional: true }),
+              requires: UPDATE,
+            },
+          },
+          {
+            key: "reorder",
+            label: "Reorder",
+            value: reorderQty === null ? "Not set" : units(reorderQty),
+            mono: reorderQty !== null,
+            muted: reorderQty === null,
+            edit: {
+              field: "reorderQty",
+              type: "number",
+              initial: reorderQty === null ? "" : String(reorderQty),
               parse: (text) => figure(text, { optional: true }),
               requires: UPDATE,
             },

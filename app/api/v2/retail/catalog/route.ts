@@ -164,10 +164,13 @@ export async function POST(request: NextRequest) {
         isActive: (input.status ?? "ACTIVE") === "ACTIVE",
         ...productDetailWrites(input),
       });
-      if (input.reorderLevel !== undefined) {
+      if (input.reorderLevel !== undefined || input.reorderQty !== undefined) {
         await prisma.inventoryItem.update({
           where: { id: inventoryItem.id },
-          data: { minStock: input.reorderLevel },
+          data: {
+            ...(input.reorderLevel === undefined ? {} : { minStock: input.reorderLevel }),
+            ...(input.reorderQty === undefined ? {} : { reorderQty: input.reorderQty }),
+          },
         });
       }
 
@@ -237,6 +240,7 @@ async function createWithOwnStockLine(companyId: string, input: CatalogItemInput
         siteId: site.id,
         locationId: location.id,
         ...(input.reorderLevel === undefined || input.reorderLevel === null ? {} : { minStock: input.reorderLevel }),
+        ...(input.reorderQty === undefined || input.reorderQty === null ? {} : { reorderQty: input.reorderQty }),
         ...(input.costPrice === undefined || input.costPrice === null ? {} : { unitCost: input.costPrice }),
       },
       select: { id: true },

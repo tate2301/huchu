@@ -183,6 +183,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
     },
     {
       title: "Drawer",
+      // The board's "No-sale opens" row waits until the till records them (98-decisions honest version).
       rows: [
         {
           key: "last-opened",

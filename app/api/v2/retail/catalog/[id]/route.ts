@@ -180,6 +180,7 @@ export async function PATCH(
       ...(input.taxPercent !== undefined ? { taxPercent: input.taxPercent } : {}),
       ...(input.costPrice !== undefined ? { costPrice: input.costPrice } : {}),
       ...(input.reorderLevel !== undefined ? { reorderLevel: input.reorderLevel } : {}),
+      ...(input.reorderQty !== undefined ? { reorderQty: input.reorderQty } : {}),
       ...(input.categoryId !== undefined ? { categoryId: input.categoryId, category } : {}),
       ...(input.returnable !== undefined ? { returnable: input.returnable } : {}),
       ...(input.depositAmount !== undefined || input.returnable === false
@@ -232,11 +233,12 @@ export async function PATCH(
         },
         tx,
       );
-      if (input.reorderLevel !== undefined || input.costPrice !== undefined) {
+      if (input.reorderLevel !== undefined || input.reorderQty !== undefined || input.costPrice !== undefined) {
         await tx.inventoryItem.update({
           where: { id: inventoryItemId },
           data: {
             ...(input.reorderLevel === undefined ? {} : { minStock: input.reorderLevel }),
+            ...(input.reorderQty === undefined ? {} : { reorderQty: input.reorderQty }),
             ...(input.costPrice === undefined ? {} : { unitCost: input.costPrice }),
           },
         });

@@ -155,12 +155,12 @@ export default function RetailPromotionsPage() {
     mutationFn: (promotion: Promotion) =>
       fetchJson("/api/v2/retail/bin", { method: "POST", body: JSON.stringify({ kind: "promotion", id: promotion.id }) }),
     onSuccess: () => {
-      toast({ title: "Promotion removed", variant: "success" });
+      toast({ title: "Moved to the bin. Setup › Bin brings it back.", variant: "success" });
       void queryClient.invalidateQueries({ queryKey: ["retail-promotions"] });
     },
     onError: (error) =>
       toast({
-        title: "That promotion was not removed",
+        title: "That promotion was not moved to the bin",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -168,10 +168,10 @@ export default function RetailPromotionsPage() {
 
   const confirmRemove = (promotion: Promotion) => {
     void dsConfirm({
-      title: `Remove ${promotion.name}?`,
+      title: `Move ${promotion.name} to the bin?`,
       description:
-        "It goes in the bin and the till stops applying it. Sales it discounted keep their discount, and Settings › Bin brings it back.",
-      confirmLabel: "Remove the promotion",
+        "The till stops applying it. Sales it discounted keep their discount, and Setup › Bin brings it back for 30 days.",
+      confirmLabel: "Move to the bin",
       variant: "danger",
     }).then((confirmed) => {
       if (confirmed) remove.mutate(promotion);

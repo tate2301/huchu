@@ -99,6 +99,8 @@ export type ShelfListing = {
     locationId: string;
     /** Stock at or below this is low. Null when the shop never set one. */
     reorderLevel: number | null;
+    /** How many to order when it is low. Null when the shop never set one. */
+    reorderQty: number | null;
   } | null;
   site: { id: string; name: string; code: string } | null;
 };
@@ -202,6 +204,7 @@ export async function loadShelfListings(
       name: true,
       currentStock: true,
       minStock: true,
+      reorderQty: true,
       unit: true,
       locationId: true,
       siteId: true,
@@ -292,6 +295,7 @@ export async function loadShelfListings(
         unit: stock.unit,
         locationId: stock.locationId,
         reorderLevel: stock.minStock === null ? null : toNumberOrZero(stock.minStock),
+        reorderQty: stock.reorderQty === null ? null : toNumberOrZero(stock.reorderQty),
       },
       site: stock.site,
     });

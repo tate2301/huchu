@@ -72,6 +72,7 @@ type Before = {
   taxPercent: number;
   costPrice: number | null;
   reorderLevel: number | null;
+  reorderQty: number | null;
   category: string | null;
   categoryId: string | null;
   returnable: boolean;
@@ -96,6 +97,7 @@ export const PRODUCT_FIELDS: Record<string, FieldWords> = {
   taxPercent: { label: "VAT", kind: "percent", value: (p) => plain(p.taxPercent) },
   costPrice: { label: "Cost", kind: "money", value: (p) => money(p.costPrice) },
   reorderLevel: { label: "Reorder at", kind: "count", value: (p) => plain(p.reorderLevel) },
+  reorderQty: { label: "Reorder", kind: "count", value: (p) => plain(p.reorderQty) },
   categoryId: { label: "Category", kind: "text", value: (p) => p.category },
   returnable: { label: "Returnable", kind: "text", value: (p) => (p.returnable ? "Yes" : "No") },
   depositAmount: { label: "Deposit", kind: "money", value: (p) => money(p.depositAmount) },
@@ -130,6 +132,7 @@ export function productBefore(record: ProductRecord): Before {
     taxPercent: record.taxPercent,
     costPrice: record.costPrice,
     reorderLevel: record.inventoryItem?.reorderLevel ?? null,
+    reorderQty: record.inventoryItem?.reorderQty ?? null,
     category: record.category,
     categoryId: record.categoryId,
     returnable: record.returnable,

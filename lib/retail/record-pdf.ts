@@ -114,6 +114,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
       const stockRows = rows([
         ["On hand", stock ? `${stock.currentStock} ${stock.unit}` : "—"],
         ["Reorder at", stock?.reorderLevel === null || !stock ? "—" : `${stock.reorderLevel} ${stock.unit}`],
+        ["Reorder", stock?.reorderQty === null || !stock ? "—" : `${stock.reorderQty} ${stock.unit}`],
       ]);
       const details = rows([
         ["Name", product.name],

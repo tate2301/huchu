@@ -343,7 +343,7 @@ async function main() {
     const item = existing
       ? await prisma.inventoryItem.update({
           where: { id: existing.id },
-          data: { currentStock: entry.stock, minStock: entry.min, unitCost: Number(entry.cost) },
+          data: { currentStock: entry.stock, minStock: entry.min, reorderQty: entry.min * 2, unitCost: Number(entry.cost) },
           select: { id: true, unit: true },
         })
       : await prisma.inventoryItem.create({
@@ -356,6 +356,8 @@ async function main() {
             locationId: location.id,
             currentStock: entry.stock,
             minStock: entry.min,
+            // "Reorder": two levels' worth, a case of 12 on Amarula's 6.
+            reorderQty: entry.min * 2,
             unitCost: Number(entry.cost),
           },
           select: { id: true, unit: true },
@@ -980,7 +982,7 @@ async function main() {
 /**
  * FND-06. The events the shift and product records' Activity tabs read, as
  * the till and the back office would have written them: each open drawer's
- * opening, the Front till's sales this morning and its drop of US$20.00 to
+ * opening, every open drawer's sales, the Front till's drop of US$20.00 to
  * the safe at 10:04 by Tafara Nyathi (ShiftRecord board), and the owner's
  * last price change on Amarula Cream 750ml, US$17.99 to US$18.25.
  */
@@ -1033,14 +1035,14 @@ async function seedRecordActivity(input: {
     events += 1
   }
 
-  const front = shiftRows.find((row) => row.status === "OPEN" && row.registerCode === "TILL-1" && written.has(row.id as string))
-  if (front) {
-    for (const sale of saleRows.filter((row) => row.shiftId === front.id)) {
+  // Every open drawer's sales, so each open shift's Activity tab reads like its Sales tab.
+  for (const shift of shiftRows.filter((row) => row.status === "OPEN" && written.has(row.id as string))) {
+    for (const sale of saleRows.filter((row) => row.shiftId === shift.id)) {
       await auditSalePosted(prisma, {
-        actor: actorOf(front),
+        actor: actorOf(shift),
         saleId: sale.id as string,
         saleNo: sale.saleNo,
-        shiftId: front.id as string,
+        shiftId: shift.id as string,
         siteId: sale.siteId ?? null,
         totalAmount: sale.totalAmount as Prisma.Decimal,
         currency: sale.currency ?? "USD",
@@ -1050,7 +1052,10 @@ async function seedRecordActivity(input: {
       await at("RETAIL_SALE.POSTED", sale.id as string, sale.postedAt as Date)
       events += 1
     }
+  }
 
+  const front = shiftRows.find((row) => row.status === "OPEN" && row.registerCode === "TILL-1" && written.has(row.id as string))
+  if (front) {
     const dropAt = harareTime(0, 10, 4)
     if (dropAt.getTime() > (front.openedAt as Date).getTime() && dropAt.getTime() < now.getTime()) {
       const movement = await prisma.retailCashMovement.create({
@@ -1111,7 +1116,7 @@ async function seedRecordActivity(input: {
       events += 1
     }
   }
-  console.log(`  ${events} activity events (open drawers, the Front till's morning, Amarula's price)`)
+  console.log(`  ${events} activity events (open drawers and their sales, the Front till's drop, Amarula's price)`)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

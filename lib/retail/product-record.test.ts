@@ -12,6 +12,7 @@ const before = {
   taxPercent: 15,
   costPrice: 14.1,
   reorderLevel: 6,
+  reorderQty: 12,
   category: "Spirits",
   categoryId: "c1",
   returnable: false,
@@ -40,9 +41,12 @@ describe("what an edit changed (W-62)", () => {
     ]);
   });
 
-  it("writes reorder levels as counts and VAT as a percentage", () => {
-    expect(productChanges(["reorderLevel", "taxPercent"], before, { ...before, reorderLevel: 12, taxPercent: 0 })).toEqual([
+  it("writes reorder levels and quantities as counts and VAT as a percentage", () => {
+    expect(
+      productChanges(["reorderLevel", "reorderQty", "taxPercent"], before, { ...before, reorderLevel: 12, reorderQty: 24, taxPercent: 0 }),
+    ).toEqual([
       { field: "reorderLevel", label: "Reorder at", kind: "count", from: "6", to: "12" },
+      { field: "reorderQty", label: "Reorder", kind: "count", from: "12", to: "24" },
       { field: "taxPercent", label: "VAT", kind: "percent", from: "15", to: "0" },
     ]);
   });

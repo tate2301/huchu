@@ -16,6 +16,8 @@ export const productDetailFields = {
   costPrice: z.number().min(0).nullable().optional(),
   /** Stock at or below this shows as low. Null means never ask. */
   reorderLevel: z.number().min(0).nullable().optional(),
+  /** How many to order when it is low. Null means not set. */
+  reorderQty: z.number().min(0).nullable().optional(),
   returnable: z.boolean().optional(),
   depositAmount: z.number().min(0).max(1_000).nullable().optional(),
   /** A case: the single it opens into. Null makes it an ordinary product. */

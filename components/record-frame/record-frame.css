@@ -76,6 +76,8 @@
 /* ── Body ───────────────────────────────────────────────── */
 .cx-rf-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
 .cx-rf-main { min-width: 0; overflow: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+/* The column scrolls; its blocks keep their height instead of shrinking to fit. */
+.cx-rf-main > * { flex: none; }
 .cx-rf-rail { min-width: 0; overflow: auto; background: var(--surface); border-left: 1px solid var(--line); padding: 20px; display: flex; flex-direction: column; gap: 24px; }
 .cx-rf.is-binned .cx-rf-body { opacity: 0.45; pointer-events: none; }
 @media (max-width: 1099px) {
