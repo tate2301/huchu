@@ -18,6 +18,7 @@ import {
   lockedSentence,
   pairedFootnote,
   personChip,
+  pinOutcomeSentence,
   shiftOnOtherTillSentence,
   unpairedSaleVerdict,
   type UnpairReason,
@@ -535,36 +536,48 @@ export async function shopSiteId(companyId: string): Promise<string | null> {
 
 /* ── Who is selling? (GET devices/people) ─────────────────────────────────── */
 
-export type TillPerson = { userId: string; label: string };
+export type TillPerson = { userId: string; label: string; outcome: string };
 
 /**
  * The people who may sell at this till: active staff of the shop with a till
  * PIN, whom the till admits and the matrix lets sell. Whoever has the shift
- * open on this till comes first, then by surname.
+ * open on this till comes first, then by surname. `outcome` says what their
+ * PIN will do here: open their shift, carry it on, or send them to the till
+ * their shift is open on first.
  */
 export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
-  const [pins, open] = await Promise.all([
-    prisma.retailTillPin.findMany({
-      where: { companyId: device.companyId, user: { isActive: true, companyId: device.companyId } },
-      select: { user: { select: { id: true, name: true, role: true } } },
-    }),
-    prisma.retailShift.findFirst({
-      where: { companyId: device.companyId, registerId: device.registerId, status: "OPEN" },
-      orderBy: { openedAt: "desc" },
-      select: { cashierId: true },
-    }),
-  ]);
-  const surname = (name: string) => name.trim().split(/\s+/).at(-1)?.toLowerCase() ?? "";
-  return pins
+  const pins = await prisma.retailTillPin.findMany({
+    where: { companyId: device.companyId, user: { isActive: true, companyId: device.companyId } },
+    select: { user: { select: { id: true, name: true, role: true } } },
+  });
+  const sellers = pins
     .map((pin) => pin.user)
-    .filter((user) => canAccessPosPortal(user.role) && canRetailRoleDo(user.role, "retail.sell", "create"))
+    .filter((user) => canAccessPosPortal(user.role) && canRetailRoleDo(user.role, "retail.sell", "create"));
+  const open = await prisma.retailShift.findMany({
+    where: { companyId: device.companyId, status: "OPEN", cashierId: { in: sellers.map((user) => user.id) } },
+    orderBy: { openedAt: "desc" },
+    select: { cashierId: true, registerId: true, registerName: true },
+  });
+  const shiftOf = new Map<string, (typeof open)[number]>();
+  for (const shift of open) if (!shiftOf.has(shift.cashierId)) shiftOf.set(shift.cashierId, shift);
+  const onThisTill = (userId: string) => shiftOf.get(userId)?.registerId === device.registerId;
+  const surname = (name: string) => name.trim().split(/\s+/).at(-1)?.toLowerCase() ?? "";
+  return sellers
     .sort(
       (a, b) =>
-        Number(b.id === open?.cashierId) - Number(a.id === open?.cashierId) ||
+        Number(onThisTill(b.id)) - Number(onThisTill(a.id)) ||
         surname(a.name ?? "").localeCompare(surname(b.name ?? "")) ||
         (a.name ?? "").localeCompare(b.name ?? ""),
     )
-    .map((user) => ({ userId: user.id, label: personChip(user.name ?? "") }));
+    .map((user) => ({
+      userId: user.id,
+      label: personChip(user.name ?? ""),
+      outcome: pinOutcomeSentence(
+        user.name ?? "",
+        device.register.name,
+        onThisTill(user.id) ? { onThisTill: true } : { onThisTill: false, elsewhere: shiftOf.get(user.id)?.registerName ?? null },
+      ),
+    }));
 }
 
 /* ── Messages (heartbeat, dismiss) ────────────────────────────────────────── */

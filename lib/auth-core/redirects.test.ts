@@ -21,6 +21,11 @@ describe("normalizeCallbackUrl", () => {
     ["newline inside", "/\n/evil.com"],
     ["relative path", "evil.com"],
     ["javascript scheme", "javascript:alert(1)"],
+    ["dot-dot to protocol-relative", "/..//evil.com"],
+    ["dot to protocol-relative", "/.//evil.com/x"],
+    ["segment then dot-dot to protocol-relative", "/a/..//evil.com"],
+    ["encoded dot-dot to protocol-relative", "/%2e%2e//evil.com"],
+    ["encoded dot to protocol-relative", "/%2E//evil.com"],
   ])("refuses a path that leaves the site (%s)", (_label, input) => {
     expect(normalizeCallbackUrl(input, "/")).toBe("/");
   });
@@ -36,11 +41,21 @@ describe("normalizeCallbackUrl", () => {
     expect(result).toBe("/%5Cevil.com");
     expect(new URL(result, "https://shop.example").origin).toBe("https://shop.example");
   });
+
+  it("refuses '/..//example.org/x' as decoded from ?callbackUrl=%2F..%2F%2Fexample.org%2Fx", () => {
+    const decoded = new URLSearchParams("callbackUrl=%2F..%2F%2Fexample.org%2Fx").get("callbackUrl");
+    expect(normalizeCallbackUrl(decoded, "/")).toBe("/");
+  });
+
+  it("keeps a path whose dot segments resolve inside the site", () => {
+    expect(normalizeCallbackUrl("/retail/../retail/pos", "/")).toBe("/retail/pos");
+  });
 });
 
 describe("buildCallbackLoginPath", () => {
   it("drops a callback that would leave the site", () => {
     expect(buildCallbackLoginPath("/login", "/\\evil.com")).toBe("/login");
+    expect(buildCallbackLoginPath("/login", "/..//evil.com")).toBe("/login");
     expect(buildCallbackLoginPath("/login", "/shift")).toBe("/login?callbackUrl=%2Fshift");
   });
 });

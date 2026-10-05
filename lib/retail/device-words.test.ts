@@ -7,6 +7,7 @@ import {
   lockedSentence,
   pairedFootnote,
   personChip,
+  pinOutcomeSentence,
   shiftElsewhereSentence,
   unpairedSaleVerdict,
   unpairedSentence,
@@ -49,6 +50,18 @@ describe("the device screens' sentences", () => {
 
   it("says when a locked device may try again, in Harare time", () => {
     expect(lockedSentence(new Date("2026-10-05T12:17:00Z"))).toBe("Too many tries. Try again at 14:17.");
+  });
+
+  it("says what a person's PIN does on this till", () => {
+    expect(pinOutcomeSentence("Chipo Dube", "Front till", { onThisTill: false, elsewhere: null })).toBe(
+      "Chipo’s PIN opens their shift on Front till.",
+    );
+    expect(pinOutcomeSentence("Chipo Dube", "Front till", { onThisTill: true })).toBe(
+      "Chipo’s PIN carries on their shift on Front till.",
+    );
+    expect(pinOutcomeSentence("Chipo Dube", "Front till", { onThisTill: false, elsewhere: "Back till" })).toBe(
+      "Chipo’s shift is open on Back till. Close it there first.",
+    );
   });
 
   it("names a person on a chip by first name and initial", () => {

@@ -12,7 +12,7 @@ import { TILL_PIN_LENGTH } from "@/lib/retail/till-pin";
 
 import "./device-screen.css";
 
-type Person = { userId: string; label: string };
+type Person = { userId: string; label: string; outcome: string };
 
 /** The till PIN's own lock sentence (`pos/pin/unlock`). */
 const LOCKED = "Too many wrong PINs. Sign in with your password to carry on.";
@@ -31,6 +31,7 @@ export function WhoIsSelling({
   /** "" on the POS host, "/portal/pos" on the tenant host. */
   base: string;
   eyebrow: string;
+  /** "Paired 2 August by Rufaro Ndlovu.", after what the chosen person's PIN does here. */
   footnote: string;
 }) {
   const people = useQuery({
@@ -153,7 +154,11 @@ export function WhoIsSelling({
             <PosNumericKeypad onAction={press} decimal={false} />
           </>
         )}
-        <span className="device-foot">{footnote}</span>
+        <span className="device-foot">
+          {list.find((person) => person.userId === chosen)?.outcome}
+          {chosen ? " " : null}
+          {footnote}
+        </span>
       </section>
     </main>
   );

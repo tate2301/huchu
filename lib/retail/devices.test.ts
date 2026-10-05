@@ -286,7 +286,13 @@ describe("every POS request names its device (W-04 step 8)", () => {
         cashierName: "Chipo Dube",
       },
     });
-    expect((await tillPeople(device)).map((person) => person.label)).toEqual(["Chipo D.", "Kuda B.", "Farai M."]);
+    const offered = await tillPeople(device);
+    expect(offered.map((person) => person.label)).toEqual(["Chipo D.", "Kuda B.", "Farai M."]);
+    expect(offered.map((person) => person.outcome)).toEqual([
+      "Chipo’s PIN carries on their shift on Test till.",
+      "Kuda’s PIN opens their shift on Test till.",
+      "Farai’s PIN opens their shift on Test till.",
+    ]);
   });
 
   it("signs a person in with their PIN at the device, with the till PIN's lockout", async () => {

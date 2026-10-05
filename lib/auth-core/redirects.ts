@@ -8,6 +8,8 @@ const RESOLVE_ORIGIN = "http://callback.invalid";
  * `/\t/evil.com` would leave the site even though they start with one `/`.
  * The path is resolved the way a browser would and refused unless it stays on
  * the same origin; what comes back is the resolved path, never the raw input.
+ * Dot segments can resolve to a protocol-relative path (`/..//evil.com` →
+ * `//evil.com`), so a resolved path that starts with `//` is refused too.
  */
 export function normalizeCallbackUrl(callbackUrl: string | null | undefined, fallbackPath: string): string {
   if (!callbackUrl) {
@@ -25,7 +27,7 @@ export function normalizeCallbackUrl(callbackUrl: string | null | undefined, fal
   } catch {
     return fallbackPath;
   }
-  if (resolved.origin !== RESOLVE_ORIGIN) {
+  if (resolved.origin !== RESOLVE_ORIGIN || resolved.pathname.startsWith("//")) {
     return fallbackPath;
   }
 

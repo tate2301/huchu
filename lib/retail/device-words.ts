@@ -64,6 +64,22 @@ export const wrongPinSentence = (triesLeft: number) => `Wrong PIN. ${tries(tries
 /** 409 when a person's shift is open on another till ("People are not devices"). */
 export const shiftElsewhereSentence = (till: string) => `Close your shift on ${till} first.`;
 
+/**
+ * What a person's PIN will do on Who is selling? (TillPairing panel 3's
+ * footnote): "Chipo's PIN opens her shift on Front till." without a pronoun,
+ * since the shop does not record one.
+ */
+export function pinOutcomeSentence(
+  name: string,
+  till: string,
+  shift: { onThisTill: true } | { onThisTill: false; elsewhere: string | null },
+): string {
+  const first = name.trim().split(/\s+/)[0] || "This person";
+  if (shift.onThisTill) return `${first}’s PIN carries on their shift on ${till}.`;
+  if (shift.elsewhere) return `${first}’s shift is open on ${shift.elsewhere}. Close it there first.`;
+  return `${first}’s PIN opens their shift on ${till}.`;
+}
+
 /** A chip on Who is selling?: "Chipo D." */
 export function personChip(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
