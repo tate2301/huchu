@@ -143,29 +143,35 @@ export function merchantCodeProblem(text: string): string | null {
   return null;
 }
 
+/** Change as it is handed back: whole US dollars, the ZiG notes, and what they are worth in US dollars. */
+export type ChangeSplit = { usd: number; zig: number; value: number };
+
 /**
- * The ZiG part of change a cashier hands back (W-05): change is given in US
- * dollars, then ZiG for anything under US$1, the ZiG rounded to the shop's
- * step. 3.40 change at 26.80, nearest 1 → US$3 and ZiG 11.
+ * The change a cashier hands back (W-05), worked out the same way at the till
+ * and on the server: whole US dollars first, then ZiG for what is under US$1,
+ * the ZiG rounded to the shop's nearest step. `value` is what that comes to in
+ * US dollars, so the sale records what left the drawer, not what was owed:
+ * 3.40 owed at 26.80, nearest 1 → US$3 and ZiG 11, worth US$3.41. With no
+ * ZiG rule (the shop takes no ZiG, or has no rate) it is all US dollars.
  */
-export function splitChange(
-  change: number,
-  zig: { rate: number; rounding: string } | null,
-): { usd: number; zig: number } {
-  if (!zig || !(zig.rate > 0) || change <= 0) return { usd: Math.max(change, 0), zig: 0 };
-  const usd = Math.floor(change + 1e-9);
+export function splitChange(change: number, zig: { rate: number; rounding: string } | null): ChangeSplit {
+  const cents = Math.max(Math.round(change * 100), 0);
+  if (!zig || !(zig.rate > 0) || cents === 0) return { usd: cents / 100, zig: 0, value: cents / 100 };
+  const usd = Math.floor(cents / 100);
   const step = Number(zig.rounding) > 0 ? Number(zig.rounding) : 1;
-  const zigAmount = Math.round(((change - usd) * zig.rate) / step) * step;
-  return { usd, zig: Number(zigAmount.toFixed(2)) };
+  const owedInZig = ((cents - usd * 100) / 100) * zig.rate;
+  const zigAmount = Number((Math.round(owedInZig / step + 1e-9) * step).toFixed(2));
+  const value = Number((usd + Math.round((zigAmount / zig.rate) * 100) / 100).toFixed(2));
+  return { usd, zig: zigAmount, value };
 }
 
 /** ZiG 11, ZiG 10.50: whole ZiG without decimals. */
-function zigWords(amount: number): string {
+export function zigWords(amount: number): string {
   return `ZiG ${Number.isInteger(amount) ? String(amount) : amount.toFixed(2)}`;
 }
 
 /** The till's change pill: "Change US$3.00 and ZiG 11", or "Change US$3.40" with no ZiG part. */
-export function changeWords(change: { usd: number; zig: number }): string {
+export function changeWords(change: Pick<ChangeSplit, "usd" | "zig">): string {
   const usd = `US$${change.usd.toFixed(2)}`;
   return change.zig > 0 ? `Change ${usd} and ${zigWords(change.zig)}` : `Change ${usd}`;
 }

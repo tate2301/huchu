@@ -86,6 +86,23 @@ describe("POST /api/v2/retail/payments/zig-rate", () => {
     });
   });
 
+  it("names who last changed how the rate is updated, once that is the newest change", async () => {
+    process.env.RBZ_RATE_URL = "https://rbz.test/rate";
+    try {
+      const saved = await post("manager", { zigSource: "Daily, RBZ rate" });
+      expect(saved.status).toBe(200);
+      expect(saved.body.values).toMatchObject({ zigSource: "Daily, RBZ rate" });
+      // Not the rate's line any more: "Last changed by Tafara Nyathi, …".
+      expect(saved.body.lastChanged).toEqual({ by: "Tafara Nyathi", at: expect.any(String) });
+      expect(new Date(saved.body.lastChanged.at).getTime()).toBeGreaterThan(
+        (await prisma.currencyRate.findFirstOrThrow({ where: { companyId } })).effectiveDate.getTime(),
+      );
+      await post("manager", { zigSource: "By hand" });
+    } finally {
+      delete process.env.RBZ_RATE_URL;
+    }
+  });
+
   it("refuses the bookkeeper", async () => {
     const refused = await post("bookkeeper", { zigRate: "30" });
     expect(refused.status).toBe(403);

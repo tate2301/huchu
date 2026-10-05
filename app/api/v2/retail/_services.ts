@@ -28,7 +28,14 @@ import {
 import { reversalSubtotal } from "@/lib/retail/sale-totals";
 import { depositBack } from "@/lib/retail/deposits";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
-import { paymentRate } from "@/lib/retail/payment-settings";
+import {
+  checkSaleTenders,
+  loadPaymentSettings,
+  NoZigRate,
+  paymentRate,
+  type PaymentSettings,
+} from "@/lib/retail/payment-settings";
+import { splitChange } from "@/lib/retail/payment-words";
 import {
   buildRetailZReportFigures,
   parseTradingDay,
@@ -139,6 +146,37 @@ function getRetailSaleDescription(saleType: string, saleNo: string) {
   return `Retail sale ${saleNo}`;
 }
 
+/**
+ * A sale's change as the books take it (SET-05, W-05), in the base currency:
+ * the whole US dollars and what the ZiG notes were worth (`changeAmount` is
+ * both), and what rounding the ZiG left against what was owed (tendered less
+ * the goods and deposits) — kept by the shop, or given to the customer.
+ * With ZiG in the change the dollars are the whole dollars owed, as
+ * `splitChange` hands them back.
+ */
+export function postedChange(sale: {
+  saleType: string;
+  totalAmount: MoneyLike;
+  depositAmount: MoneyLike;
+  tenderedAmount: MoneyLike | null;
+  changeAmount: MoneyLike | null;
+  changeZig: MoneyLike;
+}): { usd: number; zig: number; kept: number; given: number } {
+  const change = money(sale.changeAmount ?? 0).abs();
+  if (sale.saleType !== "SALE" || sale.tenderedAmount == null) {
+    return { usd: toNumberOrZero(change), zig: 0, kept: 0, given: 0 };
+  }
+  const owed = money(sale.tenderedAmount).minus(money(sale.totalAmount)).minus(money(sale.depositAmount));
+  const usd = money(sale.changeZig).greaterThan(0) ? Prisma.Decimal.min(owed.floor(), change) : change;
+  const rounding = owed.minus(change);
+  return {
+    usd: toNumberOrZero(usd),
+    zig: toNumberOrZero(change.minus(usd)),
+    kept: toNumberOrZero(Prisma.Decimal.max(rounding, 0)),
+    given: toNumberOrZero(Prisma.Decimal.max(rounding.negated(), 0)),
+  };
+}
+
 async function ensureRetailSaleAccountingPosted(input: {
   actor: RetailActorContext;
     sale: {
@@ -154,7 +192,9 @@ async function ensureRetailSaleAccountingPosted(input: {
     discountAmount: MoneyLike;
     taxAmount: MoneyLike;
     totalAmount: MoneyLike;
+    tenderedAmount: MoneyLike | null;
     changeAmount: MoneyLike;
+    changeZig: MoneyLike;
     depositAmount: MoneyLike;
     lines: Array<{
       inventoryItemId: string;
@@ -207,6 +247,7 @@ async function ensureRetailSaleAccountingPosted(input: {
     };
   });
 
+  const change = postedChange(input.sale);
   return postRetailJournal({
     companyId: input.actor.companyId,
     sourceType: getRetailSourceType(input.sale.saleType),
@@ -225,11 +266,17 @@ async function ensureRetailSaleAccountingPosted(input: {
     grossAmount: toNumberOrZero(money(input.sale.totalAmount).abs()),
     // Read by the deposits-held line of the retail sale rule. Always a number,
     // so a rule line keyed on it never falls back to the whole amount.
-    payload: { depositAmount: toNumberOrZero(money(input.sale.depositAmount).abs()) },
+    // The change rounding lines too, always numbers for the same reason.
+    payload: {
+      depositAmount: toNumberOrZero(money(input.sale.depositAmount).abs()),
+      changeRoundingKept: change.kept,
+      changeRoundingGiven: change.given,
+    },
     invertDirection: input.sale.saleType === "REFUND" || input.sale.saleType === "VOID",
     // The books are kept in the base currency: each tender at its base amount
     // (ZiG notes at the rate stamped on them), and the change handed back taken
-    // off the cash, so what is debited is what the drawer kept.
+    // off the cash in the notes it was given in, so what is debited is what
+    // each drawer kept.
     payments: normalizeRetailPostingPayments({
       payments: input.sale.payments.map((payment) => ({
         tenderType: payment.tenderType,
@@ -237,7 +284,7 @@ async function ensureRetailSaleAccountingPosted(input: {
         reference: payment.reference,
         currency: payment.currency ?? null,
       })),
-      changeAmount: toNumberOrZero(money(input.sale.changeAmount ?? 0)),
+      change: { usd: change.usd, zig: change.zig },
     }),
     inventory: {
       lines: postingLines,
@@ -655,8 +702,10 @@ export async function recordRetailCashMovementTransaction(input: {
 /**
  * SET-05, W-05. The tenders of a sale, each at the rate the server stamps — the
  * shop's own for the moment of the sale (`paymentRate`), whatever rate a till
- * believes — and checked in the sale's money, so ZiG notes and dollars add up.
- * The one path for a sale rung now (`pos/sales`) and one replayed (`pos/sync`).
+ * believes — checked against what the shop takes and in the sale's money, so
+ * ZiG notes and dollars add up; and the change, split by the shop's ZiG rule
+ * (`splitChange`, as the till splits it). The one path for a sale rung now
+ * (`pos/sales`) and one sent in from the offline queue (`replay`, either route).
  * Throws `NoZigRate` while the shop has never set a rate for a tender's currency.
  */
 export async function stampSalePayments(input: {
@@ -664,8 +713,24 @@ export async function stampSalePayments(input: {
   payments: RetailPaymentInput[];
   amountDue: number;
   on: Date;
+  /** Rung offline and sent in now: a tender turned off since is let in for a manager to look at. */
+  replay: boolean;
 }) {
-  const saleCurrency = await getCompanyBaseCurrency(input.companyId);
+  const [saleCurrency, settings] = await Promise.all([
+    getCompanyBaseCurrency(input.companyId),
+    loadPaymentSettings(input.companyId),
+  ]);
+  const tenders = checkSaleTenders(
+    settings,
+    input.payments.map((payment) => ({
+      tenderType: payment.tenderType,
+      currency: payment.currency?.trim().toUpperCase() || saleCurrency,
+    })),
+    input.replay,
+  );
+  if (tenders.refusal) {
+    throw new Error(tenders.refusal);
+  }
   const rates = new Map<string, Prisma.Decimal>();
   for (const payment of input.payments) {
     const currency = payment.currency?.trim().toUpperCase() || saleCurrency;
@@ -701,7 +766,23 @@ export async function stampSalePayments(input: {
   if (tenderedAmount < input.amountDue) {
     throw new Error("Tendered amount is below the sale total");
   }
-  return { saleCurrency, payments, tenderedAmount, nonCashTotal, cashTotal };
+  const owed = round(Math.max(cashTotal - Math.max(input.amountDue - nonCashTotal, 0), 0));
+  const change = splitChange(owed, await zigChangeRule(input.companyId, saleCurrency, settings, input.on));
+  return { saleCurrency, payments, tenderedAmount, change, reviewReason: tenders.reviewReason };
+}
+
+/**
+ * The ZiG rule change follows: only on a US dollar shop that takes ZiG cash
+ * and has a rate for the moment of the sale; otherwise change is all dollars.
+ */
+async function zigChangeRule(companyId: string, saleCurrency: string, settings: PaymentSettings, on: Date) {
+  if (saleCurrency !== "USD" || !settings.tenders.cashZig) return null;
+  try {
+    return { rate: (await paymentRate(companyId, saleCurrency, "ZWG", on)).toNumber(), rounding: settings.zigChangeRounding };
+  } catch (error) {
+    if (error instanceof NoZigRate) return null;
+    throw error;
+  }
 }
 
 export async function createRetailSaleTransaction(input: {
@@ -741,6 +822,8 @@ export async function createRetailSaleTransaction(input: {
    * the one in force then. Defaults to `postedAt`, then now.
    */
   soldAt?: Date;
+  /** Rung offline and sent in now (`pos/sync`, or `pos/sales` with `offlineCreatedAt`). */
+  replay?: boolean;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -780,18 +863,21 @@ export async function createRetailSaleTransaction(input: {
     saleCurrency,
     payments: normalizedPayments,
     tenderedAmount,
-    nonCashTotal,
-    cashTotal,
+    change,
+    reviewReason: tenderReview,
   } = await stampSalePayments({
     companyId: input.actor.companyId,
     payments: input.payments,
     amountDue,
     on: input.soldAt ?? input.postedAt ?? new Date(),
+    replay: input.replay ?? false,
   });
   const saleExchangeRate = rate(1);
-
-  const cashDue = round(Math.max(amountDue - nonCashTotal, 0));
-  const changeAmount = round(Math.max(cashTotal - cashDue, 0));
+  // What left the drawer as change: whole dollars and the ZiG notes, by the
+  // shop's rule. Rounding the ZiG leaves it a little off what was owed; the
+  // sale's journal posts that to cash over short.
+  const changeAmount = change.value;
+  const reviewReason = [input.reviewReason, tenderReview].filter(Boolean).join(" ") || null;
   const providedCode = input.saleNo
     ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
     : null;
@@ -858,7 +944,7 @@ export async function createRetailSaleTransaction(input: {
             siteId: site.id,
             registerId: shift.registerId,
             deviceId: input.device?.id ?? null,
-            reviewReason: input.reviewReason ?? null,
+            reviewReason,
             cashierId: input.actor.userId,
             cashierName: resolveCashierName(input.actor),
             customerName: input.customerName ?? null,
@@ -870,6 +956,7 @@ export async function createRetailSaleTransaction(input: {
             totalAmount: input.totalAmount,
             tenderedAmount,
             changeAmount,
+            changeZig: change.zig,
             // R-1.5. Defaulting these at the column would put `baseAmount` at zero
             // on every sale the till takes, and a day's takings would read as
             // nothing. A sale priced in the base currency is rate 1 and its own

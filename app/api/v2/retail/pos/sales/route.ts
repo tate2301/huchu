@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { Prisma, RetailSaleStatus, RetailSaleType } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { atLeast, money, resolveBaseCurrency, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
+import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   getCustomerLoyaltyBalance,
@@ -20,7 +20,6 @@ import {
   requireRetailPermission,
 } from "@/lib/retail/permissions";
 import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
-import { loadPaymentSettings, tenderOffProblem } from "@/lib/retail/payment-settings";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
@@ -34,7 +33,7 @@ import {
   isPosSupportedPromotionType,
   requireRetailSession,
 } from "../../_helpers";
-import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "../../_services";
+import { ShiftElsewhere, createRetailSaleTransaction, postedChange, stampSalePayments } from "../../_services";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 
@@ -760,22 +759,20 @@ export async function POST(request: NextRequest) {
     const depositAmount = depositsDue(depositLines);
     const amountDue = round(totalAmount + depositAmount);
     /*
-      SET-05. Only the tenders the shop takes (a sale rung offline before one
-      was turned off still comes in), each at the rate the server stamps:
-      the shop's own for the moment of the sale, never the till's.
+      SET-05. Only the tenders the shop takes (one turned off since an offline
+      sale was rung comes in for a manager to look at), each at the rate the
+      server stamps: the shop's own for the moment of the sale, never the
+      till's. Checked before the customer is captured; the sale's transaction
+      stamps and checks them again on its own path, the one `pos/sync` takes.
     */
-    const saleCurrency = await resolveBaseCurrency(session.user.companyId);
-    const paymentSettings = await loadPaymentSettings(session.user.companyId);
-    if (!replaySoldAt) {
-      for (const payment of input.payments) {
-        const off = tenderOffProblem(paymentSettings, payment.tenderType, payment.currency ?? saleCurrency);
-        if (off) return errorResponse(off, 400);
-      }
-    }
-    // Checked before the customer is captured; the sale's transaction stamps
-    // and checks them again on its own path, the one `pos/sync` replays through.
     try {
-      await stampSalePayments({ companyId: session.user.companyId, payments: input.payments, amountDue, on: soldAt });
+      await stampSalePayments({
+        companyId: session.user.companyId,
+        payments: input.payments,
+        amountDue,
+        on: soldAt,
+        replay: Boolean(replaySoldAt),
+      });
     } catch (error) {
       return errorResponse(error instanceof Error ? error.message : "The payments do not add up.", 400);
     }
@@ -924,6 +921,7 @@ export async function POST(request: NextRequest) {
       totalAmount,
       payments: input.payments,
       soldAt,
+      replay: Boolean(replaySoldAt),
       lines: normalizedLines.map((line, index) => ({
         depositAmount: lineDeposit(depositLines[index]),
         inventoryItemId: line.inventoryItem.id,
@@ -989,6 +987,9 @@ export async function POST(request: NextRequest) {
       depositAmount: sale.depositAmount,
       tenderedAmount: sale.tenderedAmount,
       changeAmount: sale.changeAmount,
+      // How the change is handed back: whole US dollars, then the ZiG notes (W-05).
+      changeUsd: postedChange(sale).usd,
+      changeZig: toNumberOrZero(sale.changeZig),
       payments: sale.payments,
       lines: sale.lines,
       promotionCode: sale.promotionCode,

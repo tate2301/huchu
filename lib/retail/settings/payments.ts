@@ -7,7 +7,10 @@ import {
   type PaymentSettingsPatch,
 } from "@/lib/retail/payment-settings";
 import { RATE_BY_HAND, RATE_RBZ_DAILY, ZIG_ROUNDING, type TenderKey } from "@/lib/retail/payment-words";
+import { prisma } from "@/lib/prisma";
+import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { rbzRateAvailable } from "@/lib/retail/rbz-rate";
+import type { SettingsLastChanged } from "@/lib/retail/settings-pages";
 import { TENDER_FIELD_IDS } from "@/lib/retail/settings-pages/payments";
 
 import { SettingsRefused, type SettingsStore } from "./types";
@@ -71,11 +74,41 @@ export const paymentsSettings: SettingsStore = {
     }
   },
 
-  /** The rate's change when it is the latest, else the page's last save. */
+  /**
+   * The newest of: the rate's change ("Rate changed by …"), a change of how
+   * the rate is updated (the ZiG rate action's, audited on its own), and the
+   * page's last save ("Last changed by …").
+   */
   async lastChanged(companyId, saved) {
-    const zig = await latestZigRate(companyId);
-    if (!zig) return saved;
-    if (saved && new Date(saved.at).getTime() > zig.setAt.getTime()) return saved;
-    return { by: zig.setBy ?? "the RBZ", at: zig.setAt.toISOString(), what: "rate" };
+    const [zig, source] = await Promise.all([latestZigRate(companyId), lastSourceChange(companyId)]);
+    const changes: SettingsLastChanged[] = [
+      ...(saved ? [saved] : []),
+      ...(source ? [source] : []),
+      ...(zig ? [{ by: zig.setBy ?? "the RBZ", at: zig.setAt.toISOString(), what: "rate" as const }] : []),
+    ];
+    return changes.reduce<SettingsLastChanged | null>(
+      (newest, change) => (!newest || new Date(change.at).getTime() > new Date(newest.at).getTime() ? change : newest),
+      null,
+    );
   },
 };
+
+/** Who last changed how the rate is updated, and when: `RETAIL_ZIG_RATE.SET { source }`. */
+async function lastSourceChange(companyId: string): Promise<SettingsLastChanged | null> {
+  const event = await prisma.platformAuditEvent.findFirst({
+    where: {
+      companyId,
+      eventType: RETAIL_AUDIT_EVENTS.zigRateSet,
+      entityType: "RetailSettings",
+      entityId: "payments",
+      payloadJson: { contains: '"previousSource"' },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { createdAt: true, actor: true, payloadJson: true },
+  });
+  if (!event) return null;
+  const carried = /"actorName":"([^"]+)"/.exec(event.payloadJson ?? "")?.[1] ?? null;
+  const user =
+    !carried && event.actor ? await prisma.user.findFirst({ where: { id: event.actor }, select: { name: true } }) : null;
+  return { by: carried ?? user?.name ?? "Someone", at: event.createdAt.toISOString() };
+}

@@ -12,7 +12,7 @@ import {
   NoZigRate,
   ON_ACCOUNT_NOT_AT_THE_TILL,
   paymentRate,
-  tenderOffProblem,
+  checkSaleTenders,
   tillPayments,
   tillTenders,
 } from "./payment-settings";
@@ -186,9 +186,27 @@ describe("saving Payments and taking ZiG", () => {
 
   it("refuses a tender that is off, and on account at the till", async () => {
     const settings = await loadPaymentSettings(companyId);
-    expect(tenderOffProblem(settings, "VOUCHER", null)).toBe("Vouchers is turned off in Payments.");
-    expect(tenderOffProblem(settings, "CASH", "ZWG")).toBeNull();
-    expect(tenderOffProblem(settings, "ON_ACCOUNT", null)).toBe(ON_ACCOUNT_NOT_AT_THE_TILL);
+    const check = (tenderType: string, currency: string | null, replay = false) =>
+      checkSaleTenders(settings, [{ tenderType, currency }], replay);
+    expect(check("VOUCHER", null)).toEqual({ refusal: "Vouchers is turned off in Payments.", reviewReason: null });
+    expect(check("CASH", "ZWG")).toEqual({ refusal: null, reviewReason: null });
+    expect(check("ON_ACCOUNT", null)).toEqual({ refusal: ON_ACCOUNT_NOT_AT_THE_TILL, reviewReason: null });
+    expect(check("ON_ACCOUNT", null, true)).toEqual({ refusal: ON_ACCOUNT_NOT_AT_THE_TILL, reviewReason: null });
+  });
+
+  it("takes a tender turned off after an offline sale was rung, for a manager to look at", async () => {
+    const settings = await loadPaymentSettings(companyId);
+    expect(
+      checkSaleTenders(
+        settings,
+        [
+          { tenderType: "VOUCHER", currency: null },
+          { tenderType: "CASH", currency: "USD" },
+          { tenderType: "VOUCHER", currency: null },
+        ],
+        true,
+      ),
+    ).toEqual({ refusal: null, reviewReason: "Paid by Vouchers, turned off in Payments since." });
   });
 
   it("stamps the shop's rate on a ZiG payment, and its inverse on dollars in a ZiG shop", async () => {

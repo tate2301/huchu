@@ -61,6 +61,9 @@ type CompletedSale = {
   /** Bottle deposits charged on top of the goods. */
   depositAmount?: number;
   changeAmount: number;
+  /** The change as it is handed back (W-05): whole US dollars, then ZiG notes. */
+  changeUsd?: number;
+  changeZig?: number;
   postedAt: string;
   loyalty?: {
     pointsEarned: number;

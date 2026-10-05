@@ -69,7 +69,13 @@ export const paymentsPage: SettingsPage = {
         },
         { id: "innbucks", t: "toggle", l: "InnBucks" },
         { id: "bankTransfer", t: "toggle", l: "Bank transfer", h: "Held until the transfer shows in the bank." },
-        { id: "onAccount", t: "toggle", l: "On account", h: "For customers with an approved account and limit." },
+        {
+          id: "onAccount",
+          t: "toggle",
+          l: "On account",
+          // The till cannot take a customer's account until CUS-10; it leaves this tender off and the server refuses it.
+          h: "For customers with an approved account and limit. Not offered at the till yet.",
+        },
         { id: "vouchers", t: "toggle", l: "Vouchers" },
       ],
     },

@@ -2266,7 +2266,8 @@ main().catch((error: unknown) => {
  * InnBucks, the rate by hand rounded to the nearest 1, EcoCash merchant
  * "0921 774" showing as "HARARE BOTTLE", and today's ZiG rate 26.80 set at
  * 07:30 by the owner (Tendai Mhlanga) over 2 October's 26.95 — so the save
- * bar reads "Rate changed by Tendai Mhlanga today at 07:30." Every run puts
+ * bar reads "Rate changed by Tendai Mhlanga today at 07:30." (run before
+ * 07:30, the rate is yesterday's 07:30 one). Every run puts
  * the page back the way the board has it: rates, saves and rate events on
  * Payments that test runs left are cleared first.
  */
@@ -2302,7 +2303,9 @@ async function seedPayments(companyId: string) {
       eventType: { in: [RETAIL_AUDIT_EVENTS.settingsChanged, RETAIL_AUDIT_EVENTS.zigRateSet] },
     },
   })
-  const morning = new Date(Math.min(harareTime(0, 7, 30).getTime(), Date.now() - 60_000))
+  // The latest 07:30 in Harare that has passed: this morning's, or yesterday's
+  // when the seed runs before it (a rate set in the future would not apply yet).
+  const morning = harareTime(0, 7, 30).getTime() <= Date.now() ? harareTime(0, 7, 30) : harareTime(1, 7, 30)
   const rates = [
     { rate: 26.95, at: new Date("2026-10-02T07:25:00+02:00"), previous: null },
     { rate: Number(ZWG_RATE), at: morning, previous: "26.95" },

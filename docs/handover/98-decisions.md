@@ -27,12 +27,6 @@ Real actions keep their own endpoints:
 - plan change;
 - the ZiG rate.
 
-A settings page may show an action's fields beside its own (`SettingsPage.action`: fields, endpoint, grant). The frame
-sends those fields' changes as `{ changes }` to the action's endpoint first, then the rest to the settings `PATCH`; a
-role with the action's grant changes them even when it cannot change the page (Payments: the manager's ZiG rate through
-`POST /api/v2/retail/payments/zig-rate`). Every settings page keeps the frame's "Activity" header button; "no header
-buttons" in a page's spec means no buttons of its own.
-
 **C-31 One manager-PIN module.**
 - SET-06 builds `lib/retail/manager-pin.ts` with `verifyManagerPin`. A request carries `approver { userId, pin }`.
 - A missing or wrong approval answers 409 `{ needsApprover: true, reason }`.

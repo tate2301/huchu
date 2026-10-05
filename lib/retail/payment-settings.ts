@@ -251,18 +251,33 @@ export async function tillPayments(companyId: string): Promise<{
   };
 }
 
-/** A payment the shop has turned off: "InnBucks is turned off in Payments." */
-export function tenderOffProblem(
+/**
+ * A sale's tenders against what the shop takes (W-05), on both the till's
+ * routes: a tender it does not know, and On account (until CUS-10), are
+ * refused; so is one the shop has turned off — "InnBucks is turned off in
+ * Payments." — unless the sale was rung offline before it was. That one is
+ * taken (the money is in the drawer) with a reason for a manager to look at:
+ * "Paid by InnBucks, turned off in Payments since."
+ */
+export function checkSaleTenders(
   settings: PaymentSettings,
-  tender: string,
-  currency: string | null | undefined,
-): string | null {
-  const key = tenderKeyOf(tender, currency);
-  if (!key) return "That is not a way this shop is paid.";
-  if (key === "onAccount") return ON_ACCOUNT_NOT_AT_THE_TILL;
-  if (settings.tenders[key]) return null;
-  const label = TENDER_OPTIONS.find((option) => option.key === key)!.label;
-  return `${label} is turned off in Payments.`;
+  payments: Array<{ tenderType: string; currency: string | null | undefined }>,
+  replay: boolean,
+): { refusal: string | null; reviewReason: string | null } {
+  const off: string[] = [];
+  for (const payment of payments) {
+    const key = tenderKeyOf(payment.tenderType, payment.currency);
+    if (!key) return { refusal: "That is not a way this shop is paid.", reviewReason: null };
+    if (key === "onAccount") return { refusal: ON_ACCOUNT_NOT_AT_THE_TILL, reviewReason: null };
+    if (settings.tenders[key]) continue;
+    const label = TENDER_OPTIONS.find((option) => option.key === key)!.label;
+    if (!replay) return { refusal: `${label} is turned off in Payments.`, reviewReason: null };
+    if (!off.includes(label)) off.push(label);
+  }
+  return {
+    refusal: null,
+    reviewReason: off.length ? `Paid by ${off.join(" and ")}, turned off in Payments since.` : null,
+  };
 }
 
 export class NoZigRate extends Error {

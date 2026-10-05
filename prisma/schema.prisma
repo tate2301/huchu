@@ -5222,7 +5222,12 @@ model RetailSale {
   taxAmount      Decimal @default(0) @db.Decimal(14, 2)
   totalAmount    Decimal @default(0) @db.Decimal(14, 2)
   tenderedAmount Decimal? @db.Decimal(14, 2)
+  /// What the change handed back is worth in the sale's currency (SET-05, W-05):
+  /// whole US dollars, then `changeZig` at the sale's ZiG rate. It can differ
+  /// from tendered less due by the ZiG rounding, which posts to cash over short.
   changeAmount   Decimal? @db.Decimal(14, 2)
+  /// The ZiG notes handed back as change, rounded to the shop's step.
+  changeZig      Decimal @default(0) @db.Decimal(14, 2)
   /// R-1.5 — what the shelf price is quoted in. Zimbabwe trades in both, and a
   /// bottle store prices in USD while taking ZWG across the counter all day, so a
   /// sale that does not say which one it means is a sale nobody can reconcile.

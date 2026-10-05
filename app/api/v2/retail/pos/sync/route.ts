@@ -624,6 +624,8 @@ async function processCreateSale(
       reviewReason: ctx.device.unpairedAt ? UNPAIRED_REVIEW_REASON : null,
       postedAt: soldAt,
       soldAt,
+      // Every sync operation was rung offline: a tender turned off since is let in for a manager to look at.
+      replay: true,
       idCheckedAt: payload.idChecked && ageRestricted.length > 0 ? soldAt : null,
     });
 

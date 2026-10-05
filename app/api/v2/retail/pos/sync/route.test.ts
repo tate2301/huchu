@@ -166,6 +166,15 @@ async function sync(operations: unknown[]) {
   return new Map(body.results.map((result) => [result.clientOperationId, result]));
 }
 
+/** The sale journal's change rounding lines, against cash over short. */
+async function roundingLines(saleId: string) {
+  const entry = await prisma.journalEntry.findFirstOrThrow({
+    where: { companyId, sourceType: "RETAIL_SALE", sourceId: saleId },
+    select: { lines: { where: { account: { code: "5420" } }, select: { debit: true, credit: true } } },
+  });
+  return entry.lines;
+}
+
 async function storedPayment(saleId: string) {
   const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: saleId }, include: { payments: true } });
   return { sale: stored, payment: stored.payments[0]! };
@@ -185,9 +194,12 @@ describe("a ZiG cash sale replayed through pos/sync", () => {
       const { sale: stored, payment } = await storedPayment(result.serverId!);
       expect(payment).toMatchObject({ tenderType: "CASH", currency: "ZWG" });
       expect(payment.exchangeRate.toString()).toBe("26.8");
-      // ZiG 105 at 26.80 is US$3.92 against US$3.90: two cents change, in dollars.
+      // ZiG 105 at 26.80 is US$3.92 against US$3.90: two cents owed, ZiG 0.54,
+      // which the shop's nearest 1 hands back as ZiG 1 (US$0.04).
       expect(payment.baseAmount.toString()).toBe("3.92");
-      expect(stored.changeAmount?.toString()).toBe("0.02");
+      expect(stored.changeAmount?.toString()).toBe("0.04");
+      expect(stored.changeZig.toString()).toBe("1");
+      expect(await roundingLines(stored.id)).toEqual([{ debit: 0.02, credit: 0 }]);
     }
   });
 
@@ -200,5 +212,49 @@ describe("a ZiG cash sale replayed through pos/sync", () => {
       error: "There is no ZiG rate yet. Set it in Payments.",
     });
     expect(await prisma.retailSale.count({ where: { companyId, clientRef: `zig-before-rate-${stamp}` } })).toBe(0);
+  });
+});
+
+describe("change on a sale, by the shop's ZiG rule", () => {
+  it("hands back whole dollars, then ZiG rounded to the step, and posts what the rounding left", async () => {
+    // US$5 for US$3.90 at 26.80: US$1.10 owed, US$1 and ZiG 2.68.
+    const steps = [
+      { step: "0.50", zig: "2.5", change: "1.09", rounding: { debit: 0, credit: 0.01 } },
+      { step: "1", zig: "3", change: "1.11", rounding: { debit: 0.01, credit: 0 } },
+      { step: "5", zig: "5", change: "1.19", rounding: { debit: 0.09, credit: 0 } },
+    ];
+    for (const { step, zig, change, rounding } of steps) {
+      await prisma.retailPaymentSettings.upsert({
+        where: { companyId },
+        update: { zigChangeRounding: step },
+        create: { companyId, zigChangeRounding: step },
+      });
+      const id = `usd-change-${step}`;
+      const result = (await sync([sale(id, { tenderType: "CASH", currency: "USD", amount: 5 })])).get(id)!;
+      expect(result).toMatchObject({ status: "synced", accountingStatus: "POSTED" });
+      const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: result.serverId! } });
+      expect([stored.changeZig.toString(), stored.changeAmount?.toString()]).toEqual([zig, change]);
+      expect(await roundingLines(stored.id)).toEqual([rounding]);
+    }
+  });
+});
+
+describe("tenders on a sale sent in from the offline queue", () => {
+  it("refuses one on account, which no customer would owe", async () => {
+    const results = await sync([sale("on-account", { tenderType: "ON_ACCOUNT", amount: 3.9 })]);
+    expect(results.get("on-account")).toMatchObject({
+      status: "failed",
+      error: "Selling on account needs the customer’s account, which the till cannot take yet.",
+    });
+    expect(await prisma.retailSale.count({ where: { companyId, clientRef: `on-account-${stamp}` } })).toBe(0);
+  });
+
+  it("takes one turned off since, for a manager to look at", async () => {
+    // InnBucks is off (the shop's defaults); the till took it before it was.
+    const results = await sync([sale("innbucks-off", { tenderType: "INNBUCKS", amount: 3.9, reference: "IB-77120" })]);
+    const result = results.get("innbucks-off")!;
+    expect(result).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: result.serverId! } });
+    expect(stored.reviewReason).toBe("Paid by InnBucks, turned off in Payments since.");
   });
 });

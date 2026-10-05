@@ -94,11 +94,21 @@ describe("payments in words", () => {
   });
 
   it("gives change in dollars, then ZiG for what is under US$1, rounded to the step", () => {
-    expect(splitChange(3.4, { rate: 26.8, rounding: "1" })).toEqual({ usd: 3, zig: 11 });
-    expect(splitChange(3.4, { rate: 26.8, rounding: "5" })).toEqual({ usd: 3, zig: 10 });
-    expect(splitChange(3.4, { rate: 26.8, rounding: "0.50" })).toEqual({ usd: 3, zig: 10.5 });
-    expect(splitChange(2, { rate: 26.8, rounding: "1" })).toEqual({ usd: 2, zig: 0 });
-    expect(splitChange(3.4, null)).toEqual({ usd: 3.4, zig: 0 });
+    // US$0.40 is ZiG 10.72 at 26.80.
+    expect(splitChange(3.4, { rate: 26.8, rounding: "0.50" })).toEqual({ usd: 3, zig: 10.5, value: 3.39 });
+    expect(splitChange(3.4, { rate: 26.8, rounding: "1" })).toEqual({ usd: 3, zig: 11, value: 3.41 });
+    expect(splitChange(3.4, { rate: 26.8, rounding: "5" })).toEqual({ usd: 3, zig: 10, value: 3.37 });
+    expect(splitChange(2, { rate: 26.8, rounding: "1" })).toEqual({ usd: 2, zig: 0, value: 2 });
+    expect(splitChange(3.4, null)).toEqual({ usd: 3.4, zig: 0, value: 3.4 });
+  });
+
+  it("records what is handed back, not what was owed", () => {
+    // ZiG 106 for US$3.90 at 27.10: a cent owed is ZiG 0.27, which rounds to nothing.
+    expect(splitChange(0.01, { rate: 27.1, rounding: "1" })).toEqual({ usd: 0, zig: 0, value: 0 });
+    // US$0.98 at 27.10 is ZiG 26.56: ZiG 27 is worth US$1.00, ZiG 26.50 US$0.98, ZiG 25 US$0.92.
+    expect(splitChange(0.98, { rate: 27.1, rounding: "1" })).toEqual({ usd: 0, zig: 27, value: 1 });
+    expect(splitChange(0.98, { rate: 27.1, rounding: "0.50" })).toEqual({ usd: 0, zig: 26.5, value: 0.98 });
+    expect(splitChange(0.98, { rate: 27.1, rounding: "5" })).toEqual({ usd: 0, zig: 25, value: 0.92 });
   });
 
   it("says the change in dollars, then ZiG", () => {

@@ -826,6 +826,26 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         memoTemplate: "{description} / bottle deposits",
         sortOrder: 35,
       },
+      // SET-05, W-05: what rounding the ZiG change leaves, kept by the shop or
+      // given to the customer. A sale always sends both as numbers; the
+      // DEDUCTIONS basis (nothing, on a sale) is what a posting without them
+      // falls back to, so it never takes the whole amount.
+      {
+        accountCode: "5420",
+        direction: "CREDIT",
+        basis: "DEDUCTIONS",
+        valuePath: "changeRoundingKept",
+        memoTemplate: "{description} / change rounding",
+        sortOrder: 36,
+      },
+      {
+        accountCode: "5420",
+        direction: "DEBIT",
+        basis: "DEDUCTIONS",
+        valuePath: "changeRoundingGiven",
+        memoTemplate: "{description} / change rounding",
+        sortOrder: 37,
+      },
       {
         accountCode: "5000",
         direction: "DEBIT",

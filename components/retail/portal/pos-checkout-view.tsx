@@ -65,7 +65,7 @@ import { PosEmptyState, PosStatusPill } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, TenderType } from "./pos-types";
 import { money } from "./pos-utils";
-import { changeWords, splitChange, type TillTender } from "@/lib/retail/payment-words";
+import { changeWords, splitChange, zigWords, type TillTender } from "@/lib/retail/payment-words";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 
@@ -312,6 +312,9 @@ export function PosCheckoutView() {
   const tenderOptions = till?.tenders ?? CASH_ONLY;
   const zigRate = till?.zig ? Number(till.zig.rate) : null;
   const change = splitChange(changeAmount, till?.zig ? { rate: Number(till.zig.rate), rounding: till.zig.rounding } : null);
+  // The change the server recorded for the sale just rung, as it is handed back.
+  const completedUsd = Number(lastCompletedSale?.changeUsd ?? lastCompletedSale?.changeAmount ?? 0);
+  const completedZig = Number(lastCompletedSale?.changeZig ?? 0);
 
   /* ── Derived state ───────────────────────────── */
 
@@ -1972,14 +1975,17 @@ export function PosCheckoutView() {
       <Dialog open={Boolean(lastCompletedSale)} onOpenChange={(open) => !open && dismissCompletedSale()}>
         <DialogContent data-testid="pos-sale-complete" className="sm:max-w-[22rem] p-0 overflow-hidden">
           {/* Change amount — the MOST important thing a cashier needs */}
-          {(lastCompletedSale?.changeAmount ?? 0) > 0 ? (
+          {completedUsd > 0 || completedZig > 0 ? (
             <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 px-6 pt-8 pb-7 text-center text-white">
               <div className="text-[11px] font-bold text-emerald-200">
                 Change due
               </div>
               <div className="mt-1 font-mono text-[4.5rem] font-black leading-none tracking-tight">
-                {money(lastCompletedSale?.changeAmount ?? 0)}
+                {completedUsd > 0 ? money(completedUsd) : zigWords(completedZig)}
               </div>
+              {completedUsd > 0 && completedZig > 0 ? (
+                <div className="mt-2 font-mono text-2xl font-black">and {zigWords(completedZig)}</div>
+              ) : null}
               <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-emerald-100">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {lastCompletedSale?.saleNo}

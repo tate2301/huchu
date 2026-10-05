@@ -91,9 +91,12 @@ export function normalizeRetailPostingPayments(input: {
     /** Quote units per one base unit for this tender: 27.5 ZWG buys one USD. */
     exchangeRate?: number | null;
   }>;
-  changeAmount?: number;
+  /**
+   * The change handed back, in the base currency, by the notes it was given
+   * in (SET-05, W-05): whole US dollars, then ZiG for what is under US$1.
+   */
+  change?: { usd: number; zig: number };
 }) {
-  const changeAmount = Math.max(round(input.changeAmount ?? 0), 0);
   const normalized = input.payments.map((payment) => ({
     tenderType: payment.tenderType,
     amount: round(Math.abs(payment.amount)),
@@ -102,22 +105,25 @@ export function normalizeRetailPostingPayments(input: {
     exchangeRate: payment.exchangeRate ?? null,
   }));
 
-  if (changeAmount <= 0) {
-    return normalized.filter((payment) => payment.amount > 0);
-  }
-
-  let remainingChange = changeAmount;
-  return normalized
-    .flatMap((payment) => {
-      if (payment.tenderType !== "CASH") {
-        return [payment];
+  // Each part of the change comes off the cash in its own currency first, so
+  // the US dollar and ZiG cash accounts each lose what their drawer gave back;
+  // only what one currency's cash cannot cover comes off the other's.
+  const isZig = (currency: string | null) => (currency ?? "").toUpperCase() === "ZWG";
+  const takeOff = (amount: number, first: (currency: string | null) => boolean) => {
+    let remaining = Math.max(round(amount), 0);
+    for (const pass of [true, false]) {
+      for (const payment of normalized) {
+        if (remaining <= 0) return;
+        if (payment.tenderType !== "CASH" || first(payment.currency) !== pass) continue;
+        const offset = Math.min(payment.amount, remaining);
+        payment.amount = round(payment.amount - offset);
+        remaining = round(remaining - offset);
       }
-      const offset = Math.min(payment.amount, remainingChange);
-      remainingChange = round(remainingChange - offset);
-      const amount = round(payment.amount - offset);
-      return amount > 0 ? [{ ...payment, amount }] : [];
-    })
-    .filter((payment) => payment.amount > 0);
+    }
+  };
+  takeOff(input.change?.usd ?? 0, (currency) => !isZig(currency));
+  takeOff(input.change?.zig ?? 0, isZig);
+  return normalized.filter((payment) => payment.amount > 0);
 }
 
 export async function postRetailJournal(
