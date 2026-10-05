@@ -94,14 +94,6 @@ export function isRouteAllowedForRole(
 }
 
 /**
- * Whether the role is subject to any route restriction at all.
- */
-export function isRoleRouteRestricted(role: string | null | undefined): boolean {
-  const normalized = String(role ?? "").trim().toUpperCase();
-  return Boolean(ROLE_ROUTE_ALLOWLIST[normalized]);
-}
-
-/**
  * The landing path a restricted role should be redirected to (its first
  * allowed prefix), or null if the role is unrestricted.
  */

@@ -41,7 +41,7 @@ export function PageHeader() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const title = identity?.title ?? nav.activeItem?.label ?? getCurrentPageTitle(pathname, searchParams.get("view"));
+  const title = identity?.title ?? nav.pageLabel ?? getCurrentPageTitle(pathname, searchParams.get("view"));
   const back = identity?.back;
   const primaryHref = primary?.href ?? (primary?.sheet ? sheetHref(pathname, searchParams.toString(), primary.sheet) : null);
   const runPrimary = (target: PagePrimary) => {

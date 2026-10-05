@@ -20,6 +20,7 @@ import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
 import { depositsDue, lineDeposit } from "@/lib/retail/deposits";
 import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
+import { cashierFilterFor } from "@/lib/retail/own-rows";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   resolveRetailSite,
@@ -258,14 +259,14 @@ export async function GET(request: NextRequest) {
     return errorResponse("From date must be before to date", 400);
   }
 
-  const effectiveCashierId =
-    scope === "mine"
-      ? session.user.id
-      : cashierId && cashierId !== "all"
-        ? cashierId === "me"
-          ? session.user.id
-          : cashierId
-        : undefined;
+  // A cashier's Sales are their own (00-foundations 5.3.4): whatever they ask
+  // for, they read the receipts they rang up. Cash control reads every till.
+  const effectiveCashierId = cashierFilterFor({
+    role: session.user.role,
+    userId: session.user.id,
+    scope,
+    cashierId,
+  });
 
   const saleTypeFilter =
     saleType && saleType !== "all"

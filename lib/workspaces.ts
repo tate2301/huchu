@@ -61,16 +61,6 @@ type WorkspaceModelArgs = {
   enabledFeatures: string[] | undefined;
   workspaceProfile: string | null | undefined;
   /**
-   * The site each *active* stock location belongs to, one entry per location.
-   *
-   * Only the shape of this list matters, not the ids: a transfer reclassifies a
-   * stock line from one location to another **within one site**, so it can only
-   * be performed where some site has two of them. Left undefined the answer is
-   * "not known", and a surface whose only action may well be impossible is not
-   * offered. See `canReclassifyStockBetweenLocations`.
-   */
-  activeStockLocationSiteIds?: string[];
-  /**
    * Which of a multi-workspace tenant's workspaces is being looked at.
    *
    * Ignored where the tenant has only one, which is nearly all of them. The
@@ -274,30 +264,6 @@ const SUPPORT_ITEMS: NavItem[] = [
   { href: "/help", icon: FileText, label: "Quick Tips" },
 ];
 
-/**
- * Whether a stock transfer is a thing this workspace can actually do.
- *
- * `InventoryItem` holds one on-hand figure per (site, itemCode) — there is no
- * per-location quantity anywhere in the schema — so a `TRANSFER` reclassifies a
- * whole line from one location to another *inside one site*, and
- * `recordStockMovement` refuses anything else. It therefore takes two active
- * locations at the same site before a transfer has anywhere to go. Derived from
- * the tenant's own locations rather than assumed: the demo bottle store happens
- * to have exactly one (`SHOP`), a second branch would not.
- */
-function canReclassifyStockBetweenLocations(siteIds: string[] | undefined): boolean {
-  if (!siteIds || siteIds.length < 2) return false;
-
-  const perSite = new Map<string, number>();
-  for (const siteId of siteIds) {
-    const next = (perSite.get(siteId) ?? 0) + 1;
-    if (next >= 2) return true;
-    perSite.set(siteId, next);
-  }
-
-  return false;
-}
-
 function createSectionModule(args: {
   id: WorkspaceModuleId;
   label: string;
@@ -358,27 +324,14 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
       return context.navSectionById.get("schools")?.groups;
     },
   },
-  retail: {
+  // The retail nav section is the definition — `lib/retail/nav/`, where each
+  // item's `requires` decides who sees it (`buildContext`).
+  retail: createSectionModule({
     id: "retail",
     label: "Retail",
+    sectionId: "retail",
     homeHref: "/retail",
-    /**
-     * The retail nav section is already the definition — see `lib/retail/nav/`,
-     * where each item's `requires` decides who sees it (`buildContext`). This
-     * adds the one thing a grant cannot express: a transfer needs somewhere to
-     * transfer to.
-     */
-    getItems(context) {
-      const canTransfer = canReclassifyStockBetweenLocations(context.activeStockLocationSiteIds);
-      // A shop with one stock location has nowhere to send anything, and
-      // `recordStockMovement` refuses such a transfer outright — the
-      // destination has to be a *different* active location at the same site.
-      // A surface whose only action cannot be performed is not offered.
-      return (context.navSectionById.get("retail")?.items ?? []).filter(
-        (item) => item.href !== "/retail/stock/transfers" || canTransfer,
-      );
-    },
-  },
+  }),
   crm: {
     id: "crm",
     label: "CRM",

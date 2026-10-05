@@ -126,6 +126,27 @@ function denyFeature(request: NextRequestWithAuth, decision: { message?: string;
 }
 
 /**
+ * A page whose feature this person lacks. A retail page their role's nav hides
+ * is answered by the shell's own refusal ("This page is not part of your
+ * role", 00-foundations 5.3.4), like every other hidden retail page, rather
+ * than by /access-blocked. Retail pages are client pages: nothing is read
+ * until their APIs answer, and those still refuse.
+ */
+async function denyPageFeature(
+  request: NextRequestWithAuth,
+  role: string | null | undefined,
+  decision: { message?: string; featureKey?: string; path?: string },
+) {
+  const { pathname, searchParams } = request.nextUrl;
+  if (pathname === "/retail" || pathname.startsWith("/retail/")) {
+    // Loaded only here: the nav registry carries the icon set.
+    const { canRoleOpenRetailPath } = await import("@/lib/retail/nav");
+    if (!canRoleOpenRetailPath(role, pathname, searchParams)) return NextResponse.next();
+  }
+  return denyFeature(request, decision);
+}
+
+/**
  * SS-1.2 — the answer to a write from a workspace whose subscription has lapsed.
  *
  * A named code rather than the generic access denial because the app shell has
@@ -595,7 +616,7 @@ export default withAuth(
     if (!tenantHostEnforcementEnabled || !hostContext.strictTenantEnforcement) {
       const pageFeatureDecision = canAccessRouteWithToken(pathname, token?.enabledFeatures);
       if (!pageFeatureDecision.allowed) {
-        return denyFeature(request, pageFeatureDecision);
+        return denyPageFeature(request, token?.role, pageFeatureDecision);
       }
       return NextResponse.next();
     }
@@ -615,7 +636,7 @@ export default withAuth(
 
     const pageFeatureDecision = canAccessRouteWithToken(pathname, token.enabledFeatures);
     if (!pageFeatureDecision.allowed) {
-      return denyFeature(request, pageFeatureDecision);
+      return denyPageFeature(request, token?.role, pageFeatureDecision);
     }
 
     return NextResponse.next();

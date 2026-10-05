@@ -3,7 +3,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { pageArgs, pageResult, parseRetailQuery, retailPageQuery } from "@/lib/retail/request";
 import {
   requireRetailSession,
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
   // variance for cash control. A cashier's Shifts item is "own"
   // (00-foundations 5.3.4): the same list, scoped here to the drawers they
   // opened, so the page they land on answers rather than refuses.
-  const seesEveryDrawer = canRetailRoleDo(session.user.role, "retail.cash-control", "view");
+  const seesEveryDrawer = readsEveryCashier(session.user.role);
   if (!seesEveryDrawer) {
     const gate = requireRetailPermission(session, "retail.sell", "open-shift");
     if (gate) return gate;

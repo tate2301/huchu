@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  isRoleRouteRestricted,
-  isRouteAllowedForRole,
-  landingPathForRole,
-} from "@/lib/auth-core/role-routes";
+import { isRouteAllowedForRole, landingPathForRole } from "@/lib/auth-core/role-routes";
 
 describe("role route allowlist", () => {
   it("pins SALES_REP to the CRM and shared prefixes", () => {
@@ -31,8 +27,6 @@ describe("role route allowlist", () => {
   it("does not restrict unlisted roles", () => {
     expect(isRouteAllowedForRole("MANAGER", "/accounting")).toBe(true);
     expect(isRouteAllowedForRole("SUPERADMIN", "/people")).toBe(true);
-    expect(isRoleRouteRestricted("MANAGER")).toBe(false);
-    expect(isRoleRouteRestricted("SALES_REP")).toBe(true);
   });
 
   it("does not treat /crm-foo as within /crm", () => {

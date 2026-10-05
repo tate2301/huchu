@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailSession } from "../../_helpers";
 
@@ -41,7 +42,7 @@ export async function GET(
   // Cash control reads every drawer; a cashier reads the ones they opened
   // (their Shifts item is "own", 00-foundations 5.3.4). Someone else's shift
   // answers as missing rather than confirming it exists.
-  const seesEveryDrawer = canRetailRoleDo(session.user.role, "retail.cash-control", "view");
+  const seesEveryDrawer = readsEveryCashier(session.user.role);
   if (!seesEveryDrawer) {
     const gate = requireRetailPermission(session, "retail.sell", "open-shift");
     if (gate) return gate;

@@ -5,6 +5,7 @@ import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { requireRetailSession } from "../../../_helpers";
 
 export async function GET(
@@ -33,7 +34,13 @@ export async function GET(
   if (path.response) return path.response;
   const { id } = path.data;
   const sale = await prisma.retailSale.findFirst({
-    where: { id, companyId: session.user.companyId },
+    // A cashier reads the receipts they rang up; anyone else's answers as
+    // missing rather than confirming it exists (00-foundations 5.3.4, "own").
+    where: {
+      id,
+      companyId: session.user.companyId,
+      ...(readsEveryCashier(session.user.role) ? {} : { cashierId: session.user.id }),
+    },
     include: {
       lines: true,
       payments: true,
