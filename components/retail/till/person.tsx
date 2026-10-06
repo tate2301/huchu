@@ -11,13 +11,14 @@ import { signOut, useSession } from "next-auth/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ArrowsCounterClockwise, CashRegister, Check, Key, LinkBreak, ListChecks, Money, Printer, Prohibit, Tag, Vault, X } from "@/lib/icons";
 import { listOfflineRetailOperations } from "@/lib/retail/offline-runtime";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { SEND_BY_WORDS, type ReceiptWire } from "@/lib/retail/receipt-words";
 import type { TillActivityEntry, TillActivityKind } from "@/lib/retail/till-activity-shared";
+import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
 import { hoursWords, percentWords, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { count, dayMonth, hhmm, TENDER_LABEL, usd } from "./format";
 import type { TillRulesForTill } from "./types";
@@ -376,17 +377,23 @@ export function SettingsScreen() {
           <header>
             <h2>My PIN</h2>
             <p>
-              {pinStatus?.configured && pinStatus.updatedAt ? `Set on ${dayMonth(pinStatus.updatedAt)}. ` : ""}Changing it needs your password.
+              {!pinStatus?.hasPin
+                ? NO_PIN_YET
+                : pinStatus.locked
+                  ? TILL_PIN_LOCKED
+                  : `${pinStatus.lastUnlockedAt ? `Last used on ${dayMonth(pinStatus.lastUnlockedAt)}. ` : ""}Changing it needs the one you have.`}
             </p>
           </header>
-          <div className="body">
-            <div>
-              <button type="button" className="btn" onClick={() => setChanging(true)}>
-                <Key className="ic" />
-                {pinStatus?.configured ? "Change my PIN" : "Set a PIN"}
-              </button>
+          {pinStatus?.hasPin && !pinStatus.locked ? (
+            <div className="body">
+              <div>
+                <button type="button" className="btn" onClick={() => setChanging(true)}>
+                  <Key className="ic" />
+                  Change my PIN
+                </button>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
         {canUnpair ? (
           <>
@@ -451,19 +458,35 @@ export function SettingsScreen() {
   );
 }
 
+/** What the till says to someone with no till PIN: PINs are sent from People (ADM-03). */
+const NO_PIN_YET = "You have no till PIN yet. Ask a manager to send you one.";
+
+type PinField = "currentPin" | "newPin" | "again";
+
+/** Change my PIN (ADM-03): the one you have, the new one twice → `POST pos/pin/change`. */
 function ChangePinDialog({ onClose }: { onClose: () => void }) {
   const { data: session } = useSession();
   const ids = React.useId();
-  const [password, setPassword] = React.useState("");
-  const [pin, setPin] = React.useState("");
-  const [again, setAgain] = React.useState("");
+  const [values, setValues] = React.useState<Record<PinField, string>>({ currentPin: "", newPin: "", again: "" });
   const [problem, setProblem] = React.useState<string | null>(null);
   const save = useMutation({
-    mutationFn: () => fetchJson("/api/v2/retail/pos/pin", { method: "PUT", body: JSON.stringify({ pin, password }) }),
+    mutationFn: () =>
+      fetchJson("/api/v2/retail/pos/pin/change", {
+        method: "POST",
+        body: JSON.stringify({ currentPin: values.currentPin, newPin: values.newPin }),
+      }),
     onSuccess: onClose,
-    onError: (error) => setProblem(getApiErrorMessage(error)),
+    onError: (error) => {
+      const fieldErrors =
+        error instanceof ApiError ? (error.details as { fieldErrors?: Partial<Record<PinField, string>> } | undefined)?.fieldErrors : undefined;
+      setProblem(fieldErrors?.currentPin ?? fieldErrors?.newPin ?? getApiErrorMessage(error));
+      setValues((current) => ({ ...current, currentPin: "" }));
+    },
   });
-  const digits = (value: string) => value.replace(/\D/g, "").slice(0, 4);
+  const set = (field: PinField) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
+    setValues((current) => ({ ...current, [field]: digits }));
+  };
 
   return (
     <TillDialog
@@ -483,9 +506,9 @@ function ChangePinDialog({ onClose }: { onClose: () => void }) {
             disabled={save.isPending}
             aria-busy={save.isPending || undefined}
             onClick={() => {
-              if (!password) return setProblem("Type your password.");
-              if (pin.length !== 4) return setProblem("A PIN is four digits.");
-              if (pin !== again) return setProblem("The two PINs are different.");
+              if (values.currentPin.length !== 4) return setProblem("Type the PIN you have now.");
+              if (values.newPin.length !== 4) return setProblem("A PIN is four digits.");
+              if (values.newPin !== values.again) return setProblem("Those two do not match. Try again.");
               setProblem(null);
               save.mutate();
             }}
@@ -497,22 +520,36 @@ function ChangePinDialog({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="field">
-        <label htmlFor={`${ids}p`}>Your password</label>
-        <input id={`${ids}p`} className="input input-lg" type="password" autoComplete="current-password" autoFocus value={password} onChange={(event) => setPassword(event.target.value)} />
+        <label htmlFor={`${ids}p`}>PIN you have now</label>
+        <input
+          id={`${ids}p`}
+          className="input input-lg num text-left"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          autoFocus
+          value={values.currentPin}
+          onChange={set("currentPin")}
+        />
+        <PinDots length={values.currentPin.length} />
       </div>
       <div className="field-row">
         <div className="field">
           <label htmlFor={`${ids}a`}>New PIN</label>
-          <input id={`${ids}a`} className="input input-lg num text-left" type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(event) => setPin(digits(event.target.value))} />
-          <PinDots length={pin.length} />
+          <input id={`${ids}a`} className="input input-lg num text-left" type="password" inputMode="numeric" autoComplete="off" value={values.newPin} onChange={set("newPin")} />
+          <PinDots length={values.newPin.length} />
         </div>
         <div className="field">
           <label htmlFor={`${ids}b`}>Again</label>
-          <input id={`${ids}b`} className="input input-lg num text-left" type="password" inputMode="numeric" autoComplete="off" value={again} onChange={(event) => setAgain(digits(event.target.value))} />
-          <PinDots length={again.length} />
+          <input id={`${ids}b`} className="input input-lg num text-left" type="password" inputMode="numeric" autoComplete="off" value={values.again} onChange={set("again")} />
+          <PinDots length={values.again.length} />
         </div>
       </div>
-      {problem ? <ErrorLine>{problem}</ErrorLine> : <span className="help">Not four of the same digit and not four in a row, like 1111 or 1234.</span>}
+      {problem ? (
+        <ErrorLine>{problem}</ErrorLine>
+      ) : (
+        <span className="help">Not four of the same digit and not four in a row, like 1111 or 1234.</span>
+      )}
     </TillDialog>
   );
 }
@@ -567,7 +604,7 @@ export function HelpScreen() {
               <dt>A product will not scan</dt>
               <dd>Type its name. Tell the manager the barcode is wrong.</dd>
               <dt>The till locked</dt>
-              <dd>Your PIN. Five wrong ones: wait 15 minutes or use your password.</dd>
+              <dd>Your PIN. Five wrong ones lock it until a manager sends a new one; your password still opens the till.</dd>
               {features?.licenceHours ? (
                 <>
                   <dt>Alcohol will not sell</dt>

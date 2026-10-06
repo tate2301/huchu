@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { money, percent } from "@/lib/money";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
-import { upsertShelfListing } from "@/lib/retail/shelf-listing";
+import { createProduct } from "@/lib/retail/products/create";
+import { productInput } from "@/lib/retail/products/input";
+import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
 
 /**
  * Opening a shop.
@@ -73,8 +74,6 @@ const DEFAULT_REGISTER_CODE = "REG-001";
  * Zimbabwe's standard rate. The shelf list is tax-inclusive, so a $1.20 tag is
  * what the customer pays and $0.16 of it is VAT.
  */
-const VAT_PERCENT = 15;
-
 /**
  * A starter range, only when asked for.
  *
@@ -84,12 +83,12 @@ const VAT_PERCENT = 15;
  * Prices are ordinary Harare bottle-store prices in USD.
  */
 const STARTER_RANGE = [
-  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.85" },
-  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.72" },
-  { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.48" },
-  { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.40" },
-  { code: "TWOKEYS-750", name: "Two Keys Whisky 750ml", unit: "bottle", price: "9.75", cost: "7.20" },
-  { code: "ICE-2KG", name: "Ice 2kg bag", unit: "bag", price: "1.50", cost: "0.60" },
+  { name: "Castle Lager 340ml", price: "1.20", cost: "0.85" },
+  { name: "Chibuku Scud 1L", price: "1.10", cost: "0.72" },
+  { name: "Coca-Cola 500ml", price: "0.75", cost: "0.48" },
+  { name: "Castle Lager case of 24", price: "26.50", cost: "20.40" },
+  { name: "Two Keys Whisky 750ml", price: "9.75", cost: "7.20" },
+  { name: "Ice 2kg bag", price: "1.50", cost: "0.60" },
 ] as const;
 
 export type ProvisionRetailOptions = {
@@ -225,44 +224,40 @@ export async function provisionRetail(
 
   /* ── 6. A range, only if asked ───────────────────────────────────────── */
 
+  /*
+    The default price list (PRD-03): every product goes on it, and the till
+    prices from it. A shelf price is what the customer pays, VAT inside.
+  */
+  const defaultList = await prisma.priceList.findFirst({ where: { companyId, isDefault: true }, select: { id: true } });
+  if (!defaultList) {
+    await prisma.priceList.upsert({
+      where: { companyId_name: { companyId, name: SHELF_PRICE_LIST_NAME } },
+      create: { companyId, name: SHELF_PRICE_LIST_NAME, kind: "RETAIL", taxInclusive: true, isActive: true, isDefault: true },
+      update: { isDefault: true },
+    });
+  }
+
   let productsRanged = 0;
   if (starterRange) {
     for (const entry of STARTER_RANGE) {
-      const existingItem = await prisma.inventoryItem.findFirst({
-        where: { siteId: site.id, itemCode: entry.code },
+      const existing = await prisma.product.findFirst({
+        where: { companyId, archivedAt: null, name: { equals: entry.name, mode: "insensitive" } },
         select: { id: true },
       });
-      if (existingItem) continue;
+      if (existing) continue;
 
-      const item = await prisma.inventoryItem.create({
-        data: {
-          itemCode: entry.code,
-          name: entry.name,
-          category: "CONSUMABLES",
-          unit: entry.unit,
+      // The same service New product calls, so a provisioned range and a
+      // hand-added product are the same shape. Nothing on the shelf yet: a
+      // provisioning step that invented stock would put a figure in the count
+      // screen nobody has counted. Nobody is named: nobody added it.
+      await prisma.$transaction((tx) =>
+        createProduct(tx, {
+          actor: { companyId, userId: null },
+          input: productInput.parse({ name: entry.name, price: entry.price, cost: entry.cost }),
+          source: "IMPORT",
           siteId: site.id,
-          locationId: location.id,
-          // Nothing on the shelf yet. A provisioning step that invented stock
-          // would put a figure in the count screen nobody has counted.
-          currentStock: 0,
-          unitCost: money(entry.cost),
-        },
-        select: { id: true },
-      });
-
-      // The same writer the catalogue screen calls, so a provisioned range and
-      // a hand-added line are the same shape — a `Product`, a shelf-list entry,
-      // and the stock row claimed by it.
-      await upsertShelfListing({
-        companyId,
-        productId: null,
-        sku: entry.code,
-        name: entry.name,
-        inventoryItemId: item.id,
-        unitPrice: money(entry.price),
-        taxPercent: percent(VAT_PERCENT),
-        isActive: true,
-      });
+        }),
+      );
       productsRanged += 1;
     }
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { successResponse } from "@/lib/api-response";
+import { wasPrices } from "@/lib/retail/prices/was";
 import { loadShelfListings } from "@/lib/retail/shelf-listing";
 import { requirePosDevice, shopSiteId } from "@/lib/retail/devices";
 import { requireRetailPermission } from "@/lib/retail/permissions";
@@ -73,15 +74,17 @@ export async function GET(request: NextRequest) {
     ? await tillCaseLinks(companyId, siteId, listings.map((item) => item.productId))
     : new Map();
 
-  const shelf = listings.map((item) => ({
-    ...item,
-    openableCase: links.get(item.productId)?.openableCase ?? null,
-    caseOf: links.get(item.productId)?.caseOf ?? null,
-  }));
+  // A single with an empty shelf still shows while a case can be opened for it.
+  const selling = listings
+    .map((item) => ({
+      ...item,
+      openableCase: links.get(item.productId)?.openableCase ?? null,
+      caseOf: links.get(item.productId)?.caseOf ?? null,
+    }))
+    .filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0 || (item.openableCase?.casesOnHand ?? 0) > 0);
+  // The till strikes through a recent cut: the price before it, from the history.
+  const was = await wasPrices(companyId, new Map(selling.map((item) => [item.id, item.unitPrice])));
   return successResponse({
-    // A single with an empty shelf still shows while a case can be opened for it.
-    data: shelf.filter(
-      (item) => (item.inventoryItem?.currentStock ?? 0) > 0 || (item.openableCase?.casesOnHand ?? 0) > 0,
-    ),
+    data: selling.map((item) => ({ ...item, wasPrice: was.get(item.id) ?? null })),
   });
 }

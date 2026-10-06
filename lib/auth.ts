@@ -51,6 +51,7 @@ import type {
   PlatformJwtClaims,
   SessionPolicy,
 } from "@/lib/auth-core/types";
+import { acceptPendingInvite } from "@/lib/retail/people/join";
 
 type AuthenticatedUserLike = {
   id: string;
@@ -62,6 +63,7 @@ type AuthenticatedUserLike = {
   authExpiresAt?: string;
   deviceId?: string;
   registerId?: string;
+  pinMustChange?: boolean;
 };
 
 /** One cookie out of a request's `Cookie` header. */
@@ -311,7 +313,7 @@ type SignInContext = {
 
 type SignInUserRecord = {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   password: string | null;
   role: UserRole;
@@ -379,23 +381,30 @@ async function resolveSignInCompanyScope(ctx: SignInContext): Promise<string | u
   return scope.companyId;
 }
 
+const SIGN_IN_USER_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  password: true,
+  role: true,
+  companyId: true,
+  isActive: true,
+  image: true,
+} as const;
+
 async function findSignInUser(email: string, companyId: string | undefined): Promise<SignInUserRecord | null> {
   return prisma.user.findFirst({
     where: {
       email: { equals: email, mode: "insensitive" },
       ...(companyId ? { companyId } : {}),
     },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      password: true,
-      role: true,
-      companyId: true,
-      isActive: true,
-      image: true,
-    },
+    select: SIGN_IN_USER_SELECT,
   });
+}
+
+/** The same record by id: someone who only uses a till has no email (80-admin, People). */
+async function findSignInUserById(id: string, companyId: string | undefined): Promise<SignInUserRecord | null> {
+  return prisma.user.findFirst({ where: { id, ...(companyId ? { companyId } : {}) }, select: SIGN_IN_USER_SELECT });
 }
 
 async function assertAccountUsable(user: SignInUserRecord, ctx: SignInContext): Promise<void> {
@@ -436,6 +445,8 @@ async function completeSignIn(user: SignInUserRecord, ctx: SignInContext, rememb
     entityId: ctx.strategy,
     payload: { hostHeader: ctx.hostHeader, clientAddress: ctx.clientAddress, rememberMe },
   });
+  // In: a staff invite still waiting has done its job (80-admin W-57).
+  await acceptPendingInvite(user.id, ctx.strategy === "till-pin" ? "pin" : "sign-in");
 
   const sessionPolicy: SessionPolicy = rememberMe ? "remember" : "standard";
   return {
@@ -688,7 +699,8 @@ export const authOptions: NextAuthOptions = {
           return failSignIn(ctx, "INVALID_CODE");
         }
 
-        const verified = await verifyEmailCode({ email: user.email, purpose: "SIGN_IN", code });
+        // Found by this address, so it has one.
+        const verified = await verifyEmailCode({ email: user.email ?? email, purpose: "SIGN_IN", code });
         if (!verified.ok) {
           const reason =
             verified.reason === "EXPIRED" ? "CODE_EXPIRED" : verified.reason === "LOCKED" ? "CODE_LOCKED" : "INVALID_CODE";
@@ -702,9 +714,9 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       // A PIN at a paired till (10-setup W-04 step 7, "Who is selling?"). The
       // device key in the POS host's httpOnly cookie says which till; the
-      // four digits say who, with the till PIN's lockout. The account
-      // password instead is the way round a locked PIN, or a first day with
-      // none. Only on the POS host, and the session it makes is good there
+      // four digits say who, with the till PIN's lockout (ADM-03). The
+      // account password instead is the way round a locked PIN, which stays
+      // locked until a manager sends a new one. Only on the POS host, and the session it makes is good there
       // only (`proxy.ts`, `resolveAccessContext`). Every try counts against
       // the sign-in rate limit.
       id: "till-pin",
@@ -723,6 +735,7 @@ export const authOptions: NextAuthOptions = {
         const account = userId
           ? await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
           : null;
+        // Someone who only uses a till has no email; their id names them in the log.
         const ctx = buildSignInContext(account?.email ?? `till-pin:${userId || "nobody"}`, "till-pin", req?.headers);
         await enforceSignInRateLimit(ctx);
         if (!userId || (!pin && !password)) return failSignIn(ctx, password ? "WRONG_PASSWORD" : "WRONG_PIN");
@@ -731,7 +744,7 @@ export const authOptions: NextAuthOptions = {
           return failSignIn(ctx, "NOT_A_TILL");
         }
         const scopedCompanyId = await resolveSignInCompanyScope(ctx);
-        const user = await findSignInUser(account.email, scopedCompanyId);
+        const user = await findSignInUserById(userId, scopedCompanyId);
         if (!user || user.id !== userId) return failSignIn(ctx, "NOT_ON_THIS_TILL");
 
         const deviceKey = readRequestCookie(req?.headers, DEVICE_COOKIE);
@@ -741,11 +754,7 @@ export const authOptions: NextAuthOptions = {
               userId: user.id,
               verify: (passwordHash) => bcrypt.compare(password, passwordHash),
             })
-          : await checkTillPinSignIn({
-              deviceKey,
-              userId: user.id,
-              verify: (pinHash) => bcrypt.compare(pin, pinHash),
-            });
+          : await checkTillPinSignIn({ deviceKey, userId: user.id, pin });
         if (!checked.ok) {
           const triesLeft = "triesLeft" in checked ? checked.triesLeft : undefined;
           return failSignIn(ctx, checked.reason, {
@@ -757,7 +766,13 @@ export const authOptions: NextAuthOptions = {
 
         await assertAccountUsable(user, ctx);
         const signedIn = await completeSignIn(user, ctx, false);
-        return { ...signedIn, deviceId: checked.device.id, registerId: checked.device.registerId };
+        // An issued PIN (ADM-03): the till asks them to choose their own before it opens.
+        return {
+          ...signedIn,
+          deviceId: checked.device.id,
+          registerId: checked.device.registerId,
+          ...("mustChange" in checked && checked.mustChange ? { pinMustChange: true } : {}),
+        };
       },
     }),
     CredentialsProvider({
@@ -783,9 +798,9 @@ export const authOptions: NextAuthOptions = {
           throw new Error("HANDOFF_INVALID");
         }
 
-        const ctx = buildSignInContext(account.email, "handoff", req?.headers);
+        const ctx = buildSignInContext(account.email ?? userId, "handoff", req?.headers);
         const scopedCompanyId = await resolveSignInCompanyScope(ctx);
-        const user = await findSignInUser(account.email, scopedCompanyId);
+        const user = await findSignInUserById(userId, scopedCompanyId);
         if (!user || user.id !== userId) {
           return failSignIn(ctx, "TENANT_HOST_MISMATCH");
         }
@@ -841,6 +856,7 @@ export const authOptions: NextAuthOptions = {
             rememberMe: typedUser.rememberMe === true,
             deviceId: typedUser.deviceId,
             registerId: typedUser.registerId,
+            pinMustChange: typedUser.pinMustChange,
           }),
         );
       } else {

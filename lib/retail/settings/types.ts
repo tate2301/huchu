@@ -12,6 +12,12 @@ export type SettingsStore = {
   load(companyId: string): Promise<Record<string, unknown>>;
   /** `changes` are checked against the page's schema and differ from what is stored. */
   save(tx: Prisma.TransactionClient, actor: RetailAuditActor, changes: Record<string, unknown>): Promise<void>;
+  /**
+   * Checked values in the shape `load` gives them (a picked person rebuilt
+   * from their id), before they are compared with `before` and audited.
+   * Throws `SettingsRefused` for a value the stored data rules out.
+   */
+  resolve?(companyId: string, values: Record<string, unknown>, before: Record<string, unknown>): Promise<Record<string, unknown>>;
   /** Other rows whose events belong in this page's Activity. */
   related?(companyId: string): Array<{ entityType: string; ids: string[] }>;
   /**

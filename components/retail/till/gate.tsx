@@ -4,10 +4,12 @@
  * "Who is selling?" and their PIN: the POS host's signed-out `/` on a till.
  *
  * The device's key (the httpOnly cookie a manager's pairing code issued) says
- * which till this is; the PIN says who (`till-pin`). A PIN that is resting, or
- * a person who has none yet, signs in with their account password once. A
- * first PIN takes the password too (`devices/first-pin`), so a PIN is never
- * minted by another PIN. Opening the shift comes after sign-in, on the till.
+ * which till this is; the PIN says who (`till-pin`). The list is the people
+ * holding a till PIN, which a manager sends from People (ADM-02, ADM-03). Five
+ * wrong PINs lock it until a new one is sent; meanwhile the account password
+ * signs in instead. A PIN that was sent is changed for one of their own on
+ * first use, over the till (`lock.tsx`). Opening the shift comes after
+ * sign-in, on the till.
  */
 
 import * as React from "react";
@@ -17,6 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CaretLeft, CaretRight, Key, LogOut, UserSwitch } from "@/lib/icons";
 import type { TillPerson } from "@/lib/retail/devices";
+import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
 import { count, firstName, hhmm, pairedWhen } from "./format";
 import { Avatar, ErrorLine, GateSide, Keypad, PinDots, useKeypadKeys, type KeypadKey } from "./parts";
 import { SIGNED_OUT_NOTE_KEY, type SignedOutNote } from "./sign-out";
@@ -31,8 +34,7 @@ export const TILL_PEOPLE_KEY = ["till-people"] as const;
 type Step =
   | { at: "who" }
   | { at: "pin"; person: TillPerson }
-  | { at: "password"; person: TillPerson; purpose: "first" | "instead"; error?: string }
-  | { at: "pick"; person: TillPerson; password: string }
+  | { at: "password"; person: TillPerson }
   | { at: "locked"; person: TillPerson };
 
 /** Where the till goes once someone is signed in, or once the device turns out not to be a till. */
@@ -131,28 +133,19 @@ function WhoSells({
   if (signedOut && signedOut !== resumed) {
     setResumed(signedOut);
     const person = signedOut.next === "password" ? people.find((entry) => entry.userId === signedOut.userId) : undefined;
-    if (person) setStep({ at: "password", person, purpose: "instead" });
+    if (person) setStep({ at: "password", person });
   }
   // Steps hold the person as they were picked; the list is what is true now.
   const now = (person: TillPerson) => people.find((entry) => entry.userId === person.userId) ?? person;
   const elsewhere = people.find((person) => person.openShift && !person.openShift.here);
   const back = () => setStep({ at: "who" });
-  const pick = (person: TillPerson) =>
-    setStep(
-      !person.hasPin
-        ? { at: "password", person, purpose: "first" }
-        : person.pinLocked
-          ? { at: "locked", person }
-          : { at: "pin", person },
-    );
+  const pick = (person: TillPerson) => setStep(person.pinLocked ? { at: "locked", person } : { at: "pin", person });
   /** A refusal that changes the step rather than showing a line. */
   const follow = async (person: TillPerson, refusal: Refusal) => {
     if (refusal.leave) return leave(refusal.leave);
     if (refusal.step === "locked") {
       const fresh = (await refresh()).data?.find((entry) => entry.userId === person.userId);
       setStep({ at: "locked", person: fresh ?? person });
-    } else if (refusal.step === "first") {
-      setStep({ at: "password", person, purpose: "first" });
     }
   };
 
@@ -168,29 +161,10 @@ function WhoSells({
     return (
       <div className="gate">
         <PasswordStep
-          key={`${step.person.userId}-${step.purpose}-${step.error ?? ""}`}
+          key={step.person.userId}
           person={step.person}
-          purpose={step.purpose}
-          initialError={step.error}
           onBack={back}
           onSignedIn={() => leave("till")}
-          onRefusal={(refusal) => follow(step.person, refusal)}
-          onPick={(password) => setStep({ at: "pick", person: step.person, password })}
-        />
-        {side}
-      </div>
-    );
-  }
-  if (step.at === "pick") {
-    return (
-      <div className="gate">
-        <PickPinStep
-          person={step.person}
-          password={step.password}
-          onBack={back}
-          onSignedIn={() => leave("till")}
-          onWrongPassword={(error) => setStep({ at: "password", person: step.person, purpose: "first", error })}
-          onHasPin={() => setStep({ at: "pin", person: step.person })}
           onRefusal={(refusal) => follow(step.person, refusal)}
         />
         {side}
@@ -206,21 +180,14 @@ function WhoSells({
           <div className="who-head">
             <Avatar name={person.label} size={40} />
             <div>
-              <h1 className="text-title">Too many wrong PINs</h1>
-              <p className="muted">
-                {person.lockedUntil
-                  ? `${name}’s PIN works again at ${hhmm(person.lockedUntil)}`
-                  : `${name}’s PIN is resting for 15 minutes`}
-              </p>
+              <h1 className="text-title">{name}’s PIN is locked</h1>
+              <p className="muted">{TILL_PIN_LOCKED}</p>
             </div>
           </div>
           <PinDots length={4} wrong label="PIN locked" />
-          <p>
-            Until then {name} signs in with their password, or someone else sells. A manager can set a new PIN under
-            People in Management.
-          </p>
+          <p>Until a new one comes, {name} signs in with their password, or someone else sells.</p>
           <div className="actions">
-            <button type="button" className="btn btn-lg grow" onClick={() => setStep({ at: "password", person, purpose: "instead" })}>
+            <button type="button" className="btn btn-lg grow" onClick={() => setStep({ at: "password", person })}>
               <Key className="ic" />
               Use my password
             </button>
@@ -270,10 +237,8 @@ function WhoSells({
                   <span className="status status-info">Open here</span>
                 ) : person.openShift ? (
                   <span className="status status-warning">Open on {person.openShift.till}</span>
-                ) : !person.hasPin ? (
-                  <span className="note">No PIN yet</span>
                 ) : person.pinLocked ? (
-                  <span className="note">PIN resting</span>
+                  <span className="note">Locked</span>
                 ) : null}
               </span>
               <CaretRight className="ic" />
@@ -281,7 +246,7 @@ function WhoSells({
           ))}
         </div>
         <p className="help">
-          Someone missing is added under People in Management.
+          Someone missing is sent a PIN from People in Management.
           {elsewhere
             ? ` ${firstName(elsewhere.label)} closes their shift on ${elsewhere.openShift?.till} before they can sell here.`
             : ""}
@@ -298,7 +263,7 @@ function WhoSells({
 const UNREACHABLE = "The till cannot reach the shop. Try again.";
 
 /** A refused sign-in: a line to show, or where the gate goes instead. */
-type Refusal = { message: string; step?: "locked" | "first"; leave?: "pair" | "unpaired" };
+type Refusal = { message: string; step?: "locked"; leave?: "pair" | "unpaired" };
 
 /** What a refused sign-in means, from the `till-pin` provider's codes. */
 function signInRefusal(code: string | undefined, person: TillPerson): Refusal {
@@ -311,8 +276,8 @@ function signInRefusal(code: string | undefined, person: TillPerson): Refusal {
         : "That PIN is not right.",
     };
   }
-  if (kind === "LOCKED") return { message: "Too many wrong PINs.", step: "locked" };
-  if (kind === "NO_PIN") return { message: "Set a PIN first.", step: "first" };
+  if (kind === "LOCKED") return { message: TILL_PIN_LOCKED, step: "locked" };
+  if (kind === "NO_PIN") return { message: "You have no till PIN yet. Ask a manager to send you one." };
   if (kind === "WRONG_PASSWORD") return { message: "That password is not right." };
   if (kind === "NOT_A_TILL") return { message: "This device is not a till.", leave: "pair" };
   if (kind === "DEVICE_UNPAIRED") return { message: "This device is no longer a till.", leave: "unpaired" };
@@ -337,7 +302,7 @@ type SignInProps = {
   person: TillPerson;
   onBack: () => void;
   onSignedIn: () => void;
-  /** A refusal that moves the gate: a resting PIN, no PIN yet, or a device that is not a till. */
+  /** A refusal that moves the gate: a locked PIN, or a device that is not a till. */
   onRefusal: (refusal: Refusal) => void;
 };
 
@@ -389,32 +354,16 @@ function PinStep({ person, onBack, onSignedIn, onRefusal }: SignInProps) {
   );
 }
 
-function PasswordStep({
-  person,
-  purpose,
-  initialError,
-  onBack,
-  onSignedIn,
-  onRefusal,
-  onPick,
-}: SignInProps & {
-  purpose: "first" | "instead";
-  initialError?: string;
-  onPick: (password: string) => void;
-}) {
+function PasswordStep({ person, onBack, onSignedIn, onRefusal }: SignInProps) {
   const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(initialError ?? null);
+  const [error, setError] = React.useState<string | null>(null);
   const id = React.useId();
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!password) {
       setError("Type your password.");
-      return;
-    }
-    if (purpose === "first") {
-      onPick(password);
       return;
     }
     setBusy(true);
@@ -431,7 +380,7 @@ function PasswordStep({
         <Avatar name={person.label} size={40} />
         <div>
           <h1 className="text-title">{person.label}</h1>
-          <p className="muted">{purpose === "first" ? "Set a PIN for every till here" : "Sign in with your password"}</p>
+          <p className="muted">Sign in with your password</p>
         </div>
       </div>
       <div className="field">
@@ -450,11 +399,7 @@ function PasswordStep({
             setError(null);
           }}
         />
-        {error ? (
-          <ErrorLine id={`${id}-error`}>{error}</ErrorLine>
-        ) : purpose === "first" ? (
-          <span className="help">Only this once. After it, your PIN opens the till.</span>
-        ) : null}
+        {error ? <ErrorLine id={`${id}-error`}>{error}</ErrorLine> : null}
       </div>
       <div className="actions">
         <button type="button" className="btn btn-lg" onClick={onBack}>
@@ -462,122 +407,10 @@ function PasswordStep({
           Not {firstName(person.label)}
         </button>
         <button type="submit" className="btn btn-primary btn-lg grow" aria-busy={busy || undefined} disabled={busy}>
-          {purpose === "first" ? (
-            <>
-              <Key className="ic" />
-              Pick a PIN
-            </>
-          ) : (
-            <>
-              <CaretRight className="ic" />
-              Sign in
-            </>
-          )}
+          <CaretRight className="ic" />
+          Sign in
         </button>
       </div>
     </form>
-  );
-}
-
-function PickPinStep({
-  person,
-  password,
-  onBack,
-  onSignedIn,
-  onRefusal,
-  onWrongPassword,
-  onHasPin,
-}: SignInProps & {
-  password: string;
-  /** A wrong password goes back to the password: that is where it is fixed. */
-  onWrongPassword: (message: string) => void;
-  /** Someone set a PIN for this person meanwhile: type it instead. */
-  onHasPin: () => void;
-}) {
-  const [first, setFirst] = React.useState("");
-  const [again, setAgain] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const save = async (pin: string) => {
-    setBusy(true);
-    try {
-      await fetchJson("/api/v2/retail/devices/first-pin", {
-        method: "POST",
-        body: JSON.stringify({ userId: person.userId, password, pin }),
-      });
-    } catch (caught) {
-      setBusy(false);
-      setFirst("");
-      setAgain("");
-      const code = caught instanceof ApiError ? (caught.details as { code?: string } | undefined)?.code : undefined;
-      if (code === "DEVICE_UNPAIRED") return onRefusal({ message: "", leave: "unpaired" });
-      if (code === "NOT_A_TILL") return onRefusal({ message: "", leave: "pair" });
-      if (caught instanceof ApiError && caught.status === 403) return onWrongPassword(caught.message);
-      if (caught instanceof ApiError && caught.status === 409) return onHasPin();
-      setError(caught instanceof ApiError ? caught.message : UNREACHABLE);
-      return;
-    }
-    const refusal = await tillSignIn({ userId: person.userId, pin }, person);
-    if (!refusal) return onSignedIn();
-    setBusy(false);
-    setFirst("");
-    setAgain("");
-    if (refusal.step || refusal.leave) return onRefusal(refusal);
-    setError(refusal.message);
-  };
-
-  const onKey = (key: KeypadKey) => {
-    if (busy) return;
-    setError(null);
-    const typingAgain = first.length === 4;
-    const current = typingAgain ? again : first;
-    const set = typingAgain ? setAgain : setFirst;
-    if (key.kind === "delete") {
-      if (typingAgain && again.length === 0) setFirst(first.slice(0, -1));
-      else set(current.slice(0, -1));
-      return;
-    }
-    if (key.kind !== "digit" || current.length >= 4) return;
-    const next = current + key.value;
-    set(next);
-    if (typingAgain && next.length === 4) {
-      if (next !== first) {
-        setError("The two PINs are different. Type it again.");
-        setFirst("");
-        setAgain("");
-        return;
-      }
-      void save(next);
-    }
-  };
-  useKeypadKeys(onKey);
-
-  return (
-    <div className="gate-form">
-      <div className="who-head">
-        <Avatar name={person.label} size={40} />
-        <div>
-          <h1 className="text-title">Pick a PIN</h1>
-          <p className="muted">Four digits, typed twice</p>
-        </div>
-      </div>
-      <div className="stack-12">
-        <span className="label">PIN</span>
-        <PinDots length={first.length} wrong={Boolean(error)} />
-        <span className="label">Again</span>
-        <PinDots length={again.length} wrong={Boolean(error)} />
-      </div>
-      {error ? (
-        <ErrorLine large>{error}</ErrorLine>
-      ) : (
-        <span className="help">Not four of the same digit and not four in a row, like 1111 or 1234.</span>
-      )}
-      <Keypad onKey={onKey} disabled={busy} />
-      <button type="button" className="btn btn-quiet" onClick={onBack}>
-        <CaretLeft className="ic" />
-        Not {firstName(person.label)}
-      </button>
-    </div>
   );
 }

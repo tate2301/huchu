@@ -42,7 +42,7 @@ function request(body: unknown) {
 }
 
 function signedInAs(role: string) {
-  validateSessionMock.mockResolvedValue({ session: { user: { companyId: COMPANY_ID, role } } });
+  validateSessionMock.mockResolvedValue({ session: { user: { id: "user-1", companyId: COMPANY_ID, role } } });
 }
 
 const PROVIDER = {
@@ -123,8 +123,12 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
     expect(call.activationKey).toBe("00112233");
     expect(call.certificateRequestPem).toMatch(/BEGIN CERTIFICATE REQUEST/);
 
-    const saved = prismaMock.fiscalisationProviderConfig.update.mock.calls[0][0];
+    // First the answer is noted (SET-08), then the certificate is kept.
+    expect(prismaMock.fiscalisationProviderConfig.update.mock.calls[0][0].data).toHaveProperty("lastOkAt");
+    const saved = prismaMock.fiscalisationProviderConfig.update.mock.calls[1][0];
     expect(saved.where).toEqual({ id: PROVIDER.id });
+    expect(saved.data.serialNumber).toBe("SN-1");
+    expect(saved.data.registeredAt).toBeInstanceOf(Date);
     const bundle = JSON.parse(saved.data.certificateRef);
     expect(bundle.key).toMatch(/PRIVATE KEY/);
     expect(bundle.cert).toMatch(/BEGIN CERTIFICATE/);
@@ -150,6 +154,8 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
 
     expect(response.status).toBe(502);
     expect((await response.json()).error).toBe("Activation key already used");
-    expect(prismaMock.fiscalisationProviderConfig.update).not.toHaveBeenCalled();
+    // ZIMRA answered, so only that is noted: no certificate, no registration.
+    const writes = prismaMock.fiscalisationProviderConfig.update.mock.calls.map((call) => call[0].data);
+    expect(writes).toEqual([{ lastOkAt: expect.any(Date) }]);
   });
 });

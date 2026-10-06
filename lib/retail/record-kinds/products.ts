@@ -1,5 +1,7 @@
 import { fetchJson } from "@/lib/api-client";
-import type { ProductRecord } from "@/lib/retail/product-record";
+import { archiveAsk } from "@/lib/retail/asks/products";
+import { ageCheckWords } from "@/lib/retail/products/age-check";
+import type { ProductView } from "@/lib/retail/products/view";
 import { formatCount, formatMoney, formatSignedCount } from "@/lib/workspace/format";
 
 import type { Grant, RecordKind } from "./types";
@@ -7,16 +9,16 @@ import type { Grant, RecordKind } from "./types";
 /**
  * The product record kind (00-foundations 5.6.10, Product board): the
  * reference for the details rail edited in place and for the bin. The rail's
- * groups are the board's; the strip's chips and figure are the facts the
- * product already has. The products spec adds its KPIs, chart, tabs and the
- * stock and buying actions.
+ * groups are the board's; Edit opens the Edit a product sheet over it; an
+ * archived product says so under the header with "Sell it again". The
+ * products spec adds its KPIs, chart and tabs (PRD-04).
  */
 
 const UPDATE: Grant = ["retail.catalog", "update"];
 const VIEW: Grant = ["retail.catalog", "view"];
 
-/** "18.50" → 18.5. A blank or a word is refused in words. */
-function figure(text: string, { optional = false } = {}): number | null {
+/** "18.50" → "18.50", as the API reads money. A blank or a word is refused in words. */
+function figure(text: string, { optional = false } = {}): string | null {
   const trimmed = text.trim().replace(/,/g, "").replace(/^US\$/, "");
   if (!trimmed) {
     if (optional) return null;
@@ -24,7 +26,7 @@ function figure(text: string, { optional = false } = {}): number | null {
   }
   const value = Number(trimmed);
   if (!Number.isFinite(value) || value < 0) throw new Error("Write it as a figure, zero or more, like 18.50.");
-  return value;
+  return trimmed;
 }
 
 function needed(label: string) {
@@ -32,21 +34,6 @@ function needed(label: string) {
     if (!text.trim()) throw new Error(`${label} is needed.`);
     return text.trim();
   };
-}
-
-function soldAs(product: ProductRecord): string {
-  if (product.soldAs.single) return `Case of ${product.packSize ?? "?"} ${product.soldAs.single.name}`;
-  if (product.soldAs.cases.length) {
-    return `Single; ${product.soldAs.cases.map((pack) => `case of ${pack.packSize ?? "?"}`).join(", ")}`;
-  }
-  return "Single";
-}
-
-/** The ID check row: the product's own answer, or its category's when it has none. */
-function idCheckWords(product: ProductRecord): string {
-  if (product.ownAgeRestricted !== null) return product.ownAgeRestricted ? "Yes, 18 and over" : "No";
-  const answer = product.categoryAgeRestricted ? "yes, 18 and over" : "no";
-  return product.category ? `As ${product.category}: ${answer}` : "No";
 }
 
 /** "Yes" ("Yes, 18 and over", "18+"), "No", or nothing to follow the category. */
@@ -58,42 +45,87 @@ function parseIdCheck(text: string): boolean | null {
   throw new Error("Write Yes or No, or clear it to follow the category.");
 }
 
-async function uploadPhoto(productId: string, file: File): Promise<string> {
+/** "10", "12.5": a percentage up to 100; blank is no limit. */
+function parsePercent(text: string): string | null {
+  const percent = figure(text.replace(/%\s*$/, ""), { optional: true });
+  if (percent !== null && Number(percent) > 100) throw new Error("Write a percentage up to 100, or clear it for no limit.");
+  return percent;
+}
+
+async function uploadPhoto(file: File): Promise<string> {
   const body = new FormData();
   body.append("file", file);
-  body.append("productId", productId);
-  const response = await fetch("/api/v2/retail/catalog/image", { method: "POST", body });
+  const response = await fetch("/api/v2/retail/products/image", { method: "POST", body });
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(payload?.error || "That picture could not be saved. Try again.");
-  const url: string | undefined = payload?.data?.url ?? payload?.url;
+  const url: string | undefined = payload?.data?.url;
   if (!url) throw new Error("The upload finished but returned no address.");
   return url;
 }
 
-export const productKind: RecordKind<ProductRecord> = {
+const productUrl = (id: string) => `/api/v2/retail/products/${id}`;
+
+export const productKind: RecordKind<ProductView> = {
   type: "Product",
   back: { label: "Products", href: "/retail/products" },
-  queryKey: (id) => ["retail-catalog-item", id],
-  load: (id) => fetchJson<ProductRecord>(`/api/v2/retail/catalog/${id}`),
-  endpoint: (id) => `/api/v2/retail/catalog/${id}`,
+  queryKey: (id) => ["retail-product", id],
+  load: async (id) => (await fetchJson<{ data: ProductView }>(productUrl(id))).data,
+  endpoint: productUrl,
   title: (product) => product.name,
-  reference: (product) => product.sku,
+  reference: (product) => product.code,
   actions: (product) => [
-    { key: "edit", label: "Edit", requires: [UPDATE], do: { event: "edit" } },
+    { key: "edit", label: "Edit", requires: [UPDATE], do: { sheet: "product-edit", id: product.id } },
+    // STK-04 replaces this with its own case-break sheet.
     ...(product.packOf
       ? [{ key: "break-case", label: "Open cases into singles", requires: [["retail.stock", "update"] as Grant], do: { event: "break-case" } }]
       : []),
   ],
   more: (product) => [
     { key: "pdf", label: "Export as PDF", requires: [VIEW], do: { download: `/api/v2/retail/records/Product/${product.id}/pdf` } },
+    product.isActive
+      ? {
+          key: "archive",
+          label: "Stop selling it (archive)",
+          requires: [UPDATE],
+          do: {
+            post: {
+              url: "/api/v2/retail/products/archive",
+              body: { ids: [product.id] },
+              ask: archiveAsk({ name: product.name, onHand: product.stock.onHand > 0 ? product.stock.onHandLabel : null }),
+              done: `${product.name} is off every till.`,
+            },
+          },
+        }
+      : {
+          key: "unarchive",
+          label: "Sell it again",
+          requires: [UPDATE],
+          do: { post: { url: "/api/v2/retail/products/unarchive", body: { ids: [product.id] }, done: `${product.name} is on sale again.` } },
+        },
   ],
   bin: { kind: "product", deleteRight: ["retail.catalog", "delete"], state: (product) => product.bin },
+  banner: (product) =>
+    !product.isActive && !product.archivedAt
+      ? {
+          lead: "Archived.",
+          text: `Not on the till or in reorder suggestions. ${
+            product.stock.onHand > 0 ? `Its ${product.stock.onHandLabel} in stock still count.` : "Its stock still counts."
+          }`,
+          action: {
+            label: "Sell it again",
+            post: "/api/v2/retail/products/unarchive",
+            body: { ids: [product.id] },
+            done: `${product.name} is on sale again.`,
+            requires: UPDATE,
+          },
+        }
+      : null,
   chips: (product) => [
-    ...(product.status === "INACTIVE" ? [{ label: "Off sale", tone: "warn" as const }] : []),
-    ...(product.category ? [{ label: product.category, tone: "plain" as const }] : []),
-    ...(product.ageRestricted ? [{ label: "ID check at the till", tone: "plain" as const }] : []),
+    ...(!product.isActive && !product.archivedAt ? [{ label: "Archived", tone: "plain" as const }] : []),
+    ...(product.category ? [{ label: product.category.name, tone: "plain" as const }] : []),
+    ...(product.ageCheck ? [{ label: "ID check at the till", tone: "plain" as const }] : []),
   ],
-  figure: (product) => ({ label: "Selling at", value: formatMoney(product.unitPrice, product.currency) }),
+  figure: (product) => ({ label: "Selling at", value: formatMoney(product.price, product.currency) }),
   tabs: [
     {
       // W-28: the product's ledger, its last 30 days, newest first.
@@ -117,14 +149,13 @@ export const productKind: RecordKind<ProductRecord> = {
       url: product.imageUrl,
       prompt: "Add a photo",
       sub: "The till shows it on the product button",
-      edit: { field: "imageUrl", upload: (file) => uploadPhoto(product.id, file), requires: UPDATE },
+      edit: { field: "imageUrl", upload: (file) => uploadPhoto(file), requires: UPDATE },
     },
   }),
   rail: (product) => {
-    const unit = product.inventoryItem?.unit ?? "unit";
-    const reorder = product.inventoryItem?.reorderLevel ?? null;
-    const reorderQty = product.inventoryItem?.reorderQty ?? null;
-    const units = (count: number) => `${formatCount(count)} ${unit}${count === 1 ? "" : "s"}`;
+    const reorder = product.stock.reorderAt;
+    const reorderQty = product.stock.reorderQty;
+    const units = (count: number) => `${formatCount(count)} ${product.unit}${count === 1 || product.unit === "each" ? "" : "s"}`;
     return [
       {
         title: "Price",
@@ -132,66 +163,54 @@ export const productKind: RecordKind<ProductRecord> = {
           {
             key: "price",
             label: "Price",
-            value: formatMoney(product.unitPrice, product.currency),
+            value: formatMoney(product.price, product.currency),
             mono: true,
-            edit: { field: "unitPrice", type: "money", initial: product.unitPrice.toFixed(2), parse: (text) => figure(text), requires: UPDATE },
+            ...(product.canEdit.price
+              ? { edit: { field: "price", type: "money" as const, initial: product.price.toFixed(2), parse: (text: string) => figure(text), requires: UPDATE } }
+              : {}),
           },
           {
             key: "cost",
             label: "Cost",
-            value: product.costPrice === null ? "—" : formatMoney(product.costPrice, product.currency),
-            mono: product.costPrice !== null,
-            muted: product.costPrice === null,
+            value: product.cost === null ? "—" : formatMoney(product.cost, product.currency),
+            mono: product.cost !== null,
+            muted: product.cost === null,
             visible: ["retail.catalog", "view-cost"],
             edit: {
-              field: "costPrice",
+              field: "cost",
               type: "money",
-              initial: product.costPrice === null ? "" : product.costPrice.toFixed(2),
+              initial: product.cost === null ? "" : product.cost.toFixed(2),
               parse: (text) => figure(text, { optional: true }),
               requires: UPDATE,
             },
           },
-          {
-            key: "vat",
-            label: "VAT",
-            value: `${product.taxPercent}%${product.taxInclusive ? " included" : " added at the till"}`,
-            edit: {
-              field: "taxPercent",
-              type: "number",
-              initial: String(product.taxPercent),
-              parse: (text) => {
-                const rate = figure(text) as number;
-                if (rate > 100) throw new Error("VAT is a percentage up to 100.");
-                return rate;
-              },
-              requires: UPDATE,
-            },
-          },
+          // From the category: changed there, or by moving the product to another.
+          { key: "vat", label: "VAT", value: product.vatLabel },
           {
             key: "most-off",
             label: "Most off",
             value: product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`,
             mono: product.maxDiscountPercent !== null,
             muted: product.maxDiscountPercent === null,
-            edit: {
-              field: "maxDiscountPercent",
-              type: "number",
-              initial: product.maxDiscountPercent === null ? "" : String(product.maxDiscountPercent),
-              parse: (text) => {
-                const percent = figure(text, { optional: true });
-                if (percent !== null && percent > 100) throw new Error("Write a percentage up to 100, or clear it for no limit.");
-                return percent;
-              },
-              requires: UPDATE,
-            },
+            ...(product.canEdit.maxDiscount
+              ? {
+                  edit: {
+                    field: "maxDiscountPercent",
+                    type: "number" as const,
+                    initial: product.maxDiscountPercent === null ? "" : String(product.maxDiscountPercent),
+                    parse: parsePercent,
+                    requires: UPDATE,
+                  },
+                }
+              : {}),
           },
           {
             key: "price-lists",
             label: "Price lists",
-            value: product.priceLists.length
-              ? product.priceLists.map((list) => `${list.name} ${formatMoney(list.unitPrice, list.currency)}`).join(", ")
-              : "Only the shelf price",
-            muted: product.priceLists.length === 0,
+            value: product.otherLists.length
+              ? product.otherLists.map((list) => `${list.name} ${formatMoney(list.price, list.currency)}`).join(", ")
+              : `On the ${product.listName} list only`,
+            muted: product.otherLists.length === 0,
           },
         ],
       },
@@ -205,7 +224,7 @@ export const productKind: RecordKind<ProductRecord> = {
             mono: reorder !== null,
             muted: reorder === null,
             edit: {
-              field: "reorderLevel",
+              field: "reorderAt",
               type: "number",
               initial: reorder === null ? "" : String(reorder),
               parse: (text) => figure(text, { optional: true }),
@@ -226,7 +245,21 @@ export const productKind: RecordKind<ProductRecord> = {
               requires: UPDATE,
             },
           },
-          { key: "sold-as", label: "Sold as", value: soldAs(product) },
+          {
+            key: "supplier",
+            label: "Supplier",
+            value: product.supplier?.name ?? "None",
+            muted: !product.supplier,
+            edit: {
+              field: "supplierId",
+              type: "auto",
+              initial: product.supplier?.id ?? "",
+              lookup: { noun: "supplier", picked: product.supplier ? { id: product.supplier.id, label: product.supplier.name } : null },
+              parse: (value) => value || null,
+              requires: UPDATE,
+            },
+          },
+          { key: "sold-as", label: "Sold as", value: product.soldAs },
         ],
       },
       {
@@ -241,9 +274,9 @@ export const productKind: RecordKind<ProductRecord> = {
           {
             key: "code",
             label: "Code",
-            value: product.sku,
+            value: product.code,
             mono: true,
-            edit: { field: "sku", type: "text", mono: true, initial: product.sku, parse: needed("Code"), requires: UPDATE },
+            edit: { field: "code", type: "text", mono: true, initial: product.code, parse: needed("Code"), requires: UPDATE },
           },
           {
             key: "barcode",
@@ -263,15 +296,15 @@ export const productKind: RecordKind<ProductRecord> = {
           {
             key: "category",
             label: "Category",
-            value: product.category ?? "None",
+            value: product.category?.path ?? "None",
             muted: !product.category,
             edit: {
               field: "categoryId",
               type: "auto",
-              initial: product.categoryId ?? "",
+              initial: product.category?.id ?? "",
               lookup: {
                 noun: "category",
-                picked: product.categoryId && product.category ? { id: product.categoryId, label: product.category } : null,
+                picked: product.category ? { id: product.category.id, label: product.category.path } : null,
               },
               parse: (value) => value || null,
               requires: UPDATE,
@@ -280,15 +313,19 @@ export const productKind: RecordKind<ProductRecord> = {
           {
             key: "id-check",
             label: "ID check",
-            value: idCheckWords(product),
-            muted: product.ownAgeRestricted === null,
-            edit: {
-              field: "ageRestricted",
-              type: "text",
-              initial: product.ownAgeRestricted === null ? "" : product.ownAgeRestricted ? "Yes" : "No",
-              parse: parseIdCheck,
-              requires: UPDATE,
-            },
+            value: ageCheckWords(product.ownAgeCheck, product.category),
+            muted: product.ownAgeCheck === null,
+            ...(product.canEdit.ageCheck
+              ? {
+                  edit: {
+                    field: "ageCheck",
+                    type: "text" as const,
+                    initial: product.ownAgeCheck === null ? "" : product.ownAgeCheck ? "Yes" : "No",
+                    parse: parseIdCheck,
+                    requires: UPDATE,
+                  },
+                }
+              : {}),
           },
           product.returnable
             ? {
@@ -309,5 +346,5 @@ export const productKind: RecordKind<ProductRecord> = {
       },
     ];
   },
-  invalidates: [["retail-catalog"], ["reports"], ["list", "retail-bin"]],
+  invalidates: [["retail-catalog"], ["reports"], ["list", "retail-bin"], ["list", "retail-products"]],
 };

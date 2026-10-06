@@ -8,9 +8,8 @@ import { hashDeviceKey } from "@/lib/retail/devices";
 import { issuePairingCode } from "@/lib/retail/pairing";
 
 /**
- * The till's own device routes beyond pairing: a first PIN set on the till
- * after the account password, unpairing from the till itself, and forgetting
- * a key that no longer works. Against the test database, on the shop's POS
+ * The till's own device routes beyond pairing: unpairing from the till
+ * itself, and forgetting a key that no longer works. Against the test database, on the shop's POS
  * host, with only the sign-in faked.
  */
 
@@ -23,7 +22,6 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 
 vi.stubEnv("PLATFORM_ROOT_DOMAIN", "apps.localtest.me");
 
-const { POST: firstPin } = await import("./first-pin/route");
 const { POST: unpair } = await import("./unpair/route");
 const { POST: forget } = await import("./forget/route");
 
@@ -63,7 +61,6 @@ beforeAll(async () => {
     ["owner", "SUPERADMIN"],
     ["manager", "MANAGER"],
     ["cashier", "CASHIER"],
-    ["newcomer", "CASHIER"],
   ] as const) {
     people[name] = (
       await prisma.user.create({
@@ -100,35 +97,6 @@ afterAll(async () => {
 
 beforeEach(() => {
   globalThis.__authRateLimitBuckets__ = undefined;
-});
-
-describe("a first PIN, set on the till (devices/first-pin)", () => {
-  it("needs a device that is a till", async () => {
-    const answer = await call(firstPin, "first-pin", { userId: people.newcomer, password: "newcomer password", pin: "4826" }, null);
-    expect(answer.status).toBe(409);
-  });
-
-  it("refuses a wrong password, then sets the PIN once the password is right, and only once", async () => {
-    const wrong = await call(firstPin, "first-pin", { userId: people.newcomer, password: "guess", pin: "4826" });
-    expect(wrong.status).toBe(403);
-    expect(await prisma.retailTillPin.count({ where: { userId: people.newcomer! } })).toBe(0);
-
-    const set = await call(firstPin, "first-pin", { userId: people.newcomer, password: "newcomer password", pin: "4826" });
-    expect(set.status).toBe(201);
-    const pin = await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: people.newcomer! } });
-    expect(pin.companyId).toBe(companyId);
-    expect(await bcrypt.compare("4826", pin.pinHash)).toBe(true);
-
-    const again = await call(firstPin, "first-pin", { userId: people.newcomer, password: "newcomer password", pin: "5937" });
-    expect(again.status).toBe(409);
-  });
-
-  it("stops after ten tries in fifteen minutes", async () => {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      expect((await call(firstPin, "first-pin", { userId: people.manager, password: "guess", pin: "4826" })).status).toBe(403);
-    }
-    expect((await call(firstPin, "first-pin", { userId: people.manager, password: "manager password", pin: "4826" })).status).toBe(429);
-  });
 });
 
 describe("unpairing from the till itself (devices/unpair)", () => {

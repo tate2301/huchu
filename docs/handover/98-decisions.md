@@ -98,6 +98,45 @@ Recorded unit choices:
   not in every field.
 - **SET-09 posts one run per company at a time.** "Post now" pressed while a run is going joins it; what could not post is tried again by
   the next run, and "Ready to post" shows a fourth warn line while anything is waiting to be tried again (10-setup §4.9).
+- **SET-08 words where the board's are not what happens.** The "Close the fiscal day" hint reads "Closing sends the Z-report to
+  ZIMRA. A day left open takes tomorrow’s sales too." (the board: "… blocks tomorrow’s sales"; an open day takes them). The
+  Close day ask reads "The Z-report goes to ZIMRA, and the next sale opens day {n+1}." (the spec: "… sales wait for tomorrow’s
+  day"; the next sale opens the next day).
+- **SET-08 sends a day's report only from "Close day", the last shift closing and the retail worker.** No sale and no shift
+  opening calls ZIMRA's CloseDay. A day whose report never went out (ZIMRA silent when the close first asks how the device
+  stands) stays open and the tills keep signing into it; the worker sends the report every five minutes while no shift is
+  open, so a day a shift is still selling into stays open past midnight and closes with that shift. One close holds a day
+  at a time: a second close (by hand, with the last shift, from the worker or the books' console) is refused while the
+  first is on its way, and a close that died is taken over after five minutes. A day stops taking receipts before its
+  report is counted (closing), so the report counts every receipt in it. A sale's day is settled in the commit that
+  records it, under a lock on the device's day that the close's claim takes too: the sale is in the day (and in its
+  report) or it waits — nothing is decided after the commit, which only sends the receipt. A sale that finds no day open
+  opens one in its commit.
+  Once a day's report has gone out, the day is never given back to the tills, whatever comes back: ZIMRA may have taken it
+  with only its answer lost. When the report goes unanswered the close asks ZIMRA how the day stands (GetStatus); closed
+  there, the day is recorded closed with its report. Otherwise, or while ZIMRA stays silent, the day stays closing, free
+  for the next close ("ZIMRA did not answer day {n}'s report, so the day stays closed to sales and they wait for day
+  {n+1}. Close it again once ZIMRA is back."), and so does a day whose report ZIMRA refused. Every close of a closing day
+  asks ZIMRA first, so a report it took is recorded and not sent again; the worker closes a closing day again every five
+  minutes (with the last shift), even while a shift is open, since its sales wait.
+  While no day is open because a report is on its way or waits, a sale rung meanwhile waits unsigned and marked ("Day
+  {n}'s report waits for ZIMRA. This sale is signed as soon as a day is open again.", the till's "Waiting for ZIMRA").
+  Once the report is taken, day {n+1} opens no later than the first of them and no earlier than day {n}'s last receipt,
+  and they are signed there, oldest first and before any sale rung after them; the retail worker signs any a close did
+  not get to.
+- **SET-08 refuses no sale for its date, and moves no sale's time.** ZIMRA takes no receipt dated before its day opened
+  or before the last one it took, so a receipt carries its own date (`FiscalReceipt.receiptDate`, kept so a resend sends
+  the same one): the sale's own time, never later than now, or the last receipt's date when that is later. An offline
+  sale sent in after another till's receipts, or dated before the open day began, is signed into the open day with that
+  date; every sale that took money gets one receipt, and receipt dates never go backwards. `RetailSale.postedAt` stays
+  when the sale was rung, for the slip, the reports and the books. A till whose clock runs ahead cannot date anything in
+  the future: pos/sync enters a sale, refund or void dated after it arrived at the time it arrived, for review ("Dated
+  after it reached the server, so the till's clock runs ahead; entered when it arrived.").
+- **SET-08 signs every till sale on the shop's fiscal device**, the company's `ZIMRA_FDMS` provider config
+  (`shopFiscalDevice`): the tills, the close, the page and the worker use the same one. A device the books' console adds
+  under another key is not the shop's, however recently it was changed.
+- **SET-08 prices the demo shelf at 15.5% VAT.** The boards draw 15%; ZIMRA maps only 15.5% (VAT15_5, taxID 1) since
+  1 January 2026, and the till signs only a rate ZIMRA maps. The seed prices the products, the categories and the history at 15.5%.
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

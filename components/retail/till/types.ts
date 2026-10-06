@@ -37,6 +37,8 @@ export type PosCatalogItem = ShelfListing & {
   openableCase: OpenableCase | null;
   /** When this product is a case: the single it holds, and how many. */
   caseOf: CaseOf | null;
+  /** The price before a cut on the default list in the last 60 days; struck through on the tile. */
+  wasPrice: number | null;
 };
 
 /** A line on the sale. `catalogItemId` is the product's id. */
@@ -50,7 +52,6 @@ export type CartItem = {
   shelfPrice: number;
   taxPercent: number;
   taxInclusive: boolean;
-  compareAtPrice: number | null;
   lineDiscountAmount: number;
   unit?: string;
   stock?: number;

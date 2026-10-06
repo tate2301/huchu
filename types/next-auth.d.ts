@@ -17,6 +17,8 @@ declare module "next-auth" {
       enabledFeatures?: string[];
       subscriptionHealth?: string;
       allowedHosts?: string[];
+      /** A till session opened with an issued PIN: they choose their own before the till opens (ADM-03). */
+      pinMustChange?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -34,6 +36,7 @@ declare module "next-auth" {
     enabledFeatures?: string[];
     subscriptionHealth?: string;
     allowedHosts?: string[];
+    pinMustChange?: boolean;
   }
 }
 
@@ -52,5 +55,6 @@ declare module "next-auth/jwt" {
     enabledFeatures?: string[];
     subscriptionHealth?: string;
     allowedHosts?: string[];
+    pinMustChange?: boolean;
   }
 }

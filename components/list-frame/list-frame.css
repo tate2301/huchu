@@ -222,6 +222,7 @@
 .cx-lf-card__top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cx-lf-card__title { font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cx-lf-card .cx-state { height: 20px; padding: 0 7px; }
+.cx-lf-card__fig .cx-state { font-family: var(--font-sans); font-weight: 500; }
 .cx-lf-card__fig { text-align: right; font-family: var(--font-mono); font-weight: 500; }
 .cx-lf-card__meta { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cx-lf-card__fig2 { text-align: right; }

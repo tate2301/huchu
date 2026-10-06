@@ -427,6 +427,8 @@ export type ListSpec = {
   rowMenu?: ListAction[];
   bulk?: Array<ListAction | { key: "export" }>;
   primary?: { label: string; icon?: "plus"; requires: ListGrant[]; sheet?: string; href?: string };
+  /** A link in the header after the title (and the sub): a sheet over the list ("Who can do what"). */
+  subLink?: { label: string; sheet: string };
   /** The phone card. */
   card: {
     title: string;

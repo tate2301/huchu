@@ -38,14 +38,10 @@
  */
 import { Prisma } from "@prisma/client";
 
-import { money, moneyOrNull, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { ageRestrictedFor } from "@/lib/retail/product-details";
-import {
-  resolveShelfPrices,
-  SHELF_PRICE_LIST_NAME,
-  type ShelfPriceSource,
-} from "@/lib/retail/shelf-pricing";
+import { ageCheckFor } from "@/lib/retail/products/age-check";
+import { resolveShelfPrices, type ShelfPriceSource } from "@/lib/retail/shelf-pricing";
 
 /**
  * The two states a line can be in on the range. `RetailCatalogItemStatus` in
@@ -66,13 +62,9 @@ export type ShelfListing = {
   imageUrl: string | null;
   /**
    * A liquor licence is not optional. Carried so the counter can be told to ask.
-   * The product's own answer, else its category's (`ageRestrictedFor`).
+   * The product's own answer, else its category's (`ageCheckFor`).
    */
   ageRestricted: boolean;
-  /** The product's own answer: null follows its category. */
-  ownAgeRestricted: boolean | null;
-  /** Whether its category asks for ID. */
-  categoryAgeRestricted: boolean;
   /** The most any discount may take off this product, in percent; null for no limit. */
   maxDiscountPercent: number | null;
   /** An empty that comes back for money, and what it is worth. */
@@ -85,7 +77,6 @@ export type ShelfListing = {
   /** When it went in the bin; null while it is on the range. */
   binnedAt: string | null;
   unitPrice: number;
-  compareAtPrice: number | null;
   taxPercent: number;
   taxInclusive: boolean;
   currency: string;
@@ -129,7 +120,6 @@ const listingSelect = {
   packOf: { select: { id: true, name: true } },
   isActive: true,
   standardPrice: true,
-  compareAtPrice: true,
   defaultTaxRate: true,
   archivedAt: true,
 } satisfies Prisma.ProductSelect;
@@ -241,19 +231,6 @@ export async function loadShelfListings(
     })),
   );
 
-  // A binned product has no shelf price row (the bin removed it) and prices
-  // off its standard price, which says nothing of VAT; it reads how the shelf
-  // list prices — VAT inside or added, the currency — from the list itself, as
-  // the restore will put it back on it.
-  const offList = (product: (typeof products)[number]) =>
-    Boolean(product.archivedAt) && priced.get(product.id)?.priceSource === "STANDARD";
-  const shelfList = products.some(offList)
-    ? await prisma.priceList.findUnique({
-        where: { companyId_name: { companyId, name: SHELF_PRICE_LIST_NAME } },
-        select: { id: true, taxInclusive: true, currency: true },
-      })
-    : null;
-
   const listings: ShelfListing[] = [];
   for (const product of products) {
     const stock = stockByProduct.get(product.id);
@@ -271,9 +248,7 @@ export async function loadShelfListings(
       barcode: product.barcode,
       description: product.description,
       imageUrl: product.imageUrl,
-      ageRestricted: ageRestrictedFor(product),
-      ownAgeRestricted: product.ageRestricted,
-      categoryAgeRestricted: product.retailCategory?.ageRestricted ?? false,
+      ageRestricted: ageCheckFor(product),
       maxDiscountPercent: product.maxDiscountPercent === null ? null : toNumberOrZero(product.maxDiscountPercent),
       returnable: product.returnable,
       depositAmount: product.depositAmount === null ? null : toNumberOrZero(product.depositAmount),
@@ -282,11 +257,9 @@ export async function loadShelfListings(
       status: product.isActive ? "ACTIVE" : "INACTIVE",
       binnedAt: product.archivedAt?.toISOString() ?? null,
       unitPrice: shelf?.unitPrice ?? toNumberOrZero(product.standardPrice),
-      compareAtPrice:
-        product.compareAtPrice === null ? null : toNumberOrZero(product.compareAtPrice),
       taxPercent: shelf?.taxPercent ?? toNumberOrZero(product.defaultTaxRate),
-      taxInclusive: (offList(product) ? shelfList?.taxInclusive : shelf?.taxInclusive) ?? false,
-      currency: (offList(product) ? shelfList?.currency : shelf?.currency) ?? "USD",
+      taxInclusive: shelf?.taxInclusive ?? false,
+      currency: shelf?.currency ?? "USD",
       priceListId: shelf?.priceListId ?? null,
       priceSource: shelf?.priceSource ?? "STANDARD",
       pricedAt: shelf?.pricedAt ?? null,
@@ -386,7 +359,7 @@ export async function loadSellableProducts(input: {
       standardPrice: row.product.standardPrice,
       defaultTaxRate: row.product.defaultTaxRate,
       // The same rule as the shelf: the product's own answer, else its category's.
-      ageRestricted: ageRestrictedFor(row.product),
+      ageRestricted: ageCheckFor(row.product),
       returnable: row.product.returnable,
       depositAmount: row.product.depositAmount === null ? null : toNumberOrZero(row.product.depositAmount),
       siteId: row.siteId,
@@ -409,260 +382,6 @@ export async function loadSellableProducts(input: {
     products,
     missing: productIds.filter((id) => !products.has(id)),
   };
-}
-
-/**
- * Create or edit one shelf line, writing core and nothing else.
- *
- * This replaces `linkListingToCore`, which wrote the same product and price *and*
- * a `RetailCatalogItem` row alongside them because the till still read the
- * listing. Now that nothing reads it, writing it would keep two item masters
- * alive on purpose — and `scripts/retail-drop-catalog-item.ts` would rightly
- * refuse to drop a table the application still writes.
- *
- * Three rows, in one transaction, because a product with no price on the shelf
- * list resolves to `Product.standardPrice` and quietly stops being the number the
- * pricing screen edits:
- *
- *  - the tenant's `RETAIL` shelf list, created on first use,
- *  - the `Product`, keyed on `@@unique([companyId, code])`,
- *  - its `ProductPrice` at a minimum quantity of one.
- *
- * `standardPrice` is written alongside the list entry deliberately: it is the
- * fallback the resolver reaches for when a list entry goes missing, and a
- * fallback that has drifted degrades to the wrong number rather than the old one.
- * `lib/inventory/retail-price-parity.test.ts` asserts the two stay equal.
- *
- * The stock row is linked in the same transaction. An `InventoryItem` with no
- * `productId` is not sellable at all now — `loadShelfListings` finds the range by
- * exactly that column — so leaving it unlinked would create a line the till
- * cannot see.
- */
-export async function upsertShelfListing(input: {
-  companyId: string;
-  /** Null when creating. The product being edited, otherwise. */
-  productId: string | null;
-  /** `Product.code`. The SKU, and the catalogue code the shop reads. */
-  sku: string;
-  name: string;
-  inventoryItemId: string;
-  unitPrice: MoneyLike;
-  taxPercent: MoneyLike;
-  /** `undefined` leaves the stored value alone; `null` clears it. */
-  description?: string | null;
-  barcode?: string | null;
-  imageUrl?: string | null;
-  compareAtPrice?: MoneyLike | null;
-  isActive?: boolean;
-  currency?: string;
-  /** The shop's category. `undefined` leaves it alone; `null` takes it out of one. */
-  categoryId?: string | null;
-  /** What the shop pays. `undefined` leaves it alone. */
-  costPrice?: MoneyLike | null;
-  returnable?: boolean;
-  depositAmount?: MoneyLike | null;
-  /** A case's single and size. `undefined` leaves them alone; null makes it a single. */
-  packOfId?: string | null;
-  packSize?: number | null;
-  /** Whether it asks for ID. `undefined` leaves it alone; null follows the category. */
-  ageRestricted?: boolean | null;
-  /** The most any discount may take off, in percent. `undefined` leaves it alone; null is no limit. */
-  maxDiscountPercent?: number | null;
-},
-/** Run inside this transaction, so a caller can write its audit events with it. */
-client?: Prisma.TransactionClient,
-): Promise<string> {
-  const unitPrice = money(input.unitPrice);
-  const taxPercent = percent(input.taxPercent);
-  const compareAtPrice =
-    input.compareAtPrice === undefined ? undefined : moneyOrNull(input.compareAtPrice);
-  const costPrice = input.costPrice === undefined ? undefined : moneyOrNull(input.costPrice);
-  // A deposit only means something on a returnable product.
-  const depositAmount =
-    input.returnable === false
-      ? null
-      : input.depositAmount === undefined
-        ? undefined
-        : moneyOrNull(input.depositAmount);
-
-  const write = async (tx: Prisma.TransactionClient) => {
-    const priceList = await tx.priceList.upsert({
-      where: { companyId_name: { companyId: input.companyId, name: SHELF_PRICE_LIST_NAME } },
-      create: {
-        companyId: input.companyId,
-        name: SHELF_PRICE_LIST_NAME,
-        kind: "RETAIL",
-        // A Zimbabwean shelf price is what the customer pays.
-        taxInclusive: true,
-        isActive: true,
-        ...(input.currency ? { currency: input.currency } : {}),
-      },
-      update: {},
-      select: { id: true },
-    });
-
-    const shared = {
-      name: input.name,
-      standardPrice: unitPrice,
-      defaultTaxRate: taxPercent,
-      ...(input.description === undefined ? {} : { description: input.description }),
-      ...(input.barcode === undefined ? {} : { barcode: input.barcode }),
-      ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
-      ...(compareAtPrice === undefined ? {} : { compareAtPrice }),
-      ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
-      ...(input.categoryId === undefined
-        ? {}
-        : { retailCategory: input.categoryId ? { connect: { id: input.categoryId } } : { disconnect: true } }),
-      ...(costPrice === undefined ? {} : { costPrice }),
-      ...(input.returnable === undefined ? {} : { returnable: input.returnable }),
-      ...(depositAmount === undefined ? {} : { depositAmount }),
-      ...(input.ageRestricted === undefined ? {} : { ageRestricted: input.ageRestricted }),
-      ...(input.maxDiscountPercent === undefined ? {} : { maxDiscountPercent: input.maxDiscountPercent }),
-      ...(input.packOfId === undefined
-        ? {}
-        : {
-            packOf: input.packOfId ? { connect: { id: input.packOfId } } : { disconnect: true },
-            packSize: input.packOfId ? (input.packSize ?? null) : null,
-          }),
-    } satisfies Prisma.ProductUpdateInput;
-
-    const product = input.productId
-      ? await tx.product.update({
-          where: { id: input.productId },
-          data: { ...shared, code: input.sku },
-          select: { id: true },
-        })
-      : await tx.product.upsert({
-          where: { companyId_code: { companyId: input.companyId, code: input.sku } },
-          create: {
-            companyId: input.companyId,
-            code: input.sku,
-            name: input.name,
-            kind: "GOODS",
-            description: input.description ?? null,
-            barcode: input.barcode ?? null,
-            imageUrl: input.imageUrl ?? null,
-            standardPrice: unitPrice,
-            compareAtPrice: compareAtPrice ?? null,
-            defaultTaxRate: taxPercent,
-            isActive: input.isActive ?? true,
-            ...(input.currency ? { currency: input.currency } : {}),
-            categoryId: input.categoryId ?? null,
-            costPrice: costPrice ?? null,
-            returnable: input.returnable ?? false,
-            depositAmount: depositAmount ?? null,
-            ageRestricted: input.ageRestricted ?? null,
-            maxDiscountPercent: input.maxDiscountPercent ?? null,
-            packOfId: input.packOfId ?? null,
-            packSize: input.packOfId ? (input.packSize ?? null) : null,
-          },
-          update: shared,
-          select: { id: true },
-        });
-
-    await tx.productPrice.upsert({
-      where: {
-        priceListId_productId_minQuantity: {
-          priceListId: priceList.id,
-          productId: product.id,
-          minQuantity: new Prisma.Decimal(1),
-        },
-      },
-      create: {
-        companyId: input.companyId,
-        priceListId: priceList.id,
-        productId: product.id,
-        minQuantity: new Prisma.Decimal(1),
-        unitPrice,
-      },
-      update: { unitPrice },
-    });
-
-    // Only claims a stock row nobody else has claimed. Repointing an
-    // `InventoryItem` that already belongs to another product would move a
-    // different line's stock, which is a decision for a human.
-    await tx.inventoryItem.updateMany({
-      where: { id: input.inventoryItemId, OR: [{ productId: null }, { productId: product.id }] },
-      data: { productId: product.id },
-    });
-
-    return product.id;
-  };
-  return client ? write(client) : prisma.$transaction(write);
-}
-
-/**
- * Take a line off the range without deleting anything a receipt needs.
- *
- * A `Product` cannot be deleted: thousands of sale lines point at it, and
- * although the foreign key is `SET NULL` and `itemName` would still print,
- * throwing away the link is rewriting history to save a row. So the product
- * goes in the bin (`archivedAt`) — off the till, off every list and lookup,
- * and still attached to every sale it was ever part of — and its shelf price
- * is removed so nothing reads a price for a line that is not on the range.
- * Whether it was on sale is left as it was, so a restore puts it back as it
- * stood. Called by the bin (`lib/retail/bin.ts`) inside its transaction.
- */
-export async function archiveShelfListing(
-  tx: Prisma.TransactionClient,
-  input: { companyId: string; productId: string; at?: Date },
-): Promise<void> {
-  await tx.productPrice.deleteMany({
-    where: {
-      productId: input.productId,
-      companyId: input.companyId,
-      priceList: { name: SHELF_PRICE_LIST_NAME },
-    },
-  });
-  await tx.product.update({
-    where: { id: input.productId },
-    data: { archivedAt: input.at ?? new Date() },
-  });
-}
-
-/**
- * Bring a product back out of the bin, as it stood when it went in.
- *
- * Its shelf price was removed when it went in the bin; it comes back at its
- * standard price, which every shelf edit keeps equal to the shelf price, so
- * the till charges what it charged before. Returns false when it is not this
- * company's, or not in the bin.
- */
-export async function restoreShelfListing(
-  tx: Prisma.TransactionClient,
-  input: { companyId: string; productId: string },
-): Promise<boolean> {
-  const product = await tx.product.findFirst({
-    where: { id: input.productId, companyId: input.companyId, archivedAt: { not: null } },
-    select: { id: true, standardPrice: true },
-  });
-  if (!product) return false;
-
-  const priceList = await tx.priceList.findUnique({
-    where: { companyId_name: { companyId: input.companyId, name: SHELF_PRICE_LIST_NAME } },
-    select: { id: true },
-  });
-  if (priceList) {
-    await tx.productPrice.upsert({
-      where: {
-        priceListId_productId_minQuantity: {
-          priceListId: priceList.id,
-          productId: product.id,
-          minQuantity: new Prisma.Decimal(1),
-        },
-      },
-      create: {
-        companyId: input.companyId,
-        priceListId: priceList.id,
-        productId: product.id,
-        minQuantity: new Prisma.Decimal(1),
-        unitPrice: product.standardPrice,
-      },
-      update: { unitPrice: product.standardPrice },
-    });
-  }
-  await tx.product.update({ where: { id: product.id }, data: { archivedAt: null } });
-  return true;
 }
 
 export type SellableProduct = {

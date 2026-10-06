@@ -184,16 +184,20 @@ export function PersonMenu({ trigger, doors = [] }: { trigger: React.ReactNode; 
   );
 }
 
-/** The back office's messages to this till, and the offline stop: above every screen, until they no longer apply. */
+/**
+ * The back office's messages to this till, the offline stop and the stop while
+ * ZIMRA is away: above every screen, until they no longer apply.
+ */
 function TillNotes() {
-  const { messages, dismissMessage, offlineStop } = useTill();
+  const { messages, dismissMessage, offlineStop, fiscalStop } = useTill();
+  const stop = offlineStop ?? fiscalStop;
   return (
     <>
-      {offlineStop ? (
+      {stop ? (
         <div className="banner banner-danger" role="alert">
           <WarningCircle className="ic" />
           <span>
-            <b className="weight-500">Selling has stopped.</b> {offlineStop}
+            <b className="weight-500">Selling has stopped.</b> {stop}
           </span>
         </div>
       ) : null}

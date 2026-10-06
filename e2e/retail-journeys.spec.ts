@@ -21,9 +21,10 @@ import { RETAIL } from "./_support/tenants";
  *
  * ## The fiscal device
  *
- * W14 points the shop's fiscal device at `scripts/fake-fdms.mjs`, which must
- * be running (`node scripts/fake-fdms.mjs`) on 127.0.0.1:9911, or at
- * `E2E_FAKE_FDMS_URL`. The real FDMS spends a single-use activation key on
+ * W14 connects the shop's fiscal device to `scripts/fake-fdms.mjs`, which must
+ * be running (`node scripts/fake-fdms.mjs`) on 127.0.0.1:9911, with the app's
+ * `ZIMRA_FDMS_API_BASE_URL` pointing at it — a device takes its FDMS address
+ * from there. The real FDMS spends a single-use activation key on
  * registration and treats every receipt as a tax document.
  *
  *   node scripts/fake-fdms.mjs &
@@ -35,7 +36,6 @@ test.describe.configure({ mode: "serial", timeout: 600_000 });
 
 const RUN = Date.now().toString(36).slice(-4).toUpperCase();
 const PRODUCT = `Mazoe Orange 2L ${RUN}`;
-const FAKE_FDMS = process.env.E2E_FAKE_FDMS_URL ?? "http://127.0.0.1:9911";
 const SETTLE = 2_500;
 
 /** A record's rare verb: the "…" beside its one labelled verb, then the item. */
@@ -263,47 +263,28 @@ test.describe("the back office", () => {
     await shot(page, "set-up");
   });
 
-  test("W14 set up and register the fiscal device, and open the day", async ({ page }) => {
+  test("W14 set up and connect the fiscal device", async ({ page }) => {
     const shot = shooter("retail", "journey-w14-fiscal-device");
     await visitSettled(page, "/retail/manage/fiscal");
     await expect(page.getByLabel("Device ID", { exact: true })).toBeVisible({ timeout: 60_000 });
     await shot(page, "fiscal-device");
 
-    await page.getByLabel("Device ID", { exact: true }).fill("12345");
-    await page.getByLabel("FDMS address", { exact: true }).fill(FAKE_FDMS);
-    await page.getByLabel("Legal name", { exact: true }).fill("ACME Inc (Private) Limited");
-    await page.getByLabel("Trading name", { exact: true }).fill("Samora Machel Bottle Store");
-    await page.getByLabel("VAT number", { exact: true }).fill("220012345");
-    await page.getByLabel("TIN", { exact: true }).fill("2000123456");
-    await page.getByRole("button", { name: "Save fiscal device" }).click();
-    await toast(page, "Fiscal device saved");
-    await settle(page, SETTLE);
-
-    // A device registers once. On a tenant this spec has already run against,
-    // it is registered and its day may be open; the workflow is the same.
-    const register = page.getByRole("button", { name: "Register with ZIMRA" });
-    if (await register.isVisible().catch(() => false)) {
-      await expect(page.getByText("Not registered")).toBeVisible();
-      await shot(page, "saved-not-registered");
-      await register.click();
-      const dialog = await dialogNamed(page, "Register with ZIMRA");
-      await dialog.getByLabel("Serial number", { exact: true }).fill("SN-001");
-      await dialog.getByLabel("Activation key", { exact: true }).fill("00112233");
-      await shot(page, "register");
-      await dialog.getByRole("button", { name: "Register the device" }).click();
-      await toast(page, "Device registered");
-      await expect(page.getByText("Not registered")).toBeHidden({ timeout: 30_000 });
+    // A device connects once. On a tenant this spec has already run against it
+    // is connected, and its day opens with the first shift; the workflow is the same.
+    const connect = page.getByRole("button", { name: "Connect" });
+    if (await connect.isVisible().catch(() => false)) {
+      await expect(page.getByText("Not connected yet.")).toBeVisible();
+      await page.getByLabel("Device ID", { exact: true }).fill("12345");
+      await page.getByLabel("Serial number", { exact: true }).fill("SN-001");
+      await page.getByLabel("Taxpayer number", { exact: true }).fill("2000123456");
+      await page.getByLabel("VAT number", { exact: true }).fill("22001234");
+      await page.getByLabel("Activation key", { exact: true }).fill("00112233");
+      await shot(page, "connect");
+      await connect.click();
     }
-
-    const openDay = page.getByRole("button", { name: "Open the fiscal day" });
-    if (await openDay.isVisible().catch(() => false)) {
-      await openDay.click();
-      await toast(page, "Fiscal day opened");
-    }
-    await expect(page.getByRole("button", { name: "Close the fiscal day" })).toBeVisible({
-      timeout: 30_000,
-    });
-    await shot(page, "day-open");
+    await expect(page.getByText(/^Connected to ZIMRA\./)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "Test a receipt" })).toBeVisible();
+    await shot(page, "connected");
   });
 });
 

@@ -446,6 +446,8 @@ describe("the chain", () => {
       settingsChanged: "RETAIL_SETTINGS.CHANGED",
       productArchived: "RETAIL_PRODUCT.ARCHIVED",
       productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
+      productCreated: "RETAIL_PRODUCT.CREATED",
+      priceChanged: "RETAIL_PRICE.CHANGED",
       categoryCreated: "RETAIL_CATEGORY.CREATED",
       categoryChanged: "RETAIL_CATEGORY.CHANGED",
       categoryDeleted: "RETAIL_CATEGORY.DELETED",
@@ -467,6 +469,16 @@ describe("the chain", () => {
       postingRun: "RETAIL_POSTING.RUN",
       postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",
       drawerOpened: "RETAIL_DRAWER.OPENED",
+      fiscalConnected: "RETAIL_FISCAL.CONNECTED",
+      fiscalDayClosed: "RETAIL_FISCAL.DAY_CLOSED",
+      personInvited: "RETAIL_PERSON.INVITED",
+      personJoined: "RETAIL_PERSON.JOINED",
+      personChanged: "RETAIL_PERSON.CHANGED",
+      personPinSent: "RETAIL_PERSON.PIN_SENT",
+      personAccessRemoved: "RETAIL_PERSON.ACCESS_REMOVED",
+      personAccessRestored: "RETAIL_PERSON.ACCESS_RESTORED",
+      pinChosen: "RETAIL_PERSON.PIN_CHOSEN",
+      pinLocked: "RETAIL_PIN.LOCKED",
     });
   });
 });

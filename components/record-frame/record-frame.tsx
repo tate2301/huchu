@@ -15,10 +15,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { binAsk } from "@/lib/retail/asks";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
-import type { Grant, RailEdit, RecordAction, RecordKind } from "@/lib/retail/record-kinds/types";
+import type { Grant, RailEdit, RecordAction, RecordBanner, RecordKind } from "@/lib/retail/record-kinds/types";
+import type { Ask } from "@/lib/workspace/ask";
 
 import { BinBanner } from "./bin-banner";
 import { ChartPanel } from "./chart-panel";
+import { KindBanner } from "./kind-banner";
 import { DetailsRail } from "./details-rail";
 import { KpiStrip } from "./kpi-strip";
 import { RecordActions } from "./record-header";
@@ -55,6 +57,8 @@ export function RecordFrame<R>({
   const { toast } = useToast();
   const { data: session } = useSession();
   const [asking, setAsking] = React.useState(false);
+  // A `{ post }` action waiting on its ask.
+  const [posting, setPosting] = React.useState<{ url: string; body?: unknown; ask: Ask; done: string } | null>(null);
   const [range, setRange] = React.useState<string | null>(kind.chartRanges?.initial ?? null);
 
   const query = useQuery({ queryKey: kind.queryKey(id), queryFn: () => kind.load(id), enabled: Boolean(id) });
@@ -82,6 +86,20 @@ export function RecordFrame<R>({
     ]);
   }, [queryClient, kind, id]);
 
+  // Post, then read the record again and say what happened.
+  const post = React.useCallback(
+    async (target: { url: string; body?: unknown; done: string }) => {
+      try {
+        await fetchJson(target.url, { method: "POST", body: JSON.stringify(target.body ?? {}) });
+      } catch (error) {
+        throw new Error(getApiErrorMessage(error));
+      }
+      await refresh();
+      toast({ title: target.done, variant: "success" });
+    },
+    [refresh, toast],
+  );
+
   const run = React.useCallback(
     (action: RecordAction) => {
       if (!record) return;
@@ -91,12 +109,20 @@ export function RecordFrame<R>({
       else if ("sheet" in target) {
         const params = new URLSearchParams(searchParams.toString());
         params.set("sheet", target.sheet);
+        if (target.id) params.set("id", target.id);
         router.push(`${pathname}?${params.toString()}`);
       } else if ("open" in target) window.open(target.open, "_blank", "noopener");
       else if ("download" in target) window.location.assign(target.download);
       else if ("confirm" in target) setAsking(true);
+      else if ("post" in target) {
+        if (target.post.ask) setPosting({ ...target.post, ask: target.post.ask });
+        else
+          void post(target.post).catch((error: unknown) =>
+            toast({ title: error instanceof Error ? error.message : "That did not work.", variant: "destructive" }),
+          );
+      }
     },
-    [record, onEvent, router, searchParams, pathname],
+    [record, onEvent, router, searchParams, pathname, post, toast],
   );
 
   const title = record ? kind.title(record) : "";
@@ -219,6 +245,7 @@ export function RecordFrame<R>({
     );
   }
 
+  const banner: RecordBanner | null = kind.banner?.(record) ?? null;
   const chart = kind.chart?.(record, range) ?? null;
   const kpis = kind.kpis?.(record) ?? [];
   const canReadActivity = can(["retail.activity", "view"]);
@@ -233,6 +260,8 @@ export function RecordFrame<R>({
       {chrome}
       {bin ? (
         <BinBanner state={bin} viewerId={user?.id ?? null} canRestore={can(["retail.bin", "update"])} onRestore={restore} />
+      ) : banner ? (
+        <KindBanner banner={banner} canAct={banner.action ? can(banner.action.requires) : false} onAct={(action) => post({ url: action.post, body: action.body, done: action.done })} />
       ) : null}
       <RecordStrip
         title={title}
@@ -265,6 +294,19 @@ export function RecordFrame<R>({
       </div>
       {kind.bin ? (
         <ConfirmDialog ask={binAsk({ title })} open={asking} onOpenChange={setAsking} onConfirm={moveToBin} />
+      ) : null}
+      {posting ? (
+        <ConfirmDialog
+          ask={posting.ask}
+          open
+          onOpenChange={(open) => {
+            if (!open) setPosting(null);
+          }}
+          onConfirm={async () => {
+            await post(posting);
+            setPosting(null);
+          }}
+        />
       ) : null}
       {children}
     </div>

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { ageRestrictedFor } from "@/lib/retail/product-details";
+import { ageCheckFor } from "@/lib/retail/products/age-check";
 
 import { LicenceRefusal, licenceWeekSchema, loadLicenceHours, loadSiteLicence, saveLicenceHours } from "./site-licence-hours";
 
@@ -101,9 +101,9 @@ describe("a site's licence hours", () => {
 describe("a product's ID check", () => {
   it("is its own answer when it has one, else its category's", () => {
     const beer = { ageRestricted: true };
-    expect(ageRestrictedFor({ ageRestricted: null, retailCategory: beer })).toBe(true);
-    expect(ageRestrictedFor({ ageRestricted: false, retailCategory: beer })).toBe(false);
-    expect(ageRestrictedFor({ ageRestricted: true, retailCategory: { ageRestricted: false } })).toBe(true);
-    expect(ageRestrictedFor({ ageRestricted: null, retailCategory: null })).toBe(false);
+    expect(ageCheckFor({ ageRestricted: null, retailCategory: beer })).toBe(true);
+    expect(ageCheckFor({ ageRestricted: false, retailCategory: beer })).toBe(false);
+    expect(ageCheckFor({ ageRestricted: true, retailCategory: { ageRestricted: false } })).toBe(true);
+    expect(ageCheckFor({ ageRestricted: null, retailCategory: null })).toBe(false);
   });
 });

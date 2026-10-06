@@ -32,7 +32,7 @@ A device a manager has made into a till, where a cashier says who they are with 
 3. Put a sale aside and pick it up again.
 4. Find a sale and print it again, refund part of it, or void it, with a manager.
 5. Open the shift with a float; move cash to the safe; count the drawer and close.
-6. Pair a new device; set a first PIN.
+6. Pair a new device; choose your own PIN in place of the one you were sent.
 
 The most frequent job decides the home screen: the till opens on the sale.
 

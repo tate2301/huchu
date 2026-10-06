@@ -199,6 +199,8 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "2300", name: "Goods Received Not Invoiced", type: "LIABILITY", category: "Inventory", systemManaged: true },
   ...PAYROLL_CHART_OF_ACCOUNTS,
   { code: "3000", name: "Retained Earnings", type: "EQUITY", category: "Equity", systemManaged: true },
+  // PRD-03: stock a shop already had on its shelves when it started, valued at cost.
+  { code: "3100", name: "Opening Balances", type: "EQUITY", category: "Equity", systemManaged: true },
   { code: "4000", name: "Retail Sales Revenue", type: "INCOME", category: "Revenue", systemManaged: true },
   { code: "4010", name: "Sales Discounts", type: "INCOME", category: "Revenue", systemManaged: true },
   { code: "4020", name: "Sales Returns", type: "INCOME", category: "Revenue", systemManaged: true },
@@ -1020,6 +1022,20 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
   {
+    // PRD-03: a new product's opening stock, at cost, against Opening Balances.
+    name: "Retail opening stock",
+    sourceType: "RETAIL_OPENING_STOCK",
+    description: "Post stock already on the shelves when a product is added against opening balances.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountSource: "ROLE_MAPPING", accountRole: "STOCK", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / inventory", sortOrder: 10 },
+      { accountSource: "ROLE_MAPPING", accountRole: "OPENING_BALANCES", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / opening balances", sortOrder: 20 },
+    ],
+  },
+  {
     name: "Retail shift open",
     sourceType: "RETAIL_SHIFT_OPEN",
     description: "Move opening float from cash vault to till cash.",
@@ -1196,6 +1212,7 @@ export const RETAIL_ROLE_ACCOUNT_CODES: Record<RetailAccountRole, string> = {
   STOCK: "1200",
   BREAKAGE: "5410",
   DEPOSITS_HELD: "2240",
+  OPENING_BALANCES: "3100",
 };
 
 type AccountingDefaultArgs = {

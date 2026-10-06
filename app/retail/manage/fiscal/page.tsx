@@ -1,460 +1,164 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import "./fiscal.css";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
-import {
-  FactList,
-  FormField,
-  FormPage,
-  HeaderAction,
-  SectionHeading,
-  SectionAction,
-  StatusBadge,
-} from "@/components/management/ui";
-import { FactRowsSkeleton, LoadFailure } from "@/components/preferences/organization/form-parts";
-import {
-  FISCAL_DAY_FLEET_KEY,
-  fetchFiscalDayFleet,
-} from "@/components/accounting/fiscalisation/fiscal-day-console";
-import { ShopSettingsShell } from "@/components/retail/shop-settings";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+
+import { settingsQueryKey } from "@/components/settings-frame/model";
+import { SettingsFrame } from "@/components/settings-frame/settings-frame";
 import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/workspace/button";
+import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ReceiptLong, ShieldCheck } from "@/lib/icons";
-import { formatRetailDateTime } from "@/lib/retail/words";
-
-/** The key a shop's one device is saved under when it has none yet. */
-const DEVICE_KEY = "ZIMRA_FDMS";
-const CONFIG_KEY = ["accounting", "fiscalisation", "config"] as const;
-
-type Provider = {
-  id: string;
-  providerKey: string;
-  apiBaseUrl: string | null;
-  deviceId: string | null;
-  certificateRef: string | null;
-};
-
-type Settings = {
-  legalName: string | null;
-  tradingName: string | null;
-  vatNumber: string | null;
-  taxNumber: string | null;
-  address: string | null;
-  phone: string | null;
-  email: string | null;
-};
-
-type ConfigResponse = { provider: Provider | null; settings: Settings | null; canEdit: boolean };
-
-type Form = {
-  apiBaseUrl: string;
-  deviceId: string;
-  legalName: string;
-  tradingName: string;
-  vatNumber: string;
-  taxNumber: string;
-  address: string;
-  phone: string;
-  email: string;
-};
-
-function formFrom(config: ConfigResponse | undefined): Form {
-  const provider = config?.provider;
-  const settings = config?.settings;
-  return {
-    apiBaseUrl: provider?.apiBaseUrl ?? "",
-    deviceId: provider?.deviceId ?? "",
-    legalName: settings?.legalName ?? "",
-    tradingName: settings?.tradingName ?? "",
-    vatNumber: settings?.vatNumber ?? "",
-    taxNumber: settings?.taxNumber ?? "",
-    address: settings?.address ?? "",
-    phone: settings?.phone ?? "",
-    email: settings?.email ?? "",
-  };
-}
-
-const DEVICE_FIELDS: Array<{ key: keyof Form; label: string; mono?: boolean }> = [
-  { key: "deviceId", label: "Device ID", mono: true },
-  { key: "apiBaseUrl", label: "FDMS address", mono: true },
-];
-
-const FIELDS: Array<{ key: keyof Form; label: string; mono?: boolean }> = [
-  { key: "legalName", label: "Legal name" },
-  { key: "tradingName", label: "Trading name" },
-  { key: "vatNumber", label: "VAT number", mono: true },
-  { key: "taxNumber", label: "TIN", mono: true },
-  { key: "address", label: "Address" },
-  { key: "phone", label: "Phone", mono: true },
-  { key: "email", label: "Email" },
-];
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import type { SettingsResponse, SettingsSaved } from "@/lib/retail/settings-pages";
 
 /**
- * Fiscal device — the ZIMRA device the till's receipts are signed on.
- *
- * Settings → Shop. A shop set this up on the accounting module's
- * Fiscalisation page: twenty fields in four cards ("Provider key", "Auth
- * type", "Retry policy JSON", "Webhook secret ref"), with the fiscal day on a
- * second tab and no way to register the device at all. What a shop actually
- * does is here, in the order it does it: say where FDMS is and which device
- * this is, say who is selling, register the device with its activation key,
- * and open the day. The accounting page keeps the full configuration for
- * anyone who needs the rest.
- *
- * The Roles board's Fiscal device row: the owner changes it; the manager and
- * the bookkeeper read it, so for them the page is facts with no verbs. The
- * server says which (`canEdit` on the config, `canManage` on the fleet) and
- * refuses the writes on its own.
+ * Setup › Fiscal device (W-06, board FiscalSettings): the shop's ZIMRA device
+ * and its numbers, how the fiscal day closes and what the tills do while
+ * ZIMRA cannot be reached, on the SettingsFrame; the newest five fiscal days
+ * in the aside. The owner connects the device with ZIMRA's activation key,
+ * tests it with a receipt that is signed and never sent, and closes the open
+ * day by hand. The manager and the bookkeeper read it.
  */
-export default function RetailFiscalDevicePage() {
-  const { toast } = useToast();
+export default function FiscalSettingsPage() {
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<Form | null>(null);
-  const [registering, setRegistering] = useState(false);
-
-  const config = useQuery({
-    queryKey: CONFIG_KEY,
-    queryFn: () => fetchJson<ConfigResponse>("/api/accounting/fiscalisation/config"),
-  });
-  const fleet = useQuery({ queryKey: FISCAL_DAY_FLEET_KEY, queryFn: fetchFiscalDayFleet });
-
-  const provider = config.data?.provider ?? null;
-  const form = draft ?? formFrom(config.data);
-  const registered = Boolean(provider?.certificateRef);
-  const canEdit = config.data?.canEdit === true;
-  const canRunDays = fleet.data?.canManage === true;
-  const device = fleet.data?.devices.find((entry) => entry.providerConfigId === provider?.id) ?? null;
-  const day = device?.activeDay ?? null;
-
-  const set = (key: keyof Form, value: string) => setDraft({ ...form, [key]: value });
-
-  const save = useMutation({
-    mutationFn: () =>
-      fetchJson("/api/accounting/fiscalisation/config", {
-        method: "POST",
-        body: JSON.stringify({
-          providerKey: provider?.providerKey ?? DEVICE_KEY,
-          apiBaseUrl: form.apiBaseUrl.trim() || undefined,
-          deviceId: form.deviceId.trim() || undefined,
-          supplier: {
-            legalName: form.legalName.trim() || undefined,
-            tradingName: form.tradingName.trim() || undefined,
-            vatNumber: form.vatNumber.trim() || undefined,
-            taxNumber: form.taxNumber.trim() || undefined,
-            address: form.address.trim() || undefined,
-            phone: form.phone.trim() || undefined,
-            email: form.email.trim() || undefined,
-          },
-        }),
-      }),
-    onSuccess: async () => {
-      toast({ title: "Fiscal device saved", variant: "success" });
-      setDraft(null);
-      await queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
-      await queryClient.invalidateQueries({ queryKey: FISCAL_DAY_FLEET_KEY });
-    },
-    onError: (error) =>
-      toast({
-        title: "The fiscal device was not saved",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  });
-
-  const openDay = useMutation({
-    mutationFn: () =>
-      fetchJson("/api/accounting/fiscalisation/fiscal-days", {
-        method: "POST",
-        body: JSON.stringify({ providerConfigId: provider?.id }),
-      }),
-    onSuccess: async () => {
-      toast({ title: "Fiscal day opened", variant: "success" });
-      await queryClient.invalidateQueries({ queryKey: FISCAL_DAY_FLEET_KEY });
-    },
-    onError: (error) =>
-      toast({
-        title: "The fiscal day was not opened",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  });
-
-  const closeDay = useMutation({
-    mutationFn: () =>
-      fetchJson(`/api/accounting/fiscalisation/fiscal-days/${day?.id}`, {
-        method: "POST",
-        body: JSON.stringify({ action: "close" }),
-      }),
-    onSuccess: async () => {
-      toast({ title: "Fiscal day closed", variant: "success" });
-      await queryClient.invalidateQueries({ queryKey: FISCAL_DAY_FLEET_KEY });
-    },
-    onError: (error) =>
-      toast({
-        title: "The fiscal day was not closed",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  });
-
+  const canChange = canRetailRoleDo(session?.user?.role ?? "", "retail.fiscal", "update");
+  // The open day changes away from this page (a till's sale, the last shift closing): never trust a cached copy.
+  React.useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: settingsQueryKey("fiscal") });
+  }, [queryClient]);
   return (
-    <ShopSettingsShell>
-      <FormPage
-        title="Fiscal device"
-        icon={ReceiptLong}
-        badge={
-          provider && !registered ? <StatusBadge tone="warn">Not registered</StatusBadge> : null
-        }
-        action={
-          canEdit && provider?.deviceId && !registered ? (
-            <HeaderAction icon={ShieldCheck} onClick={() => setRegistering(true)}>
-              Register with ZIMRA
-            </HeaderAction>
-          ) : null
-        }
-        onSubmit={
-          canEdit
-            ? (event) => {
-                event.preventDefault();
-                save.mutate();
-              }
-            : undefined
-        }
-        submitLabel="Save fiscal device"
-        busy={save.isPending}
-        onCancel={draft ? () => setDraft(null) : undefined}
-        cancelLabel="Undo changes"
-      >
-        {config.isLoading ? (
-          <FactRowsSkeleton rows={4} />
-        ) : config.isError ? (
-          <LoadFailure
-            message={`The fiscal device would not load. ${getApiErrorMessage(config.error)}`}
-            onRetry={() => void config.refetch()}
-          />
-        ) : (
-          <>
-            {canEdit ? (
-              <DeviceForm form={form} set={set} />
-            ) : (
-              <>
-                <SectionHeading variant="form">Device</SectionHeading>
-                <FactList maxWidth={null} items={readOnlyFacts(DEVICE_FIELDS, form)} />
-                <SectionHeading variant="form">Seller</SectionHeading>
-                <FactList maxWidth={null} items={readOnlyFacts(FIELDS, form)} />
-              </>
-            )}
-
-            {provider ? (
-              <>
-                <SectionHeading
-                  variant="form"
-                  maxWidth={9999}
-                  action={
-                    !canRunDays ? null : day ? (
-                      <SectionAction disabled={closeDay.isPending} onClick={() => closeDay.mutate()}>
-                        Close the fiscal day
-                      </SectionAction>
-                    ) : registered ? (
-                      <SectionAction disabled={openDay.isPending} onClick={() => openDay.mutate()}>
-                        Open the fiscal day
-                      </SectionAction>
-                    ) : null
-                  }
-                >
-                  Fiscal day
-                </SectionHeading>
-                {fleet.isLoading ? (
-                  <FactRowsSkeleton rows={2} />
-                ) : (
-                  <FactList
-                    maxWidth={null}
-                    items={
-                      day
-                        ? [
-                            { label: "Day", value: String(day.fiscalDayNo), mono: true },
-                            { label: "Opened", value: formatRetailDateTime(day.openedAt), mono: true },
-                            {
-                              label: "Receipts",
-                              value: `${device?.receiptCounts.accepted ?? 0} fiscalised${
-                                device?.receiptCounts.blocking
-                                  ? `, ${device.receiptCounts.blocking} waiting`
-                                  : ""
-                              }`,
-                              tone: device?.receiptCounts.blocking ? "warn" : "default",
-                            },
-                          ]
-                        : [
-                            {
-                              label: "Day",
-                              value: registered
-                                ? "No fiscal day open — the till cannot fiscalise"
-                                : "Register the device first",
-                              tone: "warn",
-                            },
-                            ...(device?.lastClosedDay
-                              ? [
-                                  {
-                                    label: "Last closed",
-                                    value: `Day ${device.lastClosedDay.fiscalDayNo}, ${formatRetailDateTime(device.lastClosedDay.closedAt)}`,
-                                  },
-                                ]
-                              : []),
-                          ]
-                    }
-                  />
-                )}
-              </>
-            ) : null}
-          </>
-        )}
-      </FormPage>
-
-      <RegisterDeviceDialog
-        open={registering}
-        onOpenChange={setRegistering}
-        onRegistered={() => {
-          void queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
-          void queryClient.invalidateQueries({ queryKey: FISCAL_DAY_FLEET_KEY });
-        }}
-      />
-    </ShopSettingsShell>
+    <SettingsFrame
+      page="fiscal"
+      actions={(values, form) => (canChange ? <FiscalActions values={values} form={form} /> : null)}
+      slots={(values) => ({ days: <FiscalDays days={values.days} /> })}
+    />
   );
 }
 
-/** The owner's form: where FDMS is, which device this is, and who is selling. */
-function DeviceForm({ form, set }: { form: Form; set: (key: keyof Form, value: string) => void }) {
+type OpenDay = { id: string; no: number; openedAt: string; status: string };
+
+function FiscalActions({
+  values,
+  form,
+}: {
+  values: Record<string, unknown>;
+  form: { formId: string; changes: Record<string, unknown>; saving: boolean };
+}) {
+  const openDay = (values.openDay as OpenDay | null) ?? null;
+  if (values.registered !== true) {
+    // Not connected yet: "Connect" saves the device's numbers, then registers it with the key typed.
+    const key = typeof values.activationKey === "string" ? values.activationKey.trim() : "";
+    return (
+      <Button type="submit" form={form.formId} busy={form.saving} disabled={!key}>
+        Connect
+      </Button>
+    );
+  }
   return (
     <>
-      <SectionHeading variant="form">Device</SectionHeading>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="Device ID">
-          {(id) => (
-            <Input id={id} className="font-mono" value={form.deviceId} onChange={(event) => set("deviceId", event.target.value)} />
-          )}
-        </FormField>
-        <FormField label="FDMS address">
-          {(id) => (
-            <Input
-              id={id}
-              className="font-mono"
-              value={form.apiBaseUrl}
-              onChange={(event) => set("apiBaseUrl", event.target.value)}
-              placeholder="https://fdmsapi.zimra.co.zw"
-            />
-          )}
-        </FormField>
-      </div>
-
-      <SectionHeading variant="form">Seller</SectionHeading>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {FIELDS.map((field) => (
-          <FormField key={field.key} label={field.label}>
-            {(id) => (
-              <Input
-                id={id}
-                className={field.mono ? "font-mono" : undefined}
-                value={form[field.key]}
-                onChange={(event) => set(field.key, event.target.value)}
-              />
-            )}
-          </FormField>
-        ))}
-      </div>
+      <TestReceipt />
+      {openDay ? <CloseDay day={openDay} /> : null}
     </>
   );
 }
 
-/** The same fields as facts, for a role that reads the device. */
-function readOnlyFacts(fields: Array<{ key: keyof Form; label: string; mono?: boolean }>, form: Form) {
-  return fields.map((field) => ({
-    id: field.key,
-    label: field.label,
-    value: form[field.key] || "Not set",
-    mono: field.mono && Boolean(form[field.key]),
-    tone: form[field.key] ? ("default" as const) : ("muted" as const),
-  }));
+/** "Test a receipt": the device signs a zero-value receipt here and ZIMRA is asked how the device stands. */
+function TestReceipt() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [busy, setBusy] = React.useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const result = await fetchJson<{ ok: boolean; message: string; ms: number }>("/api/v2/retail/fiscal/test", {
+        method: "POST",
+      });
+      toast({
+        title: result.message,
+        description: `${(result.ms / 1000).toFixed(1)} s`,
+        variant: result.ok ? "success" : "destructive",
+      });
+    } catch (error) {
+      toast({ title: getApiErrorMessage(error, "The test did not run. Try again."), variant: "destructive" });
+    } finally {
+      setBusy(false);
+      // The connection line reads the answer (or the silence) the test met.
+      await queryClient.invalidateQueries({ queryKey: settingsQueryKey("fiscal") });
+    }
+  };
+  return (
+    <Button busy={busy} onClick={() => void run()}>
+      Test a receipt
+    </Button>
+  );
 }
 
-function RegisterDeviceDialog({
-  open,
-  onOpenChange,
-  onRegistered,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onRegistered: () => void;
-}) {
+/** "Close day {n}", asked first: the Z-report goes to ZIMRA, and the next sale opens the next day. */
+function CloseDay({ day }: { day: OpenDay }) {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [serialNumber, setSerialNumber] = useState("");
-  const [activationKey, setActivationKey] = useState("");
-  const [errors, setErrors] = useState<string[]>([]);
-
-  const register = useMutation({
-    mutationFn: () =>
-      fetchJson<{ taxCodesMapped: string[]; taxCodesNotMapped: string[] }>("/api/accounting/fiscalisation/device/register", {
+  const [asking, setAsking] = React.useState(false);
+  const close = async () => {
+    try {
+      const saved = await fetchJson<SettingsSaved>(`/api/v2/retail/fiscal/days/${encodeURIComponent(day.id)}/close`, {
         method: "POST",
-        body: JSON.stringify({ serialNumber: serialNumber.trim(), activationKey: activationKey.trim() }),
-      }),
-    onSuccess: (result) => {
-      toast({
-        title: "Device registered",
-        description: [
-          result.taxCodesMapped.length ? `Tax codes matched to ZIMRA: ${result.taxCodesMapped.join(", ")}.` : "",
-          result.taxCodesNotMapped.length ? `Not matched: ${result.taxCodesNotMapped.join(", ")}.` : "",
-        ]
-          .filter(Boolean)
-          .join(" "),
-        variant: "success",
       });
-      setActivationKey("");
-      onRegistered();
-      onOpenChange(false);
-    },
-    onError: (error) => setErrors([`The device was not registered: ${getApiErrorMessage(error)}`]),
-  });
-
+      queryClient.setQueryData<SettingsResponse>(settingsQueryKey("fiscal"), (current) => ({
+        canEdit: current?.canEdit ?? false,
+        values: saved.values,
+        lastChanged: saved.lastChanged,
+      }));
+      toast({ title: `Day ${day.no} is closed and ZIMRA has its report.`, variant: "success" });
+    } catch (error) {
+      // The day may now be closing: show it as it stands.
+      await queryClient.invalidateQueries({ queryKey: settingsQueryKey("fiscal") });
+      throw new Error(getApiErrorMessage(error, `Day ${day.no} did not close. Try again.`));
+    }
+  };
   return (
-    <RecordDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Register with ZIMRA"
-      size="sm"
-      errors={errors}
-      onSubmit={(event) => {
-        event.preventDefault();
-        const problems = [
-          ...(serialNumber.trim() ? [] : ["Give the serial number ZIMRA issued the device under."]),
-          ...(activationKey.trim() ? [] : ["Give the activation key ZIMRA sent with the device ID."]),
-        ];
-        setErrors(problems);
-        if (problems.length === 0) register.mutate();
-      }}
-      footer={
-        <>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={register.isPending}>
-            Register the device
-          </Button>
-        </>
-      }
-    >
-      <FormField label="Serial number">
-        {(id) => (
-          <Input id={id} className="font-mono" value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} autoFocus />
-        )}
-      </FormField>
-      <FormField label="Activation key">
-        {(id) => (
-          <Input id={id} className="font-mono" value={activationKey} onChange={(event) => setActivationKey(event.target.value)} />
-        )}
-      </FormField>
-    </RecordDialog>
+    <>
+      <Button onClick={() => setAsking(true)}>{`Close day ${day.no}`}</Button>
+      <ConfirmDialog
+        ask={{
+          title: `Close day ${day.no}?`,
+          body: `The Z-report goes to ZIMRA, and the next sale opens day ${day.no + 1}.`,
+          keep: "Keep it open",
+          go: "Close the day",
+          fill: "action",
+        }}
+        open={asking}
+        onOpenChange={setAsking}
+        onConfirm={close}
+      />
+    </>
+  );
+}
+
+/** The aside's "Fiscal days": the newest five, the day's number, what it is, what it took. */
+function FiscalDays({ days }: { days: unknown }) {
+  const list = Array.isArray(days) ? (days as Array<{ no: number; label: string; total: string }>) : [];
+  if (list.length === 0) return <p className="cx-fiscal-days__empty">No fiscal days yet.</p>;
+  return (
+    <ul className="cx-fiscal-days">
+      {list.map((day) => (
+        <li key={day.no}>
+          <span className="font-mono">{day.no}</span>
+          <span className="cx-fiscal-days__label">{day.label}</span>
+          <span className="cx-fiscal-days__total font-mono">
+            {day.total.split(" · ").map((part, index) => (
+              <React.Fragment key={part}>
+                {index > 0 ? " · " : null}
+                <span>{part}</span>
+              </React.Fragment>
+            ))}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

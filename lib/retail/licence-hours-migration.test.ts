@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261006090000_retail_licence_hours_and_held_release`.
+ * Migration witness for `20261006120000_retail_licence_hours_and_held_release`.
  *
  * Licence hours live per site and weekday, in minutes after midnight, one row
  * a weekday, and go with their site and company; the shop profile keeps its

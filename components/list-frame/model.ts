@@ -340,11 +340,26 @@ export function drawnFilters(spec: Pick<ListSpecPublic, "filters">): DrawnFilter
   return spec.filters.filter((filter): filter is DrawnFilter => filter.type !== "parent");
 }
 
-/** Filters not at their `any`: what the Filters badge counts (the primaries only once they fold in). */
+/**
+ * The filters inside the Filters popover: the ones not on the toolbar, and
+ * the primaries once they fold in. A list whose every filter is primary keeps
+ * them there too, so Filters is never an empty button (People: Role and Site).
+ */
+export function heldFilters(filters: DrawnFilter[], folded: boolean): DrawnFilter[] {
+  const allPrimary = filters.every((filter) => filter.primary);
+  return filters.filter((filter) => folded || allPrimary || !filter.primary);
+}
+
+/** Filters not at their `any`: what the Filters badge counts (the ones the popover holds). */
 export function filtersOn(spec: Pick<ListSpecPublic, "filters">, filters: Record<string, string>, folded: boolean): number {
-  return drawnFilters(spec).filter(
-    (filter) => (folded || !filter.primary) && (filters[filter.key] ?? "any") !== "any",
-  ).length;
+  return heldFilters(drawnFilters(spec), folded).filter((filter) => (filters[filter.key] ?? "any") !== "any").length;
+}
+
+/** A count with its noun, as the phone's totals line reads it: "7 people", "1 person", "1 category". */
+export function countWords(count: number, noun: string): string {
+  if (count !== 1) return `${formatCount(count)} ${noun}`;
+  const one = noun === "people" ? "person" : noun.endsWith("ies") ? `${noun.slice(0, -3)}y` : noun.replace(/s$/, "");
+  return `1 ${one}`;
 }
 
 /** The filter values a source starts from. */

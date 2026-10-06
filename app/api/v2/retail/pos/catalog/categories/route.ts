@@ -3,7 +3,7 @@ import { successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { requirePosDevice } from "@/lib/retail/devices";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { ageRestrictedFor } from "@/lib/retail/product-details";
+import { ageCheckFor } from "@/lib/retail/products/age-check";
 import { requireRetailSession } from "../../../_helpers";
 
 /**
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     data: rows.map((row) => ({
       name: row.name,
       allAgeRestricted: row.products.every((product) =>
-        ageRestrictedFor({ ageRestricted: product.ageRestricted, retailCategory: row }),
+        ageCheckFor({ ageRestricted: product.ageRestricted, retailCategory: row }),
       ),
     })),
   });

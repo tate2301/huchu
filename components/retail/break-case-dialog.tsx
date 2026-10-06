@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FormField } from "@/components/management/ui";
-import { useInvalidateProducts } from "@/components/retail/product-dialogs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -30,14 +29,20 @@ export function BreakCaseDialog({
     name: string;
     packSize: number | null;
     packOf: { id: string; name: string } | null;
-    site: { id: string } | null;
-    inventoryItem: { currentStock: number } | null;
+    /** The site whose cases are opened: the product's default-site line. */
+    siteId: string | null;
+    onHand: number;
   };
 }) {
   const [count, setCount] = useState("1");
   const [errors, setErrors] = useState<string[]>([]);
   const { toast } = useToast();
-  const invalidate = useInvalidateProducts();
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    for (const key of [["retail-catalog"], ["retail-product"], ["list", "retail-products"], ["retail-pos-catalog"]]) {
+      void queryClient.invalidateQueries({ queryKey: key });
+    }
+  };
   const cases = Number(count);
   const valid = Number.isInteger(cases) && cases >= 1;
   const size = product.packSize ?? 0;
@@ -46,7 +51,7 @@ export function BreakCaseDialog({
     mutationFn: () =>
       fetchJson<{ data: BreakCaseResult }>(`/api/v2/retail/catalog/${product.id}/break-case`, {
         method: "POST",
-        body: JSON.stringify({ siteId: product.site?.id, cases }),
+        body: JSON.stringify({ siteId: product.siteId, cases }),
       }),
     onSuccess: (result) => {
       toast({
@@ -101,7 +106,7 @@ export function BreakCaseDialog({
         )}
       </FormField>
       <p className="text-sm text-[var(--text-muted)]">
-        {product.inventoryItem?.currentStock ?? 0} on hand · {size} × {product.packOf?.name} in each
+        {product.onHand} on hand · {size} × {product.packOf?.name} in each
       </p>
     </RecordDialog>
   );

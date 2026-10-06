@@ -67,13 +67,16 @@ function useMovements(shiftId: string | undefined) {
   });
 }
 
+/** A shift just closed: its number, the drawer's difference, the held sales it ended, and the fiscal day it closed (SET-08). */
+type Closed = { shiftNo: string; variance: number; held: number; fiscalDay: number | null };
+
 export function ShiftScreen() {
   const { shiftHere, shiftLoading, context } = useTill();
   const [step, setStep] = React.useState<"shift" | "count" | "check" | "closed">("shift");
   const [counts, setCounts] = React.useState<Record<string, number>>({});
-  const [closed, setClosed] = React.useState<{ shiftNo: string; variance: number; held: number } | null>(null);
+  const [closed, setClosed] = React.useState<Closed | null>(null);
 
-  if (closed) return <ClosedScreen shiftNo={closed.shiftNo} variance={closed.variance} held={closed.held} />;
+  if (closed) return <ClosedScreen {...closed} />;
   if (shiftLoading) {
     return (
       <div className="main is-grow" aria-busy="true">
@@ -491,12 +494,14 @@ function CheckScreen({
 }: {
   counts: Record<string, number>;
   onBack: () => void;
-  onClosed: (result: { shiftNo: string; variance: number; held: number }) => void;
+  onClosed: (result: Closed) => void;
 }) {
   const queryClient = useQueryClient();
-  const { shiftHere } = useTill();
+  const { shiftHere, context } = useTill();
   const shift = shiftHere!;
   const movements = useMovements(shift.id);
+  // "Close the fiscal day · With the last shift" (SET-08): said before, since only the server knows if it is the last.
+  const closesDay = Boolean(context?.fiscal.deviceId && context.fiscal.dayNo !== null && context.fiscal.dayClose === "WITH_LAST_SHIFT");
   // Read while the shift is still open: closing ends its held sales.
   const held = useHeldSummary().count;
   const notes = getCashDenominations(shift.baseCurrency ?? "USD") ?? [];
@@ -514,12 +519,17 @@ function CheckScreen({
 
   const close = useMutation({
     mutationFn: () =>
-      fetchJson<{ shiftNo: string; variance: number | string }>(`/api/v2/retail/pos/shifts/${shift.id}/close`, {
+      fetchJson<{ shiftNo: string; variance: number | string; fiscalDayClosed: number | null }>(`/api/v2/retail/pos/shifts/${shift.id}/close`, {
         method: "POST",
         body: JSON.stringify({ countedCash: counted, notes: note.trim() || null }),
       }),
     onSuccess: (result) => {
-      onClosed({ shiftNo: result.shiftNo ?? shift.shiftNo, variance: Number(result.variance ?? variance), held });
+      onClosed({
+        shiftNo: result.shiftNo ?? shift.shiftNo,
+        variance: Number(result.variance ?? variance),
+        held,
+        fiscalDay: result.fiscalDayClosed ?? null,
+      });
       void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
     },
   });
@@ -585,6 +595,12 @@ function CheckScreen({
             </span>
           </div>
         ) : null}
+        {closesDay ? (
+          <p className="help">
+            If no other shift is open in the shop, fiscal day <span className="num">{context?.fiscal.dayNo}</span> closes with this
+            one and its report goes to ZIMRA.
+          </p>
+        ) : null}
         {close.isError ? <ErrorLine large>{getApiErrorMessage(close.error)}</ErrorLine> : null}
         <div className="actions">
           <button type="button" className="btn btn-lg" onClick={onBack}>
@@ -601,7 +617,7 @@ function CheckScreen({
   );
 }
 
-function ClosedScreen({ shiftNo, variance, held }: { shiftNo: string; variance: number; held: number }) {
+function ClosedScreen({ shiftNo, variance, held, fiscalDay }: Closed) {
   const { context } = useTill();
   const { requestSignOut } = useSignOut();
   const what =
@@ -618,6 +634,11 @@ function ClosedScreen({ shiftNo, variance, held }: { shiftNo: string; variance: 
           <p className="under">
             {what}
             {held ? ` The ${count(held, "held sale")} ended with the shift.` : ""}
+            {fiscalDay !== null ? (
+              <>
+                {" "}Fiscal day <span className="num">{fiscalDay}</span> closed with it.
+              </>
+            ) : null}
           </p>
         </div>
         <button type="button" className="btn btn-primary btn-touch btn-block" onClick={() => requestSignOut()}>

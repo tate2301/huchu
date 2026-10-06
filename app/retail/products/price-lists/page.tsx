@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Skeleton } from "@corelithzw/react";
 
@@ -11,12 +12,20 @@ import {
   ColumnName,
   ColumnRowAction,
 } from "@/components/management/ui";
-import { ChangePriceDialog, type RetailProduct } from "@/components/retail/product-dialogs";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { fetchJson } from "@/lib/api-client";
 import { formatRetailDate } from "@/lib/retail/words";
 
-type PricedProduct = RetailProduct & { pricedAt: string | null };
+/** A product on the range, as `GET /api/v2/retail/catalog` lists it (PRD-05 replaces this page). */
+type PricedProduct = {
+  id: string;
+  name: string;
+  sku: string;
+  barcode: string | null;
+  unitPrice: number;
+  taxPercent: number;
+  pricedAt: string | null;
+};
 
 const WIDTH = 960;
 
@@ -24,13 +33,14 @@ const WIDTH = 960;
  * Prices — what every product sells for, and the one place to change it.
  *
  * A read-only `ColumnList` under the toolbar: the product's name (to its
- * record) and code, when its price last changed, the was-price, the price and
- * the VAT. The page's one verb, Change price, sits at the end of each row and
- * opens the same dialog the product's record does.
+ * record) and code, when its price last changed, the price and the VAT. The
+ * page's one verb, Change price, sits at the end of each row and opens Edit a
+ * product over the list.
  */
 export default function RetailPricesPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [search, setSearch] = useState("");
-  const [pricing, setPricing] = useState<RetailProduct | null>(null);
 
   const productsQuery = useQuery({
     queryKey: ["retail-pricing-catalog"],
@@ -74,7 +84,6 @@ export default function RetailPricesPage() {
             columns={[
               { id: "product", label: "Product" },
               { id: "changed", label: "Changed", hideBelow: "md" },
-              { id: "was", label: "Was", align: "end", hideBelow: "sm" },
               { id: "price", label: "Price", align: "end" },
               { id: "vat", label: "VAT", align: "end", hideBelow: "md" },
               { id: "act", label: "" },
@@ -92,11 +101,6 @@ export default function RetailPricesPage() {
                 changed: (
                   <ColumnFigure tone="muted">{formatRetailDate(product.pricedAt) || "Never"}</ColumnFigure>
                 ),
-                was: product.compareAtPrice ? (
-                  <ColumnFigure tone="muted">
-                    <span className="line-through">{retailMoney(product.compareAtPrice)}</span>
-                  </ColumnFigure>
-                ) : null,
                 price: <ColumnFigure>{retailMoney(product.unitPrice)}</ColumnFigure>,
                 vat: <ColumnFigure tone="muted">{`${product.taxPercent}%`}</ColumnFigure>,
                 act: (
@@ -105,7 +109,7 @@ export default function RetailPricesPage() {
                       type="button"
                       size="sm"
                       variant="secondary"
-                      onClick={() => setPricing(product)}
+                      onClick={() => router.push(`${pathname}?sheet=product-edit&id=${product.id}`)}
                     >
                       Change price
                     </Button>
@@ -116,8 +120,6 @@ export default function RetailPricesPage() {
           />
         )}
       </RecordListShell>
-
-      <ChangePriceDialog product={pricing} onOpenChange={(open) => !open && setPricing(null)} />
     </>
   );
 }

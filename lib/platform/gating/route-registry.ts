@@ -229,11 +229,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/management/users/password-reset", featureKey: "admin.user-management.password-reset" },
   { scope: "page", prefix: "/management/users/role-change", featureKey: "admin.user-management.role-change" },
   { scope: "page", prefix: "/management/users", featureKey: "admin.user-management.directory" },
-  { scope: "page", prefix: "/user-management/create", featureKey: "admin.user-management.create" },
-  { scope: "page", prefix: "/user-management/status", featureKey: "admin.user-management.status" },
-  { scope: "page", prefix: "/user-management/password-reset", featureKey: "admin.user-management.password-reset" },
-  { scope: "page", prefix: "/user-management/role-change", featureKey: "admin.user-management.role-change" },
-  { scope: "page", prefix: "/user-management", featureKey: "admin.user-management.directory" },
   { scope: "page", prefix: "/shift-report", featureKey: "ops.shift-report.submit" },
   { scope: "page", prefix: "/plant-report", featureKey: "ops.plant-report.submit" },
   // The production dashboard is built entirely on plant reports; gate it with
@@ -475,6 +470,9 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/retail/shifts", featureKey: "retail.shifts" },
   { scope: "api", prefix: "/api/v2/retail/pos", featureKey: "retail.pos" },
   { scope: "api", prefix: "/api/v2/retail/insights", featureKey: "retail.reports" },
+  // Setup › Fiscal device (SET-08): its settings and its actions (connect, test, close a day).
+  { scope: "api", prefix: "/api/v2/retail/settings/fiscal", featureKey: "accounting.zimra.fiscalisation" },
+  { scope: "api", prefix: "/api/v2/retail/fiscal", featureKey: "accounting.zimra.fiscalisation" },
   { scope: "api", prefix: "/api/v2/retail", featureKey: "retail.core" },
   { scope: "api", prefix: "/api/v2/thrift", featureKey: "retail.core" },
   // SS-1.1 — the till's own v2 collection endpoint, which sits outside the

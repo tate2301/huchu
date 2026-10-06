@@ -62,8 +62,8 @@ export type Route = {
   /**
    * This path is an alias and the pass is landing somewhere else.
    *
-   * There are more of these than anybody expects — `/user-management/*` and
-   * `/settings/*` are five redirects each into `/preferences/organization/*`,
+   * There are more of these than anybody expects — `/settings/*` is five
+   * redirects into `/preferences/organization/*`,
    * `/stores` lands on `/stores/dashboard`, `/schools/finance/waivers` on the
    * ledger it is a tab of. `visit()` treats an unexpected destination as a
    * failure, which is right for a route that should have served a page, so an

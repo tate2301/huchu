@@ -26,6 +26,9 @@ describe("retail page prefixes", () => {
     ["/retail/accounts", "crm.customers"],
     ["/retail/insights/sales", "retail.reports"],
     ["/retail/manage/fiscal", "accounting.zimra.fiscalisation"],
+    ["/api/v2/retail/fiscal/connect", "accounting.zimra.fiscalisation"],
+    ["/api/v2/retail/settings/fiscal", "accounting.zimra.fiscalisation"],
+    ["/api/v2/retail/settings/receipts", "retail.core"],
     ["/retail/manage/tills", "retail.core"],
     ["/retail/setup", "retail.core"],
   ])("%s is gated on %s", (path, key) => {

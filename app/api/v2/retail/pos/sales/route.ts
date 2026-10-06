@@ -36,10 +36,11 @@ import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "
 import { postedChange } from "@/lib/retail/sale-totals";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
+import { fiscalSaleRefusal } from "@/lib/retail/fiscal-settings";
 import { saleReceipt } from "@/lib/retail/receipt-settings";
 import { approverSchema, approvalFor, replayApproval, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
-import { offlineDiscountReview } from "@/lib/retail/till-rule-words";
+import { offlineDiscountReview, REPLAY_AHEAD_REVIEW } from "@/lib/retail/till-rule-words";
 
 const saleLineSchema = z.object({
   /**
@@ -465,8 +466,21 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = saleSchema.parse(body);
-    const unpaired = unpairedSaleGate(device, input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null);
+    // A replay's date is the till's word, but never ahead of the server's clock: a sale dated after it
+    // arrived goes in when it arrived, for review, so no receipt (nor those signed after it) is dated
+    // ahead (SET-08).
+    const arrived = new Date();
+    const claimedAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null;
+    const datedAhead = claimedAt !== null && claimedAt.getTime() > arrived.getTime();
+    const replaySoldAt = datedAhead ? arrived : claimedAt;
+    const unpaired = unpairedSaleGate(device, replaySoldAt);
     if (unpaired.response) return unpaired.response;
+    // "If ZIMRA cannot be reached · Stop selling" (SET-08): a new sale waits for ZIMRA. A sale rung
+    // offline already happened and is taken in either way.
+    if (!input.offlineCreatedAt) {
+      const offline = await fiscalSaleRefusal(session.user.companyId);
+      if (offline) return NextResponse.json({ error: offline, code: "FISCAL_OFFLINE" }, { status: 409 });
+    }
     const shift = await prisma.retailShift.findFirst({
       where: {
         id: input.shiftId,
@@ -529,7 +543,7 @@ export async function POST(request: NextRequest) {
     // A liquor store's licence: no alcohol outside its hours, and none without
     // an ID check. Judged at the moment of sale, which for a replay is when the
     // till rang it.
-    const soldAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : new Date();
+    const soldAt = replaySoldAt ?? arrived;
     const ageRestricted = [...sellable.values()]
       .filter((product) => product.ageRestricted)
       .map((product) => product.name);
@@ -655,7 +669,6 @@ export async function POST(request: NextRequest) {
      * reason (OVERRIDDEN) are both explained; anything else is refused, and only
      * that last case is refused.
      */
-    const replaySoldAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null;
     const replayReview = replaySoldAt
       ? reviewReplayedPrices({
           lines: preNormalizedLines.map((line) => ({
@@ -725,6 +738,7 @@ export async function POST(request: NextRequest) {
           actorRole: session.user.role,
           decision: discountRule,
           approver: input.approver,
+          place: { registerId: device.registerId },
           review: (reason) => offlineDiscountReview(reason, tillRules.maxCashierDiscountPercent.toFixed(2)),
         })
       : {
@@ -733,6 +747,7 @@ export async function POST(request: NextRequest) {
             actorRole: session.user.role,
             decision: discountRule,
             approver: input.approver,
+            place: { registerId: device.registerId },
           }),
           review: null,
         };
@@ -944,7 +959,7 @@ export async function POST(request: NextRequest) {
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
-    const { sale, accounting } = await createRetailSaleTransaction({
+    const { sale, accounting, fiscal: assigned } = await createRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -957,7 +972,12 @@ export async function POST(request: NextRequest) {
       shiftId: shift.id,
       siteId: site.id,
       device: { id: device.id, registerId: device.registerId },
-      reviewReason: [unpaired.reviewReason, ruleReview, ceilingRefusal ? `${ceilingRefusal} Given while offline.` : null]
+      reviewReason: [
+        unpaired.reviewReason,
+        datedAhead ? REPLAY_AHEAD_REVIEW : null,
+        ruleReview,
+        ceilingRefusal ? `${ceilingRefusal} Given while offline.` : null,
+      ]
         .filter(Boolean)
         .join(" ") || null,
       customerName: resolvedCustomerName,
@@ -1012,13 +1032,16 @@ export async function POST(request: NextRequest) {
     const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
 
     /*
-      The sale goes onto the fiscal chain here, after it has committed, rung
-      now or replayed from the offline queue alike. Never fails the sale: a shop
-      with no device gets SKIPPED, and a refusal is a row somebody can replay.
+      The sale's commit settled its fiscal day and signed its receipt (SET-08),
+      rung now or replayed from the offline queue alike: it goes to ZIMRA
+      here, once committed. Never fails the sale: a shop with no device gets
+      SKIPPED, and a receipt ZIMRA did not take is sent again by the fiscal
+      worker.
     */
     const fiscal = await fiscaliseAfterPosting({
       companyId: session.user.companyId,
       saleId: sale.id,
+      assigned,
     });
     // The receipt the till prints (SET-07): the settings in force and the fiscal line just signed.
     const receipt = await saleReceipt(session.user.companyId, sale.id);

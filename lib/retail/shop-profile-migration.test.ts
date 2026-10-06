@@ -6,7 +6,7 @@
  * the business type is an enum with exactly two labels, a category's
  * percentages stay in range, a product survives its category being removed,
  * and a company cannot have two categories with one name. The licence-hours
- * columns it added went in `20261006090000_retail_licence_hours_and_held_release`.
+ * columns it added went in `20261006120000_retail_licence_hours_and_held_release`.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

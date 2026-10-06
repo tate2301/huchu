@@ -624,8 +624,8 @@ export function SaleScreen({ id }: { id: string }) {
  * (a refund over the limit, a void the rule locks) and the person selling may
  * not approve it, they pick who approves and that manager types their PIN. The
  * server decides again: a 409 `needsApprover` opens the fields with its
- * sentence, a refused PIN or person is cleared, and a locked PIN (423) is
- * cleared so another manager approves. The PIN lives in this dialog only.
+ * sentence, a refused PIN or person is cleared, and a locked PIN (423), locked
+ * until a new one is sent (ADM-03), is cleared so another manager approves. The PIN lives in this dialog only.
  */
 function useManagerPin(predicted: string | null) {
   const { approvers } = useTill();
@@ -648,8 +648,9 @@ function useManagerPin(predicted: string | null) {
       const message = getApiErrorMessage(error);
       if (!(error instanceof ApiError)) return message;
       if (error.status === 423) {
+        // ADM-03: locked until a new PIN is sent, so somebody else approves.
         setPin("");
-        return message;
+        return chosen ? `${firstName(chosen.name)}’s PIN is locked until a new one is sent. Another manager can approve it.` : message;
       }
       const details = error.details as { needsApprover?: boolean; reason?: string; fieldErrors?: { pin?: string; approver?: string } } | undefined;
       if (error.status === 409 && details?.needsApprover) {

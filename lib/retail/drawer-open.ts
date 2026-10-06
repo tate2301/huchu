@@ -35,6 +35,7 @@ export async function openDrawerWithoutSale(input: {
     actorRole: actor.userRole,
     decision: checkTillRule(rules, { act: "drawer" }),
     approver: input.approver,
+    place: { registerId: device.registerId },
   });
   const openedAt = input.now ?? new Date();
   const shift = await prisma.retailShift.findFirst({

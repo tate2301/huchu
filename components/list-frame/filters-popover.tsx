@@ -10,13 +10,14 @@ import { ChevronRight, Funnel } from "@/lib/icons";
 import { isPeriodValue } from "@/lib/reports/list-query";
 import { PERIOD_PRESETS } from "@/lib/reports/types";
 
-import { PERIOD_LABELS, filterValueLabel, type DrawnFilter } from "./model";
+import { PERIOD_LABELS, filterValueLabel, heldFilters, type DrawnFilter } from "./model";
 
 /**
  * Filters (00-foundations 5.4.4 items 2 and 3): the primary chips on the
  * toolbar, and the Filters button with its popover of every other filter. A
  * row in the popover opens the same option menu as its chip, nested. The
- * primary filters join the popover only once they have folded off the row.
+ * primary filters join the popover once they have folded off the row, or
+ * always when the list has no other filters.
  */
 
 /** The option list of one filter: `any` first, a check on the current one; a period adds "Choose dates…". */
@@ -133,7 +134,7 @@ export function FiltersPopover({
   onClearAll: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const rows = filters.filter((filter) => folded || !filter.primary);
+  const rows = heldFilters(filters, folded);
   if (rows.length === 0) return null;
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>

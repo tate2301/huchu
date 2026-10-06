@@ -61,7 +61,7 @@ const NULLABLE_PRICING = new Set(["Product.costPrice", "Product.maxDiscountPerce
 const NEW_COLUMNS: Array<[table: string, column: string, dataType: string, nullable: boolean]> = [
   ["PriceList", "taxInclusive", "boolean", false],
   ["Product", "barcode", "text", true],
-  // Nullable since 20261006090000: null follows the category.
+  // Nullable since 20261006120000: null follows the category.
   ["Product", "ageRestricted", "boolean", true],
   ["Product", "returnable", "boolean", false],
   ["Product", "depositAmount", "numeric", true],
@@ -258,7 +258,7 @@ describe("the price engine's new columns exist, typed and nullable as declared",
    * otherwise. A `taxInclusive` that defaulted to true would restate every price
    * list a tenant already had.
    */
-  // `Product.ageRestricted` has no default since 20261006090000: null follows the category.
+  // `Product.ageRestricted` has no default since 20261006120000: null follows the category.
   it.each([
     ["PriceList", "taxInclusive"],
     ["Product", "returnable"],

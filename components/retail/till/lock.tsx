@@ -4,9 +4,15 @@
  * The lock: the sale waits under it, the cashier's PIN opens it.
  *
  * The session stays open while locked; the PIN is checked by `pos/pin/unlock`,
- * which grants nothing and counts wrong guesses. The till locks on Lock, on L,
- * and after five idle minutes. "Someone else" ends the session and goes to
- * "Who is selling?"; the shift stays open for whoever comes back to it.
+ * which grants nothing and counts wrong guesses. Five wrong in a row lock the
+ * PIN until a manager sends a new one (ADM-03); the password still opens the
+ * till. The till locks on Lock, on L, and after five idle minutes. "Someone
+ * else" ends the session and goes to "Who is selling?"; the shift stays open
+ * for whoever comes back to it.
+ *
+ * A PIN somebody sent from People is the person's to replace on first use
+ * (ADM-03): signed in with it, or unlocking with it, the till asks them to
+ * choose their own before it opens (`pos/pin/change`).
  */
 
 import {
@@ -14,6 +20,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -24,7 +31,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Key, UserSwitch } from "@/lib/icons";
-import { count, firstName, hhmm, pairedWhen } from "./format";
+import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
+import { count, firstName, pairedWhen } from "./format";
 import { Avatar, ErrorLine, GateSide, Keypad, KeysPaused, PinDots, useKeypadKeys, type KeypadKey } from "./parts";
 import { useSignOut } from "./sign-out";
 import { useTill } from "./state";
@@ -35,12 +43,14 @@ const LOCK_STORAGE_KEY = "retail_pos_till_locked";
 /** Five minutes of no touch, key or pointer. */
 export const POS_IDLE_LOCK_MS = 5 * 60 * 1000;
 
+/** `GET pos/pin`: the caller's own till PIN, never the digits. */
 export type TillPinStatus = {
-  configured: boolean;
+  hasPin: boolean;
+  /** Sent from People and not yet replaced: they choose their own before the till opens. */
+  mustChange: boolean;
+  /** Five wrong in a row: locked until a manager sends a new one. */
   locked: boolean;
-  lockedUntil: string | null;
   lastUnlockedAt: string | null;
-  updatedAt: string | null;
 };
 
 type LockValue = {
@@ -71,7 +81,13 @@ export function TillLockProvider({ children }: PropsWithChildren) {
     staleTime: 30_000,
   });
   const pinStatus = statusQuery.data?.data ?? null;
-  const pinConfigured = Boolean(pinStatus?.configured);
+  const pinConfigured = Boolean(pinStatus?.hasPin);
+  const { data: session } = useSession();
+  // Unlocked with a PIN that was sent: the PIN typed is the current one the change asks for.
+  const [sentPin, setSentPin] = useState<string | null>(null);
+  // Signed in with a PIN that was sent (the session says so), or unlocked with one: theirs comes first.
+  const mustChoose =
+    Boolean(pinStatus?.mustChange) && (sentPin !== null || session?.user?.pinMustChange === true);
 
   const lock = useCallback(() => {
     window.sessionStorage.setItem(LOCK_STORAGE_KEY, "1");
@@ -101,11 +117,11 @@ export function TillLockProvider({ children }: PropsWithChildren) {
     () => ({
       pinConfigured,
       pinStatus,
-      isLocked: isLocked && pinConfigured,
+      isLocked: (isLocked || mustChoose) && pinConfigured,
       lock,
       refreshPinStatus: () => void statusQuery.refetch(),
     }),
-    [isLocked, lock, pinConfigured, pinStatus, statusQuery],
+    [isLocked, lock, mustChoose, pinConfigured, pinStatus, statusQuery],
   );
 
   return (
@@ -114,12 +130,32 @@ export function TillLockProvider({ children }: PropsWithChildren) {
       <div className="under-lock" hidden={value.isLocked}>
         <KeysPaused paused={value.isLocked}>{children}</KeysPaused>
       </div>
-      {value.isLocked ? <LockScreen onUnlocked={unlock} /> : null}
+      {!value.isLocked ? null : mustChoose ? (
+        <ChoosePinScreen
+          currentPin={sentPin}
+          onChosen={() => {
+            setSentPin(null);
+            unlock();
+            void statusQuery.refetch();
+          }}
+        />
+      ) : (
+        <LockScreen
+          onUnlocked={(mustChange, typed) => {
+            if (mustChange) {
+              setSentPin(typed);
+              void statusQuery.refetch();
+              return;
+            }
+            unlock();
+          }}
+        />
+      )}
     </LockContext.Provider>
   );
 }
 
-function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
+function LockScreen({ onUnlocked }: { onUnlocked: (mustChange: boolean, typed: string) => void }) {
   const { data: session } = useSession();
   const { shiftHere, cart, context } = useTill();
   const { requestSignOut } = useSignOut();
@@ -127,42 +163,33 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  // A PIN already resting when the till locks shows the lockout straight away.
-  const [lockedUntil, setLockedUntil] = useState<number | null>(() =>
-    pinStatus?.locked && pinStatus.lockedUntil ? Date.parse(pinStatus.lockedUntil) : null,
-  );
+  // A PIN already locked when the till locks shows the lockout straight away.
+  const [pinLocked, setPinLocked] = useState(() => Boolean(pinStatus?.locked));
   const name = session?.user?.name ?? "You";
   const tillName = context?.till.name ?? "The till";
   const someoneElse = () => requestSignOut();
+  const titleId = useId();
   // Whatever had focus is hidden now: the lock takes it, so a keyboard starts here.
   const screen = useRef<HTMLDivElement>(null);
   useEffect(() => {
     screen.current?.focus();
   }, []);
 
-  // The keypad comes back once the PIN works again.
-  useEffect(() => {
-    if (!lockedUntil) return;
-    const timer = window.setTimeout(() => {
-      setLockedUntil(null);
-      setError(null);
-      refreshPinStatus();
-    }, Math.max(0, lockedUntil - Date.now()));
-    return () => window.clearTimeout(timer);
-  }, [lockedUntil, refreshPinStatus]);
-
   const submit = async (candidate: string) => {
     setChecking(true);
     try {
-      await fetchJson("/api/v2/retail/pos/pin/unlock", { method: "POST", body: JSON.stringify({ pin: candidate }) });
+      const answer = await fetchJson<{ mustChange?: boolean }>("/api/v2/retail/pos/pin/unlock", {
+        method: "POST",
+        body: JSON.stringify({ pin: candidate }),
+      });
       setPin("");
       setError(null);
-      onUnlocked();
+      onUnlocked(answer?.mustChange === true, candidate);
     } catch (caught) {
       setPin("");
-      const details = caught instanceof ApiError ? (caught.details as { attemptsRemaining?: number; retryAfterMs?: number } | undefined) : undefined;
+      const details = caught instanceof ApiError ? (caught.details as { attemptsRemaining?: number } | undefined) : undefined;
       if (caught instanceof ApiError && caught.status === 423) {
-        setLockedUntil(Date.now() + (details?.retryAfterMs ?? 15 * 60 * 1000));
+        setPinLocked(true);
         refreshPinStatus();
         return;
       }
@@ -178,7 +205,7 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
   };
 
   const onKey = (key: KeypadKey) => {
-    if (checking || lockedUntil) return;
+    if (checking || pinLocked) return;
     setError(null);
     if (key.kind === "delete") setPin((current) => current.slice(0, -1));
     else if (key.kind === "clear") setPin("");
@@ -188,7 +215,7 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
       if (next.length === 4) void submit(next);
     }
   };
-  useKeypadKeys(onKey, !lockedUntil);
+  useKeypadKeys(onKey, !pinLocked);
 
   const items = cart.reduce((sum, item) => sum + (Number.isInteger(item.quantity) ? item.quantity : 1), 0);
   const side = (
@@ -201,23 +228,18 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
   );
 
   return (
-    <div ref={screen} className="gate is-locked" role="dialog" aria-modal="true" aria-label={`${tillName} is locked`} tabIndex={-1}>
-      {lockedUntil ? (
+    <div ref={screen} className="gate is-locked" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      {pinLocked ? (
         <div className="gate-form">
           <div className="who-head">
             <Avatar name={name} image={session?.user?.image} size={40} />
             <div>
-              <h1 className="text-title">Too many wrong PINs</h1>
-              <p className="muted">
-                {firstName(name)}’s PIN works again at {hhmm(new Date(lockedUntil))}
-              </p>
+              <h1 id={titleId} className="text-title">{firstName(name)}’s PIN is locked</h1>
+              <p className="muted">{TILL_PIN_LOCKED}</p>
             </div>
           </div>
           <PinDots length={4} wrong label="PIN locked" />
-          <p>
-            Until then {firstName(name)} signs in with their password, or someone else sells. A manager can set a
-            new PIN under People in Management.
-          </p>
+          <p>Until a new one comes, {firstName(name)} signs in with their password, or someone else sells.</p>
           <div className="actions">
             <button type="button" className="btn btn-lg grow" onClick={() => requestSignOut({ next: "password" })}>
               <Key className="ic" />
@@ -234,7 +256,7 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
           <div className="who-head">
             <Avatar name={name} image={session?.user?.image} size={40} />
             <div>
-              <h1 className="text-title">{tillName} is locked</h1>
+              <h1 id={titleId} className="text-title">{tillName} is locked</h1>
               <p className="muted">
                 {name}
                 {shiftHere ? (
@@ -257,6 +279,111 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
         </div>
       )}
       {side}
+    </div>
+  );
+}
+
+/* ─── Choose your own PIN ──────────────────────────────────────────────── */
+
+/** The two tries did not match. */
+const MISMATCH = "Those two do not match. Try again.";
+
+/**
+ * "Choose your own PIN" (ADM-03): a PIN sent from People opens the till once,
+ * and then its holder picks four digits of their own, typed twice. Over the
+ * till like the lock, with nothing behind it reachable until it is done.
+ * `currentPin` is the sent PIN when it was typed at the lock; a session opened
+ * with it needs none (`chooseTillPin`).
+ */
+function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; onChosen: () => void }) {
+  const { data: session } = useSession();
+  const { context } = useTill();
+  const { requestSignOut } = useSignOut();
+  const [first, setFirst] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const name = session?.user?.name ?? "You";
+  const tillName = context?.till.name ?? "The till";
+  const titleId = useId();
+  const screen = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    screen.current?.focus();
+  }, []);
+
+  const refuse = (sentence: string) => {
+    setFirst(null);
+    setPin("");
+    setError(sentence);
+  };
+
+  const save = async (chosen: string) => {
+    setSaving(true);
+    try {
+      await fetchJson("/api/v2/retail/pos/pin/change", {
+        method: "POST",
+        body: JSON.stringify({ newPin: chosen, ...(currentPin ? { currentPin } : {}) }),
+      });
+      onChosen();
+    } catch (caught) {
+      const fieldErrors =
+        caught instanceof ApiError ? (caught.details as { fieldErrors?: Record<string, string> } | undefined)?.fieldErrors : undefined;
+      refuse(fieldErrors?.newPin ?? fieldErrors?.currentPin ?? getApiErrorMessage(caught));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onKey = (key: KeypadKey) => {
+    if (saving) return;
+    setError(null);
+    if (key.kind === "delete") return setPin((current) => current.slice(0, -1));
+    if (key.kind === "clear") return setPin("");
+    if (key.kind !== "digit" || pin.length >= 4) return;
+    const next = pin + key.value;
+    setPin(next);
+    if (next.length < 4) return;
+    if (first === null) {
+      setFirst(next);
+      setPin("");
+    } else if (next !== first) {
+      refuse(MISMATCH);
+    } else {
+      void save(next);
+    }
+  };
+  useKeypadKeys(onKey);
+
+  return (
+    <div ref={screen} className="gate is-locked" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <div className="gate-form">
+        <div className="who-head">
+          <Avatar name={name} image={session?.user?.image} size={40} />
+          <div>
+            <h1 id={titleId} className="text-title">{first === null ? "Choose your own PIN" : "Type it again"}</h1>
+            <p className="muted">
+              {first === null ? "Four digits only you know, in place of the one you were sent." : "The same four digits, to be sure."}
+            </p>
+          </div>
+        </div>
+        <PinDots length={pin.length} wrong={Boolean(error)} />
+        {error ? (
+          <ErrorLine large>{error}</ErrorLine>
+        ) : (
+          <span className="help">Not four of the same digit and not four in a row, like 1111 or 1234.</span>
+        )}
+        <Keypad onKey={onKey} disabled={saving} />
+        <button type="button" className="btn btn-lg" onClick={() => requestSignOut()}>
+          <UserSwitch className="ic" />
+          Someone else
+        </button>
+      </div>
+      <GateSide
+        lede={context ? `${context.till.name} at ${context.site.name}.` : tillName}
+        quiet={context ? `Paired ${pairedWhen(context.device.pairedAt)} by ${context.device.pairedBy}.` : ""}
+        step="done"
+        till={context?.till.name}
+      />
     </div>
   );
 }

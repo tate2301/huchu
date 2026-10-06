@@ -29,7 +29,6 @@ export default function robots(): MetadataRoute.Robots {
           "/compliance/",
           "/management/",
           "/reports/",
-          "/user-management/",
           "/attendance/",
           "/shift-report/",
           "/plant-report/",

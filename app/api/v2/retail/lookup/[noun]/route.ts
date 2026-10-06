@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, fieldErrorResponse, successResponse } from "@/lib/api-response";
 import { addLookupOption, LOOKUP_NOUNS, searchLookup, type LookupCtx } from "@/lib/retail/lookups";
+import { requestAddress } from "@/lib/retail/people/actor";
 import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 
 import { requireRetailSession, type RetailSession } from "../../_helpers";
@@ -15,12 +16,13 @@ import { requireRetailSession, type RetailSession } from "../../_helpers";
 
 type Params = { params: Promise<{ noun: string }> };
 
-function lookupCtx(session: NonNullable<RetailSession>): LookupCtx {
+function lookupCtx(session: NonNullable<RetailSession>, requestUrl: string): LookupCtx {
   return {
     companyId: session.user.companyId,
     userId: session.user.id,
     userName: session.user.name ?? null,
     session,
+    requestUrl,
   };
 }
 
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const answer = await searchLookup(lookupCtx(session), noun, { ...parsed.data, context });
+    const answer = await searchLookup(lookupCtx(session, requestAddress(request)), noun, { ...parsed.data, context });
     return answer.status === 200 ? successResponse(answer.body) : errorResponse(answer.body.error, answer.status);
   } catch (error) {
     console.error(`[API] GET /api/v2/retail/lookup/${noun} error:`, error);
@@ -65,7 +67,10 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 }
 
-const postBody = z.object({ fields: z.record(z.string(), z.string().max(500)) });
+const postBody = z.object({
+  fields: z.record(z.string(), z.string().max(500)),
+  context: z.record(z.string(), z.unknown()).optional(),
+});
 
 export async function POST(request: NextRequest, { params }: Params) {
   const { response, session } = await requireRetailSession(request);
@@ -79,14 +84,17 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (gate) return gate;
 
   let fields: Record<string, string>;
+  let context: Record<string, unknown> = {};
   try {
-    fields = postBody.parse(await request.json()).fields;
+    const parsedBody = postBody.parse(await request.json());
+    fields = parsedBody.fields;
+    context = parsedBody.context ?? {};
   } catch (error) {
     return errorResponse("Validation failed", 400, error instanceof z.ZodError ? error.issues : undefined);
   }
 
   try {
-    const answer = await addLookupOption(lookupCtx(session), noun, fields);
+    const answer = await addLookupOption(lookupCtx(session, requestAddress(request)), noun, fields, context);
     if (answer.status === 201) return successResponse(answer.body, 201);
     if (answer.status === 400) return fieldErrorResponse(answer.body.error, answer.body.fieldErrors);
     return errorResponse(answer.body.error, answer.status);

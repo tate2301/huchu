@@ -7,7 +7,8 @@
  * active person of the shop who holds the act's approve right
  * (`retail.sell:approve` for refunds, voids, discounts and the drawer), and the
  * four digits must match their `RetailTillPin`, with the till's lockout: five
- * wrong tries and it is locked (423).
+ * wrong tries and it is locked (423) until somebody sends them a new PIN
+ * (ADM-03, `checkTillPin`).
  *
  * The answers (C-31): 409 `{ error, needsApprover: true, reason }` when an
  * approval is missing or wrong — a wrong PIN and a person who may not approve
@@ -30,14 +31,14 @@
  * transaction: a wrong PIN rolls the act back but must still count.
  */
 
-import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { markActivityFailed } from "@/lib/activity/context";
 import { prisma } from "@/lib/prisma";
 import { canRetailRoleDo, type RetailAction, type RetailResource } from "@/lib/retail/permission-matrix";
-import { evaluateTillPinAttempt } from "@/lib/retail/till-pin";
+import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
+import { checkTillPin, type PinPlace } from "@/lib/retail/till-pin-attempt";
 import { TillRuleRefused, type TillRuleDecision } from "@/lib/retail/till-rules";
 
 export const approverSchema = z.object({
@@ -50,11 +51,6 @@ export type ApproverInput = z.infer<typeof approverSchema>;
 export type Approval = { id: string; name: string };
 
 export const WRONG_PIN = "That PIN is not right.";
-/**
- * Said without a duration: how long the lock lasts is ADM-03's rule (C-31:
- * until a new PIN is issued), which `evaluateTillPinAttempt` carries.
- */
-export const PIN_LOCKED = "Too many tries. This manager's PIN is locked.";
 export const NOT_AN_APPROVER = "Pick someone who can approve this.";
 
 /** 409: the rules ask for a manager and none (or nobody who may) was given. The till opens its PIN dialog. */
@@ -87,39 +83,32 @@ export async function verifyManagerPin(input: {
   companyId: string;
   approver: ApproverInput;
   can?: [RetailResource, RetailAction];
+  /** The till it was typed at, for the lock's event and notification; none in the admin. */
+  place?: PinPlace;
   now?: Date;
 }): Promise<Approval> {
   const [resource, action] = input.can ?? ["retail.sell", "approve"];
-  const now = input.now ?? new Date();
-  const record = await prisma.retailTillPin.findFirst({
-    where: { companyId: input.companyId, userId: input.approver.userId, user: { isActive: true, companyId: input.companyId } },
-    select: {
-      id: true,
-      pinHash: true,
-      failedAttempts: true,
-      lockedUntil: true,
-      user: { select: { id: true, name: true, email: true, role: true } },
-    },
+  const approver = await prisma.user.findFirst({
+    where: { id: input.approver.userId, companyId: input.companyId, isActive: true, retailTillPin: { isNot: null } },
+    select: { id: true, name: true, email: true, role: true },
   });
-  if (!record || !canRetailRoleDo(record.user.role, resource, action)) {
+  if (!approver || !canRetailRoleDo(approver.role, resource, action)) {
     throw new ApprovalRefused(NOT_AN_APPROVER, 409, "approver");
   }
 
-  const state = { failedAttempts: record.failedAttempts, lockedUntil: record.lockedUntil };
   // A locked PIN is refused before any hashing, so a script cannot time the difference.
-  if (evaluateTillPinAttempt({ state, verified: null, now }).decision === "LOCKED") {
-    throw new ApprovalRefused(PIN_LOCKED, 423, null);
-  }
-  const verified = await bcrypt.compare(input.approver.pin, record.pinHash);
-  const outcome = evaluateTillPinAttempt({ state, verified, now });
-  await prisma.retailTillPin.update({
-    where: { id: record.id },
-    data: { failedAttempts: outcome.next.failedAttempts, lockedUntil: outcome.next.lockedUntil },
-    select: { id: true },
+  const checked = await checkTillPin({
+    companyId: input.companyId,
+    userId: approver.id,
+    pin: input.approver.pin,
+    place: input.place ?? {},
+    opens: false,
+    now: input.now,
   });
-  if (outcome.decision === "REJECTED_NOW_LOCKED") throw new ApprovalRefused(PIN_LOCKED, 423, null);
-  if (outcome.decision !== "ACCEPTED") throw new ApprovalRefused(WRONG_PIN, 409, "pin");
-  return { id: record.user.id, name: record.user.name || record.user.email || "A manager" };
+  if (checked.decision === "NO_PIN") throw new ApprovalRefused(NOT_AN_APPROVER, 409, "approver");
+  if (checked.decision === "LOCKED" || checked.decision === "REJECTED_NOW_LOCKED") throw new ApprovalRefused(TILL_PIN_LOCKED, 423, null);
+  if (checked.decision !== "ACCEPTED") throw new ApprovalRefused(WRONG_PIN, 409, "pin");
+  return { id: approver.id, name: approver.name || approver.email || "A manager" };
 }
 
 /**
@@ -134,12 +123,14 @@ export async function approvalFor(input: {
   decision: TillRuleDecision;
   approver?: ApproverInput | null;
   can?: [RetailResource, RetailAction];
+  /** The till the approver typed their PIN at. */
+  place?: PinPlace;
 }): Promise<Approval | null> {
   const [resource, action] = input.can ?? ["retail.sell", "approve"];
   if (!input.decision.needsApprover) return null;
   if (input.actorRole && canRetailRoleDo(input.actorRole, resource, action)) return null;
   if (!input.approver) throw new ApprovalNeeded(input.decision.reason);
-  return verifyManagerPin({ companyId: input.companyId, approver: input.approver, can: input.can });
+  return verifyManagerPin({ companyId: input.companyId, approver: input.approver, can: input.can, place: input.place });
 }
 
 /**
@@ -155,6 +146,8 @@ export async function replayApproval(input: {
   actorRole: string | null | undefined;
   decision: TillRuleDecision;
   approver?: ApproverInput | null;
+  /** The till the queue came from. */
+  place?: PinPlace;
   /** The review line, from the reason the rules asked. */
   review: (reason: string) => string;
 }): Promise<{ approvedBy: Approval | null; review: string | null }> {

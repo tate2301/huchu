@@ -105,14 +105,23 @@ export function ProductTile({
     <button
       type="button"
       className="tile"
-      aria-label={[item.name, usd(item.unitPrice), ...tags, status].join(", ")}
+      aria-label={[
+        item.name,
+        usd(item.unitPrice),
+        ...(item.wasPrice !== null && item.wasPrice > item.unitPrice ? [`was ${usd(item.wasPrice)}`] : []),
+        ...tags,
+        status,
+      ].join(", ")}
       aria-disabled={off || undefined}
       onClick={() => {
         if (!off) onAdd(item);
       }}
     >
       <ProductPreview name={item.name} imageUrl={item.imageUrl} />
-      <span className="p">{usd(item.unitPrice)}</span>
+      <span className="p">
+        {usd(item.unitPrice)}
+        {item.wasPrice !== null && item.wasPrice > item.unitPrice ? <s className="was">{usd(item.wasPrice)}</s> : null}
+      </span>
       <span className="n">{item.name}</span>
       {tags.length ? (
         <span className="t">

@@ -220,6 +220,12 @@ function siteChangedWords(payload: Payload): ActivityWords {
 }
 
 /** The table. Keyed by event type; area specs add theirs here. */
+/** "a bookkeeper", "an owner" from a People role (`OWNER`, `STOCK_CLERK`). */
+function roleWords(role: string): string {
+  const word = role === "STOCK_CLERK" ? "stock clerk" : role.toLowerCase();
+  return /^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`;
+}
+
 const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWords> = {
   [RETAIL_AUDIT_EVENTS.recordEdited]: recordEditedWords,
   [RETAIL_AUDIT_EVENTS.movementsReversed]: movementsReversedWords,
@@ -230,6 +236,19 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
     tone: "bad",
   }),
   [RETAIL_AUDIT_EVENTS.settingsChanged]: settingsChangedWords,
+  // "Added at US$2.10, 48 in stock at Harare Main Branch" (PRD-03).
+  [RETAIL_AUDIT_EVENTS.productCreated]: (payload) => {
+    const opening = amount(payload.openingStock);
+    const stock = opening ? `, ${formatCount(opening)} in stock${text(payload.site) ? ` at ${text(payload.site)}` : ""}` : "";
+    return { what: `Added at ${moneyWords(payload.price)}${stock}`, tone: "ok" };
+  },
+  // "Changed the Retail price from US$17.50 to US$18.25"; "Put on the Wholesale list at US$16.90" (PRD-03).
+  [RETAIL_AUDIT_EVENTS.priceChanged]: (payload) => {
+    const list = text(payload.list) ?? "list";
+    if (text(payload.from) === null) return { what: `Put on the ${list} list at ${moneyWords(payload.to)}`, tone: "info" };
+    if (text(payload.to) === null) return { what: `Taken off the ${list} list`, tone: "info" };
+    return { what: `Changed the ${list} price from ${moneyWords(payload.from)} to ${moneyWords(payload.to)}`, tone: "info" };
+  },
   // "Set the ZiG rate to 27.10, from 26.80"; "Updates the ZiG rate by hand" (W-05).
   [RETAIL_AUDIT_EVENTS.zigRateSet]: (payload) => ({
     what:
@@ -249,6 +268,63 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
   [RETAIL_AUDIT_EVENTS.postingAccountAdded]: (payload) => ({
     what: `Added the account ${text(payload.label) ?? ""}`.trim(),
     tone: "ok",
+  }),
+  // "Connected the fiscal device 0441-2209 to ZIMRA" (SET-08).
+  [RETAIL_AUDIT_EVENTS.fiscalConnected]: (payload) => ({
+    what: `Connected the fiscal device${text(payload.deviceId) ? ` ${text(payload.deviceId)}` : ""} to ZIMRA`,
+    tone: "ok",
+  }),
+  // "Closed fiscal day 214, US$1,284.50"; "… with the last shift" (SET-08).
+  [RETAIL_AUDIT_EVENTS.fiscalDayClosed]: (payload) => ({
+    what: `Closed fiscal day ${text(payload.dayNo) ?? ""}${text(payload.total) ? `, ${text(payload.total)}` : ""}${
+      payload.how === "LAST_SHIFT" ? ", with the last shift" : ""
+    }`,
+    tone: "info",
+  }),
+  // People (ADM-02): "Invited Ruvimbo Chari as a bookkeeper", "Sent the invite again".
+  [RETAIL_AUDIT_EVENTS.personInvited]: (payload) =>
+    payload.again
+      ? { what: "Sent the invite again", tone: "info" }
+      : {
+          what: `Invited ${text(payload.name) ?? "someone"}${text(payload.role) ? ` as ${roleWords(text(payload.role)!)}` : ""}`,
+          tone: "info",
+        },
+  [RETAIL_AUDIT_EVENTS.personJoined]: (payload) => ({
+    what: payload.how === "pin" ? "Joined with their till PIN" : payload.how === "sign-in" ? "Joined by signing in" : "Joined by their link",
+    tone: "ok",
+  }),
+  // "Changed role from Manager to Cashier"; several fields: "Changed role, sites".
+  [RETAIL_AUDIT_EVENTS.personChanged]: (payload) => {
+    const changes = Array.isArray(payload.changes) ? (payload.changes as Payload[]) : [];
+    if (changes.length === 1) {
+      const [change] = changes;
+      return {
+        what: `Changed ${(text(change!.label) ?? "a detail").toLowerCase()} from ${text(change!.from) || "nothing"} to ${text(change!.to) || "nothing"}`,
+        tone: "info",
+      };
+    }
+    return { what: `Changed ${changes.map((change) => (text(change.label) ?? "").toLowerCase()).join(", ")}`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.personPinSent]: (payload) => ({
+    what: payload.wasLocked ? "Sent a new PIN for a locked one" : "Sent a new PIN",
+    tone: "info",
+  }),
+  [RETAIL_AUDIT_EVENTS.personAccessRemoved]: (payload) => {
+    const shifts = Array.isArray(payload.closedShifts) ? payload.closedShifts.map(String) : [];
+    return {
+      what: shifts.length ? `Removed their access, closing ${shifts.join(", ")} without a count` : "Removed their access",
+      tone: "bad",
+    };
+  },
+  [RETAIL_AUDIT_EVENTS.personAccessRestored]: (payload) => ({
+    what: payload.pin ? "Gave their access back, with a new PIN" : "Gave their access back",
+    tone: "ok",
+  }),
+  // Till PINs (ADM-03): "Chose a PIN"; "PIN locked after 5 wrong tries at Back till".
+  [RETAIL_AUDIT_EVENTS.pinChosen]: () => ({ what: "Chose a PIN", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.pinLocked]: (payload) => ({
+    what: `PIN locked after 5 wrong tries${text(payload.registerName) ? ` at ${text(payload.registerName)}` : ""}`,
+    tone: "warn",
   }),
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,

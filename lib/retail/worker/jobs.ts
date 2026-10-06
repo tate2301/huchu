@@ -3,6 +3,7 @@ import { drainOutbox, drainWords } from "@/lib/retail/messages/drain";
 import { POSTING_RUN_AT } from "@/lib/retail/posting-schedule";
 import { runScheduledPosting } from "@/lib/retail/posting-settings";
 import { applyRbzRate } from "@/lib/retail/rbz-rate";
+import { closeWaitingFiscalDays } from "@/lib/retail/fiscal-settings";
 
 import type { RetailJob } from "./schedule";
 
@@ -11,7 +12,7 @@ import type { RetailJob } from "./schedule";
  * unit that owns one adds it here: 02:00 the bin's purge (ADM-07), 06:00 the
  * licence reminder (ADM-08, C-05), 07:00 the RBZ rate (SET-05, when
  * configured), 23:00 the posting runs (SET-09), every five minutes the
- * message outbox (SET-07, C-03).
+ * message outbox (SET-07, C-03) and the fiscal days left to close (SET-08).
  */
 export const RETAIL_JOBS: RetailJob[] = [
   {
@@ -40,5 +41,11 @@ export const RETAIL_JOBS: RetailJob[] = [
     name: "message-outbox",
     when: { everyMinutes: 5 },
     run: async (now) => drainWords(await drainOutbox(now)),
+  },
+  {
+    // A fiscal day whose last shift closed while ZIMRA was silent: its report goes once ZIMRA answers (SET-08).
+    name: "fiscal-days",
+    when: { everyMinutes: 5 },
+    run: () => closeWaitingFiscalDays(),
   },
 ];

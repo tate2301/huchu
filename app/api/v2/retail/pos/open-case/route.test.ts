@@ -191,6 +191,17 @@ describe("opening a case where the line is", () => {
     expect(await openCase(lionCaseId, 1)).toMatchObject({ status: 404, body: { error: "No case is linked to this product." } });
   });
 
+  it("leaves a case set not to break at the till alone, on the shelf and at the line", async () => {
+    await prisma.product.update({ where: { id: lionCaseId }, data: { breakAtTill: false } });
+    try {
+      // No singles of Lion and no case the till may open: it is off the shelf.
+      expect((await shelf()).has(lionId)).toBe(false);
+      expect(await openCase(lionId, 12)).toMatchObject({ status: 404, body: { error: "No case is linked to this product." } });
+    } finally {
+      await prisma.product.update({ where: { id: lionCaseId }, data: { breakAtTill: true } });
+    }
+  });
+
   it("is off, on the shelf and at the line, when the shop does not sell cases and singles", async () => {
     await prisma.retailShopProfile.update({ where: { companyId }, data: { casesAndSingles: false } });
     const lines = await shelf();

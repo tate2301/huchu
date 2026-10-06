@@ -38,6 +38,8 @@ export type AuthSessionClaims = {
   /** A `till-pin` session (10-setup W-04 step 7): the device it was signed in on, and its till. */
   deviceId?: string;
   registerId?: string;
+  /** The `till-pin` session was opened with an issued PIN: they choose their own before the till opens (ADM-03). */
+  pinMustChange?: boolean;
 };
 
 export type AuthenticatedSession = Session & {

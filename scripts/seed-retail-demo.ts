@@ -10,7 +10,7 @@
  *
  * ## What it builds
  *
- * A liquor store priced in **USD at 15% VAT**, taking **cash, card, EcoCash and
+ * A liquor store priced in **USD at 15.5% VAT**, taking **cash, card, EcoCash and
  * ZWG** — the four tenders a Zimbabwean bottle store actually sees — across
  * `--days` of history with a working day-of-week and month-end shape. Staff are
  * real users who can sign in: a manager, two cashiers and a stock clerk, so the
@@ -41,7 +41,11 @@
 
 import "dotenv/config"
 
+import { execFileSync } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { Prisma, WorkspaceProfile, type NotificationType, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
@@ -53,7 +57,6 @@ import { prisma } from "@/lib/prisma"
 import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { activeRetailPriceList } from "@/lib/retail/shelf-pricing"
-import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 import { tradingDayKey } from "@/lib/retail/z-report"
 import {
   auditCashMoved,
@@ -64,6 +67,7 @@ import {
   writeRetailAuditEvent,
 } from "@/lib/retail/audit"
 import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services"
+import { hashInviteToken, INVITE_DAYS } from "@/lib/retail/people/invite"
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -76,7 +80,7 @@ function readArg(name: string): string | undefined {
 }
 
 /**
- * A Harare bottle store's shelf, priced in USD at 15% VAT (20-products 3.5).
+ * A Harare bottle store's shelf, priced in USD at 15.5% VAT (20-products 3.5 draws 15%; ZIMRA takes 15.5% since January).
  *
  * `sold30` is exactly what the Products list shows under "Sold, 30 days": the
  * last 30 days of history are dealt out of these quotas, so the figure, the
@@ -136,7 +140,8 @@ const PACKS: Array<[pack: string, single: string, size: number]> = [
   ["COKE-6PK", "COKE-500", 6],
 ]
 
-const VAT_PERCENT = "15.00"
+// ZIMRA's standard rate since 1 January 2026 (VAT15_5, its taxID 1): the till signs only a rate ZIMRA maps (SET-08).
+const VAT_PERCENT = "15.50"
 
 /**
  * The ex-VAT amount inside a VAT-inclusive figure.
@@ -491,6 +496,15 @@ async function main() {
   type Stocked = { inventoryItemId: string; productId: string; unit: string }
   const stocked = new Map<string, Stocked>()
 
+  // PRD-03: the default list is a flag; every product goes on it and the till prices from it.
+  const shelfList = await prisma.priceList.upsert({
+    where: { companyId_name: { companyId, name: "Shelf prices" } },
+    update: { isDefault: true, isActive: true },
+    create: { companyId, name: "Shelf prices", kind: "RETAIL", taxInclusive: true, isActive: true, isDefault: true },
+    select: { id: true },
+  })
+  const suppliers = await seedSuppliers(companyId)
+
   const borrowdaleLocation =
     (await prisma.stockLocation.findFirst({ where: { siteId: borrowdale.id, code: "SHOP" } })) ??
     (await prisma.stockLocation.create({
@@ -522,32 +536,21 @@ async function main() {
           select: { id: true, unit: true },
         })
 
-    /*
-      Ranged through the one writer, not by hand.
-
-      S-4. This block used to upsert a `RetailCatalogItem` — a second item
-      master the till stopped reading at S-4b, which left this seed building a
-      tenant whose shelves were empty on every surface that matters.
-      `upsertShelfListing` is what the back-office catalogue screen calls, so
-      the demo tenant is now assembled by exactly the path a shopkeeper's own
-      first morning goes through: a `Product`, a "Shelf prices" entry against
-      it, and the site's `InventoryItem` claimed by it.
-    */
-    const productId = await upsertShelfListing({
+    // The product, its price on the default list, and the line claimed by it (PRD-03: written directly).
+    const productId = await seedShelfLine({
       companyId,
-      productId: null,
-      sku: entry.code,
+      listId: shelfList.id,
+      code: entry.code,
       name: entry.name,
-      inventoryItemId: item.id,
-      unitPrice: money(entry.price),
-      taxPercent: money(VAT_PERCENT),
+      itemId: item.id,
+      price: entry.price,
       barcode: `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
       // Zambezi and Bols are archived: off every till, their stock kept.
       isActive: !entry.archived,
       categoryId: categoryIds.get(entry.category) ?? null,
-      costPrice: money(entry.cost),
-      returnable: Boolean(entry.deposit),
-      depositAmount: entry.deposit ? money(entry.deposit) : null,
+      cost: entry.cost,
+      deposit: entry.deposit ?? null,
+      supplierId: suppliers.get(supplierOf(entry)) ?? null,
     })
     // Out of the bin, if a run before this one left it there.
     await prisma.product.updateMany({ where: { id: productId, archivedAt: { not: null } }, data: { archivedAt: null } })
@@ -562,7 +565,7 @@ async function main() {
   for (const [pack, single, size] of PACKS) {
     await prisma.product.update({
       where: { id: stocked.get(pack)!.productId },
-      data: { packOfId: stocked.get(single)!.productId, packSize: size },
+      data: { packOfId: stocked.get(single)!.productId, packSize: size, breakAtTill: true },
     })
   }
   /*
@@ -1264,13 +1267,17 @@ async function main() {
   await seedSites({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedTills(companyId)
   await seedStockPeople(companyId, passwordHash)
-  await seedTillPins(companyId, passwordHash)
+  await seedPins(companyId, passwordHash)
+  await seedPeople({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, passwordHash, reset })
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
+  await seedPriceHistory(companyId)
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
   await seedPayments(companyId)
   await seedPosting(companyId)
   await seedReceipts(companyId)
+  await seedFiscal(companyId)
+  await seedApprovals(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -1440,38 +1447,273 @@ async function seedTills(companyId: string) {
 }
 
 /**
- * SET-04: who sells at the tills, with their PINs, so a paired till's "Who is
- * selling?" offers Chipo D., Kuda B. and Farai M. Kuda Banda is a cashier the
- * admin area also seeds (upserted by email, so the two converge). The PINs are
- * demo values, printed here and nowhere else.
+ * ADM-03 `seedPins()`: the PINs testers type at a paired till, chosen (not
+ * issued) so "Who is selling?" opens the till at once. Demo values, printed
+ * here and nowhere else:
+ *
+ *   Tendai Mhlanga 1357 · Tafara Nyathi 2468 · Chipo Dube 1928
+ *   Kuda Banda 3746 · Rudo Moyo 5091 · Farai Moyo 6024 (locked)
+ *
+ * Kuda Banda is a cashier the admin area also seeds (upserted by email, so the
+ * two converge). Ruvimbo Chari has no PIN.
  */
 const TILL_PINS: Array<{ email: string; name: string; pin: string }> = [
-  { email: "chipo.till@bottlestore.test", name: "Chipo Dube", pin: "2580" },
-  { email: "kuda.till@bottlestore.test", name: "Kuda Banda", pin: "1470" },
-  { email: "farai.till@bottlestore.test", name: "Farai Moyo", pin: "3691" },
-  // The manager approves at the till with hers (SET-06).
-  { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", pin: "4826" },
+  { email: "owner@bottlestore.test", name: "Tendai Mhlanga", pin: "1357" },
+  { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", pin: "2468" },
+  { email: "chipo.till@bottlestore.test", name: "Chipo Dube", pin: "1928" },
+  { email: "kuda.till@bottlestore.test", name: "Kuda Banda", pin: "3746" },
+  { email: "rudo.stock@bottlestore.test", name: "Rudo Moyo", pin: "5091" },
+  { email: "farai.till@bottlestore.test", name: "Farai Moyo", pin: "6024" },
 ]
 
-async function seedTillPins(companyId: string, passwordHash: string) {
+async function seedPins(companyId: string, passwordHash: string) {
   const bcrypt = await import("bcryptjs")
   await prisma.user.upsert({
     where: { email: "kuda.till@bottlestore.test" },
     update: { name: "Kuda Banda", role: "CASHIER", companyId, isActive: true },
     create: { email: "kuda.till@bottlestore.test", name: "Kuda Banda", role: "CASHIER", companyId, password: passwordHash, isActive: true },
   })
+  // When each was last used (Last in on People): Chipo and Kuda selling now,
+  // Rudo 10:40, Tafara 12:31, Farai last night — and Farai's locked by five
+  // wrong tries on Back till at 08:12 today, until somebody sends a new one.
+  const now = Date.now()
+  const todayAt = (hour: number, minute: number) => new Date(Math.min(harareTime(0, hour, minute).getTime(), now - 60_000))
+  const used: Record<string, Date> = {
+    "chipo.till@bottlestore.test": new Date(now - 4 * 60_000),
+    "kuda.till@bottlestore.test": new Date(now - 6 * 60_000),
+    "rudo.stock@bottlestore.test": todayAt(10, 40),
+    "tafara.manager@bottlestore.test": todayAt(12, 31),
+    "farai.till@bottlestore.test": harareTime(1, 21, 40),
+  }
+  const lockedAt = todayAt(8, 12)
   for (const person of TILL_PINS) {
-    const user = await prisma.user.findFirst({ where: { companyId, email: person.email }, select: { id: true } })
+    const user = await prisma.user.findFirst({ where: { companyId, email: person.email }, select: { id: true, name: true, role: true } })
     if (!user) continue
     const pinHash = await bcrypt.hash(person.pin, 10)
-    await prisma.retailTillPin.upsert({
-      where: { userId: user.id },
-      update: { companyId, pinHash, failedAttempts: 0, lockedUntil: null },
-      create: { companyId, userId: user.id, pinHash },
+    const locked = person.email === "farai.till@bottlestore.test"
+    const state = {
+      companyId,
+      pinHash,
+      failedAttempts: locked ? 5 : 0,
+      lockedAt: locked ? lockedAt : null,
+      mustChange: false,
+      issuedById: null,
+      lastUnlockedAt: used[person.email] ?? null,
+    }
+    await prisma.retailTillPin.upsert({ where: { userId: user.id }, update: state, create: { userId: user.id, ...state } })
+    if (!locked) continue
+    // The lock's event, at 08:12 on Back till (once).
+    const event = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.pinLocked, createdAt: { gte: harareTime(0, 0, 0) } },
+      select: { id: true },
     })
+    if (!event) {
+      await writeRetailAuditEvent(prisma, {
+        actor: { companyId, userId: user.id, userName: user.name, userRole: user.role },
+        eventType: RETAIL_AUDIT_EVENTS.pinLocked,
+        entityType: "User",
+        entityId: user.id,
+        payload: { registerName: "Back till", source: "TILL" },
+      })
+      const written = await prisma.platformAuditEvent.findFirst({
+        where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.pinLocked },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      })
+      if (written) await prisma.platformAuditEvent.update({ where: { id: written.id }, data: { createdAt: lockedAt } })
+    }
   }
-  console.log(`  till PINs: ${TILL_PINS.map((person) => `${person.name} ${person.pin}`).join(", ")}`)
+  console.log(`  till PINs: ${TILL_PINS.map((person) => `${person.name} ${person.pin}`).join(", ")} (Farai locked at 08:12)`)
   await seedTillRules(companyId)
+}
+
+/**
+ * ADM-02. Setup › Staff and PINs as the PeopleList board draws it, with the
+ * test accounts of 98-decisions C-40: Tendai Sibanda stays the active stock
+ * clerk and Ruvimbo Chari the bookkeeper who signs in
+ * (`bookkeeper@bottlestore.test`), so the board's invited Ruvimbo is Tatenda
+ * Gumbo here — a cashier at Borrowdale invited two days ago with a PIN, whose
+ * link the run prints. Rufaro Ndlovu is the manager without access (C-44).
+ * Farai Moyo works at Borrowdale and Harare Main Branch (C-42). Phones as the
+ * board has them, in E.164. Each person's `RETAIL_PERSON.INVITED` is at
+ * their `createdAt` (not the owner's), and Rufaro's removal at its day.
+ * `--reset` takes away people an acceptance run added (deleted when nothing
+ * else refers to them, else their access removed).
+ */
+async function seedPeople(input: {
+  companyId: string
+  mainSiteId: string
+  borrowdaleId: string
+  passwordHash: string
+  reset: boolean
+}) {
+  const { companyId, mainSiteId, borrowdaleId, passwordHash } = input
+  type Seeded = {
+    email: string | null
+    name: string
+    role: "SUPERADMIN" | "MANAGER" | "CASHIER" | "STOCK_CLERK" | "FINANCE_OFFICER"
+    sites: string[] | "ALL"
+    phone: string
+    removedDaysAgo?: number
+  }
+  const PEOPLE: Seeded[] = [
+    { email: "owner@bottlestore.test", name: "Tendai Mhlanga", role: "SUPERADMIN", sites: "ALL", phone: "+263774120098" },
+    { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", role: "MANAGER", sites: [mainSiteId], phone: "+263773012290" },
+    { email: "chipo.till@bottlestore.test", name: "Chipo Dube", role: "CASHIER", sites: [mainSiteId], phone: "+263712204410" },
+    { email: "kuda.till@bottlestore.test", name: "Kuda Banda", role: "CASHIER", sites: [mainSiteId], phone: "+263785510921" },
+    { email: "rudo.stock@bottlestore.test", name: "Rudo Moyo", role: "STOCK_CLERK", sites: "ALL", phone: "+263771182044" },
+    { email: "farai.till@bottlestore.test", name: "Farai Moyo", role: "CASHIER", sites: [borrowdaleId, mainSiteId], phone: "+263719027713" },
+    { email: "bookkeeper@bottlestore.test", name: "Ruvimbo Chari", role: "FINANCE_OFFICER", sites: "ALL", phone: "+263775510283" },
+    { email: "tendai.stock@bottlestore.test", name: "Tendai Sibanda", role: "STOCK_CLERK", sites: "ALL", phone: "+263776401187" },
+    { email: "rufaro.manager@bottlestore.test", name: "Rufaro Ndlovu", role: "MANAGER", sites: [mainSiteId], phone: "+263713305521", removedDaysAgo: 19 },
+    { email: null, name: "Tatenda Gumbo", role: "CASHIER", sites: [borrowdaleId], phone: "+263782206614" },
+  ]
+  const owner = await prisma.user.findFirstOrThrow({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true } })
+  const ownerActor = { companyId, userId: owner.id, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" }
+  const personRole: Record<Seeded["role"], string> = {
+    SUPERADMIN: "OWNER",
+    MANAGER: "MANAGER",
+    CASHIER: "CASHIER",
+    STOCK_CLERK: "STOCK_CLERK",
+    FINANCE_OFFICER: "BOOKKEEPER",
+  }
+  const siteName = (id: string) => (id === mainSiteId ? "Harare Main Branch" : "Borrowdale")
+  const keep: string[] = []
+  let link: string | null = null
+
+  for (const person of PEOPLE) {
+    const found = person.email
+      ? await prisma.user.findFirst({ where: { email: person.email }, select: { id: true, createdAt: true } })
+      : await prisma.user.findFirst({ where: { companyId, phone: person.phone }, select: { id: true, createdAt: true } })
+    const removedAt = person.removedDaysAgo ? harareTime(person.removedDaysAgo, 9, 15) : null
+    const data = {
+      name: person.name,
+      role: person.role,
+      companyId,
+      phone: person.phone,
+      allSites: person.sites === "ALL",
+      isActive: !removedAt,
+      accessRemovedAt: removedAt,
+      accessRemovedById: removedAt ? owner.id : null,
+    }
+    const invitedAt = person.email ? null : harareTime(2, 10, 0)
+    const user = found
+      ? await prisma.user.update({ where: { id: found.id }, data, select: { id: true, createdAt: true } })
+      : await prisma.user.create({
+          data: { ...data, email: person.email, password: person.email ? passwordHash : null, ...(invitedAt ? { createdAt: invitedAt } : {}) },
+          select: { id: true, createdAt: true },
+        })
+    keep.push(user.id)
+    await prisma.userSiteAccess.deleteMany({ where: { userId: user.id } })
+    if (person.sites !== "ALL") {
+      await prisma.userSiteAccess.createMany({ data: person.sites.map((siteId) => ({ userId: user.id, siteId, companyId })) })
+    }
+
+    // The one still to join: a link for 7 days from two days ago, and a PIN sent with it.
+    if (invitedAt) {
+      const waiting = await prisma.retailStaffInvite.findFirst({ where: { userId: user.id, acceptedAt: null, revokedAt: null } })
+      if (!waiting || input.reset) {
+        await prisma.retailStaffInvite.deleteMany({ where: { userId: user.id } })
+        const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "")
+        await prisma.retailStaffInvite.create({
+          data: {
+            companyId,
+            userId: user.id,
+            invitedById: owner.id,
+            tokenHash: hashInviteToken(token),
+            sentTo: person.phone,
+            expiresAt: new Date(invitedAt.getTime() + INVITE_DAYS * 86_400_000),
+            createdAt: invitedAt,
+          },
+        })
+        const bcrypt = await import("bcryptjs")
+        const pinHash = await bcrypt.hash("8257", 10)
+        const pin = { companyId, pinHash, failedAttempts: 0, lockedAt: null, mustChange: true, issuedById: owner.id, issuedAt: invitedAt, lastUnlockedAt: null }
+        await prisma.retailTillPin.upsert({ where: { userId: user.id }, update: pin, create: { userId: user.id, ...pin } })
+        link = `/join/${token}`
+      }
+    }
+
+    // Their invite, at the moment they were added (the owner was there first).
+    if (person.role !== "SUPERADMIN") {
+      const invited = await prisma.platformAuditEvent.findFirst({
+        where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.personInvited },
+        select: { id: true },
+      })
+      if (!invited) {
+        await writeRetailAuditEvent(prisma, {
+          actor: ownerActor,
+          eventType: RETAIL_AUDIT_EVENTS.personInvited,
+          entityType: "User",
+          entityId: user.id,
+          payload: {
+            name: person.name,
+            role: personRole[person.role],
+            sites: person.sites === "ALL" ? ["All sites"] : person.sites.map(siteName),
+            pin: person.role !== "FINANCE_OFFICER",
+            email: Boolean(person.email),
+          },
+        })
+        const written = await prisma.platformAuditEvent.findFirst({
+          where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.personInvited },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        })
+        if (written) await prisma.platformAuditEvent.update({ where: { id: written.id }, data: { createdAt: user.createdAt } })
+      }
+    }
+    if (removedAt) {
+      await prisma.retailTillPin.deleteMany({ where: { userId: user.id } })
+      const removed = await prisma.platformAuditEvent.findFirst({
+        where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.personAccessRemoved },
+        select: { id: true },
+      })
+      if (!removed) {
+        await writeRetailAuditEvent(prisma, {
+          actor: ownerActor,
+          eventType: RETAIL_AUDIT_EVENTS.personAccessRemoved,
+          entityType: "User",
+          entityId: user.id,
+          payload: { closedShifts: [] },
+        })
+        const written = await prisma.platformAuditEvent.findFirst({
+          where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.personAccessRemoved },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        })
+        if (written) await prisma.platformAuditEvent.update({ where: { id: written.id }, data: { createdAt: removedAt } })
+      }
+    }
+  }
+
+  // People an acceptance run added: gone when nothing refers to them, else without access.
+  if (input.reset) {
+    const extra = await prisma.user.findMany({
+      where: {
+        companyId,
+        id: { notIn: keep },
+        role: { in: ["SUPERADMIN", "MANAGER", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"] },
+        OR: [{ staffInvites: { some: {} } }, { email: null }],
+      },
+      select: { id: true, name: true },
+    })
+    for (const person of extra) {
+      try {
+        await prisma.user.delete({ where: { id: person.id } })
+      } catch {
+        await prisma.user.update({
+          where: { id: person.id },
+          data: { isActive: false, accessRemovedAt: new Date(), accessRemovedById: owner.id },
+        })
+        await prisma.retailTillPin.deleteMany({ where: { userId: person.id } })
+      }
+    }
+    if (extra.length) console.log(`  people: ${extra.map((person) => person.name).join(", ")} taken away (acceptance)`)
+  }
+  console.log(
+    `  people: ${PEOPLE.length} on Staff and PINs; Tatenda Gumbo's PIN 8257` +
+      (link ? `, join link ${link} on the shop's host` : ", invite already out"),
+  )
 }
 
 /**
@@ -1964,7 +2206,7 @@ async function seedRecordActivity(input: {
  * page (an acceptance walk) is newer and is what the bar then names.
  */
 /**
- * PRD-02: the liquor set as the Categories board shows it — VAT 15% included,
+ * PRD-02: the liquor set as the Categories board shows it — VAT included (15.5%, ZIMRA's rate),
  * the 18+ check on the four alcohol categories, the board's target margins,
  * top level, stamped as the liquor store's seed and out of the bin. With
  * --reset a category a test run added goes: deleted when nothing is filed
@@ -1986,7 +2228,8 @@ async function seedCategories(companyId: string, reset: boolean) {
       where: { id: row.id },
       data: {
         name: seed.name,
-        vatRate: money(seed.vatRate),
+        // The shelf's rate, which ZIMRA maps, not the seed's 15% (SET-08).
+        vatRate: money(VAT_PERCENT),
         vatExempt: false,
         ageRestricted: seed.ageRestricted ?? false,
         returnable: false,
@@ -2250,6 +2493,145 @@ async function seedStockLedger(companyId: string, mainSiteId: string) {
   )
 }
 
+/**
+ * PRD-03: one product on the shelf, written directly — the product (by its
+ * code), its price on the default list, and its stock line claimed by it. VAT
+ * comes from its category, as New product does.
+ */
+async function seedShelfLine(input: {
+  companyId: string
+  listId: string
+  code: string
+  name: string
+  itemId: string
+  price: string
+  barcode?: string
+  isActive: boolean
+  categoryId: string | null
+  cost: string
+  deposit: string | null
+  supplierId: string | null
+}): Promise<string> {
+  const category = input.categoryId
+    ? await prisma.retailCategory.findUnique({ where: { id: input.categoryId }, select: { vatRate: true } })
+    : null
+  const fields = {
+    name: input.name,
+    kind: "GOODS" as const,
+    standardPrice: money(input.price),
+    defaultTaxRate: category?.vatRate ?? money(VAT_PERCENT),
+    isActive: input.isActive,
+    archivedAt: null,
+    categoryId: input.categoryId,
+    costPrice: money(input.cost),
+    returnable: Boolean(input.deposit),
+    depositAmount: input.deposit ? money(input.deposit) : null,
+    supplierId: input.supplierId,
+    ...(input.barcode ? { barcode: input.barcode } : {}),
+  }
+  const product = await prisma.product.upsert({
+    where: { companyId_code: { companyId: input.companyId, code: input.code } },
+    create: { companyId: input.companyId, code: input.code, ...fields },
+    update: fields,
+    select: { id: true },
+  })
+  await prisma.productPrice.upsert({
+    where: { priceListId_productId_minQuantity: { priceListId: input.listId, productId: product.id, minQuantity: new Prisma.Decimal(1) } },
+    create: { companyId: input.companyId, priceListId: input.listId, productId: product.id, minQuantity: new Prisma.Decimal(1), unitPrice: money(input.price) },
+    update: { unitPrice: money(input.price) },
+  })
+  await prisma.inventoryItem.updateMany({
+    where: { id: input.itemId, OR: [{ productId: null }, { productId: product.id }] },
+    data: { productId: product.id },
+  })
+  return product.id
+}
+
+/** PRD-03: the shop's suppliers (buying decision 1: a supplier is a Vendor), by name. */
+const SUPPLIERS = ["Delta Beverages", "Afdis Distillers", "Schweppes Zimbabwe", "Natbrew"] as const
+
+async function seedSuppliers(companyId: string): Promise<Map<string, string>> {
+  const ids = new Map<string, string>()
+  for (const name of SUPPLIERS) {
+    const found =
+      (await prisma.vendor.findFirst({ where: { companyId, name }, select: { id: true } })) ??
+      (await prisma.vendor.create({ data: { companyId, name, isActive: true }, select: { id: true } }))
+    await prisma.vendor.update({ where: { id: found.id }, data: { isActive: true } })
+    ids.set(name, found.id)
+  }
+  console.log(`  ${SUPPLIERS.length} suppliers`)
+  return ids
+}
+
+/** Who a catalogue line is usually bought from: Delta for beer, ciders, Coke, Fanta and ice; Afdis for spirits and wine. */
+function supplierOf(entry: CatalogueEntry): string {
+  if (entry.code.startsWith("CHIBUKU")) return "Natbrew"
+  if (entry.code.startsWith("TONIC")) return "Schweppes Zimbabwe"
+  if (entry.code.startsWith("CHARCOAL")) return ""
+  if (entry.category === "Spirits" || entry.category === "Wine") return "Afdis Distillers"
+  return "Delta Beverages"
+}
+
+/**
+ * PRD-03: the price history on the default list. Every product put on it 1
+ * August at its "was" price; on 3 October at 10:00 Tendai Mhlanga typed nine
+ * of them up to today's. Amarula went on at 16.90 and rose twice in between,
+ * so it has four rows. Deleted and written again per product.
+ */
+const WAS: Record<string, string> = {
+  "AMARULA-750": "17.50",
+  "CASTLE-340": "1.10",
+  "CASTLE-CASE": "25.90",
+  "COKE-500": "0.70",
+  "HUNTERS-330": "1.80",
+  "ICE-2KG": "1.40",
+  "JAMESON-750": "26.50",
+  "NEDERBURG-750": "12.00",
+  "TWOKEYS-750": "9.50",
+}
+
+async function seedPriceHistory(companyId: string) {
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true } })
+  const list = await prisma.priceList.findFirstOrThrow({ where: { companyId, isDefault: true }, select: { id: true } })
+  // Harare is UTC+2: 09:00 on 1 August, 10:00 on 3 October.
+  const added = new Date("2026-08-01T07:00:00Z")
+  const typed = new Date("2026-10-03T08:00:00Z")
+  let rows = 0
+  for (const entry of CATALOGUE) {
+    const product = await prisma.product.findFirst({ where: { companyId, code: entry.code }, select: { id: true } })
+    if (!product) continue
+    await prisma.productPriceChange.deleteMany({ where: { companyId, productId: product.id, priceListId: list.id } })
+    const change = (from: string | null, to: string, source: "ADDED" | "TYPED", at: Date) => ({
+      companyId,
+      priceListId: list.id,
+      productId: product.id,
+      minQuantity: new Prisma.Decimal(1),
+      fromPrice: from === null ? null : money(from),
+      toPrice: money(to),
+      source,
+      effectiveAt: at,
+      appliedAt: at,
+      createdById: source === "TYPED" ? (owner?.id ?? null) : null,
+      createdAt: at,
+    })
+    const was = WAS[entry.code]
+    const history =
+      entry.code === "AMARULA-750"
+        ? [
+            change(null, "16.90", "ADDED", added),
+            change("16.90", "17.25", "TYPED", new Date("2026-08-20T09:00:00Z")),
+            change("17.25", "17.50", "TYPED", new Date("2026-09-01T09:00:00Z")),
+            change("17.50", entry.price, "TYPED", typed),
+          ]
+        : was
+          ? [change(null, was, "ADDED", added), change(was, entry.price, "TYPED", typed)]
+          : [change(null, entry.price, "ADDED", added)]
+    await prisma.productPriceChange.createMany({ data: history })
+    rows += history.length
+  }
+  console.log(`  price history: ${rows} changes on the default list`)
+}
+
 /** Stable pseudo-barcode from the SKU, so a re-run does not renumber the shelf. */
 /**
  * ADM-07: the bin as the BinList board shows it — Nederburg Rosé 750ml, a
@@ -2297,6 +2679,8 @@ async function seedBin(input: { companyId: string; siteId: string; locationId: s
       select: { createdAt: true },
     })
     if (binned && binned.createdAt.getTime() === existing.archivedAt.getTime() && existing.archivedAt.getTime() === at.getTime()) {
+      // In the bin is off every till: archived as well (PRD-03).
+      await prisma.product.update({ where: { id: existing.id }, data: { isActive: false } })
       console.log("  bin: Nederburg Rosé 750ml already in the bin")
     } else {
       await prisma.product.update({ where: { id: existing.id }, data: { archivedAt: null } })
@@ -2304,16 +2688,19 @@ async function seedBin(input: { companyId: string; siteId: string; locationId: s
   }
   const current = existing ? await prisma.product.findUniqueOrThrow({ where: { id: existing.id }, select: { archivedAt: true } }) : null
   if (!current?.archivedAt) {
-    const productId = await upsertShelfListing({
+    const list = await prisma.priceList.findFirstOrThrow({ where: { companyId, isDefault: true }, select: { id: true } })
+    const productId = await seedShelfLine({
       companyId,
-      productId: existing?.id ?? null,
-      sku: code,
+      listId: list.id,
+      code,
       name: "Nederburg Rosé 750ml",
-      inventoryItemId: item.id,
-      unitPrice: money("12.60"),
-      taxPercent: money(VAT_PERCENT),
+      itemId: item.id,
+      price: "12.60",
+      isActive: true,
       categoryId: input.wineId,
-      costPrice: money("9.40"),
+      cost: "9.40",
+      deposit: null,
+      supplierId: null,
     })
     await moveToBin(actor, { kind: "product", id: productId }, at)
     const event = await prisma.platformAuditEvent.findFirst({
@@ -2584,4 +2971,260 @@ async function seedPosting(companyId: string) {
     },
   })
   console.log(`  posting: tenders and roles over the chart, end of each day, last run ${lastNight.toISOString()}`)
+}
+
+/**
+ * SET-08. Setup › Fiscal device as the FiscalSettings board draws it: device
+ * 0441-2209, serial HC-FD-88120, registered by the owner (Tendai Mhlanga) on
+ * 14 March, answering now; days 210–213 closed on the four evenings before
+ * today with their Z-report totals, and day 214 open since the Front till's
+ * shift opened this morning, its receipts this morning's sales. The rules are
+ * the defaults (with the last shift; keep selling). The device is a demo
+ * device: its key and certificate are made here, and it talks to the FDMS
+ * test connector (`scripts/fake-fdms.mjs`, or `RETAIL_DEMO_FDMS_URL`), never
+ * to ZIMRA. Every run puts the page back the way the board has it.
+ */
+async function seedFiscal(companyId: string) {
+  const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
+  if (!owner) {
+    console.log("  fiscal: no owner, skipped")
+    return
+  }
+  const providerKey = "ZIMRA_FDMS"
+  // Devices a test run retired by typing a new device ID go, with their days and receipts.
+  const retired = await prisma.fiscalisationProviderConfig.findMany({
+    where: { companyId, providerKey: { startsWith: `${providerKey}#` } },
+    select: { id: true },
+  })
+  if (retired.length > 0) {
+    const ids = retired.map((row) => row.id)
+    await prisma.fiscalReceipt.deleteMany({ where: { fiscalDay: { providerConfigId: { in: ids } } } })
+    await prisma.fiscalDay.deleteMany({ where: { providerConfigId: { in: ids } } })
+    await prisma.fiscalisationProviderConfig.deleteMany({ where: { id: { in: ids } } })
+  }
+  const existing = await prisma.fiscalisationProviderConfig.findUnique({
+    where: { companyId_providerKey: { companyId, providerKey } },
+    select: { id: true, certificateRef: true },
+  })
+  const keeps = (() => {
+    try {
+      const bundle = JSON.parse(existing?.certificateRef ?? "") as { cert?: string; key?: string }
+      return Boolean(bundle.cert && bundle.key)
+    } catch {
+      return false
+    }
+  })()
+  const device = {
+    apiBaseUrl: process.env.RETAIL_DEMO_FDMS_URL ?? "http://127.0.0.1:9911",
+    deviceId: "0441-2209",
+    serialNumber: "HC-FD-88120",
+    isActive: true,
+    registeredAt: new Date("2026-03-14T10:20:00+02:00"),
+    registeredById: owner.id,
+    lastOkAt: new Date(),
+    lastFailedAt: null,
+    ...(keeps ? {} : { certificateRef: demoDeviceCertificate() }),
+  }
+  const provider = await prisma.fiscalisationProviderConfig.upsert({
+    where: { companyId_providerKey: { companyId, providerKey } },
+    update: device,
+    create: { companyId, providerKey, ...device },
+  })
+  // What registering maps from ZIMRA's applicable taxes: 15.5% is its taxID 1, the shelf's rate.
+  await prisma.taxCode.updateMany({ where: { companyId, code: "VAT15_5" }, data: { zimraTaxId: 1 } })
+
+  // The board's five days: four closed evenings and today's, open since the Front till's shift.
+  const days = await prisma.fiscalDay.findMany({ where: { providerConfigId: provider.id }, select: { id: true } })
+  await prisma.fiscalReceipt.deleteMany({ where: { fiscalDayId: { in: days.map((day) => day.id) } } })
+  await prisma.fiscalDay.deleteMany({ where: { providerConfigId: provider.id } })
+  const front = await prisma.retailShift.findFirst({
+    where: { companyId, status: "OPEN", registerName: "Front till" },
+    orderBy: { openedAt: "desc" },
+    select: { openedAt: true },
+  })
+  const openedToday = front?.openedAt ?? harareTime(0, 7, 58)
+  const closed: Array<{ no: number; back: number; opens: [number, number]; closes: [number, number]; total: string }> = [
+    { no: 210, back: 4, opens: [7, 55], closes: [22, 1], total: "2977.40" },
+    { no: 211, back: 3, opens: [7, 52], closes: [21, 58], total: "4102.00" },
+    { no: 212, back: 2, opens: [7, 57], closes: [22, 11], total: "3488.75" },
+    { no: 213, back: 1, opens: [7, 54], closes: [22, 4], total: "3912.20" },
+  ]
+  let globalNo = 61_480
+  for (const day of closed) {
+    const cents = BigInt(new Prisma.Decimal(day.total).times(100).toFixed(0))
+    // VAT at 15.5% inside the takings, as the Z-report counts them.
+    const tax = BigInt(new Prisma.Decimal(day.total).times(15.5).dividedBy(115.5).times(100).toFixed(0))
+    const receipts = 180 + day.no - 200
+    globalNo += receipts
+    await prisma.fiscalDay.create({
+      data: {
+        companyId,
+        providerConfigId: provider.id,
+        deviceId: provider.deviceId!,
+        fiscalDayNo: day.no,
+        status: "CLOSED",
+        openedAt: harareTime(day.back, ...day.opens),
+        closedAt: harareTime(day.back, ...day.closes),
+        lastReceiptCounter: receipts,
+        lastReceiptGlobalNo: globalNo,
+        countersJson: JSON.stringify({
+          receiptCount: receipts,
+          lastReceiptCounter: receipts,
+          lastReceiptGlobalNo: globalNo,
+          counters: [
+            { fiscalCounterType: "SaleByTax", fiscalCounterCurrency: "USD", fiscalCounterTaxID: 1, fiscalCounterTaxPercent: "15.50", fiscalCounterValueCents: cents.toString() },
+            { fiscalCounterType: "SaleTaxByTax", fiscalCounterCurrency: "USD", fiscalCounterTaxID: 1, fiscalCounterTaxPercent: "15.50", fiscalCounterValueCents: tax.toString() },
+          ],
+          receiptsWithoutTaxLines: [],
+        }),
+      },
+    })
+  }
+  const today = await prisma.fiscalDay.create({
+    data: {
+      companyId,
+      providerConfigId: provider.id,
+      deviceId: provider.deviceId!,
+      fiscalDayNo: 214,
+      status: "OPENED",
+      openedAt: openedToday,
+      lastReceiptGlobalNo: globalNo,
+    },
+  })
+  // This morning's sales, signed into day 214 and taken by ZIMRA.
+  const sales = await prisma.retailSale.findMany({
+    where: { companyId, status: "POSTED", saleType: "SALE", postedAt: { gte: openedToday }, fiscalReceipt: null },
+    orderBy: [{ postedAt: "asc" }, { id: "asc" }],
+    select: { id: true, saleNo: true, currency: true, postedAt: true, lines: { select: { id: true, taxAmount: true, lineTotal: true } } },
+  })
+  let counter = 0
+  for (const sale of sales) {
+    counter += 1
+    globalNo += 1
+    // The tax each receipt was signed with, all at 15.5% (taxID 1), as the day's Z-report counts it.
+    const cents = (field: "taxAmount" | "lineTotal") =>
+      sale.lines.reduce((sum, line) => sum.plus(line[field]), new Prisma.Decimal(0)).times(100).toFixed(0)
+    const signedTax = {
+      lineRates: Object.fromEntries(sale.lines.map((line) => [line.id, VAT_PERCENT])),
+      taxLines: [{ taxId: 1, taxPercent: VAT_PERCENT, taxAmountCents: cents("taxAmount"), salesAmountCents: cents("lineTotal") }],
+    }
+    await prisma.fiscalReceipt.create({
+      data: {
+        companyId,
+        retailSaleId: sale.id,
+        receiptNumber: sale.saleNo,
+        fiscalNumber: `${provider.deviceId}/214/${counter}`,
+        status: "SUCCESS",
+        issuedAt: sale.postedAt,
+        providerKey,
+        receiptCounter: counter,
+        receiptGlobalNo: globalNo,
+        fiscalDayId: today.id,
+        receiptType: "FISCALINVOICE",
+        receiptCurrency: sale.currency,
+        signedTax,
+        lastSyncedAt: sale.postedAt,
+      },
+    })
+  }
+  await prisma.fiscalDay.update({
+    where: { id: today.id },
+    data: { lastReceiptCounter: counter, lastReceiptGlobalNo: globalNo },
+  })
+
+  await prisma.retailFiscalSettings.upsert({
+    where: { companyId },
+    update: { dayClose: "WITH_LAST_SHIFT", whenUnreachable: "KEEP_SELLING", updatedById: null },
+    create: { companyId },
+  })
+  await prisma.platformAuditEvent.deleteMany({
+    where: {
+      companyId,
+      entityType: "RetailSettings",
+      entityId: "fiscal",
+      eventType: { in: [RETAIL_AUDIT_EVENTS.settingsChanged, RETAIL_AUDIT_EVENTS.fiscalConnected, RETAIL_AUDIT_EVENTS.fiscalDayClosed] },
+    },
+  })
+  console.log(`  fiscal: device 0441-2209 registered 14 March, days 210–213 closed, day 214 open with ${sales.length} receipt(s)`)
+}
+
+/** A demo device's key and a self-signed certificate for it, in the bundle shape registration writes. */
+function demoDeviceCertificate(): string {
+  const dir = mkdtempSync(join(tmpdir(), "demo-fdms-"))
+  try {
+    execFileSync(
+      "openssl",
+      ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem"), "-days", "730", "-subj", "/CN=HC-FD-88120"],
+      { stdio: "ignore" },
+    )
+    return JSON.stringify({ cert: readFileSync(join(dir, "cert.pem"), "utf8"), key: readFileSync(join(dir, "key.pem"), "utf8") })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * ADM-04. Management › Approvals as the ApprovalSettings board draws it:
+ * requisitions over US$500.00 need the owner, owner approvals go to Tendai
+ * Mhlanga, managers change prices without approval, below cost needs the
+ * owner, adjustments over US$50.00 need a manager PIN, the owner approves
+ * count differences over US$100, accounts over US$250.00 need the owner,
+ * asked on WhatsApp and the app — last changed by Tendai Mhlanga on the
+ * latest 1 September, so the save bar reads "Last changed by Tendai
+ * Mhlanga, 1 September." Saves of the page that test runs left are cleared.
+ * "Waiting now" fills itself from BUY-04's and STK-06's own seeds.
+ */
+async function seedApprovals(companyId: string) {
+  const owner = await prisma.user.findFirst({
+    where: { companyId, email: "owner@bottlestore.test" },
+    select: { id: true, name: true },
+  })
+  if (!owner) {
+    console.log("  approvals: no owner, skipped")
+    return
+  }
+  const settings = {
+    requisitionOwnerOver: new Prisma.Decimal("500.00"),
+    ownerApproverId: owner.id,
+    priceChanges: "MANAGERS" as const,
+    belowCostNeedsOwner: true,
+    adjustmentPinOver: new Prisma.Decimal("50.00"),
+    countDifferences: "OWNER_OVER_LIMIT" as const,
+    countOwnerOver: new Prisma.Decimal("100.00"),
+    accountOwnerOver: new Prisma.Decimal("250.00"),
+    askBy: "WHATSAPP_AND_APP" as const,
+    updatedById: owner.id,
+  }
+  await prisma.retailApprovalSettings.upsert({ where: { companyId }, update: settings, create: { companyId, ...settings } })
+  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare", year: "numeric" }).format(new Date()))
+  const thisYear = new Date(`${year}-09-01T10:15:00+02:00`)
+  const changedAt = thisYear.getTime() <= Date.now() ? thisYear : new Date(`${year - 1}-09-01T10:15:00+02:00`)
+  await prisma.$executeRaw`UPDATE "RetailApprovalSettings" SET "updatedAt" = ${changedAt} WHERE "companyId" = ${companyId}`
+  await prisma.platformAuditEvent.deleteMany({
+    where: { companyId, entityType: "RetailSettings", entityId: "approvals", eventType: RETAIL_AUDIT_EVENTS.settingsChanged },
+  })
+  await writeRetailAuditEvent(prisma, {
+    actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+    eventType: RETAIL_AUDIT_EVENTS.settingsChanged,
+    entityType: "RetailSettings",
+    entityId: "approvals",
+    payload: {
+      page: "approvals",
+      changes: [
+        {
+          field: "ownerApproverId",
+          label: "Owner approvals go to",
+          from: null,
+          to: { id: owner.id, label: owner.name, sub: "Owner" },
+        },
+      ],
+    },
+  })
+  const saved = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.settingsChanged, entityId: "approvals" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  })
+  if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
+  console.log("  approvals: the board's limits, owner approvals to Tendai Mhlanga, last changed on 1 September")
 }

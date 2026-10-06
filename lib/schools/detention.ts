@@ -86,7 +86,7 @@ function toSummary(
     supervisor: {
       id: string;
       employeeCode: string;
-      user: { name: string | null; email: string } | null;
+      user: { name: string | null; email: string | null } | null;
     } | null;
     _count: { attendance: number; movedIn: number };
   },

@@ -47,6 +47,8 @@ export async function getTokenAuthSession(
   // old path, which ran the same lookups inside the jwt callback.
   const { enrichTokenClaims } = await import("@/lib/auth-core/session-claims");
   const enriched = await enrichTokenClaims(token);
+  // Their access was removed, or they are gone: no session (80-admin, People).
+  if (!enriched.id) return null;
 
   return tokenToSession(enriched);
 }
@@ -80,6 +82,7 @@ export function tokenToSession(token: PlatformJwtClaims): AuthenticatedSession {
       allowedHosts: token.allowedHosts,
       deviceId: token.deviceId,
       registerId: token.registerId,
+      pinMustChange: token.pinMustChange,
     },
   } as AuthenticatedSession;
 }

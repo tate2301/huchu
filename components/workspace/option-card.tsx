@@ -65,6 +65,8 @@ export type OptionCardGroupProps<V extends string = string> = Omit<
   value: V | null;
   onValueChange?: (value: V) => void;
   cols?: number;
+  /** Every card drawn as it stands and none can be picked (a person's own role). */
+  disabled?: boolean;
 };
 
 export function OptionCardGroup<V extends string = string>({
@@ -72,12 +74,13 @@ export function OptionCardGroup<V extends string = string>({
   value,
   onValueChange,
   cols = 2,
+  disabled = false,
   className,
   style,
   ...props
 }: OptionCardGroupProps<V>) {
   const refs = React.useRef<Array<HTMLButtonElement | null>>([]);
-  const enabled = options.map((option) => !option.badge);
+  const enabled = options.map((option) => !option.badge && !disabled);
   const current = options.findIndex((option) => option.value === value);
   const tabStop = current >= 0 ? current : enabled.indexOf(true);
 

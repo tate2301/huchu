@@ -15,6 +15,7 @@ import {
   REFERENCE_TENDERS,
   referenceSentence,
   refundPinSentence,
+  REPLAY_AHEAD_REVIEW,
   REPLAY_MISDATED_REVIEW,
   VOID_FREE_MS,
   voidPinSentence,
@@ -314,8 +315,8 @@ export function doneOffline(at: Date | null | undefined, now: Date): boolean {
 /**
  * When a refund or void sent in late from an offline till goes in. The till's
  * clock is its own word, so it is taken only when it could be true: not before
- * the sale it reverses and not before the shift it lands on opened. Anything
- * earlier goes in at the time it arrived, with a review line.
+ * the sale it reverses, not before the shift it lands on opened, and not after
+ * it arrived. Anything else goes in at the time it arrived, with a review line.
  *
  * The till's date never decides a rule: `voidRetailSaleTransaction` judges
  * "Voids need a manager PIN" at arrival, so a void dated back inside the five
@@ -329,6 +330,7 @@ export function replayedAt(
   if (claimed.getTime() < bounds.saleAt.getTime() || claimed.getTime() < bounds.shiftOpenedAt.getTime()) {
     return { at: arrived, review: REPLAY_MISDATED_REVIEW };
   }
+  if (claimed.getTime() > arrived.getTime()) return { at: arrived, review: REPLAY_AHEAD_REVIEW };
   return { at: claimed, review: null };
 }
 

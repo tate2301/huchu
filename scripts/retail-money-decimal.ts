@@ -29,7 +29,6 @@ import { convertColumns, MONEY, PCT, QTY, type DecimalColumn } from "@/scripts/l
 
 const COLUMNS: readonly DecimalColumn[] = [
   { table: "RetailCatalogItem", column: "unitPrice", ...MONEY },
-  { table: "RetailCatalogItem", column: "compareAtPrice", ...MONEY },
   { table: "RetailCatalogItem", column: "taxPercent", ...PCT },
   { table: "RetailPromotion", column: "value", ...MONEY },
   { table: "RetailPurchaseOrderLine", column: "quantity", ...QTY },

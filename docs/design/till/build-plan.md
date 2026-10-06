@@ -23,8 +23,9 @@ also needs to be built", "products must show their previews too". One branch, on
 - Pairing: a manager makes a code for a till (back office); the device posts it to `pos/pair`, gets an
   httpOnly key cookie scoped to the POS host. Five wrong codes from one address stop it for 15 minutes.
 - Device: `pos/device` answers which till this is and who may sell here, from the key alone.
-- Sign-in: a `till-pin` credentials provider. The key says which till, the PIN says who. A first PIN
-  needs the account password once (`pos/pin/first`). A PIN still never approves anything.
+- Sign-in: a `till-pin` credentials provider. The key says which till, the PIN says who. A PIN is
+  sent from People and chosen on first use, over the till (ADM-03, `pos/pin/change`); five wrong
+  lock it until a new one is sent, and the account password signs in meanwhile.
 - Shift: opens on the device's till with no picker. Closing returns the device to "Who is selling?".
 - Sale: carries the device, the manager approval the checkout collects, the ID check, deposits and
   bottles back; refuses 18+ products outside licence hours and discounts over a product's ceiling.

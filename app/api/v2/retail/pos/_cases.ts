@@ -8,7 +8,8 @@ import { prisma } from "@/lib/prisma";
  * see `lib/retail/cases.ts`). The till's shelf says, for a single, which case
  * can be opened for it and how many of those are in this branch; and, for a
  * case, which single it holds. When a sale needs more singles than the shelf
- * has, the till offers to open enough cases where the line is.
+ * has, the till offers to open enough cases where the line is: only a case
+ * set to "Break cases at the till" (`Product.breakAtTill`).
  */
 
 /** The case a single comes in, and how many of them this branch holds. */
@@ -45,10 +46,10 @@ export function caseOpening(input: {
   return { short, casesToOpen, singlesAdded: casesToOpen * unitsPerCase };
 }
 
-/** The case to open for a single: the smallest one linked to it, live. */
+/** The case to open for a single: the smallest live one linked to it that breaks at the till. */
 export function caseForSingle(companyId: string, singleProductId: string) {
   return prisma.product.findFirst({
-    where: { companyId, packOfId: singleProductId, packSize: { gt: 0 }, isActive: true, archivedAt: null },
+    where: { companyId, packOfId: singleProductId, packSize: { gt: 0 }, breakAtTill: true, isActive: true, archivedAt: null },
     orderBy: [{ packSize: "asc" }, { name: "asc" }],
     select: { id: true, name: true, packSize: true },
   });
@@ -73,7 +74,7 @@ export async function tillCaseLinks(
       packSize: true,
       packOf: { select: { id: true, name: true, archivedAt: true } },
       packs: {
-        where: { packSize: { gt: 0 }, isActive: true, archivedAt: null },
+        where: { packSize: { gt: 0 }, breakAtTill: true, isActive: true, archivedAt: null },
         orderBy: [{ packSize: "asc" }, { name: "asc" }],
         take: 1,
         select: { id: true, name: true, packSize: true },

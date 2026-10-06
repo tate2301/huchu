@@ -49,6 +49,8 @@ describe("role accounts on posting rule lines", () => {
       "STOCK",
       "BREAKAGE",
       "DEPOSITS_HELD",
+      // PRD-03 adds the seventh.
+      "OPENING_BALANCES",
     ]);
     expect(await column("PostingRuleLine", "accountRole")).toMatchObject({ udt_name: "RetailAccountRole", is_nullable: "YES" });
     expect(await column("PostingRuleLine", "accountSource")).toMatchObject({ is_nullable: "NO" });

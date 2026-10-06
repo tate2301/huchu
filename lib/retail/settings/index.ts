@@ -11,7 +11,9 @@ import {
   type SettingsSaved,
 } from "@/lib/retail/settings-pages";
 
+import { approvalsSettings } from "./approvals";
 import { companySettings } from "./company";
+import { fiscalSettings } from "./fiscal";
 import { paymentsSettings } from "./payments";
 import { postingSettings } from "./posting";
 import { receiptsSettings } from "./receipts";
@@ -25,7 +27,9 @@ import type { SettingsStore } from "./types";
  */
 
 const STORES: Record<string, SettingsStore> = {
+  approvals: approvalsSettings,
   company: companySettings,
+  fiscal: fiscalSettings,
   payments: paymentsSettings,
   posting: postingSettings,
   receipts: receiptsSettings,
@@ -88,6 +92,7 @@ export type SettingsSaveResult =
 
 /**
  * Save a page's changed fields. Each is checked against the page's rule;
+ * the store resolves them to the shape it loads (`resolve`);
  * fields equal to what is stored are dropped. What remains is written and
  * audited in one transaction; nothing changed writes nothing.
  */
@@ -115,7 +120,8 @@ export async function saveSettings(
   if (!checked.ok) return checked;
 
   const before = await store.load(actor.companyId);
-  const changed = Object.entries(checked.values).filter(([field, value]) => !same(before[field], value));
+  const resolved = store.resolve ? await store.resolve(actor.companyId, checked.values, before) : checked.values;
+  const changed = Object.entries(resolved).filter(([field, value]) => !same(before[field], value));
   if (changed.length > 0) {
     const applied = Object.fromEntries(changed);
     await prisma.$transaction(async (tx) => {

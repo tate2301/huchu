@@ -8,6 +8,7 @@ import { approverSchema, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { doneOffline } from "@/lib/retail/till-rules";
 import { requireRetailSession } from "../../../../_helpers";
 import { voidRetailSaleTransaction } from "../../../../_services";
+import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 
 const voidSchema = z.object({
   shiftId: z.string().uuid(),
@@ -53,7 +54,7 @@ export async function POST(
     const body = await request.json();
     const input = voidSchema.parse(body);
 
-    const { sale, accounting } = await voidRetailSaleTransaction({
+    const { sale, accounting, fiscal: assigned } = await voidRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -70,6 +71,9 @@ export async function POST(
       periodOverrideReason: input.periodOverrideReason ?? null,
       deviceId: device.id,
     });
+
+    // Its credit note, signed in its commit (SET-08), goes to ZIMRA now.
+    const fiscal = await fiscaliseAfterPosting({ companyId: session.user.companyId, saleId: sale.id, assigned });
 
     return successResponse({
       id: sale.id,
@@ -88,6 +92,7 @@ export async function POST(
       notes: sale.notes,
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,
+      fiscal,
     }, 201);
   } catch (error) {
     const refused = tillRuleResponse(error);

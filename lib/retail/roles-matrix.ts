@@ -381,7 +381,7 @@ export function lettersFor(row: RoleRow, roleKey: string): string {
 }
 
 export const ROLES_INTRO =
-  "C adds, R sees, U changes, D removes (to the bin, or ends it). Superuser is Corelith support acting for the shop, always logged. Owner is the tenant’s SUPERADMIN. Limits are set in Management › Approvals.";
+  "C adds, R sees, U changes, D removes (to the bin, or ends it). Superuser is Corelith support acting for the shop, always logged. Owner is the tenant’s SUPERADMIN. Limits are set in Setup › Approvals.";
 
 export type RolesView = {
   intro: string;

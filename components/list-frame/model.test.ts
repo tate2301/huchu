@@ -10,6 +10,7 @@ import {
   canClear,
   cellPadding,
   cellText,
+  countWords,
   defaultFilters,
   diffTone,
   durationState,
@@ -18,6 +19,7 @@ import {
   foldAt,
   gridMinWidth,
   gridTemplate,
+  heldFilters,
   nextColumnSort,
   pageButtons,
   rowMatches,
@@ -175,6 +177,25 @@ describe("the toolbar's words", () => {
     expect(filtersOn(spec, filters, false)).toBe(1);
     expect(filtersOn(spec, filters, true)).toBe(2);
     expect(filtersOn(spec, { ...filters, opened: "any" }, false)).toBe(0);
+  });
+
+  it("keeps the primaries in Filters too when a list has no other filters, and counts them there", () => {
+    const people = getReportDefinition("retail-people")!.list! as unknown as ListSpecPublic;
+    const drawn = people.filters.filter((filter) => filter.type !== "parent") as Parameters<typeof heldFilters>[0];
+    expect(heldFilters(drawn, false).map((filter) => filter.key)).toEqual(["role", "site"]);
+    expect(filtersOn(people, { role: "any", site: "any" }, false)).toBe(0);
+    expect(filtersOn(people, { role: "cashier", site: "any" }, false)).toBe(1);
+    // Shifts has filters of its own in Filters: the primaries join only once folded.
+    const shiftDrawn = spec.filters.filter((filter) => filter.type !== "parent") as Parameters<typeof heldFilters>[0];
+    expect(heldFilters(shiftDrawn, false).some((filter) => filter.primary)).toBe(false);
+  });
+
+  it("gives the phone's count its noun", () => {
+    expect(countWords(7, "people")).toBe("7 people");
+    expect(countWords(1, "people")).toBe("1 person");
+    expect(countWords(1, "categories")).toBe("1 category");
+    expect(countWords(1, "tills")).toBe("1 till");
+    expect(countWords(1200, "tills")).toBe("1,200 tills");
   });
 
   it("offers Clear only off the defaults", () => {

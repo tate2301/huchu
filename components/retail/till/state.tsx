@@ -85,6 +85,9 @@ export const TILL_CONTEXT_KEY = ["till-context"] as const;
 /** The heartbeat: last seen, and the back office's messages. */
 export const TILL_HEARTBEAT_KEY = ["till-heartbeat"] as const;
 const HEARTBEAT_MS = 60_000;
+
+/** The till's words while ZIMRA is away and the shop stops selling (SET-08). */
+const FISCAL_STOP = "ZIMRA is not answering, so this shop stops selling until it does. The sale stays here; try again in a few minutes.";
 /** Survives a reload, dies with the tab: the shift the cash drop prompt has already asked about. */
 const CASH_DROP_ASKED_KEY = "till_cash_drop_asked";
 
@@ -112,7 +115,6 @@ function lineFromItem(item: PosCatalogItem, depositsOn: boolean): CartItem {
     shelfPrice: item.unitPrice,
     taxPercent: item.taxPercent,
     taxInclusive: item.taxInclusive,
-    compareAtPrice: item.compareAtPrice,
     lineDiscountAmount: 0,
     unit: item.inventoryItem?.unit,
     stock: item.inventoryItem?.currentStock,
@@ -283,7 +285,8 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
 
   const heartbeatQuery = useQuery({
     queryKey: TILL_HEARTBEAT_KEY,
-    queryFn: () => fetchJson<{ messages: TillMessage[] }>("/api/v2/retail/devices/heartbeat", { method: "POST", body: "{}" }),
+    queryFn: () =>
+      fetchJson<{ messages: TillMessage[]; zimraAway?: boolean }>("/api/v2/retail/devices/heartbeat", { method: "POST", body: "{}" }),
     refetchInterval: HEARTBEAT_MS,
     refetchIntervalInBackground: true,
     retry: false,
@@ -459,6 +462,19 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       : null;
   const offlineStop = isOffline ? offlineStopAt(now.getTime()) : null;
 
+  /*
+    SET-08. "If ZIMRA cannot be reached · Stop selling": the server refuses a
+    new sale (409 FISCAL_OFFLINE) until ZIMRA answers, and the heartbeat says
+    so before anyone tries. The sale stays on the till; taking the money asks
+    again, and the sale itself asks ZIMRA. A sale saved offline is unaffected.
+  */
+  const [fiscalRefused, setFiscalRefused] = useState(false);
+  const zimraAway = heartbeatQuery.data?.zimraAway;
+  useEffect(() => {
+    if (zimraAway === false) setFiscalRefused(false);
+  }, [zimraAway]);
+  const fiscalStop = !isOffline && (fiscalRefused || zimraAway === true) ? FISCAL_STOP : null;
+
   useEffect(() => {
     if (customerSearch.length < 2 || !tenantKey || selectedCustomer) {
       setOfflineCustomerResults([]);
@@ -563,6 +579,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
         body: JSON.stringify({ ...payload, ...(approver ? { approver } : {}) }),
       }),
     onSuccess: (data) => {
+      setFiscalRefused(false);
       setLastCompletedSale({ ...data, heldAs });
       clearCart();
       void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
@@ -577,6 +594,9 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       const usesOfflineCustomer = isOfflineRetailCustomerId(payload.customerId);
       const offline = isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine) || usesOfflineCustomer;
       if (!tenantKey || !offline) {
+        if (error instanceof ApiError && (error.details as { code?: unknown } | undefined)?.code === "FISCAL_OFFLINE") {
+          setFiscalRefused(true);
+        }
         setSaleRefusal(saleRefusalOf(error));
         return;
       }
@@ -741,6 +761,8 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     approvers: (context?.approvers ?? []).filter((person) => person.userId !== session?.user?.id),
     discountCeiling,
     offlineStop,
+    /** ZIMRA is away and the shop stops selling until it answers (SET-08). */
+    fiscalStop,
 
     /* Taking it */
     postSale: (rows: PaymentRow[], approval: Approval | null) => {

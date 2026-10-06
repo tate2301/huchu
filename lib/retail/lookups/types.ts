@@ -35,6 +35,8 @@ export type LookupCtx = {
   userId: string;
   userName: string | null;
   session: SessionLike;
+  /** The request's address: a person added inline gets a join link on this shop's host. */
+  requestUrl?: string;
 };
 
 export type LookupNoun = {
@@ -43,15 +45,30 @@ export type LookupNoun = {
   read: Array<[RetailResource, RetailAction]>;
   /** The noun's create right; absent, nobody adds one inline. */
   create?: [RetailResource, RetailAction];
-  quick: QuickField[];
+  /** The inline add's inputs; or from the field's context (an owner, added from "Owner approvals go to", needs an email). */
+  quick: QuickField[] | ((context: Record<string, unknown>) => QuickField[]);
   /**
    * Every live row whose label contains `q` (case-insensitive), in the noun's
    * own order; the runner puts prefix matches first and cuts to the limit.
    * `context` narrows where the noun needs it.
    */
   search(ctx: LookupCtx, q: string, context: Record<string, unknown>): Promise<LookupOption[]>;
-  /** The noun's own create service. Throws `LookupFieldErrors` for a 400. */
-  add?(ctx: LookupCtx, fields: Record<string, string>): Promise<LookupOption>;
+  /**
+   * The noun puts its own options in order and keeps those matched on
+   * something other than the label (a product scanned by its barcode, the
+   * exact barcode first); the runner only cuts to the limit.
+   */
+  ranked?: boolean;
+  /**
+   * The noun's own create service. Throws `LookupFieldErrors` for a 400.
+   * `context` is the field's own (a person added from "Owner approvals go to"
+   * is an owner). May say something for the toast (`notice`).
+   */
+  add?(
+    ctx: LookupCtx,
+    fields: Record<string, string>,
+    context: Record<string, unknown>,
+  ): Promise<LookupOption & { notice?: string }>;
 };
 
 /** A quick add refused field by field: `{ name: "There is already a category called Beer." }`. */

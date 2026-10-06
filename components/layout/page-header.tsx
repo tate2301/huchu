@@ -122,7 +122,7 @@ export function PageHeader() {
         {identity?.sub ? (
           <span className="min-w-0 truncate text-[var(--ink-3)]">{identity.sub}</span>
         ) : null}
-        {identity?.sub && identity.subLink ? (
+        {identity?.subLink ? (
           <Link
             href={identity.subLink.href}
             className="shrink-0 whitespace-nowrap text-[var(--ink)] underline decoration-[var(--line-strong)] underline-offset-[3px]"

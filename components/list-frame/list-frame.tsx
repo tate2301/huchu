@@ -366,6 +366,8 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   const [confirming, setConfirming] = React.useState<{ action: ListAction; ids: string[]; rows: ReportRow[] } | null>(
     null,
   );
+  // What a run shows once done (the PINs WhatsApp did not take): only its "keep".
+  const [afterAsk, setAfterAsk] = React.useState<Ask | null>(null);
   /** A `run` action's POST, its done toast, and the list (and nav badges) read again. */
   const post = async (action: ListAction, ids: string[], targetRows: ReportRow[]) => {
     const how = action.do;
@@ -391,6 +393,8 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
     if (run) {
       const done = run.done(ids.length, targetRows, answer);
       toast(typeof done === "string" ? { title: done, variant: "success" } : done);
+      const next = run.after?.(answer) ?? null;
+      if (next) setAfterAsk(next);
     }
   };
   const act = async (action: ListAction, ids: string[], targetRows: ReportRow[]) => {
@@ -495,11 +499,16 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
     const query = params.toString();
     return { href: query ? `${pathname}?${query}` : pathname, label: parent.all };
   }, [parent, pathname, searchParams]);
+  // The source's own sub link opens a sheet over the list ("Who can do what").
+  const listSubLink = definition?.list?.subLink ?? null;
+  const sheetLink = listSubLink
+    ? { href: sheetHref(pathname, searchParams.toString(), listSubLink.sheet, []), label: listSubLink.label }
+    : null;
   const chrome = (
     <PageChrome
       title={title}
       sub={parent?.label ?? definition?.list?.sub ?? null}
-      subLink={clearParent}
+      subLink={clearParent ?? (refusal ? null : sheetLink)}
       primary={refusal ? null : primary}
     />
   );
@@ -599,6 +608,9 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
             await queryClient.invalidateQueries({ queryKey: ["list", source] });
           }}
         />
+      ) : null}
+      {afterAsk ? (
+        <ConfirmDialog ask={afterAsk} open onOpenChange={(open) => !open && setAfterAsk(null)} onConfirm={() => setAfterAsk(null)} />
       ) : null}
       {leaveTo ? (
         <ConfirmDialog

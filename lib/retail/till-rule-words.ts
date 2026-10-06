@@ -144,6 +144,13 @@ export const REASON_UNLISTED_REVIEW = "Reason no longer on the list.";
  */
 export const REPLAY_MISDATED_REVIEW = "Dated before its sale or its shift; entered when it arrived.";
 
+/**
+ * The review line on a sale, refund or void sent in late that the till dated
+ * after it reached the server: the till's clock runs ahead, so it goes in at
+ * the time it arrived (SET-08), and no receipt is dated in the future.
+ */
+export const REPLAY_AHEAD_REVIEW = "Dated after it reached the server, so the till's clock runs ahead; entered when it arrived.";
+
 /** The review line on a card, EcoCash or InnBucks refund sent in late without its reference. */
 export const OFFLINE_REFUND_NO_REFERENCE_REVIEW = "Refunded offline without a reference.";
 

@@ -122,6 +122,18 @@ export const RETAIL_AUDIT_EVENTS = {
   productArchived: "RETAIL_PRODUCT.ARCHIVED",
   /** A product put back on sale. Carries its name. */
   productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
+  /**
+   * A product added (W-09, PRD-03): New product, the product lookup's quick
+   * add, an import. Carries its code, name, price, category, opening stock and
+   * the site it is kept at.
+   */
+  productCreated: "RETAIL_PRODUCT.CREATED",
+  /**
+   * A price on a list changed (PRD-03; W-14, W-15): typed, many at once, or a
+   * scheduled change coming due. Entity `Product`; carries the list, the price
+   * before and after (money as a string) and how.
+   */
+  priceChanged: "RETAIL_PRICE.CHANGED",
   /** A category added (W-19). Carries its name, VAT and target margin. */
   categoryCreated: "RETAIL_CATEGORY.CREATED",
   /**
@@ -173,6 +185,30 @@ export const RETAIL_AUDIT_EVENTS = {
   postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",
   /** The drawer opened without a sale (SET-06). Entity `RetailRegister`; carries the till, the shift and who approved it. */
   drawerOpened: "RETAIL_DRAWER.OPENED",
+  /** The fiscal device registered with ZIMRA from Setup › Fiscal device (SET-08). Entity `RetailSettings`, id `fiscal`; carries the device and serial, never the key. */
+  fiscalConnected: "RETAIL_FISCAL.CONNECTED",
+  /** A fiscal day closed and its Z-report taken by ZIMRA (SET-08): by hand, or with the last shift. Entity `RetailSettings`, id `fiscal`; carries the day, its total and how. */
+  fiscalDayClosed: "RETAIL_FISCAL.DAY_CLOSED",
+  /**
+   * Someone added to the shop from People (ADM-02), or sent their invite
+   * again (`again`). Entity `User`; carries their name, role, sites and
+   * whether a PIN and an email went with it — never the PIN or the link.
+   */
+  personInvited: "RETAIL_PERSON.INVITED",
+  /** They came in: by their link, their first till PIN, or their first sign-in. Entity `User`. */
+  personJoined: "RETAIL_PERSON.JOINED",
+  /** Their name, phone, role or sites changed. Entity `User`; carries each change before and after. */
+  personChanged: "RETAIL_PERSON.CHANGED",
+  /** A new till PIN sent to them. Entity `User`; carries whether the old one was locked and whether WhatsApp took it. */
+  personPinSent: "RETAIL_PERSON.PIN_SENT",
+  /** Their access removed. Entity `User`; carries the shifts closed without a count first. */
+  personAccessRemoved: "RETAIL_PERSON.ACCESS_REMOVED",
+  /** Their access given back. Entity `User`; carries whether a new PIN went with it. */
+  personAccessRestored: "RETAIL_PERSON.ACCESS_RESTORED",
+  /** They chose their own till PIN in place of the one they were sent (ADM-03). Entity `User`; carries nothing. */
+  pinChosen: "RETAIL_PERSON.PIN_CHOSEN",
+  /** The fifth wrong till PIN in a row locked theirs until a new one is sent (ADM-03). Entity `User`; carries the till and the source. */
+  pinLocked: "RETAIL_PIN.LOCKED",
 } as const;
 
 export type RetailAuditEvent =
@@ -556,6 +592,42 @@ export async function auditRecordPurged(
       entityType: input.entityType,
       entityId: input.entityId,
       payload: { actorRole: null, actorName: null, ...payload },
+    },
+    client,
+  );
+}
+
+/**
+ * A price on a list changed. A scheduled change coming due is written under
+ * whoever scheduled it; with nobody to name, under nobody.
+ */
+export async function auditPriceChanged(
+  client: AuditClient,
+  input: {
+    companyId: string;
+    actor: RetailAuditActor | null;
+    productId: string;
+    payload: { list: string; from: string | null; to: string | null; how: string; effectiveAt?: string };
+  },
+): Promise<void> {
+  if (input.actor) {
+    await writeRetailAuditEvent(client, {
+      actor: input.actor,
+      eventType: RETAIL_AUDIT_EVENTS.priceChanged,
+      entityType: "Product",
+      entityId: input.productId,
+      payload: input.payload,
+    });
+    return;
+  }
+  await writePlatformAuditEvent(
+    {
+      companyId: input.companyId,
+      actorId: null,
+      eventType: RETAIL_AUDIT_EVENTS.priceChanged,
+      entityType: "Product",
+      entityId: input.productId,
+      payload: { actorRole: null, actorName: null, ...input.payload },
     },
     client,
   );

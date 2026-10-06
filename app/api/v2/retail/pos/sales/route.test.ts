@@ -266,6 +266,18 @@ describe("a ZiG cash sale replayed from the offline queue", () => {
   });
 });
 
+describe("a sale from the offline queue dated ahead of the server (SET-08)", () => {
+  it("goes in when it arrived, for a manager to look at, never dated ahead", async () => {
+    const before = Date.now();
+    const sold = await sell("ahead", { tenderType: "CASH", currency: "USD", amount: 5 }, new Date(Date.now() + 2 * HOUR));
+    expect(sold.status).toBe(201);
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: sold.body.id! } });
+    expect(stored.postedAt!.getTime()).toBeGreaterThanOrEqual(before);
+    expect(stored.postedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(stored.reviewReason).toContain("the till's clock runs ahead");
+  });
+});
+
 describe("change on a sale, by the shop's ZiG rule", () => {
   it("hands back whole dollars, then ZiG rounded to the step, and posts what the rounding left", async () => {
     // US$5 for US$3.90 at 26.80: US$1.10 owed, US$1 and ZiG 2.68.

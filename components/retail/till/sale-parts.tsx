@@ -1067,7 +1067,9 @@ export function ApproveDialog({
             />
             {pinError ? (
               <ErrorLine id={`${ids}pe`}>
-                {pinError === pinRefusal && saleRefusal?.kind === "pin-locked" ? `${pinError} Another manager can approve it.` : pinError}
+                {pinError === pinRefusal && saleRefusal?.kind === "pin-locked"
+                  ? `${chosen ? `${firstName(chosen.name)}’s PIN is locked until a new one is sent.` : pinError} Another manager can approve it.`
+                  : pinError}
               </ErrorLine>
             ) : null}
           </div>

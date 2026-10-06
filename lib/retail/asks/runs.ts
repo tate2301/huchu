@@ -13,4 +13,6 @@ export type ListActionRun = {
   done: (count: number, rows: ReportRow[], answer?: unknown) => string | { title: string; variant: "warning" };
   /** The POST body, when the endpoint takes more than `{ ids }` (the bin's `{ items: [{ kind, id }] }`). */
   body?: (ids: string[], rows: ReportRow[]) => unknown;
+  /** Something to show once it is done, from the answer: the PINs WhatsApp did not take. Only "keep" is offered. */
+  after?: (answer: unknown) => Ask | null;
 };

@@ -325,6 +325,7 @@ export const RETAIL_SOURCE_TYPES: AccountingSourceType[] = [
   "RETAIL_STOCK_TRANSFER",
   "RETAIL_SHIFT_OPEN",
   "RETAIL_SHIFT_VARIANCE",
+  "RETAIL_OPENING_STOCK",
 ];
 
 type RunKind = "sales" | "refunds" | "deliveries" | "counts" | "other";

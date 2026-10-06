@@ -14,9 +14,8 @@ import { PRODUCT_REPORTS } from "@/lib/reports/definitions/retail/products";
 import { resolveListQuery, runList, type ListContext } from "@/lib/reports/list-query";
 import { PRODUCT_LOADERS } from "@/lib/reports/loaders/retail/products";
 import type { ListSpec } from "@/lib/reports/types";
-import { upsertShelfListing } from "@/lib/retail/shelf-listing";
-
 import { parseSellingIds, SellingRefusal, setProductsSelling } from "./selling";
+import { addTestProduct } from "./test-fixtures";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 let companyId: string;
@@ -29,30 +28,9 @@ const spec = PRODUCT_REPORTS[0]!.list as ListSpec;
 const actor = () => ({ companyId, userId, userName: "Tafara Nyathi", userRole: "MANAGER" });
 
 async function product(code: string, name: string, onHand: number, reorderAt: number, price: number) {
-  const locationId = (await prisma.stockLocation.findFirstOrThrow({ where: { siteId }, select: { id: true } })).id;
-  const item = await prisma.inventoryItem.create({
-    data: {
-      itemCode: `${code}-${stamp}`,
-      name,
-      category: "OTHER",
-      unit: "bottle",
-      siteId,
-      locationId,
-      currentStock: quantity(onHand),
-      minStock: quantity(reorderAt),
-    },
-    select: { id: true },
-  });
-  ids[code] = await upsertShelfListing({
-    companyId,
-    productId: null,
-    sku: `${code}-${stamp}`,
-    name,
-    inventoryItemId: item.id,
-    unitPrice: price,
-    taxPercent: 15,
-  });
-  return item.id;
+  const created = await addTestProduct(companyId, { name, price }, { siteId, onHand, reorderAt, unit: "bottle" });
+  ids[code] = created.productId;
+  return created.itemId;
 }
 
 async function sell(code: string, itemId: string, units: number, saleType: "SALE" | "REFUND", daysAgo: number) {
@@ -118,6 +96,8 @@ beforeAll(async () => {
   await sell("AMARULA", amarula, 2, "REFUND", 2);
   await sell("AMARULA", amarula, 40, "SALE", 45);
   await sell("COKE", coke, 216, "SALE", 10);
+  // This suite reads the archive events alone.
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, eventType: "RETAIL_PRODUCT.CREATED" } });
 });
 
 afterAll(async () => {
@@ -172,7 +152,7 @@ describe("the Products list (retail-products)", () => {
       vat: "15%",
       stock: "Low",
       flag: "Low",
-      cardMeta: `AMARULA-${stamp} · 13 bottles · 6 days`,
+      cardMeta: "AMARULA-CREAM-750ML · 13 bottles · 6 days",
     });
     const bols = page.rows.find((row) => row.id === ids.BOLS)!;
     expect(bols).toMatchObject({ sold30: 0, cover: null, stock: "Low" });

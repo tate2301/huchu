@@ -95,9 +95,9 @@ export type RetailPriceList = {
 /**
  * The list a till prices against.
  *
- * An explicit `RETAIL` list wins; otherwise the company default, via the same
- * `choosePriceList` every other module uses so nobody invents a second
- * precedence.
+ * The company's default list (PRD-03: a flag), else its `RETAIL` list, via
+ * the same `choosePriceList` every other module uses so nobody invents a
+ * second precedence.
  */
 export async function activeRetailPriceList(
   companyId: string,
@@ -115,7 +115,9 @@ export async function activeRetailPriceList(
     },
   });
 
-  const shelf = lists.find((list) => list.isActive && list.kind === "RETAIL");
+  // PRD-03: the default list is a flag; a company that has none yet prices off its RETAIL list.
+  const shelf =
+    lists.find((list) => list.isActive && list.isDefault) ?? lists.find((list) => list.isActive && list.kind === "RETAIL");
   const chosen = choosePriceList(lists, { priceListId: shelf?.id ?? null });
   if (!chosen) return null;
 
@@ -265,13 +267,8 @@ export async function resolveShelfPrice(
 }
 
 /**
- * The name S-4a's migration gave the list, and the name `upsertShelfListing`
- * upserts by. Changing it strands every tenant's shelf prices on a list nothing
- * looks for, and the till falls back to `Product.standardPrice` without saying so.
- *
- * S-4b: `upsertShelfListing` in `lib/retail/shelf-listing.ts` is what writes to
- * it now. The `linkListingToCore` that used to live here wrote a
- * `RetailCatalogItem` row beside the product, because the till still read one;
- * nothing reads one any more, so nothing writes one.
+ * The name S-4a's migration gave the shop's RETAIL list. Since PRD-03 the
+ * default list is found by its `isDefault` flag; this name is what a new
+ * shop's list is created with (provisioning), until PRD-05 renames it "Retail".
  */
 export const SHELF_PRICE_LIST_NAME = "Shelf prices";

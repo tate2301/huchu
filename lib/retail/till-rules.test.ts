@@ -226,6 +226,13 @@ describe("when a refund or void sent in late goes in", () => {
       replayedAt(new Date("2026-10-06T07:30:00Z"), { ...bounds, saleAt: new Date("2026-10-06T07:00:00Z") }, arrived),
     ).toEqual({ at: arrived, review });
   });
+
+  it("enters one dated after it arrived (the till's clock runs ahead) when it arrived, for review", () => {
+    expect(replayedAt(new Date("2026-10-06T14:00:00Z"), bounds, arrived)).toEqual({
+      at: arrived,
+      review: "Dated after it reached the server, so the till's clock runs ahead; entered when it arrived.",
+    });
+  });
 });
 
 describe("the Till rules page's rules", () => {

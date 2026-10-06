@@ -1834,6 +1834,8 @@
 .tl.tl.tl .tile[aria-disabled="true"] .p, .tl.tl.tl .tile[aria-disabled="true"] .n { color: var(--color-faint); }
 .tl.tl.tl .tile .t { display: flex; gap: var(--space-4); flex-wrap: wrap; }
 .tl.tl.tl .tile .s.age { color: var(--color-ink-2); }
+/* The price before a recent cut (PRD-03), struck through after the price. */
+.tl.tl.tl .tile .p .was { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-muted); }
 
 /* The tray rises over the sale column and keeps one height through ask, wait and done. */
 .tl.tl.tl .bench-side .over { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; justify-content: flex-end; }

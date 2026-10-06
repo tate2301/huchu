@@ -1,6 +1,7 @@
 import { esc } from "@/lib/documents/html-renderer";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
-import { loadProductRecord } from "@/lib/retail/product-record";
+import { ageCheckWords } from "@/lib/retail/products/age-check";
+import { loadProductView } from "@/lib/retail/products/view";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
 import { formatDay, formatMoney, formatSigned, formatTime, formatWhen } from "@/lib/workspace/format";
@@ -102,33 +103,34 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
   Product: {
     read: ["retail.catalog", "view"],
     render: async (caller, id) => {
-      const product = await loadProductRecord(caller.companyId, id, caller.role);
+      const product = await loadProductView(caller.companyId, id, caller.role);
       if (!product) return null;
       const price = rows([
-        ["Price", formatMoney(product.unitPrice)],
-        ...(product.costPrice === null ? [] : ([["Cost", formatMoney(product.costPrice)]] as Array<[string, string]>)),
-        ["VAT", `${product.taxPercent}%${product.taxInclusive ? " included" : ""}`],
-        ...product.priceLists.map((list): [string, string] => [list.name, formatMoney(list.unitPrice, list.currency)]),
+        [product.listName, formatMoney(product.price, product.currency)],
+        ...(product.cost === null ? [] : ([["Cost", formatMoney(product.cost)]] as Array<[string, string]>)),
+        ["VAT", product.vatLabel],
+        ...product.otherLists.map((list): [string, string] => [list.name, formatMoney(list.price, list.currency)]),
         ["Most off", product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`],
       ]);
-      const stock = product.inventoryItem;
+      const stock = product.stock;
       const stockRows = rows([
-        ["On hand", stock ? `${stock.currentStock} ${stock.unit}` : "—"],
-        ["Reorder at", stock?.reorderLevel === null || !stock ? "—" : `${stock.reorderLevel} ${stock.unit}`],
-        ["Reorder", stock?.reorderQty === null || !stock ? "—" : `${stock.reorderQty} ${stock.unit}`],
+        ["On hand", stock.onHandLabel],
+        ["Reorder at", stock.reorderAt === null ? "—" : `${stock.reorderAt} ${product.unit}`],
+        ["Reorder", stock.reorderQty === null ? "—" : `${stock.reorderQty} ${product.unit}`],
       ]);
       const details = rows([
         ["Name", product.name],
-        ["Code", product.sku],
+        ["Code", product.code],
         ["Barcode", product.barcode ?? "—"],
-        ["Category", product.category ?? "—"],
-        ["ID check", product.ageRestricted ? "Yes, 18 and over" : "No"],
+        ["Category", product.category?.path ?? "—"],
+        ["Supplier", product.supplier?.name ?? "—"],
+        ["ID check", ageCheckWords(product.ownAgeCheck, product.category)],
         ["Deposit", product.returnable && product.depositAmount ? formatMoney(product.depositAmount) : "None"],
       ]);
       return {
-        ref: product.sku,
+        ref: product.code,
         title: product.name,
-        subtitle: product.sku,
+        subtitle: product.code,
         content: `<div class="rd-cols">
   <table class="rd-table"><caption>Price</caption><tbody>${price}</tbody></table>
   <table class="rd-table"><caption>Stock</caption><tbody>${stockRows}</tbody></table>

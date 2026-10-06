@@ -1,15 +1,9 @@
-import type { UserRole } from "@prisma/client";
-
 import { prisma } from "@/lib/prisma";
-import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { createRetailTill, NoSiteForTill, TillNameTaken } from "@/lib/retail/tills";
 
 import { LookupFieldErrors, type LookupNoun } from "./types";
 
-/**
- * The floor's nouns: `till` (with its inline add) and `person`, read only —
- * the admin spec registers the person's create service.
- */
+/** The floor's noun: `till`, with its inline add. `person` is People's (`./people.ts`). */
 
 /** A till reads "Open" while a shift is open on it, else "Closed". */
 const till: LookupNoun = {
@@ -62,46 +56,4 @@ const till: LookupNoun = {
   },
 };
 
-/** What a person's role reads as beside their name. */
-const ROLE_WORDS: Partial<Record<UserRole, string>> = {
-  SUPERADMIN: "Owner",
-  MANAGER: "Manager",
-  SHOP_MANAGER: "Manager",
-  CASHIER: "Cashier",
-  STOCK_CLERK: "Stock clerk",
-  FINANCE_OFFICER: "Bookkeeper",
-};
-
-/**
- * People of the shop. `context.can = "sell"` keeps those who may sell at a till
- * (open a shift), which is what the Cashier field asks for.
- */
-const person: LookupNoun = {
-  noun: "person",
-  read: [
-    ["retail.people", "view"],
-    ["retail.cash-control", "open-shift"],
-    // "Taken by" on Move stock.
-    ["retail.transfers", "create"],
-  ],
-  quick: [],
-  async search(ctx, q, context) {
-    const users = await prisma.user.findMany({
-      where: {
-        companyId: ctx.companyId,
-        isActive: true,
-        role: { in: Object.keys(ROLE_WORDS) as UserRole[] },
-        ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}),
-      },
-      orderBy: [{ name: "asc" }],
-      take: 200,
-      select: { id: true, name: true, role: true },
-    });
-    const sellersOnly = context.can === "sell";
-    return users
-      .filter((user) => !sellersOnly || canRetailRoleDo(user.role, "retail.sell", "open-shift"))
-      .map((user) => ({ id: user.id, label: user.name, sub: ROLE_WORDS[user.role] ?? null }));
-  },
-};
-
-export const FLOOR_LOOKUPS: LookupNoun[] = [till, person];
+export const FLOOR_LOOKUPS: LookupNoun[] = [till];
