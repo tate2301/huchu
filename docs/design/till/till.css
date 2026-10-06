@@ -72,8 +72,9 @@
 
 /* The tray rises over the sale column and keeps one height through ask, wait and done. */
 .bench-side .over { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; justify-content: flex-end; }
-.bench-side .over .scrim { position: absolute; inset: 0; display: block; padding: 0; }
-.bench-side .tray { position: relative; height: 640px; }
+/* The scrim dims the sale under the tray, never the tray: the kit gives .scrim z-index 100, so both are set here. */
+.bench-side .over .scrim { position: absolute; inset: 0; z-index: 0; display: block; padding: 0; }
+.bench-side .tray { position: relative; z-index: 1; height: 640px; }
 .tray-top { display: flex; align-items: baseline; justify-content: space-between; }
 /* Nothing in the tray gives up its height but the spacer: a tall tray scrolls, it never squeezes Take. */
 .tray > :not(.grow) { flex-shrink: 0; }
