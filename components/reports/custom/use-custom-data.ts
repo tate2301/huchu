@@ -5,8 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import type { CustomBlock } from "@/lib/reports/custom/document";
-import { checkBlocks, runBlocks, sourcesRead, type BlockCheck, type BlockResult } from "@/lib/reports/custom/run";
-import type { CompletionContext } from "@/lib/reports/query/complete";
+import { checkBlocks, runBlocks, tablesRead, type BlockCheck, type BlockResult } from "@/lib/reports/custom/run";
+import { reportSql } from "@/lib/reports/sql/client";
+import { sourceTable, sqlName, type SqlTable } from "@/lib/reports/sql/schema";
 import type { ReportColumn, ReportParams, ReportRow } from "@/lib/reports/types";
 
 /** A source as `/api/v2/reports/sources` describes it. */
@@ -36,26 +37,22 @@ export function useReportSources() {
  *
  * Checking needs only the sources' columns, so a problem in a query shows as
  * it is typed. Rows are fetched for the sources the blocks read — once each,
- * however many blocks read them — and every block is run over them here, so
- * editing a query never waits on the server unless it names a new source.
+ * however many blocks read them — and every block runs in the report
+ * database in this tab, so editing a query never waits on the server unless
+ * it names a new source.
  */
 export function useCustomData(blocks: readonly CustomBlock[], sources: readonly ReportSource[] | undefined, params: ReportParams) {
   // Typing stays quick on a long page: the blocks re-run a beat behind it.
   const deferred = useDeferredValue(blocks);
 
-  const context = useMemo<CompletionContext>(
-    () => ({
-      reports: new Map((sources ?? []).map((source) => [source.key, source.columns])),
-      titles: new Map((sources ?? []).map((source) => [source.key, source.title])),
-    }),
-    [sources],
-  );
+  const tables = useMemo<SqlTable[]>(() => (sources ?? []).map(sourceTable), [sources]);
+  const keyOf = useMemo(() => new Map((sources ?? []).map((source) => [sqlName(source.key), source.key])), [sources]);
 
   const checks = useMemo<Map<string, BlockCheck>>(
-    () => (sources ? checkBlocks(deferred, context) : new Map()),
-    [context, deferred, sources],
+    () => (sources ? checkBlocks(deferred, tables) : new Map()),
+    [deferred, sources, tables],
   );
-  const keys = useMemo(() => sourcesRead(checks), [checks]);
+  const keys = useMemo(() => tablesRead(checks, tables).map((table) => keyOf.get(table)!), [checks, keyOf, tables]);
 
   const rows = useQuery({
     queryKey: ["reports", "custom-rows", keys, params],
@@ -69,23 +66,49 @@ export function useCustomData(blocks: readonly CustomBlock[], sources: readonly 
     placeholderData: (previous) => previous,
   });
 
-  const results = useMemo<Map<string, BlockResult>>(() => {
-    if (!rows.data && keys.length > 0) return new Map();
-    const loaded = rows.data?.sources ?? {};
-    return runBlocks(deferred, checks, {
-      report: (key) => loaded[key]?.rows ?? [],
-      params,
-    });
-  }, [checks, deferred, keys.length, params, rows.data]);
+  // What the run depends on: the queries, and which rows they run over.
+  const signature = useMemo(
+    () =>
+      JSON.stringify(
+        deferred.flatMap((block) => (block.type === "query" ? [[block.id, block.name, block.query]] : [])),
+      ),
+    [deferred],
+  );
+  const loadedRows = rows.data?.sources;
+  const ready = Boolean(sources) && (keys.length === 0 || keys.every((key) => loadedRows?.[key]));
+
+  const run = useQuery({
+    queryKey: ["reports", "custom-run", signature, rows.dataUpdatedAt, params],
+    queryFn: () =>
+      runBlocks(deferred, checks, {
+        runner: reportSql(),
+        sources: tables,
+        rows: (table) => loadedRows?.[keyOf.get(table) ?? ""]?.rows,
+        version: (table) => `${table}:${rows.dataUpdatedAt}`,
+        period: { from: params.from || undefined, to: params.to || undefined },
+      }),
+    enabled: ready,
+    placeholderData: (previous) => previous,
+    staleTime: Infinity,
+    retry: false,
+  });
 
   /** Sources that came back cut short, for a warning under the blocks that read them. */
   const truncated = useMemo(
-    () => new Set(Object.entries(rows.data?.sources ?? {}).filter(([, source]) => source.truncated).map(([key]) => key)),
-    [rows.data],
+    () => new Set(Object.entries(loadedRows ?? {}).filter(([, source]) => source.truncated).map(([key]) => sqlName(key))),
+    [loadedRows],
   );
 
-  /** Sources whose rows are here — a block reading any other is still loading. */
-  const loaded = useMemo(() => new Set(Object.keys(rows.data?.sources ?? {})), [rows.data]);
-
-  return { context, checks, results, rows, truncated, loaded };
+  const results = run.data ?? new Map<string, BlockResult>();
+  return {
+    tables,
+    checks,
+    results,
+    rows,
+    truncated,
+    /** Still working out what to show: the rows are on their way, or the queries are running. */
+    pending: !ready || run.isPending,
+    running: run.isFetching,
+    runError: run.error,
+  };
 }

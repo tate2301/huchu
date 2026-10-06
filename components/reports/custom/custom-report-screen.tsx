@@ -211,16 +211,17 @@ export function CustomReportScreen({ id }: { id: string }) {
       return <p className="max-w-[70ch] text-[13px] leading-[1.5] whitespace-pre-line text-[var(--text-body)]">{block.text}</p>;
     }
     const check = data.checks.get(block.id);
-    const reads = check?.ok ? check.query.reports : [];
+    const reads = check?.ok ? check.checked.tables : [];
+    const result = data.results.get(block.id);
     return (
       <CustomBlockResult
         block={block}
         check={check}
-        result={data.results.get(block.id)}
-        loading={reads.some((key) => !data.loaded.has(key))}
+        result={result}
+        loading={data.pending || (data.running && !result)}
         params={params}
         width={width}
-        truncated={reads.some((key) => data.truncated.has(key))}
+        truncated={reads.some((table) => data.truncated.has(table))}
       />
     );
   };
@@ -254,7 +255,7 @@ export function CustomReportScreen({ id }: { id: string }) {
             }
           />
         ) : (
-          <div className={`grid gap-8 pt-3${data.rows.isFetching ? " opacity-60 transition-opacity" : ""}`}>
+          <div className={`grid gap-8 pt-3${data.rows.isFetching || data.running ? " opacity-60 transition-opacity" : ""}`}>
             {pageRows(blocks).map((row) =>
               row.length === 2 ? (
                 <div key={row[0]!.id} className="grid gap-8 md:grid-cols-2">

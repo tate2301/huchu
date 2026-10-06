@@ -1,73 +1,34 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import {
-  autocompletion,
-  closeBrackets,
-  closeBracketsKeymap,
-  completionKeymap,
-  type Completion,
-  type CompletionContext as EditorCompletionContext,
-} from "@codemirror/autocomplete";
+import { useEffect, useMemo, useRef } from "react";
+import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { bracketMatching, HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
+import { PostgreSQL, sql } from "@codemirror/lang-sql";
+import { bracketMatching, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { setDiagnostics } from "@codemirror/lint";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
-import { completionsAt, type CompletionContext, type CompletionKind } from "@/lib/reports/query/complete";
-import type { QueryProblem } from "@/lib/reports/query/compile";
-import { STEP_WORDS } from "@/lib/reports/query/parser";
+import { functionCompletions, sqlNamespace } from "@/lib/reports/sql/completion";
+import type { SqlProblem } from "@/lib/reports/sql/guard";
+import type { SqlTable } from "@/lib/reports/sql/schema";
 
 /**
- * A query, written in a code editor: its words coloured, the columns and
- * functions offered as it is typed, and the first thing wrong underlined
- * where it is.
+ * A query, written in SQL: Postgres's own words coloured, the tables and
+ * columns this person can query offered as it is typed, and the first thing
+ * wrong underlined where it is.
  */
-
-const STEPS = new Set<string>([...STEP_WORDS, "inner"]);
-const WORDS = new Set(["and", "or", "not", "in", "like", "is", "null", "true", "false", "by", "asc", "desc", "as", "on"]);
-
-/** Colours a query the way the language reads it: a step word only where a step can start. */
-const queryLanguage = StreamLanguage.define<Record<string, never>>({
-  name: "report-query",
-  startState: () => ({}),
-  token(stream) {
-    if (stream.eatSpace()) return null;
-    if (stream.match("--")) {
-      stream.skipToEnd();
-      return "comment";
-    }
-    if (stream.match(/^"(?:[^"\\]|\\.)*"?/) || stream.match(/^'(?:[^'\\]|\\.)*'?/)) return "string";
-    if (stream.match(/^`[^`]*`?/)) return "variable-2";
-    if (stream.match(/^\d+(?:\.\d+)?/)) return "number";
-    if (stream.match(/^[$@][A-Za-z0-9_]+/)) return "atom";
-    if (stream.match(/^[A-Za-z_][A-Za-z0-9_]*/)) {
-      const word = stream.current().toLowerCase();
-      const before = stream.string.slice(0, stream.start).trimEnd();
-      if (STEPS.has(word) && (before === "" || before.endsWith("|"))) return "keyword";
-      if (word === "join" && before.toLowerCase().endsWith("inner")) return "keyword";
-      if (WORDS.has(word)) return "operator";
-      if (stream.peek() === "(") return "builtin";
-      return "variable";
-    }
-    stream.next();
-    return "operator";
-  },
-  languageData: { commentTokens: { line: "--" } },
-});
 
 const highlight = HighlightStyle.define([
   { tag: tags.keyword, color: "var(--text-strong)", fontWeight: "600" },
-  { tag: tags.operator, color: "var(--text-muted)" },
+  { tag: [tags.operator, tags.punctuation], color: "var(--text-muted)" },
   { tag: tags.string, color: "var(--tone-success-strong)" },
-  { tag: tags.number, color: "var(--tone-info)" },
-  { tag: tags.atom, color: "var(--tone-info)", fontWeight: "500" },
+  { tag: [tags.number, tags.bool, tags.null], color: "var(--tone-info)" },
   { tag: tags.comment, color: "var(--text-subtle)", fontStyle: "italic" },
-  { tag: tags.standard(tags.variableName), color: "var(--tone-danger-strong)" },
-  { tag: tags.special(tags.variableName), color: "var(--text)" },
-  { tag: tags.variableName, color: "var(--text)" },
+  { tag: [tags.standard(tags.name), tags.function(tags.name)], color: "var(--tone-danger-strong)" },
+  { tag: [tags.typeName], color: "var(--tone-info)" },
+  { tag: [tags.name, tags.special(tags.name)], color: "var(--text)" },
 ]);
 
 const theme = EditorView.theme({
@@ -103,60 +64,44 @@ const theme = EditorView.theme({
   ".cm-diagnostic-error": { borderLeftColor: "var(--status-error-text)" },
 });
 
-const COMPLETION_TYPE: Record<CompletionKind, string> = {
-  step: "keyword",
-  source: "namespace",
-  block: "variable",
-  column: "property",
-  function: "function",
-  aggregate: "function",
-  word: "keyword",
-  param: "constant",
-};
+const functions = PostgreSQL.language.data.of({ autocomplete: functionCompletions });
 
 export function QueryEditor({
   value,
   onChange,
-  context,
+  tables,
   problem,
   label,
 }: {
   value: string;
   onChange: (value: string) => void;
-  /** The sources and blocks it can name, for what is offered as it is typed. */
-  context: CompletionContext;
-  problem: QueryProblem | null;
+  /** The tables this query can read, for what is offered as it is typed. */
+  tables: readonly SqlTable[];
+  problem: SqlProblem | null;
   label: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
+  const language = useRef(new Compartment());
   // The editor is built once; what it reads changes under it.
-  const latest = useRef({ onChange, context });
+  const latest = useRef(onChange);
   useEffect(() => {
-    latest.current = { onChange, context };
+    latest.current = onChange;
   });
+
+  // The table the query is from: its columns are offered without its name in front.
+  const defaultTable = useMemo(() => {
+    const named = /\bfrom\s+([A-Za-z_][A-Za-z0-9_]*)/i.exec(value)?.[1]?.toLowerCase();
+    return tables.some((table) => table.name === named) ? named : undefined;
+  }, [tables, value]);
+
+  const schema = useMemo(
+    () => sql({ dialect: PostgreSQL, schema: sqlNamespace(tables), defaultTable, upperCaseKeywords: false }),
+    [defaultTable, tables],
+  );
 
   useEffect(() => {
     if (!host.current) return;
-    const complete = (editor: EditorCompletionContext) => {
-      const found = completionsAt(editor.state.doc.toString(), editor.pos, latest.current.context);
-      if (!found || (found.from === editor.pos && !editor.explicit)) return null;
-      return {
-        from: found.from,
-        options: found.options.map(
-          (option): Completion => ({
-            label: option.label,
-            type: COMPLETION_TYPE[option.kind],
-            ...(option.detail ? { detail: option.detail } : {}),
-            ...(option.info ? { info: option.info } : {}),
-            ...(option.apply ? { apply: option.apply } : {}),
-            boost: option.kind === "column" || option.kind === "source" || option.kind === "step" ? 2 : 0,
-          }),
-        ),
-        validFor: /^[A-Za-z0-9_\-.@$]*$/,
-      };
-    };
-
     const editor = new EditorView({
       parent: host.current,
       state: EditorState.create({
@@ -165,15 +110,16 @@ export function QueryEditor({
           history(),
           closeBrackets(),
           bracketMatching(),
-          queryLanguage,
+          language.current.of(schema),
+          functions,
           syntaxHighlighting(highlight),
-          autocompletion({ override: [complete], icons: false }),
-          placeholder("from crm-deals"),
+          autocompletion({ icons: false }),
+          placeholder("select * from crm_deals"),
           keymap.of([...closeBracketsKeymap, ...completionKeymap, ...historyKeymap, ...defaultKeymap, indentWithTab]),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ "aria-label": label }),
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) latest.current.onChange(update.state.doc.toString());
+            if (update.docChanged) latest.current(update.state.doc.toString());
           }),
           theme,
         ],
@@ -184,9 +130,14 @@ export function QueryEditor({
       editor.destroy();
       view.current = null;
     };
-    // Built once per mount; `value` is synced below.
+    // Built once per mount; the value, schema and problem are synced below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // New tables to offer — another block ran, a source loaded.
+  useEffect(() => {
+    view.current?.dispatch({ effects: language.current.reconfigure(schema) });
+  }, [schema]);
 
   // A change from outside — a discard, a reload — replaces what is typed.
   useEffect(() => {
@@ -201,14 +152,13 @@ export function QueryEditor({
     const length = editor.state.doc.length;
     const diagnostics = problem
       ? [
-          {
-            from: Math.min(problem.span.from, length),
-            // A point is underlined across the character after it, or the one before at the end.
-            to: Math.min(Math.max(problem.span.to, problem.span.from + 1), length),
-            severity: "error" as const,
-            message: problem.message,
-          },
-        ].map((entry) => (entry.from === entry.to ? { ...entry, from: Math.max(0, entry.from - 1) } : entry))
+          (() => {
+            const from = Math.min(problem.from, length);
+            const to = Math.min(Math.max(problem.to, from + 1), length);
+            // A point at the very end is underlined across the character before it.
+            return { from: from === to ? Math.max(0, from - 1) : from, to, severity: "error" as const, message: problem.message };
+          })(),
+        ]
       : [];
     editor.dispatch(setDiagnostics(editor.state, diagnostics));
   }, [problem, value]);

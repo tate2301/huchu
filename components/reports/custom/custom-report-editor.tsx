@@ -29,6 +29,9 @@ import {
 } from "@/lib/reports/custom/document";
 import { naturalGrouping, naturalMeasure, type Measure } from "@/lib/reports/layout";
 import { resolveParams } from "@/lib/reports/params";
+import type { BlockCheck, BlockResult } from "@/lib/reports/custom/run";
+import type { SqlProblem } from "@/lib/reports/sql/guard";
+import { blockTable, sqlName, type SqlTable } from "@/lib/reports/sql/schema";
 import { AGGREGATES, type Aggregate, type ReportColumn } from "@/lib/reports/types";
 import { AGGREGATE_LABELS } from "@/lib/reports/view";
 
@@ -86,8 +89,8 @@ function periodId(period: CustomDocument["period"]): string {
 function defaultSource(blocks: readonly CustomBlock[], sources: readonly ReportSource[]): ReportSource | null {
   for (const block of [...blocks].reverse()) {
     if (block.type !== "query") continue;
-    const key = /^\s*from\s+([A-Za-z0-9_-]+)/m.exec(block.query)?.[1];
-    const source = sources.find((candidate) => candidate.key === key);
+    const table = /\bfrom\s+([A-Za-z0-9_]+)/i.exec(block.query)?.[1]?.toLowerCase();
+    const source = sources.find((candidate) => sqlName(candidate.key) === table);
     if (source) return source;
   }
   return sources[0] ?? null;
@@ -98,8 +101,10 @@ function createBlock(kind: string, text: string, existing: readonly CustomBlock[
   if (kind === "text") return { id: freeBlockId("text", existing), type: "text", text };
 
   const source = defaultSource(existing, sources);
-  const columns = source?.columns ?? [];
-  const from = source ? `from ${source.key}\n` : "from ";
+  // Results name their columns the SQL way, so the display does too.
+  const columns = (source?.columns ?? []).map((column) => ({ ...column, key: sqlName(column.key) }));
+  const table = source ? sqlName(source.key) : "";
+  const from = `select *\nfrom ${table}\n`;
   const measure = naturalMeasure(columns) ?? undefined;
   const base = { id: freeBlockId("query", existing), type: "query" as const, name: freeBlockName(source ? sourceStem(source.key) : "result", existing), ...(text ? { title: text } : {}) };
 
@@ -113,8 +118,8 @@ function createBlock(kind: string, text: string, existing: readonly CustomBlock[
       return { ...base, query: from, display: { type: "chart", form: "trend", by: by?.key ?? "", ...(measure ? { measure } : {}) } };
     }
     case "figures": {
-      const totals = columns.filter((column) => column.total === "sum").map((column) => `${column.key} = sum(${column.key})`);
-      return { ...base, query: `${from}aggregate ${["rows = count()", ...totals].join(", ")}\n`, display: { type: "figures" } };
+      const totals = columns.filter((column) => column.total === "sum").map((column) => `sum(${column.key}) as ${column.key}`);
+      return { ...base, query: `select ${["count(*) as row_count", ...totals].join(",\n  ")}\nfrom ${table}\n`, display: { type: "figures" } };
     }
     case "breakdown":
       return { ...base, query: from, display: { type: "breakdown" } };
@@ -315,7 +320,7 @@ function SourceList({ sources, onCopy }: { sources: readonly ReportSource[]; onC
   return (
     <nav aria-label="Sources you can query" className="grid gap-4">
       <p className="text-[12px] leading-[1.5] text-[var(--text-muted)]">
-        Every report you can open is a source. Click a name to copy it.
+        Every report you can open is a table. Click a name to copy it.
       </p>
       {areas.map(([area, list]) => (
         <section key={area}>
@@ -334,10 +339,10 @@ function SourceList({ sources, onCopy }: { sources: readonly ReportSource[]; onC
                   >
                     {open === source.key ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}
                   </button>
-                  <button type="button" className={styles.sourceButton} onClick={() => onCopy(source.key)} title={`Copy ${source.key}`}>
+                  <button type="button" className={styles.sourceButton} onClick={() => onCopy(sqlName(source.key))} title={`Copy ${sqlName(source.key)}`}>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{source.title}</span>
-                      <span className="block truncate font-mono text-[11px] text-[var(--text-muted)]">{source.key}</span>
+                      <span className="block truncate font-mono text-[11px] text-[var(--text-muted)]">{sqlName(source.key)}</span>
                     </span>
                   </button>
                 </div>
@@ -345,8 +350,8 @@ function SourceList({ sources, onCopy }: { sources: readonly ReportSource[]; onC
                   <ul className={styles.columnList}>
                     {source.columns.map((column) => (
                       <li key={column.key}>
-                        <button type="button" className={styles.sourceButton} onClick={() => onCopy(column.key)} title={column.label}>
-                          <span className="min-w-0 flex-1 truncate font-mono">{column.key}</span>
+                        <button type="button" className={styles.sourceButton} onClick={() => onCopy(sqlName(column.key))} title={column.label}>
+                          <span className="min-w-0 flex-1 truncate font-mono">{sqlName(column.key)}</span>
                           <span className="text-[var(--text-subtle)]">{column.kind}</span>
                         </button>
                       </li>
@@ -360,6 +365,13 @@ function SourceList({ sources, onCopy }: { sources: readonly ReportSource[]; onC
       ))}
     </nav>
   );
+}
+
+/** What is wrong with a block: its query does not check, or it did not run. */
+function problemOf(check: BlockCheck | undefined, result: BlockResult | undefined): SqlProblem | null {
+  if (check && !check.ok) return check.problem;
+  if (result && !result.ok) return result.problem;
+  return null;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -403,8 +415,9 @@ export function CustomReportEditor({ id }: { id: string }) {
   const problems = [
     ...(parsed && !parsed.success ? parsed.error.issues.map((issue) => issue.message) : []),
     ...blocks.flatMap((block) => {
-      const check = block.type === "query" ? data.checks.get(block.id) : undefined;
-      return block.type === "query" && check && !check.ok ? [`@${block.name}: ${check.problem.message}`] : [];
+      if (block.type !== "query") return [];
+      const problem = problemOf(data.checks.get(block.id), data.results.get(block.id));
+      return problem ? [`@${block.name}: ${problem.message}`] : [];
     }),
   ].filter((problem, index, all) => all.indexOf(problem) === index);
 
@@ -524,20 +537,18 @@ export function CustomReportEditor({ id }: { id: string }) {
 
   const sourceList = sources.data?.sources ?? [];
   const columnsOf = (block: CustomBlock): ReportColumn[] => {
-    const check = block.type === "query" ? data.checks.get(block.id) : undefined;
-    return check?.ok ? check.query.columns : [];
+    const result = block.type === "query" ? data.results.get(block.id) : undefined;
+    return result?.ok ? result.columns : [];
   };
-  const blockContext = (block: QueryBlock) => ({
-    ...data.context,
-    // A block can read any other block on the page, but not itself.
-    blocks: new Map(
-      blocks.flatMap((other) => {
-        if (other.type !== "query" || other.id === block.id) return [];
-        const check = data.checks.get(other.id);
-        return check?.ok ? [[other.name, check.query.columns] as const] : [];
-      }),
-    ),
-  });
+  /** What a block's query can read: the sources, and every other block that has run. */
+  const tablesFor = (block: QueryBlock): SqlTable[] => [
+    ...data.tables,
+    ...blocks.flatMap((other) => {
+      if (other.type !== "query" || other.id === block.id) return [];
+      const result = data.results.get(other.id);
+      return result?.ok ? [blockTable(other.name, result.columns)] : [];
+    }),
+  ];
 
   const header = (
     <div>
@@ -590,7 +601,7 @@ export function CustomReportEditor({ id }: { id: string }) {
           </label>
         ) : null}
         <span className="ml-auto font-mono text-[11px]">
-          {params.from && params.to ? `${params.from} – ${params.to}` : params.from ? `${params.from} onwards` : params.to ? `Up to ${params.to}` : "Any time"} · $from and $to in a query
+          {params.from && params.to ? `${params.from} – ${params.to}` : params.from ? `${params.from} onwards` : params.to ? `Up to ${params.to}` : "Any time"} · period_start() and period_end() in a query
         </span>
       </div>
     </div>
@@ -639,9 +650,9 @@ export function CustomReportEditor({ id }: { id: string }) {
               );
             }
             const check = data.checks.get(block.id);
-            const problem = check && !check.ok ? check.problem : null;
             const result = data.results.get(block.id);
-            const reads = check?.ok ? check.query.reports : [];
+            const problem = problemOf(check, result);
+            const reads = check?.ok ? check.checked.tables : [];
             return (
               <div>
                 <div className={styles.blockHead}>
@@ -666,7 +677,7 @@ export function CustomReportEditor({ id }: { id: string }) {
                 <QueryEditor
                   value={block.query}
                   onChange={(query) => update({ ...block, query })}
-                  context={blockContext(block)}
+                  tables={tablesFor(block)}
                   problem={problem}
                   label={`Query for @${block.name}`}
                 />
@@ -677,10 +688,10 @@ export function CustomReportEditor({ id }: { id: string }) {
                         block={block}
                         check={check}
                         result={result}
-                        loading={reads.some((key) => !data.loaded.has(key))}
+                        loading={data.pending || (data.running && !result)}
                         params={params}
                         width={block.half ? HALF : FULL}
-                        truncated={reads.some((key) => data.truncated.has(key))}
+                        truncated={reads.some((table) => data.truncated.has(table))}
                       />
                     </div>
                     {result?.ok ? (

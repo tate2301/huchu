@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { measureSchema, naturalGrouping, type LayoutBlock } from "@/lib/reports/layout";
+import { sqlName } from "@/lib/reports/sql/schema";
 import type { ReportMeta, ReportParam } from "@/lib/reports/types";
 
 /**
@@ -38,7 +39,7 @@ export type DisplayType = BlockDisplay["type"];
 /** A block's name, as other blocks read it: `from @won_deals`. */
 export const BLOCK_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,39}$/;
 
-export const MAX_QUERY_LENGTH = 10_000;
+export const MAX_QUERY_LENGTH = 20_000;
 
 const headingBlock = z.object({
   id,
@@ -146,7 +147,7 @@ export function starterDocument(source: Pick<ReportMeta, "key"> | null): CustomD
         id: "query-1",
         type: "query",
         name: sourceStem(source.key),
-        query: `from ${source.key}\n`,
+        query: `select *\nfrom ${sqlName(source.key)}\n`,
         display: { type: "table" },
       },
     ],
@@ -161,7 +162,7 @@ export function starterDocument(source: Pick<ReportMeta, "key"> | null): CustomD
 export function documentFromReport(meta: Pick<ReportMeta, "key" | "columns" | "layout" | "params">): CustomDocument {
   const blocks: CustomBlock[] = [];
   const stem = sourceStem(meta.key);
-  const from = `from ${meta.key}\n`;
+  const from = `select *\nfrom ${sqlName(meta.key)}\n`;
   const add = (block: Omit<QueryBlock, "id" | "name" | "type">, half?: boolean) =>
     blocks.push({
       id: freeBlockId("query", blocks),
@@ -180,8 +181,8 @@ export function documentFromReport(meta: Pick<ReportMeta, "key" | "columns" | "l
         break;
       case "figures": {
         const totals = meta.columns.filter((column) => column.total === "sum");
-        const items = ["rows = count()", ...totals.map((column) => `${column.key} = sum(${column.key})`)];
-        add({ query: `${from}aggregate ${items.join(", ")}\n`, display: { type: "figures" } }, block.half);
+        const items = ["count(*) as row_count", ...totals.map((column) => `sum(${sqlName(column.key)}) as ${sqlName(column.key)}`)];
+        add({ query: `select ${items.join(",\n  ")}\nfrom ${sqlName(meta.key)}\n`, display: { type: "figures" } }, block.half);
         break;
       }
       case "chart":
@@ -192,8 +193,9 @@ export function documentFromReport(meta: Pick<ReportMeta, "key" | "columns" | "l
             display: {
               type: "chart",
               form: block.form,
-              by: block.by,
-              ...(block.measure ? { measure: block.measure } : {}),
+              // Results name their columns the SQL way.
+              by: sqlName(block.by),
+              ...(block.measure ? { measure: { ...block.measure, column: sqlName(block.measure.column) } } : {}),
               ...(block.limit ? { limit: block.limit } : {}),
             },
           },
@@ -201,7 +203,8 @@ export function documentFromReport(meta: Pick<ReportMeta, "key" | "columns" | "l
         );
         break;
       case "breakdown": {
-        const by = block.by ?? naturalGrouping(meta.columns)?.key;
+        const natural = block.by ?? naturalGrouping(meta.columns)?.key;
+        const by = natural ? sqlName(natural) : undefined;
         add({ query: from, display: { type: "breakdown", ...(by ? { by } : {}), ...(block.limit ? { limit: block.limit } : {}) } }, block.half);
         break;
       }

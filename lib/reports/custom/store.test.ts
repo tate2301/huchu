@@ -70,7 +70,7 @@ describe("a custom report", () => {
   it("is its maker's alone until shared", async () => {
     const report = await createCustomReport(maker, input(false));
     expect(report).toMatchObject({ mine: true, editable: true, shared: false });
-    expect(report.document.blocks[0]).toMatchObject({ type: "query", query: "from crm-deals\n" });
+    expect(report.document.blocks[0]).toMatchObject({ type: "query", query: "select *\nfrom crm_deals\n" });
 
     expect(await readCustomReport(colleague, report.id)).toBeNull();
     expect(await readCustomReport(manager, report.id)).toBeNull();
