@@ -10,6 +10,7 @@ import {
   checkTillPasswordSignIn,
   checkTillPinSignIn,
   hashDeviceKey,
+  noLongerFacts,
   pairDevice,
   refuseShiftElsewhere,
   requirePosDevice,
@@ -208,6 +209,50 @@ describe("pairing a device with a code (W-04 step 6)", () => {
     expect(now.unpairedAt).toBeNull();
     const audit = await prisma.platformAuditEvent.findMany({ where: { companyId, entityId: back.id }, orderBy: { createdAt: "asc" } });
     expect(audit.map((row) => row.eventType)).toEqual(["RETAIL_DEVICE.PAIRED", "RETAIL_DEVICE.PAIRED", "RETAIL_DEVICE.REPLACED"]);
+  });
+
+  it("tells a replaced device which device took its till, who paired it, and whose shift carried on", async () => {
+    const side = await till("Side till");
+    // Made directly: the plan's two tills are taken, and a replace code does not ask for room.
+    const first = { key: `side-key-${stamp}` };
+    await prisma.retailDevice.create({
+      data: { companyId, registerId: side.id, kind: "COUNTER_MINI", keyHash: hashDeviceKey(first.key), pairedById: ownerId },
+    });
+    const shift = await prisma.retailShift.create({
+      data: {
+        companyId,
+        siteId,
+        shiftNo: `SH-side-${stamp}`,
+        registerCode: "SIDE",
+        registerName: "Side till",
+        registerId: side.id,
+        cashierId: people.chipo!,
+        cashierName: "Chipo Dube",
+        openedAt: new Date(Date.now() - 60_000),
+      },
+      select: { id: true },
+    });
+    const old = (await requirePosDevice(request(first.key), { user: { companyId } })).device!;
+    expect(await noLongerFacts(old)).toBeNull();
+
+    await pair((await code(side.id, "REPLACE")).code, `side-second-${stamp}`);
+    const gone = (await requirePosDevice(request(first.key), { user: { companyId } }, { allowUnpaired: true })).device!;
+    const facts = await noLongerFacts(gone);
+    expect(facts).toMatchObject({
+      till: "Side till",
+      reason: "REPLACED",
+      by: "Tendai Mhlanga",
+      sent: 0,
+      replacement: { kind: "BROWSER", label: "Windows PC", by: "Tendai Mhlanga" },
+      shift: { cashier: "Chipo Dube" },
+    });
+    expect(Date.parse(facts!.replacement!.at)).toBeGreaterThanOrEqual(gone.unpairedAt!.getTime());
+
+    // Once that shift is closed nothing carries on; the device that took over is still named.
+    await prisma.retailShift.update({ where: { id: shift.id }, data: { status: "CLOSED", closedAt: new Date() } });
+    expect(await noLongerFacts(gone)).toMatchObject({ shift: null, replacement: { kind: "BROWSER" } });
+    await prisma.retailDevice.updateMany({ where: { registerId: side.id }, data: { unpairedAt: new Date(), unpairReason: "UNPAIRED" } });
+    await prisma.retailRegister.update({ where: { id: side.id }, data: { isActive: false } });
   });
 
   it("refuses a third paired till on a two-till plan", async () => {
@@ -456,5 +501,13 @@ describe("every POS request names its device (W-04 step 8)", () => {
       });
     }
     expect(await salesSentAfterUnpairing(gone)).toBe(2);
+    expect(await noLongerFacts(gone)).toMatchObject({
+      till: "Test till",
+      reason: "UNPAIRED",
+      by: "Tendai Mhlanga",
+      sent: 2,
+      replacement: null,
+      shift: null,
+    });
   });
 });

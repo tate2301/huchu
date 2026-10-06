@@ -297,3 +297,10 @@ tr.is-pickable[aria-current="true"] { background: var(--color-accent-tint); }
 .dialog-lg.is-compact { max-width: 560px; }
 .row.is-sale[aria-current="true"] { background: var(--color-accent-tint); }
 .col .v { top: 0; }
+
+/* The pairing door's camera, when the QR is scanned instead of typed. */
+.qr-cam { position: relative; width: 100%; max-width: 320px; aspect-ratio: 1; border-radius: var(--radius-card); overflow: hidden; background: var(--color-ink); box-shadow: var(--shadow-ring); }
+.qr-cam video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.qr-cam .frame { position: absolute; inset: 18%; border-radius: var(--radius-card); box-shadow: 0 0 0 2px var(--color-accent-ink), 0 0 0 999px rgb(0 0 0 / 0.35); pointer-events: none; }
+/* A shop's logo at the head of a receipt or an offline slip. */
+.receipt-logo { display: block; margin: 0 auto var(--space-8); max-width: 160px; max-height: 72px; }

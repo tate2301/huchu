@@ -116,8 +116,8 @@ export function pollPairing(purpose: "PAIR" | "REPLACE") {
 
 const pairedNow = (values: SheetValues) => values._state === "paired";
 
-/** "Pairing code" with its QR for a Kora, then "Waiting for the till…" that flips to "Paired". */
-function codeFields(input: { hint: string; waiting: string; kora: (values: SheetValues) => boolean; show?: (values: SheetValues) => boolean }): FieldSpec[] {
+/** "Pairing code" with its QR (a Kora scans it; any other till can scan it with its camera), then "Waiting for the till…" that flips to "Paired". */
+function codeFields(input: { hint: string; waiting: string; show?: (values: SheetValues) => boolean }): FieldSpec[] {
   const show = input.show ?? (() => true);
   return [
     {
@@ -126,7 +126,7 @@ function codeFields(input: { hint: string; waiting: string; kora: (values: Sheet
       l: "Pairing code",
       mono: true,
       h: input.hint,
-      qr: (values) => (input.kora(values) && typeof values._code === "string" ? pairingPayload(values._code) : null),
+      qr: (values) => (typeof values._code === "string" ? pairingPayload(values._code) : null),
       // A used code is gone: once paired only "Paired" stays.
       show: (values) => show(values) && values._refused !== true && !pairedNow(values),
     },
@@ -158,8 +158,6 @@ const siteCount = (values: SheetValues) => Number(values._siteCount ?? 1);
 const siteOption = (site: { id: string; name: string }): PickedOption => ({ id: site.id, label: site.name });
 
 /* ── Pair a till (`K.till`, board TillNew) ────────────────────────────────── */
-
-const KORA = "Kora handheld";
 
 /** Opening the sheet makes the till and its first code (W-04 step 1), once. */
 const createTill = oncePer(async (ctx: SheetCtx): Promise<SheetValues> => {
@@ -217,7 +215,6 @@ const tillNew: SheetKind = {
       fields: codeFields({
         hint: "On the device, open Tender and type this code, or scan it. It works once, for 10 minutes. No password goes on the device.",
         waiting: "Waiting for the till…",
-        kora: (values) => values.kind === KORA,
       }),
     },
     {
@@ -344,7 +341,6 @@ const tillEdit: SheetKind = {
         ...codeFields({
           hint: "On the device, open Tender and type this code, or scan it. It works once, for 10 minutes. No password goes on the device.",
           waiting: "Waiting for the till…",
-          kora: (values) => values._deviceKind === "KORA",
           show: (values) => values._wasPaired !== true && values._code !== undefined,
         }),
       ],
@@ -415,7 +411,6 @@ const tillReplace: SheetKind = {
       fields: codeFields({
         hint: "Open Tender on the new device and type this code, or scan it. It works once, for 10 minutes.",
         waiting: "Waiting for the device…",
-        kora: (values) => values._deviceKind === "KORA",
       }),
     },
     {

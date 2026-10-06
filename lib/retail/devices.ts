@@ -228,6 +228,61 @@ export async function salesSentAfterUnpairing(device: PosDevice): Promise<number
   });
 }
 
+/** What /unpaired says (board NoLonger), all of it read from the database. */
+export type NoLongerFacts = {
+  till: string;
+  reason: UnpairReason;
+  /** Who unpaired it, or made the code that replaced it. */
+  by: string | null;
+  at: string;
+  /** Sales this device held offline that came in after it was unpaired. */
+  sent: number;
+  /** REPLACED: the device that took its place, and who paired it when. */
+  replacement: { kind: DeviceKind; label: string | null; by: string | null; at: string } | null;
+  /** REPLACED while a shift was open on the till, and it still is: whose. */
+  shift: { cashier: string } | null;
+};
+
+/**
+ * Everything /unpaired shows: who unpaired this device and when, how many of
+ * its offline sales came in since, and when it was replaced, the device that
+ * took the till over and the shift that carried on there.
+ */
+export async function noLongerFacts(device: PosDevice): Promise<NoLongerFacts | null> {
+  const unpairedAt = device.unpairedAt;
+  if (!unpairedAt) return null;
+  const reason = (device.unpairReason ?? "UNPAIRED") as UnpairReason;
+  const replaced = reason === "REPLACED";
+  const [sent, replacement, shift] = await Promise.all([
+    salesSentAfterUnpairing(device),
+    replaced
+      ? prisma.retailDevice.findFirst({
+          where: { companyId: device.companyId, registerId: device.registerId, id: { not: device.id }, pairedAt: { gte: unpairedAt } },
+          orderBy: { pairedAt: "asc" },
+          select: { kind: true, label: true, pairedAt: true, pairedBy: { select: { name: true } } },
+        })
+      : null,
+    replaced
+      ? prisma.retailShift.findFirst({
+          where: { companyId: device.companyId, registerId: device.registerId, status: "OPEN", openedAt: { lte: unpairedAt } },
+          orderBy: { openedAt: "desc" },
+          select: { cashierName: true },
+        })
+      : null,
+  ]);
+  return {
+    till: device.register.name,
+    reason,
+    by: device.unpairedBy?.name || null,
+    at: unpairedAt.toISOString(),
+    sent,
+    replacement: replacement
+      ? { kind: replacement.kind, label: replacement.label, by: replacement.pairedBy.name || null, at: replacement.pairedAt.toISOString() }
+      : null,
+    shift: shift ? { cashier: shift.cashierName } : null,
+  };
+}
+
 /** Last seen now (at most once a minute), and the shell's version when it says. */
 export async function noteSeen(device: PosDevice, appVersion: string | null | undefined, now: Date = new Date()) {
   const version = appVersion?.trim().slice(0, 40) || null;

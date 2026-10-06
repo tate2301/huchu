@@ -10,7 +10,6 @@ import {
   pinOutcomeSentence,
   shiftElsewhereSentence,
   unpairedSaleVerdict,
-  unpairedSentence,
   wrongPinSentence,
 } from "./device-words";
 
@@ -74,19 +73,6 @@ describe("the device screens' sentences", () => {
     const now = new Date("2026-10-05T10:00:00Z");
     expect(pairedFootnote(new Date("2026-08-02T07:20:00Z"), "Tafara Nyathi", now)).toBe("Paired 2 August by Tafara Nyathi.");
     expect(pairedFootnote(new Date("2025-08-02T07:20:00Z"), "Tafara Nyathi", now)).toBe("Paired 2 August 2025 by Tafara Nyathi.");
-  });
-
-  it("tells an unpaired device who did it, when, and what it sent", () => {
-    const at = new Date("2026-10-05T12:02:00Z");
-    expect(unpairedSentence({ by: "Tafara Nyathi", at, reason: "REPLACED", tillName: "Back till", sent: 3 })).toBe(
-      "Tafara Nyathi paired another device to Back till at 14:02. The 3 sales this one held offline were sent.",
-    );
-    expect(unpairedSentence({ by: "Tendai Mhlanga", at, reason: "UNPAIRED", tillName: "Test till", sent: 0 })).toBe(
-      "Tendai Mhlanga unpaired Test till at 14:02.",
-    );
-    expect(unpairedSentence({ by: "Tendai Mhlanga", at, reason: "UNPAIRED", tillName: "Test till", sent: 1 })).toBe(
-      "Tendai Mhlanga unpaired Test till at 14:02. The 1 sale this one held offline was sent.",
-    );
   });
 
   it("refuses a second shift on another till by naming it", () => {
