@@ -1576,7 +1576,7 @@ async function moneyInsight(companyId: string, window: InsightWindow): Promise<I
     in: inTotal,
     out: outTotal,
     waiting,
-    heaviestWeek: window.singleDay || window.days < 7 ? null : (heaviest?.label ?? null),
+    heaviestWeek: window.singleDay || (window.period === "range" && window.days < 7) ? null : (heaviest?.label ?? null),
     onOrder: onOrderValue,
   });
 

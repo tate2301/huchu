@@ -324,6 +324,9 @@ describe("the insight variant, in the InsightsSales board's shapes", () => {
   });
 
   it("draws the chosen days as a clearable chip and presses no period", () => {
+    // The chip writes the year only when the days are not this year's: Tuesday 6 October 2026.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-06T08:00:00Z"));
     const onClear = vi.fn();
     const onPeriodChange = vi.fn();
     window.matchMedia = ((query: string) => ({
@@ -357,6 +360,7 @@ describe("the insight variant, in the InsightsSales board's shapes", () => {
     act(() => (view.host.querySelector('[aria-label="Period"] button') as HTMLButtonElement).click());
     expect(onPeriodChange).toHaveBeenCalledWith("today");
     view.unmount();
+    vi.useRealTimers();
   });
 
   it("presses nothing in a Segmented with no value, and any item answers", () => {

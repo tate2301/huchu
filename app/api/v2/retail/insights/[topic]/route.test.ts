@@ -126,7 +126,9 @@ describe("GET /api/v2/retail/insights/[topic] with days chosen", () => {
     expect(res.body.error).toBe("Choose dates up to today");
   });
 
-  it("refuses a cashier", async () => {
+  // Signed in for real, the route registry refuses a cashier first ("Feature disabled: retail.reports");
+  // this calls the route directly, so it is the route's own gate that answers.
+  it("refuses a cashier at the route's own gate", async () => {
     const res = await get("cashier", "from=2026-10-01&to=2026-10-03");
     expect(res.status).toBe(403);
     expect(res.body.error).toBe("Your role cannot view insights");

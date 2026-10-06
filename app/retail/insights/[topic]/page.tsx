@@ -207,9 +207,11 @@ export default function RetailInsightPage() {
   };
   const setParam = (key: string, value: string | null) => setParams({ [key]: value });
   const backTo30Days = () => setParams({ from: null, to: null, period: "30d" });
+  // A refusal can be the site as well as the days, so the way out clears both.
+  const startOver = () => setParams({ from: null, to: null, period: "30d", siteId: null });
 
   const query = useQuery({
-    queryKey: ["retail-insight", topic, period, from, to, siteId],
+    queryKey: ["retail-insight", topic, ranged ? null : period, from, to, siteId],
     queryFn: () => {
       const search = new URLSearchParams(ranged ? { siteId } : { period, siteId });
       if (from !== null) search.set("from", from);
@@ -223,6 +225,8 @@ export default function RetailInsightPage() {
   const insight = query.data?.data;
   const tables = insight?.tables.map(tableView) ?? [];
   const tab = searchParams.get("tab") ?? tables[0]?.id ?? "";
+  // The days the server read, which stop at today, once they have come back.
+  const days = from && to ? (!query.isPlaceholderData && insight?.range ? insight.range : { from, to }) : null;
 
   const toolbar = (
     <PeriodToolbar
@@ -231,7 +235,7 @@ export default function RetailInsightPage() {
       period={ranged ? null : period}
       onPeriodChange={(value) => setParams({ period: value, from: null, to: null })}
       range={{
-        value: from && to ? { from, to } : null,
+        value: days,
         onChange: (range) => setParams({ from: range.from, to: range.to, period: null }),
         onClear: backTo30Days,
         presets: INSIGHT_RANGE_PRESETS,
@@ -268,7 +272,7 @@ export default function RetailInsightPage() {
           <Alert tone="danger" title="This insight would not load">
             <p>{getApiErrorMessage(query.error)}</p>
             {refused ? (
-              <Button className="mt-2" onClick={backTo30Days}>
+              <Button className="mt-2" onClick={startOver}>
                 Back to 30 days
               </Button>
             ) : (

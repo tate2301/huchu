@@ -1785,7 +1785,8 @@ hurudza-creative --days 160 --reset` with every earlier area's seed functions in
     bulk-price sheet with those products.
   - As the manager: Sales and Profit open; the panel has no Money; `/retail/insights/money` shows "Your role cannot view the
     money page". As the bookkeeper: all seven. As the cashier: no Insights mark; `GET /api/v2/retail/insights/sales` → 403
-    "Your role cannot view insights".
+    "Feature disabled: retail.reports" (the route registry refuses the cashier's template before the route runs; the route's own
+    "Your role cannot view insights" is the second line).
 
 ### INS-02 · Products and Stock health; dead stock · L
 
