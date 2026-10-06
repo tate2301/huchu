@@ -436,6 +436,7 @@ function PromotionDialog({
             <DatePicker
               id={id}
               time
+              clearable
               label="Starts"
               value={form.startsAt || null}
               onChange={(value) => set("startsAt", value ?? "")}

@@ -463,6 +463,8 @@ describe("workspace sidebar model", () => {
         "/retail/manage/receipts",
         "/retail/manage/fiscal",
         "/retail/manage/posting",
+        "/retail/manage/people",
+        "/retail/manage/approvals",
         "/retail/manage/bin",
       ]);
       expect(itemsOf(retailModel(), "retail-setup")).not.toContain("/retail/manage/posting");
@@ -491,7 +493,12 @@ describe("workspace sidebar model", () => {
       expect(Object.fromEntries(model.sections.map((section) => [section.id, section.items.map((i) => i.href)]))).toEqual({
         "retail-products": ["/retail/products"],
         "retail-stock": ["/retail/stock", "/retail/stock/movements", "/retail/stock/counts", "/retail/stock/transfers"],
-        "retail-buy": ["/retail/buying/orders", "/retail/buying/deliveries", "/retail/buying/requisitions"],
+        "retail-buy": [
+          "/retail/buying/suppliers",
+          "/retail/buying/orders",
+          "/retail/buying/deliveries",
+          "/retail/buying/requisitions",
+        ],
         "retail-setup": ["/retail/manage/sites"],
       });
     });

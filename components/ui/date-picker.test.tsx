@@ -63,6 +63,8 @@ const cells = () => [...document.querySelectorAll<HTMLButtonElement>('[role="gri
 const october = (date: number) => cells()[gridIndex("2026-10-01", `2026-10-${String(date).padStart(2, "0")}`)]!;
 const button = (label: string) =>
   [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === label)!;
+/** The From (0) or To (1) field of the range picker. */
+const rangeField = (index: 0 | 1) => document.querySelectorAll<HTMLInputElement>(".dp-end input")[index]!;
 const field = (label: string) => document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 
 describe("the DS grid mapping", () => {
@@ -146,9 +148,14 @@ describe("DatePicker", () => {
   });
 
   it("sends null from Clear when clearable", () => {
-    const { onChange } = openDay({ clearable: true });
+    const { onChange } = openDay({ clearable: true, value: "2026-10-03" });
     act(() => button("Clear").click());
     expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("draws no Clear while there is nothing to clear", () => {
+    openDay({ clearable: true, value: null });
+    expect(button("Clear")).toBeUndefined();
   });
 
   it("takes a day and a time", () => {
@@ -211,28 +218,41 @@ describe("DateRangePicker", () => {
 
   it("refuses a range longer than maxDays", () => {
     openRange({ maxDays: 366 });
-    type(document.querySelector<HTMLInputElement>('input[placeholder="1 Oct 2026"]')!, "1 Jan 2025");
-    type(document.querySelector<HTMLInputElement>('input[placeholder="3 Oct 2026"]')!, "5 Feb 2026");
+    type(rangeField(0), "1 Jan 2025");
+    type(rangeField(1), "5 Feb 2026");
     expect(document.body.textContent).toContain("Choose dates no more than a year apart");
     expect(button("Apply").disabled).toBe(true);
   });
 
+  it("shows a neutral placeholder, not a date that could be mistaken for a choice", () => {
+    openRange();
+    expect(rangeField(0).placeholder).toBe("Day");
+    expect(rangeField(1).placeholder).toBe("Day");
+  });
+
+  it("keeps the month buttons out of the Tab order", () => {
+    openRange();
+    const months = document.querySelectorAll<HTMLButtonElement>('button[aria-label$=" month"]');
+    expect(months).toHaveLength(2);
+    for (const month of months) expect(month.tabIndex).toBe(-1);
+  });
+
   it("needs both ends unless open-ended", () => {
     openRange();
-    type(document.querySelector<HTMLInputElement>('input[placeholder="1 Oct 2026"]')!, "1 Oct 2026");
+    type(rangeField(0), "1 Oct 2026");
     expect(button("Apply").disabled).toBe(true);
   });
 
   it("lets From alone apply when open-ended", () => {
     const { onChange } = openRange({ openEnded: true });
-    type(document.querySelector<HTMLInputElement>('input[placeholder="1 Oct 2026"]')!, "1 Oct 2026");
+    type(rangeField(0), "1 Oct 2026");
     act(() => button("Apply").click());
     expect(onChange).toHaveBeenCalledWith({ from: "2026-10-01", to: null });
   });
 
   it("hands the next click to To once From is typed in full", () => {
     const { onChange } = openRange();
-    const from = document.querySelector<HTMLInputElement>('input[placeholder="1 Oct 2026"]')!;
+    const from = rangeField(0);
     expect(document.activeElement).toBe(from);
     type(from, "1 Oct 2026");
     act(() => october(3).click());

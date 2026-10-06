@@ -82,7 +82,7 @@ describe("a period filter's Choose dates…", () => {
     // The menu has gone and the picker holds the focus in From.
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
     expect(document.querySelector('[role="menu"]')).toBeNull();
-    const from = document.querySelector<HTMLInputElement>('input[placeholder="1 Oct 2026"]')!;
+    const from = document.querySelector<HTMLInputElement>('.dp-end input')!;
     expect(document.activeElement).toBe(from);
     expect(document.body.textContent).not.toContain("Last 7 days");
 

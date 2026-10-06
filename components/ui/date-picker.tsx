@@ -132,6 +132,10 @@ function DayGrid({
     if (stop < 0 || stop > 41 || outside(focusDay)) {
       stop = list.findIndex((cell, i) => addDays(start, i).slice(0, 7) === month.slice(0, 7) && !cell.disabled);
     }
+    // PageUp and PageDown change month, so the month buttons stay out of the way of Tab.
+    for (const button of ref.current?.querySelectorAll<HTMLButtonElement>('button[aria-label$=" month"]') ?? []) {
+      button.tabIndex = -1;
+    }
     list.forEach((cell, i) => {
       const day = addDays(start, i);
       const m = mark?.(day) ?? null;
@@ -379,7 +383,7 @@ export function DatePicker({
             }}
             onKeyDown={onEnter}
           />
-          {clearable ? (
+          {clearable && value ? (
             <button type="button" className="dp-quiet" onClick={() => finish(null)}>
               Clear
             </button>
@@ -594,7 +598,7 @@ export function DateRangePicker({
         ref={end === "from" ? fromRef : toRef}
         className="dp-input"
         autoComplete="off"
-        placeholder={end === "from" ? "1 Oct 2026" : "3 Oct 2026"}
+        placeholder="Day"
         aria-describedby={lineId}
         aria-invalid={(end === "from" ? from.bad : to.bad) || undefined}
         value={end === "from" ? fromText : toText}
