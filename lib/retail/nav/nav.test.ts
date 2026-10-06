@@ -104,6 +104,7 @@ describe("the Setup module per role (ADM-01)", () => {
       "Fiscal device",
       "Posting to the books",
       "Staff and PINs",
+      "Approvals",
       "Bin",
     ]);
   });
@@ -129,12 +130,20 @@ describe("the Setup module per role (ADM-01)", () => {
       "Receipts",
       "Fiscal device",
       "Staff and PINs",
+      "Approvals",
       "Bin",
     ]);
   });
 
-  it("shows the bookkeeper the shop, the fiscal device and posting", () => {
-    expect(panel("FINANCE_OFFICER")).toEqual(["Shop", "Sites", "Payments", "Fiscal device", "Posting to the books"]);
+  it("shows the bookkeeper the shop, the fiscal device, posting and approvals", () => {
+    expect(panel("FINANCE_OFFICER")).toEqual([
+      "Shop",
+      "Sites",
+      "Payments",
+      "Fiscal device",
+      "Posting to the books",
+      "Approvals",
+    ]);
   });
 
   it("gives the cashier no Setup", () => {

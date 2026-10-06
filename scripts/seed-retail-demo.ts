@@ -1274,6 +1274,7 @@ async function main() {
   await seedPosting(companyId)
   await seedReceipts(companyId)
   await seedFiscal(companyId)
+  await seedApprovals(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -2979,4 +2980,70 @@ function demoDeviceCertificate(): string {
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+}
+
+/**
+ * ADM-04. Management › Approvals as the ApprovalSettings board draws it:
+ * requisitions over US$500.00 need the owner, owner approvals go to Tendai
+ * Mhlanga, managers change prices without approval, below cost needs the
+ * owner, adjustments over US$50.00 need a manager PIN, the owner approves
+ * count differences over US$100, accounts over US$250.00 need the owner,
+ * asked on WhatsApp and the app — last changed by Tendai Mhlanga on the
+ * latest 1 September, so the save bar reads "Last changed by Tendai
+ * Mhlanga, 1 September." Saves of the page that test runs left are cleared.
+ * "Waiting now" fills itself from BUY-04's and STK-06's own seeds.
+ */
+async function seedApprovals(companyId: string) {
+  const owner = await prisma.user.findFirst({
+    where: { companyId, email: "owner@bottlestore.test" },
+    select: { id: true, name: true },
+  })
+  if (!owner) {
+    console.log("  approvals: no owner, skipped")
+    return
+  }
+  const settings = {
+    requisitionOwnerOver: new Prisma.Decimal("500.00"),
+    ownerApproverId: owner.id,
+    priceChanges: "MANAGERS" as const,
+    belowCostNeedsOwner: true,
+    adjustmentPinOver: new Prisma.Decimal("50.00"),
+    countDifferences: "OWNER_OVER_LIMIT" as const,
+    countOwnerOver: new Prisma.Decimal("100.00"),
+    accountOwnerOver: new Prisma.Decimal("250.00"),
+    askBy: "WHATSAPP_AND_APP" as const,
+    updatedById: owner.id,
+  }
+  await prisma.retailApprovalSettings.upsert({ where: { companyId }, update: settings, create: { companyId, ...settings } })
+  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare", year: "numeric" }).format(new Date()))
+  const thisYear = new Date(`${year}-09-01T10:15:00+02:00`)
+  const changedAt = thisYear.getTime() <= Date.now() ? thisYear : new Date(`${year - 1}-09-01T10:15:00+02:00`)
+  await prisma.$executeRaw`UPDATE "RetailApprovalSettings" SET "updatedAt" = ${changedAt} WHERE "companyId" = ${companyId}`
+  await prisma.platformAuditEvent.deleteMany({
+    where: { companyId, entityType: "RetailSettings", entityId: "approvals", eventType: RETAIL_AUDIT_EVENTS.settingsChanged },
+  })
+  await writeRetailAuditEvent(prisma, {
+    actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+    eventType: RETAIL_AUDIT_EVENTS.settingsChanged,
+    entityType: "RetailSettings",
+    entityId: "approvals",
+    payload: {
+      page: "approvals",
+      changes: [
+        {
+          field: "ownerApproverId",
+          label: "Owner approvals go to",
+          from: null,
+          to: { id: owner.id, label: owner.name, sub: "Owner" },
+        },
+      ],
+    },
+  })
+  const saved = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.settingsChanged, entityId: "approvals" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  })
+  if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
+  console.log("  approvals: the board's limits, owner approvals to Tendai Mhlanga, last changed on 1 September")
 }

@@ -76,7 +76,9 @@ export async function searchLookup(
     body: {
       options: ranked.slice(0, limit),
       more: ranked.length > limit,
-      add: canAdd(ctx, noun) ? { quick: noun.quick } : null,
+      add: canAdd(ctx, noun)
+        ? { quick: typeof noun.quick === "function" ? noun.quick(input.context ?? {}) : noun.quick }
+        : null,
     },
   };
 }

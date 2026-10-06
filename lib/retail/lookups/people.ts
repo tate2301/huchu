@@ -25,6 +25,7 @@ import { LookupFieldErrors, type LookupNoun } from "./types";
 
 const NAME = "Name";
 const PHONE = "Phone or WhatsApp";
+const EMAIL = "Email";
 
 function grantOf(value: unknown): [RetailResource, RetailAction] | null {
   if (typeof value !== "string") return null;
@@ -54,9 +55,11 @@ const person: LookupNoun = {
     ["retail.sell", "view"],
   ],
   create: ["retail.people", "create"],
-  quick: [
+  // An owner signs in to the admin, so one added inline ("Owner approvals go to") gives an email too.
+  quick: (context) => [
     { key: NAME, label: NAME, placeholder: "" },
     { key: PHONE, label: PHONE, placeholder: "+263 7" },
+    ...(context.role === "OWNER" ? [{ key: EMAIL, label: EMAIL, placeholder: "" }] : []),
   ],
   async search(ctx, q, context) {
     const roles = rolesOf(context.roles);
@@ -97,7 +100,7 @@ const person: LookupNoun = {
       const result = await invitePerson(actor, {
         name: fields[NAME] ?? "",
         phone: fields[PHONE] ?? "",
-        email: null,
+        email: fields[EMAIL]?.trim() || null,
         role,
         sites: siteId ? [siteId] : "ALL",
         givePin: pinByDefault(role),
@@ -114,10 +117,11 @@ const person: LookupNoun = {
       };
     } catch (error) {
       if (error instanceof PeopleRefusal && error.fieldErrors) {
-        const { name, phone, ...rest } = error.fieldErrors;
+        const { name, phone, email, ...rest } = error.fieldErrors;
         const fieldErrors: Record<string, string> = {};
         if (name) fieldErrors[NAME] = name;
         if (phone) fieldErrors[PHONE] = phone;
+        if (email) fieldErrors[EMAIL] = email;
         const other = Object.values(rest)[0];
         if (other && !fieldErrors[NAME]) fieldErrors[NAME] = other;
         throw new LookupFieldErrors(fieldErrors);

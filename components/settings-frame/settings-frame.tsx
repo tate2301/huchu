@@ -116,7 +116,10 @@ function ReadField({ field, value, values }: { field: FieldSpec; value: unknown;
               ? null
               : field.t === "money"
                 ? `${field.cur ?? pageCurrency(values)} ${String(value)}`
-                : String(value);
+                : field.t === "auto" && typeof value === "object"
+                  ? // A picked option: the person or account by name.
+                    String((value as { label?: unknown }).label ?? "")
+                  : String(value);
         return (
           <ReadValue
             id={control.id}

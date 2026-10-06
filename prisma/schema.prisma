@@ -335,6 +335,7 @@ model Company {
   retailZReports                RetailZReport[]
   retailTillPins                RetailTillPin[]
   retailTillRules               RetailTillRules?
+  retailApprovalSettings        RetailApprovalSettings?
   retailReceiptSettings         RetailReceiptSettings?
   retailFiscalSettings          RetailFiscalSettings?
   retailMessages                RetailMessage[]
@@ -1423,6 +1424,8 @@ model User {
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
   retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
+  retailApprovalOwnerOf             RetailApprovalSettings[]       @relation("RetailApprovalOwner")
+  retailApprovalSettingsUpdated     RetailApprovalSettings[]       @relation("RetailApprovalSettingsUpdatedBy")
   retailReceiptSettingsUpdated      RetailReceiptSettings[]        @relation("RetailReceiptSettingsUpdatedBy")
   retailFiscalSettingsUpdated       RetailFiscalSettings[]         @relation("RetailFiscalSettingsUpdatedBy")
   fiscalDevicesRegistered           FiscalisationProviderConfig[]  @relation("FiscalDeviceRegisteredBy")
@@ -5174,6 +5177,55 @@ model RetailTillRules {
 
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   updatedBy User?   @relation("RetailTillRulesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum RetailPriceChangeRule {
+  /// "Managers, no approval"
+  MANAGERS
+  /// "Owner approves"
+  OWNER
+}
+
+enum RetailCountApprovalRule {
+  /// "Any manager"
+  ANY_MANAGER
+  /// "Owner approves over US$100" (the amount is `countOwnerOver`)
+  OWNER_OVER_LIMIT
+}
+
+enum RetailApprovalChannel {
+  /// "The app only"
+  APP
+  /// "WhatsApp and the app"
+  WHATSAPP_AND_APP
+}
+
+/// Management › Approvals (ADM-04). One row per company; absent = the defaults below.
+/// Every area reads it through `getApprovalLimits` (`lib/retail/approvals/limits.ts`).
+model RetailApprovalSettings {
+  companyId            String                  @id
+  /// "Requisitions need the owner over". Under it, any manager approves.
+  requisitionOwnerOver Decimal                 @default(500) @db.Decimal(14, 2)
+  /// "Owner approvals go to". Null = every active owner.
+  ownerApproverId      String?
+  priceChanges         RetailPriceChangeRule   @default(MANAGERS)
+  /// "Below cost needs the owner": a manager's price under cost waits for the owner.
+  belowCostNeedsOwner  Boolean                 @default(true)
+  /// "Stock adjustments need a manager PIN over"
+  adjustmentPinOver    Decimal                 @default(50) @db.Decimal(14, 2)
+  countDifferences     RetailCountApprovalRule @default(OWNER_OVER_LIMIT)
+  /// The amount in "Owner approves over US$100". Not editable on the page; the segment's label is built from it.
+  countOwnerOver       Decimal                 @default(100) @db.Decimal(14, 2)
+  /// "Accounts need the owner over", when opening or raising a limit.
+  accountOwnerOver     Decimal                 @default(250) @db.Decimal(14, 2)
+  askBy                RetailApprovalChannel   @default(WHATSAPP_AND_APP)
+  updatedById          String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  company       Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ownerApprover User?   @relation("RetailApprovalOwner", fields: [ownerApproverId], references: [id], onDelete: SetNull)
+  updatedBy     User?   @relation("RetailApprovalSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
 enum RetailReceiptSendBy {

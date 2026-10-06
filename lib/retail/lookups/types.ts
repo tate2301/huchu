@@ -45,7 +45,8 @@ export type LookupNoun = {
   read: Array<[RetailResource, RetailAction]>;
   /** The noun's create right; absent, nobody adds one inline. */
   create?: [RetailResource, RetailAction];
-  quick: QuickField[];
+  /** The inline add's inputs; or from the field's context (an owner, added from "Owner approvals go to", needs an email). */
+  quick: QuickField[] | ((context: Record<string, unknown>) => QuickField[]);
   /**
    * Every live row whose label contains `q` (case-insensitive), in the noun's
    * own order; the runner puts prefix matches first and cuts to the limit.

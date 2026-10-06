@@ -1,3 +1,4 @@
+import { approvalsPage } from "./approvals";
 import { companyPage } from "./company";
 import { fiscalPage } from "./fiscal";
 import { paymentsPage } from "./payments";
@@ -20,6 +21,7 @@ export type {
  * The setup and admin units add theirs (`payments`, `till-rules`, …).
  */
 export const SETTINGS_PAGES: Record<string, SettingsPage> = {
+  approvals: approvalsPage,
   company: companyPage,
   fiscal: fiscalPage,
   payments: paymentsPage,
