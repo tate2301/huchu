@@ -10,7 +10,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { money, quantity } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { startOfDayIn } from "@/lib/reports/list-query";
 import { fetchListPage } from "@/lib/reports/request";
+import { DEFAULT_TIME_ZONE, dayKey } from "@/lib/workspace/format";
 
 import { cellText } from "@/components/list-frame/model";
 import { STOCK_COUNT_REPORTS } from "@/lib/reports/definitions/retail/stock-counts";
@@ -18,7 +20,7 @@ import { STOCK_COUNT_REPORTS } from "@/lib/reports/definitions/retail/stock-coun
 import { STOCK_COUNT_LOADERS } from "./stock-counts";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
 let companyId: string;
 let managerId: string;
 let clerkId: string;
@@ -42,8 +44,9 @@ beforeAll(async () => {
       ).id,
     );
   }
-  const now = Date.now();
-  // Sent for review an hour ago: two short at US$12.40 and US$9.40, two over at US$1.20.
+  // The shop's day began a moment ago, so what the fixture says happened "today" is today whatever the hour the suite runs.
+  const dayStart = startOfDayIn(dayKey(new Date(), DEFAULT_TIME_ZONE), DEFAULT_TIME_ZONE).getTime();
+  // Sent for review early today: two short at US$12.40 and US$9.40, two over at US$1.20.
   await prisma.retailStockCount.create({
     data: {
       companyId,
@@ -54,8 +57,8 @@ beforeAll(async () => {
       status: "TO_APPROVE",
       counterId: clerkId,
       createdById: managerId,
-      createdAt: new Date(now - 2 * HOUR),
-      submittedAt: new Date(now - HOUR),
+      createdAt: new Date(dayStart + MINUTE),
+      submittedAt: new Date(dayStart + 2 * MINUTE),
       lines: {
         create: [
           [items[0]!, -2, 12.4],
@@ -84,7 +87,7 @@ beforeAll(async () => {
       scope: "PLACE",
       counterId: clerkId,
       createdById: managerId,
-      createdAt: new Date(now - 30 * 60 * 1000),
+      createdAt: new Date(dayStart + MINUTE),
       lines: {
         create: items.map((inventoryItemId, index) => ({
           companyId,

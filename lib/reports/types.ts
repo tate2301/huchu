@@ -157,7 +157,7 @@ export type ReportDefinition = ReportMeta & {
 
 /** How a report's rows are fetched. Server-only: it queries the database. */
 export type ReportLoader = {
-  load: (ctx: ReportContext, params: ReportParams) => Promise<ReportLoadResult>;
+  load: (ctx: ReportContext, params: ReportParams, face?: "list" | "report") => Promise<ReportLoadResult>;
   /** Choices for `choice` params (and list filters) that depend on the company, by key. */
   options?: (ctx: ReportContext) => Promise<Record<string, ReportOption[]>>;
   /**

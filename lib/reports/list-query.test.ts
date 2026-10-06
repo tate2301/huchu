@@ -286,6 +286,34 @@ describe("a page of shifts", () => {
     expect(grouped.result.rows.map((row) => row.id)).toEqual(grouped.ordered.slice(0, 50).map((row) => row.id));
   });
 
+  it("keeps a report's groups in the order of its sort: newest day first, not 1 October first", () => {
+    const face = FLOOR_REPORTS.find((report) => report.key === "retail-shifts")!.report!;
+    const reportRun = (over: Partial<ListQuery>) => {
+      const resolved = resolveListQuery(face, query({ face: "report", filters: { opened: "any" }, ...over }), LOADED, OWNER);
+      return runList(face, rows, resolved, OWNER, { loaded: LOADED }).result.groups!.map((group) => group.label);
+    };
+    const days = reportRun({ group: "openedAt" });
+    expect(days).toEqual([...days].sort().reverse());
+    expect(reportRun({ group: "openedAt", sort: "openedAt:asc" })).toEqual([...days].reverse());
+    // Oldest first opens on the Front till's morning; the list still orders its groups by name.
+    expect(reportRun({ group: "till", sort: "openedAt:asc" })).toEqual(["Front till", "Back till"]);
+    expect(run(rows, { filters: { opened: "any" }, group: "till", sort: "openedAt:asc" }).result.groups!.map((group) => group.label)).toEqual(["Back till", "Front till"]);
+  });
+
+  it("puts last weekend's Friday edge on rows held in memory: 17:00, not midnight", () => {
+    const shift = (id: string, openedAt: string, openedTime: string): ReportRow => ({ ...rows[0]!, id, openedAt, openedTime });
+    const held = [
+      shift("fri-morning", "2026-09-25", "08:04"),
+      shift("fri-evening", "2026-09-25", "17:00"),
+      shift("sun-night", "2026-09-27", "23:30"),
+      shift("mon-morning", "2026-09-28", "07:50"),
+      shift("thu-evening", "2026-09-24", "18:00"),
+    ];
+    const weekend = run(held, { filters: { opened: "last-weekend" } });
+    expect(weekend.ordered.map((row) => row.id)).toEqual(["sun-night", "fri-evening"]);
+    expect(weekend.result.total).toBe(2);
+  });
+
   it("gives a cashier their own shifts only, without the Cashier filter", () => {
     const cashier = contextFor("CASHIER", "u-chipo");
     const own = run(rows, { filters: { opened: "any", cashier: "u-farai" } }, cashier);

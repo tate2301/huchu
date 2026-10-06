@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { num, result, TAKE } from "@/lib/reports/loaders/shared";
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
-import type { ReportContext, ReportLoader, ReportOption, ReportRow } from "@/lib/reports/types";
+import type { ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow } from "@/lib/reports/types";
 import { DEFAULT_TIME_ZONE, dayKey, formatDuration, formatShortDay, formatTime } from "@/lib/workspace/format";
 
 /**
@@ -23,8 +23,10 @@ export const STALE_SHIFT_MINUTES = 12 * 60;
  * the drawer netted (the shift record reads it the same way). Sales are the
  * ones that still stand: posted, and a sale rather than a reversal.
  */
-async function shiftFigures(companyId: string) {
+async function shiftFigures(companyId: string, face: "list" | "report") {
   const scope = { companyId, shiftId: { not: null } };
+  // Refunds, voids and no-sale opens are Reports' face's figures; the list does not read them.
+  const forFace = face === "report";
   const [takings, settled, refunds, voided, drawer] = await Promise.all([
     prisma.retailSale.groupBy({ by: ["shiftId"], where: scope, _sum: { baseAmount: true } }),
     prisma.retailSale.groupBy({
@@ -34,22 +36,28 @@ async function shiftFigures(companyId: string) {
     }),
     // Reports' face: refunds rung on the shift, and the sales voided on it (a
     // void leaves its sale VOIDED, so the sale is the one figure to count).
-    prisma.retailSale.groupBy({
-      by: ["shiftId"],
-      where: { ...scope, saleType: "REFUND", status: "POSTED" },
-      _sum: { baseAmount: true },
-    }),
-    prisma.retailSale.groupBy({
-      by: ["shiftId"],
-      where: { ...scope, saleType: "SALE", status: { not: "POSTED" } },
-      _sum: { baseAmount: true },
-    }),
+    forFace
+      ? prisma.retailSale.groupBy({
+          by: ["shiftId"],
+          where: { ...scope, saleType: "REFUND", status: "POSTED" },
+          _sum: { baseAmount: true },
+        })
+      : [],
+    forFace
+      ? prisma.retailSale.groupBy({
+          by: ["shiftId"],
+          where: { ...scope, saleType: "SALE", status: { not: "POSTED" } },
+          _sum: { baseAmount: true },
+        })
+      : [],
     // The drawer opened with no sale, on the shift that was open at the till.
-    prisma.$queryRaw<Array<{ shiftId: string | null; opens: number }>>`
-      SELECT ("payloadJson"::jsonb ->> 'shiftId') AS "shiftId", count(*)::int AS opens
-      FROM "PlatformAuditEvent"
-      WHERE "companyId" = ${companyId} AND "eventType" = ${RETAIL_AUDIT_EVENTS.drawerOpened}
-      GROUP BY 1`,
+    forFace
+      ? prisma.$queryRaw<Array<{ shiftId: string | null; opens: number }>>`
+          SELECT ("payloadJson"::jsonb ->> 'shiftId') AS "shiftId", count(*)::int AS opens
+          FROM "PlatformAuditEvent"
+          WHERE "companyId" = ${companyId} AND "eventType" = ${RETAIL_AUDIT_EVENTS.drawerOpened}
+          GROUP BY 1`
+      : [],
   ]);
   const size = (value: Parameters<typeof num>[0]) => Math.round(Math.abs(num(value) ?? 0) * 100) / 100;
   return {
@@ -74,7 +82,7 @@ export function shiftState(shift: {
   return "Balanced";
 }
 
-async function loadShifts(ctx: ReportContext) {
+async function loadShifts(ctx: ReportContext, _params: ReportParams, face: "list" | "report" = "list") {
   const now = new Date();
   const timeZone = DEFAULT_TIME_ZONE;
   const [found, figures] = await Promise.all([
@@ -100,7 +108,7 @@ async function loadShifts(ctx: ReportContext) {
       orderBy: [{ openedAt: "desc" }, { id: "desc" }],
       take: TAKE,
     }),
-    shiftFigures(ctx.companyId),
+    shiftFigures(ctx.companyId, face),
   ]);
 
   return result(

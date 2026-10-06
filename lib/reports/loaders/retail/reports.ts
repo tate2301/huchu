@@ -285,7 +285,13 @@ async function pageItems(ctx: ReportContext, query: ResolvedListQuery): Promise<
       row.unitPrice = price.get(row.id) ?? null;
       for (const key of cost) delete row[key];
     }
-    return finishRolled(ITEMS, rolled, query, engine, () => everEmptyItems(ctx, own));
+    const run = await finishRolled(ITEMS, rolled, query, engine, () => everEmptyItems(ctx, own));
+    // Price is an average: Σ is the average of every line, as unrolled, not the average of the rows' averages.
+    if (rolled.length) {
+      const [flat] = await prisma.$queryRaw<Array<{ unitPrice: unknown }>>`SELECT avg(l."unitPrice") AS "unitPrice" ${ITEMS_FROM} ${where}`;
+      run.totals.unitPrice = round4(num(flat?.unitPrice as Prisma.Decimal) ?? 0);
+    }
+    return run;
   }
 
   if (query.group) {

@@ -201,7 +201,7 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
     ctx,
     loaded,
     resolved,
-    rows: () => loader.load(reportCtx, loaderParams(resolved)),
+    rows: () => loader.load(reportCtx, loaderParams(resolved), face),
     page: paged ? (resolved) => paged(reportCtx, resolved) : null,
     parentLabel: loader.parentLabel ? (filters) => loader.parentLabel!(reportCtx, filters) : null,
   };

@@ -131,6 +131,7 @@ function lastWeekend(today: string): { friday: string; sunday: string } {
 
 /** When the weekend starts on its Friday: the till's evening trade, not the morning's. */
 const WEEKEND_STARTS_AT = { hour: 17 };
+const WEEKEND_STARTS_TIME = `${String(WEEKEND_STARTS_AT.hour).padStart(2, "0")}:00`;
 
 function validDay(day: string): boolean {
   return ISO_DAY.test(day) && addDays(day, 0) === day;
@@ -465,6 +466,31 @@ export function listConditions(
   return conditions;
 }
 
+/**
+ * What the day-wise period condition cannot say: "Last weekend" starts at 17:00
+ * on its Friday. A row held in memory carries its day and its time of day (the
+ * period column's `timeKey`), so the Friday's earlier rows are let go here, the
+ * same edge `periodInstants` puts on a database query.
+ */
+function weekendEdge(
+  spec: ListSpec,
+  resolved: ResolvedListQuery,
+  now: Date,
+  timeZone: string,
+): ((row: ReportRow) => boolean) | null {
+  const edges = spec.filters.flatMap((filter) => {
+    if (filter.type !== "period" || resolved.filters[filter.key] !== "last-weekend") return [];
+    const timeKey = spec.columns.find((column) => column.key === filter.column)?.timeKey;
+    const friday = periodRange("last-weekend", now, timeZone)?.from;
+    return timeKey && friday ? [{ day: filter.column, time: timeKey, friday }] : [];
+  });
+  if (edges.length === 0) return null;
+  return (row) =>
+    edges.every(
+      (edge) => row[edge.day] !== edge.friday || (typeof row[edge.time] === "string" && row[edge.time]! >= WEEKEND_STARTS_TIME),
+    );
+}
+
 /** The query as a `ReportView`: what `applyView` reads, and what an export prints. */
 export function listQueryToView(
   spec: ListSpec,
@@ -544,15 +570,23 @@ function blank(value: ReportValue | undefined): boolean {
   return value === null || value === undefined || value === "";
 }
 
-/** Groups in drawing order: a state column's tone order, else by name; blank last. */
-function orderGroups(groups: ReportGroup[], column: ListColumn | undefined): ReportGroup[] {
-  const order = column?.tones ? Object.keys(column.tones) : null;
+/**
+ * Groups in drawing order. A list orders them by a state column's tone order,
+ * else by name; blank last. A report keeps the order the sort gave them (the
+ * order of each group's first row), so "Newest first" grouped by day opens on
+ * today; blank is still last.
+ */
+function orderGroups(groups: ReportGroup[], column: ListColumn | undefined, bySort: boolean): ReportGroup[] {
+  const order = column?.tones && !bySort ? Object.keys(column.tones) : null;
   const rank = (group: ReportGroup) => {
     if (blank(group.value)) return Number.MAX_SAFE_INTEGER;
+    if (bySort) return 0;
     const at = order ? order.indexOf(String(group.value)) : -1;
     return at === -1 ? Number.MAX_SAFE_INTEGER - 1 : at;
   };
-  return [...groups].sort((a, b) => rank(a) - rank(b) || collator.compare(String(a.value ?? ""), String(b.value ?? "")));
+  return [...groups].sort(
+    (a, b) => rank(a) - rank(b) || (bySort ? 0 : collator.compare(String(a.value ?? ""), String(b.value ?? ""))),
+  );
 }
 
 function searchRows(rows: ReportRow[], keys: string[], q: string): ReportRow[] {
@@ -620,11 +654,13 @@ export function runList(
 
   const view = listQueryToView(spec, resolved, columns, ctx, loaded);
   const searchKeys = spec.search.keys.filter((key) => !resolved.hidden.includes(key));
-  const picked = rowIds ? base.filter((row) => rowIds.has(row.id)) : base;
+  const edge = weekendEdge(spec, resolved, ctx.now, ctx.timeZone);
+  const selected = rowIds ? base.filter((row) => rowIds.has(row.id)) : base;
+  const picked = edge ? selected.filter(edge) : selected;
   const applied = applyView(searchRows(picked, searchKeys, resolved.q), columns, view);
 
   const groupColumn = spec.columns.find((column) => column.key === resolved.group);
-  const groups = applied.groups ? orderGroups(applied.groups, groupColumn) : null;
+  const groups = applied.groups ? orderGroups(applied.groups, groupColumn, resolved.face === "report") : null;
   const strip = stripCost(spec, ctx.seeCost);
   const ordered = (groups ? groups.flatMap((group) => group.rows) : applied.rows).map(strip);
   const paged = pageOf(ordered, resolved.page, resolved.size);

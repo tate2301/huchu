@@ -77,8 +77,16 @@ function listSortFor(sort: string | undefined, face: ReportFace): string | undef
   return face.sorts.find((candidate) => sameRules(candidate.rules, rules))?.key ?? `${rules[0]!.column}:${rules[0]!.dir}`;
 }
 
-/** The template's query under the address's: whatever the address says wins. */
+/**
+ * The template's query under the address's: whatever the address says wins. A
+ * template's columns belong to its own rows: when the address rolls up by other
+ * keys, they are dropped and the face's own columns for those keys stand (the
+ * keys and the count included), unless the address names its columns too.
+ */
 export function layTemplate(template: TemplateQuery, query: ListQuery, face: ReportFace): ListQuery {
+  const rows = query.rows ?? template.rows;
+  const sameRows = (rows ?? []).join(",") === (template.rows ?? []).join(",");
+  const cols = query.cols ?? (sameRows ? template.cols : undefined);
   const sort = query.sort ?? listSortFor(template.sort, face);
   const group = query.group ?? template.group;
   const q = query.q ?? template.q;
@@ -89,8 +97,8 @@ export function layTemplate(template: TemplateQuery, query: ListQuery, face: Rep
     ...(sort ? { sort } : {}),
     ...(group ? { group } : {}),
     ...(q ? { q } : {}),
-    ...((query.rows ?? template.rows) ? { rows: query.rows ?? template.rows } : {}),
-    ...((query.cols ?? template.cols) ? { cols: query.cols ?? template.cols } : {}),
+    ...(rows ? { rows } : {}),
+    ...(cols ? { cols } : {}),
   };
 }
 

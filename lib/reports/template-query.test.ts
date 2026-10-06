@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { REPORT_ONLY_REPORTS } from "@/lib/reports/definitions/retail/reports";
 import { builtInTemplate } from "@/lib/reports/definitions/retail/templates";
 
+import { listShape, resolveListQuery } from "./list-query";
 import { fromTemplateQuery, layTemplate, toTemplateQuery } from "./template-query";
 
 const PAYMENTS = REPORT_ONLY_REPORTS.find((report) => report.key === "retail-payments")!.report!;
@@ -46,6 +47,19 @@ describe("template queries", () => {
     const template = builtInTemplate("takings-by-payment")!.query;
     const laid = layTemplate(template, { page: 1, size: 50, filters: { when: "last-weekend" }, rows: ["site"] }, PAYMENTS);
     expect(laid).toMatchObject({ face: "report", filters: { when: "last-weekend" }, rows: ["site"], sort: "newest", group: "day" });
-    expect(laid.cols).toEqual(template.cols);
+    // The template's columns belong to its own rows, so the rolled table keeps its own keys.
+    expect(laid.cols).toBeUndefined();
+    expect(layTemplate(template, { page: 1, size: 50, filters: {}, rows: ["day", "till"] }, PAYMENTS).cols).toEqual(template.cols);
+    expect(layTemplate(template, { page: 1, size: 50, filters: {}, rows: ["site"], cols: ["site", "taken"] }, PAYMENTS).cols).toEqual(["site", "taken"]);
+  });
+
+  it("rolls Items sold by item and category with the keys and the count shown", () => {
+    const items = REPORT_ONLY_REPORTS.find((report) => report.key === "retail-items-sold")!.report!;
+    const template = builtInTemplate("items-sold")!.query;
+    const asked = layTemplate(template, { page: 1, size: 50, filters: {}, rows: ["item", "category"] }, items);
+    const resolved = resolveListQuery(items, asked, {}, { role: "SUPERADMIN", seeCost: true });
+    const shape = listShape(items, resolved);
+    const shown = shape.columns.filter((column) => !resolved.hidden.includes(column.key)).map((column) => column.key);
+    expect(shown.slice(0, 3)).toEqual(["item", "category", "lines"]);
   });
 });

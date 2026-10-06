@@ -234,7 +234,24 @@ describe("items sold", () => {
       const loaded = await items.load(owner(), { when: "30d" });
       const memory = runSource(ITEMS, loaded.rows, query, engine(owner()));
       expect(byId(database.rows), rows.join(",")).toEqual(byId(memory.result.rows));
-      for (const key of ["quantity", "revenue", "cost", "margin"]) expect(database.totals[key], key).toBe(flat.totals[key]);
+      for (const key of ["quantity", "unitPrice", "revenue", "cost", "margin"]) expect(database.totals[key], key).toBe(flat.totals[key]);
+    }
+  });
+
+  it("totals Price as the average of every line, rolled or not, not the average of the rows' averages", async () => {
+    // One more line on the main shop: its two lines and the other shop's two no longer weigh the same.
+    const chipo = { id: chipoId, name: "Chipo Dube" };
+    await sale("S-5", "SALE", "POSTED", chipo, mainSite, frontTill, FIRST, [{ quantity: 1, unitPrice: 4.5, lineTotal: 4.5, taxAmount: 0.5, costTotal: 3 }], [
+      { tenderType: "CASH", baseAmount: 4.5 },
+    ]);
+    try {
+      const flat = await items.page!(owner(), resolved(ITEMS, "SUPERADMIN"));
+      const rolled = await items.page!(owner(), resolved(ITEMS, "SUPERADMIN", { rows: ["site"] }));
+      expect(flat.totals.unitPrice).toBe(6.7);
+      expect(rolled.rows.map((row) => Number(row.unitPrice)).sort((a, b) => a - b)).toEqual([2.5, 13]);
+      expect(rolled.totals.unitPrice).toBe(flat.totals.unitPrice);
+    } finally {
+      await prisma.retailSale.deleteMany({ where: { companyId, saleNo: `S-5-${stamp}` } });
     }
   });
 
