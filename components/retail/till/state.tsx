@@ -124,6 +124,7 @@ function lineFromItem(item: PosCatalogItem, depositsOn: boolean, typedPrice?: nu
     ageRestricted: item.ageRestricted,
     returnable: depositsOn && item.returnable,
     depositAmount: depositsOn ? item.depositAmount : null,
+    depositName: depositsOn ? item.depositName : null,
     emptiesBack: 0,
     maxDiscountPercent: item.maxDiscountPercent,
     openableCase: item.openableCase,

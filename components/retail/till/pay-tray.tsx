@@ -10,13 +10,16 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { formatZigRate, splitChange, type ChangeSplit } from "@/lib/retail/payment-words";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { fiscalStatusLabel } from "@/lib/retail/words";
 import { AddressBook, CaretRight, Check, Money, Plus, Printer, Receipt, Ticket, Trash, Wallet, WifiSlash, X } from "@/lib/icons";
-import { count, firstName, hhmm, paymentLabel, usd, whole, zig } from "./format";
+import { emptiesWords } from "./empties-words";
+import { firstName, hhmm, paymentLabel, usd, whole, zig } from "./format";
+import { printSlip, slipLines, type SlipSale } from "./offline-slip";
 import { ErrorLine, Keypad, Segmented, typeAmount, useKeypadKeys, useReturnFocus, useWindowKeys, type KeypadKey } from "./parts";
 import { paymentSummary } from "./sale-rules";
 import { useTill } from "./state";
@@ -197,8 +200,13 @@ export function PayTray({
     emptiesBackCount,
     isPosHost,
     selectedCustomer,
+    customerName,
     context,
+    cart,
+    lineStopped,
+    idChecked,
   } = useTill();
+  const { data: session } = useSession();
   const [mode, setMode] = React.useState<"single" | "split">("single");
   const [handed, setHanded] = React.useState("");
   const [reference, setReference] = React.useState("");
@@ -207,6 +215,8 @@ export function PayTray({
   const [triedTake, setTriedTake] = React.useState(false);
   // Empties counted on the sale, kept for the paid view: the sale's lines are cleared once it goes through.
   const [emptiesTaken, setEmptiesTaken] = React.useState(0);
+  // The sale as it was taken, for a slip if it is saved on the till: the lines are cleared once it goes.
+  const [taken, setTaken] = React.useState<Omit<SlipSale, "tag" | "at" | "total" | "change"> | null>(null);
   const refId = React.useId();
   const returnFocus = useReturnFocus();
 
@@ -243,17 +253,28 @@ export function PayTray({
   const splitOk =
     splitStill < 0.005 && split.nonCashTotal <= amountDue + 0.004 && !splitRefProblem && rows.every((entry) => Number(entry.amount || "0") > 0);
 
+  const keep = (payments: PaymentRow[]) => {
+    setEmptiesTaken(emptiesBackCount);
+    setTaken({
+      tillLine: [context?.till.name, session?.user?.name ? firstName(session.user.name) : null].filter(Boolean).join(", "),
+      customerName: selectedCustomer?.name ?? (customerName.trim() || null),
+      lines: slipLines(cart.filter((item) => !lineStopped(item))),
+      payments,
+      idChecked,
+    });
+  };
+
   const take = () => {
     setTriedTake(true);
     if (mode === "split") {
       if (!splitOk) return;
-      setEmptiesTaken(emptiesBackCount);
+      keep(rows);
       onTake(rows);
       return;
     }
     if (tenderType === "CASH" && !covered) return;
     if (refProblem) return;
-    setEmptiesTaken(emptiesBackCount);
+    keep([row]);
     onTake([row]);
   };
 
@@ -336,7 +357,7 @@ export function PayTray({
           {emptiesTaken ? (
             <>
               <dt>Empties</dt>
-              <dd>{count(emptiesTaken, "bottle")}</dd>
+              <dd>{emptiesWords(emptiesTaken, done.empties)}</dd>
             </>
           ) : null}
           {fiscal ? (
@@ -409,6 +430,22 @@ export function PayTray({
           Its sale number and fiscal receipt come when it is sent. Nothing else to do: it goes up on its own.
         </p>
         <div className="btn-group is-full" role="group" aria-label="Receipt">
+          {taken ? (
+            <button
+              type="button"
+              className="btn btn-touch grow"
+              onClick={(event) =>
+                printSlip(
+                  { ...taken, tag: saved.tag, at: saved.at, total: saved.total, change: saved.change },
+                  context?.receipt ?? null,
+                  event.currentTarget.closest(".tl")?.className ?? "tl",
+                )
+              }
+            >
+              <Printer className="ic" />
+              Print a slip
+            </button>
+          ) : null}
           <Link className="btn btn-touch grow" href={getPosPortalHref("offline", isPosHost)} onClick={onNext}>
             <WifiSlash className="ic" />
             Waiting to send

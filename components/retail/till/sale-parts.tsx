@@ -37,6 +37,7 @@ import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { discountPinSentence } from "@/lib/retail/till-rule-words";
 import { enumLabel } from "@/lib/retail/words";
+import { emptiesRows, spreadEmpties } from "./empties-words";
 import { count, firstName, MEASURES, qty, usd, whole } from "./format";
 import { Avatar, ErrorLine, TillDialog, TillPopover } from "./parts";
 import { discountApprovalReason } from "./sale-rules";
@@ -184,7 +185,7 @@ export function SaleLine({ item }: { item: CartItem }) {
             <div className="line-split">
               <b className="strong">{item.name}</b>
               <span className="note nowrap">
-                {usd(shelf)} on the shelf
+                {item.openPrice ? "Open price" : `${usd(shelf)} on the shelf`}
                 {item.stock !== undefined ? ` · ${qty(item.stock)} left` : ""}
               </span>
             </div>
@@ -307,13 +308,19 @@ export function BottlesBackLine() {
   );
 }
 
-/** The count of empties, on the Bottles back tile: a row for each returnable line on the sale, never more than it sells. */
+/**
+ * The count of empties, on the Bottles back tile: a row for each kind of
+ * deposit on the sale, by the name the shop gives it, never more than the
+ * sale sells of it. A deposit with no name keeps its product's name.
+ */
 export function BottlesBackPopover({ trigger }: { trigger: React.ReactElement }) {
   const { setEmptiesBack } = useTill();
   const lines = useReturnables();
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<Record<string, number>>({});
-  const counted = lines.map((item) => ({ ...item, emptiesBack: draft[item.catalogItemId] ?? 0 }));
+  const rows = emptiesRows(lines);
+  const perLine = new Map(rows.flatMap((row) => spreadEmpties(row, draft[row.key] ?? 0)));
+  const counted = lines.map((item) => ({ ...item, emptiesBack: perLine.get(item.catalogItemId) ?? 0 }));
   const total = counted.reduce((sum, item) => sum + emptiesCounted(item), 0);
   const credit = bottlesBackCredit(counted);
 
@@ -322,7 +329,7 @@ export function BottlesBackPopover({ trigger }: { trigger: React.ReactElement })
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) setDraft(Object.fromEntries(lines.map((item) => [item.catalogItemId, emptiesCounted(item)])));
+        if (next) setDraft(Object.fromEntries(rows.map((row) => [row.key, row.lines.reduce((sum, item) => sum + emptiesCounted(item), 0)])));
       }}
       label="Bottles back"
       size="lg"
@@ -330,33 +337,30 @@ export function BottlesBackPopover({ trigger }: { trigger: React.ReactElement })
     >
       <div className="pop-body">
         <b className="strong">Bottles back</b>
-        {lines.length ? (
+        {rows.length ? (
           <div className="list is-framed">
-            {lines.map((item) => {
-              const n = draft[item.catalogItemId] ?? 0;
-              const most = Math.floor(item.quantity);
-              const name = item.name.split(",")[0];
-              const each = depositWord(item.depositAmount ?? 0);
+            {rows.map((row) => {
+              const n = draft[row.key] ?? 0;
               return (
-                <div key={item.catalogItemId} className="row is-split is-inset">
+                <div key={row.key} className="row is-split is-inset">
                   <span className="grow truncate">
-                    {name} <span className="muted">{each}</span>
+                    {row.label} <span className="muted">{depositWord(row.each)}</span>
                   </span>
-                  <span className="qty" role="group" aria-label={`Empties back for ${name}`}>
+                  <span className="qty" role="group" aria-label={`Empties back, ${row.label}`}>
                     <button
                       type="button"
-                      aria-label={`One fewer ${name} back`}
+                      aria-label={`One fewer back, ${row.label}`}
                       disabled={n === 0}
-                      onClick={() => setDraft({ ...draft, [item.catalogItemId]: Math.max(0, n - 1) })}
+                      onClick={() => setDraft({ ...draft, [row.key]: Math.max(0, n - 1) })}
                     >
                       <Minus className="ic" />
                     </button>
                     <span>{n}</span>
                     <button
                       type="button"
-                      aria-label={`One more ${name} back`}
-                      disabled={n >= most}
-                      onClick={() => setDraft({ ...draft, [item.catalogItemId]: Math.min(most, n + 1) })}
+                      aria-label={`One more back, ${row.label}`}
+                      disabled={n >= row.most}
+                      onClick={() => setDraft({ ...draft, [row.key]: Math.min(row.most, n + 1) })}
                     >
                       <Plus className="ic" />
                     </button>
@@ -377,7 +381,7 @@ export function BottlesBackPopover({ trigger }: { trigger: React.ReactElement })
           type="button"
           className="btn btn-ink"
           onClick={() => {
-            for (const item of lines) setEmptiesBack(item.catalogItemId, draft[item.catalogItemId] ?? 0);
+            for (const item of lines) setEmptiesBack(item.catalogItemId, perLine.get(item.catalogItemId) ?? 0);
             setOpen(false);
           }}
         >

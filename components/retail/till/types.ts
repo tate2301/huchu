@@ -9,6 +9,7 @@
 import type { RetailTenderType } from "@prisma/client";
 
 import type { CaseOf, OpenableCase } from "@/app/api/v2/retail/pos/_cases";
+import type { SaleEmpties } from "@/lib/retail/empties";
 import type { TillFiscalStatus } from "@/lib/retail/fiscalisation";
 import type { ChangeSplit, TenderCurrency } from "@/lib/retail/payment-words";
 import type { ShelfListing } from "@/lib/retail/shelf-listing";
@@ -68,6 +69,8 @@ export type CartItem = {
   /** A returnable bottle and its deposit, while the shop charges deposits. */
   returnable: boolean;
   depositAmount: number | null;
+  /** What the shop calls this deposit ("Bottles, 340 to 375ml"), or null. */
+  depositName: string | null;
   /** Empties the customer brought back against this line: whole bottles, at most the line's quantity. */
   emptiesBack: number;
   /** The most off this product, as a percentage of its shelf price; null is no limit. */
@@ -164,6 +167,8 @@ export type CompletedSale = {
   fiscal: TillFiscalStatus | null;
   /** The hold this sale was recalled from, as the receipt names it. Set by the till. */
   heldAs?: string | null;
+  /** Bottles brought back on this sale, owed back to each supplier. */
+  empties: SaleEmpties;
 };
 
 /** A sale the till could not send, kept in its offline queue until the line is back. */
