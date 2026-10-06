@@ -590,7 +590,7 @@ async function main() {
       where: {
         companyId,
         archivedAt: null,
-        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code] },
+        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code, COKE_2L.code] },
         inventoryItems: { some: {} },
       },
       data: { archivedAt: new Date() },
@@ -604,7 +604,7 @@ async function main() {
       price change, is written again below.
     */
     const ranged = await prisma.product.findMany({
-      where: { companyId, code: { in: [...CATALOGUE.map((entry) => entry.code), SPRITE.code] } },
+      where: { companyId, code: { in: [...CATALOGUE.map((entry) => entry.code), SPRITE.code, COKE_2L.code] } },
       select: { id: true },
     })
     const edits = await prisma.platformAuditEvent.deleteMany({
@@ -1324,6 +1324,7 @@ async function main() {
   await seedReceipts(companyId)
   await seedFiscal(companyId)
   await seedApprovals(companyId)
+  await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -3267,6 +3268,44 @@ async function seedSuppliers(input: { companyId: string; mainSiteId: string; sof
     })
   }
   console.log(`  ${SEED_SUPPLIERS.length} suppliers (SUP-0001 to SUP-0007), their products, and Sprite 500ml from Delta`)
+}
+
+/**
+ * SET-11. No imports are seeded: an import is made by uploading
+ * `public/demo/price-list-oct.xlsx` (`scripts/make-import-demo.ts`). Its row
+ * 58, "Coca Cola 2l", looks like Coca-Cola 2l, so the shop sells that one
+ * (Delta, 36 on the shelf), added as New product adds it.
+ */
+const COKE_2L = { code: "COKE-2L", name: "Coca-Cola 2l", price: "2.20", cost: "1.55", onHand: "36", reorderAt: "12" }
+
+async function seedImportDemo(input: { companyId: string; mainSiteId: string; softDrinksId: string | null }) {
+  const { companyId } = input
+  const existing = await prisma.product.findFirst({ where: { companyId, code: COKE_2L.code }, select: { id: true } })
+  if (existing) {
+    await prisma.product.update({ where: { id: existing.id }, data: { archivedAt: null, isActive: true } })
+  } else {
+    const owner = await prisma.user.findFirstOrThrow({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true, role: true } })
+    const delta = await prisma.vendor.findFirst({ where: { companyId, code: "SUP-0001" }, select: { id: true } })
+    await prisma.$transaction(async (tx) => {
+      const created = await createProduct(tx, {
+        actor: { companyId, userId: owner.id, userName: owner.name, userRole: owner.role },
+        input: productInput.parse({
+          name: COKE_2L.name,
+          categoryId: input.softDrinksId,
+          price: COKE_2L.price,
+          cost: COKE_2L.cost,
+          supplierId: delta?.id ?? null,
+          openingStock: COKE_2L.onHand,
+          reorderAt: COKE_2L.reorderAt,
+          siteId: input.mainSiteId,
+        }),
+        source: "ADDED",
+      })
+      await tx.product.update({ where: { id: created.productId }, data: { code: COKE_2L.code } })
+      await tx.inventoryItem.update({ where: { id: created.itemId }, data: { itemCode: COKE_2L.code } })
+    })
+  }
+  console.log(`  ${COKE_2L.name} on the shelf for the import demo (public/demo/price-list-oct.xlsx)`)
 }
 
 /**
