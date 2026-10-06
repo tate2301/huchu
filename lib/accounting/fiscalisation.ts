@@ -82,8 +82,6 @@ export type FiscalIssueResult = {
   errorCode?: FiscalIssueErrorCode;
   /** Signed and kept, not sent: FDMS has not answered the device since then (`holdWhileUnreachableMs`). */
   heldSince?: Date;
-  /** This call signed the receipt (took its numbers), rather than sending one already signed again. */
-  signedNow?: boolean;
 };
 
 /**
@@ -363,13 +361,31 @@ function isSigned(receipt: FiscalReceipt | null): boolean {
 
 /** The fields every attempt writes before the connector is called, whichever
  *  path it takes. */
-type PendingReceiptFields = {
+export type PendingReceiptFields = {
   status: "PENDING";
   providerKey: string;
   requestIdempotencyKey: string;
   rawResponseJson: string;
   lastSyncedAt: Date;
 };
+
+export function pendingFields(
+  provider: FiscalisationProviderConfig,
+  idempotencyKey: string,
+  payload: Record<string, unknown>,
+): PendingReceiptFields {
+  return {
+    status: "PENDING",
+    providerKey: provider.providerKey,
+    requestIdempotencyKey: idempotencyKey,
+    rawResponseJson: JSON.stringify({
+      status: "PENDING",
+      providerKey: provider.providerKey,
+      request: payload,
+    }),
+    lastSyncedAt: new Date(),
+  };
+}
 
 function refusal(code: FiscalIssueErrorCode, error: string): FiscalIssueResult {
   return { status: "FAILED", errorCode: code, error };
@@ -462,17 +478,7 @@ export async function issueFiscalDocument(input: {
     };
   }
 
-  const pending: PendingReceiptFields = {
-    status: "PENDING",
-    providerKey: provider.providerKey,
-    requestIdempotencyKey: idempotencyKey,
-    rawResponseJson: JSON.stringify({
-      status: "PENDING",
-      providerKey: provider.providerKey,
-      request: payload,
-    }),
-    lastSyncedAt: new Date(),
-  };
+  const pending = pendingFields(provider, idempotencyKey, payload);
 
   // A row that is already signed keeps its numbers and its bytes: a retry is a
   // retransmission of the same signed receipt, never a new one. Reserving a
@@ -556,18 +562,22 @@ export async function issueFiscalDocument(input: {
       );
     }
 
+    const fiscal = input.fiscal;
     try {
-      receipt = await signAndPersist({
-        provider,
-        day: openDay,
-        source,
-        documentNumber: input.documentNumber ?? null,
-        companyId,
-        existing,
-        pending,
-        fiscal: input.fiscal,
-        signingKey,
-      });
+      receipt = await prisma.$transaction((tx) =>
+        signFiscalReceipt(tx, {
+          provider,
+          day: openDay,
+          source,
+          documentNumber: input.documentNumber ?? null,
+          companyId,
+          existing,
+          pending,
+          sendingNow: true,
+          fiscal,
+          signingKey,
+        }),
+      );
     } catch (error) {
       // Everything in the transaction rolls back together, counter reservation
       // included, so a refusal here leaves the day exactly where it was.
@@ -608,7 +618,6 @@ export async function issueFiscalDocument(input: {
   }
 
   if (input.onAttempt) await input.onAttempt();
-  const signedNow = native && !alreadySigned;
 
   if (native && input.holdWhileUnreachableMs && provider.lastFailedAt && isFdmsUnreachable(provider)) {
     const silentFor = Date.now() - provider.lastFailedAt.getTime();
@@ -624,7 +633,6 @@ export async function issueFiscalDocument(input: {
         providerKey: updated.providerKey,
         error: held,
         heldSince: provider.lastFailedAt,
-        signedNow,
       };
     }
   }
@@ -674,7 +682,6 @@ export async function issueFiscalDocument(input: {
       fiscalNumber: updated.fiscalNumber,
       providerReference: updated.providerReference,
       error: updated.lastError ?? undefined,
-      signedNow,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown FDMS connector error";
@@ -693,13 +700,13 @@ export async function issueFiscalDocument(input: {
       receiptId: updated.id,
       providerKey: updated.providerKey,
       error: message,
-      signedNow,
     };
   }
 }
 
 /**
- * Reserve, sign, chain and persist — in one transaction, before any network.
+ * Reserve, sign, chain and persist — in the caller's transaction, before any
+ * network.
  *
  * The order inside is the whole point. The counters are taken by a single
  * locked `UPDATE ... RETURNING` (see `lib/accounting/fiscal-day.ts`), the
@@ -710,100 +717,114 @@ export async function issueFiscalDocument(input: {
  * PENDING row exists carrying its place in the chain, and replay resends the
  * same signed bytes rather than signing new ones.
  *
+ * What can refuse is tried before a number is taken: the document is hashed
+ * and signed once with placeholder numbers, so a document the signer refuses
+ * ({@link FiscalSigningError}) throws before anything is written, and a caller
+ * whose own transaction carries more than this receipt (a till sale signed in
+ * the commit that records it, SET-08) can catch it and carry on.
+ *
  * The transaction also holds the fiscal day's row lock from the reservation to
  * the commit, which serialises concurrent issuers on one device. That is not
  * incidental: each receipt has to know the hash of the one before it, so they
  * genuinely cannot be signed in parallel.
  */
-async function signAndPersist(args: {
-  provider: FiscalisationProviderConfig;
-  day: FiscalDay;
-  source: FiscalDocumentSource;
-  documentNumber: string | null;
-  companyId: string;
-  existing: FiscalReceipt | null;
-  pending: PendingReceiptFields;
-  fiscal: FiscalSigningInput;
-  signingKey: { privateKeyPem: string; passphrase?: string };
-}): Promise<FiscalReceipt> {
-  const { provider, day, fiscal } = args;
+export async function signFiscalReceipt(
+  db: Prisma.TransactionClient,
+  args: {
+    provider: FiscalisationProviderConfig;
+    day: Pick<FiscalDay, "id" | "fiscalDayNo">;
+    source: FiscalDocumentSource;
+    documentNumber: string | null;
+    companyId: string;
+    existing: FiscalReceipt | null;
+    pending: PendingReceiptFields;
+    /** Whether the caller sends it now (counted as an attempt), or leaves it signed for a send after its commit. */
+    sendingNow: boolean;
+    fiscal: FiscalSigningInput;
+    signingKey: { privateKeyPem: string; passphrase?: string };
+  },
+): Promise<FiscalReceipt> {
+  const { provider, day, fiscal, pending } = args;
+  const signOptions = args.signingKey.passphrase ? { passphrase: args.signingKey.passphrase } : undefined;
 
-  return prisma.$transaction(async (tx) => {
-    const reserved = await reserveNextReceiptNumbers(day.id, tx);
+  signReceipt(
+    hashReceiptInput(
+      canonicalInputFor({ deviceId: provider.deviceId ?? "", receiptGlobalNo: 1, previousReceiptHash: null, fiscal }),
+    ),
+    args.signingKey.privateKeyPem,
+    signOptions,
+  );
 
-    const canonical = canonicalInputFor({
-      deviceId: reserved.deviceId,
-      receiptGlobalNo: reserved.receiptGlobalNo,
-      previousReceiptHash: reserved.previousReceiptHash,
-      fiscal,
-    });
-    const receiptHash = hashReceiptInput(canonical);
-    const signature = signReceipt(
-      receiptHash,
-      args.signingKey.privateKeyPem,
-      args.signingKey.passphrase ? { passphrase: args.signingKey.passphrase } : undefined,
-    );
-    // Built here rather than on print: the QR is a function of the signature,
-    // so the only moment it can be derived is the moment the receipt is signed.
-    const qrCodeData = buildVerificationQrUrl({
-      portalBase: qrPortalBase(provider),
-      deviceId: reserved.deviceId,
-      receiptDate: fiscal.receiptDate,
-      receiptGlobalNo: reserved.receiptGlobalNo,
-      signature,
-    });
+  const reserved = await reserveNextReceiptNumbers(day.id, db);
 
-    const chainFields = {
-      fiscalDayId: day.id,
-      receiptCounter: reserved.receiptCounter,
-      receiptGlobalNo: reserved.receiptGlobalNo,
-      previousReceiptHash: reserved.previousReceiptHash,
-      receiptHash,
-      receiptType: fiscal.receiptType,
-      receiptCurrency: fiscal.receiptCurrency.toUpperCase(),
-      signature,
-      qrCodeData,
-    };
-
-    const row = args.existing
-      ? await tx.fiscalReceipt.update({
-          where: { id: args.existing.id },
-          data: {
-            ...args.pending,
-            ...chainFields,
-            attemptCount: { increment: 1 },
-            nextRetryAt: null,
-            lastError: null,
-          },
-        })
-      : await tx.fiscalReceipt.create({
-          data: {
-            companyId: args.companyId,
-            ...sourceData(args.source),
-            ...(args.documentNumber ? { receiptNumber: args.documentNumber } : {}),
-            ...args.pending,
-            ...chainFields,
-            attemptCount: 1,
-          },
-        });
-
-    // Advance the day's chain head to this receipt. Guarded on the counter we
-    // just reserved, so it can only apply in issue order; a false here means
-    // something wrote out of order and the next receipt would chain onto the
-    // wrong hash, which is a stop-the-line defect rather than a retry.
-    const advanced = await recordReceiptHash(
-      { dayId: day.id, receiptCounter: reserved.receiptCounter, receiptHash },
-      tx,
-    );
-    if (!advanced) {
-      throw new FiscalDayError(
-        "FISCAL_CHAIN_OUT_OF_ORDER",
-        `Fiscal day ${day.fiscalDayNo} moved while receipt ${reserved.receiptGlobalNo} was being signed; the chain head was not advanced`,
-      );
-    }
-
-    return row;
+  const canonical = canonicalInputFor({
+    deviceId: reserved.deviceId,
+    receiptGlobalNo: reserved.receiptGlobalNo,
+    previousReceiptHash: reserved.previousReceiptHash,
+    fiscal,
   });
+  const receiptHash = hashReceiptInput(canonical);
+  const signature = signReceipt(receiptHash, args.signingKey.privateKeyPem, signOptions);
+  // Built here rather than on print: the QR is a function of the signature,
+  // so the only moment it can be derived is the moment the receipt is signed.
+  const qrCodeData = buildVerificationQrUrl({
+    portalBase: qrPortalBase(provider),
+    deviceId: reserved.deviceId,
+    receiptDate: fiscal.receiptDate,
+    receiptGlobalNo: reserved.receiptGlobalNo,
+    signature,
+  });
+
+  const chainFields = {
+    fiscalDayId: day.id,
+    receiptCounter: reserved.receiptCounter,
+    receiptGlobalNo: reserved.receiptGlobalNo,
+    previousReceiptHash: reserved.previousReceiptHash,
+    receiptHash,
+    receiptType: fiscal.receiptType,
+    receiptCurrency: fiscal.receiptCurrency.toUpperCase(),
+    signature,
+    qrCodeData,
+  };
+
+  const row = args.existing
+    ? await db.fiscalReceipt.update({
+        where: { id: args.existing.id },
+        data: {
+          ...pending,
+          ...chainFields,
+          attemptCount: { increment: 1 },
+          nextRetryAt: null,
+          lastError: null,
+        },
+      })
+    : await db.fiscalReceipt.create({
+        data: {
+          companyId: args.companyId,
+          ...sourceData(args.source),
+          ...(args.documentNumber ? { receiptNumber: args.documentNumber } : {}),
+          ...pending,
+          ...chainFields,
+          attemptCount: args.sendingNow ? 1 : 0,
+        },
+      });
+
+  // Advance the day's chain head to this receipt. Guarded on the counter we
+  // just reserved, so it can only apply in issue order; a false here means
+  // something wrote out of order and the next receipt would chain onto the
+  // wrong hash, which is a stop-the-line defect rather than a retry.
+  const advanced = await recordReceiptHash(
+    { dayId: day.id, receiptCounter: reserved.receiptCounter, receiptHash },
+    db,
+  );
+  if (!advanced) {
+    throw new FiscalDayError(
+      "FISCAL_CHAIN_OUT_OF_ORDER",
+      `Fiscal day ${day.fiscalDayNo} moved while receipt ${reserved.receiptGlobalNo} was being signed; the chain head was not advanced`,
+    );
+  }
+
+  return row;
 }
 
 function normalize(value: string | null | undefined) {

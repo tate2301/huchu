@@ -94,12 +94,17 @@ export function saleWhileClosingWords(dayNo: number): string {
 }
 
 /**
- * Rung before the closing day's last receipt (an offline sale that arrives
- * while the day closes): it fits neither that day, which takes no receipt
- * now and none dated before its last, nor the next, which opens no earlier.
+ * Rung before a day's last receipt (an offline sale sent in late): it fits
+ * neither that day, which takes none dated before its last, nor the next,
+ * which opens no earlier.
  */
 export function saleBeforeLastReceiptWords(saleNo: string, dayNo: number): string {
-  return `${saleNo} was rung before day ${dayNo}'s last receipt, and day ${dayNo} is closing. ZIMRA takes no receipt dated before the last one it took, so it is not signed.`;
+  return `${saleNo} was rung before day ${dayNo}'s last receipt. ZIMRA takes no receipt dated before the last one it took, so it is not signed.`;
+}
+
+/** Sent in again after its commit found it no day: it was not signed then, and is not now. */
+export function saleNotSignedWords(saleNo: string): string {
+  return `${saleNo} was not signed when it was rung, so it is not signed now.`;
 }
 
 /** Rung before the open day began (an old offline sale): ZIMRA takes no receipt dated before its day. */

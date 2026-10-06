@@ -56,6 +56,7 @@ import type { RetailTaxMapping, RetailTaxResolver } from "@/lib/retail/fiscalisa
 
 const {
   RetailFiscalMappingError,
+  assignRetailSaleFiscalDay,
   buildRetailSaleSigningInput,
   fiscaliseRetailSale,
   fiscaliseRetailSales,
@@ -210,6 +211,23 @@ function standardSale() {
 /** Opened the morning of the sales: ZIMRA takes no receipt dated before its day (SET-08). */
 async function openDay() {
   return openFiscalDay({ companyId, providerConfigId, openedAt: new Date(SALE_DATE.getTime() - 3 * 3_600_000) });
+}
+
+/** What a sale's own commit does (SET-08): settle its fiscal day, signing it into the day; the sale keeps its date. */
+async function assign(saleId: string) {
+  return (await prisma.$transaction((tx) => assignRetailSaleFiscalDay(tx, { companyId, saleId, rungNow: false }))).outcome;
+}
+
+/** A sale's commit, then what the till does after it: send what the commit signed. */
+async function fiscalise(saleId: string) {
+  return fiscaliseRetailSale({ companyId, saleId, assigned: await assign(saleId) });
+}
+
+/** A queue of sales as `pos/sync` takes them: each settled in its own commit, then all sent in order. */
+async function fiscaliseQueue(saleIds: string[]) {
+  const sales = [];
+  for (const saleId of saleIds) sales.push({ saleId, assigned: await assign(saleId) });
+  return fiscaliseRetailSales({ companyId, sales });
 }
 
 async function receiptsInChainOrder() {
@@ -805,7 +823,7 @@ describe("fiscalising one till sale", () => {
     issueMock.mockResolvedValue({ ...connectorSuccess(), status: "PENDING" as const });
     const sale = await standardSale();
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    const result = await fiscalise(sale.id);
 
     expect(result.fiscalStatus).toBe("PENDING");
     expect(result.receiptGlobalNo).toBe(1);
@@ -833,7 +851,7 @@ describe("fiscalising one till sale", () => {
       lines: [{ productId: itemVat15, taxAmount: 3.95, lineTotal: total }],
     });
 
-    await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    await fiscalise(sale.id);
 
     const receipt = await prisma.fiscalReceipt.findFirstOrThrow({
       where: { retailSaleId: sale.id },
@@ -876,7 +894,7 @@ describe("fiscalising one till sale", () => {
       lines: [{ productId: itemUnmapped, taxAmount: 5, lineTotal: 105 }],
     });
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    const result = await fiscalise(sale.id);
 
     expect(result.fiscalStatus).toBe("FAILED");
     expect(result.errorCode).toBe("RETAIL_TAX_RATE_UNMAPPED");
@@ -920,7 +938,7 @@ describe("fiscalising one till sale", () => {
     const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: sale.id } });
     expect(stored.totalAmount.toString()).toBe("10.01");
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    const result = await fiscalise(sale.id);
 
     // Signed, because 10.01 is what the books hold and what the customer owes.
     // The rounding happened once, at the column, and nothing downstream had to
@@ -936,7 +954,7 @@ describe("fiscalising one till sale", () => {
     });
     const sale = await standardSale();
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    const result = await fiscalise(sale.id);
 
     expect(result.fiscalStatus).toBe("SKIPPED");
     expect(result.errorCode).toBeNull();
@@ -952,7 +970,7 @@ describe("fiscalising one till sale", () => {
       lines: [{ productId: itemVat15, taxAmount: 15, lineTotal: 115 }],
     });
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    const result = await fiscalise(sale.id);
 
     expect(result.fiscalStatus).toBe("SKIPPED");
     expect(issueMock).not.toHaveBeenCalled();
@@ -967,7 +985,7 @@ describe("fiscalising one till sale", () => {
   it("halts the device when no fiscal day is open", async () => {
     const sale = await standardSale();
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    const result = await fiscalise(sale.id);
 
     expect(result.fiscalStatus).toBe("FAILED");
     expect(result.errorCode).toBe("FISCAL_DAY_NOT_OPEN");
@@ -1009,7 +1027,7 @@ describe("fiscalising one till sale", () => {
       select: { id: true },
     });
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    const result = await fiscalise(sale.id);
 
     // "Zero-rated" is a VAT treatment, not a fallback: a sale signed at 0%
     // because a lookup missed is an understated return.
@@ -1025,7 +1043,8 @@ describe("fiscalising one till sale", () => {
     await openDay();
     const sale = await standardSale();
 
-    const first = await fiscaliseRetailSale({ companyId, saleId: sale.id });
+    const first = await fiscalise(sale.id);
+    // Sent again (the fiscal worker, a replayed request): the receipt its commit signed, never a second.
     const second = await fiscaliseRetailSale({ companyId, saleId: sale.id });
 
     expect(first.fiscalStatus).toBe("SUCCESS");
@@ -1046,7 +1065,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
   it("cites the original receipt's global number and signs a negative total", async () => {
     await openDay();
     const original = await standardSale();
-    await fiscaliseRetailSale({ companyId, saleId: original.id });
+    await fiscalise(original.id);
     const originalReceipt = await prisma.fiscalReceipt.findFirstOrThrow({
       where: { retailSaleId: original.id },
     });
@@ -1059,7 +1078,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
       lines: [{ productId: itemVat15, taxAmount: -15, lineTotal: -115 }],
     });
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: refund.id });
+    const result = await fiscalise(refund.id);
 
     expect(result.fiscalStatus).toBe("SUCCESS");
     const receipt = await prisma.fiscalReceipt.findFirstOrThrow({
@@ -1090,7 +1109,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
       lines: [{ productId: itemVat15, taxAmount: -15, lineTotal: -115 }],
     });
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: refund.id });
+    const result = await fiscalise(refund.id);
 
     // Not a failure: there is nothing at ZIMRA to reduce, and a bare credit
     // note would move a day's counters against a receipt they do not hold.
@@ -1101,7 +1120,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
   it("treats a VOID reversal as a credit note too", async () => {
     await openDay();
     const original = await standardSale();
-    await fiscaliseRetailSale({ companyId, saleId: original.id });
+    await fiscalise(original.id);
     // The void reversal is what the retail service writes; the sale it reverses
     // is left VOIDED and is not re-fiscalised.
     await prisma.retailSale.update({ where: { id: original.id }, data: { status: "VOIDED" } });
@@ -1114,7 +1133,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
       lines: [{ productId: itemVat15, taxAmount: -15, lineTotal: -115 }],
     });
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: reversal.id });
+    const result = await fiscalise(reversal.id);
 
     expect(result.fiscalStatus).toBe("SUCCESS");
     const receipt = await prisma.fiscalReceipt.findFirstOrThrow({
@@ -1146,7 +1165,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
       lines: [{ productId: itemVat15, taxAmount: -15, lineTotal: -115 }],
     });
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: refund.id });
+    const result = await fiscalise(refund.id);
 
     expect(result.fiscalStatus).toBe("FAILED");
     expect(result.errorCode).toBe("RETAIL_ORIGINAL_NOT_SIGNED");
@@ -1156,7 +1175,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
   it("refuses a credit note in a different currency from the receipt it reduces", async () => {
     await openDay();
     const original = await standardSale();
-    await fiscaliseRetailSale({ companyId, saleId: original.id });
+    await fiscalise(original.id);
 
     const refund = await makeSale({
       saleType: "REFUND",
@@ -1167,7 +1186,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
       lines: [{ productId: itemVat15, taxAmount: -15, lineTotal: -115 }],
     });
 
-    const result = await fiscaliseRetailSale({ companyId, saleId: refund.id });
+    const result = await fiscalise(refund.id);
 
     expect(result.fiscalStatus).toBe("FAILED");
     expect(result.errorCode).toBe("RETAIL_SIGN_MISMATCH");
@@ -1184,10 +1203,7 @@ describe("draining a batch of queued sales (invariant 1)", () => {
     await openDay();
     const sales = [await standardSale(), await standardSale(), await standardSale()];
 
-    const results = await fiscaliseRetailSales({
-      companyId,
-      saleIds: sales.map((sale) => sale.id),
-    });
+    const results = await fiscaliseQueue(sales.map((sale) => sale.id));
 
     expect(results.map((result) => result.fiscalStatus)).toEqual([
       "SUCCESS",
@@ -1244,7 +1260,7 @@ describe("draining a batch of queued sales (invariant 1)", () => {
     });
 
     const sales = [await standardSale(), await standardSale(), await standardSale()];
-    await fiscaliseRetailSales({ companyId, saleIds: sales.map((sale) => sale.id) });
+    await fiscaliseQueue(sales.map((sale) => sale.id));
 
     expect(issueMock).toHaveBeenCalledTimes(3);
     // Strictly enter/exit/enter/exit — one submission on the wire at a time,
@@ -1271,10 +1287,7 @@ describe("a mid-batch failure (invariant 2)", () => {
     });
     const last = await standardSale();
 
-    const results = await fiscaliseRetailSales({
-      companyId,
-      saleIds: [first.id, bad.id, last.id],
-    });
+    const results = await fiscaliseQueue([first.id, bad.id, last.id]);
 
     expect(results.map((result) => result.fiscalStatus)).toEqual([
       "SUCCESS",
@@ -1301,10 +1314,7 @@ describe("a mid-batch failure (invariant 2)", () => {
       .mockResolvedValueOnce(connectorFailure())
       .mockResolvedValueOnce(connectorSuccess());
 
-    const results = await fiscaliseRetailSales({
-      companyId,
-      saleIds: sales.map((sale) => sale.id),
-    });
+    const results = await fiscaliseQueue(sales.map((sale) => sale.id));
 
     expect(results.map((result) => result.fiscalStatus)).toEqual([
       "SUCCESS",
@@ -1322,52 +1332,37 @@ describe("a mid-batch failure (invariant 2)", () => {
     expect(receipts[2].previousReceiptHash).toBe(receipts[1].receiptHash);
   });
 
-  it("halts the drain on a device failure and signs nothing onto the chain after it", async () => {
+  it("refuses to sign once the device key is gone, and takes no number for it", async () => {
     await openDay();
-    const sales = [await standardSale(), await standardSale(), await standardSale()];
+    const first = await fiscalise((await standardSale()).id);
 
-    // The device key disappears after the first submission — a configuration
-    // failure that would hit every remaining sale identically.
-    issueMock.mockImplementation(async () => {
-      await prisma.fiscalisationProviderConfig.update({
-        where: { id: providerConfigId },
-        data: { certificateRef: null },
-      });
-      return connectorSuccess();
+    // The device key disappears — a configuration failure that would hit every later sale identically.
+    await prisma.fiscalisationProviderConfig.update({
+      where: { id: providerConfigId },
+      data: { certificateRef: null },
     });
+    const second = await fiscalise((await standardSale()).id);
 
-    const results = await fiscaliseRetailSales({
-      companyId,
-      saleIds: sales.map((sale) => sale.id),
+    expect(first.fiscalStatus).toBe("SUCCESS");
+    expect(second).toMatchObject({
+      fiscalStatus: "FAILED",
+      errorCode: "FISCAL_DEVICE_KEY_MISSING",
+      blocksDevice: true,
+      fiscalReceiptId: null,
     });
-
-    expect(results[0].fiscalStatus).toBe("SUCCESS");
-    expect(results[1].fiscalStatus).toBe("FAILED");
-    expect(results[1].errorCode).toBe("FISCAL_DEVICE_KEY_MISSING");
-    expect(results[1].blocksDevice).toBe(true);
-    // The third sale is never attempted: nothing may be signed onto a chain
-    // already known to be broken.
-    expect(results[2].fiscalStatus).toBe("SKIPPED");
-    expect(results[2].fiscalError).toContain("Fiscalisation stopped at sale");
     expect(issueMock).toHaveBeenCalledTimes(1);
-
-    const receipts = await receiptsInChainOrder();
-    expect(receipts).toHaveLength(1);
+    expect(await receiptsInChainOrder()).toHaveLength(1);
     const day = await prisma.fiscalDay.findFirstOrThrow({ where: { companyId } });
-    // One number reserved, not three: the halted sales burned nothing.
+    // One number reserved, not two: the refused sale burned nothing.
     expect(day.lastReceiptGlobalNo).toBe(1);
   });
 
-  it("reports every sale as skipped when the device was never usable", async () => {
+  it("refuses every sale when the device was never usable, and signs none", async () => {
     const sales = [await standardSale(), await standardSale()];
 
-    const results = await fiscaliseRetailSales({
-      companyId,
-      saleIds: sales.map((sale) => sale.id),
-    });
+    const results = await fiscaliseQueue(sales.map((sale) => sale.id));
 
-    expect(results[0].errorCode).toBe("FISCAL_DAY_NOT_OPEN");
-    expect(results[1].fiscalStatus).toBe("SKIPPED");
+    expect(results.map((result) => result.errorCode)).toEqual(["FISCAL_DAY_NOT_OPEN", "FISCAL_DAY_NOT_OPEN"]);
     expect(issueMock).not.toHaveBeenCalled();
     expect(await prisma.fiscalReceipt.count({ where: { companyId } })).toBe(0);
   });
@@ -1386,10 +1381,7 @@ describe("a mid-batch failure (invariant 2)", () => {
       lines: [{ productId: itemVat15, taxAmount: -15, lineTotal: -115 }],
     });
 
-    const results = await fiscaliseRetailSales({
-      companyId,
-      saleIds: [original.id, refund.id],
-    });
+    const results = await fiscaliseQueue([original.id, refund.id]);
 
     expect(results.map((result) => result.fiscalStatus)).toEqual(["SUCCESS", "SUCCESS"]);
     const receipts = await receiptsInChainOrder();
@@ -1403,11 +1395,12 @@ describe("a mid-batch failure (invariant 2)", () => {
     });
   });
 
-  it("tells ZIMRA nothing about a sale the same batch went on to void", async () => {
+  it("signs a sale when it is rung, and its void later in the same batch as a credit note against it", async () => {
     await openDay();
     const original = await standardSale();
+    const signed = await assign(original.id);
     // What `voidRetailSaleTransaction` leaves behind: the sale is VOIDED and a
-    // reversal row stands beside it.
+    // reversal row stands beside it, settled in the same commit.
     await prisma.retailSale.update({ where: { id: original.id }, data: { status: "VOIDED" } });
     const reversal = await makeSale({
       saleType: "VOID",
@@ -1416,27 +1409,29 @@ describe("a mid-batch failure (invariant 2)", () => {
       taxAmount: -15,
       lines: [{ productId: itemVat15, taxAmount: -15, lineTotal: -115 }],
     });
+    const credited = await assign(reversal.id);
 
     const results = await fiscaliseRetailSales({
       companyId,
-      saleIds: [original.id, reversal.id],
+      sales: [
+        { saleId: original.id, assigned: signed },
+        { saleId: reversal.id, assigned: credited },
+      ],
     });
 
-    // Neither reaches ZIMRA: they never saw the sale, so there is nothing to
-    // credit, and the day's counters stay clean.
-    expect(results.map((result) => result.fiscalStatus)).toEqual(["SKIPPED", "SKIPPED"]);
-    expect(issueMock).not.toHaveBeenCalled();
-    expect(await prisma.fiscalReceipt.count({ where: { companyId } })).toBe(0);
+    // Signed in its own commit, the sale holds its number whatever became of
+    // it; the void reduces it, so the day's counters net to nothing.
+    expect(results.map((result) => result.fiscalStatus)).toEqual(["SUCCESS", "SUCCESS"]);
+    const receipts = await receiptsInChainOrder();
+    expect(receipts.map((receipt) => receipt.receiptType)).toEqual(["FISCALINVOICE", "CREDITNOTE"]);
+    expect(wireAt(1)?.creditDebitNote).toMatchObject({ receiptGlobalNo: 1, originalSaleNo: original.saleNo });
   });
 
   it("returns one outcome per sale, in the order it was given them", async () => {
     await openDay();
     const sales = [await standardSale(), await standardSale(), await standardSale()];
 
-    const results = await fiscaliseRetailSales({
-      companyId,
-      saleIds: sales.map((sale) => sale.id),
-    });
+    const results = await fiscaliseQueue(sales.map((sale) => sale.id));
 
     // The sync route zips these back onto its operation results by position.
     expect(results.map((result) => result.saleId)).toEqual(sales.map((sale) => sale.id));

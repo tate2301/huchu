@@ -35,7 +35,7 @@ import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "
 import { postedChange } from "@/lib/retail/sale-totals";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
-import { fiscalSaleRefusal, openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
+import { fiscalSaleRefusal } from "@/lib/retail/fiscal-settings";
 import { saleReceipt } from "@/lib/retail/receipt-settings";
 import { approverSchema, approvalFor, replayApproval, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
@@ -902,10 +902,7 @@ export async function POST(request: NextRequest) {
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
-    // Before the sale is stamped: a fiscal day it opens opens no later than this (ZIMRA takes no receipt dated
-    // before its day).
-    const beforeStamp = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : new Date();
-    const { sale, accounting } = await createRetailSaleTransaction({
+    const { sale, accounting, fiscal: assigned } = await createRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -967,20 +964,16 @@ export async function POST(request: NextRequest) {
     const loyaltyPointsRedeemed = parseLoyaltyRedeemPoints(sale.notes);
     const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
 
-    // A sale that finds no fiscal day open (closed by hand while the tills sell) opens one to be signed in
-    // (SET-08): only once it has committed, so a sale refused anywhere opens nothing.
-    await openFiscalDayIfNone(session.user.companyId, beforeStamp);
-
     /*
-      The online sale goes onto the fiscal chain here, after it has committed —
-      the same drain the offline queue gets in `pos/sync`. This path used to
-      skip it entirely, so a shop with a registered ZIMRA device fiscalised only
-      the sales rung while the network was down. Never fails the sale: a shop
-      with no device gets SKIPPED, and a refusal is a row somebody can replay.
+      The sale's commit settled its fiscal day and signed its receipt (SET-08):
+      it goes to ZIMRA here, once committed. Never fails the sale: a shop with
+      no device gets SKIPPED, and a receipt ZIMRA did not take is sent again by
+      the fiscal worker.
     */
     const fiscal = await fiscaliseAfterPosting({
       companyId: session.user.companyId,
       saleId: sale.id,
+      assigned,
     });
     // The receipt the till prints (SET-07): the settings in force and the fiscal line just signed.
     const receipt = await saleReceipt(session.user.companyId, sale.id);

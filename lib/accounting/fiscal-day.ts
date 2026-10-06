@@ -13,14 +13,14 @@
  * That is why this module exists as a seam of its own, and why two things in it
  * are written the way they are rather than the obvious way:
  *
- * 1. **Opening a day never checks-then-writes.** Two tills, or a till and the
+ * 1. **Opening a day holds the device first.** Two tills, or a till and the
  *    console, or a retry of a request whose response was lost, can call
  *    `openFiscalDay` in the same millisecond. Both would read "no day open" and
  *    both would insert, and a device with two open days has two counters
- *    issuing the same numbers. The `FiscalDay_one_open_per_device` partial
- *    unique index (added in `20260818120000_fdms_foundations`) is the actual
- *    guard; the pre-read below exists only to give the loser a good error
- *    message, and the code is correct if it is deleted.
+ *    issuing the same numbers. Every opener takes the device's row lock before
+ *    it looks, so the second sees the first's day; the
+ *    `FiscalDay_one_open_per_device` partial unique index (added in
+ *    `20260818120000_fdms_foundations`) stays as the guard behind it.
  *
  * 2. **Reserving numbers is one atomic `UPDATE ... RETURNING`.** Not a read,
  *    not a `MAX()` over the receipts table, not a Prisma read-modify-write. A
@@ -182,11 +182,6 @@ export class FiscalDayHasPendingReceiptsError extends FiscalDayError {
   }
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error &&
-    (error as { code?: unknown }).code === "P2002";
-}
-
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
@@ -259,21 +254,19 @@ export type OpenFiscalDayInput = {
   openedAt?: Date;
 };
 
-const OPEN_ATTEMPTS = 5;
-
 /**
  * Open the device's next fiscal day.
  *
- * The day number is allocated as `max(fiscalDayNo) + 1` for the device and the
- * insert is allowed to fail: the two unique indexes decide the winner, not this
- * function. On a P2002 we re-read to find out *which* index fired — an active
- * day means somebody else opened one and we refuse; a day-number collision
- * means somebody else took the number we picked while we were picking it, and
- * we simply pick the next one. Bounded retries, because an unbounded loop
- * against a constraint we have misdiagnosed is a spin, not a recovery.
+ * Under the device's own row lock ({@link lockFiscalDevice}), which every
+ * opener takes before it looks for a day still open: the look and the insert
+ * after it cannot interleave with another opener's, and nothing here waits on
+ * a unique violation, which would abort a caller's transaction. The partial
+ * unique index stays as the guard behind it. Pass a transaction to open the
+ * day in it (a sale that finds none, SET-08); without one it opens in its own.
  */
-export async function openFiscalDay(input: OpenFiscalDayInput): Promise<FiscalDay> {
-  const provider = await prisma.fiscalisationProviderConfig.findFirst({
+export async function openFiscalDay(input: OpenFiscalDayInput, db?: Prisma.TransactionClient): Promise<FiscalDay> {
+  if (!db) return prisma.$transaction((tx) => openFiscalDay(input, tx));
+  const provider = await db.fiscalisationProviderConfig.findFirst({
     where: { id: input.providerConfigId, companyId: input.companyId },
   });
   if (!provider) {
@@ -297,52 +290,74 @@ export async function openFiscalDay(input: OpenFiscalDayInput): Promise<FiscalDa
     );
   }
 
-  for (let attempt = 0; attempt < OPEN_ATTEMPTS; attempt += 1) {
-    const active = await getActiveFiscalDay(
-      { companyId: input.companyId, providerConfigId: provider.id },
-      prisma,
-    );
-    if (active) throw new FiscalDayAlreadyOpenError(active);
+  await lockFiscalDevice(db, provider.id);
+  const active = await getActiveFiscalDay({ providerConfigId: provider.id }, db);
+  if (active) throw new FiscalDayAlreadyOpenError(active);
 
-    const previous = await prisma.fiscalDay.findFirst({
-      where: { providerConfigId: provider.id },
-      orderBy: { fiscalDayNo: "desc" },
-    });
-
-    const seed = openFiscalDayCounters(
-      previous
-        ? { receiptCounter: previous.lastReceiptCounter, receiptGlobalNo: previous.lastReceiptGlobalNo }
-        : null,
-    );
-
-    try {
-      return await prisma.fiscalDay.create({
-        data: {
-          companyId: input.companyId,
-          providerConfigId: provider.id,
-          deviceId,
-          fiscalDayNo: (previous?.fiscalDayNo ?? 0) + 1,
-          status: FISCAL_DAY_STATUS.OPENED,
-          openedAt: input.openedAt ?? new Date(),
-          lastReceiptCounter: seed.receiptCounter,
-          lastReceiptGlobalNo: seed.receiptGlobalNo,
-          // Null, not the previous day's hash: the chain restarts each fiscal
-          // day (see the module header).
-          lastReceiptHash: null,
-        },
-      });
-    } catch (error) {
-      if (!isUniqueViolation(error)) throw error;
-
-      const conflicting = await getActiveFiscalDay({ providerConfigId: provider.id }, prisma);
-      if (conflicting) throw new FiscalDayAlreadyOpenError(conflicting);
-      // Otherwise the day-number index fired; loop and take the next number.
-    }
-  }
-
-  throw new FiscalDayConfigError(
-    `Could not allocate a fiscal day number for device ${deviceId} after ${OPEN_ATTEMPTS} attempts`,
+  const previous = await db.fiscalDay.findFirst({
+    where: { providerConfigId: provider.id },
+    orderBy: { fiscalDayNo: "desc" },
+  });
+  const seed = openFiscalDayCounters(
+    previous
+      ? { receiptCounter: previous.lastReceiptCounter, receiptGlobalNo: previous.lastReceiptGlobalNo }
+      : null,
   );
+
+  return db.fiscalDay.create({
+    data: {
+      companyId: input.companyId,
+      providerConfigId: provider.id,
+      deviceId,
+      fiscalDayNo: (previous?.fiscalDayNo ?? 0) + 1,
+      status: FISCAL_DAY_STATUS.OPENED,
+      openedAt: input.openedAt ?? new Date(),
+      lastReceiptCounter: seed.receiptCounter,
+      lastReceiptGlobalNo: seed.receiptGlobalNo,
+      // Null, not the previous day's hash: the chain restarts each fiscal
+      // day (see the module header).
+      lastReceiptHash: null,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Locks: which day a receipt goes in
+// ---------------------------------------------------------------------------
+
+/** The device's not-yet-closed day, as its locked row says. */
+export type LockedFiscalDay = { id: string; fiscalDayNo: number; status: string; openedAt: Date };
+
+/** Hold the device for the rest of the transaction: what every opener of a day takes first (SET-08). */
+export async function lockFiscalDevice(db: Prisma.TransactionClient, providerConfigId: string): Promise<void> {
+  await db.$queryRaw`SELECT "id" FROM "FiscalisationProviderConfig" WHERE "id" = ${providerConfigId} FOR NO KEY UPDATE`;
+}
+
+/**
+ * Hold the device's day that has not closed, for the rest of the transaction,
+ * and say what it is: open, closing, or none — and then the device is held
+ * too, so no day opens meanwhile. What a sale decides about its day under
+ * this lock stays true until it commits: a close claims the day with an
+ * update of this same row, so the claim waits for the sale, or the sale for
+ * the claim (SET-08).
+ */
+export async function lockDeviceDay(
+  db: Prisma.TransactionClient,
+  providerConfigId: string,
+): Promise<LockedFiscalDay | null> {
+  const locked = () =>
+    db.$queryRaw<LockedFiscalDay[]>`
+      SELECT "id", "fiscalDayNo", "status", "openedAt"
+        FROM "FiscalDay"
+       WHERE "providerConfigId" = ${providerConfigId}
+         AND "status" <> ${FISCAL_DAY_STATUS.CLOSED}
+         FOR NO KEY UPDATE`;
+  const [day] = await locked();
+  if (day) return day;
+  // None, or it closed while this waited for it: hold the device, then look again for one opened meanwhile.
+  await lockFiscalDevice(db, providerConfigId);
+  const [opened] = await locked();
+  return opened ?? null;
 }
 
 // ---------------------------------------------------------------------------

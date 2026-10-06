@@ -12,7 +12,8 @@
  * address at `http://127.0.0.1:9911` to use it.
  *
  * It checks one thing ZIMRA checks: a receipt dated before its fiscal day opened is refused
- * (RCPT014). The app never sends OpenDay, so the fake takes a device's day as opening no
+ * (RCPT014). GetStatus says the device's day is closed once its CloseDay was taken, until a
+ * receipt for the next day arrives, as ZIMRA's does (`lastFiscalDayNo`). The app never sends OpenDay, so the fake takes a device's day as opening no
  * earlier than the last receipt of its previous day, as the app opens it: a sale rung while
  * that day's report was on its way is signed into the next day with its own time. Anything
  * else is accepted if it arrives, and a device is registered with whatever key it asks for.
@@ -68,6 +69,8 @@ let receiptCounter = 0;
 const lastReceiptDate = new Map();
 /** Where each device's day opened, as far as the fake knows: its previous day's last receipt. */
 const dayOpenedAfter = new Map();
+/** Each device's last day as ZIMRA knows it: its number and whether its CloseDay was taken. */
+const dayState = new Map();
 
 function send(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -109,6 +112,8 @@ const server = http.createServer((req, res) => {
           error: `RCPT014: receipt dated ${receiptDate.toISOString()} is before its fiscal day opened (${opened.toISOString()}).`,
         });
       }
+      const state = dayState.get(deviceId);
+      if (state?.closed) dayState.set(deviceId, { no: state.no + 1, closed: false });
       if (receiptDate && !Number.isNaN(receiptDate.getTime())) {
         const last = lastReceiptDate.get(deviceId);
         if (!last || receiptDate > last) lastReceiptDate.set(deviceId, receiptDate);
@@ -127,10 +132,22 @@ const server = http.createServer((req, res) => {
     if (operation === "CloseDay") {
       const last = lastReceiptDate.get(deviceId);
       if (last) dayOpenedAfter.set(deviceId, last);
+      let dayNo = null;
+      try {
+        dayNo = Number(JSON.parse(raw || "{}").fiscalDayNo);
+      } catch {
+        dayNo = null;
+      }
+      if (Number.isInteger(dayNo)) dayState.set(deviceId, { no: dayNo, closed: true });
       return send(res, 200, { status: "SUCCESS", operationID: `close-${deviceId}-${Date.now()}` });
     }
     if (operation === "GetStatus") {
-      return send(res, 200, { status: "SUCCESS", fiscalDayStatus: "FiscalDayOpened" });
+      const state = dayState.get(deviceId);
+      return send(res, 200, {
+        status: "SUCCESS",
+        fiscalDayStatus: state?.closed ? "FiscalDayClosed" : "FiscalDayOpened",
+        ...(state ? { lastFiscalDayNo: state.no } : {}),
+      });
     }
     if (operation === "GetConfig") {
       return send(res, 200, {

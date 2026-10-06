@@ -9,6 +9,7 @@ import {
   heldReceiptWords,
   saleBeforeDayWords,
   saleBeforeLastReceiptWords,
+  saleNotSignedWords,
   saleWhileClosingWords,
   taxpayerNumberProblem,
   vatNumberProblem,
@@ -58,8 +59,9 @@ describe("what a till sale is told about its receipt", () => {
     );
     expect(saleWhileClosingWords(214)).toBe("Day 214's report waits for ZIMRA. This sale is signed as soon as a day is open again.");
     expect(saleBeforeLastReceiptWords("RS-0270", 214)).toBe(
-      "RS-0270 was rung before day 214's last receipt, and day 214 is closing. ZIMRA takes no receipt dated before the last one it took, so it is not signed.",
+      "RS-0270 was rung before day 214's last receipt. ZIMRA takes no receipt dated before the last one it took, so it is not signed.",
     );
+    expect(saleNotSignedWords("RS-0272")).toBe("RS-0272 was not signed when it was rung, so it is not signed now.");
     expect(saleBeforeDayWords("RS-0271", 215)).toBe(
       "RS-0271 was rung before day 215 opened, and ZIMRA takes no receipt dated before its day. It is not signed.",
     );

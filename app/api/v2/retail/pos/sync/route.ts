@@ -13,11 +13,12 @@
  * Conflict resolution: server-wins for all conflicts.
  * Returns: { results: Array<SyncOperationResult> }
  *
- * FD-5: once every operation has been applied, the sales this batch produced
- * are fiscalised in one ordered pass (see {@link drainFiscalisation}). That
- * pass is the only place the till reaches ZIMRA, and it is deliberately the
- * last thing the request does — a fiscal failure must never cost the shop a
- * sale that has already been rung.
+ * FD-5, SET-08: each sale, refund and void settles its fiscal day in its own
+ * commit — its receipt signed into the day, or marked to wait for one, or
+ * refused when it fits no day. Once every operation has been applied, the
+ * receipts this batch signed are sent to ZIMRA in one ordered pass (see
+ * {@link drainFiscalisation}), deliberately the last thing the request does —
+ * a fiscal failure must never cost the shop a sale that has already been rung.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -44,8 +45,7 @@ import {
   refundRetailSaleTransaction,
   voidRetailSaleTransaction,
 } from "../../_services";
-import { fiscaliseRetailSales } from "@/lib/retail/fiscalisation";
-import { openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
+import { fiscaliseRetailSales, type RetailFiscalOutcome } from "@/lib/retail/fiscalisation";
 import { requirePosDevice, type PosDevice } from "@/lib/retail/devices";
 import { approverSchema, replayApproval } from "@/lib/retail/manager-pin";
 import { doneOffline, loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
@@ -115,19 +115,14 @@ interface SyncContext {
   resolvedIds: Map<string, string>;
   // Map of clientOperationId → result
   results: Map<string, SyncOperationResult>;
+  /** Sale id → what its commit settled about its fiscal day (SET-08). */
+  fiscal: Map<string, RetailFiscalOutcome | null>;
 }
 
 /**
- * FD-5 — the sales this batch wrote, in the order the till rang them.
- *
- * Collected during the loop and drained after it, never inline, for two
- * reasons. A sale that this same batch voids must never reach ZIMRA: the void
- * arrives as a later operation, and fiscalising the sale the moment it is
- * created would have sent a receipt for something the queue already knows was
- * cancelled. And a refund needs its original's fiscal receipt, which exists
- * only once the original has been through the drain — so one ordered pass over
- * the whole batch settles both without the operations having to know about each
- * other.
+ * FD-5 — the sales this batch wrote, in the order the till rang them: their
+ * receipts were signed in their commits (SET-08), and are sent after the
+ * loop, in this order, so nothing in the batch waits on ZIMRA.
  */
 type FiscalDrainEntry = { clientOperationId: string; saleId: string };
 
@@ -628,7 +623,7 @@ async function processCreateSale(
       customerName = payload.customerName ?? null;
     }
 
-    const { sale, accounting } = await createRetailSaleTransaction({
+    const { sale, accounting, fiscal } = await createRetailSaleTransaction({
       actor: {
         companyId: ctx.companyId,
         userId: ctx.userId,
@@ -672,6 +667,7 @@ async function processCreateSale(
     });
 
     ctx.resolvedIds.set(op.clientOperationId, sale.id);
+    ctx.fiscal.set(sale.id, fiscal);
     /*
       Whatever the device called this sale, later operations in the same batch —
       a refund against it, say — reference it by that name. Post-S-7.7 that is
@@ -730,7 +726,7 @@ async function processVoidSale(
     // counter's rules. The PIN rule is judged at arrival either way.
     const voidedAt = new Date(payload.voidedAt);
 
-    const { sale, accounting } = await voidRetailSaleTransaction({
+    const { sale, accounting, fiscal } = await voidRetailSaleTransaction({
       actor: {
         companyId: ctx.companyId,
         userId: ctx.userId,
@@ -747,6 +743,7 @@ async function processVoidSale(
       periodOverrideReason: payload.periodOverrideReason ?? null,
       deviceId: ctx.device.id,
     });
+    ctx.fiscal.set(sale.id, fiscal);
 
     return {
       clientOperationId: op.clientOperationId,
@@ -832,7 +829,7 @@ async function processRefundSale(
     // Lenient (kept for review) only when it was really done offline; else the counter's rules.
     const refundedAt = payload.refundedAt ? new Date(payload.refundedAt) : null;
 
-    const { sale, accounting } = await refundRetailSaleTransaction({
+    const { sale, accounting, fiscal } = await refundRetailSaleTransaction({
       actor: {
         companyId: ctx.companyId,
         userId: ctx.userId,
@@ -860,6 +857,7 @@ async function processRefundSale(
       periodOverrideReason: payload.periodOverrideReason ?? null,
       deviceId: ctx.device.id,
     });
+    ctx.fiscal.set(sale.id, fiscal);
 
     return {
       clientOperationId: op.clientOperationId,
@@ -1042,19 +1040,17 @@ function topologicalSort(
 // ── Fiscalisation Drain (FD-5) ──────────────────────────────────────────────
 
 /**
- * Put this batch's sales onto the ZIMRA hash chain, in queue order.
+ * Send this batch's receipts to ZIMRA, in queue order.
  *
- * Runs after every write in the batch has committed, so it never fiscalises a
- * sale the same batch went on to void, and a refund always finds the original's
- * receipt. `fiscaliseRetailSales` is sequential by contract — the chain cannot
- * be signed in parallel — and it decides for itself whether a failure is about
- * one sale (skip it, keep draining) or about the device (stop, and say so on
- * the rest).
+ * Runs after every write in the batch has committed. Each sale's day and its
+ * place on the chain were settled in its own commit (SET-08); this only sends
+ * what was signed, one at a time, and tells the till what became of each.
  *
  * Nothing here may fail the sync. The money is already taken, the stock is
- * already moved and the till is standing in front of a customer: an
- * unfiscalised sale is a durable row somebody can replay, whereas a 500 here
- * would make the client re-queue operations that have already been applied.
+ * already moved and the till is standing in front of a customer: a receipt
+ * ZIMRA did not take is a durable row the fiscal worker sends again, whereas a
+ * 500 here would make the client re-queue operations that have already been
+ * applied.
  */
 async function drainFiscalisation(
   ctx: SyncContext,
@@ -1064,15 +1060,9 @@ async function drainFiscalisation(
   if (drain.length === 0) return;
 
   try {
-    // The batch needs a fiscal day open to be signed in (SET-08): one opened now takes it from its oldest sale.
-    const rung = await prisma.retailSale.aggregate({
-      where: { companyId: ctx.companyId, id: { in: drain.map((entry) => entry.saleId) } },
-      _min: { postedAt: true },
-    });
-    await openFiscalDayIfNone(ctx.companyId, rung._min.postedAt ?? undefined);
     const outcomes = await fiscaliseRetailSales({
       companyId: ctx.companyId,
-      saleIds: drain.map((entry) => entry.saleId),
+      sales: drain.map((entry) => ({ saleId: entry.saleId, assigned: ctx.fiscal.get(entry.saleId) ?? null })),
       holdWhileUnreachable: true,
     });
 
@@ -1133,6 +1123,7 @@ export async function POST(request: NextRequest) {
       device,
       resolvedIds: new Map(),
       results: new Map(),
+      fiscal: new Map(),
     };
 
     // Sort operations by dependency order

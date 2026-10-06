@@ -1,4 +1,5 @@
 import { closeFiscalDayIfLastShift, openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
+import { assignRetailSaleFiscalDay } from "@/lib/retail/fiscalisation";
 import {
   Prisma,
   type RetailCashMovementReason,
@@ -920,7 +921,7 @@ export async function createRetailSaleTransaction(input: {
         registerCode: shift.registerCode,
         periodOverrideReason: input.periodOverrideReason ?? null,
       });
-      return { sale: alreadyPosted, accounting };
+      return { sale: alreadyPosted, accounting, fiscal: null };
     }
   }
 
@@ -949,7 +950,7 @@ export async function createRetailSaleTransaction(input: {
     );
 
     try {
-      const sale = await prisma.$transaction(async (tx) => {
+      const { fiscal, ...sale } = await prisma.$transaction(async (tx) => {
         const created = await tx.retailSale.create({
           data: {
             companyId: input.actor.companyId,
@@ -1083,7 +1084,13 @@ export async function createRetailSaleTransaction(input: {
           createdById: input.actor.userId,
         });
 
-        return created;
+        // Last: the sale's fiscal day, settled in this commit (SET-08). A sale rung now is dated here.
+        const assigned = await assignRetailSaleFiscalDay(tx, {
+          companyId: input.actor.companyId,
+          saleId: created.id,
+          rungNow: !input.postedAt,
+        });
+        return { ...created, postedAt: assigned.postedAt, fiscal: assigned.outcome };
       });
 
       const accounting = await ensureRetailSaleAccountingPosted({
@@ -1093,7 +1100,7 @@ export async function createRetailSaleTransaction(input: {
         periodOverrideReason: input.periodOverrideReason ?? null,
       });
 
-      return { sale, accounting };
+      return { sale, accounting, fiscal };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -1120,7 +1127,7 @@ export async function createRetailSaleTransaction(input: {
             registerCode: shift.registerCode,
             periodOverrideReason: input.periodOverrideReason ?? null,
           });
-          return { sale: existing, accounting };
+          return { sale: existing, accounting, fiscal: null };
         }
       }
 
@@ -1302,7 +1309,7 @@ export async function refundRetailSaleTransaction(input: {
     amount: -payment.amount,
   }));
 
-  const refund = await reversalTransaction(async (tx) => {
+  const { fiscal, ...refund } = await reversalTransaction(async (tx) => {
     // One reversal of a sale at a time: the earlier refunds below are read
     // after any running one has committed, so they are judged together.
     await lockSourceSale(tx, input.saleId);
@@ -1585,7 +1592,13 @@ export async function refundRetailSaleTransaction(input: {
       approvedBy,
     });
 
-    return created;
+    // Last: its fiscal day, settled in this commit (SET-08). One done now is dated here.
+    const assigned = await assignRetailSaleFiscalDay(tx, {
+      companyId: input.actor.companyId,
+      saleId: created.id,
+      rungNow: !input.offlineAt,
+    });
+    return { ...created, postedAt: assigned.postedAt, fiscal: assigned.outcome };
   });
 
   const accounting = await ensureRetailSaleAccountingPosted({
@@ -1595,7 +1608,7 @@ export async function refundRetailSaleTransaction(input: {
     periodOverrideReason: input.periodOverrideReason ?? null,
   });
 
-  return { sale: refund, accounting };
+  return { sale: refund, accounting, fiscal };
 }
 
 export async function voidRetailSaleTransaction(input: {
@@ -1664,7 +1677,7 @@ export async function voidRetailSaleTransaction(input: {
     siteId: sourceSale.siteId,
   });
 
-  const reversal = await reversalTransaction(async (tx) => {
+  const { fiscal, ...reversal } = await reversalTransaction(async (tx) => {
     // One reversal of a sale at a time, so a void and a refund of the same
     // sale cannot both read "nothing reversed yet".
     await lockSourceSale(tx, input.saleId);
@@ -1860,7 +1873,13 @@ export async function voidRetailSaleTransaction(input: {
       approvedBy,
     });
 
-    return created;
+    // Last: its fiscal day, settled in this commit (SET-08). One done now is dated here.
+    const assigned = await assignRetailSaleFiscalDay(tx, {
+      companyId: input.actor.companyId,
+      saleId: created.id,
+      rungNow: !input.offlineAt,
+    });
+    return { ...created, postedAt: assigned.postedAt, fiscal: assigned.outcome };
   });
 
   const accounting = await ensureRetailSaleAccountingPosted({
@@ -1870,7 +1889,7 @@ export async function voidRetailSaleTransaction(input: {
     periodOverrideReason: input.periodOverrideReason ?? null,
   });
 
-  return { sale: reversal, accounting };
+  return { sale: reversal, accounting, fiscal };
 }
 
 /**
