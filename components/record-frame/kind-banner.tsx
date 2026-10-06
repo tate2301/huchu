@@ -37,7 +37,7 @@ export function KindBanner({
   };
 
   return (
-    <div role="status" className="cx-rf-banner cx-rf-banner--note">
+    <div role="status" className={`cx-rf-banner${banner.tone === "bad" ? "" : " cx-rf-banner--note"}`}>
       <span className="cx-rf-banner__text">
         <b>{banner.lead}</b> {banner.text}
         {error ? (

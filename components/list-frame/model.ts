@@ -146,9 +146,10 @@ export function cellText(column: ListColumn, row: ReportRow): string {
   switch (column.cell) {
     case "money":
     case "zero":
-    case "owed":
     case "edit-money":
       return formatMoney(Number(value), currency);
+    case "owed":
+      return Number(value) < 0 ? `${formatMoney(-Number(value), currency)} credit` : formatMoney(Number(value), currency);
     case "diff":
       return formatSigned(Number(value), currency);
     case "date":

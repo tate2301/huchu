@@ -54,6 +54,9 @@ import { RETAIL_ROLE_ACCOUNT_CODES } from "@/lib/accounting/defaults"
 import { postIntegrationEvent } from "@/lib/accounting/integration"
 import { RETAIL_SOURCE_TYPES } from "@/lib/retail/posting-settings"
 import { prisma } from "@/lib/prisma"
+import { addContact, createSupplier, type SendsWord, type SupplierInput } from "@/lib/retail/buying/suppliers"
+import { createProduct } from "@/lib/retail/products/create"
+import { productInput } from "@/lib/retail/products/input"
 import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { activeRetailPriceList } from "@/lib/retail/shelf-pricing"
@@ -506,7 +509,6 @@ async function main() {
     create: { companyId, name: "Shelf prices", kind: "RETAIL", taxInclusive: true, isActive: true, isDefault: true },
     select: { id: true },
   })
-  const suppliers = await seedSuppliers(companyId)
 
   const borrowdaleLocation =
     (await prisma.stockLocation.findFirst({ where: { siteId: borrowdale.id, code: "SHOP" } })) ??
@@ -553,7 +555,6 @@ async function main() {
       categoryId: categoryIds.get(entry.category) ?? null,
       cost: entry.cost,
       deposit: entry.deposit ?? null,
-      supplierId: suppliers.get(supplierOf(entry)) ?? null,
     })
     // Out of the bin, if a run before this one left it there.
     await prisma.product.updateMany({ where: { id: productId, archivedAt: { not: null } }, data: { archivedAt: null } })
@@ -581,7 +582,7 @@ async function main() {
       where: {
         companyId,
         archivedAt: null,
-        code: { notIn: CATALOGUE.map((entry) => entry.code) },
+        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code] },
         inventoryItems: { some: {} },
       },
       data: { archivedAt: new Date() },
@@ -1272,6 +1273,7 @@ async function main() {
   await seedStockPeople(companyId, passwordHash)
   await seedPins(companyId, passwordHash)
   await seedPeople({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, passwordHash, reset })
+  await seedSuppliers({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null, reset })
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedAdjustments({ companyId, mainSiteId: site.id, reset })
   await seedPriceHistory(companyId)
@@ -2642,7 +2644,6 @@ async function seedShelfLine(input: {
   categoryId: string | null
   cost: string
   deposit: string | null
-  supplierId: string | null
 }): Promise<string> {
   const category = input.categoryId
     ? await prisma.retailCategory.findUnique({ where: { id: input.categoryId }, select: { vatRate: true } })
@@ -2658,7 +2659,6 @@ async function seedShelfLine(input: {
     costPrice: money(input.cost),
     returnable: Boolean(input.deposit),
     depositAmount: input.deposit ? money(input.deposit) : null,
-    supplierId: input.supplierId,
     ...(input.barcode ? { barcode: input.barcode } : {}),
   }
   const product = await prisma.product.upsert({
@@ -2679,29 +2679,166 @@ async function seedShelfLine(input: {
   return product.id
 }
 
-/** PRD-03: the shop's suppliers (buying decision 1: a supplier is a Vendor), by name. */
-const SUPPLIERS = ["Delta Beverages", "Afdis Distillers", "Schweppes Zimbabwe", "Natbrew"] as const
-
-async function seedSuppliers(companyId: string): Promise<Map<string, string>> {
-  const ids = new Map<string, string>()
-  for (const name of SUPPLIERS) {
-    const found =
-      (await prisma.vendor.findFirst({ where: { companyId, name }, select: { id: true } })) ??
-      (await prisma.vendor.create({ data: { companyId, name, isActive: true }, select: { id: true } }))
-    await prisma.vendor.update({ where: { id: found.id }, data: { isActive: true } })
-    ids.set(name, found.id)
-  }
-  console.log(`  ${SUPPLIERS.length} suppliers`)
-  return ids
+type SeedSupplier = {
+  code: string
+  supplier: SupplierInput
+  /** The WhatsApp number, where it is not the phone. */
+  whatsapp?: string
+  contacts: Array<{ name: string; role: string; phone?: string; email?: string; sends: SendsWord }>
 }
 
-/** Who a catalogue line is usually bought from: Delta for beer, ciders, Coke, Fanta and ice; Afdis for spirits and wine. */
-function supplierOf(entry: CatalogueEntry): string {
-  if (entry.code.startsWith("CHIBUKU")) return "Natbrew"
-  if (entry.code.startsWith("TONIC")) return "Schweppes Zimbabwe"
-  if (entry.code.startsWith("CHARCOAL")) return ""
-  if (entry.category === "Spirits" || entry.category === "Wine") return "Afdis Distillers"
-  return "Delta Beverages"
+/**
+ * BUY-01 (40-buying 3.6): the seven suppliers, SUP-0001 to SUP-0007 in this
+ * order. The rep is a Sales rep contact on the supplier's own number, as the
+ * migration made one from a supplier's contact name.
+ */
+const SEED_SUPPLIERS: SeedSupplier[] = [
+  {
+    code: "SUP-0001",
+    supplier: {
+      name: "Delta Beverages",
+      phone: "+263 24 270 1600",
+      email: "orders@delta.co.zw",
+      pays: "30 days",
+      delivers: "Tuesdays and Fridays",
+      leadTime: "2",
+      minimumOrder: "500.00",
+      vatNumber: "10023881",
+      bpNumber: "200118844",
+      bank: "CBZ, Kwame Nkrumah, 0112 3344 4471",
+    },
+    whatsapp: "+263 77 214 9080",
+    contacts: [
+      { name: "Tinashe Moyo", role: "Sales rep", phone: "+263 77 214 9080", sends: "Orders" },
+      { name: "Delta orders desk", role: "Orders desk", email: "orders@delta.co.zw", sends: "Orders" },
+    ],
+  },
+  {
+    code: "SUP-0002",
+    supplier: { name: "Afdis Distillers", phone: "+263 24 266 8001", email: "orders@afdis.co.zw", pays: "30 days", delivers: "Mondays and Thursdays", leadTime: "2", minimumOrder: "300.00" },
+    contacts: [{ name: "Ruvimbo Sithole", role: "Sales rep", phone: "+263 24 266 8001", email: "orders@afdis.co.zw", sends: "Orders" }],
+  },
+  {
+    code: "SUP-0003",
+    supplier: { name: "Mutare Wholesalers", phone: "+263 20 206 4411", pays: "On delivery", delivers: "Fridays", leadTime: "3" },
+    contacts: [{ name: "Peter Chikore", role: "Sales rep", phone: "+263 20 206 4411", sends: "Orders" }],
+  },
+  {
+    code: "SUP-0004",
+    supplier: { name: "Schweppes Zimbabwe", phone: "+263 24 248 7720", email: "sales@schweppes.co.zw", pays: "14 days", delivers: "Wednesdays", leadTime: "2" },
+    contacts: [{ name: "Lindiwe Dube", role: "Sales rep", phone: "+263 24 248 7720", email: "sales@schweppes.co.zw", sends: "Orders" }],
+  },
+  {
+    code: "SUP-0005",
+    supplier: { name: "Pamela", phone: "+263 77 330 1922", pays: "On delivery", leadTime: "1" },
+    contacts: [{ name: "Pamela Ndlovu", role: "Sales rep", phone: "+263 77 330 1922", sends: "Orders" }],
+  },
+  {
+    code: "SUP-0006",
+    supplier: { name: "Ice Cold Supplies", phone: "+263 71 909 2210", pays: "On delivery", delivers: "Daily", leadTime: "0" },
+    contacts: [{ name: "Joseph Banda", role: "Sales rep", phone: "+263 71 909 2210", sends: "Orders" }],
+  },
+  {
+    code: "SUP-0007",
+    supplier: { name: "CoolTech Repairs", phone: "+263 77 410 5566", pays: "On delivery" },
+    contacts: [],
+  },
+]
+
+/** Sprite 500ml (40-buying 3.6): PO-0003 and the Receive board order it from Delta. */
+const SPRITE = { code: "SPRITE-500", name: "Sprite 500ml", price: "0.75", cost: "0.52", onHand: "96", reorderAt: "48" }
+
+/** Who a catalogue line is bought from: Delta for beer, ciders, Coke, Fanta, ice and Chibuku; Afdis for spirits and wine; Schweppes for tonic. */
+function supplierOf(entry: CatalogueEntry): string | null {
+  if (entry.code.startsWith("TONIC")) return "SUP-0004"
+  if (entry.code.startsWith("CHARCOAL")) return null
+  if (entry.category === "Spirits" || entry.category === "Wine") return "SUP-0002"
+  return "SUP-0001"
+}
+
+/**
+ * BUY-01. The seven suppliers, added as New supplier and Add a contact add
+ * them (by Tendai Mhlanga), idempotent by code; then each catalogue line's
+ * supplier, and Sprite 500ml added as New product adds one. `--reset` starts
+ * the suppliers again from these: what an acceptance run added, stopped,
+ * changed or messaged goes (a supplier the books hold a bill against stays).
+ */
+async function seedSuppliers(input: { companyId: string; mainSiteId: string; softDrinksId: string | null; reset: boolean }) {
+  const { companyId } = input
+  const owner = await prisma.user.findFirstOrThrow({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true, role: true } })
+  const actor = { companyId, userId: owner.id, userName: owner.name, userRole: owner.role }
+
+  if (input.reset) {
+    const gone = await prisma.vendor.findMany({ where: { companyId, bills: { none: {} } }, select: { id: true } })
+    const ids = gone.map((vendor) => vendor.id)
+    await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "Vendor", entityId: { in: ids } } })
+    await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "Vendor", entityId: { in: ids } } })
+    await prisma.vendor.deleteMany({ where: { id: { in: ids } } })
+  }
+
+  const sequence = { companyId_entityKey_scopeKey: { companyId, entityKey: "RETAIL_SUPPLIER", scopeKey: "GLOBAL" } }
+  const ids = new Map<string, string>()
+  for (const row of SEED_SUPPLIERS) {
+    const found = await prisma.vendor.findFirst({ where: { companyId, code: row.code }, select: { id: true, name: true } })
+    if (found) {
+      if (found.name !== row.supplier.name) console.log(`  ${row.code} is ${found.name} here, not ${row.supplier.name} (run with --reset)`)
+      ids.set(row.code, found.id)
+      continue
+    }
+    // The next number New supplier takes is this one.
+    const wanted = Number(row.code.split("-")[1]) - 1
+    await prisma.idSequence.upsert({
+      where: sequence,
+      create: { companyId, entityKey: "RETAIL_SUPPLIER", scopeKey: "GLOBAL", lastNumber: wanted },
+      update: { lastNumber: wanted },
+    })
+    const id = await prisma.$transaction(async (tx) => {
+      const created = await createSupplier(tx, actor, row.supplier)
+      if (row.whatsapp) await tx.vendor.update({ where: { id: created.id }, data: { whatsapp: row.whatsapp } })
+      for (const contact of row.contacts) await addContact(tx, actor, created.id, contact)
+      return created.id
+    })
+    ids.set(row.code, id)
+  }
+  // The next one added is SUP-0008.
+  const last = await prisma.idSequence.findUnique({ where: sequence, select: { lastNumber: true } })
+  if (!last || last.lastNumber < SEED_SUPPLIERS.length) {
+    await prisma.idSequence.upsert({
+      where: sequence,
+      create: { companyId, entityKey: "RETAIL_SUPPLIER", scopeKey: "GLOBAL", lastNumber: SEED_SUPPLIERS.length },
+      update: { lastNumber: SEED_SUPPLIERS.length },
+    })
+  }
+
+  for (const entry of CATALOGUE) {
+    const code = supplierOf(entry)
+    await prisma.product.updateMany({ where: { companyId, code: entry.code }, data: { supplierId: code ? (ids.get(code) ?? null) : null } })
+  }
+
+  const sprite = await prisma.product.findFirst({ where: { companyId, code: SPRITE.code }, select: { id: true } })
+  if (sprite) {
+    await prisma.product.update({ where: { id: sprite.id }, data: { supplierId: ids.get("SUP-0001") ?? null, archivedAt: null, isActive: true } })
+  } else {
+    await prisma.$transaction(async (tx) => {
+      const created = await createProduct(tx, {
+        actor,
+        input: productInput.parse({
+          name: SPRITE.name,
+          categoryId: input.softDrinksId,
+          price: SPRITE.price,
+          cost: SPRITE.cost,
+          supplierId: ids.get("SUP-0001") ?? null,
+          openingStock: SPRITE.onHand,
+          reorderAt: SPRITE.reorderAt,
+          siteId: input.mainSiteId,
+        }),
+        source: "ADDED",
+      })
+      await tx.product.update({ where: { id: created.productId }, data: { code: SPRITE.code } })
+      await tx.inventoryItem.update({ where: { id: created.itemId }, data: { itemCode: SPRITE.code } })
+    })
+  }
+  console.log(`  ${SEED_SUPPLIERS.length} suppliers (SUP-0001 to SUP-0007), their products, and Sprite 500ml from Delta`)
 }
 
 /**

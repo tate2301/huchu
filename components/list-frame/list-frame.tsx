@@ -376,7 +376,7 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
     const endpoint = runEndpoint(how.endpoint, targetRows);
     if (!endpoint) throw new Error("That did not work. Nothing was changed; try again.");
     const response = await fetch(endpoint, {
-      method: "POST",
+      method: run?.method ?? "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(run?.body ? run.body(ids, targetRows) : { ids }),
     });

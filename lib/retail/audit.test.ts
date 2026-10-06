@@ -481,6 +481,12 @@ describe("the chain", () => {
       personAccessRestored: "RETAIL_PERSON.ACCESS_RESTORED",
       pinChosen: "RETAIL_PERSON.PIN_CHOSEN",
       pinLocked: "RETAIL_PIN.LOCKED",
+      supplierCreated: "RETAIL_SUPPLIER.CREATED",
+      supplierContactAdded: "RETAIL_SUPPLIER.CONTACT_ADDED",
+      supplierContactRemoved: "RETAIL_SUPPLIER.CONTACT_REMOVED",
+      supplierStopped: "RETAIL_SUPPLIER.STOPPED",
+      supplierResumed: "RETAIL_SUPPLIER.RESUMED",
+      suppliersMessaged: "RETAIL_SUPPLIER.MESSAGED",
     });
   });
 });

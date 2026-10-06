@@ -1,5 +1,6 @@
 import type { SheetKind } from "@/lib/workspace/sheet-kind";
 
+import { BUYING_SHEETS } from "./buying";
 import { FLOOR_SHEETS } from "./floor";
 import { PEOPLE_SHEETS } from "./people";
 import { PRODUCT_SHEETS } from "./products";
@@ -20,4 +21,5 @@ export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...STOCK_ADJUST_SHEETS,
   ...TILL_SHEETS,
   ...PEOPLE_SHEETS,
+  ...BUYING_SHEETS,
 };

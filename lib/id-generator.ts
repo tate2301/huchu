@@ -32,6 +32,7 @@ export type ReservableIdEntity =
   | "RETAIL_STOCK_ADJUSTMENT"
   | "RETAIL_CASE_BREAK"
   | "RETAIL_STOCK_TRANSFER"
+  | "RETAIL_SUPPLIER"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -96,6 +97,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_CASE_BREAK: { prefix: "BRK", requiresSiteId: false },
   // "TRF-0008": stock sent from one site to another (W-24).
   RETAIL_STOCK_TRANSFER: { prefix: "TRF", requiresSiteId: false },
+  // "SUP-0001": a supplier the shop buys from (W-29), company-wide.
+  RETAIL_SUPPLIER: { prefix: "SUP", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -435,6 +438,13 @@ async function findEntityMaxExistingCode(
         select: { transferNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.transferNo), prefix);
+    }
+    case "RETAIL_SUPPLIER": {
+      const records = await db.vendor.findMany({
+        where: { companyId, code: { not: null } },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
     // CRM entities seed from existing rows so a lost IdSequence row cannot
     // restart the counter at 0001 and collide with the unique constraint.

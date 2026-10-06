@@ -48,6 +48,10 @@ const RECORD_TYPES: Record<string, RecordActivityType> = {
     exists: async (companyId, id) =>
       Boolean(await prisma.retailStockTransfer.findFirst({ where: { id, companyId }, select: { id: true } })),
   },
+  Vendor: {
+    read: ["retail.suppliers", "view"],
+    exists: async (companyId, id) => Boolean(await prisma.vendor.findFirst({ where: { id, companyId }, select: { id: true } })),
+  },
 };
 
 export function recordActivityType(type: string): RecordActivityType | null {

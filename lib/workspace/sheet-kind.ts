@@ -57,7 +57,9 @@ export type FieldType =
   | "cards"
   | "lines"
   | "read"
-  | "photo";
+  | "photo"
+  /** A document sent with the request as multipart (a spreadsheet to import); the value is the File. */
+  | "file";
 
 export type FieldSpec = {
   id: string;
@@ -126,8 +128,11 @@ export type FieldSpec = {
   /** `money`: decimals kept, two at least (a rate keeps four). */
   decimals?: number;
   nolabel?: boolean;
-  /** `photo`: the value line while empty ("Add your logo"). */
+  /** `photo` and `file`: the value line while empty ("Add your logo"). */
   prompt?: string;
+  /** `file`: the line under the prompt ("Or choose a file · .xlsx or .csv"), and the types it takes. */
+  fileSub?: string;
+  accept?: string;
   /**
    * Draws the field as `read`, holding a fixed value, when the person may not
    * choose (a cashier opening their own shift sees themselves).
@@ -176,6 +181,7 @@ export type SheetSection = {
   fields: FieldSpec[];
 };
 
+/** A body holding a File (a `file` field's value) goes as multipart form data, its other keys as text. */
 export type SheetRequest = { method: "POST" | "PATCH" | "PUT" | "DELETE"; url: string; body?: unknown };
 
 /**

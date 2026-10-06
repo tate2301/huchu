@@ -53,14 +53,29 @@ export type SheetFormProps = {
   onClose: () => void;
 };
 
+/** A body holding a File goes as multipart form data (an import's spreadsheet). */
+function multipart(body: unknown): FormData | null {
+  if (!body || typeof body !== "object") return null;
+  const entries = Object.entries(body as Record<string, unknown>);
+  if (!entries.some(([, value]) => value instanceof File)) return null;
+  const form = new FormData();
+  for (const [key, value] of entries) {
+    if (value instanceof File) form.set(key, value);
+    else if (value !== null && value !== undefined) form.set(key, String(value));
+  }
+  return form;
+}
+
 async function send(request: SheetRequest, keepalive = false): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  const form = multipart(request.body);
   const response = await fetch(request.url, {
     method: request.method,
     credentials: "include",
     // A cancel sent as the page goes (a reload, another address) still lands.
     keepalive,
-    headers: { "Content-Type": "application/json" },
-    body: request.body === undefined ? undefined : JSON.stringify(request.body),
+    ...(form
+      ? { body: form }
+      : { headers: { "Content-Type": "application/json" }, body: request.body === undefined ? undefined : JSON.stringify(request.body) }),
   });
   const payload: unknown = (response.headers.get("content-type") ?? "").includes("application/json")
     ? await response.json()

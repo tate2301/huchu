@@ -98,6 +98,7 @@ model Company {
   currencyDefinitions           CurrencyDefinition[]
   customers                     Customer[]
   vendors                       Vendor[]
+  vendorContacts                VendorContact[]
   salesInvoices                 SalesInvoice[]
   salesQuotations               SalesQuotation[]
   salesReceipts                 SalesReceipt[]
@@ -1452,6 +1453,8 @@ model User {
   staffInvites                      RetailStaffInvite[]            @relation("RetailStaffInvitee")
   staffInvitesSent                  RetailStaffInvite[]            @relation("RetailStaffInviter")
   retailTillPinsIssued              RetailTillPin[]                @relation("RetailTillPinIssuedBy")
+  vendorsStopped                    Vendor[]                       @relation("VendorStoppedBy")
+  vendorsCreated                    Vendor[]                       @relation("VendorCreatedBy")
 
   @@index([companyId])
   @@index([email])
@@ -5316,6 +5319,11 @@ enum RetailMessageChannel {
   EMAIL
 }
 
+enum RetailMessageDirection {
+  OUT
+  IN
+}
+
 enum RetailMessageStatus {
   QUEUED
   SENT
@@ -5356,10 +5364,18 @@ model RetailMessage {
   sentAt       DateTime?
   createdById  String?
   createdAt    DateTime                @default(now())
+  /// Sent by the shop, or a reply that came in (BUY-01).
+  direction    RetailMessageDirection  @default(OUT)
+  /// What the message is about ("Vendor", "RetailPurchaseOrder") and its id.
+  entityType   String?
+  entityId     String?
+  /// A reply's sender.
+  fromNumber   String?
 
   company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   sale    RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
 
+  @@index([companyId, entityType, entityId, createdAt])
   @@index([companyId, status, createdAt])
   @@index([status, scheduledFor])
   @@index([saleId])
@@ -6560,13 +6576,68 @@ model Vendor {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  // Read by retail (BUY-01) as: contactName = "Rep" (kept in step with the rep
+  // contact), address = "Address", taxNumber = "BP number", vatNumber = "VAT number".
+  /// "SUP-0001". Unique per company.
+  code                 String?
+  /// Where orders and reminders go on WhatsApp. Starts as `phone`.
+  whatsapp             String?
+  /// "Send orders on WhatsApp".
+  sendOrdersOnWhatsapp Boolean   @default(true)
+  /// "Pays": null = on delivery; else days from delivery (7, 14, 30).
+  payTermsDays         Int?
+  /// "Delivers", as said: "Tuesdays and Fridays".
+  deliversOn           String?
+  /// "Lead time", whole days. Fills an order's Expected.
+  leadTimeDays         Int?
+  /// "Minimum order", with VAT.
+  minimumOrder         Decimal?  @db.Decimal(14, 2)
+  /// "Bank account" as typed. The rail shows "CBZ · •••• 4471".
+  bankDetails          String?
+  /// "Stop buying from them". isActive is false while set.
+  stoppedAt            DateTime?
+  stoppedById          String?
+  createdById          String?
 
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   taxCategory         TaxCategory?         @relation(fields: [taxCategoryId], references: [id])
   bills               PurchaseBill[]
   products            Product[]            @relation("ProductSupplier")
+  contacts            VendorContact[]
+  stoppedBy           User?                @relation("VendorStoppedBy", fields: [stoppedById], references: [id], onDelete: SetNull)
+  createdBy           User?                @relation("VendorCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@unique([companyId, code])
   @@index([companyId, isActive])
+}
+
+enum VendorContactSends {
+  ORDERS
+  STATEMENTS
+  NOTHING
+}
+
+/// A person at a supplier (BUY-01): the rep, accounts, the orders desk, a driver.
+model VendorContact {
+  id        String             @id @default(uuid())
+  companyId String
+  vendorId  String
+  name      String
+  /// "Sales rep", "Accounts", "Orders desk", "Driver", or a word the shop added.
+  role      String?
+  phone     String?
+  email     String?
+  /// "Sends them".
+  sends     VendorContactSends @default(ORDERS)
+  removedAt DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vendor  Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([companyId])
 }
 
 model SalesInvoice {

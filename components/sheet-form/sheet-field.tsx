@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Field } from "@/components/workspace/fields/field";
 import { MoneyInput } from "@/components/workspace/fields/money-input";
+import { FileField } from "@/components/workspace/fields/file-field";
 import { PhotoField } from "@/components/workspace/fields/photo-field";
 import { ReadValue } from "@/components/workspace/fields/read-value";
 import { TagsInput } from "@/components/workspace/fields/tags-input";
@@ -256,6 +257,17 @@ export function SheetField({
                 value={typeof value === "string" ? value : null}
                 onValueChange={onChange}
                 upload={(file) => uploadPicture(file, field.upload)}
+              />
+            );
+          case "file":
+            return (
+              <FileField
+                {...control}
+                prompt={field.prompt ?? field.p ?? "Drop the file here"}
+                sub={field.fileSub ?? "Or choose a file"}
+                accept={field.accept}
+                value={value instanceof File ? value : null}
+                onValueChange={onChange}
               />
             );
           case "lines":

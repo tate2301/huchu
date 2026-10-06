@@ -170,6 +170,9 @@ function orderClosedWords(payload: Payload): ActivityWords {
   };
 }
 
+/** What a supplier's contact is sent (`VendorContactSends`). */
+const SENDS_WORDS: Record<string, string> = { ORDERS: "orders", STATEMENTS: "statements", NOTHING: "nothing" };
+
 const BUSINESS_TYPES: Record<string, string> = {
   LIQUOR: "liquor store",
   GENERAL: "general retail",
@@ -371,6 +374,16 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     what: `PIN locked after 5 wrong tries${text(payload.registerName) ? ` at ${text(payload.registerName)}` : ""}`,
     tone: "warn",
   }),
+  // Suppliers (40-buying 3.4): "Added Delta Beverages"; "Added Rumbi Chari, Accounts, who gets statements".
+  [RETAIL_AUDIT_EVENTS.supplierCreated]: (payload) => ({ what: `Added ${text(payload.name) ?? "them"}`, tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.supplierContactAdded]: (payload) => ({
+    what: `Added ${[text(payload.name) ?? "a contact", text(payload.role)].filter(Boolean).join(", ")}, who gets ${SENDS_WORDS[text(payload.sends) ?? ""] ?? "orders"}`,
+    tone: "info",
+  }),
+  [RETAIL_AUDIT_EVENTS.supplierContactRemoved]: (payload) => ({ what: `Removed ${text(payload.name) ?? "a contact"}`, tone: "hollow" }),
+  [RETAIL_AUDIT_EVENTS.supplierStopped]: () => ({ what: "Stopped buying from them", tone: "bad" }),
+  [RETAIL_AUDIT_EVENTS.supplierResumed]: () => ({ what: "Started buying from them again", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.suppliersMessaged]: () => ({ what: "Sent a message on WhatsApp", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,
     tone: "info",
