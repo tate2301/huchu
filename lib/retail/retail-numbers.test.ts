@@ -61,4 +61,11 @@ describe("retail numbers across a company's sites", () => {
   it("counts a till's code across the company too", async () => {
     expect(await reserveIdentifier(prisma, { companyId, entity: "RETAIL_REGISTER", siteId: counterId })).toBe("REG-0002");
   });
+
+  it("skips a number no sequence could have handed out, like a till's old clock-named offline sale", async () => {
+    // Checkout failed with "value 1787005857220984 is out of range for type integer".
+    await prisma.retailRegister.create({ data: { companyId, siteId: counterId, code: "REG-1787005857220984", name: "Old till" } });
+    await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_REGISTER" } });
+    expect(await reserveIdentifier(prisma, { companyId, entity: "RETAIL_REGISTER", siteId: counterId })).toBe("REG-0002");
+  });
 });

@@ -177,6 +177,13 @@ export function inferNumbering(
   return { prefix: winner.prefix, separator: winner.separator, max: winner.max };
 }
 
+/**
+ * The highest number a sequence could have handed out: `lastNumber` is an int4.
+ * A code above it was never one of ours (a till once named offline sales
+ * `RSL-<clock>`), and counting from it would overflow the sequence.
+ */
+const MAX_SEQUENCE_NUMBER = 2_147_483_647;
+
 function extractMaxFromCodes(codes: Array<string | null | undefined>, prefix: string) {
   const regex = new RegExp(`^${prefix}-(\\d+)$`, "i");
   let max = 0;
@@ -185,7 +192,7 @@ function extractMaxFromCodes(codes: Array<string | null | undefined>, prefix: st
     const match = value.match(regex);
     if (!match) continue;
     const parsed = Number.parseInt(match[1], 10);
-    if (Number.isFinite(parsed)) {
+    if (Number.isFinite(parsed) && parsed <= MAX_SEQUENCE_NUMBER) {
       max = Math.max(max, parsed);
     }
   }
