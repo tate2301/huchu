@@ -2060,6 +2060,8 @@ export async function generateRetailZReportTransaction(input: {
       })),
       sales: (salesByShift.get(shift.id) ?? []).map((sale) => ({
         saleType: sale.saleType,
+        status: sale.status,
+        approvedById: sale.approvedById,
         discountAmount: sale.discountAmount,
         taxAmount: sale.taxAmount,
         totalAmount: sale.totalAmount,
@@ -2094,6 +2096,7 @@ export async function generateRetailZReportTransaction(input: {
     saleCount: figures.saleCount,
     refundCount: figures.refundCount,
     voidCount: figures.voidCount,
+    approvedDiscountCount: figures.approvedDiscountCount,
     itemCount: figures.itemCount,
     grossSales: figures.grossSales,
     discountTotal: figures.discountTotal,

@@ -5504,6 +5504,8 @@ model RetailZReport {
   saleCount   Int @default(0)
   refundCount Int @default(0)
   voidCount   Int @default(0)
+  /// Sales that day whose discount a manager approved with their PIN, not since voided: "3 approved".
+  approvedDiscountCount Int @default(0)
   /// Distinct products that moved. The "out of 184" beside the best-sellers table.
   itemCount   Int @default(0)
 

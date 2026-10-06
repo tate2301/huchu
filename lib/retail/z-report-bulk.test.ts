@@ -29,6 +29,7 @@ function report(registerCode: string, registerName: string, businessDate: string
     saleCount: 96,
     refundCount: 0,
     voidCount: 1,
+    approvedDiscountCount: 0,
     itemCount: 140,
     grossSales: "780.00",
     discountTotal: "0.00",

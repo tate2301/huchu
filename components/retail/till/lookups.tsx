@@ -13,13 +13,19 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Barcode, MagnifyingGlass, Plus, ShoppingCart, Tag, Users } from "@/lib/icons";
 import { LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
-import { count, firstName, qty, usd, whole } from "./format";
+import { count, dayMonth, firstName, qty, usd, whole } from "./format";
 import { Avatar, Empty } from "./parts";
 import { useTill } from "./state";
 import { ProductPreview } from "./tile";
 import type { CustomerLookupResult, PosCatalogItem } from "./types";
 
 const TIER: Record<string, string> = { BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold" };
+
+/** A customer as `customers/search` answers here: with their last sale at the shop, whoever rang it. */
+type CustomerRow = CustomerLookupResult & { lastSale: { saleNo: string; total: number; at: string } | null };
+
+/** "today", else "on 3 October". */
+const onDay = (at: string) => (dayMonth(at) === dayMonth(new Date()) ? "today" : `on ${dayMonth(at)}`);
 const NEXT_TIER: Record<string, [string, number] | null> = { BRONZE: ["Silver", 500], SILVER: ["Gold", 2000], GOLD: null };
 
 function useTyped(delay = 250) {
@@ -42,7 +48,7 @@ export function CustomersScreen() {
   const query = useQuery({
     queryKey: ["retail-pos-customer-search", search.value],
     enabled: search.value.length >= 2,
-    queryFn: () => fetchJson<{ data: CustomerLookupResult[] }>(`/api/v2/retail/customers/search?q=${encodeURIComponent(search.value)}&limit=30`),
+    queryFn: () => fetchJson<{ data: CustomerRow[] }>(`/api/v2/retail/customers/search?q=${encodeURIComponent(search.value)}&limit=30`),
   });
   const rows = query.data?.data ?? [];
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
@@ -146,6 +152,16 @@ export function CustomersScreen() {
                   {TIER[selected.loyaltyTier] ?? selected.loyaltyTier}
                   {next ? `, ${whole(next[1] - selected.loyaltyPoints)} to ${next[0]}` : ""}
                 </dd>
+                <dt>Last sale</dt>
+                <dd>
+                  {selected.lastSale ? (
+                    <>
+                      <span className="num">{selected.lastSale.saleNo}</span>, {usd(selected.lastSale.total)} {onDay(selected.lastSale.at)}
+                    </>
+                  ) : (
+                    <span className="muted">None yet</span>
+                  )}
+                </dd>
               </dl>
             </section>
             <section>
@@ -183,6 +199,8 @@ export function PriceCheckScreen() {
   const item = rows[0] ?? null;
   const others = rows.slice(1, 4);
   const stock = item?.inventoryItem?.currentStock ?? 0;
+  // Stock at or below the shop's reorder level says so; null when the shop never set one.
+  const reorderLevel = item?.inventoryItem?.reorderLevel ?? null;
   const site = context?.site.name ?? "this shop";
   const deposits = features ? features.emptiesAndDeposits : true;
 
@@ -220,11 +238,14 @@ export function PriceCheckScreen() {
               <ProductPreview name={item.name} imageUrl={item.imageUrl} />
             </span>
             <p className="lede-figure">
-              {item.name} is <span className="num">{usd(item.unitPrice)}</span>.{" "}
+              {/* An open price (airtime) is whatever the cashier types at the till. */}
+              {item.name} is {item.openPrice ? "any amount" : <span className="num">{usd(item.unitPrice)}</span>}.{" "}
               <span className="q">
                 {stock <= 0 && item.openableCase
                   ? `None loose at ${site}; ${count(item.openableCase.casesOnHand, "case")} of ${item.openableCase.unitsPerCase} to open.`
-                  : `${qty(stock)} left at ${site}.`}
+                  : reorderLevel !== null && stock <= reorderLevel
+                    ? `${qty(stock)} left at ${site}; the reorder level is ${qty(reorderLevel)}.`
+                    : `${qty(stock)} left at ${site}.`}
               </span>
             </p>
           </div>

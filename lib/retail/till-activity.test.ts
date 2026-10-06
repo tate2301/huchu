@@ -30,6 +30,7 @@ import {
   movementActivityEntry,
   saleActivityEntries,
   shiftActivityEntries,
+  wasApproved,
   type TillActivityMovementRow,
   type TillActivitySaleRow,
   type TillActivityShiftRow,
@@ -61,6 +62,7 @@ const SALE: TillActivitySaleRow = {
   cashierName: "Faith Moyo",
   customerName: "Walk-in",
   overrideReason: null,
+  approvedByName: null,
   postedAt: new Date("2026-08-14T09:12:00.000Z"),
   createdAt: new Date("2026-08-14T09:11:55.000Z"),
   shiftNo: "S-2841",
@@ -184,6 +186,42 @@ describe("overrideReason is a price approval on a sale and a reason on a reversa
 
   it("treats a whitespace-only override as absent", () => {
     expect(saleActivityEntries({ ...SALE, overrideReason: "   " })).toHaveLength(1);
+  });
+});
+
+/* ─── Who approved it ─────────────────────────────────────────────────────── */
+
+describe("the manager who approved it", () => {
+  it("is named on the override line, not on the sale it was given on", () => {
+    const [sale, override] = saleActivityEntries({
+      ...SALE,
+      overrideReason: "Regular customer",
+      approvedByName: "Farai Mutasa",
+    });
+    expect(sale.approvedBy).toBeNull();
+    expect(override.approvedBy).toBe("Farai Mutasa");
+    expect(wasApproved(sale)).toBe(false);
+    expect(wasApproved(override)).toBe(true);
+  });
+
+  it("is named on a refund and a void", () => {
+    const [refund] = saleActivityEntries({ ...REFUND, approvedByName: "Farai Mutasa" });
+    const [voided] = saleActivityEntries({ ...VOID, approvedByName: "Farai Mutasa" });
+    expect(refund.approvedBy).toBe("Farai Mutasa");
+    expect(voided.approvedBy).toBe("Farai Mutasa");
+  });
+
+  it("is absent when nobody had to approve, so the Approved filter leaves it out", () => {
+    const entries = buildTillActivity({
+      sales: [
+        { ...SALE, overrideReason: "Manager's own discount" },
+        REFUND,
+        { ...VOID, approvedByName: "Farai Mutasa" },
+      ],
+      movements: [DROP],
+      shifts: [SHIFT],
+    });
+    expect(entries.filter(wasApproved).map((entry) => entry.id)).toEqual(["sale:sale-3"]);
   });
 });
 

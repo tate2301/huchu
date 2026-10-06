@@ -106,6 +106,8 @@ function sale(
 ): ZReportSaleInput {
   return {
     saleType: "SALE",
+    status: "POSTED",
+    approvedById: null,
     discountAmount: rung.checkout.discountAmount,
     taxAmount: rung.checkout.taxAmount,
     totalAmount: rung.checkout.total,
@@ -154,6 +156,8 @@ const B4 = ringUp([{ product: COKE, quantity: 24 }]);
  */
 const REFUND: ZReportSaleInput = {
   saleType: "REFUND",
+  status: "POSTED",
+  approvedById: null,
   discountAmount: 0,
   taxAmount: -3.76,
   totalAmount: -28.8,
@@ -601,6 +605,8 @@ describe("bottle deposits", () => {
   };
   const crateBack: ZReportSaleInput = {
     saleType: "REFUND",
+    status: "POSTED",
+    approvedById: null,
     discountAmount: 0,
     taxAmount: -3.76,
     totalAmount: -28.8,
@@ -650,5 +656,46 @@ describe("bottle deposits", () => {
 
   it("is nothing on a day without returnable bottles", () => {
     expect(report.depositTotal.toFixed(2)).toBe("0.00");
+  });
+});
+
+describe("discounts a manager approved", () => {
+  // Discounted sales: one a manager approved, one approved and then voided, one
+  // the person selling gave without asking; and a price a manager approved over
+  // the shelf with nothing taken off.
+  const discounted = ringUp([{ product: CHIBUKU, quantity: 40 }], { orderDiscountAmount: 4 });
+  const plain = ringUp([{ product: GIN, quantity: 1 }]);
+  const cashFor = (rung: ReturnType<typeof ringUp>) => [{ tenderType: "CASH" as const, baseAmount: rung.checkout.total }];
+  const approved: ZReportSaleInput = { ...sale(discounted, cashFor(discounted)), approvedById: "farai" };
+  const voided: ZReportSaleInput = { ...approved, status: "VOIDED" };
+  const ownDiscount: ZReportSaleInput = sale(discounted, cashFor(discounted));
+  const priceOnly: ZReportSaleInput = { ...sale(plain, cashFor(plain)), approvedById: "farai" };
+  const day = buildRetailZReportFigures({
+    businessDate: FRIDAY,
+    registerCode: "TILL02",
+    registerName: "Till 02",
+    siteId: "site-borrowdale",
+    currency: "USD",
+    shifts: [
+      {
+        id: "shift-x",
+        shiftNo: "S-2860",
+        cashierName: "Faith Moyo",
+        openedAt: new Date("2026-08-14T07:30:00.000Z"),
+        closedAt: new Date("2026-08-14T14:00:00.000Z"),
+        openingFloat: "50.00",
+        countedCash: null,
+        movements: [],
+        sales: [approved, voided, ownDiscount, priceOnly],
+      },
+    ],
+  });
+
+  it("counts the sales whose discount a manager approved, and not a voided one", () => {
+    expect(day.approvedDiscountCount).toBe(1);
+  });
+
+  it("is none on a day nobody needed a manager for a discount", () => {
+    expect(report.approvedDiscountCount).toBe(0);
   });
 });

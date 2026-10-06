@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { money, toNumberOrZero } from "@/lib/money";
+import { money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice, requireRetailPermission, retailRoleKey } from "@/lib/retail/permissions";
-import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
+import { saleEmpties } from "@/lib/retail/empties";
+import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
 import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -75,6 +76,8 @@ export async function GET(
         postedAt: true,
         cashierName: true,
         overrideReason: true,
+        // The manager whose PIN let it through; null when nobody had to.
+        approvedByName: true,
         lines: { select: { id: true, itemName: true, quantity: true, lineTotal: true } },
         payments: { select: { tenderType: true, currency: true } },
       },
@@ -99,7 +102,7 @@ export async function GET(
       select: { id: true, name: true, code: true },
     }),
   ]);
-  const [promotion, reversalEvents] = await Promise.all([
+  const [promotion, empties, customer] = await Promise.all([
     // The promotion by its name, as the shop wrote it; the sale keeps only the code.
     sale.promotionCode
       ? prisma.retailPromotion.findFirst({
@@ -107,22 +110,10 @@ export async function GET(
           select: { name: true },
         })
       : Promise.resolve(null),
-    // Who approved each reversal with their PIN lives on the audit chain, not the sale row.
-    relatedSales.length
-      ? prisma.platformAuditEvent.findMany({
-          where: {
-            companyId: session.user.companyId,
-            entityType: "RetailSale",
-            entityId: { in: relatedSales.map((relatedSale) => relatedSale.id) },
-            eventType: { in: [RETAIL_AUDIT_EVENTS.saleRefunded, RETAIL_AUDIT_EVENTS.saleVoided] },
-          },
-          select: { entityId: true, payloadJson: true },
-        })
-      : Promise.resolve([]),
+    // The bottles that came back on it, per supplier.
+    saleEmpties(prisma, session.user.companyId, sale.id),
+    saleCustomer(session.user.companyId, sale, relatedSales),
   ]);
-  const approvedByReversal = new Map(
-    reversalEvents.map((event) => [event.entityId, approverName(event.payloadJson)]),
-  );
   const reversalLineRows = relatedSales.length
     ? await prisma.retailSaleLine.findMany({
         where: {
@@ -156,10 +147,9 @@ export async function GET(
       site,
       sourceSale,
       promotion,
-      reversals: relatedSales.map((reversal) => ({
-        ...reversal,
-        approvedBy: approvedByReversal.get(reversal.id) ?? null,
-      })),
+      empties,
+      customer,
+      reversals: relatedSales,
       lines: sale.lines.map((line) => {
         const refundedQuantity = refundedBySourceLine.get(line.id) ?? 0;
         // R-2.3. Opening a sale to refund it is a cashier's job; reading the
@@ -178,13 +168,28 @@ export async function GET(
   });
 }
 
-/** The approver's name on a refund or void's audit event, or null when nobody had to approve. */
-function approverName(payloadJson: string | null): string | null {
-  if (!payloadJson) return null;
-  try {
-    const payload = JSON.parse(payloadJson) as { approvedByName?: unknown };
-    return typeof payload.approvedByName === "string" && payload.approvedByName ? payload.approvedByName : null;
-  } catch {
-    return null;
-  }
+/**
+ * The customer on a sale, for the rail: their phone and tier, their points
+ * now, the points this sale earned and what its refunds and voids took back.
+ * A point is earned on each whole dollar of goods (`lib/retail/loyalty.ts`),
+ * so what comes back is what the sale earned less what is left of it still
+ * earns. Matched by name, as loyalty is; null on a walk-in.
+ */
+async function saleCustomer(
+  companyId: string,
+  sale: { customerName: string | null; saleType: string; totalAmount: MoneyLike },
+  reversals: Array<{ totalAmount: MoneyLike }>,
+) {
+  const name = sale.customerName?.trim();
+  if (!name || name === "Walk-in") return null;
+  const [record, loyalty] = await Promise.all([
+    prisma.customer.findFirst({ where: { companyId, name }, orderBy: { updatedAt: "desc" }, select: { phone: true } }),
+    getCustomerLoyaltyBalance({ companyId, customerName: name }),
+  ]);
+  const total = money(sale.totalAmount);
+  const earned = sale.saleType === "SALE" && total.greaterThan(0) ? Math.floor(toNumberOrZero(total)) : 0;
+  // Reversals carry negative totals.
+  const left = toNumberOrZero(sumMoney([total, ...reversals.map((reversal) => reversal.totalAmount)]));
+  const returned = earned ? earned - Math.max(Math.floor(left), 0) : 0;
+  return { phone: record?.phone ?? null, tier: loyalty.tier, balance: loyalty.balance, earned, returned };
 }

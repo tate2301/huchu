@@ -34,7 +34,7 @@ import {
 import { depositBack } from "@/lib/retail/deposits";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { refundPinSentence, VOID_FREE_MS, voidPinSentence } from "@/lib/retail/till-rule-words";
-import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, zig } from "./format";
+import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, whole, zig } from "./format";
 import { Avatar, Empty, ErrorLine, TillDialog } from "./parts";
 import { printReceipt } from "./pay-tray";
 import { useTill } from "./state";
@@ -79,6 +79,12 @@ type SaleDetail = {
   changeZig: Amount;
   idCheckedAt: string | null;
   overrideReason: string | null;
+  /** The manager whose PIN let its discount, refund or void through; null when nobody had to. */
+  approvedByName: string | null;
+  /** The bottles that came back on it, per supplier. */
+  empties: Array<{ supplierId: string; supplierName: string; quantity: number }>;
+  /** The customer, matched by name as loyalty is: points earned on it, taken back by its refunds and voids, and now. Null on a walk-in. */
+  customer: { phone: string | null; tier: string; balance: number; earned: number; returned: number } | null;
   promotionCode: string | null;
   promotion?: { name: string } | null;
   voidReason: string | null;
@@ -95,8 +101,8 @@ type SaleDetail = {
     cashierName: string | null;
     /** The till rules' reason, as listed. */
     overrideReason: string | null;
-    /** The manager who approved it with their PIN, from the audit chain; null when nobody had to. */
-    approvedBy: string | null;
+    /** The manager who approved it with their PIN; null when nobody had to. */
+    approvedByName: string | null;
     lines: Array<{ id: string; itemName: string; quantity: Amount; lineTotal: Amount }>;
     payments: PaymentLine[];
   }>;
@@ -150,6 +156,30 @@ function handedBack(sale: SaleDetail) {
   const owed = n(sale.tenderedAmount) - paidOn(sale);
   return { usd: Math.min(Math.floor(owed + 1e-9), change), zig: zigNotes };
 }
+
+/** The manager who let it through, after the sentence: ". Farai Mutasa approved". */
+function Approved({ by }: { by: string | null }) {
+  return by ? (
+    <>
+      . <b>{by}</b> approved
+    </>
+  ) : null;
+}
+
+/** "Bronze", from the scheme's "BRONZE". */
+const tierWord = (tier: string) => tier.charAt(0) + tier.slice(1).toLowerCase();
+
+/** "+14 on this sale, 210 now"; once refunded, "+14, then −3 back, 207 now". */
+function pointsWords(customer: NonNullable<SaleDetail["customer"]>) {
+  const now = `${whole(customer.balance)} now`;
+  if (!customer.earned) return `None on this sale, ${now}`;
+  if (!customer.returned) return `+${whole(customer.earned)} on this sale, ${now}`;
+  return `+${whole(customer.earned)}, then −${whole(customer.returned)} back, ${now}`;
+}
+
+/** "12 bottles on the ledger for Delta Beverages", a supplier at a time. */
+const emptiesWords = (empties: SaleDetail["empties"]) =>
+  empties.map((entry) => `${count(entry.quantity, "bottle")} on the ledger for ${entry.supplierName}`).join("; ");
 
 /* ─── The list ───────────────────────────────────────────────────────── */
 
@@ -354,7 +384,21 @@ export function SaleScreen({ id }: { id: string }) {
               }))
             : [{ id: "promotion", text: `${promotionName} applied` }]
           : []),
-        ...(sale.overrideReason ? [{ id: "override", text: `Discount approved: ${sale.overrideReason}` }] : []),
+        ...(sale.overrideReason
+          ? [
+              {
+                id: "override",
+                text: sale.approvedByName ? (
+                  <>
+                    <b>{sale.approvedByName}</b> approved the discount: {sale.overrideReason.charAt(0).toLowerCase()}
+                    {sale.overrideReason.slice(1)}
+                  </>
+                ) : (
+                  `Discount approved: ${sale.overrideReason}`
+                ),
+              },
+            ]
+          : []),
       ]
     : [];
 
@@ -424,11 +468,7 @@ export function SaleScreen({ id }: { id: string }) {
                     {back ? ` ${back}` : null}
                     {reason ? `, ${reason.charAt(0).toLowerCase()}${reason.slice(1)}` : null}, <b className="nowrap">{usd(Math.abs(paidOn(entry)))}</b>
                     {by ? ` by ${by}` : null}
-                    {entry.approvedBy ? (
-                      <>
-                        . <b>{entry.approvedBy}</b> approved
-                      </>
-                    ) : null}
+                    <Approved by={entry.approvedByName} />
                     <div className="embed">
                       <div className="embed-head">
                         <b className="weight-600">
@@ -485,6 +525,7 @@ export function SaleScreen({ id }: { id: string }) {
                     </Link>
                   ) : "a sale"}
                   {sale.voidReason || sale.overrideReason ? `: ${sale.voidReason || sale.overrideReason}` : ""}
+                  <Approved by={sale.approvedByName} />
                 </>
               )}
               <div className="embed">
@@ -599,6 +640,12 @@ export function SaleScreen({ id }: { id: string }) {
                 </dd>
               </>
             ) : null}
+            {sale.empties.length ? (
+              <>
+                <dt>Empties</dt>
+                <dd>{emptiesWords(sale.empties)}</dd>
+              </>
+            ) : null}
           </dl>
         </section>
         {sale.customerName ? (
@@ -606,8 +653,21 @@ export function SaleScreen({ id }: { id: string }) {
             <div className="sec-title">Customer</div>
             <div className="who-head">
               <Avatar name={sale.customerName} />
-              <div className="ink weight-500">{sale.customerName}</div>
+              <div>
+                <div className="ink weight-500">{sale.customerName}</div>
+                {sale.customer ? (
+                  <div className="note num text-left">
+                    {[sale.customer.phone, tierWord(sale.customer.tier)].filter(Boolean).join(" · ")}
+                  </div>
+                ) : null}
+              </div>
             </div>
+            {sale.customer && isSale ? (
+              <dl className="attrs">
+                <dt>Points</dt>
+                <dd>{pointsWords(sale.customer)}</dd>
+              </dl>
+            ) : null}
           </section>
         ) : null}
       </aside>

@@ -241,6 +241,10 @@ export type ZReportLineInput = {
  */
 export type ZReportSaleInput = {
   saleType: RetailSaleType;
+  /** `VOIDED` on a sale later voided: its approved discount was cancelled with it. */
+  status: string;
+  /** The manager whose PIN let a discount or price through (SET-06); null when nobody had to. */
+  approvedById: string | null;
   /**
    * `RetailSale.subtotal` is deliberately absent. It is recorded ex-VAT on a sale
    * and VAT-inclusive on a refund, so it cannot be summed across the two — see the
@@ -352,6 +356,11 @@ export type RetailZReportFigures = {
   saleCount: number;
   refundCount: number;
   voidCount: number;
+  /**
+   * Sales whose discount a manager approved with their PIN, not since voided:
+   * "Discounts US$12.90, 3 approved".
+   */
+  approvedDiscountCount: number;
   /** Distinct products that moved. The "of 184" beside the best-sellers table. */
   itemCount: number;
 
@@ -444,6 +453,7 @@ export function buildRetailZReportFigures(
   let saleCount = 0;
   let refundCount = 0;
   let voidCount = 0;
+  let approvedDiscountCount = 0;
 
   let openingFloat = ZERO;
   let cashTakings = ZERO;
@@ -487,6 +497,10 @@ export function buildRetailZReportFigures(
       depositTotal = depositTotal.plus(toBaseAmount(sale.depositAmount, fx));
 
       if (sale.saleType === "SALE") saleCount += 1;
+      // A voided sale's discount nets out of `discountTotal` with its void, so it leaves the count too.
+      if (sale.saleType === "SALE" && sale.approvedById && sale.status !== "VOIDED" && saleDiscount.greaterThan(0)) {
+        approvedDiscountCount += 1;
+      }
       if (sale.saleType === "REFUND") {
         refundCount += 1;
         refundTotal = refundTotal.plus(saleTotal.abs());
@@ -644,6 +658,7 @@ export function buildRetailZReportFigures(
     saleCount,
     refundCount,
     voidCount,
+    approvedDiscountCount,
     itemCount: items.length,
 
     grossSales,
@@ -719,6 +734,7 @@ export type RetailZReportPayload = {
   saleCount: number;
   refundCount: number;
   voidCount: number;
+  approvedDiscountCount: number;
   itemCount: number;
   grossSales: number;
   discountTotal: number;
@@ -764,6 +780,7 @@ export type RetailZReportRow = {
   saleCount: number;
   refundCount: number;
   voidCount: number;
+  approvedDiscountCount: number;
   itemCount: number;
   grossSales: MoneyLike;
   discountTotal: MoneyLike;
@@ -821,6 +838,7 @@ export function serializeRetailZReport(
     saleCount: row.saleCount,
     refundCount: row.refundCount,
     voidCount: row.voidCount,
+    approvedDiscountCount: row.approvedDiscountCount,
     itemCount: row.itemCount,
     grossSales: num(row.grossSales),
     discountTotal: num(row.discountTotal),
@@ -887,6 +905,7 @@ export function retailZReportToCsv(report: RetailZReportPayload): string {
 
   push("Sales", "Sales before discounts (excl. VAT)", "", String(report.saleCount), fixed(report.grossSales));
   push("Sales", "Discounts given", "", "", fixed(report.discountTotal));
+  push("Sales", "Discounts a manager approved", "", String(report.approvedDiscountCount), "");
   push("Sales", "Net sales (excl. VAT)", "", "", fixed(report.netSales));
   push("Sales", "VAT", `${report.taxRatePercent.toFixed(2)}%`, "", fixed(report.taxTotal));
   push("Sales", "Take-home (after discounts)", "", "", fixed(report.grossTakings));
