@@ -14,7 +14,8 @@ import { amountOf, lineTotals } from "./model";
  * cost, the value recomputed as you type, an add row that is an `auto` over
  * the `product` noun (or `stock-line`, narrowed by `context`), and the Σ
  * totals. Sends `[{ productId, quantity, cost }]` through the kind's `submit`.
- * Cost and Value are not drawn for someone who may not see cost; a line the
+ * Cost and Value are not drawn for someone who may not see cost, and read "—"
+ * on a line whose cost is not known (blank), which the Σ value leaves out; a line the
  * server refused shows its message in place of its sub.
  */
 export type LinesFieldProps = {
@@ -109,10 +110,10 @@ export function LinesField({
           {showCost ? (
             <>
               <span role="cell" className="sf-lines__num sf-lines__cost">
-                {money(amountOf(line.cost))}
+                {line.cost.trim() === "" ? "—" : money(amountOf(line.cost))}
               </span>
               <span role="cell" className="sf-lines__num">
-                {money(amountOf(line.quantity) * amountOf(line.cost))}
+                {line.cost.trim() === "" ? "—" : money(amountOf(line.quantity) * amountOf(line.cost))}
               </span>
             </>
           ) : null}

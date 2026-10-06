@@ -7,6 +7,7 @@ import { requireRetailPermission } from "@/lib/retail/permissions";
 import { productActor } from "@/lib/retail/products/routes";
 import { parseRetailQuery } from "@/lib/retail/request";
 import {
+  NOTHING_TO_CHANGE,
   readReorderLines,
   reorderLevelsBody,
   saveReorderLevels,
@@ -54,7 +55,9 @@ export async function PUT(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.stock", "update");
   if (gate) return gate;
 
-  const parsed = reorderLevelsBody.safeParse((await request.json().catch(() => null)) ?? {});
+  const body: unknown = await request.json().catch(() => null);
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return errorResponse(NOTHING_TO_CHANGE, 400);
+  const parsed = reorderLevelsBody.safeParse(body);
   if (!parsed.success) {
     const fieldErrors = stockLineFieldErrors(parsed.error);
     return fieldErrorResponse(Object.values(fieldErrors)[0] ?? "Check the levels.", fieldErrors);

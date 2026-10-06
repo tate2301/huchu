@@ -348,6 +348,16 @@ describe("the stock-line lookup", () => {
     expect(clerk.body.options[0]).not.toHaveProperty("cost");
   });
 
+  it("finds a product at every site, naming the site, when asked across sites", async () => {
+    const answer = await searchLookup(ctx("MANAGER"), "stock-line", { q: "ice", context: { everySite: true } });
+    if (answer.status !== 200) throw new Error("refused");
+    expect(answer.body.options.map((option) => option.id).sort()).toEqual([ice, bdlIce].sort());
+    expect(answer.body.options.find((option) => option.id === bdlIce)!.sub).toBe(`${await onHand(bdlIce)} at Borrowdale`);
+    const none = await searchLookup(ctx("MANAGER"), "stock-line", { q: "ice", context: {} });
+    if (none.status !== 200) throw new Error("refused");
+    expect(none.body.options).toEqual([]);
+  });
+
   it("finds the same products at another site", async () => {
     const product = (await prisma.inventoryItem.findUniqueOrThrow({ where: { id: ice } })).productId;
     const answer = await searchLookup(ctx("MANAGER"), "stock-line", { context: { siteId: bdl, productIds: [product] } });

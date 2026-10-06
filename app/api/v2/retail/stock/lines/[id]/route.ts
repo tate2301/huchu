@@ -8,6 +8,7 @@ import { productActor } from "@/lib/retail/products/routes";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import {
   LINE_NOT_FOUND,
+  NOTHING_TO_CHANGE,
   stockLineFieldErrors,
   stockLinePatch,
   StockLineRefusal,
@@ -50,11 +51,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const path = await parseRetailParams(params, retailIdParams);
   if (path.response) return errorResponse(LINE_NOT_FOUND, 404);
 
-  const parsed = stockLinePatch.safeParse((await request.json().catch(() => null)) ?? {});
+  const body: unknown = await request.json().catch(() => null);
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return errorResponse(NOTHING_TO_CHANGE, 400);
+  const parsed = stockLinePatch.safeParse(body);
   if (!parsed.success) {
     const fieldErrors = stockLineFieldErrors(parsed.error);
     return fieldErrorResponse(Object.values(fieldErrors)[0] ?? "Check the line.", fieldErrors);
   }
+  if (Object.values(parsed.data).every((value) => value === undefined)) return errorResponse(NOTHING_TO_CHANGE, 400);
 
   try {
     const changed = await prisma.$transaction((tx) => updateStockLine(tx, productActor(session), path.data.id, parsed.data));

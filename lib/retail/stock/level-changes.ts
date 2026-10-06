@@ -21,6 +21,8 @@ import { perDayOf } from "@/lib/retail/stock/reorder";
 type Tx = Prisma.TransactionClient;
 
 export const LINE_NOT_FOUND = "That stock line is not this shop’s.";
+/** A PATCH or PUT whose body is not JSON, or asks for no change. */
+export const NOTHING_TO_CHANGE = "Nothing to change.";
 export const REORDER_AT_RULE = "Reorder at is a number, 0 or more.";
 const REORDER_RULE = "Reorder is a number above 0.";
 const SHELF_RULE = "A shelf is 60 characters at most.";

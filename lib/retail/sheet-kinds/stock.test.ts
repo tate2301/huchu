@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { checkValues, doneSentence, lineErrorsOf, submitFailure, fieldIds } from "@/components/sheet-form/model";
 import type { SheetCtx, SheetValues } from "@/lib/workspace/sheet-kind";
@@ -188,6 +188,39 @@ describe("Change reorder levels (30-stock 5.3, W-21)", () => {
       ["line-am", "40"],
       ["line-ca", "96"],
     ]);
+  });
+
+  describe("opened on ticked lines", () => {
+    const reorderLine = (lineId: string, siteId: string, unitCost: number | null) => ({
+      lineId,
+      productId: `p-${lineId}`,
+      product: lineId,
+      siteId,
+      site: siteId,
+      unit: "bottle",
+      perDay: 2,
+      reorderAt: 12,
+      unitCost,
+      leadDays: 2,
+      caseSize: null,
+    });
+    const open = async (lines: ReturnType<typeof reorderLine>[]) => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: lines, keepDays: 14 }), { status: 200 })));
+      const loaded = await reorder.load!({ ...ctx, params: new URLSearchParams({ ids: lines.map((line) => line.lineId).join(",") }) });
+      const field = reorder.sections[1]!.fields[0]!;
+      return { loaded, context: typeof field.context === "function" ? field.context(ctx, loaded) : field.context };
+    };
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("adds from the ticked lines' site, or from every site when they span two", async () => {
+      expect((await open([reorderLine("line-jw", "hre", 33.6), reorderLine("line-am", "hre", 13.03)])).context).toEqual({ siteId: "hre" });
+      expect((await open([reorderLine("line-jw", "hre", 33.6), reorderLine("line-bo", "bdl", 1.08)])).context).toEqual({ everySite: true });
+    });
+
+    it("leaves a cost that is not set blank, not US$0.00", async () => {
+      const { loaded } = await open([reorderLine("line-jw", "hre", 33.6), reorderLine("line-zc", "hre", null)]);
+      expect((loaded.levels as Array<{ cost: string }>).map((line) => line.cost)).toEqual(["33.60", ""]);
+    });
   });
 
   it("sends each line's level, a blank one as not set, and says how many were saved", () => {

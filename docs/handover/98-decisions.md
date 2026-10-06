@@ -153,6 +153,16 @@ Recorded unit choices:
 - **STK-02 moves a line to another place whole.** A `placeId` on the line's PATCH writes a `PLACE_MOVE` transfer of
   the whole line (on hand is held per site, not per place, so `recordStockMovement` refuses a part or a zero
   quantity); a line with nothing on hand just changes place.
+- **STK-02 keeps four figures that differ from `StockList.png` and `Reorder.png`** (for the canvas owner to confirm).
+  Each follows from a figure another unit's board or decision fixes, so the seed is not bent to the sample:
+  Castle 340ml's Value at cost is US$21.84, not US$22.36, because BRK-0012 averages the case's cost into the
+  singles (STK-04's `blendedCost`; the case's US$20.10 is the Products and Buying boards'); Jameson's cover is
+  3 days, not 2 (9 on hand, 90 sold in 30 days); Amarula's suggested level is 34, not 32 (63 sold is 2.1 a day,
+  ceil(2.1 × 16)); and the tabs read All 31 · Too much 12, not 26 · 3, over the whole demo shelf.
+- **Reseeding with `--reset` clears what acceptance walks did to the shop's stock and records.** Every order and
+  delivery goes (PO-00001 and GRN-00001 are written again) with the movements, journals and Activity they
+  wrote, and so do the products' edit lines in Activity (the seed's own, Amarula's price, is written again).
+  The demo tenant's audit chain is trimmed for this, as the transfers and adjustments seeds already do.
 - **STK-04 seeds BRK-0012 as Tafara Nyathi on the Castle case's record.** The packet's "Farai Moyo on his open shift" is
   not true on 30 Sep (his open shift began on 4 Oct), and the till's rule needs no singles left. The seed's break is the
   record's: cases 23 → 22, singles 2 → 26.

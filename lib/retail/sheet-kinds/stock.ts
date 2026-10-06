@@ -428,13 +428,16 @@ export function recomputeLevels(values: SheetValues): SheetValues {
   };
 }
 
-/** A stock line as a line of the sheet: "Sells 2 a day · now 12", its cost for someone who may see it. */
+/**
+ * A stock line as a line of the sheet: "Sells 2 a day · now 12", its cost for
+ * someone who may see it, blank when no cost is set (drawn "—", out of the Σ).
+ */
 const asLevelLine = (line: ReorderLine): SheetLine => ({
   productId: line.lineId,
   name: line.product,
   sub: reorderLineSub(line.perDay, line.reorderAt),
   quantity: line.reorderAt === null ? "" : String(line.reorderAt),
-  cost: (line.unitCost ?? 0).toFixed(2),
+  cost: line.unitCost === null || line.unitCost === undefined ? "" : line.unitCost.toFixed(2),
   of: line.productId,
 });
 
@@ -504,7 +507,8 @@ const reorderLevels: SheetKind = {
           ql: "Reorder at",
           cl: "Cost",
           needed: "Add a product to change its level.",
-          context: (_ctx, values) => ({ siteId: values._siteId ?? "" }),
+          // The ticked lines' site; every site, each named in its sub, when they span more than one.
+          context: (_ctx, values) => (values._siteId ? { siteId: values._siteId } : { everySite: true }),
           // A product added here: its sales, lead time and case, then its suggested level.
           follow: async (value, values) => {
             const lines = Array.isArray(value) ? (value as SheetLine[]) : [];
@@ -541,7 +545,7 @@ const reorderLevels: SheetKind = {
       levels: lines.map(asLevelLine),
       _facts: Object.fromEntries(lines.map((line) => [line.lineId, line])),
       _ticked: lines.length,
-      _siteId: lines[0]?.siteId ?? null,
+      _siteId: new Set(lines.map((line) => line.siteId)).size === 1 ? lines[0]!.siteId : null,
     };
     return { ...loaded, ...recomputeLevels(loaded) };
   },

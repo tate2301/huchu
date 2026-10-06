@@ -51,6 +51,10 @@ const request = (path: string, body: unknown, method = "POST") =>
     headers: { "Content-Type": "application/json" },
   });
 
+/** A body as sent, not as JSON: what a broken client or a hand-typed request sends. */
+const raw = (path: string, body: string, method: string) =>
+  new NextRequest(`http://shop.test/api/v2/retail/stock/${path}`, { method, body, headers: { "Content-Type": "application/json" } });
+
 const minStock = async (itemId: string) =>
   (await prisma.inventoryItem.findUniqueOrThrow({ where: { id: itemId }, select: { minStock: true } })).minStock?.toNumber() ?? null;
 
@@ -128,6 +132,19 @@ describe("PATCH /stock/lines/[id]", () => {
     expect(await zero.json()).toMatchObject({ fieldErrors: { reorderQty: "Reorder is a number above 0." } });
   });
 
+  it("refuses a body that is not JSON, or that changes nothing, saving nothing", async () => {
+    const before = await minStock(jameson.itemId);
+    const broken = await patchLine(raw(`lines/${jameson.itemId}`, "reorderAt=4", "PATCH"), { params: Promise.resolve({ id: jameson.itemId }) });
+    expect(broken.status).toBe(400);
+    expect(await broken.json()).toMatchObject({ error: "Nothing to change." });
+    for (const body of [{}, { colour: "red" }, []]) {
+      const answer = await patch(jameson.itemId, body);
+      expect(answer.status).toBe(400);
+      expect(await answer.json()).toMatchObject({ error: "Nothing to change." });
+    }
+    expect(await minStock(jameson.itemId)).toBe(before);
+  });
+
   it("does not find another shop's line", async () => {
     const answer = await patch(foreign.itemId, { reorderAt: 4 });
     expect(answer.status).toBe(404);
@@ -174,6 +191,12 @@ describe("GET and PUT /stock/reorder", () => {
     expect(body.keepDays).toBe(14);
     expect(body.data.map((line: { product: string }) => line.product)).toEqual(["Amarula Cream 750ml", "Jameson Irish Whiskey 750ml"]);
     expect(body.data[0]).toMatchObject({ lineId: amarula.itemId, perDay: 0, leadDays: 0, caseSize: null, unitCost: 13.03 });
+  });
+
+  it("refuses a body that is not JSON", async () => {
+    const answer = await saveReorder(raw("reorder", "levels=40", "PUT"));
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toMatchObject({ error: "Nothing to change." });
   });
 
   it("saves nothing when one line is another shop's", async () => {

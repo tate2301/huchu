@@ -17,7 +17,7 @@ import type { ListPageResponse, ListQuery } from "@/lib/reports/types";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { countLowLines } from "@/lib/retail/stock/on-hand";
 
-import { STOCK_ON_HAND_LOADERS } from "./stock-on-hand";
+import { onHandCardMeta, STOCK_ON_HAND_LOADERS } from "./stock-on-hand";
 
 let shop: TestShop;
 let oneSite: TestShop;
@@ -96,6 +96,18 @@ describe("the rows", () => {
     expect(byName.get("Jaggermeister 750ml")).toMatchObject({ level: "Out", cover: null, coverPct: null, value: 0 });
     expect(byName.get("Bohlinger’s 330ml")).toMatchObject({ level: "Fine", site: "Borrowdale", cover: "41 days" });
     expect(byName.has("Nederburg Rosé 750ml")).toBe(false);
+  });
+
+  it("says on the phone card only what it knows: no cover when Out, no level when none is set", async () => {
+    const { rows } = await STOCK_ON_HAND_LOADERS["retail-stock-on-hand"]!.load({ companyId: shop.companyId, userId: shop.ownerId, role: "SUPERADMIN" }, {});
+    const byName = new Map(rows.map((row) => [row.product, row]));
+    const johnnie = byName.get("Johnnie Walker Black 750ml")!;
+    expect(johnnie.cardMeta).toBe(`${johnnie.code} · reorder at 12 · 3 days`);
+    const jagger = byName.get("Jaggermeister 750ml")!;
+    expect(jagger.cardMeta).toBe(`${jagger.code} · reorder at 6`);
+    expect(onHandCardMeta("ZCHECK-GIN-0", null, null)).toBe("ZCHECK-GIN-0");
+    expect(onHandCardMeta("CASTLE-340", null, "9 days")).toBe("CASTLE-340 · 9 days");
+    expect(onHandCardMeta("ICE-2KG", 0, "14 days")).toBe("ICE-2KG · reorder at 0 · 14 days");
   });
 
   it("lists an archived line, never as Low", async () => {

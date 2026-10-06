@@ -20,6 +20,15 @@ function coverRank(level: string, days: number | null): number {
   return days === null ? Number.MAX_SAFE_INTEGER : days;
 }
 
+/**
+ * The phone card's meta: "AMARULA-750 · reorder at 12 · 6 days". A part with
+ * nothing to say is left out — no level set, or no cover because it is Out —
+ * so an Out line with no level reads "JAGER-750", never "reorder at — · —".
+ */
+export function onHandCardMeta(code: string | null, reorderAt: number | null, cover: string | null): string {
+  return [code, reorderAt === null ? null : `reorder at ${reorderAt}`, cover].filter((part): part is string => Boolean(part)).join(" · ");
+}
+
 async function loadStockOnHand(ctx: ReportContext) {
   const [lines, categories] = await Promise.all([
     loadOnHand(ctx.companyId),
@@ -57,8 +66,7 @@ async function loadStockOnHand(ctx: ReportContext) {
         coverRank: coverRank(level, line.coverDays),
         value: round2(line.onHand * (line.unitCost ?? 0)),
         state: line.archived ? "Archived" : "Selling",
-        // The phone card: "AMARULA-750 · reorder at 12 · 6 days".
-        cardMeta: [line.code, `reorder at ${line.reorderAt ?? "—"}`, cover ?? "—"].join(" · "),
+        cardMeta: onHandCardMeta(line.code, line.reorderAt, cover),
       };
     }),
   );

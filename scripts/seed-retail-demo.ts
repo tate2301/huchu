@@ -590,6 +590,21 @@ async function main() {
       data: { archivedAt: new Date() },
     })
     if (strays.count) console.log(`  ${strays.count} product(s) not in the catalogue moved to the bin`)
+
+    /*
+      The products' Activity is the seed's again: what acceptance walks changed
+      on a record (reorder levels, shelves, prices, costs) goes with the values
+      the catalogue above has just put back. The seed's own line, Amarula's
+      price change, is written again below.
+    */
+    const ranged = await prisma.product.findMany({
+      where: { companyId, code: { in: [...CATALOGUE.map((entry) => entry.code), SPRITE.code] } },
+      select: { id: true },
+    })
+    const edits = await prisma.platformAuditEvent.deleteMany({
+      where: { companyId, eventType: RETAIL_AUDIT_EVENTS.recordEdited, entityType: "Product", entityId: { in: ranged.map((product) => product.id) } },
+    })
+    if (edits.count) console.log(`  reset: cleared ${edits.count} edit(s) from the products' Activity`)
   }
   console.log(`  ${CATALOGUE.length} lines on the shelf (4 low, 1 out, 2 archived, Bohlinger’s at Borrowdale)`)
 
@@ -1213,6 +1228,7 @@ async function main() {
   })
 
   // ── Purchasing ───────────────────────────────────────────────────────────
+  if (reset) await clearPurchasing(companyId)
   const supplier = "Delta Beverages"
   const poNo = "PO-00001"
   const existingOrder = await prisma.retailPurchaseOrder.findUnique({
@@ -2459,6 +2475,47 @@ async function clearAdjustments(companyId: string, handMade: Prisma.StockMovemen
   console.log(
     `  reset: cleared ${originals.length} hand adjustment(s) and case break leg(s), ${reversals.length} reversal(s), ` +
       `${goneEntries.length} journal(s), ${goneEvents.length} accounting event(s) and ${activity.count} Activity line(s)`,
+  )
+}
+
+/**
+ * `--reset`: the buying acceptance runs did goes — every order and delivery
+ * (PO-00001 and its GRN-00001 are written again after this), the stock those
+ * deliveries brought in, their books and their Activity — and with it any
+ * movement a smoke run wrote with no reason. The ledger keeps the shop's own
+ * movements and works each line's opening back from them, so one left behind
+ * moves where on hand lands: a walk's RGR-0001 of 20 bags made Ice 2kg at
+ * Harare Main Branch read 42 on one reseed and 40 on the next.
+ */
+async function clearPurchasing(companyId: string) {
+  const [orders, receipts] = await Promise.all([
+    prisma.retailPurchaseOrder.findMany({ where: { companyId }, select: { id: true, lines: { select: { id: true } } } }),
+    prisma.retailGoodsReceipt.findMany({ where: { companyId }, select: { id: true } }),
+  ])
+  const receiptIds = receipts.map((receipt) => receipt.id)
+  const movements = await prisma.stockMovement.deleteMany({
+    where: { item: { site: { companyId } }, OR: [{ sourceType: "RETAIL_GOODS_RECEIPT" }, { reason: null }] },
+  })
+  const books = { companyId, sourceType: "RETAIL_GOODS_RECEIPT" as const, sourceId: { in: receiptIds } }
+  const entries = await prisma.journalEntry.deleteMany({ where: books })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: books })
+  const activity = await prisma.platformAuditEvent.deleteMany({
+    where: {
+      companyId,
+      OR: [
+        { entityType: "RetailGoodsReceipt", entityId: { in: receiptIds } },
+        { entityType: "RetailPurchaseOrder", entityId: { in: orders.map((order) => order.id) } },
+        { entityType: "RetailPurchaseOrderLine", entityId: { in: orders.flatMap((order) => order.lines.map((line) => line.id)) } },
+      ],
+    },
+  })
+  await prisma.retailGoodsReceipt.deleteMany({ where: { companyId } })
+  await prisma.retailPurchaseOrder.deleteMany({ where: { companyId } })
+  // The next RPO and RGR numbers are worked out again from what is left.
+  await prisma.idSequence.deleteMany({ where: { companyId, entityKey: { in: ["RETAIL_PURCHASE_ORDER", "RETAIL_GOODS_RECEIPT"] } } })
+  console.log(
+    `  reset: cleared ${orders.length} order(s), ${receipts.length} delivery(ies), ${movements.count} stock movement(s), ` +
+      `${entries.count} journal(s) and ${activity.count} Activity line(s)`,
   )
 }
 
