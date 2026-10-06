@@ -148,7 +148,7 @@ describe("a supplier's figures (40-buying 3.2)", () => {
     expect(owed(bills).toFixed(2)).toBe("624.00");
     expect(owed(bills, { payments: ["600.00"], returns: ["64.00"] }).toFixed(2)).toBe("-40.00");
     expect(owed([]).toFixed(2)).toBe("0.00");
-    expect(owedNote(bills)).toBe("12 Sept due");
+    expect(owedNote(bills)).toBe("12 Sep due");
     expect(owedNote([])).toBe("Nothing due");
   });
 

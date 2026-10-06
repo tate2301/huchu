@@ -169,6 +169,11 @@ export function formatShortDay(value: Date | string, timeZone = DEFAULT_TIME_ZON
   return `${w.day} ${MONTHS_SHORT[w.month - 1]}`;
 }
 
+/** "Sep": a month's three letters, from its "2026-09" key. */
+export function formatShortMonth(key: string): string {
+  return MONTHS_SHORT[Number(key.slice(5, 7)) - 1] ?? key;
+}
+
 /** "18:14". */
 export function formatTime(value: Date | string, timeZone = DEFAULT_TIME_ZONE): string {
   const w = wall(value, timeZone);

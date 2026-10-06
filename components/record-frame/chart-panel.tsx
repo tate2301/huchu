@@ -11,7 +11,7 @@ import type { RecordChart } from "@/lib/retail/record-kinds/types";
 /**
  * The chart panel (5.6.5 item 2): a 48px head on `--ground` with the title,
  * its unit or chip and, at the right, a sentence; a 150px bar plot with its
- * dashed grid and hover tooltip; an optional footer with a sentence and a
+ * dashed grid and hover tooltip (the empty state while every bar is 0); an optional footer with a sentence and a
  * link. No range control unless the kind has one (decision 10).
  */
 export function ChartPanel({
@@ -23,6 +23,7 @@ export function ChartPanel({
   range?: { options: Array<{ key: string; label: string }>; value: string; onChange: (key: string) => void } | null;
 }) {
   const id = React.useId();
+  // Nothing but zeros has no scale to draw: the empty state, not a made-up axis.
   const empty = chart.bars.every((bar) => bar.value === 0);
   // The gap narrows as the bars multiply, so no bar is ever squeezed to nothing.
   const count = chart.bars.length;
@@ -46,13 +47,13 @@ export function ChartPanel({
           />
         ) : null}
       </div>
-      {chart.bars.length === 0 ? (
+      {empty ? (
         <p className="cx-rf-panel__empty">Nothing to draw yet.</p>
       ) : (
         <BarChart
           bars={chart.bars}
           xLabels={chart.bars.map((bar) => bar.tick ?? bar.label)}
-          label={`${chart.title}${empty ? ": nothing yet" : ""}`}
+          label={chart.title}
           tick={chart.tick}
           evenX
           steps={2}

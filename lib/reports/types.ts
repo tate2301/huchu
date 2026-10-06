@@ -252,6 +252,8 @@ export type ListColumn = ReportColumn & {
   runningKey?: string;
   /** link/ref: default `list.rowHref`. */
   href?: RowTemplate;
+  /** text: drawn in 600 ink, a name that is not a link (a supplier's contact, edited from the row ⋯). */
+  strong?: boolean;
   /** link: the row key holding muted words after the link (" · stopped"). */
   suffixKey?: string;
   /** bar: the fill % key, and the % under which the bar warns. */

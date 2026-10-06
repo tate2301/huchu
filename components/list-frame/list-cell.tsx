@@ -76,6 +76,7 @@ export function ListCell({
     }
     case "text": {
       const tone = column.toneKey ? row[column.toneKey] : null;
+      if (column.strong) return <span className="cx-lf-strong">{text}</span>;
       return isBlank(tone) ? <>{text}</> : <span style={{ color: `var(--${String(tone)})` }}>{text}</span>;
     }
     case "muted":

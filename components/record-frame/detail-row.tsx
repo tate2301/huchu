@@ -13,8 +13,10 @@ import type { RailEdit, RailRow } from "@/lib/retail/record-kinds/types";
  * One row of the details rail (5.6.6): a key and its value. An editable row's
  * value is a button; clicking it turns the value into its field's control at
  * 30px with an ink save button. Enter or the button saves (W-62), Esc puts
- * the old value back. "Saved" shows under the key until another row is
- * edited; a refusal shows under the control and the control stays open.
+ * the old value back. A `seg` row's choices take their own line under the
+ * key and save as one is picked, with no save button. "Saved" shows under the
+ * key until another row is edited; a refusal shows under the control and the
+ * control stays open.
  */
 export function DetailRow({
   row,
@@ -35,8 +37,10 @@ export function DetailRow({
   onSave: (edit: RailEdit, value: unknown) => Promise<void>;
 }) {
   const valueClass = `cx-rf-row__value${row.mono ? " cx-rf-mono" : ""}${row.muted ? " cx-rf-row__value--muted" : ""}`;
+  // A choice being made takes its own line under the key, across both columns.
+  const seg = editing && row.edit?.type === "seg";
   return (
-    <div className="cx-rf-row">
+    <div className={`cx-rf-row${seg ? " cx-rf-row--seg" : ""}`}>
       <span className="cx-rf-row__key">
         {row.label}
         {saved && !editing ? <span className="cx-rf-row__saved">Saved</span> : null}
@@ -107,7 +111,7 @@ function RowEditor({
       event.preventDefault();
       event.stopPropagation();
       onCancel();
-    } else if (event.key === "Enter") {
+    } else if (event.key === "Enter" && edit.type !== "seg") {
       event.preventDefault();
       void save();
     }
@@ -123,7 +127,7 @@ function RowEditor({
   } as const;
 
   return (
-    <span className="cx-rf-edit">
+    <span className={`cx-rf-edit${edit.type === "seg" ? " cx-rf-edit--seg" : ""}`}>
       <span className="cx-rf-edit__line">
         {edit.type === "auto" && edit.lookup ? (
           <span className="cx-rf-edit__auto" onKeyDown={keys}>
@@ -142,7 +146,7 @@ function RowEditor({
           </span>
         ) : edit.type === "seg" ? (
           // A choice saves as it is picked.
-          <span className="cx-rf-edit__auto" onKeyDown={keys}>
+          <span className="cx-rf-edit__seg" onKeyDown={keys}>
             <Segmented
               aria-label={row.label}
               block
@@ -179,16 +183,18 @@ function RowEditor({
             onFocus={(event) => event.target.select()}
           />
         )}
-        <button
-          type="button"
-          className="cx-rf-edit__save"
-          aria-label={`Save ${row.label}`}
-          onClick={() => void save()}
-          disabled={busy}
-          aria-busy={busy || undefined}
-        >
-          {busy ? <Loader2 aria-hidden="true" /> : <Check weight="bold" aria-hidden="true" />}
-        </button>
+        {edit.type === "seg" ? null : (
+          <button
+            type="button"
+            className="cx-rf-edit__save"
+            aria-label={`Save ${row.label}`}
+            onClick={() => void save()}
+            disabled={busy}
+            aria-busy={busy || undefined}
+          >
+            {busy ? <Loader2 aria-hidden="true" /> : <Check weight="bold" aria-hidden="true" />}
+          </button>
+        )}
       </span>
       {error ? (
         <span id={errorId} role="alert" className="cx-rf-edit__error">

@@ -46,6 +46,7 @@ export const REACH_THEM = "Add a phone or an email so we can reach them.";
 export const NO_WHATSAPP = "No WhatsApp number";
 export const MESSAGE_NEEDED = "Write a message.";
 export const MESSAGE_TOO_LONG = "Keep it to 1,000 characters.";
+export const NOTHING_TO_CHANGE = "Change something first.";
 
 export const duplicateName = (name: string) => `There is already a supplier called ${name}.`;
 
@@ -141,8 +142,7 @@ export const supplierPatch = z
     bank: optionalText,
     address: optionalText,
   })
-  .partial()
-  .refine((patch) => Object.keys(patch).length > 0, { message: "Change something first." });
+  .partial();
 export type SupplierPatch = z.infer<typeof supplierPatch>;
 
 /** The sheet's field each body key is drawn under (5.11): the rail uses the body key. */
@@ -161,15 +161,20 @@ export const SHEET_FIELD: Record<string, string> = {
   address: "addr",
 };
 
-/** A body that did not parse, under the sheet's fields. */
-export function supplierFieldErrors(error: z.ZodError, keyed: "sheet" | "body" = "sheet"): Record<string, string> {
+/**
+ * A body read key by key, so one key of the wrong shape does not hide the
+ * others' refusals: the keys that parsed, and a sentence for each that did not.
+ */
+function readShape<T extends z.ZodRawShape>(schema: z.ZodObject<T>, body: unknown): { data: Partial<z.infer<z.ZodObject<T>>>; errors: Record<string, string> } {
+  const source = body !== null && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
+  const data: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
-  for (const issue of error.issues) {
-    const head = String(issue.path[0] ?? "name");
-    const key = keyed === "sheet" ? (SHEET_FIELD[head] ?? head) : head;
-    if (!(key in errors)) errors[key] = issue.message;
+  for (const [key, field] of Object.entries(schema.shape) as Array<[string, z.ZodType]>) {
+    const parsed = field.safeParse(source[key]);
+    if (!parsed.success) errors[key] = parsed.error.issues[0]?.message ?? "That value cannot be used.";
+    else if (parsed.data !== undefined) data[key] = parsed.data;
   }
-  return errors;
+  return { data: data as Partial<z.infer<z.ZodObject<T>>>, errors };
 }
 
 type Values = {
@@ -310,10 +315,11 @@ export async function createSupplier(
   input: SupplierInput,
   keyed: "sheet" | "body" = "sheet",
 ): Promise<SupplierCreated> {
-  const parsed = supplierInput.safeParse(input);
-  if (!parsed.success) throw new SupplierRefusal(400, "Validation failed", supplierFieldErrors(parsed.error, keyed));
-  const { values, errors } = checkSupplierFields(parsed.data);
-  if (Object.keys(errors).length > 0) refuseFields(errors, keyed);
+  // Every refusal at once: a key of the wrong shape and the field rules on the rest.
+  const shape = readShape(supplierInput, input);
+  const { values, errors } = checkSupplierFields(shape.data);
+  const refused = { ...errors, ...shape.errors };
+  if (Object.keys(refused).length > 0) refuseFields(refused, keyed);
 
   await lockSupplierNames(tx, actor.companyId);
   await checkNameFree(tx, actor.companyId, values.name!, null);
@@ -379,14 +385,21 @@ async function liveVendor(tx: Tx, companyId: string, id: string) {
 
 /**
  * Change a supplier from its rail (FND 4.9): one or more fields, the same
- * rules as adding one; `repContactId` makes that contact the rep (`contactName`
- * follows it). One `RETAIL_RECORD.EDITED` per changed field.
+ * rules as adding one, every refusal at once; a body with nothing in it is
+ * refused as a whole ("Change something first."). `repContactId` makes that
+ * contact the rep (`contactName` follows it). One `RETAIL_RECORD.EDITED` per
+ * changed field.
  */
 export async function updateSupplier(tx: Tx, actor: RetailAuditActor, id: string, patch: SupplierPatch): Promise<SupplierChange[]> {
-  const vendor = await liveVendor(tx, actor.companyId, id);
-  const { repContactId, ...fields } = patch;
+  const shape = readShape(supplierPatch, patch);
+  if (Object.keys(shape.data).length === 0 && Object.keys(shape.errors).length === 0) {
+    throw new SupplierRefusal(400, NOTHING_TO_CHANGE);
+  }
+  const { repContactId, ...fields } = shape.data;
   const { values, errors } = checkSupplierFields(fields);
-  if (Object.keys(errors).length > 0) refuseFields(errors, "body");
+  const refused = { ...errors, ...shape.errors };
+  if (Object.keys(refused).length > 0) refuseFields(refused, "body");
+  const vendor = await liveVendor(tx, actor.companyId, id);
 
   const changes: Array<SupplierChange & { kind?: "money" }> = [];
   const data: Prisma.VendorUpdateInput = {};
@@ -567,8 +580,34 @@ function checkContact(raw: z.infer<typeof contactInput>) {
   return { name, role, phone, email, sends: SENDS_ENUM[raw.sends] };
 }
 
-function contactView(contact: { id: string; name: string; role: string | null; phone: string | null; email: string | null; sends: VendorContactSends }, repName: string | null): ContactView {
-  return { ...contact, sends: SENDS_WORD[contact.sends], isRep: repName !== null && contact.name === repName };
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * The rep among a supplier's live contacts, oldest first: the one whose name
+ * is `Vendor.contactName`, trimmed and in any case. When two share the name
+ * only the first is the rep, so removing the other leaves the rep alone.
+ */
+export function repOf<C extends { name: string }>(contactName: string | null, contacts: readonly C[]): C | null {
+  if (!contactName?.trim()) return null;
+  return contacts.find((contact) => sameName(contact.name, contactName)) ?? null;
+}
+
+/** The order the rep is chosen in: the first added first. */
+const OLDEST_FIRST = [{ createdAt: "asc" as const }, { id: "asc" as const }];
+
+/** The id of the supplier's rep, read in the caller's transaction. */
+async function repIdOf(tx: Tx, companyId: string, vendorId: string, contactName: string | null): Promise<string | null> {
+  if (!contactName?.trim()) return null;
+  const contacts = await tx.vendorContact.findMany({
+    where: { vendorId, companyId, removedAt: null },
+    orderBy: OLDEST_FIRST,
+    select: { id: true, name: true },
+  });
+  return repOf(contactName, contacts)?.id ?? null;
+}
+
+function contactView(contact: { id: string; name: string; role: string | null; phone: string | null; email: string | null; sends: VendorContactSends }, repId: string | null): ContactView {
+  return { ...contact, sends: SENDS_WORD[contact.sends], isRep: contact.id === repId };
 }
 
 /** "Add a contact": a Sales rep becomes the rep while the supplier has none. */
@@ -586,6 +625,7 @@ export async function addContact(tx: Tx, actor: RetailAuditActor, vendorId: stri
     repName = contact.name;
     await tx.vendor.update({ where: { id: vendor.id }, data: { contactName: contact.name } });
   }
+  const repId = await repIdOf(tx, actor.companyId, vendor.id, repName);
   await writeRetailAuditEvent(tx, {
     actor,
     eventType: RETAIL_AUDIT_EVENTS.supplierContactAdded,
@@ -593,7 +633,7 @@ export async function addContact(tx: Tx, actor: RetailAuditActor, vendorId: stri
     entityId: vendor.id,
     payload: { contactId: contact.id, name: contact.name, role: contact.role, sends: contact.sends },
   });
-  return contactView(contact, repName);
+  return contactView(contact, repId);
 }
 
 async function liveContact(tx: Tx, companyId: string, vendorId: string, contactId: string) {
@@ -609,7 +649,7 @@ export async function updateContact(tx: Tx, actor: RetailAuditActor, vendorId: s
   const parsed = contactInput.safeParse(input);
   if (!parsed.success) throw new SupplierRefusal(400, "Validation failed", contactFieldErrors(parsed.error));
   const values = checkContact(parsed.data);
-  const wasRep = vendor.contactName !== null && vendor.contactName === contact.name;
+  const wasRep = (await repIdOf(tx, actor.companyId, vendor.id, vendor.contactName)) === contact.id;
   const updated = await tx.vendorContact.update({
     where: { id: contact.id },
     data: values,
@@ -620,6 +660,7 @@ export async function updateContact(tx: Tx, actor: RetailAuditActor, vendorId: s
     repName = updated.name;
     await tx.vendor.update({ where: { id: vendor.id }, data: { contactName: updated.name } });
   }
+  const repId = await repIdOf(tx, actor.companyId, vendor.id, repName);
   const pairs: Array<[string, string, string | null, string | null]> = [
     ["contact.name", "Contact name", contact.name, updated.name],
     ["contact.role", `${updated.name}'s role`, contact.role, updated.role],
@@ -631,14 +672,18 @@ export async function updateContact(tx: Tx, actor: RetailAuditActor, vendorId: s
     if (from === to) continue;
     await auditRecordEdited(tx, { actor, entityType: "Vendor", entityId: vendor.id, field, label, from, to });
   }
-  return contactView(updated, repName);
+  return contactView(updated, repId);
 }
 
-/** "Remove": kept for what was sent to them; the rep's removal leaves the supplier with no rep. */
+/**
+ * "Remove": kept for what was sent to them; the rep's removal leaves the
+ * supplier with no rep. Removing someone who only shares the rep's name does not.
+ */
 export async function removeContact(tx: Tx, actor: RetailAuditActor, vendorId: string, contactId: string, now = new Date()): Promise<void> {
   const { vendor, contact } = await liveContact(tx, actor.companyId, vendorId, contactId);
+  const wasRep = (await repIdOf(tx, actor.companyId, vendor.id, vendor.contactName)) === contact.id;
   await tx.vendorContact.update({ where: { id: contact.id }, data: { removedAt: now } });
-  if (vendor.contactName !== null && vendor.contactName === contact.name) {
+  if (wasRep) {
     await tx.vendor.update({ where: { id: vendor.id }, data: { contactName: null } });
   }
   await writeRetailAuditEvent(tx, {
@@ -662,13 +707,14 @@ export type Skipped = { id: string; name: string; why: string };
 /**
  * Where a supplier's WhatsApp goes: the rep's phone when the rep gets
  * orders, else the supplier's WhatsApp number; null when there is neither.
+ * `contacts` are the live ones, oldest first, as the rep is chosen.
  */
 export function whatsAppOf(vendor: {
   whatsapp: string | null;
   contactName: string | null;
   contacts: Array<{ name: string; phone: string | null; sends: VendorContactSends }>;
 }): string | null {
-  const rep = vendor.contactName ? vendor.contacts.find((contact) => contact.name === vendor.contactName) : null;
+  const rep = repOf(vendor.contactName, vendor.contacts);
   if (rep && rep.sends === "ORDERS" && rep.phone) return rep.phone;
   return vendor.whatsapp;
 }
@@ -678,7 +724,7 @@ const RECIPIENT_SELECT = {
   name: true,
   whatsapp: true,
   contactName: true,
-  contacts: { where: { removedAt: null }, select: { name: true, phone: true, sends: true } },
+  contacts: { where: { removedAt: null }, orderBy: OLDEST_FIRST, select: { name: true, phone: true, sends: true } },
 } satisfies Prisma.VendorSelect;
 
 /** Who a message to these suppliers reaches: each and its WhatsApp number, or null. */
@@ -743,9 +789,10 @@ export async function contactsOf(companyId: string, vendorId: string): Promise<C
   if (!vendor) return [];
   const contacts = await prisma.vendorContact.findMany({
     where: { vendorId, companyId, removedAt: null },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    orderBy: OLDEST_FIRST,
     select: { id: true, name: true, role: true, phone: true, email: true, sends: true },
   });
-  const views = contacts.map((contact) => contactView(contact, vendor.contactName));
+  const repId = repOf(vendor.contactName, contacts)?.id ?? null;
+  const views = contacts.map((contact) => contactView(contact, repId));
   return [...views.filter((c) => c.isRep), ...views.filter((c) => !c.isRep)];
 }

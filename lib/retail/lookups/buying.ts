@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { addContact, createSupplier, REP_ROLE, SupplierRefusal } from "@/lib/retail/buying/suppliers";
+import { addContact, createSupplier, repOf, REP_ROLE, SupplierRefusal } from "@/lib/retail/buying/suppliers";
 import { supplierCategories, termsSub } from "@/lib/retail/buying/supplier-view";
+import { phoneSearchText } from "@/lib/retail/people/words";
 
 import { LookupFieldErrors, type LookupCtx, type LookupNoun, type LookupOption, type QuickField } from "./types";
 
@@ -31,27 +32,31 @@ function asFieldErrors(error: unknown, fallbackField: string): never {
   throw error;
 }
 
-/** Suppliers still bought from whose name, code or phone has `q`, by name. */
+/**
+ * Suppliers still bought from whose name, code, phone or WhatsApp has `q`, by
+ * name. A typed number matches by its digits, however it is spaced and with a
+ * leading 0 or +263 or neither: "2701600", "0242701600" and "+263 24 270 1600"
+ * all find "+263 24 270 1600". A shop has a handful of suppliers, so they are
+ * matched in memory; names that start with `q` come first.
+ */
 async function boughtFrom(ctx: LookupCtx, q: string) {
-  const term = q.trim();
-  return prisma.vendor.findMany({
-    where: {
-      companyId: ctx.companyId,
-      stoppedAt: null,
-      ...(term
-        ? {
-            OR: [
-              { name: { contains: term, mode: "insensitive" as const } },
-              { code: { contains: term, mode: "insensitive" as const } },
-              { phone: { contains: term } },
-              { whatsapp: { contains: term } },
-            ],
-          }
-        : {}),
-    },
+  const rows = await prisma.vendor.findMany({
+    where: { companyId: ctx.companyId, stoppedAt: null },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, payTermsDays: true },
+    select: { id: true, name: true, code: true, phone: true, whatsapp: true, payTermsDays: true },
   });
+  const term = q.trim().toLowerCase();
+  if (!term) return rows;
+  const digits = /^[\d\s+()-]+$/.test(term) ? term.replace(/\D/g, "") : "";
+  const found = rows.filter(
+    (row) =>
+      row.name.toLowerCase().includes(term) ||
+      (row.code ?? "").toLowerCase().includes(term) ||
+      (digits.length > 0 && [row.phone, row.whatsapp].some((phone) => phoneSearchText(phone?.replace(/\s/g, "")).includes(digits))),
+  );
+  // Ranked here (the nouns are `ranked`), since a match by code or number is not in the label: names that start with it first.
+  const starts = (row: (typeof rows)[number]) => row.name.toLowerCase().startsWith(term);
+  return [...found.filter(starts), ...found.filter((row) => !starts(row))];
 }
 
 async function addSupplier(ctx: LookupCtx, fields: Record<string, string>) {
@@ -75,6 +80,7 @@ const supplier: LookupNoun = {
   ],
   create: ["retail.suppliers", "create"],
   quick: QUICK_SUPPLIER,
+  ranked: true,
   async search(ctx, q) {
     const [rows, categories] = await Promise.all([boughtFrom(ctx, q), supplierCategories(ctx.companyId)]);
     return rows.map(
@@ -94,6 +100,7 @@ const payee: LookupNoun = {
   read: [["retail.requisitions", "view"]],
   create: ["retail.suppliers", "create"],
   quick: QUICK_SUPPLIER,
+  ranked: true,
   async search(ctx, q) {
     return (await boughtFrom(ctx, q)).map((row): LookupOption => ({ id: row.id, label: row.name, sub: "Supplier" }));
   },
@@ -113,18 +120,23 @@ const contact: LookupNoun = {
     if (!supplierId) return [];
     const vendor = await prisma.vendor.findFirst({ where: { id: supplierId, companyId: ctx.companyId }, select: { contactName: true } });
     if (!vendor) return [];
+    // The rep is chosen over all of them, oldest first, before the typed name narrows the list.
     const contacts = await prisma.vendorContact.findMany({
-      where: { vendorId: supplierId, companyId: ctx.companyId, removedAt: null, ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}) },
+      where: { vendorId: supplierId, companyId: ctx.companyId, removedAt: null },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: { id: true, name: true, phone: true, email: true },
     });
-    return contacts.map(
-      (row): LookupOption => ({
-        id: row.id,
-        label: vendor.contactName === row.name ? `${row.name}, rep` : row.name,
-        sub: row.phone ?? row.email ?? null,
-      }),
-    );
+    const rep = repOf(vendor.contactName, contacts);
+    const needle = q.trim().toLowerCase();
+    return contacts
+      .filter((row) => !needle || row.name.toLowerCase().includes(needle))
+      .map(
+        (row): LookupOption => ({
+          id: row.id,
+          label: row === rep ? `${row.name}, rep` : row.name,
+          sub: row.phone ?? row.email ?? null,
+        }),
+      );
   },
   async add(ctx, fields, context) {
     const supplierId = supplierIdOf(context);

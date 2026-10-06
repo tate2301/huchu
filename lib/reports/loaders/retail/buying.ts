@@ -5,16 +5,15 @@ import { billBalance, fillRate, lastDelivery, lateOrders, orderCounts, owed, spe
 import { supplierActivity } from "@/lib/retail/buying/supplier-activity";
 import { supplierCategories, termsWord } from "@/lib/retail/buying/supplier-view";
 import { contactsOf } from "@/lib/retail/buying/suppliers";
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { phoneSearchText } from "@/lib/retail/people/words";
-import { dayKey, formatCount } from "@/lib/workspace/format";
+import { dayKey, formatCount, formatShortDay } from "@/lib/workspace/format";
 
 /**
  * Suppliers (40-buying 4.1, `retail-suppliers`): every supplier of the
  * company, in memory (a shop has a handful). Each row's figures come from the
  * buying figures over the supplier's orders, deliveries and bills.
  */
-
-const SHORT_DAY = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Harare" });
 
 async function loadSuppliers(ctx: ReportContext) {
   const now = new Date();
@@ -71,7 +70,7 @@ async function loadSuppliers(ctx: ReportContext) {
         categories: category ? `|${[...category.ids].join("|")}|` : "",
         lateBadge: late > 0 ? `${formatCount(late)} late` : null,
         lateTone: late > 0 ? "bad" : null,
-        cardMeta: [vendor.contactName, terms, last ? `last delivery ${SHORT_DAY.format(last)}` : null].filter(Boolean).join(" · "),
+        cardMeta: [vendor.contactName, terms, last ? `last delivery ${formatShortDay(last)}` : null].filter(Boolean).join(" · "),
         search: [
           vendor.name,
           vendor.code,
@@ -110,6 +109,7 @@ async function loadContacts(ctx: ReportContext, params: ReportParams) {
   const vendor = await prisma.vendor.findFirst({ where: { id: params.supplier, companyId: ctx.companyId }, select: { id: true, name: true } });
   if (!vendor) return result([]);
   const contacts = await contactsOf(ctx.companyId, vendor.id);
+  const canEdit = canRetailRoleDo(ctx.role, "retail.suppliers", "update");
   return result(
     contacts.map(
       (contact, index): ReportRow => ({
@@ -123,6 +123,8 @@ async function loadContacts(ctx: ReportContext, params: ReportParams) {
         email: contact.email,
         sends: contact.sends,
         isRep: contact.isRep ? "yes" : "no",
+        // Fills the row's link (its phone card) only for who may change the contact.
+        editId: canEdit ? contact.id : null,
       }),
     ),
   );

@@ -171,7 +171,7 @@ const contacts: ListSpec = {
   filters: [{ key: "supplier", type: "parent", column: "supplierId" }],
   sorts: [{ key: "rep", label: "Rep first", rules: [{ column: "order", dir: "asc" }] }],
   columns: [
-    { key: "name", label: "Name", kind: "text", cell: "link", width: "minmax(160px,1fr)", align: "start", priority: 1 },
+    { key: "name", label: "Name", kind: "text", cell: "text", strong: true, width: "minmax(160px,1fr)", align: "start", priority: 1 },
     { key: "role", label: "Role", kind: "text", cell: "muted", width: "130px", align: "start", priority: 2 },
     { key: "phone", label: "Phone", kind: "phone", cell: "mono", width: "150px", align: "start", priority: 1 },
     { key: "email", label: "Email", kind: "email", cell: "text", width: "190px", align: "start", priority: 3 },
@@ -187,7 +187,8 @@ const contacts: ListSpec = {
     },
     { key: "order", label: "Order", kind: "number", cell: "num", hidden: true, width: "60px", align: "end", priority: 3 },
   ],
-  rowHref: "/retail/buying/suppliers/{supplierId}?sheet=contact-new&supplierId={supplierId}&id={id}",
+  // A phone card opens the contact's sheet only for who may change it: `editId` is set for them alone.
+  rowHref: "/retail/buying/suppliers/{supplierId}?sheet=contact-new&supplierId={supplierId}&id={editId}",
   rowMenu: [
     {
       key: "edit",

@@ -97,7 +97,8 @@ export function ListCards({
   return (
     <div className="cx-lf-cards" ref={scrollRef} onScroll={onScroll}>
       {rows.map((row) => {
-        const href = fillTemplate(spec.rowHref, row) ?? "#";
+        // A row with nothing to open for this viewer is a card, not a link.
+        const href = fillTemplate(spec.rowHref, row);
         const badge = badgeColumn ? row[badgeColumn.key] : null;
         const cardAction = spec.card.action
           ? (spec.rowMenu ?? []).find((action) => action.key === spec.card.action && rowMatches(row, spec.columns, action.when))
@@ -107,25 +108,24 @@ export function ListCards({
           badgeColumn && !isBlank(badge) ? (
             <StateBadge tone={toneOf(badgeColumn, row) ?? "neutral"}>{String(badge)}</StateBadge>
           ) : null;
-        return (
-          <Link
-            key={row.id}
-            href={href}
-            className="cx-lf-card"
-            aria-selected={ticked(row.id)}
-            onPointerDown={() => start(row)}
-            onPointerUp={cancel}
-            onPointerLeave={cancel}
-            onPointerCancel={cancel}
-            onContextMenu={(event) => event.preventDefault()}
-            onClick={(event) => {
-              if (press.current.fired || selecting) {
-                event.preventDefault();
-                if (!press.current.fired) onTick(row);
-                press.current.fired = false;
-              }
-            }}
-          >
+        const cardProps = {
+          className: "cx-lf-card",
+          "aria-selected": ticked(row.id),
+          onPointerDown: () => start(row),
+          onPointerUp: cancel,
+          onPointerLeave: cancel,
+          onPointerCancel: cancel,
+          onContextMenu: (event: React.MouseEvent) => event.preventDefault(),
+          onClick: (event: React.MouseEvent) => {
+            if (press.current.fired || selecting) {
+              event.preventDefault();
+              if (!press.current.fired) onTick(row);
+              press.current.fired = false;
+            }
+          },
+        };
+        const body = (
+          <>
             <span className="cx-lf-card__top">
               <span className="cx-lf-card__title">{titleColumn ? cellText(titleColumn, row) : row.id}</span>
               {figureColumn ? badgeEl : null}
@@ -165,7 +165,16 @@ export function ListCards({
                 {cardAction.label}
               </button>
             ) : null}
+          </>
+        );
+        return href ? (
+          <Link key={row.id} href={href} {...cardProps}>
+            {body}
           </Link>
+        ) : (
+          <div key={row.id} {...cardProps}>
+            {body}
+          </div>
         );
       })}
     </div>

@@ -1,7 +1,7 @@
 import { fetchJson } from "@/lib/api-client";
 import { stopBuyingAsk } from "@/lib/retail/asks/buying";
 import type { SupplierView } from "@/lib/retail/buying/supplier-view";
-import { formatCount, formatDay, formatMoney } from "@/lib/workspace/format";
+import { formatCount, formatDay, formatMoney, formatShortMonth } from "@/lib/workspace/format";
 
 import type { Grant, RailRow, RecordChart, RecordKind, RecordKpi } from "./types";
 
@@ -27,12 +27,10 @@ const PAYS = ["On delivery", "7 days", "14 days", "30 days"];
 /** "3 October" — the banner leaves the year to the reader. */
 const dayMonth = (iso: string) => formatDay(iso).replace(/ \d{4}$/, "");
 
-const MONTH = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" });
-
 function monthLabel(key: string, newestYear: string): string {
-  const [year, month] = key.split("-").map(Number) as [number, number];
-  const name = MONTH.format(new Date(Date.UTC(year, month - 1, 15))).replace("Sept", "Sep");
-  return String(year) === newestYear ? name : `${name} ${year}`;
+  const name = formatShortMonth(key);
+  const year = key.slice(0, 4);
+  return year === newestYear ? name : `${name} ${year}`;
 }
 
 export const SUPPLIER_RANGES = [

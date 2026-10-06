@@ -8,6 +8,7 @@ import {
   formatMoney,
   formatPercent,
   formatShortDay,
+  formatShortMonth,
   formatSigned,
   formatTime,
   formatWhen,
@@ -50,6 +51,7 @@ describe("dates, in the company's zone", () => {
   it("never prints September as Sept", () => {
     expect(formatShortDay("2026-09-30")).toBe("30 Sep");
     expect(formatShortDay(new Date("2026-09-30T10:00:00Z"))).toBe("30 Sep");
+    expect(formatShortMonth("2026-09")).toBe("Sep");
   });
 
   it("prints a long date", () => {

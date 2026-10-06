@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { money, multiplyMoney, sumMoney, taxOn, ZERO, type MoneyLike } from "@/lib/money";
-import { dayKey } from "@/lib/workspace/format";
+import { dayKey, formatShortDay } from "@/lib/workspace/format";
 
 /**
  * Buying's figures (40-buying 3.2): pure functions over plain rows, money in
@@ -257,15 +257,13 @@ export function owed(bills: FigureBill[], credits: { payments?: MoneyLike[]; ret
   return balances.minus(sumMoney(credits.payments ?? [])).minus(sumMoney(credits.returns ?? []));
 }
 
-const SHORT_DAY = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Harare" });
-
 /** The Owed KPI's note: the earliest due day with a balance ("15 Oct due"), else "Nothing due". */
 export function owedNote(bills: FigureBill[]): string {
   const due = bills
     .filter((bill) => !bill.binned && bill.dueDate && billBalance(bill).greaterThan(0))
     .map((bill) => bill.dueDate!)
     .sort((a, b) => a.getTime() - b.getTime())[0];
-  return due ? `${SHORT_DAY.format(due)} due` : "Nothing due";
+  return due ? `${formatShortDay(due)} due` : "Nothing due";
 }
 
 /** "Bought per month": posted delivery value with VAT per Harare month, oldest first, from `from` to `now`'s month. */

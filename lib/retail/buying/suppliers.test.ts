@@ -16,6 +16,7 @@ import { makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures
 import { importSuppliers } from "./supplier-import";
 import {
   addContact,
+  contactsOf,
   createSupplier,
   messageSuppliers,
   parseLeadTime,
@@ -104,6 +105,15 @@ describe("adding a supplier", () => {
     expect((await refusal(add({ name: "  " }))).fieldErrors).toEqual({ name: "Write the supplier's name." });
   });
 
+  it("refuses a key of the wrong shape together with the rules the others break", async () => {
+    const body = { name: "x".repeat(121), pays: "Every full moon", phone: "12" } as unknown as SupplierInput;
+    expect(await refusal(add(body))).toEqual({
+      status: 400,
+      message: "Validation failed",
+      fieldErrors: { name: "Keep the name to 120 characters.", pays: "Pick how they are paid.", phone: "Write it as +263 77 123 4567." },
+    });
+  });
+
   it("refuses a name another supplier has, any case, until that one is stopped", async () => {
     expect(await refusal(add({ name: "delta beverages" }))).toEqual({
       status: 409,
@@ -120,6 +130,50 @@ describe("adding a supplier", () => {
       status: 409,
       message: "There is already a supplier called NATBREW. Rename one of them first.",
     });
+  });
+});
+
+describe("changing a supplier", () => {
+  const change = (id: string, patch: unknown) =>
+    prisma.$transaction((tx) => updateSupplier(tx, shop.manager(), id, patch as Parameters<typeof updateSupplier>[3]));
+
+  it("refuses a body that changes nothing as a whole, not under a field", async () => {
+    const supplier = await add({ name: "Empty Patch Traders" });
+    expect(await refusal(change(supplier.id, {}))).toEqual({ status: 400, message: "Change something first.", fieldErrors: null });
+    expect(await refusal(change(supplier.id, null))).toEqual({ status: 400, message: "Change something first.", fieldErrors: null });
+  });
+
+  it("refuses every wrong key at once, under the body's keys, and saves none", async () => {
+    const supplier = await add({ name: "Two Wrongs Traders" });
+    expect(await refusal(change(supplier.id, { pays: "Monthly", name: "y".repeat(121), leadTime: "soon" }))).toEqual({
+      status: 400,
+      message: "Validation failed",
+      fieldErrors: {
+        pays: "Pick how they are paid.",
+        name: "Keep the name to 120 characters.",
+        leadTime: "Write it as a number of days, like 2 days.",
+      },
+    });
+    expect(await vendor(supplier.id)).toMatchObject({ name: "Two Wrongs Traders", payTermsDays: null, leadTimeDays: null });
+  });
+});
+
+describe("finding a supplier by its number", () => {
+  it("matches the typed digits however they are spaced, with a leading 0, +263 or neither", async () => {
+    const delta = await add({ name: "Delta Landline", phone: "+263 24 270 1600" });
+    expect((await vendor(delta.id)).phone).toBe("+263 24 270 1600");
+    const found = async (noun: "supplier" | "payee", q: string) => {
+      const answer = await searchLookup(lookupAs("MANAGER"), noun, { q });
+      return answer.status === 200 ? answer.body.options.map((option) => option.id) : null;
+    };
+    for (const q of ["2701600", "0242701600", "024 270 1600", "+263 24 270 1600", "263242701600", "270 1600"]) {
+      expect(await found("supplier", q), q).toEqual([delta.id]);
+      expect(await found("payee", q), q).toEqual([delta.id]);
+    }
+    // The WhatsApp number finds it too.
+    await prisma.vendor.update({ where: { id: delta.id }, data: { whatsapp: "+263 77 999 1234" } });
+    expect(await found("supplier", "0779991234")).toEqual([delta.id]);
+    expect(await found("supplier", "9999999")).toEqual([]);
   });
 });
 
@@ -146,6 +200,29 @@ describe("contacts and the rep", () => {
     await prisma.$transaction((tx) => removeContact(tx, shop.manager(), supplier.id, second.id));
     expect((await vendor(supplier.id)).contactName).toBeNull();
     expect((await prisma.vendorContact.findUniqueOrThrow({ where: { id: second.id } })).removedAt).not.toBeNull();
+  });
+
+  it("knows the rep by name in any case and spacing, the first of two namesakes only", async () => {
+    const supplier = await add({ name: "Namesake Supplies" });
+    const contact = (input: Parameters<typeof addContact>[3]) => prisma.$transaction((tx) => addContact(tx, shop.manager(), supplier.id, input));
+    const first = await contact({ name: "Tinashe Moyo", role: "Sales rep", phone: "0773012290", sends: "Orders" });
+    const namesake = await contact({ name: "tinashe  MOYO", role: "Driver", phone: "0773012291", sends: "Nothing" });
+    expect(first.isRep).toBe(true);
+    expect(namesake.isRep).toBe(false);
+
+    // Kept with other spacing and case, it is still the same rep.
+    await prisma.vendor.update({ where: { id: supplier.id }, data: { contactName: " TINASHE MOYO " } });
+    const reps = async () => (await contactsOf(shop.companyId, supplier.id)).filter((c) => c.isRep).map((c) => c.id);
+    expect(await reps()).toEqual([first.id]);
+    const answer = await searchLookup(lookupAs("MANAGER"), "contact", { q: "tinashe", context: { supplierId: supplier.id } });
+    expect(answer.status === 200 ? answer.body.options.map((option) => option.label) : null).toEqual(["Tinashe Moyo, rep", "tinashe MOYO"]);
+
+    // Removing the namesake leaves the rep alone; removing the rep clears it.
+    await prisma.$transaction((tx) => removeContact(tx, shop.manager(), supplier.id, namesake.id));
+    expect((await vendor(supplier.id)).contactName).toBe(" TINASHE MOYO ");
+    expect(await reps()).toEqual([first.id]);
+    await prisma.$transaction((tx) => removeContact(tx, shop.manager(), supplier.id, first.id));
+    expect((await vendor(supplier.id)).contactName).toBeNull();
   });
 });
 
