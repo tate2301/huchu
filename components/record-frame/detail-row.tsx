@@ -14,8 +14,10 @@ import type { RailEdit, RailRow } from "@/lib/retail/record-kinds/types";
  * value is a button; clicking it turns the value into its field's control at
  * 30px with an ink save button. Enter or the button saves (W-62), Esc puts
  * the old value back. A `seg` row's choices take their own line under the
- * key and save as one is picked, with no save button. "Saved" shows under the
- * key until another row is edited; a refusal shows under the control and the
+ * key and save as one is picked, with no save button; focus lands on the
+ * chosen one so Esc cancels at once, and clicking the chosen one again closes
+ * the editor unchanged. "Saved" shows under the key until another row is
+ * edited; a refusal shows under the control and the
  * control stays open.
  */
 export function DetailRow({
@@ -82,6 +84,13 @@ function RowEditor({
     input?.focus();
     input?.select();
   }, [edit.type, lookupId]);
+  const segRef = React.useRef<HTMLSpanElement>(null);
+  React.useEffect(() => {
+    if (edit.type !== "seg") return;
+    const items = segRef.current?.querySelectorAll<HTMLButtonElement>(".cx-seg__item");
+    const chosen = segRef.current?.querySelector<HTMLButtonElement>('.cx-seg__item[aria-pressed="true"]');
+    (chosen ?? items?.[0])?.focus();
+  }, [edit.type]);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const errorId = React.useId();
@@ -145,8 +154,16 @@ function RowEditor({
             />
           </span>
         ) : edit.type === "seg" ? (
-          // A choice saves as it is picked.
-          <span className="cx-rf-edit__seg" onKeyDown={keys}>
+          // A choice saves as it is picked; the chosen one again leaves it as it was.
+          <span
+            ref={segRef}
+            className="cx-rf-edit__seg"
+            onKeyDown={keys}
+            onClick={(event) => {
+              const item = (event.target as HTMLElement).closest(".cx-seg__item");
+              if (!busy && item?.getAttribute("aria-pressed") === "true") onCancel();
+            }}
+          >
             <Segmented
               aria-label={row.label}
               block
