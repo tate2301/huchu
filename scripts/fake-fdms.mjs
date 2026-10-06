@@ -11,8 +11,10 @@
  * and `fdms-device.ts` read, and nothing else. Point a fiscal device's FDMS
  * address at `http://127.0.0.1:9911` to use it.
  *
- * It checks nothing: a receipt or a day's report is accepted if it arrives, and a
- * device is registered with whatever key it asks for.
+ * It checks one thing ZIMRA checks: a receipt dated before its fiscal day opened is refused
+ * (RCPT014). The app never sends OpenDay, so the fake takes a device's day as opening when
+ * its previous day's report arrived. Anything else is accepted if it arrives, and a device
+ * is registered with whatever key it asks for.
  */
 
 import http from "node:http";
@@ -61,6 +63,8 @@ function signDevice(csrPem) {
 }
 
 let receiptCounter = 0;
+/** When each device's last day report arrived: its next day opens no earlier. */
+const dayOpenedAfter = new Map();
 
 function send(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -89,6 +93,19 @@ const server = http.createServer((req, res) => {
       return send(res, 200, { status: "SUCCESS", operationID: `reg-${deviceId}`, certificate: signDevice(csr) });
     }
     if (operation === "SubmitReceipt") {
+      let receiptDate = null;
+      try {
+        receiptDate = new Date(String(JSON.parse(raw || "{}").receipt?.receiptDate ?? ""));
+      } catch {
+        receiptDate = null;
+      }
+      const opened = dayOpenedAfter.get(deviceId);
+      if (opened && receiptDate && !Number.isNaN(receiptDate.getTime()) && receiptDate < opened) {
+        return send(res, 422, {
+          status: "FAILED",
+          error: `RCPT014: receipt dated ${receiptDate.toISOString()} is before its fiscal day opened (${opened.toISOString()}).`,
+        });
+      }
       receiptCounter += 1;
       const receiptID = 100000 + receiptCounter;
       return send(res, 200, {
@@ -101,6 +118,7 @@ const server = http.createServer((req, res) => {
       });
     }
     if (operation === "CloseDay") {
+      dayOpenedAfter.set(deviceId, new Date());
       return send(res, 200, { status: "SUCCESS", operationID: `close-${deviceId}-${Date.now()}` });
     }
     if (operation === "GetStatus") {

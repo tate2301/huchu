@@ -85,13 +85,14 @@
  * *same* signed bytes. The drain continues past it deliberately — that is the
  * offline promise working, not failing.
  *
- * ## What is deliberately not decided here
+ * ## A receipt fits its day
  *
- * ZIMRA's permitted offline window (master-plan risk #8) is still open. Every
- * receipt is dated with the sale's own `postedAt`, because that is what the
- * customer holds a slip for, and a drain that lands those in a fiscal day
- * opened later is exactly the case that decision has to settle. Nothing here
- * silently redates a sale to make it fit.
+ * Every receipt is dated with the sale's own `postedAt`, because that is what
+ * the customer holds a slip for, and ZIMRA takes no receipt dated before its
+ * fiscal day opened (SET-08). A sale rung before the open day began (an old
+ * offline sale), or while no day is open because one's report waits on ZIMRA,
+ * is therefore not signed, and says so. Nothing here redates a sale to make it
+ * fit.
  */
 import type { RetailSale, RetailSaleLine } from "@prisma/client";
 import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
@@ -111,6 +112,8 @@ import {
   type ReceiptType,
 } from "@/lib/accounting/fdms-receipt-signing";
 import { isTaxCodeEffectiveOnDate } from "@/lib/accounting/tax-selection";
+import { FISCAL_DAY_STATUS } from "@/lib/accounting/fiscal-day";
+import { FISCAL_OFFLINE_WINDOW_MS, heldReceiptWords, saleBeforeDayWords, saleWhileClosingWords } from "@/lib/retail/fiscal-words";
 
 /**
  * Refusals this module makes itself, on top of the ones the issue path makes.
@@ -129,6 +132,7 @@ export type RetailFiscalErrorCode =
   | "RETAIL_TOTALS_INCONSISTENT"
   | "RETAIL_SIGN_MISMATCH"
   | "RETAIL_ORIGINAL_NOT_SIGNED"
+  | "RETAIL_SALE_BEFORE_DAY"
   | FiscalIssueErrorCode;
 
 /** Raised while mapping a till sale onto the facts ZIMRA signs. */
@@ -801,12 +805,19 @@ export function buildRetailSalePayload(input: {
  *  device is required to fiscalise what it sells whatever an entitlement says,
  *  and a shop without one has nothing to send to. A missing provider config is
  *  therefore SKIPPED and silent, not FAILED. */
-async function hasFiscalDevice(companyId: string): Promise<boolean> {
+/** The active device (the one `issueFiscalDocument` signs with) and its day that has not closed yet. */
+async function activeFiscalDevice(companyId: string) {
   const provider = await prisma.fiscalisationProviderConfig.findFirst({
     where: { companyId, isActive: true },
+    orderBy: { updatedAt: "desc" },
     select: { id: true },
   });
-  return Boolean(provider);
+  if (!provider) return null;
+  const day = await prisma.fiscalDay.findFirst({
+    where: { companyId, providerConfigId: provider.id, status: { not: FISCAL_DAY_STATUS.CLOSED } },
+    select: { fiscalDayNo: true, status: true, openedAt: true },
+  });
+  return { provider, day };
 }
 
 /**
@@ -817,6 +828,8 @@ async function hasFiscalDevice(companyId: string): Promise<boolean> {
 export async function fiscaliseRetailSale(input: {
   companyId: string;
   saleId: string;
+  /** A till's own sale: kept signed for the fiscal worker while FDMS is silent (SET-08). */
+  holdWhileUnreachable?: boolean;
 }): Promise<RetailFiscalOutcome> {
   const sale = (await prisma.retailSale.findFirst({
     where: { id: input.saleId, companyId: input.companyId },
@@ -849,7 +862,8 @@ export async function fiscaliseRetailSale(input: {
     });
   }
 
-  if (!(await hasFiscalDevice(input.companyId))) {
+  const device = await activeFiscalDevice(input.companyId);
+  if (!device) {
     return outcome(sale, {
       fiscalStatus: "SKIPPED",
       fiscalError: "No active fiscalisation device is configured for this company",
@@ -857,6 +871,27 @@ export async function fiscaliseRetailSale(input: {
   }
 
   const receiptDate = sale.postedAt ?? sale.createdAt;
+
+  // A receipt is signed into the day that is open, and ZIMRA takes none dated
+  // before its day opened (SET-08). While a day's report waits on ZIMRA no day
+  // is open, so a sale rung then has no day to go into; one rung before the
+  // open day began (an old offline sale) does not fit it. Neither is signed,
+  // and each says so. A receipt already signed is sent as it was.
+  if (!signed && device.day?.status === FISCAL_DAY_STATUS.CLOSING) {
+    return outcome(sale, {
+      fiscalStatus: "FAILED",
+      errorCode: "FISCAL_DAY_NOT_OPEN",
+      fiscalError: saleWhileClosingWords(device.day.fiscalDayNo),
+      blocksDevice: true,
+    });
+  }
+  if (!signed && device.day && device.day.openedAt.getTime() > receiptDate.getTime()) {
+    return outcome(sale, {
+      fiscalStatus: "FAILED",
+      errorCode: "RETAIL_SALE_BEFORE_DAY",
+      fiscalError: saleBeforeDayWords(sale.saleNo, device.day.fiscalDayNo),
+    });
+  }
 
   let bundle: RetailSigningBundle;
   let credited: CreditedReceiptReference | null = null;
@@ -939,6 +974,7 @@ export async function fiscaliseRetailSale(input: {
       supplier,
     }),
     fiscal: bundle.fiscal,
+    holdWhileUnreachableMs: input.holdWhileUnreachable ? FISCAL_OFFLINE_WINDOW_MS : undefined,
   });
 
   // Read back what the signer wrote. The QR and the global number exist from
@@ -958,7 +994,7 @@ export async function fiscaliseRetailSale(input: {
     qrCodeData: row?.qrCodeData ?? null,
     receiptGlobalNo: row?.receiptGlobalNo ?? null,
     providerReference: result.providerReference ?? null,
-    fiscalError: result.error ?? null,
+    fiscalError: result.heldSince ? heldReceiptWords(result.heldSince) : (result.error ?? null),
     errorCode: result.errorCode ?? null,
     blocksDevice: Boolean(result.errorCode && DEVICE_SCOPED_CODES.has(result.errorCode)),
   });
@@ -977,6 +1013,7 @@ export async function fiscaliseRetailSale(input: {
 export async function fiscaliseRetailSales(input: {
   companyId: string;
   saleIds: string[];
+  holdWhileUnreachable?: boolean;
 }): Promise<RetailFiscalOutcome[]> {
   const results: RetailFiscalOutcome[] = [];
   let halted: RetailFiscalOutcome | null = null;
@@ -998,7 +1035,7 @@ export async function fiscaliseRetailSales(input: {
 
     let result: RetailFiscalOutcome;
     try {
-      result = await fiscaliseRetailSale({ companyId: input.companyId, saleId });
+      result = await fiscaliseRetailSale({ companyId: input.companyId, saleId, holdWhileUnreachable: input.holdWhileUnreachable });
     } catch (error) {
       // Nothing a till does may turn a completed sale into an unhandled
       // exception. An unexpected throw is treated as device-scoped, because we
@@ -1045,7 +1082,7 @@ export async function fiscaliseAfterPosting(input: {
   saleId: string;
 }): Promise<TillFiscalStatus> {
   try {
-    const result = await fiscaliseRetailSale(input);
+    const result = await fiscaliseRetailSale({ ...input, holdWhileUnreachable: true });
     return {
       status: result.fiscalStatus,
       fiscalNumber: result.fiscalNumber,

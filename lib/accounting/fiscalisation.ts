@@ -29,7 +29,7 @@ import {
   type ReceiptTaxLine,
   type ReceiptType,
 } from "@/lib/accounting/fdms-receipt-signing";
-import { recordFdmsContact } from "@/lib/accounting/fdms-contact";
+import { isFdmsUnreachable, recordFdmsContact } from "@/lib/accounting/fdms-contact";
 
 export type FiscalValidationResult = {
   ok: boolean;
@@ -80,6 +80,8 @@ export type FiscalIssueResult = {
   /** Set only for a refusal this module made itself; absent for a transport
    *  failure, which is retryable and carries `nextRetryAt` on the row. */
   errorCode?: FiscalIssueErrorCode;
+  /** Signed and kept, not sent: FDMS has not answered the device since then (`holdWhileUnreachableMs`). */
+  heldSince?: Date;
 };
 
 /**
@@ -424,6 +426,13 @@ export async function issueFiscalDocument(input: {
    * it, because an accepted document returns early and is never re-sent.
    */
   onAttempt?: () => Promise<void>;
+  /**
+   * A till sale (SET-08, "Keep selling, sign later"): while FDMS has not
+   * answered the device for less than this long, a signed receipt is kept
+   * PENDING for the fiscal worker instead of being sent now, so the till does
+   * not wait out the timeout once per sale. Unsigned documents always go.
+   */
+  holdWhileUnreachableMs?: number;
 }): Promise<FiscalIssueResult> {
   const { companyId, source, idempotencyKey, payload } = input;
 
@@ -597,6 +606,24 @@ export async function issueFiscalDocument(input: {
   }
 
   if (input.onAttempt) await input.onAttempt();
+
+  if (native && input.holdWhileUnreachableMs && provider.lastFailedAt && isFdmsUnreachable(provider)) {
+    const silentFor = Date.now() - provider.lastFailedAt.getTime();
+    if (silentFor < input.holdWhileUnreachableMs) {
+      const held = `FDMS has not answered since ${provider.lastFailedAt.toISOString()}; signed and kept for the fiscal worker`;
+      const updated = await prisma.fiscalReceipt.update({
+        where: { id: receipt.id },
+        data: { status: "PENDING", lastError: held, nextRetryAt: null },
+      });
+      return {
+        status: "PENDING",
+        receiptId: updated.id,
+        providerKey: updated.providerKey,
+        error: held,
+        heldSince: provider.lastFailedAt,
+      };
+    }
+  }
 
   try {
     const nativeWire =

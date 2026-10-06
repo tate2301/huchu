@@ -10,7 +10,7 @@
  *
  * ## What it builds
  *
- * A liquor store priced in **USD at 15% VAT**, taking **cash, card, EcoCash and
+ * A liquor store priced in **USD at 15.5% VAT**, taking **cash, card, EcoCash and
  * ZWG** — the four tenders a Zimbabwean bottle store actually sees — across
  * `--days` of history with a working day-of-week and month-end shape. Staff are
  * real users who can sign in: a manager, two cashiers and a stock clerk, so the
@@ -80,7 +80,7 @@ function readArg(name: string): string | undefined {
 }
 
 /**
- * A Harare bottle store's shelf, priced in USD at 15% VAT (20-products 3.5).
+ * A Harare bottle store's shelf, priced in USD at 15.5% VAT (20-products 3.5 draws 15%; ZIMRA takes 15.5% since January).
  *
  * `sold30` is exactly what the Products list shows under "Sold, 30 days": the
  * last 30 days of history are dealt out of these quotas, so the figure, the
@@ -140,7 +140,8 @@ const PACKS: Array<[pack: string, single: string, size: number]> = [
   ["COKE-6PK", "COKE-500", 6],
 ]
 
-const VAT_PERCENT = "15.00"
+// ZIMRA's standard rate since 1 January 2026 (VAT15_5, its taxID 1): the till signs only a rate ZIMRA maps (SET-08).
+const VAT_PERCENT = "15.50"
 
 /**
  * The ex-VAT amount inside a VAT-inclusive figure.
@@ -1964,7 +1965,7 @@ async function seedRecordActivity(input: {
  * page (an acceptance walk) is newer and is what the bar then names.
  */
 /**
- * PRD-02: the liquor set as the Categories board shows it — VAT 15% included,
+ * PRD-02: the liquor set as the Categories board shows it — VAT included (15.5%, ZIMRA's rate),
  * the 18+ check on the four alcohol categories, the board's target margins,
  * top level, stamped as the liquor store's seed and out of the bin. With
  * --reset a category a test run added goes: deleted when nothing is filed
@@ -1986,7 +1987,8 @@ async function seedCategories(companyId: string, reset: boolean) {
       where: { id: row.id },
       data: {
         name: seed.name,
-        vatRate: money(seed.vatRate),
+        // The shelf's rate, which ZIMRA maps, not the seed's 15% (SET-08).
+        vatRate: money(VAT_PERCENT),
         vatExempt: false,
         ageRestricted: seed.ageRestricted ?? false,
         returnable: false,
@@ -2643,6 +2645,8 @@ async function seedFiscal(companyId: string) {
     update: device,
     create: { companyId, providerKey, ...device },
   })
+  // What registering maps from ZIMRA's applicable taxes: 15.5% is its taxID 1, the shelf's rate.
+  await prisma.taxCode.updateMany({ where: { companyId, code: "VAT15_5" }, data: { zimraTaxId: 1 } })
 
   // The board's five days: four closed evenings and today's, open since the Front till's shift.
   const days = await prisma.fiscalDay.findMany({ where: { providerConfigId: provider.id }, select: { id: true } })

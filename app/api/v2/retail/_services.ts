@@ -399,12 +399,7 @@ export async function openRetailShiftTransaction(input: {
             } satisfies RetailAccountingResult);
 
       // The day's first shift opens the shop's fiscal day when none is open (SET-08), so its sales are signed.
-      await openFiscalDayIfNone({
-        companyId: input.actor.companyId,
-        userId: input.actor.userId,
-        userName: input.actor.userName ?? null,
-        userRole: input.actor.userRole ?? null,
-      });
+      await openFiscalDayIfNone(input.actor.companyId, shift.openedAt);
 
       return { shift, accounting };
     } catch (error) {

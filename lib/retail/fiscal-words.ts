@@ -33,32 +33,65 @@ export type ConnectionState = "CONNECTED" | "NOT_CONNECTED" | "UNREACHABLE";
 export function connectionWords(input: {
   registered: boolean;
   unreachableSince: Date | null;
-  openDay: { no: number; openedAt: Date } | null;
+  activeDay: { no: number; openedAt: Date; status: string } | null;
+  now?: Date;
 }): { state: ConnectionState; text: string } {
   if (!input.registered) return { state: "NOT_CONNECTED", text: "Not connected yet." };
+  const day = input.activeDay;
+  if (day?.status === "CLOSING") {
+    // Its report went to ZIMRA and was not taken: no day is open until it is.
+    return {
+      state: input.unreachableSince ? "UNREACHABLE" : "CONNECTED",
+      text: `Day ${day.no}'s report waits for ZIMRA. Sales are not signed until it is taken.`,
+    };
+  }
   if (input.unreachableSince) {
     return {
       state: "UNREACHABLE",
       text: `ZIMRA has not answered since ${formatTime(input.unreachableSince)}. Receipts are signed and wait.`,
     };
   }
-  if (input.openDay) {
-    return {
-      state: "CONNECTED",
-      text: `Connected to ZIMRA. Day ${input.openDay.no} open since ${formatTime(input.openDay.openedAt)}.`,
-    };
+  if (day) {
+    const since =
+      dayKey(day.openedAt) === dayKey(input.now ?? new Date())
+        ? formatTime(day.openedAt)
+        : `${formatShortDay(day.openedAt)} ${formatTime(day.openedAt)}`;
+    return { state: "CONNECTED", text: `Connected to ZIMRA. Day ${day.no} open since ${since}.` };
   }
   return { state: "CONNECTED", text: "Connected to ZIMRA. No fiscal day open." };
 }
 
-/** "Today, open", "2 Oct, open", "2 Oct, closing", "2 Oct, closed 22:04". */
+/** "Today, open", "2 Oct, open", "2 Oct, closing", "2 Oct, closed 22:04", "5 Oct, closed 6 Oct 07:11". */
 export function fiscalDayLabel(
   day: { status: string; openedAt: Date; closedAt: Date | null },
   now: Date,
 ): string {
-  if (day.status === "CLOSED" && day.closedAt) return `${formatShortDay(day.openedAt)}, closed ${formatTime(day.closedAt)}`;
+  if (day.status === "CLOSED" && day.closedAt) {
+    const closed =
+      dayKey(day.closedAt) === dayKey(day.openedAt)
+        ? formatTime(day.closedAt)
+        : `${formatShortDay(day.closedAt)} ${formatTime(day.closedAt)}`;
+    return `${formatShortDay(day.openedAt)}, closed ${closed}`;
+  }
   const when = dayKey(day.openedAt) === dayKey(now) ? "Today" : formatShortDay(day.openedAt);
   return day.status === "CLOSING" ? `${when}, closing` : `${when}, open`;
+}
+
+/* ── What a till sale is told about its receipt ───────────────────────────── */
+
+/** Signed and kept for the fiscal worker while ZIMRA is silent ("Keep selling, sign later"). */
+export function heldReceiptWords(silentSince: Date): string {
+  return `ZIMRA has not answered since ${formatTime(silentSince)}. The receipt is signed and waits to be sent.`;
+}
+
+/** Rung while a day's report waits for ZIMRA: no day is open to sign it in. */
+export function saleWhileClosingWords(dayNo: number): string {
+  return `Day ${dayNo}'s report waits for ZIMRA. Sales are not signed until it is taken.`;
+}
+
+/** Rung before the open day began (an old offline sale): ZIMRA takes no receipt dated before its day. */
+export function saleBeforeDayWords(saleNo: string, dayNo: number): string {
+  return `${saleNo} was rung before day ${dayNo} opened, and ZIMRA takes no receipt dated before its day. It is not signed.`;
 }
 
 /** Cents by currency → "US$3,912.20", "US$40.00 · ZiG 1,200.00"; nothing sold → "US$0.00". */

@@ -98,6 +98,18 @@ Recorded unit choices:
   not in every field.
 - **SET-09 posts one run per company at a time.** "Post now" pressed while a run is going joins it; what could not post is tried again by
   the next run, and "Ready to post" shows a fourth warn line while anything is waiting to be tried again (10-setup §4.9).
+- **SET-08 words where the board's are not what happens.** The "Close the fiscal day" hint reads "Closing sends the Z-report to
+  ZIMRA. A day left open takes tomorrow’s sales too." (the board: "… blocks tomorrow’s sales"; an open day takes them). The
+  Close day ask reads "The Z-report goes to ZIMRA, and the next sale opens day {n+1}." (the spec: "… sales wait for tomorrow’s
+  day"; the next sale opens the next day).
+- **SET-08 sends a day's report only from "Close day", the last shift closing and the retail worker.** No sale and no shift
+  opening calls ZIMRA's CloseDay. A day whose report ZIMRA never answered stays open and the tills keep signing into it; the
+  worker sends the report every five minutes while no shift is open, so a day a shift is still selling into stays open past
+  midnight and closes with that shift. A day whose report ZIMRA answered with a no stays closing: no day is open, and a sale
+  rung meanwhile is not signed and says so ("Day {n}'s report waits for ZIMRA. Sales are not signed until it is taken.").
+  A sale dated before the open day began (an old offline sale) is not signed either: ZIMRA takes no receipt dated before its day.
+- **SET-08 prices the demo shelf at 15.5% VAT.** The boards draw 15%; ZIMRA maps only 15.5% (VAT15_5, taxID 1) since
+  1 January 2026, and the till signs only a rate ZIMRA maps. The seed prices the products, the categories and the history at 15.5%.
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

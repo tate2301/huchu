@@ -1064,16 +1064,16 @@ async function drainFiscalisation(
   if (drain.length === 0) return;
 
   try {
-    // The batch needs a fiscal day open to be signed in (SET-08); opening one signs what waited for it.
-    await openFiscalDayIfNone({
-      companyId: ctx.companyId,
-      userId: ctx.userId,
-      userName: ctx.session.user.name ?? null,
-      userRole: ctx.session.user.role ?? null,
+    // The batch needs a fiscal day open to be signed in (SET-08): one opened now takes it from its oldest sale.
+    const rung = await prisma.retailSale.aggregate({
+      where: { companyId: ctx.companyId, id: { in: drain.map((entry) => entry.saleId) } },
+      _min: { postedAt: true },
     });
+    await openFiscalDayIfNone(ctx.companyId, rung._min.postedAt ?? undefined);
     const outcomes = await fiscaliseRetailSales({
       companyId: ctx.companyId,
       saleIds: drain.map((entry) => entry.saleId),
+      holdWhileUnreachable: true,
     });
 
     const byClientOperationId = new Map(

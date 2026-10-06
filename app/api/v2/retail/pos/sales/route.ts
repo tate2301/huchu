@@ -496,6 +496,12 @@ export async function POST(request: NextRequest) {
       return errorResponse("One or more catalog items are invalid", 400);
     }
 
+    // A sale that finds no fiscal day open (closed by hand while the tills sell) opens one to be signed in
+    // (SET-08), before the sale is stamped: ZIMRA takes no receipt dated before its day.
+    await openFiscalDayIfNone(
+      session.user.companyId,
+      input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : undefined,
+    );
     // A liquor store's licence: no alcohol outside its hours, and none without
     // an ID check. Judged at the moment of sale, which for a replay is when the
     // till rang it.
@@ -971,13 +977,6 @@ export async function POST(request: NextRequest) {
       the sales rung while the network was down. Never fails the sale: a shop
       with no device gets SKIPPED, and a refusal is a row somebody can replay.
     */
-    // A sale that finds no fiscal day open (closed by hand while the tills sell) opens one to be signed in (SET-08).
-    await openFiscalDayIfNone({
-      companyId: session.user.companyId,
-      userId: session.user.id,
-      userName: session.user.name ?? null,
-      userRole: session.user.role ?? null,
-    });
     const fiscal = await fiscaliseAfterPosting({
       companyId: session.user.companyId,
       saleId: sale.id,

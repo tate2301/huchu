@@ -207,8 +207,9 @@ function standardSale() {
   });
 }
 
+/** Opened the morning of the sales: ZIMRA takes no receipt dated before its day (SET-08). */
 async function openDay() {
-  return openFiscalDay({ companyId, providerConfigId });
+  return openFiscalDay({ companyId, providerConfigId, openedAt: new Date(SALE_DATE.getTime() - 3 * 3_600_000) });
 }
 
 async function receiptsInChainOrder() {

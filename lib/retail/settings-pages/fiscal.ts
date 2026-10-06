@@ -51,8 +51,13 @@ export const fiscalPage: SettingsPage = {
           id: "connection",
           t: "read",
           l: "Connection",
+          // Warn while ZIMRA is silent, and while a day's report waits for it (no day open, sales not signed).
           tone: (values) =>
-            values.connectionState === "CONNECTED" ? "ok" : values.connectionState === "UNREACHABLE" ? "warn" : undefined,
+            values.connectionState === "UNREACHABLE" || (values.openDay as { status?: string } | null)?.status === "CLOSING"
+              ? "warn"
+              : values.connectionState === "CONNECTED"
+                ? "ok"
+                : undefined,
         },
         { id: "deviceId", t: "text", l: "Device ID", half: true, mono: true },
         { id: "serialNumber", t: "text", l: "Serial number", half: true, mono: true },

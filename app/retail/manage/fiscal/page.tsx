@@ -25,7 +25,12 @@ import type { SettingsResponse, SettingsSaved } from "@/lib/retail/settings-page
  */
 export default function FiscalSettingsPage() {
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const canChange = canRetailRoleDo(session?.user?.role ?? "", "retail.fiscal", "update");
+  // The open day changes away from this page (a till's sale, the last shift closing): never trust a cached copy.
+  React.useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: settingsQueryKey("fiscal") });
+  }, [queryClient]);
   return (
     <SettingsFrame
       page="fiscal"
