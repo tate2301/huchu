@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * History: my sales, newest first, grouped by shift. A sale opens as its record:
+ * History: my sales, newest first: this shift, today, seven days or everything,
+ * filtered by what happened and how it was paid, a page at a time as it scrolls
+ * and only the rows in view drawn. A sale opens as its record:
  * what happened to it, with the one thing to do next. Refunds and voids happen
  * there, for one of the till rules' reasons, with a manager's PIN when the
  * rules ask for one and the person selling may not approve it themselves.
@@ -10,7 +12,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -33,10 +36,11 @@ import {
 } from "@/lib/icons";
 import { depositBack } from "@/lib/retail/deposits";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
+import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import { refundPinSentence, VOID_FREE_MS, voidPinSentence } from "@/lib/retail/till-rule-words";
-import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, whole, zig } from "./format";
-import { Avatar, Empty, ErrorLine, TillDialog } from "./parts";
-import { printReceipt } from "./pay-tray";
+import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, weekdayDayMonth, whole, zig } from "./format";
+import { Avatar, Empty, ErrorLine, Segmented, TillDialog } from "./parts";
+import { printReceipt, tenderKey } from "./pay-tray";
 import { useTill } from "./state";
 import type { TenderType } from "./types";
 
@@ -58,6 +62,8 @@ type SaleRow = {
   lineCount: number;
   payments: PaymentLine[];
   overrideReason: string | null;
+  /** How much of it refunds have handed back. */
+  refunded: "NONE" | "PART" | "ALL";
 };
 
 /** `pos/sales/{id}`: the sale, its lines and payments, and what was refunded or voided off it. */
@@ -129,22 +135,58 @@ const product = (itemName: string) => itemName.split(",")[0].toLowerCase();
 const paidBy = (payments: PaymentLine[]) => [...new Set(payments.map((payment) => paymentLabel(payment.tenderType, payment.currency)))];
 /** What the customer paid: the goods and the deposits on them. */
 const paidOn = (row: { totalAmount: Amount; depositAmount: Amount }) => n(row.totalAmount) + n(row.depositAmount);
-const SALES_KEY = (search: string) => ["retail-pos-sales", "mine", search] as const;
+/* ─── Filters, and the list a page at a time ─────────────────────────── */
 
-function useMySales(search: string) {
-  return useQuery({
-    queryKey: SALES_KEY(search),
-    queryFn: () =>
-      fetchJson<{ data: SaleRow[] }>(`/api/v2/retail/pos/sales?scope=mine&limit=120&search=${encodeURIComponent(search)}`),
+type When = "shift" | "today" | "week" | "all";
+type What = "all" | "paid" | "refunded" | "voided";
+type Filters = { when: When; what: What; paidBy: string; search: string };
+
+const PAGE = 40;
+/** The Harare calendar day of an instant, as YYYY-MM-DD: the key a day’s group is made on. */
+const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: SHOP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+/** Midnight, Harare (UTC+2 all year), `daysBack` days before today. */
+function harareMidnight(daysBack: number) {
+  const today = dayKey.format(new Date());
+  return new Date(new Date(`${today}T00:00:00+02:00`).getTime() - daysBack * 86_400_000);
+}
+
+function salesQuery(filters: Filters, shiftId: string | null) {
+  const params = new URLSearchParams({ scope: "mine", saleType: "SALE", limit: String(PAGE) });
+  if (filters.search) params.set("search", filters.search);
+  if (filters.when === "shift" && shiftId) params.set("shiftId", shiftId);
+  if (filters.when === "today") params.set("from", harareMidnight(0).toISOString());
+  if (filters.when === "week") params.set("from", harareMidnight(6).toISOString());
+  if (filters.what === "paid") params.set("status", "POSTED");
+  if (filters.what === "voided") params.set("status", "VOIDED");
+  if (filters.what === "refunded") params.set("refunded", "1");
+  if (filters.paidBy !== "any") {
+    const [tender, currency] = filters.paidBy.split(":");
+    params.set("tender", tender);
+    if (currency) params.set("currency", currency);
+  }
+  return params;
+}
+
+function useSalesPages(filters: Filters, shiftId: string | null) {
+  const params = salesQuery(filters, shiftId);
+  return useInfiniteQuery({
+    queryKey: ["retail-pos-sales", "history", params.toString()] as const,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const page = new URLSearchParams(params);
+      if (pageParam) page.set("cursor", pageParam);
+      return fetchJson<{ data: SaleRow[]; page: { nextCursor: string | null; hasMore: boolean } }>(`/api/v2/retail/pos/sales?${page}`);
+    },
+    getNextPageParam: (last) => (last.page.hasMore ? last.page.nextCursor : null),
   });
 }
 
-function saleStatus(row: { saleType: string; status: string }) {
+function saleStatus(row: Pick<SaleRow, "saleType" | "status" | "refunded">) {
   if (row.saleType === "REFUND") return { label: "Refund", tone: "" };
   if (row.saleType === "VOID") return { label: "Void", tone: "" };
   if (row.status === "VOIDED") return { label: "Voided", tone: "" };
-  if (row.status === "REFUNDED") return { label: "Refunded", tone: "" };
-  if (row.status === "PARTIALLY_REFUNDED") return { label: "Part refunded", tone: "status-success" };
+  if (row.refunded === "ALL") return { label: "Refunded", tone: "" };
+  if (row.refunded === "PART") return { label: "Part refunded", tone: "status-success" };
   return { label: "Paid", tone: "status-success" };
 }
 
@@ -183,72 +225,124 @@ const emptiesWords = (empties: SaleDetail["empties"]) =>
 
 /* ─── The list ───────────────────────────────────────────────────────── */
 
-export function HistoryScreen() {
+const WHEN_OPTIONS: Array<{ value: When; label: string }> = [
+  { value: "shift", label: "This shift" },
+  { value: "today", label: "Today" },
+  { value: "week", label: "7 days" },
+  { value: "all", label: "Everything" },
+];
+const WHAT_OPTIONS: Array<{ value: What; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "paid", label: "Paid" },
+  { value: "refunded", label: "Refunded" },
+  { value: "voided", label: "Voided" },
+];
+
+function filterQuery(filters: Filters) {
+  const params = new URLSearchParams();
+  params.set("when", filters.when);
+  if (filters.what !== "all") params.set("what", filters.what);
+  if (filters.paidBy !== "any") params.set("paid", filters.paidBy);
+  if (filters.search) params.set("q", filters.search);
+  return params.toString();
+}
+
+/** The filters, as History’s address carries them: a reload, a sale's Newer and Older, and the way back keep them. */
+function useFilters(): { filters: Filters; set: (change: Partial<Filters>) => void; text: string } {
+  const params = useSearchParams();
+  const router = useRouter();
   const { shiftHere, isPosHost } = useTill();
+  const asked = params.get("when");
+  const when = WHEN_OPTIONS.find((option) => option.value === asked && (asked !== "shift" || shiftHere))?.value;
+  const filters: Filters = {
+    when: when ?? (shiftHere ? "shift" : "today"),
+    what: WHAT_OPTIONS.find((option) => option.value === params.get("what"))?.value ?? "all",
+    paidBy: params.get("paid") ?? "any",
+    search: params.get("q") ?? "",
+  };
+  const set = (change: Partial<Filters>) =>
+    router.replace(`${getPosPortalHref("history", isPosHost)}?${filterQuery({ ...filters, ...change })}`, { scroll: false });
+  return { filters, set, text: filterQuery(filters) };
+}
+
+/** "Today", "Yesterday", or "Sunday 4 October". */
+function dayTitle(key: string, at: string) {
+  if (key === dayKey.format(new Date())) return "Today";
+  if (key === dayKey.format(new Date(Date.now() - 86_400_000))) return "Yesterday";
+  return weekdayDayMonth(at);
+}
+
+type Item =
+  | { kind: "head"; key: string; title: string; rows: SaleRow[] }
+  | { kind: "row"; key: string; row: SaleRow };
+
+/** The rows a group at a time: one group for the shift, else one a day. Headings are items, so the window holds them. */
+function groupItems(rows: SaleRow[], when: When): Item[] {
+  const out: Item[] = [];
+  let head: Extract<Item, { kind: "head" }> | null = null;
+  for (const row of rows) {
+    const key = when === "shift" ? "shift" : dayKey.format(new Date(row.postedAt));
+    if (!head || head.key !== key) {
+      head = { kind: "head", key, title: key === "shift" ? "This shift" : dayTitle(key, row.postedAt), rows: [] };
+      out.push(head);
+    }
+    head.rows.push(row);
+    out.push({ kind: "row", key: row.id, row });
+  }
+  return out;
+}
+
+export function HistoryScreen() {
+  const { shiftHere, isPosHost, context } = useTill();
   // The sale you came back from stays marked, so you find your place.
   const from = useSearchParams().get("from");
-  const [search, setSearch] = React.useState("");
-  const [typed, setTyped] = React.useState("");
+  const { filters, set: setFilters, text: filterText } = useFilters();
+  const [typed, setTyped] = React.useState(filters.search);
+  const searchNow = React.useRef(setFilters);
+  searchNow.current = setFilters;
   React.useEffect(() => {
-    const timer = window.setTimeout(() => setSearch(typed.trim()), 250);
+    const timer = window.setTimeout(() => {
+      if (typed.trim() !== filters.search) searchNow.current({ search: typed.trim() });
+    }, 250);
     return () => window.clearTimeout(timer);
-  }, [typed]);
-  const query = useMySales(search);
-  const rows = query.data?.data ?? [];
-  // Refunds and voids are written on the sale they came from, not listed beside it.
-  const listed = rows.filter((row) => row.saleType === "SALE");
-  const here = rows.filter((row) => shiftHere && row.shiftId === shiftHere.id);
-  const earlier = rows.filter((row) => !shiftHere || row.shiftId !== shiftHere.id);
-  const sales = here.filter((row) => row.saleType === "SALE");
-  const voided = here.filter((row) => row.saleType === "SALE" && row.status === "VOIDED");
-  const refunds = here.filter((row) => row.saleType === "REFUND");
-  const taken =
-    sales.filter((row) => row.status !== "VOIDED").reduce((sum, row) => sum + paidOn(row), 0) -
-    refunds.reduce((sum, row) => sum + Math.abs(paidOn(row)), 0);
-  const voidedTotal = voided.reduce((sum, row) => sum + paidOn(row), 0);
+  }, [typed, filters.search]);
+  const query = useSalesPages(filters, shiftHere?.id ?? null);
+  const rows = React.useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data]);
+  const items = React.useMemo(() => groupItems(rows, filters.when), [rows, filters.when]);
   const base = getPosPortalHref("history", isPosHost);
+  const paidByOptions = [
+    { value: "any", label: "Any way" },
+    ...(context?.tenders ?? []).map((tender) => ({ value: tenderKey(tender), label: tender.label })),
+  ];
 
-  const group = (id: string, title: string, list: SaleRow[]) =>
-    list.length ? (
-      <section aria-labelledby={id}>
-        <div className="group-head">
-          <h2 id={id}>{title}</h2>
-          <span className="sum">
-            {count(list.length, "sale")} · {usd(list.reduce((sum, row) => sum + paidOn(row), 0))}
-          </span>
-        </div>
-        <div className="list">
-          {list.map((row) => {
-            const status = saleStatus(row);
-            return (
-              <Link
-                key={row.id}
-                className="row is-sale"
-                href={`${base}/${row.id}`}
-                aria-current={row.id === from ? "true" : undefined}
-              >
-                <span className="code num text-left">
-                  {row.saleNo}
-                </span>
-                <span className="truncate">
-                  <span className="ink">{row.customerName || "Walk-in"}</span>{" "}
-                  <span className="muted">{count(row.lineCount, "item")}</span>
-                </span>
-                <span className={`status ${status.tone}`}>{status.label}</span>
-                <span className="muted truncate">
-                  {hhmm(row.postedAt)} · {paidBy(row.payments).join(" and ") || "Cash"}
-                  {row.saleType === "SALE" && row.overrideReason ? " · discount approved" : null}
-                </span>
-                <span className="num ink">
-                  {usd(paidOn(row))}
-                </span>
-                <CaretRight className="ic" />
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-    ) : null;
+  const scroller = React.useRef<HTMLDivElement>(null);
+  const windowed = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scroller.current,
+    estimateSize: (index) => (items[index]?.kind === "head" ? 56 : 52),
+    getItemKey: (index) => `${items[index]?.kind}:${items[index]?.key}`,
+    overscan: 8,
+  });
+  const shown = windowed.getVirtualItems();
+  const lastShown = shown[shown.length - 1]?.index ?? 0;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  React.useEffect(() => {
+    if (lastShown >= items.length - 10 && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [lastShown, items.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  // Back from a sale: its row in view, once.
+  const placed = React.useRef(false);
+  React.useEffect(() => {
+    if (placed.current || !from) return;
+    const at = items.findIndex((item) => item.kind === "row" && item.row.id === from);
+    if (at < 0) return;
+    placed.current = true;
+    windowed.scrollToIndex(at, { align: "center" });
+  }, [from, items, windowed]);
+
+  // The shift’s own figures, not the rows loaded so far.
+  const finding =
+    shiftHere && filters.when === "shift" && filters.what === "all" && filters.paidBy === "any" && !filters.search ? shiftHere : null;
+  const filtered = filters.what !== "all" || filters.paidBy !== "any" || Boolean(filters.search);
 
   return (
     <div className="main is-fixed">
@@ -261,7 +355,19 @@ export function HistoryScreen() {
           </label>
         </div>
       </div>
-      {query.isLoading ? (
+      <div className="bar is-filters" role="group" aria-label="Filters">
+        <Segmented
+          label="When"
+          value={filters.when}
+          options={shiftHere ? WHEN_OPTIONS : WHEN_OPTIONS.filter((option) => option.value !== "shift")}
+          onChange={(when) => setFilters({ when })}
+        />
+        <Segmented label="What happened" value={filters.what} options={WHAT_OPTIONS} onChange={(what) => setFilters({ what })} />
+        {paidByOptions.length > 2 ? (
+          <Segmented label="Paid by" value={filters.paidBy} options={paidByOptions} onChange={(paidBy) => setFilters({ paidBy })} />
+        ) : null}
+      </div>
+      {query.isPending ? (
         <div className="finding" aria-busy="true">
           <span className="skeleton is-lede" />
         </div>
@@ -269,42 +375,71 @@ export function HistoryScreen() {
         <Empty icon={Receipt} title="Your sales did not load">
           {getApiErrorMessage(query.error)}
         </Empty>
-      ) : !listed.length ? (
-        <Empty icon={Receipt} title={search ? `No sale matches “${search}”` : "No sales yet"}>
-          {search ? "Try the sale number from the receipt, or the customer’s name." : "Sales you take show here, newest first."}
+      ) : !rows.length ? (
+        <Empty icon={Receipt} title={filters.search ? `No sale matches “${filters.search}”` : filtered ? "No sales like that" : "No sales yet"}>
+          {filters.search
+            ? "Try the sale number from the receipt, or the customer’s name."
+            : filtered
+              ? "Nothing in this stretch matches. Try All, Any way, or a longer stretch."
+              : "Sales you take show here, newest first."}
         </Empty>
       ) : (
         <div className="table-shell">
-          <div className="table-scroll">
-            {shiftHere && !search ? (
+          <div className="table-scroll" ref={scroller}>
+            {finding ? (
               <div className="finding">
                 <p className="lede-figure">
-                  <span className="num">{usd(taken)}</span> from your {count(sales.length, "sale")} this shift.{" "}
+                  <span className="num">{usd(finding.netSalesValue)}</span> from your {count(finding.saleCount, "sale")} this shift.{" "}
                   <span className="q">
-                    {voided.length ? `${voided.length === 1 ? "One" : voided.length} voided` : "None voided"},{" "}
-                    {refunds.length ? `${refunds.length === 1 ? "one" : refunds.length} refunded.` : "none refunded yet."}
+                    {finding.voidCount ? `${finding.voidCount === 1 ? "One" : finding.voidCount} voided` : "None voided"},{" "}
+                    {finding.refundCount ? `${finding.refundCount === 1 ? "one" : finding.refundCount} refunded.` : "none refunded yet."}
                   </span>
                 </p>
               </div>
             ) : null}
-            {group("h-here", "This shift", here.filter((row) => row.saleType === "SALE"))}
-            {group("h-earlier", "Earlier", earlier.filter((row) => row.saleType === "SALE"))}
+            <div className="windowed" style={{ height: windowed.getTotalSize() }}>
+              {shown.map((virtual) => {
+                const item = items[virtual.index];
+                if (!item) return null;
+                const place = { transform: `translateY(${virtual.start}px)` };
+                if (item.kind === "head") {
+                  return (
+                    <div key={virtual.key} ref={windowed.measureElement} data-index={virtual.index} className="windowed-item" style={place}>
+                      <div className="group-head">
+                        <h2>{item.title}</h2>
+                        <span className="sum">
+                          {count(item.rows.length, "sale")} · {usd(item.rows.reduce((sum, row) => sum + paidOn(row), 0))}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+                const row = item.row;
+                const status = saleStatus(row);
+                return (
+                  <div key={virtual.key} ref={windowed.measureElement} data-index={virtual.index} className={items[virtual.index - 1]?.kind === "head" ? "windowed-item is-lead" : "windowed-item"} style={place}>
+                    <Link className="row is-sale" href={`${base}/${row.id}?${filterText}`} aria-current={row.id === from ? "true" : undefined}>
+                      <span className="code num text-left">{row.saleNo}</span>
+                      <span className="truncate">
+                        <span className="ink">{row.customerName || "Walk-in"}</span> <span className="muted">{count(row.lineCount, "item")}</span>
+                      </span>
+                      <span className={`status ${status.tone}`}>{status.label}</span>
+                      <span className="muted truncate">
+                        {hhmm(row.postedAt)} · {paidBy(row.payments).join(" and ") || "Cash"}
+                        {row.overrideReason ? " · discount approved" : null}
+                      </span>
+                      <span className="num ink">{usd(paidOn(row))}</span>
+                      <CaretRight className="ic" />
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <div className="table-foot">
             <div className="foot-row">
-              <span className="num text-left">
-                1 to {listed.length} of {listed.length}
-              </span>
-              {shiftHere ? (
-                <span className="foot-sum">
-                  Taken <b>{usd(taken)}</b>
-                </span>
-              ) : null}
-              {voidedTotal ? (
-                <span className="foot-sum">
-                  Voided <b>{usd(voidedTotal)}</b>
-                </span>
-              ) : null}
+              <span className="num text-left">{hasNextPage ? `${rows.length} loaded` : `All ${rows.length}`}</span>
+              {hasNextPage ? <span className="muted">{isFetchingNextPage ? "Loading more…" : "More as you scroll"}</span> : null}
             </div>
           </div>
         </div>
@@ -320,14 +455,15 @@ export function SaleScreen({ id }: { id: string }) {
   const { isPosHost, shiftHere, context } = useTill();
   const [refunding, setRefunding] = React.useState(false);
   const [voiding, setVoiding] = React.useState(false);
-  const list = useMySales("");
+  const { filters, text: filterText } = useFilters();
+  const list = useSalesPages(filters, shiftHere?.id ?? null);
   const query = useQuery({
     queryKey: ["retail-pos-sale", id],
     queryFn: async () => (await fetchJson<{ data: SaleDetail }>(`/api/v2/retail/pos/sales/${id}`)).data,
   });
   const sale = query.data;
   const base = getPosPortalHref("history", isPosHost);
-  const rows = list.data?.data ?? [];
+  const rows = list.data?.pages.flatMap((page) => page.data) ?? [];
   const index = rows.findIndex((row) => row.id === id);
   const previous = index > 0 ? rows[index - 1] : null;
   const next = index >= 0 && index < rows.length - 1 ? rows[index + 1] : null;
@@ -360,7 +496,12 @@ export function SaleScreen({ id }: { id: string }) {
   const tenders = paidBy(sale.payments);
   const when = sale.postedAt ?? sale.createdAt;
   const receiptHref = `${isPosHost ? "" : "/portal/pos"}/receipt/${sale.id}`;
-  const status = saleStatus(sale);
+  // Refunded in part or whole, from what is left to refund on its lines.
+  const refundedLines = sale.lines.filter((line) => line.refundedQuantity > 0).length;
+  const status = saleStatus({
+    ...sale,
+    refunded: !refundedLines ? "NONE" : refundable ? "PART" : "ALL",
+  });
   const lineCount = sale.lines.length;
   const change = handedBack(sale);
   // The feed is newest first; a day heading goes wherever the day changes.
@@ -406,16 +547,16 @@ export function SaleScreen({ id }: { id: string }) {
     <div className="with-rail">
       <main className="main is-scroll">
         <div className="bar">
-          <Link className="btn btn-quiet" href={`${base}?from=${sale.id}`}>
+          <Link className="btn btn-quiet" href={`${base}?${filterText}&from=${sale.id}`}>
             <CaretLeft className="ic" />
             History
           </Link>
           <div className="end">
             <div className="btn-group" role="group" aria-label="Move between sales">
-              <button type="button" className="btn btn-icon" aria-label="Newer sale" disabled={!previous} onClick={() => previous && router.push(`${base}/${previous.id}`)}>
+              <button type="button" className="btn btn-icon" aria-label="Newer sale" disabled={!previous} onClick={() => previous && router.push(`${base}/${previous.id}?${filterText}`)}>
                 <CaretLeft className="ic" />
               </button>
-              <button type="button" className="btn btn-icon" aria-label="Older sale" disabled={!next} onClick={() => next && router.push(`${base}/${next.id}`)}>
+              <button type="button" className="btn btn-icon" aria-label="Older sale" disabled={!next} onClick={() => next && router.push(`${base}/${next.id}?${filterText}`)}>
                 <CaretRight className="ic" />
               </button>
             </div>

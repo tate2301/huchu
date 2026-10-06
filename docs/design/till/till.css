@@ -76,6 +76,10 @@
 .bench-side .over .scrim { position: absolute; inset: 0; z-index: 0; display: block; padding: 0; }
 .bench-side .tray { position: relative; z-index: 1; height: 640px; }
 .tray-top { display: flex; align-items: baseline; justify-content: space-between; }
+/* How this shop takes EcoCash, as the cashier reads it out: the code or number large enough to read across the counter. */
+.pay-how { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-16); border-radius: var(--radius-card); background: var(--color-ground); }
+.pay-how .say { font-family: var(--font-mono); font-size: var(--text-20); font-weight: 500; line-height: var(--leading-20); color: var(--color-ink); }
+.pay-how .as { font-size: var(--text-13); color: var(--color-ink-2); }
 /* Nothing in the tray gives up its height but the spacer: a tall tray scrolls, it never squeezes Take. */
 .tray > :not(.grow) { flex-shrink: 0; }
 .tray .wait { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); min-height: var(--target-touch); padding: 0 var(--space-12); border-radius: var(--radius-card); background: var(--color-ground); }
@@ -94,6 +98,12 @@
 /* A tile that opens something is still a tile, not a link. A count beside a bar title never wraps. */
 a.tile { color: inherit; text-decoration: none; }
 .bar .muted, .bar h1 { white-space: nowrap; }
+/* A windowed list: only the rows in view are drawn, each placed down its full height. The first row under a heading has no rule, as in a .list. */
+.windowed { position: relative; }
+.windowed-item { position: absolute; top: 0; left: 0; width: 100%; }
+.windowed-item.is-lead > .row { box-shadow: none; }
+/* Filters on their own row under the bar: the same rule and gutter, a little shorter, and it wraps rather than scrolls. */
+.bar.is-filters { height: auto; min-height: var(--layout-navbar); flex-wrap: wrap; padding-block: var(--space-8); }
 
 /* Shell B, chosen 5 October 2026: an icon rail. The person at the top, the doors, Lock at the foot. */
 .shell-b { display: grid; grid-template-columns: 80px minmax(0, 1fr); height: 100%; }

@@ -25,7 +25,7 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 
 vi.stubEnv("PLATFORM_ROOT_DOMAIN", "apps.localtest.me");
 
-const { POST: SELL } = await import("./sales/route");
+const { GET: SALES, POST: SELL } = await import("./sales/route");
 const { GET: SALE } = await import("./sales/[id]/route");
 const { POST: REFUND } = await import("./sales/[id]/refund/route");
 const { POST: VOID } = await import("./sales/[id]/void/route");
@@ -284,5 +284,35 @@ describe("a customer", () => {
     expect(found.id).toBe(customerId);
     expect(found.lastSale).toMatchObject({ saleNo: tapiwaSale.saleNo, total: 17.7 });
     expect(Number.isNaN(Date.parse(found.lastSale!.at))).toBe(false);
+  });
+});
+
+describe("History’s filters", () => {
+  type Row = { id: string; saleType: string; status: string; refunded: "NONE" | "PART" | "ALL" };
+  const list = async (query: string) => {
+    const answer = await SALES(request(`pos/sales?scope=mine&saleType=SALE&limit=50&${query}`)).then(read);
+    if (answer.status !== 200) throw new Error(`${query}: ${JSON.stringify(answer.body)}`);
+    return answer.body.data as Row[];
+  };
+
+  it("finds the sales paid one way, the refunded ones and the voided ones", async () => {
+    const ecocash = await sell("by-ecocash", {
+      items: [{ productId: riceId, quantity: 1 }],
+      payments: [{ tenderType: "ECOCASH", amount: 2.8, reference: "MP241006.1432" }],
+    });
+    expect(ecocash.status).toBe(201);
+
+    const paidByEcocash = await list("tender=ECOCASH");
+    expect(paidByEcocash.map((row) => row.id)).toEqual([ecocash.body.id]);
+
+    const refunded = await list("refunded=1");
+    expect(refunded.length).toBeGreaterThan(0);
+    expect(refunded.every((row) => row.saleType === "SALE" && row.refunded !== "NONE")).toBe(true);
+
+    const voided = await list("status=VOIDED");
+    expect(voided.length).toBeGreaterThan(0);
+    expect(voided.every((row) => row.status === "VOIDED" && row.saleType === "SALE")).toBe(true);
+
+    expect((await SALES(request("pos/sales?tender=BITCOIN")).then(read)).status).toBe(400);
   });
 });
