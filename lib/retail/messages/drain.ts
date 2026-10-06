@@ -1,7 +1,7 @@
 import type { RetailMessage } from "@prisma/client";
 
 import { isEmailConfigured, sendEmail, type SendEmailInput } from "@/lib/email/send";
-import { isWhatsAppConfigured, sendMedia, sendText, type SendResult } from "@/lib/messaging/whatsapp";
+import { isWhatsAppConfigured, sendTemplate, type SendResult } from "@/lib/messaging/whatsapp";
 import { prisma } from "@/lib/prisma";
 import { refreshReceiptBody } from "@/lib/retail/receipt-settings";
 
@@ -18,6 +18,15 @@ import { refreshReceiptBody } from "@/lib/retail/receipt-settings";
  *   (a receipt's fiscal line) is written again just before it goes.
  * - A refusal that will not pass on a retry (a bad number) fails it at once;
  *   anything else is tried again on the next pass, up to five tries.
+ *
+ * Every WhatsApp the outbox sends is one the shop starts, so it goes as an
+ * approved template (Meta fails free-form text outside the customer's 24-hour
+ * window). The template is named after the message's `template` ("receipt")
+ * and approved in WhatsApp Manager in META_WHATSAPP_TEMPLATE_LANGUAGE, with
+ * two body values: {{1}} the shop's name and {{2}} the message, for example
+ * the UTILITY template "receipt": "Your receipt from {{1}}: {{2}}. Thank you
+ * for shopping with us." A message with media needs its template approved
+ * with an IMAGE or DOCUMENT header, which carries it.
  */
 
 export const MAX_ATTEMPTS = 5;
@@ -41,16 +50,14 @@ const SUBJECTS: Record<string, (shop: string) => string> = {
 export type DrainDeps = {
   whatsAppReady: () => boolean;
   emailReady: () => boolean;
-  sendText: typeof sendText;
-  sendMedia: typeof sendMedia;
+  sendTemplate: typeof sendTemplate;
   sendEmail: (input: SendEmailInput) => Promise<void>;
 };
 
 const LIVE: DrainDeps = {
   whatsAppReady: () => isWhatsAppConfigured(),
   emailReady: () => isEmailConfigured(),
-  sendText,
-  sendMedia,
+  sendTemplate,
   sendEmail,
 };
 
@@ -73,12 +80,14 @@ async function shopName(companyId: string, cache: Map<string, string>): Promise<
 }
 
 async function deliver(message: Due, body: string, deps: DrainDeps, names: Map<string, string>): Promise<SendResult> {
-  if (message.channel === "WHATSAPP") {
-    return message.mediaUrl && message.mediaKind
-      ? deps.sendMedia(message.to, { url: message.mediaUrl, kind: message.mediaKind, name: message.mediaName, caption: body })
-      : deps.sendText(message.to, body);
-  }
   const shop = await shopName(message.companyId, names);
+  if (message.channel === "WHATSAPP") {
+    return deps.sendTemplate(message.to, {
+      name: message.template,
+      params: [shop, body],
+      header: message.mediaUrl && message.mediaKind ? { url: message.mediaUrl, kind: message.mediaKind, name: message.mediaName } : null,
+    });
+  }
   try {
     await deps.sendEmail({
       to: message.to,

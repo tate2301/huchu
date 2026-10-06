@@ -17,9 +17,7 @@ import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { useHasFeature } from "@/hooks/use-entitlement";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import {
-  type PosSaleQueuePayload,
-} from "@/lib/retail/pos-offline-queue";
+import { queuedSaleLabel, type PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
 import {
   isOfflineRetailCustomerId,
   listOfflineRetailOperations,
@@ -27,7 +25,8 @@ import {
   searchOfflineRetailCustomers,
 } from "@/lib/retail/offline-runtime";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
-import { depositsDue } from "@/lib/retail/deposits";
+import { depositsDue, lineDeposit } from "@/lib/retail/deposits";
+import { splitChange } from "@/lib/retail/payment-words";
 import { liquorSaleRefusal, shopFeatures } from "@/lib/retail/shop-profile-rules";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
@@ -49,7 +48,7 @@ import type {
 import { getPaymentSummary } from "./pos-utils";
 // Type-only, like `TillFiscalStatus` above.
 import type { TillContext } from "@/lib/retail/devices";
-import type { ReceiptDoc } from "@/lib/retail/receipt-words";
+import { receiptContent, receiptDoc, type ReceiptDoc } from "@/lib/retail/receipt-words";
 import { printReceipt } from "@/components/retail/receipt-print";
 import { markPairedTill } from "@/lib/retail/till-presence";
 import { offlineStopSentence, offlineWindowClosed } from "@/lib/retail/till-on-device";
@@ -78,6 +77,8 @@ type CompletedSale = {
   fiscal?: TillFiscalStatus | null;
   /** Its receipt as Setup › Receipts says to print it (SET-07), and how many copies. */
   receipt?: { doc: ReceiptDoc; copies: 1 | 2 } | null;
+  /** Rung offline: kept on this till until the line is back, so it has no number or fiscal line yet. */
+  queued?: boolean;
 };
 
 type CustomerLookupResult = {
@@ -613,11 +614,64 @@ export function PosPortalProvider({
     });
   }, [currentShift?.id, currentShiftQuery.isLoading, isPosHost]);
 
-  /** The sale's receipt through the print dialog, then `printedAt` on the sale (onboarding's test sale reads it). */
+  /**
+   * The sale's receipt through the print dialog, then `printedAt` on the sale
+   * (onboarding's test sale reads it). A sale still held offline has no row
+   * to mark yet.
+   */
   const printSaleReceipt = async (sale: CompletedSale) => {
     if (!sale.receipt) return;
     await printReceipt(sale.receipt.doc, sale.receipt.copies);
+    if (sale.queued) return;
     await fetchJson(`/api/v2/retail/pos/sales/${encodeURIComponent(sale.id)}/printed`, { method: "POST" }).catch(() => null);
+  };
+
+  /**
+   * The basket as it is charged, as a finished sale on this till (SET-07):
+   * what a sale rung offline shows and prints, laid out from the till's
+   * receipt settings like the server's — the lines and deposits, the total,
+   * the payments and the change as the cashier hands it back. No fiscal line:
+   * the sale is signed when it reaches the server.
+   */
+  const basketAsSale = (payload: PosSaleQueuePayload): CompletedSale => {
+    const change = splitChange(
+      paymentSummary.changeAmount,
+      till?.zig ? { rate: Number(till.zig.rate), rounding: till.zig.rounding } : null,
+    );
+    const receipt = till
+      ? {
+          doc: receiptDoc(
+            till.receipt,
+            receiptContent({
+              lines: cart.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                amount: checkout.lines.find((line) => line.id === item.catalogItemId)?.lineTotal ?? 0,
+                deposit: lineDeposit(item),
+              })),
+              total: amountDue,
+              currency: till.receipt.currency,
+              payments: payload.payments.filter((payment) => payment.amount > 0),
+              change,
+              fiscal: null,
+            }),
+          ),
+          copies: till.receipt.copies,
+        }
+      : null;
+    return {
+      id: payload.clientRef,
+      saleNo: queuedSaleLabel(payload),
+      customerName: payload.customerName ?? null,
+      totalAmount: checkout.total,
+      depositAmount,
+      changeAmount: change.value,
+      changeUsd: change.usd,
+      changeZig: change.zig,
+      postedAt: new Date().toISOString(),
+      receipt,
+      queued: true,
+    };
   };
 
   const saleMutation = useMutation({
@@ -662,6 +716,10 @@ export function PosPortalProvider({
           payload,
           customerTempId: usesOfflineCustomer ? payload.customerId : null,
         }).then(() => refreshOfflineQueue());
+        // The customer still gets a receipt: printed here from the till's settings, in its copies (SET-07).
+        const held = basketAsSale(payload);
+        setLastCompletedSale(held);
+        if (till?.till.hasPrinter && held.receipt) void printSaleReceipt(held);
         clearCart();
         return;
       }

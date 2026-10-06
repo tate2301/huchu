@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   receiptAmount,
+  receiptContent,
   receiptDoc,
   receiptLineLabel,
   receiptText,
@@ -24,6 +25,7 @@ const wire: ReceiptWire = {
   licenceNumber: "HRE/BL/2024/0711",
   logoUrl: "https://example.test/logo.png",
   liquor: true,
+  currency: "US$",
 };
 
 const sale: ReceiptContent = {
@@ -84,6 +86,51 @@ describe("a receipt laid out", () => {
     expect(lines).toContain("TOTAL US$                   9.30");
     expect(lines[lines.length - 1]!.trim()).toBe("FDMS 0441-2209 · Day 214");
     expect(lines.every((line) => line.length <= 32)).toBe(true);
+  });
+});
+
+describe("a sale as a receipt says it", () => {
+  it("lists each line and its deposit, the payments, then the change in dollars and in ZiG notes", () => {
+    // A basket rung offline, as the till builds it: no fiscal line until it reaches the server.
+    expect(
+      receiptContent({
+        lines: [
+          { name: "Castle Lager 340ml", quantity: 6, amount: 7.2, deposit: 0.6 },
+          { name: "Ice 2kg bag", quantity: 1, amount: 1.5, deposit: 0 },
+        ],
+        total: 9.3,
+        currency: "US$",
+        payments: [{ tenderType: "CASH", currency: undefined, amount: 15 }],
+        change: { usd: 5, zig: 19 },
+        fiscal: null,
+      }),
+    ).toEqual({
+      lines: [
+        { label: "Castle Lager 340ml x6", amount: "7.20" },
+        { label: "Deposit x6", amount: "0.60" },
+        { label: "Ice 2kg bag", amount: "1.50" },
+      ],
+      total: "9.30",
+      currency: "US$",
+      tenders: [
+        { label: "Cash US$", amount: "15.00" },
+        { label: "Change US$", amount: "5.00" },
+        { label: "Change ZiG", amount: "19.00" },
+      ],
+      fiscal: null,
+    });
+  });
+
+  it("prints no change line when nothing was handed back, and ZiG cash by its own name", () => {
+    const content = receiptContent({
+      lines: [{ name: "Schweppes Tonic 200ml", quantity: 1, amount: 0.6, deposit: 0 }],
+      total: 0.6,
+      currency: "US$",
+      payments: [{ tenderType: "CASH", currency: "ZWG", amount: 16.08 }],
+      change: { usd: 0, zig: 0 },
+      fiscal: null,
+    });
+    expect(content.tenders).toEqual([{ label: "Cash ZiG", amount: "16.08" }]);
   });
 });
 

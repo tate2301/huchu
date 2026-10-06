@@ -6,6 +6,8 @@
  * cannot say different things.
  */
 
+import { TENDER_OPTIONS, tenderKeyOf } from "@/lib/retail/payment-words";
+
 /** 80 mm paper takes 42 characters of the till printer's font on a line. */
 export const RECEIPT_LINE_MAX = 42;
 /** "Top of the receipt" and "Bottom of the receipt" are each kept to four lines. */
@@ -25,6 +27,9 @@ export function sendByOf(label: string): ReceiptSendBy | null {
   const found = (Object.entries(SEND_BY_WORDS) as Array<[ReceiptSendBy, string]>).find(([, words]) => words === label);
   return found ? found[0] : null;
 }
+
+/** Why "Print the logo" cannot go on: the shop has no logo yet. */
+export const NO_LOGO_HINT = "Add a logo with your branding in Management first.";
 
 /** The text's lines, each trimmed at the end; blank lines at the ends dropped. */
 export function receiptTextLines(text: string | null | undefined): string[] {
@@ -61,6 +66,8 @@ export type ReceiptWire = {
   licenceNumber: string | null;
   logoUrl: string | null;
   liquor: boolean;
+  /** The money the shop's receipts total in (its base currency): what a till rings offline prints. */
+  currency: "US$" | "ZiG";
 };
 
 /** What a receipt says about one sale: its lines, its total, how it was paid and its fiscal day. */
@@ -96,10 +103,72 @@ export function receiptAmount(value: number | string): string {
   return `${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${cents}`;
 }
 
+/** "US$" or "ZiG": the money a receipt's total is in. */
+export function receiptCurrency(currency: string | null | undefined): "US$" | "ZiG" {
+  return (currency ?? "").toUpperCase() === "ZWG" ? "ZiG" : "US$";
+}
+
 /** "Castle Lager 340ml x6"; one of a thing is just its name. */
 export function receiptLineLabel(name: string, quantity: number): string {
   const shown = Number.isInteger(quantity) ? String(quantity) : String(Number(quantity.toFixed(3)));
   return quantity === 1 ? name : `${name} x${shown}`;
+}
+
+/** "Cash US$", "Cash ZiG", "EcoCash": a payment as the till names it. */
+export function receiptTenderLabel(tender: string, currency?: string | null): string {
+  return TENDER_OPTIONS.find((option) => option.key === tenderKeyOf(tender, currency))?.tillLabel ?? tender;
+}
+
+/**
+ * What a receipt says about a sale, from its figures: the server's posted
+ * sale and the till's basket rung offline are both written through this, so
+ * they print alike. Each line, then its deposit as "Deposit x{n}"; the total
+ * with the deposits; each payment, then the change as it was handed back.
+ */
+export function receiptContent(sale: {
+  lines: Array<{ name: string; quantity: number; amount: number | string; deposit: number | string }>;
+  /** Goods and deposits together. */
+  total: number;
+  currency: ReceiptContent["currency"];
+  payments: Array<{ tenderType: string; currency?: string | null; amount: number | string }>;
+  change: { usd: number; zig: number };
+  fiscal: string | null;
+}): ReceiptContent {
+  const lines: ReceiptContent["lines"] = [];
+  for (const line of sale.lines) {
+    lines.push({ label: receiptLineLabel(line.name, line.quantity), amount: receiptAmount(line.amount) });
+    if (Number(line.deposit) !== 0) {
+      lines.push({ label: `Deposit x${Number(line.quantity.toFixed(3))}`, amount: receiptAmount(line.deposit) });
+    }
+  }
+  return {
+    lines,
+    total: receiptAmount(sale.total),
+    currency: sale.currency,
+    tenders: [
+      ...sale.payments.map((payment) => ({
+        label: receiptTenderLabel(payment.tenderType, payment.currency),
+        amount: receiptAmount(payment.amount),
+      })),
+      ...receiptChangeLines(sale.change, sale.currency),
+    ],
+    fiscal: sale.fiscal,
+  };
+}
+
+/**
+ * The change lines under the tenders, as the cashier handed it back (W-05):
+ * the whole dollars in the receipt's money, then the ZiG notes by their own
+ * count. "Change US$ 1.00", "Change ZiG 21.00"; nothing when there was none.
+ */
+export function receiptChangeLines(
+  change: { usd: number; zig: number },
+  currency: ReceiptContent["currency"],
+): Array<{ label: string; amount: string }> {
+  const lines: Array<{ label: string; amount: string }> = [];
+  if (change.usd > 0) lines.push({ label: `Change ${currency}`, amount: receiptAmount(change.usd) });
+  if (change.zig > 0) lines.push({ label: "Change ZiG", amount: receiptAmount(change.zig) });
+  return lines;
 }
 
 /**

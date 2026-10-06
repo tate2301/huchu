@@ -3,12 +3,13 @@ import type { Prisma, RetailReceiptSendBy } from "@prisma/client";
 import { normalizePhoneE164 } from "@/lib/crm/phone";
 import { prisma } from "@/lib/prisma";
 import type { RetailAuditActor } from "@/lib/retail/audit";
-import { TENDER_OPTIONS, tenderKeyOf } from "@/lib/retail/payment-words";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
+import { postedChange } from "@/lib/retail/sale-totals";
 import {
   receiptAmount,
+  receiptContent,
+  receiptCurrency,
   receiptDoc,
-  receiptLineLabel,
   receiptText,
   receiptTextLines,
   type ReceiptContent,
@@ -105,7 +106,7 @@ export function defaultReceiptHeader(tradingName: string, address: string | null
  * store.
  */
 export async function receiptWire(companyId: string, siteId: string | null = null, db: Db = prisma): Promise<ReceiptWire> {
-  const [settings, profile, branding, company] = await Promise.all([
+  const [settings, profile, branding, company, accounting] = await Promise.all([
     loadReceiptSettings(companyId, db),
     loadShopProfile(companyId),
     db.companyBranding.findUnique({
@@ -113,6 +114,7 @@ export async function receiptWire(companyId: string, siteId: string | null = nul
       select: { tradingName: true, displayName: true, vatNumber: true, logoUrl: true },
     }),
     db.company.findUnique({ where: { id: companyId }, select: { name: true } }),
+    db.accountingSettings.findUnique({ where: { companyId }, select: { baseCurrency: true } }),
   ]);
   let header = receiptTextLines(settings.header).join("\n");
   if (!header) {
@@ -133,6 +135,7 @@ export async function receiptWire(companyId: string, siteId: string | null = nul
     licenceNumber: liquor ? profile.licenceNumber?.trim() || null : null,
     logoUrl: branding?.logoUrl ?? null,
     liquor,
+    currency: receiptCurrency(accounting?.baseCurrency),
   };
 }
 
@@ -144,7 +147,10 @@ const saleSelect = {
   currency: true,
   totalAmount: true,
   depositAmount: true,
+  saleType: true,
+  tenderedAmount: true,
   changeAmount: true,
+  changeZig: true,
   lines: {
     // The order rung: a sale's lines are written together, so they share a time and keep the order written.
     orderBy: { createdAt: "asc" },
@@ -159,42 +165,27 @@ const saleSelect = {
 
 type ReceiptSale = Prisma.RetailSaleGetPayload<{ select: typeof saleSelect }>;
 
-/** "US$" or "ZiG": the money a receipt's total is in. */
-export function receiptCurrency(currency: string | null | undefined): "US$" | "ZiG" {
-  return (currency ?? "").toUpperCase() === "ZWG" ? "ZiG" : "US$";
-}
-
 /** "FDMS 0441-2209 · Day 214". */
 export function fiscalLine(day: { deviceId: string; fiscalDayNo: number } | null | undefined): string | null {
   return day ? `FDMS ${day.deviceId} · Day ${day.fiscalDayNo}` : null;
 }
 
-/** A sale's lines as the receipt prints them: each line, then its deposit as "Deposit x{n}". */
+/** A posted sale's receipt content: its lines and deposits, payments and the change as handed back. */
 export function saleReceiptContent(sale: ReceiptSale): ReceiptContent {
-  const lines: ReceiptContent["lines"] = [];
-  for (const line of sale.lines) {
-    const quantity = Number(line.quantity);
-    lines.push({ label: receiptLineLabel(line.itemName, quantity), amount: receiptAmount(line.lineTotal.toString()) });
-    if (Number(line.depositAmount) !== 0) {
-      lines.push({ label: `Deposit x${Number(quantity.toFixed(3))}`, amount: receiptAmount(line.depositAmount.toString()) });
-    }
-  }
-  return {
-    lines,
-    total: receiptAmount(Number(sale.totalAmount) + Number(sale.depositAmount)),
+  return receiptContent({
+    lines: sale.lines.map((line) => ({
+      name: line.itemName,
+      quantity: Number(line.quantity),
+      amount: line.lineTotal.toString(),
+      deposit: line.depositAmount.toString(),
+    })),
+    total: Number(sale.totalAmount) + Number(sale.depositAmount),
     currency: receiptCurrency(sale.currency),
-    tenders: [
-      ...sale.payments.map((payment) => ({
-        label:
-          TENDER_OPTIONS.find((option) => option.key === tenderKeyOf(payment.tenderType, payment.currency))?.tillLabel ??
-          payment.tenderType,
-        amount: receiptAmount(payment.amount.toString()),
-      })),
-      // What was handed back, when the customer paid over.
-      ...(Number(sale.changeAmount ?? 0) > 0 ? [{ label: "Change", amount: receiptAmount(sale.changeAmount!.toString()) }] : []),
-    ],
+    payments: sale.payments.map((payment) => ({ ...payment, amount: payment.amount.toString() })),
+    // The dollars, then the ZiG notes as counted out (not what they were worth).
+    change: { usd: postedChange(sale).usd, zig: Math.abs(Number(sale.changeZig)) },
     fiscal: fiscalLine(sale.fiscalReceipt?.fiscalDay),
-  };
+  });
 }
 
 /** The lines a sale's receipt prints, its deposit lines counted. */

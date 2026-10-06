@@ -7,9 +7,9 @@
  * the server-side counterpart — it never runs on the till, so it can hold the
  * exact arithmetic the ledger needs.
  */
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
-import { money, sumMoney, type MoneyLike } from "@/lib/money";
+import { money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
 
 /**
  * The ex-VAT subtotal of a set of already-priced lines.
@@ -54,4 +54,40 @@ export function reversalSubtotal(
       money(line.lineTotal).minus(money(line.taxAmount)).plus(money(line.discountAmount)),
     ),
   );
+}
+
+/**
+ * A sale's change as the books take it (SET-05, W-05), in the base currency:
+ * the whole US dollars and what the ZiG notes were worth (`changeAmount` is
+ * both), and what rounding the ZiG left against what was owed (tendered less
+ * the goods and deposits) — kept by the shop, or given to the customer.
+ * With ZiG in the change the dollars are the whole dollars owed, as
+ * `splitChange` hands them back. A void carries its sale's figures negated,
+ * so it reads back the same split and its journal reverses the sale's; a
+ * refund hands back no change.
+ */
+export function postedChange(sale: {
+  saleType: string;
+  totalAmount: MoneyLike;
+  depositAmount: MoneyLike;
+  tenderedAmount: MoneyLike | null;
+  changeAmount: MoneyLike | null;
+  changeZig: MoneyLike;
+}): { usd: number; zig: number; kept: number; given: number } {
+  const change = money(sale.changeAmount ?? 0).abs();
+  if (sale.saleType === "REFUND" || sale.tenderedAmount == null) {
+    return { usd: toNumberOrZero(change), zig: 0, kept: 0, given: 0 };
+  }
+  const owed = money(sale.tenderedAmount)
+    .minus(money(sale.totalAmount))
+    .minus(money(sale.depositAmount))
+    .times(sale.saleType === "VOID" ? -1 : 1);
+  const usd = money(sale.changeZig).abs().greaterThan(0) ? Prisma.Decimal.min(owed.floor(), change) : change;
+  const rounding = owed.minus(change);
+  return {
+    usd: toNumberOrZero(usd),
+    zig: toNumberOrZero(change.minus(usd)),
+    kept: toNumberOrZero(Prisma.Decimal.max(rounding, 0)),
+    given: toNumberOrZero(Prisma.Decimal.max(rounding.negated(), 0)),
+  };
 }

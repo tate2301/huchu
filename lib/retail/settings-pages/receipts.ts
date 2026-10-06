@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { receiptTextLines, receiptTextProblem, SEND_BY_LABELS } from "@/lib/retail/receipt-words";
+import { NO_LOGO_HINT, RECEIPT_LINES_MAX, receiptTextLines, receiptTextProblem, SEND_BY_LABELS } from "@/lib/retail/receipt-words";
 
 import type { SettingsPage } from "./types";
 
@@ -52,8 +52,8 @@ export const receiptsPage: SettingsPage = {
     {
       title: "What it says",
       fields: [
-        { id: "header", t: "area", l: "Top of the receipt", rows: 2 },
-        { id: "footer", t: "area", l: "Bottom of the receipt", rows: 2 },
+        { id: "header", t: "area", l: "Top of the receipt", rows: 2, maxRows: RECEIPT_LINES_MAX },
+        { id: "footer", t: "area", l: "Bottom of the receipt", rows: 2, maxRows: RECEIPT_LINES_MAX },
         { id: "showVatNumber", t: "toggle", l: "Show the VAT number" },
         {
           id: "showLicenceNumber",
@@ -67,7 +67,7 @@ export const receiptsPage: SettingsPage = {
           t: "toggle",
           l: "Print the logo",
           h: (values) =>
-            values.logoUrl ? "Slower on most till printers." : "Add a logo with your branding in Management first.",
+            values.logoUrl ? "Slower on most till printers." : NO_LOGO_HINT,
           // No logo to print: the switch is held off, unless it is on and can be turned off.
           disabled: (values) => !values.logoUrl && values.printLogo !== true,
         },

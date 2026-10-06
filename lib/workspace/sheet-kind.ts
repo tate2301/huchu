@@ -95,6 +95,8 @@ export type FieldSpec = {
   o?: string[] | Array<[label: string, sub?: string, badge?: string]> | ((values: SheetValues) => string[]);
   cols?: number;
   rows?: number;
+  /** `area`: grows with what is typed, a row a line, up to this many rows (never below `rows`). */
+  maxRows?: number;
   /** `auto` and `lines`: the lookup noun (`GET /api/v2/retail/lookup/<noun>`). */
   noun?: string;
   /**

@@ -2023,6 +2023,15 @@ export function PosCheckoutView() {
 
           {/* Secondary info */}
           <div className="px-5 py-4 space-y-3">
+            {lastCompletedSale?.queued ? (
+              <div
+                data-testid="pos-sale-queued"
+                className="rounded-xl px-4 py-2.5 text-sm"
+                style={{ background: "var(--pos-status-warning-bg)", color: "var(--pos-status-warning-text)" }}
+              >
+                Kept on this till while it is offline. It gets its number when the till is back online.
+              </div>
+            ) : null}
             {/*
               Where the sale stands with ZIMRA, decided when it was posted. A
               fiscalised sale shows its number; a sale the shop does not

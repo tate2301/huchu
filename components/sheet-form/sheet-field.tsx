@@ -70,6 +70,13 @@ export type SheetFieldProps = {
 };
 
 /** A value as words, for a sheet opened to read only. */
+/** A text area's rows: one a line typed, from `rows` up to `maxRows`, so nothing typed hides behind a scroll. */
+function areaRows(rows: number, maxRows: number | undefined, value: unknown): number {
+  if (!maxRows) return rows;
+  const lines = typeof value === "string" ? value.split("\n").length : 1;
+  return Math.min(Math.max(lines, rows), Math.max(maxRows, rows));
+}
+
 function shownValue(value: unknown): string {
   if (value && typeof value === "object" && "label" in value) return String((value as PickedOption).label);
   if (Array.isArray(value)) return value.length > 0 ? value.map(String).join(", ") : "—";
@@ -160,7 +167,7 @@ export function SheetField({
             return (
               <TextArea
                 {...control}
-                rows={field.rows ?? 3}
+                rows={areaRows(field.rows ?? 3, field.maxRows, value)}
                 placeholder={field.p}
                 value={typeof value === "string" ? value : ""}
                 onChange={(event) => onChange(event.target.value)}

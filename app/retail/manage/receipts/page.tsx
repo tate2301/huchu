@@ -54,6 +54,7 @@ function previewDoc(values: Record<string, unknown>): ReceiptDoc | null {
     licenceNumber: textOrNull(values.licenceNumber),
     logoUrl: textOrNull(values.logoUrl),
     liquor: values.liquor === true,
+    currency: preview.currency,
   };
   return receiptDoc(wire, preview);
 }

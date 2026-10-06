@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   isWhatsAppConfigured,
   sendMedia,
+  sendTemplate,
   sendText,
+  templateParam,
   verifyWhatsAppSignature,
   whatsAppChallenge,
   whatsAppNumber,
@@ -49,6 +51,60 @@ describe("the WhatsApp adapter", () => {
       type: "text",
       text: { preview_url: false, body: "Your receipt" },
     });
+  });
+
+  it("sends what the shop starts as an approved template: its name, its language, the body's values in order", async () => {
+    const fetcher = answering(200, { messages: [{ id: "wamid.TPL" }] });
+    const receipt = "   HARARE BOTTLE STORE\n--------------------------------\nCastle Lager 340ml x6      7.20\nTOTAL US$                  9.30";
+    expect(await sendTemplate("+263 77 212 3456", { name: "receipt", params: ["Harare Bottle Store", receipt] }, { config, fetcher })).toEqual({
+      ok: true,
+      id: "wamid.TPL",
+    });
+    expect(JSON.parse(String((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: "263772123456",
+      type: "template",
+      template: {
+        name: "receipt",
+        language: { code: "en" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: "Harare Bottle Store" },
+              { type: "text", text: "HARARE BOTTLE STORE · Castle Lager 340ml x6 7.20 · TOTAL US$ 9.30" },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("carries a template's document as its header, in the language asked for", async () => {
+    const fetcher = answering(200, { messages: [{ id: "wamid.HDR" }] });
+    await sendTemplate(
+      "+263772123456",
+      {
+        name: "order",
+        language: "en_GB",
+        params: ["Harare Bottle Store", "PO-0003"],
+        header: { url: "https://x.test/po.pdf", kind: "DOCUMENT", name: "PO-0003.pdf" },
+      },
+      { config, fetcher },
+    );
+    const body = JSON.parse(String((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(body.template.language).toEqual({ code: "en_GB" });
+    expect(body.template.components[0]).toEqual({
+      type: "header",
+      parameters: [{ type: "document", document: { link: "https://x.test/po.pdf", filename: "PO-0003.pdf" } }],
+    });
+  });
+
+  it("makes a template value Meta takes: no new lines, tabs or runs of spaces, kept to 900 characters", () => {
+    const value = templateParam("a\tb     c\r\n\n====\nd");
+    expect(value).toBe("a b c · d");
+    expect(templateParam("x".repeat(1200))).toHaveLength(900);
   });
 
   it("sends a document by its address with the text as its caption", async () => {

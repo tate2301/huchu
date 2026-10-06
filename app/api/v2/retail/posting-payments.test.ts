@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizeRetailPostingPayments } from "./_helpers";
-import { postedChange } from "./_services";
+import { postedChange } from "@/lib/retail/sale-totals";
 
 /**
  * What a sale debits in the books (SET-05, W-05): each tender at its base

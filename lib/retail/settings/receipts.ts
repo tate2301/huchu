@@ -2,9 +2,9 @@ import { isEmailConfigured } from "@/lib/email/send";
 import { isWhatsAppConfigured } from "@/lib/messaging/whatsapp";
 import { prisma } from "@/lib/prisma";
 import { receiptPreview, receiptWire, saveReceiptSettings, type ReceiptSettingsPatch } from "@/lib/retail/receipt-settings";
-import { SEND_BY_WORDS, sendByOf } from "@/lib/retail/receipt-words";
+import { NO_LOGO_HINT, SEND_BY_WORDS, sendByOf } from "@/lib/retail/receipt-words";
 
-import type { SettingsStore } from "./types";
+import { SettingsRefused, type SettingsStore } from "./types";
 
 /**
  * The Receipts page's values (W-07): `RetailReceiptSettings` as the page
@@ -53,6 +53,13 @@ export const receiptsSettings: SettingsStore = {
 
   async save(tx, actor, changes) {
     const patch = receiptsPatch(changes);
+    // The page holds the switch off without a logo; the stored value must agree with it.
+    if (patch.printLogo === true) {
+      const branding = await tx.companyBranding.findUnique({ where: { companyId: actor.companyId }, select: { logoUrl: true } });
+      if (!branding?.logoUrl) {
+        throw new SettingsRefused(NO_LOGO_HINT, { status: 400, field: "printLogo" });
+      }
+    }
     if (Object.keys(patch).length > 0) await saveReceiptSettings(tx, actor, patch);
   },
 

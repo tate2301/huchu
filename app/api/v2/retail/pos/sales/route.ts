@@ -31,7 +31,8 @@ import {
   isPosSupportedPromotionType,
   requireRetailSession,
 } from "../../_helpers";
-import { ShiftElsewhere, createRetailSaleTransaction, postedChange, stampSalePayments } from "../../_services";
+import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "../../_services";
+import { postedChange } from "@/lib/retail/sale-totals";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 import { saleReceipt } from "@/lib/retail/receipt-settings";

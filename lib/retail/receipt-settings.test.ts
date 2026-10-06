@@ -15,6 +15,7 @@ import { checkSettingsChanges } from "@/lib/retail/settings-pages";
 import { receiptsPage } from "@/lib/retail/settings-pages/receipts";
 
 import { queueSaleReceipt, receiptPreview, saleReceipt } from "./receipt-settings";
+import { receiptText } from "./receipt-words";
 
 describe("the Receipts page's rules", () => {
   it("is read and changed with the receipts grant", () => {
@@ -69,6 +70,7 @@ describe("receipts on real rows", () => {
   let ownerId: string;
   let siteId: string;
   let saleId: string;
+  let itemId: string;
   const messageIds: string[] = [];
 
   beforeAll(async () => {
@@ -103,6 +105,7 @@ describe("receipts on real rows", () => {
       },
       select: { id: true },
     });
+    itemId = item.id;
     saleId = (
       await prisma.retailSale.create({
         data: {
@@ -168,6 +171,55 @@ describe("receipts on real rows", () => {
     });
   });
 
+  it("prints the change as it was handed back: the whole dollars, then the ZiG notes", async () => {
+    // US$2.00 cash for US$1.20: US$0.80 owed, handed back as ZiG 21 at 26.80 (worth US$0.78; the shop kept 0.02).
+    const zigSale = await prisma.retailSale.create({
+      data: {
+        companyId,
+        siteId,
+        saleNo: `RZ-${stamp}`,
+        totalAmount: 1.2,
+        tenderedAmount: 2,
+        changeAmount: 0.78,
+        changeZig: 21,
+        status: "POSTED",
+        postedAt: new Date(Date.now() - 60_000),
+        lines: { create: [{ companyId, inventoryItemId: itemId, itemName: "Schweppes Tonic 200ml", quantity: 2, unitPrice: 0.6, lineTotal: 1.2 }] },
+        payments: { create: [{ companyId, tenderType: "CASH", amount: 2, currency: "USD", baseAmount: 2 }] },
+      },
+      select: { id: true },
+    });
+    const zigOnly = await saleReceipt(companyId, zigSale.id);
+    expect(zigOnly?.doc.tenders).toEqual([
+      { label: "Cash US$", amount: "2.00" },
+      { label: "Change ZiG", amount: "21.00" },
+    ]);
+    expect(receiptText(zigOnly!.doc)).not.toContain("0.78");
+
+    // US$5.00 for US$1.20: US$3 back in dollars and ZiG 21 for the 80 cents.
+    const both = await prisma.retailSale.create({
+      data: {
+        companyId,
+        siteId,
+        saleNo: `RB-${stamp}`,
+        totalAmount: 1.2,
+        tenderedAmount: 5,
+        changeAmount: 3.78,
+        changeZig: 21,
+        status: "POSTED",
+        postedAt: new Date(Date.now() - 60_000),
+        lines: { create: [{ companyId, inventoryItemId: itemId, itemName: "Schweppes Tonic 200ml", quantity: 2, unitPrice: 0.6, lineTotal: 1.2 }] },
+        payments: { create: [{ companyId, tenderType: "CASH", amount: 5, currency: "USD", baseAmount: 5 }] },
+      },
+      select: { id: true },
+    });
+    expect((await saleReceipt(companyId, both.id))?.doc.tenders).toEqual([
+      { label: "Cash US$", amount: "5.00" },
+      { label: "Change US$", amount: "3.00" },
+      { label: "Change ZiG", amount: "21.00" },
+    ]);
+  });
+
   it("saves a change with one audit event, and the next receipt prints it", async () => {
     const saved = await saveSettings(
       { companyId, userId: ownerId, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" },
@@ -183,6 +235,16 @@ describe("receipts on real rows", () => {
     expect(receipt?.copies).toBe(2);
     expect(receipt?.doc.foot).toEqual(["Bring the bottles back for your deposit."]);
     expect(receipt?.doc.head).toEqual([`KOPJE LIQUOR ${stamp}`.toUpperCase().slice(0, 42), "3 Kopje Road, Harare"]);
+  });
+
+  it("refuses to print a logo the shop does not have", async () => {
+    await expect(
+      saveSettings({ companyId, userId: ownerId, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" }, "receipts", { printLogo: true }),
+    ).rejects.toMatchObject({
+      message: "Add a logo with your branding in Management first.",
+      refusal: { status: 400, field: "printLogo" },
+    });
+    expect((await readSettings(companyId, "receipts", true))?.values.printLogo).toBe(false);
   });
 
   it("queues the customer's copy with the sale on WhatsApp, to their number in full, and nothing without one", async () => {
@@ -204,11 +266,10 @@ describe("receipts on real rows", () => {
 
   it("drains the outbox: waits while WhatsApp is not set up, then sends and keeps Meta's id", async () => {
     const send = vi.fn(async () => ({ ok: true as const, id: `wamid.${stamp}` }));
-    const deps = (ready: boolean, sendText: DrainDeps["sendText"] = send): DrainDeps => ({
+    const deps = (ready: boolean, sendTemplate: DrainDeps["sendTemplate"] = send): DrainDeps => ({
       whatsAppReady: () => ready,
       emailReady: () => false,
-      sendText,
-      sendMedia: vi.fn(),
+      sendTemplate,
       sendEmail: vi.fn(),
     });
 
@@ -227,6 +288,12 @@ describe("receipts on real rows", () => {
     const sent = await prisma.retailMessage.findUniqueOrThrow({ where: { id: messageIds[0]! } });
     expect(sent).toMatchObject({ status: "SENT", externalId: `wamid.${stamp}`, attempts: 1, lastError: null });
     expect(sent.sentAt).not.toBeNull();
+    // The shop starts it, so it goes as the approved "receipt" template: the shop's name, then the receipt.
+    expect(send).toHaveBeenCalledWith("+263772123456", {
+      name: "receipt",
+      params: [`Kopje Liquor ${stamp}`, sent.body],
+      header: null,
+    });
     expect((await prisma.retailMessage.findUniqueOrThrow({ where: { id: later.id } })).status).toBe("QUEUED");
   });
 
@@ -238,10 +305,9 @@ describe("receipts on real rows", () => {
     await drainOutbox(new Date(), {
       whatsAppReady: () => true,
       emailReady: () => false,
-      sendText: vi.fn(async (to: string) =>
+      sendTemplate: vi.fn(async (to: string) =>
         to === "+263772000001" ? { ok: false as const, error: "Too many", retry: true } : { ok: true as const, id: null },
       ),
-      sendMedia: vi.fn(),
       sendEmail: vi.fn(),
     });
     expect(await prisma.retailMessage.findUniqueOrThrow({ where: { id: busy.id } })).toMatchObject({
@@ -253,8 +319,7 @@ describe("receipts on real rows", () => {
     await drainOutbox(new Date(), {
       whatsAppReady: () => true,
       emailReady: () => false,
-      sendText: vi.fn(async () => ({ ok: false as const, error: "Invalid parameter", retry: false })),
-      sendMedia: vi.fn(),
+      sendTemplate: vi.fn(async () => ({ ok: false as const, error: "Invalid parameter", retry: false })),
       sendEmail: vi.fn(),
     });
     expect(await prisma.retailMessage.findUniqueOrThrow({ where: { id: busy.id } })).toMatchObject({

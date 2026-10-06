@@ -25,7 +25,7 @@ import {
   getCashNetFromPayments,
   totalFromDenominations,
 } from "@/lib/retail/cash-up";
-import { reversalSubtotal } from "@/lib/retail/sale-totals";
+import { postedChange, reversalSubtotal } from "@/lib/retail/sale-totals";
 import { depositBack } from "@/lib/retail/deposits";
 import {
   checkTillRule,
@@ -155,42 +155,6 @@ function getRetailSaleDescription(saleType: string, saleNo: string) {
   if (saleType === "REFUND") return `Retail refund ${saleNo}`;
   if (saleType === "VOID") return `Retail sale void ${saleNo}`;
   return `Retail sale ${saleNo}`;
-}
-
-/**
- * A sale's change as the books take it (SET-05, W-05), in the base currency:
- * the whole US dollars and what the ZiG notes were worth (`changeAmount` is
- * both), and what rounding the ZiG left against what was owed (tendered less
- * the goods and deposits) — kept by the shop, or given to the customer.
- * With ZiG in the change the dollars are the whole dollars owed, as
- * `splitChange` hands them back. A void carries its sale's figures negated,
- * so it reads back the same split and its journal reverses the sale's; a
- * refund hands back no change.
- */
-export function postedChange(sale: {
-  saleType: string;
-  totalAmount: MoneyLike;
-  depositAmount: MoneyLike;
-  tenderedAmount: MoneyLike | null;
-  changeAmount: MoneyLike | null;
-  changeZig: MoneyLike;
-}): { usd: number; zig: number; kept: number; given: number } {
-  const change = money(sale.changeAmount ?? 0).abs();
-  if (sale.saleType === "REFUND" || sale.tenderedAmount == null) {
-    return { usd: toNumberOrZero(change), zig: 0, kept: 0, given: 0 };
-  }
-  const owed = money(sale.tenderedAmount)
-    .minus(money(sale.totalAmount))
-    .minus(money(sale.depositAmount))
-    .times(sale.saleType === "VOID" ? -1 : 1);
-  const usd = money(sale.changeZig).abs().greaterThan(0) ? Prisma.Decimal.min(owed.floor(), change) : change;
-  const rounding = owed.minus(change);
-  return {
-    usd: toNumberOrZero(usd),
-    zig: toNumberOrZero(change.minus(usd)),
-    kept: toNumberOrZero(Prisma.Decimal.max(rounding, 0)),
-    given: toNumberOrZero(Prisma.Decimal.max(rounding.negated(), 0)),
-  };
 }
 
 async function ensureRetailSaleAccountingPosted(input: {
