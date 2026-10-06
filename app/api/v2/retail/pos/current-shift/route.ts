@@ -103,6 +103,9 @@ export async function GET(request: NextRequest) {
   return successResponse({
     data: {
       ...shift,
+      // Numbers on the wire, like every figure below: the till does sums with them.
+      openingFloat: toNumberOrZero(shift.openingFloat),
+      expectedCash: toNumberOrZero(shift.expectedCash),
       actorRole: session.user.role,
       baseCurrency,
       site,
@@ -119,11 +122,11 @@ export async function GET(request: NextRequest) {
         sumMoney(saleTickets.flatMap((sale) => sale.lines).map((line) => line.quantity)),
       ),
       transactionCount: postedSales.length,
-      cashSales: cashIn,
-      cashIn,
-      cashOut,
-      cashNet: cashIn.minus(cashOut),
-      nonCashSales: nonCashNet,
+      cashSales: toNumberOrZero(cashIn),
+      cashIn: toNumberOrZero(cashIn),
+      cashOut: toNumberOrZero(cashOut),
+      cashNet: toNumberOrZero(cashIn.minus(cashOut)),
+      nonCashSales: toNumberOrZero(nonCashNet),
       recentTransactions: recentCashierSales.map((sale) => ({
         id: sale.id,
         saleNo: sale.saleNo,

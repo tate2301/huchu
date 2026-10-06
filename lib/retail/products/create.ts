@@ -190,7 +190,9 @@ export async function createProduct(
       kind: "GOODS",
       categoryId: category?.id ?? null,
       defaultTaxRate: category ? category.vatRate : new Prisma.Decimal(STANDARD_VAT_RATE),
-      ageRestricted: false,
+      // Null follows the category; the sheet's Yes or No is the product's own.
+      ageRestricted: input.ageCheck ?? null,
+      maxDiscountPercent: input.maxDiscountPercent ? new Prisma.Decimal(input.maxDiscountPercent) : null,
       returnable,
       depositAmount: deposit,
       unit: byWeight ? "KILOGRAM" : "EACH",

@@ -1,10 +1,7 @@
-import { PosShiftView } from "@/components/retail/portal/pos-shift-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { ShiftScreen } from "@/components/retail/till/shift";
+import { requireTillDevice } from "../../device-page";
 
-export default async function PosPortalShiftPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/shift">
-      <PosShiftView />
-    </PosPortalAuthGuard>
-  );
+export default async function TillShiftPage() {
+  await requireTillDevice();
+  return <ShiftScreen />;
 }

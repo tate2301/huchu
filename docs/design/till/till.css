@@ -1,0 +1,299 @@
+/* Tender till: the parts the reference kit lacks, from tokens only. Loaded after tokens.css and kit.css.
+   Recorded in docs/design/till/ledger.md under "Kit additions". */
+
+/* Figures: IBM Plex Mono with one fixed job (money, references, times), as the Corelith Workspace system sets it. */
+.num, .figure, .code, .tender-figure, .totals .l > span:last-child, .tile .p, .lede-figure .num, .kbd, time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.lede-figure .num { letter-spacing: -0.03em; }
+
+/* A board is one screen at its real size. */
+.frame { position: relative; height: 800px; overflow: hidden; background: var(--color-surface); }
+.frame-phone { position: relative; width: 390px; height: 844px; overflow: hidden; background: var(--color-surface); }
+.frame .bench, .frame .gate, .frame-phone .bench { min-height: 0; height: 100%; }
+.frame .main.is-fixed, .frame-phone .main.is-fixed { height: 100%; }
+.frame .bench-side, .frame .main { min-height: 0; }
+.frame .bench-side .list { flex: 1; min-height: 0; overflow: auto; }
+.frame .over { position: absolute; inset: 0; z-index: 50; }
+.frame .over .scrim, .frame-phone .over .scrim { position: absolute; }
+.bench-side { position: relative; box-shadow: none; }
+/* The line between the shelf and the sale runs the full height. Drawn over the sale column's own grounds
+   (the totals, the payment rows), which would hide an inset shadow; under the tray and its scrim. */
+.bench-side::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 1px; background: var(--color-line); z-index: 39; pointer-events: none; }
+
+/* Keypad: digits for amounts and PINs on a touch till. */
+.keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); width: 100%; max-width: 320px; }
+.keypad button { height: 56px; border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-ring), var(--shadow-raised); font-family: var(--font-mono); font-size: var(--text-20); font-weight: 500; color: var(--color-ink); display: grid; place-items: center; transition: background-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
+@media (hover: hover) { .keypad button:hover { background: var(--color-hover); } }
+.keypad button:active { transform: scale(var(--motion-press)); background: var(--color-pressed); }
+.keypad button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.keypad button .ic { width: 20px; height: 20px; color: var(--color-ink-2); }
+.keypad .quiet { background: transparent; box-shadow: none; font-family: var(--font-sans); font-size: var(--text-14); color: var(--color-ink-2); }
+
+/* The figure being entered on a tray: what was handed over. */
+.tender { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); padding: var(--space-12) var(--space-16); border-radius: var(--radius-card); box-shadow: 0 0 0 2px var(--color-accent); }
+.tender .l { font-size: var(--text-13); font-weight: 500; color: var(--color-ink-2); }
+.tender-figure { font-size: var(--text-28); font-weight: 600; letter-spacing: var(--tracking-display); color: var(--color-ink); line-height: var(--leading-28); }
+.quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); }
+.quick .btn { width: 100%; font-family: var(--font-mono); }
+
+/* PIN dots and pairing code boxes. */
+.pin { display: flex; gap: var(--space-16); }
+.pin i { width: 16px; height: 16px; border-radius: var(--radius-pill); box-shadow: inset 0 0 0 2px var(--color-ink-2); }
+.pin i.on { background: var(--color-ink); box-shadow: none; }
+.pin.is-wrong i { background: var(--color-danger); box-shadow: none; }
+.code-boxes { display: flex; align-items: center; gap: var(--space-8); }
+.code-boxes span { width: 48px; height: 56px; border-radius: var(--radius-card); box-shadow: var(--shadow-ring), var(--shadow-raised); display: grid; place-items: center; font-family: var(--font-mono); font-size: var(--text-20); font-weight: 500; color: var(--color-ink); }
+.code-boxes span.at { box-shadow: 0 0 0 2px var(--color-accent); }
+.code-boxes span.wrong { box-shadow: 0 0 0 1px var(--color-danger); color: var(--color-danger); }
+.code-boxes .gap { width: 12px; height: auto; box-shadow: none; }
+
+/* Payment rows that are not available say why in their meta line. */
+.pay[aria-disabled="true"] { color: var(--color-faint); box-shadow: var(--shadow-ring); background: var(--color-surface); }
+.pay .mark-pair { display: inline-flex; gap: var(--space-4); }
+.pay .mark-pair .mark { width: 32px; height: 20px; border-radius: 4px; }
+
+/* A line's sub-row (deposits, bottles back) sits under its line without its own quantity. */
+.line .meta.is-off { color: var(--color-success); }
+.line.is-sub { min-height: 32px; padding-top: 0; box-shadow: none; font-size: var(--text-13); color: var(--color-muted); }
+.line.is-stopped { color: var(--color-faint); }
+.line[aria-current="true"] { background: var(--color-surface); box-shadow: inset 0 1px 0 var(--color-line), inset 2px 0 0 var(--color-ink); }
+
+/* A tile that cannot sell right now. */
+.tile[aria-disabled="true"] { color: var(--color-faint); box-shadow: var(--shadow-ring); background: var(--color-surface); cursor: default; }
+.tile[aria-disabled="true"] .p, .tile[aria-disabled="true"] .n { color: var(--color-faint); }
+.tile .t { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+.tile .s.age { color: var(--color-ink-2); }
+/* The price before a recent cut (PRD-03), struck through after the price. */
+.tile .p .was { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-muted); }
+
+/* The tray rises over the sale column and keeps one height through ask, wait and done. */
+.bench-side .over { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; justify-content: flex-end; }
+.bench-side .over .scrim { position: absolute; inset: 0; display: block; padding: 0; }
+.bench-side .tray { position: relative; height: 640px; }
+.tray-top { display: flex; align-items: baseline; justify-content: space-between; }
+/* Nothing in the tray gives up its height but the spacer: a tall tray scrolls, it never squeezes Take. */
+.tray > :not(.grow) { flex-shrink: 0; }
+.tray .wait { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); min-height: var(--target-touch); padding: 0 var(--space-12); border-radius: var(--radius-card); background: var(--color-ground); }
+
+/* Floating surfaces placed on a board. */
+.float { position: absolute; z-index: 45; }
+.who-row { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-12) var(--space-16); box-shadow: inset 0 -1px 0 var(--color-line); }
+.who-row .t { display: flex; flex-direction: column; min-width: 0; }
+.who-row .t b { font-weight: 500; color: var(--color-ink); }
+.who-row .t span { font-size: var(--text-13); color: var(--color-muted); }
+
+/* A person to pick on "Who is selling?" uses the payment row: the same pressable row. */
+.people { display: flex; flex-direction: column; gap: var(--space-8); }
+.people .pay { min-height: 56px; }
+
+/* A tile that opens something is still a tile, not a link. A count beside a bar title never wraps. */
+a.tile { color: inherit; text-decoration: none; }
+.bar .muted, .bar h1 { white-space: nowrap; }
+
+/* Shell B, chosen 5 October 2026: an icon rail. The person at the top, the doors, Lock at the foot. */
+.shell-b { display: grid; grid-template-columns: 80px minmax(0, 1fr); height: 100%; }
+.shell-b > :last-child { min-width: 0; min-height: 0; }
+.rail-b { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-8); background: var(--color-ground); box-shadow: inset -1px 0 0 var(--color-line); min-width: 0; }
+.rail-b .nav { position: relative; flex-direction: column; justify-content: center; height: auto; min-height: var(--target-touch); padding: var(--space-8) 0; gap: var(--space-4); font-size: var(--text-12); text-align: center; line-height: 1.2; }
+.rail-b .nav .ic { width: 20px; height: 20px; }
+.rail-b .nav .count { position: absolute; top: 2px; right: 4px; margin: 0; min-width: 18px; height: 18px; font-size: var(--text-12); background: var(--color-fill); color: var(--color-ink-2); }
+.rail-b .who { display: grid; place-items: center; height: 56px; border-radius: var(--radius-control); }
+.rail-b .who:hover { background: var(--color-fill); }
+.rail-b .who:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-accent); }
+.rail-b .gap { flex: 1; }
+.tabbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: var(--space-4) var(--space-8); background: var(--color-surface); box-shadow: inset 0 1px 0 var(--color-line); }
+.tabbar .nav { flex-direction: column; justify-content: center; height: 56px; gap: var(--space-4); font-size: var(--text-12); padding: 0; }
+.tabbar .nav .ic { width: 20px; height: 20px; }
+
+/* Product preview: the photo when there is one, else a glyph for its kind on the fill. */
+.tile .pic { height: 72px; margin: -4px -4px var(--space-4); border-radius: calc(var(--radius-card) - 4px); background: var(--color-fill); display: grid; place-items: center; overflow: hidden; }
+.tile .pic img { width: 100%; height: 100%; object-fit: cover; }
+.tile .pic .ic { width: 20px; height: 20px; color: var(--color-faint); }
+.tile[aria-disabled="true"] .pic { opacity: .5; }
+.pay .mark img { width: 100%; height: 100%; object-fit: cover; }
+
+/* The shell in a real browser: the rail and the screen fill the window; on a phone the rail becomes the tab bar. */
+.shell-b { height: 100dvh; }
+.shell-b > .shell-screen { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
+.shell-b .bench { min-height: 0; height: 100%; }
+.shell-b .bench-side .list { flex: 1; min-height: 0; overflow: auto; }
+.shell-b .main { min-height: 0; }
+.shell-b .main.is-fixed { height: 100%; }
+.shell-b .main > .tile-grid { overflow: auto; flex: 1; min-height: 0; }
+.shell-b .bench-side .tray { height: auto; min-height: min(640px, calc(100% - var(--space-24))); max-height: calc(100% - var(--space-24)); overflow: auto; }
+.shell-b .bench-side { position: relative; min-height: 0; }
+.tabbar { display: none; }
+/* Only on a phone: the sale's summary under the shelf, and the parts that stand in for the rail. */
+.phone-sale, .when-phone { display: none; }
+@media (max-width: 760px) {
+  .shell-b { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .shell-b .rail-b { display: none; }
+  .tabbar { display: grid; }
+  /* A phone has no keyboard: no key caps, no product groups, and the grid on the bar's 16px gutter. */
+  .kbd.on-primary, .input-wrap .kbd, .tools.is-seg-row { display: none; }
+  .tile-grid { padding: var(--space-16); }
+  /* The pay tray rises over the whole screen, bar and tab bar included. */
+  .shell-b .bench-side .over { position: fixed; inset: 0; z-index: var(--z-overlay); }
+  .shell-b .bench-side .tray { height: auto; max-height: calc(100dvh - var(--space-24)); }
+  /* One column: the shelf, or the sale as its own screen, chosen from the sale's summary at the foot. */
+  .shell-b .bench { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .phone-sale { display: flex; flex-direction: column; gap: var(--space-8); margin-top: auto; padding: var(--space-12) var(--space-16); box-shadow: inset 0 1px 0 var(--color-line); }
+  .bench.is-sale > .main { display: none; }
+  .bench:not(.is-sale) > .bench-side > :not(.over) { display: none; }
+  .bench:not(.is-sale) > .bench-side::before { display: none; }
+  .shell-b:has(.bench.is-sale) .tabbar { display: none; }
+  .when-phone { display: inline-flex; }
+  .when-wide { display: none; }
+  .btn.is-icon-on-phone { width: var(--layout-control); padding: 0; flex: none; justify-content: center; }
+  .btn.is-icon-on-phone .ic { margin: 0; }
+}
+
+/* A note beside a thing: 13px, muted. One class rather than the same two declarations inline everywhere. */
+.note { font-size: var(--text-13); color: var(--color-muted); }
+
+/* Layout the till's screens repeat: named once here, not written inline on every screen. */
+.who-head { display: flex; align-items: center; gap: var(--space-12); }
+.actions { display: flex; gap: var(--space-8); }
+.under { margin-top: var(--space-8); }
+.self-start { align-self: flex-start; }
+.stack-12 { display: flex; flex-direction: column; gap: var(--space-12); }
+.stack-16 { display: flex; flex-direction: column; gap: var(--space-16); }
+.lede-20 { font-size: var(--text-20); line-height: var(--leading-20); }
+.strong { font-weight: 600; color: var(--color-ink); }
+.weight-500 { font-weight: 500; }
+.status.is-strong { color: var(--color-ink); font-weight: 500; }
+.tender.is-quiet { box-shadow: var(--shadow-ring); }
+.list.is-framed { border-radius: var(--radius-card); box-shadow: var(--shadow-ring); }
+.kbd.on-primary { margin-left: var(--space-4); background: transparent; color: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32); }
+.due-figure { font-size: var(--text-20); font-weight: 600; color: var(--color-ink); }
+.ink { color: var(--color-ink); }
+.text-left { text-align: left; }
+.help.is-centred { text-align: center; color: var(--color-ink-2); }
+.off-figure { color: var(--color-success); }
+.tools.is-seg-row { box-shadow: none; padding-bottom: 0; overflow-x: auto; }
+.skeleton.is-tile { height: 152px; border-radius: var(--radius-card); }
+.list.is-empty { display: grid; place-items: center; }
+.empty.is-compact { padding: var(--space-32) var(--space-24); }
+.banner.is-in-list { box-shadow: inset 0 1px 0 var(--color-line); }
+.pay-ways { display: flex; flex-direction: column; gap: var(--space-8); padding-top: var(--space-8); }
+.stack-8 { display: flex; flex-direction: column; gap: var(--space-8); }
+.page.is-centred { max-width: 720px; margin: 0 auto; }
+.banner.is-card { border-radius: var(--radius-card); }
+.banner.is-ringed { border-radius: var(--radius-card); box-shadow: var(--shadow-ring); }
+.main.is-page { min-height: 100dvh; }
+.attrs.is-wide { grid-template-columns: 160px minmax(0, 1fr); }
+
+/* Skeletons, sized as the line they stand in for. */
+.skeleton.is-lede { display: block; height: 32px; width: 360px; max-width: 100%; }
+.skeleton.is-title { display: block; height: 28px; width: 240px; max-width: 100%; }
+.skeleton.is-name { display: block; height: 40px; width: 280px; max-width: 100%; }
+.skeleton.is-line { display: block; height: 20px; width: 240px; max-width: 100%; }
+.skeleton.is-short { display: block; height: 16px; width: 120px; }
+
+/* A working screen with the record rail on its right. */
+.with-rail { display: grid; grid-template-columns: minmax(0, 1fr) 344px; height: 100%; min-height: 0; }
+.main.is-scroll { height: 100%; overflow: auto; }
+.main.is-grow { flex: 1; }
+.rail-body { display: flex; flex-direction: column; gap: var(--space-16); flex: 1; padding: var(--space-24); }
+.report-body { display: flex; flex-direction: column; gap: var(--space-24); padding: var(--space-32) var(--space-24); }
+.gate.is-over { position: fixed; inset: 0; z-index: 40; }
+.gate.is-locked { position: fixed; inset: 0; z-index: 90; }
+
+/* Rows whose columns line up down a list. */
+.row.is-held, .row.is-queued, .row.is-sale, .row.is-shift-line, .row.is-person { display: grid; gap: var(--space-16); }
+.row.is-held { grid-template-columns: 96px minmax(0, 1fr) 120px 96px auto; }
+.row.is-queued { grid-template-columns: 120px minmax(0, 1fr) 140px 96px auto; }
+.row.is-sale { grid-template-columns: 96px minmax(0, 1.4fr) 112px minmax(0, 1.2fr) 96px 16px; color: inherit; text-decoration: none; }
+.row.is-shift-line { grid-template-columns: 96px minmax(0, 1fr) 112px 96px; }
+.row.is-person { grid-template-columns: 32px minmax(0, 1fr) 88px 80px; width: 100%; text-align: left; }
+.row.is-split { justify-content: space-between; }
+.row.is-flush { padding-left: 0; padding-right: 0; }
+.row.is-inset { padding-left: var(--space-12); padding-right: var(--space-12); }
+.row.is-tender { flex-wrap: wrap; gap: var(--space-8); padding-left: var(--space-12); padding-right: var(--space-8); }
+
+/* Small pieces. */
+.end-cell { display: flex; justify-content: flex-end; }
+.text-stack { display: flex; flex-direction: column; min-width: 0; }
+.line-split { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); }
+.side-by-side { display: flex; align-items: flex-start; gap: var(--space-16); }
+.title-16 { font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.weight-600 { font-weight: 600; }
+.text-12 { font-size: var(--text-12); }
+.pretty { text-wrap: pretty; }
+.balance { text-wrap: balance; }
+.wrap { flex-wrap: wrap; }
+.block { display: block; }
+.push-right { margin-left: auto; }
+.push-left { margin-right: auto; }
+.lead-8 { padding-top: var(--space-8); }
+.lead-16 { padding-top: var(--space-16); }
+.pad-8 { padding: var(--space-8); }
+.width-96 { width: 96px; }
+.width-112 { width: 112px; }
+.width-132 { width: 132px; }
+.w-full { width: 100%; }
+.min-96 { min-width: 96px; }
+.max-140 { max-width: 140px; }
+.input-wrap.is-search { width: 300px; max-width: 50vw; }
+.help.is-flush { margin: 0; }
+.page.is-close { gap: var(--space-32); max-width: 680px; }
+.page.is-roomy { max-width: 760px; }
+.attrs.is-narrow { grid-template-columns: 96px minmax(0, 1fr); }
+.attrs.is-wider { grid-template-columns: 200px minmax(0, 1fr); }
+.attrs.is-widest { grid-template-columns: 240px minmax(0, 1fr); }
+.tile.is-preview { width: 120px; min-height: 0; pointer-events: none; }
+.tabs.is-flat { box-shadow: none; }
+.tools.is-tabs-row { padding-bottom: 0; }
+.share .bar { display: block; padding: 0; box-shadow: none; }
+.menu.is-flat { box-shadow: none; width: 100%; }
+.menu.is-bare { box-shadow: none; padding: 0; min-width: 0; }
+.menu-item.is-tall { height: auto; padding: var(--space-8); }
+.btn.is-hang { align-self: flex-start; margin-left: calc(var(--space-12) * -1); }
+.btn-group.is-full { display: flex; }
+.mark .mark-img { width: 80%; height: 80%; object-fit: contain; }
+
+/* Dialogs and popovers sit above the till's own layers. */
+.scrim.is-dialog { position: fixed; z-index: 100; }
+.dialog-place { position: fixed; inset: 0; z-index: 101; display: grid; place-items: center; padding: var(--space-16); pointer-events: none; }
+.dialog-place > * { pointer-events: auto; }
+.pop.is-till { z-index: 60; }
+.error.is-large { font-size: var(--text-14); }
+/* The till under the lock: hidden, not unmounted, so the sale on it is kept as it was. */
+.under-lock { display: contents; }
+.under-lock[hidden] { display: none; }
+.pop.is-sm { width: 260px; }
+.pop.is-md { width: 320px; }
+.pop.is-lg { width: 368px; }
+.gate.is-locked:focus { outline: none; }
+.quick .btn[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--color-ink); }
+
+/* The root: next/font's two faces, and the ground the till stands on. */
+:root {
+  --font-sans: var(--font-till-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-till-mono), ui-monospace, monospace;
+}
+body { min-height: 100dvh; background: var(--color-surface); }
+
+.input-wrap.is-invalid { box-shadow: 0 0 0 1px var(--color-danger); }
+tr.is-pickable { cursor: pointer; }
+tr.is-pickable[aria-current="true"] { background: var(--color-accent-tint); }
+
+/* A printed receipt: the slip alone, the width of the roll. */
+.receipt-page { display: flex; justify-content: center; padding: var(--space-16); }
+@media print {
+  @page { margin: 4mm; }
+  .receipt-page { padding: 0; }
+  .receipt { box-shadow: none; width: 100%; }
+}
+/* Read out, not shown: a dialog's title when the screen already says it. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.seg button[aria-checked="true"] { color: var(--color-ink); background: var(--color-surface); box-shadow: var(--shadow-ring), var(--shadow-raised); }
+.seg button[aria-checked="true"]:focus-visible { box-shadow: 0 0 0 2px var(--color-accent); }
+.row.is-person[aria-current="true"] { background: var(--color-accent-tint); }
+
+/* A popover that points at what opened it. */
+.pop.has-arrow { overflow: visible; }
+.pop.has-arrow > .pop-foot:last-child { border-radius: 0 0 var(--radius-card) var(--radius-card); }
+.pop-tip { fill: var(--color-surface); }
+.dialog-lg.is-compact { max-width: 560px; }
+.row.is-sale[aria-current="true"] { background: var(--color-accent-tint); }
+.col .v { top: 0; }

@@ -6,6 +6,7 @@ import { auditAmount, type RecordValueKind } from "@/lib/retail/audit";
 import { binState, type BinState } from "@/lib/retail/bin";
 import { categoryPath, vatLabelOf } from "@/lib/retail/category-words";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { ageCheckFor } from "@/lib/retail/products/age-check";
 import { onHandLabel } from "@/lib/retail/products/figures";
 import { shopFeatures } from "@/lib/retail/shop-profile-rules";
 
@@ -28,6 +29,7 @@ export type ProductEditable =
   | "reorderQty"
   | "supplier"
   | "ageCheck"
+  | "maxDiscount"
   | "deposit";
 
 export type ProductView = {
@@ -45,10 +47,12 @@ export type ProductView = {
   category: { id: string; name: string; path: string; vatLabel: string; ageCheck: boolean } | null;
   /** "15.5% included": the product's own rate, as the default list charges it. */
   vatLabel: string;
-  /** The product, or its category, asks for ID at the till. */
+  /** The till asks for ID: the product's own answer, else its category's. */
   ageCheck: boolean;
-  /** Its own switch, apart from the category's. */
-  ownAgeCheck: boolean;
+  /** Its own answer, over the category's; null follows the category. */
+  ownAgeCheck: boolean | null;
+  /** The most any discount may take off it, as a percentage; null: no limit. */
+  maxDiscountPercent: number | null;
   price: number;
   listName: string;
   currency: string;
@@ -115,6 +119,7 @@ export async function loadProductView(companyId: string, id: string, role: strin
       isActive: true,
       archivedAt: true,
       ageRestricted: true,
+      maxDiscountPercent: true,
       defaultTaxRate: true,
       standardPrice: true,
       costPrice: true,
@@ -202,8 +207,9 @@ export async function loadProductView(companyId: string, id: string, role: strin
         }
       : null,
     vatLabel: rate > 0 ? `${rate}%${inclusive ? " included" : " added at the till"}` : category?.vatExempt ? "Exempt" : "Zero-rated",
-    ageCheck: product.ageRestricted || Boolean(category?.ageRestricted),
+    ageCheck: ageCheckFor(product),
     ownAgeCheck: product.ageRestricted,
+    maxDiscountPercent: num(product.maxDiscountPercent),
     price,
     listName: defaultList?.name ?? "Retail",
     currency: defaultList?.currency ?? "USD",
@@ -248,6 +254,7 @@ export async function loadProductView(companyId: string, id: string, role: strin
       reorderQty: update,
       supplier: update,
       ageCheck: update,
+      maxDiscount: update,
       deposit: update,
     },
   };
@@ -272,7 +279,9 @@ export type ProductValues = {
   returnable: boolean;
   depositAmount: number | null;
   imageUrl: string | null;
-  ageCheck: boolean;
+  /** The product's own 18+ answer; null follows its category. */
+  ageCheck: boolean | null;
+  maxDiscountPercent: number | null;
 };
 
 type FieldWords = { label: string; kind: RecordValueKind; value(input: ProductValues): string | null };
@@ -295,7 +304,8 @@ export const PRODUCT_FIELDS: Record<string, FieldWords> = {
   returnable: { label: "Returnable", kind: "text", value: (p) => (p.returnable ? "Yes" : "No") },
   depositAmount: { label: "Deposit", kind: "money", value: (p) => money(p.depositAmount) },
   imageUrl: { label: "Photo", kind: "text", value: (p) => (p.imageUrl ? "A photo" : null) },
-  ageCheck: { label: "ID check", kind: "text", value: (p) => (p.ageCheck ? "Yes" : "No") },
+  ageCheck: { label: "ID check", kind: "text", value: (p) => (p.ageCheck === null ? "As category" : p.ageCheck ? "Yes" : "No") },
+  maxDiscountPercent: { label: "Most off", kind: "percent", value: (p) => plain(p.maxDiscountPercent) },
 };
 
 export type FieldChange = { field: string; label: string; kind: RecordValueKind; from: string | null; to: string | null };

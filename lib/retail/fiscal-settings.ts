@@ -702,8 +702,22 @@ export async function tillFiscal(companyId: string) {
   return {
     deviceId: device?.registeredAt ? device.deviceId : null,
     dayNo: day && day.status === FISCAL_DAY_STATUS.OPENED ? day.fiscalDayNo : null,
+    dayClose: settings.dayClose,
     whenUnreachable: settings.whenUnreachable,
   };
+}
+
+/**
+ * Whether the tills stand still now: the shop stops selling while ZIMRA is
+ * away and the device's last call to FDMS went unanswered. Read from what the
+ * last call left, never by calling FDMS: the till's heartbeat asks it every
+ * minute, and only a sale asks FDMS again ({@link fiscalSaleRefusal}).
+ */
+export async function fiscalSellingStopped(companyId: string): Promise<boolean> {
+  const settings = await loadFiscalSettings(companyId);
+  if (settings.whenUnreachable !== "STOP_SELLING") return false;
+  const device = await shopFiscalDevice(companyId);
+  return Boolean(device?.registeredAt && isFdmsUnreachable(device));
 }
 
 /**

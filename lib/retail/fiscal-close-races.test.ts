@@ -62,7 +62,6 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 }));
 
 const { POST: SELL } = await import("@/app/api/v2/retail/pos/sales/route");
-const { POST: SYNC } = await import("@/app/api/v2/retail/pos/sync/route");
 
 // Real rows, a real connector and bursts of concurrent sales: well past vitest's five seconds.
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
@@ -291,7 +290,7 @@ describe("closing a fiscal day while the tills sell", () => {
   };
   /**
    * A sale committed as the sale services commit one: its fiscal day settled as the last step of the same
-   * transaction. Rung now, or rung offline at `offlineAt` and sent in late (pos/sync).
+   * transaction. Rung now, or rung offline at `offlineAt` and sent in late from the till's queue.
    */
   const ringSale = (offlineAt?: Date): Promise<RungSale> =>
     prisma.$transaction(async (tx) => {
@@ -532,7 +531,7 @@ describe("closing a fiscal day while the tills sell", () => {
 
     const closing = closeShopFiscalDay(owner(), day.id).catch((error: unknown) => error);
     await closeHeld(1);
-    // The till's offline queue arrives (pos/sync) while the report is on its way: each settled in its commit.
+    // The till's offline queue arrives while the report is on its way: each settled in its commit.
     const before = await ringSale(earlier);
     const after = await ringSale(later);
     const outcomes = await fiscaliseRetailSales({
@@ -925,40 +924,30 @@ describe("closing a fiscal day while the tills sell", () => {
     expect(await audit(since)).toEqual([]);
   });
 
-  it("enters an offline sale the till dated in the future at the time it arrived, for review, through pos/sync; live sales after it keep their times (R5-7)", async () => {
+  it("enters an offline sale the till dated in the future at the time it arrived, for review, through POST /pos/sales; live sales after it keep their times (R5-7)", async () => {
     await via(fdmsUrl);
     const since = new Date();
     await openDay();
     const aheadAt = new Date(Date.now() + 2 * 3600_000).toISOString();
     const sentAt = Date.now();
-    const response = await SYNC(
-      new NextRequest("http://pos.test.localtest.me/api/v2/retail/pos/sync", {
+    // The till's offline queue sends a sale in through pos/sales, dated by the till.
+    const response = await SELL(
+      new NextRequest("http://pos.test.localtest.me/api/v2/retail/pos/sales", {
         method: "POST",
         headers: { cookie: `${DEVICE_COOKIE}=${deviceKey}`, "content-type": "application/json" },
         body: JSON.stringify({
-          operations: [
-            {
-              clientOperationId: `ahead-${stamp}`,
-              operation: "create-sale",
-              payload: {
-                clientRef: `ahead-${stamp}`,
-                shiftId,
-                items: [{ productId, quantity: 1 }],
-                payments: [{ tenderType: "CASH", currency: "USD", amount: 5 }],
-                offlineCreatedAt: aheadAt,
-                offlineCreated: true,
-              },
-              offlineCreatedAt: aheadAt,
-            },
-          ],
+          clientRef: `ahead-${stamp}`,
+          shiftId,
+          items: [{ productId, quantity: 1 }],
+          payments: [{ tenderType: "CASH", currency: "USD", amount: 5 }],
+          offlineCreatedAt: aheadAt,
         }),
       }),
     );
-    expect(response.status).toBeLessThan(300);
-    const body = (await response.json()) as { data?: { results?: Array<Record<string, unknown>> }; results?: Array<Record<string, unknown>> };
-    const [result] = body.data?.results ?? body.results ?? [];
-    expect(result).toMatchObject({ status: "synced", fiscalStatus: "SUCCESS" });
-    const synced = await prisma.retailSale.findUniqueOrThrow({ where: { id: result.serverId as string }, select: { postedAt: true, reviewReason: true } });
+    expect(response.status).toBe(201);
+    const sold = (await response.json()) as { id: string; fiscal: { status: string } };
+    expect(sold.fiscal).toMatchObject({ status: "SUCCESS" });
+    const synced = await prisma.retailSale.findUniqueOrThrow({ where: { id: sold.id }, select: { postedAt: true, reviewReason: true } });
     expect(synced.postedAt!.getTime()).toBeGreaterThanOrEqual(sentAt);
     expect(synced.postedAt!.getTime()).toBeLessThanOrEqual(Date.now());
     expect(synced.reviewReason).toContain(REPLAY_AHEAD_REVIEW);

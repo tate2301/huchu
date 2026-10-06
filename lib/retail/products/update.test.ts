@@ -4,6 +4,8 @@
  * one `RETAIL_RECORD.EDITED`; the price goes through the price core (owner
  * rule, history); the cost moves the line's cost; opening stock and Sold as
  * are refused once anything has moved; a binned product is refused with 409.
+ * The product's own 18+ answer (null follows its category) and its most off
+ * are fields like any other.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -14,6 +16,7 @@ import { ProductRefusal } from "./create";
 import { productPatch } from "./input";
 import { addTestProduct, makeTestShop, type TestShop } from "./test-fixtures";
 import { updateProduct } from "./update";
+import { loadProductView } from "./view";
 
 let shop: TestShop;
 let amarulaId: string;
@@ -60,6 +63,34 @@ describe("changing a product", () => {
     expect(line.minStock?.toNumber()).toBe(24);
     const product = await prisma.product.findUniqueOrThrow({ where: { id: amarulaId } });
     expect(product.defaultTaxRate.toFixed(2)).toBe("15.50");
+  });
+
+  it("keeps the product's own ID check over its category's, and its most off, each as one edit", async () => {
+    // Ciders and coolers asks for ID; the product follows it until it says otherwise.
+    expect(await loadProductView(shop.companyId, amarulaId, "SUPERADMIN")).toMatchObject({
+      ageCheck: true,
+      ownAgeCheck: null,
+      maxDiscountPercent: null,
+    });
+    const { changed } = await edit({ ageCheck: false, maxDiscountPercent: "5" });
+    expect(changed).toEqual([
+      { field: "ageCheck", label: "ID check", kind: "text", from: "As category", to: "No" },
+      { field: "maxDiscountPercent", label: "Most off", kind: "percent", from: null, to: "5" },
+    ]);
+    expect(await loadProductView(shop.companyId, amarulaId, "SUPERADMIN")).toMatchObject({
+      ageCheck: false,
+      ownAgeCheck: false,
+      maxDiscountPercent: 5,
+    });
+    const back = await edit({ ageCheck: null, maxDiscountPercent: "" });
+    expect(back.changed.map((change) => [change.field, change.to])).toEqual([
+      ["ageCheck", "As category"],
+      ["maxDiscountPercent", null],
+    ]);
+    const product = await prisma.product.findUniqueOrThrow({ where: { id: amarulaId } });
+    expect(product.ageRestricted).toBeNull();
+    expect(product.maxDiscountPercent).toBeNull();
+    expect(productPatch.safeParse({ maxDiscountPercent: "120" }).error?.issues[0]?.message).toBe("Most off is at most 100%.");
   });
 
   it("refuses a manager's price below cost under Price, and takes the owner's with its history row", async () => {

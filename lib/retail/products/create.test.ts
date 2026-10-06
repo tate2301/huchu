@@ -42,12 +42,20 @@ async function refusal(promise: Promise<unknown>) {
 }
 
 describe("adding a product", () => {
+  it("keeps a product's own ID check and most off when the sheet sends them", async () => {
+    const created = await add({ name: "Savanna Dry Zero 330ml", categoryId: shop.ciderId, price: "1.90", ageCheck: false, maxDiscountPercent: "10" });
+    const product = await prisma.product.findUniqueOrThrow({ where: { id: created.productId } });
+    expect(product.ageRestricted).toBe(false);
+    expect(product.maxDiscountPercent?.toFixed(2)).toBe("10.00");
+  });
+
   it("makes the product, its line at the default site, its price on the default list and its history", async () => {
     const created = await add({ name: "Savanna Light 330ml", categoryId: shop.ciderId, price: "2.10" });
     expect(created.code).toBe("SAVANNA-LIGHT-330ML");
 
     const product = await prisma.product.findUniqueOrThrow({ where: { id: created.productId } });
-    expect(product).toMatchObject({ isActive: true, categoryId: shop.ciderId, createdById: shop.managerId, ageRestricted: false });
+    // No answer of its own: it follows the category's 18+ check.
+    expect(product).toMatchObject({ isActive: true, categoryId: shop.ciderId, createdById: shop.managerId, ageRestricted: null, maxDiscountPercent: null });
     expect(product.defaultTaxRate.toFixed(2)).toBe("15.50");
     expect(product.standardPrice.toFixed(2)).toBe("2.10");
 

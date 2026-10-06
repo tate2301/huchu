@@ -1,8 +1,9 @@
 import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting, resolveTenantFromHost } from "@/lib/platform/tenant";
 import { DEVICE_COOKIE } from "@/lib/retail/device-words";
-import { findDeviceByKey, shopSiteId, type PosDevice } from "@/lib/retail/devices";
+import { findDeviceByKey, isLiveTill, type PosDevice } from "@/lib/retail/devices";
 
 /**
  * What a device screen needs to know before it draws: this device (by its
@@ -22,15 +23,15 @@ export async function deviceForPage(): Promise<{ device: PosDevice | null; compa
   return { device, companyId: tenant?.companyId ?? null, base, kora };
 }
 
-/** A device that is one of this shop's tills now. */
-export const isPairedTill = (device: PosDevice | null) => Boolean(device && !device.unpairedAt);
-
 /**
- * Where price check looks up prices: the till's site when this device is a
- * till, else the shop's default site, so it works before pairing (W-04 step 5).
+ * Every till page but price check: this device must be one of the shop's
+ * live tills. An unpaired device goes to `/unpaired`; one with no key, another
+ * shop's key or a closed till goes to `/pair`. The (till) layout cannot do
+ * this, because price check works before pairing (W-04 step 5).
  */
-export async function priceCheckSiteForPage(): Promise<string | null> {
-  const { device, companyId } = await deviceForPage();
-  if (device && isPairedTill(device)) return device.register.site.id;
-  return companyId ? shopSiteId(companyId) : null;
+export async function requireTillDevice(): Promise<PosDevice> {
+  const { device, base } = await deviceForPage();
+  if (device?.unpairedAt) redirect(`${base}/unpaired`);
+  if (!isLiveTill(device)) redirect(`${base}/pair`);
+  return device;
 }

@@ -1,13 +1,21 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+
+import { PairDoor } from "@/components/retail/till/door";
 import { getCurrentAuthSession } from "@/lib/auth-core/guards";
 import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
-import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
+import { isLiveTill } from "@/lib/retail/devices";
 import { canAccessPosPortal, normalizePosCallbackUrl } from "@/lib/retail/pos-host";
-import { companyLabelFromHost } from "@/lib/utils";
-import { PosPortalLoginClient } from "./client";
+import { deviceForPage } from "../device-page";
 
+/**
+ * The till has no sign-in page of its own: its door is `/pair`, then "Who is
+ * selling?" at a signed-out `/`, or `/unpaired`. This sends whoever lands
+ * here (a sign-in redirect, an old bookmark) to the one that fits. Off the POS
+ * host there is no till to sign in to, so a device there sees the pair screen,
+ * which says to pair on the shop's POS address.
+ */
 export default async function PosPortalLoginPage({
   searchParams,
 }: {
@@ -15,34 +23,21 @@ export default async function PosPortalLoginPage({
 }) {
   const headersList = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(headersList);
-  const portalRouting = getPortalRequestRouting(hostHeader, "/portal/pos");
-  const { callbackUrl } = await searchParams;
-  const resolvedCallbackUrl = normalizePosCallbackUrl(
-    normalizeCallbackUrl(callbackUrl, portalRouting.homePath),
-    portalRouting.homePath,
-  );
-  const strategies = getAuthStrategiesForSurface("portal-login");
-  const credentialsStrategy = strategies.find((strategy) => strategy.id === "credentials");
-  if (!credentialsStrategy) {
-    redirect("/access-blocked");
-  }
+  const routing = getPortalRequestRouting(hostHeader, "/portal/pos");
 
   const session = await getCurrentAuthSession();
   if (session?.user) {
-    if (!canAccessPosPortal(session.user.role)) {
-      redirect("/access-blocked");
-    }
-    redirect(resolvedCallbackUrl);
+    if (!canAccessPosPortal(session.user.role)) redirect("/access-blocked");
+    const { callbackUrl } = await searchParams;
+    redirect(normalizePosCallbackUrl(normalizeCallbackUrl(callbackUrl, routing.homePath), routing.homePath));
   }
 
-  const companyLabel = companyLabelFromHost(hostHeader ?? "localhost", "Store");
-
-  return (
-    <PosPortalLoginClient
-      companyLabel={companyLabel}
-      callbackUrl={resolvedCallbackUrl}
-      redirectTo={portalRouting.homePath}
-      rememberMeEnabled={credentialsStrategy.supportsRememberMe}
-    />
-  );
+  const { device, base, kora } = await deviceForPage();
+  if (routing.isPortalHost) {
+    if (device?.unpairedAt) redirect("/unpaired");
+    // A signed-out `/` on a till is "Who is selling?" (the proxy rewrites it).
+    redirect(isLiveTill(device) ? "/" : "/pair");
+  }
+  const host = (hostHeader ?? "").split(":")[0] || "This device";
+  return <PairDoor base={base} host={host} kora={kora} />;
 }

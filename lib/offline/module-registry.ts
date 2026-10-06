@@ -206,7 +206,7 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
   /*
     No till rules preload: they reach the till through `devices/me`
-    (`pos-portal-state.tsx`, SET-06), and that query is persisted with the
+    (`components/retail/till/state.tsx`, SET-06), and that query is persisted with the
     rest of the tenant's cache, so the till has them offline too.
   */
   {
@@ -220,12 +220,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
       const siteId = shift.data?.siteId;
       return siteId ? ["retail-pos-catalog", siteId, ""] : null;
     },
-    fetcher: async (queryKey) => {
-      const siteId = String(queryKey[1] ?? "");
-      return fetchJson(
-        `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(siteId)}&search=`,
-      );
-    },
+    // The key carries the site so the till's own query finds it; the route reads the device's.
+    fetcher: async () => fetchJson("/api/v2/retail/pos/catalog?search="),
   },
   {
     key: "retail-held-carts",
@@ -297,12 +293,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
       const siteId = shift.data?.siteId;
       return siteId ? ["retail-pos-price-check", siteId, ""] : null;
     },
-    fetcher: async (queryKey) => {
-      const siteId = String(queryKey[1] ?? "");
-      return fetchJson(
-        `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(siteId)}&search=`,
-      );
-    },
+    // The key carries the site so the till's own query finds it; the route reads the device's.
+    fetcher: async () => fetchJson("/api/v2/retail/pos/catalog?search="),
   },
 ];
 

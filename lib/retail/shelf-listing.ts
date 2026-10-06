@@ -40,6 +40,7 @@ import { Prisma } from "@prisma/client";
 
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { ageCheckFor } from "@/lib/retail/products/age-check";
 import { resolveShelfPrices, type ShelfPriceSource } from "@/lib/retail/shelf-pricing";
 
 /**
@@ -61,9 +62,11 @@ export type ShelfListing = {
   imageUrl: string | null;
   /**
    * A liquor licence is not optional. Carried so the counter can be told to ask.
-   * True when the product asks for it or its category does.
+   * The product's own answer, else its category's (`ageCheckFor`).
    */
   ageRestricted: boolean;
+  /** The most any discount may take off this product, in percent; null for no limit. */
+  maxDiscountPercent: number | null;
   /** An empty that comes back for money, and what it is worth. */
   returnable: boolean;
   depositAmount: number | null;
@@ -108,6 +111,7 @@ const listingSelect = {
   barcode: true,
   imageUrl: true,
   ageRestricted: true,
+  maxDiscountPercent: true,
   returnable: true,
   depositAmount: true,
   categoryId: true,
@@ -244,7 +248,8 @@ export async function loadShelfListings(
       barcode: product.barcode,
       description: product.description,
       imageUrl: product.imageUrl,
-      ageRestricted: product.ageRestricted || Boolean(product.retailCategory?.ageRestricted),
+      ageRestricted: ageCheckFor(product),
+      maxDiscountPercent: product.maxDiscountPercent === null ? null : toNumberOrZero(product.maxDiscountPercent),
       returnable: product.returnable,
       depositAmount: product.depositAmount === null ? null : toNumberOrZero(product.depositAmount),
       packOf: product.packOf,
@@ -353,8 +358,8 @@ export async function loadSellableProducts(input: {
       name: row.product.name,
       standardPrice: row.product.standardPrice,
       defaultTaxRate: row.product.defaultTaxRate,
-      // The same rule as the shelf: the product, or its category, asks for ID.
-      ageRestricted: row.product.ageRestricted || Boolean(row.product.retailCategory?.ageRestricted),
+      // The same rule as the shelf: the product's own answer, else its category's.
+      ageRestricted: ageCheckFor(row.product),
       returnable: row.product.returnable,
       depositAmount: row.product.depositAmount === null ? null : toNumberOrZero(row.product.depositAmount),
       siteId: row.siteId,

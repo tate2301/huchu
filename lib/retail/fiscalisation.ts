@@ -1132,7 +1132,7 @@ async function placeSale(
 
 /**
  * Settle a till sale's fiscal day in the transaction that records it, as its
- * last step (SET-08): pos/sales, pos/sync, a refund and a void each call it
+ * last step (SET-08): pos/sales (rung now or sent in from the offline queue), a refund and a void each call it
  * before they commit. It holds the device's day for the rest of the
  * transaction, so the day a sale is in is decided once, here, and nothing
  * can come between the decision and the commit: a close claims the day either
@@ -1318,7 +1318,7 @@ export async function signWaitingSales(companyId: string): Promise<RetailFiscalO
 
 /**
  * Send a batch of committed sales' receipts in the order the till rang them
- * (`pos/sync`), one at a time: each receipt's signature covers the one
+ * (a queue of sales), one at a time: each receipt's signature covers the one
  * before it, and one submission is on the wire at a time. Each sale's day
  * was settled in its own commit; `assigned` is what it settled.
  */

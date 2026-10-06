@@ -8,7 +8,6 @@ import {
   YEAR_STARTS,
 } from "@/lib/retail/settings-pages/company";
 import { loadShopProfile, saveShopProfile, type ShopProfilePatch } from "@/lib/retail/shop-profile";
-import { hoursWindowText, parseHoursWindow } from "@/lib/retail/shop-profile-rules";
 import { formatDay, parseDay } from "@/lib/workspace/format";
 
 import { SettingsRefused, type SettingsStore } from "./types";
@@ -50,20 +49,6 @@ export function companyProfilePatch(changes: Record<string, unknown>): ShopProfi
   for (const key of ["ageCheck", "licenceHours", "emptiesAndDeposits", "casesAndSingles"] as const) {
     if (typeof changes[key] === "boolean") patch[key] = changes[key];
   }
-  if (typeof changes.weekdayHours === "string") {
-    const window = parseHoursWindow(changes.weekdayHours);
-    if (window) {
-      patch.weekdayOpensAt = window.opens;
-      patch.weekdayClosesAt = window.closes;
-    }
-  }
-  if (typeof changes.sundayHours === "string") {
-    const window = parseHoursWindow(changes.sundayHours);
-    if (window) {
-      patch.sundayOpensAt = window.opens;
-      patch.sundayClosesAt = window.closes;
-    }
-  }
   if (typeof changes.licenceNumber === "string") patch.licenceNumber = changes.licenceNumber.trim() || null;
   if (typeof changes.licenceExpiresOn === "string") {
     patch.licenceExpiresOn = changes.licenceExpiresOn.trim() ? parseDay(changes.licenceExpiresOn) : null;
@@ -102,8 +87,6 @@ export const companySettings: SettingsStore = {
       businessType: profile.businessType === "LIQUOR" ? LIQUOR_STORE : GENERAL_RETAIL,
       ageCheck: profile.ageCheck,
       licenceHours: profile.licenceHours,
-      weekdayHours: hoursWindowText(profile.weekdayOpensAt, profile.weekdayClosesAt),
-      sundayHours: hoursWindowText(profile.sundayOpensAt, profile.sundayClosesAt),
       emptiesAndDeposits: profile.emptiesAndDeposits,
       casesAndSingles: profile.casesAndSingles,
       licenceNumber: profile.licenceNumber ?? "",

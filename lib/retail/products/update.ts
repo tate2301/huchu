@@ -67,6 +67,7 @@ export async function updateProduct(
       depositAmount: true,
       imageUrl: true,
       ageRestricted: true,
+      maxDiscountPercent: true,
       retailCategory: { select: { id: true, name: true, depositAmount: true } },
       supplier: { select: { id: true, name: true } },
       inventoryItems: {
@@ -102,6 +103,7 @@ export async function updateProduct(
     depositAmount: num(product.depositAmount),
     imageUrl: product.imageUrl,
     ageCheck: product.ageRestricted,
+    maxDiscountPercent: num(product.maxDiscountPercent),
   };
 
   // The rules a new product keeps, for what changes.
@@ -158,6 +160,9 @@ export async function updateProduct(
       ...(input.returnable !== undefined || input.depositAmount !== undefined ? { returnable, depositAmount: deposit } : {}),
       ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
       ...(input.ageCheck !== undefined ? { ageRestricted: input.ageCheck } : {}),
+      ...(input.maxDiscountPercent !== undefined
+        ? { maxDiscountPercent: input.maxDiscountPercent === null ? null : new Prisma.Decimal(input.maxDiscountPercent) }
+        : {}),
     },
   });
   if (name !== undefined) await tx.inventoryItem.updateMany({ where: { productId: id }, data: { name } });
@@ -226,6 +231,9 @@ export async function updateProduct(
     depositAmount: num(deposit),
     ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
     ...(input.ageCheck !== undefined ? { ageCheck: input.ageCheck } : {}),
+    ...(input.maxDiscountPercent !== undefined
+      ? { maxDiscountPercent: input.maxDiscountPercent === null ? null : Number(input.maxDiscountPercent) }
+      : {}),
   };
   const sent = Object.keys(input).filter((key) => input[key as keyof ProductPatch] !== undefined);
   const changed = productChanges(sent, before, after);

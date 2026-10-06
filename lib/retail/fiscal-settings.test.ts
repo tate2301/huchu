@@ -238,7 +238,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
     });
     // Not connected, so nothing stops a sale and the tills know no device.
     expect(await fiscalSaleRefusal(companyId)).toBeNull();
-    expect(await tillFiscal(companyId)).toEqual({ deviceId: null, dayNo: null, whenUnreachable: "STOP_SELLING" });
+    expect(await tillFiscal(companyId)).toEqual({ dayClose: "WITH_LAST_SHIFT", deviceId: null, dayNo: null, whenUnreachable: "STOP_SELLING" });
   });
 
   it("connects with ZIMRA's activation key: registered by the owner, the key kept with ZIMRA's certificate", async () => {
@@ -273,7 +273,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
   it("opens the day with the first shift, and the tills sign in it", async () => {
     expect(await openFiscalDayIfNone(companyId)).toEqual({ opened: 1 });
     expect(await openFiscalDayIfNone(companyId)).toEqual({ opened: null });
-    expect(await tillFiscal(companyId)).toEqual({ deviceId: "0441-2209", dayNo: 1, whenUnreachable: "STOP_SELLING" });
+    expect(await tillFiscal(companyId)).toEqual({ dayClose: "WITH_LAST_SHIFT", deviceId: "0441-2209", dayNo: 1, whenUnreachable: "STOP_SELLING" });
     const read = await readSettings(companyId, "fiscal", true);
     expect(read?.values).toMatchObject({ connection: expect.stringMatching(/^Connected to ZIMRA\. Day 1 open since \d\d:\d\d\.$/) });
   });

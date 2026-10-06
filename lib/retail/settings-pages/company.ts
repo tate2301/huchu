@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { BUSINESS_TYPE_LABELS, parseHoursWindow } from "@/lib/retail/shop-profile-rules";
+import { BUSINESS_TYPE_LABELS } from "@/lib/retail/shop-profile-rules";
 import { parseDay } from "@/lib/workspace/format";
 
 import type { SettingsPage } from "./types";
@@ -24,10 +24,6 @@ import type { SettingsPage } from "./types";
 export const GENERAL_RETAIL = BUSINESS_TYPE_LABELS.GENERAL;
 export const LIQUOR_STORE = BUSINESS_TYPE_LABELS.LIQUOR;
 
-const hours = z
-  .string()
-  .refine((value) => parseHoursWindow(value) !== null, "Write it as 08:00 to 22:00.");
-
 /** "1 January" … "1 December": when the financial year starts. */
 export const YEAR_STARTS = Array.from(
   { length: 12 },
@@ -46,8 +42,6 @@ export function pricesLockedHint(currency: unknown): string {
 export function isPhoneNumber(value: string): boolean {
   return /^\+[1-9][0-9]{7,14}$/.test(value.replace(/[\s()-]/g, ""));
 }
-
-const licenceHoursOff = (values: Record<string, unknown>) => values.licenceHours !== true;
 
 export const companyPage: SettingsPage = {
   title: "Shop",
@@ -78,6 +72,10 @@ export const companyPage: SettingsPage = {
     {
       title: "Liquor store features",
       when: ["businessType", LIQUOR_STORE],
+      note: {
+        text: "Licence hours are kept for each site, day by day.",
+        link: { label: "Set them in Sites", href: "/retail/manage/sites" },
+      },
       fields: [
         {
           id: "ageCheck",
@@ -89,25 +87,7 @@ export const companyPage: SettingsPage = {
           id: "licenceHours",
           t: "toggle",
           l: "Licence trading hours",
-          h: "The till stops selling alcohol outside your licence hours. Soft drinks and snacks still sell.",
-        },
-        {
-          id: "weekdayHours",
-          t: "text",
-          l: "Mondays to Saturdays",
-          half: true,
-          mono: true,
-          p: "08:00 to 22:00",
-          disabled: licenceHoursOff,
-        },
-        {
-          id: "sundayHours",
-          t: "text",
-          l: "Sundays and public holidays",
-          half: true,
-          mono: true,
-          p: "10:00 to 18:00",
-          disabled: licenceHoursOff,
+          h: "The till stops selling alcohol outside each site's licence hours. Soft drinks and snacks still sell.",
         },
         {
           id: "emptiesAndDeposits",
@@ -181,8 +161,6 @@ export const companyPage: SettingsPage = {
     licenceHours: z.boolean({ message: "Turn it on or off." }),
     emptiesAndDeposits: z.boolean({ message: "Turn it on or off." }),
     casesAndSingles: z.boolean({ message: "Turn it on or off." }),
-    weekdayHours: hours,
-    sundayHours: hours,
     licenceNumber: z.string().trim().max(40, "Keep it to 40 characters."),
     licenceExpiresOn: z
       .string()

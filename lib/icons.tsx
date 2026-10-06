@@ -598,3 +598,35 @@ export const CreditCard = createPhosphorIcon("CreditCard", "CreditCard");
 export const List = createPhosphorIcon("List", "List");
 /** Phosphor's two-person `Users` (the export named `Users` above is `UsersThree`). */
 export const UsersPair = createPhosphorIcon("Users", "UsersPair");
+
+// The till (components/retail/till): Phosphor names, as the canvas draws them.
+export const ArrowsClockwise = createPhosphorIcon("ArrowsClockwise", "ArrowsClockwise");
+export const ArrowsCounterClockwise = createPhosphorIcon("ArrowsCounterClockwise", "ArrowsCounterClockwise");
+export const Backspace = createPhosphorIcon("Backspace", "Backspace");
+export const Barcode = createPhosphorIcon("Barcode", "Barcode");
+export const BeerBottle = createPhosphorIcon("BeerBottle", "BeerBottle");
+export const BeerStein = createPhosphorIcon("BeerStein", "BeerStein");
+export const Bread = createPhosphorIcon("Bread", "Bread");
+export const CaretRight = createPhosphorIcon("CaretRight", "CaretRight");
+export const Carrot = createPhosphorIcon("Carrot", "Carrot");
+export const Cube = createPhosphorIcon("Cube", "Cube");
+export const Egg = createPhosphorIcon("Egg", "Egg");
+export const Flame = createPhosphorIcon("Flame", "Flame");
+export const Grains = createPhosphorIcon("Grains", "Grains");
+export const HandCoins = createPhosphorIcon("HandCoins", "HandCoins");
+export const Key = createPhosphorIcon("Key", "Key");
+export const LinkBreak = createPhosphorIcon("LinkBreak", "LinkBreak");
+export const Martini = createPhosphorIcon("Martini", "Martini");
+export const Moon = createPhosphorIcon("Moon", "Moon");
+export const PauseCircle = createPhosphorIcon("PauseCircle", "PauseCircle");
+export const PintGlass = createPhosphorIcon("PintGlass", "PintGlass");
+export const PlayCircle = createPhosphorIcon("PlayCircle", "PlayCircle");
+export const Question = createPhosphorIcon("Question", "Question");
+export const ReceiptX = createPhosphorIcon("ReceiptX", "ReceiptX");
+export const SealCheck = createPhosphorIcon("SealCheck", "SealCheck");
+export const ShoppingCart = createPhosphorIcon("ShoppingCart", "ShoppingCart");
+export const SimCard = createPhosphorIcon("SimCard", "SimCard");
+export const UserSwitch = createPhosphorIcon("UserSwitch", "UserSwitch");
+export const Vault = createPhosphorIcon("Vault", "Vault");
+export const WifiSlash = createPhosphorIcon("WifiSlash", "WifiSlash");
+export const Wine = createPhosphorIcon("Wine", "Wine");

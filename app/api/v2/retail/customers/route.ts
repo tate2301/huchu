@@ -4,6 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { money, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { getLoyaltyTier } from "@/lib/retail/loyalty-rules";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery, retailOffsetQuery, slicePage } from "@/lib/retail/request";
 import { requireRetailSession } from "../_helpers";
@@ -21,12 +22,6 @@ const customerListQuery = retailOffsetQuery.extend({
   search: z.string().trim().max(120).optional(),
   scanLimit: z.coerce.number().int().min(100).max(20_000).optional(),
 });
-
-function getLoyaltyTier(points: number) {
-  if (points >= 2_000) return "GOLD";
-  if (points >= 500) return "SILVER";
-  return "BRONZE";
-}
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

@@ -5,6 +5,7 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { approverSchema, tillRuleResponse } from "@/lib/retail/manager-pin";
+import { doneOffline } from "@/lib/retail/till-rules";
 import { requireRetailSession } from "../../../../_helpers";
 import { voidRetailSaleTransaction } from "../../../../_services";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
@@ -17,6 +18,12 @@ const voidSchema = z.object({
   notes: z.string().max(500).optional().nullable(),
   /** A manager's till PIN, when "Voids need a manager PIN" asks for one. See the refund route beside this one. */
   approver: approverSchema.optional().nullable(),
+  /**
+   * When the till voided it, set only by the offline queue. Done offline
+   * (more than a minute before it arrives), it is judged leniently: what the
+   * rules would refuse now goes in, marked for a manager to look at.
+   */
+  voidedAt: z.string().datetime().optional(),
 });
 
 export async function POST(
@@ -59,6 +66,7 @@ export async function POST(
       shiftId: input.shiftId,
       reason: input.reason,
       approver: input.approver ?? null,
+      offlineAt: input.voidedAt && doneOffline(new Date(input.voidedAt), new Date()) ? new Date(input.voidedAt) : null,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       deviceId: device.id,
