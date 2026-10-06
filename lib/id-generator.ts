@@ -702,3 +702,35 @@ export async function reserveIdentifier(
   }
   return run(db as Prisma.TransactionClient);
 }
+
+/**
+ * The number `reserveIdentifier` would hand out next, without taking it: for a
+ * screen that says what is coming ("Opening SH-00244"). Another caller may
+ * take it first, so it is a forecast, never a promise. Not for the school
+ * entities, whose numbering is inferred.
+ */
+export async function peekIdentifier(
+  db: PrismaClient | Prisma.TransactionClient,
+  input: { companyId: string; entity: ReservableIdEntity; siteId?: string },
+): Promise<string> {
+  const config = ID_ENTITY_CONFIG[input.entity];
+  if (SCHOOL_NUMBERED_ENTITIES.has(input.entity)) {
+    throw new Error(`${input.entity} numbers cannot be forecast.`);
+  }
+  if (config.requiresSiteId && !input.siteId) {
+    throw new Error(`siteId is required for ${input.entity}`);
+  }
+  const scopeKey = config.requiresSiteId && input.siteId ? input.siteId : GLOBAL_SCOPE;
+  const sequence = config.globalSequence
+    ? await db.globalIdSequence.findUnique({
+        where: { entityKey_scopeKey: { entityKey: input.entity, scopeKey } },
+        select: { lastNumber: true },
+      })
+    : await db.idSequence.findUnique({
+        where: { companyId_entityKey_scopeKey: { companyId: input.companyId, entityKey: input.entity, scopeKey } },
+        select: { lastNumber: true },
+      });
+  const last = sequence ? sequence.lastNumber : await findEntityMaxExistingCode(db, input);
+  // As `reserveIdentifier` builds it: a global sequence at the default width.
+  return buildCode(config.prefix, last + 1, "-", config.globalSequence ? PAD : (config.padWidth ?? PAD));
+}

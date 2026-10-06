@@ -6,6 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { markActivityFailed } from "@/lib/activity/context";
 import { errorResponse } from "@/lib/api-response";
 import { getHostHeaderFromRequestHeaders, resolveTenantFromHost } from "@/lib/platform/tenant";
+import { peekIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
 import {
@@ -34,6 +35,7 @@ import type { LicenceWindow } from "@/lib/retail/licence-hours";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import { shopFeatures, type ShopProfile } from "@/lib/retail/shop-profile-rules";
 import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
+import { cashUpSignOff, type SignOff } from "@/lib/retail/sign-off";
 import { loadTillRules, tillRulesForTill, type TillRulesForTill } from "@/lib/retail/till-rules";
 import { checkTillPin, type PinPlace } from "@/lib/retail/till-pin-attempt";
 import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
@@ -545,11 +547,15 @@ export type TillContext = {
   approvers: Array<{ userId: string; name: string }>;
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
   priceListId: string | null;
+  /** The number the next shift opened at this site will take ("SH-00244"): a forecast, not reserved. */
+  nextShiftNo: string;
+  /** Who signs the cash-up off: the site's shop manager, else the company's first manager by name; null when there is none. */
+  signOff: SignOff | null;
 };
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
-  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal, licenceHours] = await Promise.all([
+  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal, licenceHours, nextShiftNo, signOff] = await Promise.all([
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
@@ -568,6 +574,8 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     receiptWire(device.companyId, register.site.id),
     tillFiscal(device.companyId),
     loadLicenceHours(device.companyId, register.site.id),
+    peekIdentifier(prisma, { companyId: device.companyId, entity: "RETAIL_SHIFT", siteId: register.site.id }),
+    cashUpSignOff(device.companyId, register.site.id),
   ]);
   const pairedBy = device.pairedBy.name ?? "";
   return {
@@ -600,6 +608,8 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
       .map((pin) => ({ userId: pin.user.id, name: pin.user.name ?? "" }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     priceListId: register.priceListId ?? register.site.priceListId ?? defaultList?.id ?? null,
+    nextShiftNo,
+    signOff,
   };
 }
 

@@ -40,6 +40,7 @@ import {
 } from "@/lib/retail/till-rules";
 import { OFFLINE_REFUND_NO_REFERENCE_REVIEW, offlineReversalReview } from "@/lib/retail/till-rule-words";
 import { approvalFor, replayApproval, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
+import { recordSaleEmpties, reverseSaleEmpties } from "@/lib/retail/empties";
 import {
   checkSaleTenders,
   loadPaymentSettings,
@@ -120,6 +121,12 @@ export type RetailSaleLineInput = {
   costTotal: number;
   /** The deposit on this line's returnable bottles, net of empties back. */
   depositAmount?: number;
+  /**
+   * The empties that counted against this line (`emptiesCounted`, on a
+   * returnable product at a shop that takes deposits): written to the
+   * product's supplier's empties ledger with the sale.
+   */
+  emptiesBack?: number;
 };
 
 function round(value: number) {
@@ -984,6 +991,8 @@ export async function createRetailSaleTransaction(input: {
             baseAmount: toBaseAmount(input.totalAmount, saleExchangeRate),
             promotionCode: input.promotionCode ?? null,
             overrideReason: input.overrideReason ?? null,
+            approvedById: input.approvedBy?.id ?? null,
+            approvedByName: input.approvedBy?.name ?? null,
             status: "POSTED",
             notes: input.notes?.trim() || null,
             postedAt: input.postedAt ?? new Date(),
@@ -1062,6 +1071,14 @@ export async function createRetailSaleTransaction(input: {
             throw new Error("Shift is no longer open.");
           }
         }
+
+        // The empties that came back, on their suppliers' ledger.
+        await recordSaleEmpties(tx, {
+          companyId: input.actor.companyId,
+          siteId: created.siteId,
+          saleId: created.id,
+          lines: input.lines,
+        });
 
         await auditSalePosted(tx, {
           actor: input.actor,
@@ -1474,6 +1491,8 @@ export async function refundRetailSaleTransaction(input: {
         exchangeRate: currentSourceSale.exchangeRate,
         baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
         overrideReason: reason,
+        approvedById: approvedBy?.id ?? null,
+        approvedByName: approvedBy?.name ?? null,
         reviewReason: [approvalReview, reasonReview, referenceReview, when.review].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
@@ -1754,6 +1773,8 @@ export async function voidRetailSaleTransaction(input: {
         ),
         promotionCode: currentSourceSale.promotionCode,
         overrideReason: reason,
+        approvedById: approvedBy?.id ?? null,
+        approvedByName: approvedBy?.name ?? null,
         reviewReason: [approvalReview, reasonReview, when.review].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
@@ -1851,6 +1872,13 @@ export async function voidRetailSaleTransaction(input: {
         status: "VOIDED",
         voidReason: reason,
       },
+    });
+
+    // The empties the sale took back come off their suppliers' ledger with it.
+    await reverseSaleEmpties(tx, {
+      companyId: input.actor.companyId,
+      sourceSaleId: currentSourceSale.id,
+      saleId: created.id,
     });
 
     // R-3.3. Same reasoning as the refund above; a void is the other half of it.

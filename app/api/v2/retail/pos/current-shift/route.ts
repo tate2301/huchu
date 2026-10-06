@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@/lib/api-response";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import {
   money,
   resolveBaseCurrency,
@@ -12,6 +13,11 @@ import { getCashNetFromPayments } from "@/lib/retail/cash-up";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requirePosDevice } from "@/lib/retail/devices";
 import { requireRetailSession } from "../../_helpers";
+
+/** Every tender but cash, in the base currency, each always present. */
+const NON_CASH_TENDERS = RETAIL_TENDER_TYPES.filter(
+  (tender): tender is Exclude<(typeof RETAIL_TENDER_TYPES)[number], "CASH"> => tender !== "CASH",
+);
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -93,12 +99,17 @@ export async function GET(request: NextRequest) {
   ).abs();
   // `baseAmount` here too. A card or EcoCash tender in ZWG is the same face-value
   // trap as cash, and this figure sits beside the cash total on the same screen.
-  const nonCashNet = sumMoney(
-    postedSales
-      .flatMap((sale) => sale.payments)
-      .filter((payment) => payment.tenderType !== "CASH")
-      .map((payment) => money(payment.baseAmount)),
-  );
+  const nonCashPayments = postedSales.flatMap((sale) => sale.payments).filter((payment) => payment.tenderType !== "CASH");
+  const nonCashNet = sumMoney(nonCashPayments.map((payment) => money(payment.baseAmount)));
+  // The same, tender by tender, net of refunds and voids: what the cash-up checks against each statement.
+  const nonCashByTender = Object.fromEntries(
+    NON_CASH_TENDERS.map((tender) => [
+      tender,
+      toNumberOrZero(
+        sumMoney(nonCashPayments.filter((payment) => payment.tenderType === tender).map((payment) => money(payment.baseAmount))),
+      ),
+    ]),
+  ) as Record<(typeof NON_CASH_TENDERS)[number], number>;
 
   return successResponse({
     data: {
@@ -127,6 +138,7 @@ export async function GET(request: NextRequest) {
       cashOut: toNumberOrZero(cashOut),
       cashNet: toNumberOrZero(cashIn.minus(cashOut)),
       nonCashSales: toNumberOrZero(nonCashNet),
+      nonCashByTender,
       recentTransactions: recentCashierSales.map((sale) => ({
         id: sale.id,
         saleNo: sale.saleNo,

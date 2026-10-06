@@ -318,6 +318,8 @@ model Company {
   retailDeviceMessages          RetailDeviceMessage[]
   retailShopProfile             RetailShopProfile?
   retailLicenceHours            RetailLicenceHours[]
+  retailDepositKinds            RetailDepositKind[]
+  retailEmptiesEntries          RetailEmptiesEntry[]
   retailPaymentSettings         RetailPaymentSettings?
   retailPostingSettings         RetailPostingSettings?
   retailAccountRoleMappings     RetailAccountRoleMapping[]
@@ -1148,6 +1150,7 @@ model Site {
   retailRegisters       RetailRegister[]
   retailDefaultFor      RetailShopProfile[]    @relation("RetailDefaultSite")
   retailLicenceHours    RetailLicenceHours[]
+  retailEmptiesEntries  RetailEmptiesEntry[]
   priceList             PriceList?             @relation("SitePriceList", fields: [priceListId], references: [id], onDelete: SetNull)
   closedBy              User?                  @relation("SiteClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
   retailPurchaseOrders  RetailPurchaseOrder[]
@@ -1442,6 +1445,7 @@ model User {
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
   retailDevicesUnpaired             RetailDevice[]                 @relation("RetailDeviceUnpairedBy")
   retailSalesReviewed               RetailSale[]                   @relation("RetailSaleReviewedBy")
+  retailSalesApproved               RetailSale[]                   @relation("RetailSaleApprovedBy")
   retailPairingCodesCreated         RetailPairingCode[]            @relation("RetailPairingCodeCreatedBy")
   retailDeviceMessagesSent          RetailDeviceMessage[]          @relation("RetailDeviceMessageSentBy")
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
@@ -5674,6 +5678,12 @@ model RetailSale {
   reviewReason   String?
   reviewedAt     DateTime?
   reviewedById   String?
+  /// The manager whose PIN let this through (SET-06): a discount or a price
+  /// over the shelf on a sale, or a refund or void the till rules asked one
+  /// for. Null when nobody had to approve it. The name is kept as it was, for
+  /// the receipt and History, should the person go.
+  approvedById   String?
+  approvedByName String?
   postedAt       DateTime?
   /// SET-08: rung while a fiscal day's report was on its way to ZIMRA, so no
   /// day was open to sign it into. It is signed, oldest first, into the next
@@ -5697,6 +5707,8 @@ model RetailSale {
   register   RetailRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
   device     RetailDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   reviewedBy User?           @relation("RetailSaleReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  approvedBy User?           @relation("RetailSaleApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  empties    RetailEmptiesEntry[]
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
@@ -5754,6 +5766,49 @@ model RetailSaleLine {
   @@index([companyId, inventoryItemId])
   /// Best-sellers and margin-by-line group on the product now, not the listing.
   @@index([companyId, productId])
+}
+
+/// What the shop calls a deposit value it charges: "Bottles, 340 to 375ml" for
+/// 0.10, "Crates of 24" for 3.40. Products keep their own deposit amount; the
+/// till finds the name by the amount. One name per amount per shop.
+model RetailDepositKind {
+  id        String   @id @default(uuid())
+  companyId String
+  amount    Decimal  @db.Decimal(14, 2)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, amount])
+}
+
+/// The empties the shop holds for each supplier: bottles brought back at the
+/// till, which go back to the supplier for their deposit. Positive is brought
+/// back to the shop (owed back to the supplier); a void writes the same
+/// bottles negative. Written with the sale, by the product's supplier.
+model RetailEmptiesEntry {
+  id            String   @id @default(uuid())
+  companyId     String
+  siteId        String
+  supplierId    String
+  /// The sale they came back on; the entry stays, unlinked, if the sale goes.
+  saleId        String?
+  productId     String
+  quantity      Int
+  /// The deposit on one bottle, the product's at the time.
+  depositAmount Decimal  @db.Decimal(14, 2)
+  createdAt     DateTime @default(now())
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site     Site        @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  supplier Vendor      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  sale     RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  product  Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, supplierId])
+  @@index([saleId])
 }
 
 model RetailSalePayment {
@@ -6604,6 +6659,7 @@ model Vendor {
   bills               PurchaseBill[]
   products            Product[]            @relation("ProductSupplier")
   contacts            VendorContact[]
+  emptiesEntries      RetailEmptiesEntry[]
   stoppedBy           User?                @relation("VendorStoppedBy", fields: [stoppedById], references: [id], onDelete: SetNull)
   createdBy           User?                @relation("VendorCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -13928,6 +13984,9 @@ model Product {
   packSize           Int?
   /// A case: "Break cases at the till". The till opens one when the singles run out.
   breakAtTill        Boolean       @default(true)
+  /// Sold at whatever the cashier types (airtime, bundles): the till asks for
+  /// the price, and a typed price is not a price change for a manager.
+  openPrice          Boolean       @default(false)
   /// "Supplier" on the product form: who it is usually bought from.
   supplierId         String?
   imageUrl           String?
@@ -13952,6 +14011,7 @@ model Product {
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
   retailTransferLines RetailStockTransferLine[]
+  retailEmptiesEntries RetailEmptiesEntry[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
 

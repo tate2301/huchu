@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { successResponse } from "@/lib/api-response";
+import { depositKindName, loadDepositKinds } from "@/lib/retail/deposit-kinds";
 import { wasPrices } from "@/lib/retail/prices/was";
 import { loadShelfListings } from "@/lib/retail/shelf-listing";
 import { requirePosDevice, shopSiteId } from "@/lib/retail/devices";
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
   const { device, response: deviceResponse } = await requirePosDevice(request, session);
   const siteId = device ? device.register.site.id : await shopSiteId(companyId);
   if (!siteId) return deviceResponse as NextResponse;
-  const [listings, profile] = await Promise.all([
+  const [listings, profile, depositKinds] = await Promise.all([
     loadShelfListings(companyId, {
       siteId,
       search: query.data.search || null,
@@ -69,6 +70,7 @@ export async function GET(request: NextRequest) {
       take: 120,
     }),
     loadShopProfile(companyId),
+    loadDepositKinds(companyId),
   ]);
   const links: CaseLinks = shopFeatures(profile).casesAndSingles
     ? await tillCaseLinks(companyId, siteId, listings.map((item) => item.productId))
@@ -80,6 +82,8 @@ export async function GET(request: NextRequest) {
       ...item,
       openableCase: links.get(item.productId)?.openableCase ?? null,
       caseOf: links.get(item.productId)?.caseOf ?? null,
+      // What the shop calls its deposit ("Bottles, 340 to 375ml"); null when unnamed or none.
+      depositName: item.returnable ? depositKindName(depositKinds, item.depositAmount) : null,
     }))
     .filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0 || (item.openableCase?.casesOnHand ?? 0) > 0);
   // The till strikes through a recent cut: the price before it, from the history.

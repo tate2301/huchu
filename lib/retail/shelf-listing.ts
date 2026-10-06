@@ -70,6 +70,8 @@ export type ShelfListing = {
   /** An empty that comes back for money, and what it is worth. */
   returnable: boolean;
   depositAmount: number | null;
+  /** Sold at whatever the cashier types (airtime): the till asks for the price. */
+  openPrice: boolean;
   /** A case: the single it opens into, and how many. Null on a single. */
   packOf: { id: string; name: string } | null;
   packSize: number | null;
@@ -114,6 +116,7 @@ const listingSelect = {
   maxDiscountPercent: true,
   returnable: true,
   depositAmount: true,
+  openPrice: true,
   categoryId: true,
   retailCategory: { select: { name: true, ageRestricted: true } },
   packSize: true,
@@ -252,6 +255,7 @@ export async function loadShelfListings(
       maxDiscountPercent: product.maxDiscountPercent === null ? null : toNumberOrZero(product.maxDiscountPercent),
       returnable: product.returnable,
       depositAmount: product.depositAmount === null ? null : toNumberOrZero(product.depositAmount),
+      openPrice: product.openPrice,
       packOf: product.packOf,
       packSize: product.packOf ? product.packSize : null,
       status: product.isActive ? "ACTIVE" : "INACTIVE",
@@ -343,6 +347,7 @@ export async function loadSellableProducts(input: {
           ageRestricted: true,
           returnable: true,
           depositAmount: true,
+          openPrice: true,
           retailCategory: { select: { ageRestricted: true } },
         },
       },
@@ -362,6 +367,7 @@ export async function loadSellableProducts(input: {
       ageRestricted: ageCheckFor(row.product),
       returnable: row.product.returnable,
       depositAmount: row.product.depositAmount === null ? null : toNumberOrZero(row.product.depositAmount),
+      openPrice: row.product.openPrice,
       siteId: row.siteId,
       inventoryItem: {
         id: row.id,
@@ -394,6 +400,8 @@ export type SellableProduct = {
   /** An empty that comes back for money, and the deposit on it. */
   returnable: boolean;
   depositAmount: number | null;
+  /** Sold at whatever the cashier types: the typed price is the shelf price. */
+  openPrice: boolean;
   siteId: string;
   inventoryItem: {
     id: string;

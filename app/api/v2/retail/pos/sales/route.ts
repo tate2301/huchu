@@ -22,7 +22,8 @@ import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
-import { depositsDue, lineDeposit } from "@/lib/retail/deposits";
+import { depositsDue, emptiesCounted, lineDeposit } from "@/lib/retail/deposits";
+import { saleEmpties } from "@/lib/retail/empties";
 import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { cashierFilterFor } from "@/lib/retail/own-rows";
@@ -225,6 +226,7 @@ function mapSales(
     changeAmount: toNumber(sale.changeAmount),
     promotionCode: sale.promotionCode,
     overrideReason: sale.overrideReason,
+    approvedByName: sale.approvedByName,
     voidReason: sale.voidReason,
     sourceSaleId: sale.sourceSaleId,
     sourceSaleNo: sale.sourceSaleId ? sourceSaleMap.get(sale.sourceSaleId) ?? null : null,
@@ -582,10 +584,16 @@ export async function POST(request: NextRequest) {
       const inventoryItem = listing.inventoryItem;
 
       const lineKey = `${listing.productId}:${index}`;
-      const shelf = shelfPrices.get(lineKey);
-      if (!shelf) {
+      const resolved = shelfPrices.get(lineKey);
+      if (!resolved) {
         throw new Error(`Unable to price ${listing.name}.`);
       }
+      // An open price (airtime, bundles): what the cashier typed is the shelf
+      // price, so it is never a price change, a discount or a manager's call.
+      if (listing.openPrice && !(item.unitPrice && item.unitPrice > 0)) {
+        throw new Error(`Type the price of ${listing.name}.`);
+      }
+      const shelf = listing.openPrice ? { ...resolved, unitPrice: item.unitPrice!, priceChangedAt: null } : resolved;
 
       // `calculateRetailCheckout` is shared with the offline till, which stores
       // plain JSON, so the calculator stays in `number` and the crossing from
@@ -993,6 +1001,8 @@ export async function POST(request: NextRequest) {
       replay: Boolean(replaySoldAt),
       lines: normalizedLines.map((line, index) => ({
         depositAmount: lineDeposit(depositLines[index]),
+        // The bottles that counted against the line, for its supplier's empties.
+        emptiesBack: depositLines[index].returnable ? emptiesCounted(depositLines[index]) : 0,
         inventoryItemId: line.inventoryItem.id,
         inventoryUnit: line.inventoryItem.unit,
         productId: line.listing.productId,
@@ -1045,6 +1055,8 @@ export async function POST(request: NextRequest) {
     });
     // The receipt the till prints (SET-07): the settings in force and the fiscal line just signed.
     const receipt = await saleReceipt(session.user.companyId, sale.id);
+    // The bottles that came back, per supplier, for the Paid screen.
+    const empties = await saleEmpties(prisma, session.user.companyId, sale.id);
 
     return successResponse({
       id: sale.id,
@@ -1071,6 +1083,9 @@ export async function POST(request: NextRequest) {
       lines: sale.lines,
       promotionCode: sale.promotionCode,
       overrideReason: sale.overrideReason,
+      // The manager whose PIN let a discount or price through; null when nobody had to.
+      approvedByName: sale.approvedByName,
+      empties,
       notes: sale.notes,
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,
