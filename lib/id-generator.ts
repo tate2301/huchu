@@ -82,13 +82,15 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
-  RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
-  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
-  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
+  // Retail numbers are unique in the company, not the site (`@@unique([companyId, …])`), so they
+  // count across every site: a second shop counting from its own SH-00001 met the first shop’s.
+  RETAIL_REGISTER: { prefix: "REG", requiresSiteId: false },
+  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: false },
+  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: false },
   // "SH-00243", the number the floor, the boards and the seeded history use.
-  RETAIL_SHIFT: { prefix: "SH", requiresSiteId: true, padWidth: 5 },
+  RETAIL_SHIFT: { prefix: "SH", requiresSiteId: false, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
-  RETAIL_SALE: { prefix: "RSL", requiresSiteId: true },
+  RETAIL_SALE: { prefix: "RSL", requiresSiteId: false },
   RETAIL_PROMOTION: { prefix: "RPM", requiresSiteId: false },
   // A stock adjustment and a case break are documents only in name: the number
   // lives on their movements (`StockMovement.reference`), shared by both legs
@@ -371,33 +373,29 @@ async function findEntityMaxExistingCode(
       return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
     }
     case "RETAIL_REGISTER": {
-      if (!siteId) return 0;
       const records = await db.retailRegister.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
     case "RETAIL_PURCHASE_ORDER": {
-      if (!siteId) return 0;
       const records = await db.retailPurchaseOrder.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { poNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.poNo), prefix);
     }
     case "RETAIL_GOODS_RECEIPT": {
-      if (!siteId) return 0;
       const records = await db.retailGoodsReceipt.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { receiptNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
     }
     case "RETAIL_SHIFT": {
-      if (!siteId) return 0;
       const records = await db.retailShift.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { shiftNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.shiftNo), prefix);
@@ -410,9 +408,8 @@ async function findEntityMaxExistingCode(
       return extractMaxFromCodes(records.map((record) => record.holdNo), prefix);
     }
     case "RETAIL_SALE": {
-      if (!siteId) return 0;
       const records = await db.retailSale.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { saleNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.saleNo), prefix);
