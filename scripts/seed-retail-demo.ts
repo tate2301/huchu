@@ -2948,12 +2948,19 @@ async function seedFiscal(companyId: string) {
   const sales = await prisma.retailSale.findMany({
     where: { companyId, status: "POSTED", saleType: "SALE", postedAt: { gte: openedToday }, fiscalReceipt: null },
     orderBy: [{ postedAt: "asc" }, { id: "asc" }],
-    select: { id: true, saleNo: true, currency: true, postedAt: true },
+    select: { id: true, saleNo: true, currency: true, postedAt: true, lines: { select: { id: true, taxAmount: true, lineTotal: true } } },
   })
   let counter = 0
   for (const sale of sales) {
     counter += 1
     globalNo += 1
+    // The tax each receipt was signed with, all at 15.5% (taxID 1), as the day's Z-report counts it.
+    const cents = (field: "taxAmount" | "lineTotal") =>
+      sale.lines.reduce((sum, line) => sum.plus(line[field]), new Prisma.Decimal(0)).times(100).toFixed(0)
+    const signedTax = {
+      lineRates: Object.fromEntries(sale.lines.map((line) => [line.id, VAT_PERCENT])),
+      taxLines: [{ taxId: 1, taxPercent: VAT_PERCENT, taxAmountCents: cents("taxAmount"), salesAmountCents: cents("lineTotal") }],
+    }
     await prisma.fiscalReceipt.create({
       data: {
         companyId,
@@ -2968,6 +2975,7 @@ async function seedFiscal(companyId: string) {
         fiscalDayId: today.id,
         receiptType: "FISCALINVOICE",
         receiptCurrency: sale.currency,
+        signedTax,
         lastSyncedAt: sale.postedAt,
       },
     })

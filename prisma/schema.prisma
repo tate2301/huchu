@@ -7353,6 +7353,11 @@ model FiscalReceipt {
   /// is later (ZIMRA takes no receipt dated before the last one it took), so
   /// the sale's `postedAt` stays when it was really rung.
   receiptDate           DateTime?
+  /// SET-08 — the tax a till receipt was signed with: each sale line's rate
+  /// (by `RetailSaleLine.id`) and the receipt's lines per ZIMRA taxID, minor
+  /// units as strings. A resend sends these and the day's Z-report counts
+  /// them, so a catalogue rate edited after the sale changes neither.
+  signedTax             Json?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 

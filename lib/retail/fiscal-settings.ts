@@ -483,7 +483,17 @@ export async function closeShopFiscalDay(
 
   try {
     // "Sign later": what the tills signed while ZIMRA was away goes again now, so the report can count it.
-    if (!takenAlready) await resendRetailReceipts({ companyId: actor.companyId, fiscalDayId: day.id });
+    if (!takenAlready) {
+      const { refused } = await resendRetailReceipts({ companyId: actor.companyId, fiscalDayId: day.id });
+      // Not ZIMRA's silence but the receipt itself: closing again will not send it, so the close says why.
+      if (refused) {
+        throw new FiscalRefused(
+          `Day ${day.fiscalDayNo} cannot close: the receipt for sale ${refused.saleNo ?? refused.saleId} was not sent to ZIMRA. ${refused.fiscalError ?? ""}`.trim(),
+          409,
+          refused.errorCode ?? undefined,
+        );
+      }
+    }
     const taxLinesByReceiptId = await retailFiscalDayTaxLines({ companyId: actor.companyId, fiscalDayId: day.id });
     await closeFiscalDay({
       dayId: day.id,

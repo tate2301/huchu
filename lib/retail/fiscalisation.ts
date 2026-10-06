@@ -915,26 +915,90 @@ function mappingRefusal(sale: { id: string; saleNo: string }, error: unknown): R
 }
 
 /**
- * The facts ZIMRA signs for a sale, dated `receiptDate`, and the document it
- * is told about. Its tax is the tax as of the sale's own time. Throws a
- * mapping refusal; null for a reversal of a sale ZIMRA never saw.
+ * The tax a till receipt was signed with (`FiscalReceipt.signedTax`): each sale
+ * line's rate, by line id, and the receipt's lines per ZIMRA taxID in minor
+ * units. Written in the transaction that signs the receipt. A resend sends it
+ * and the day's Z-report counts it, so a catalogue rate edited after the sale
+ * changes neither (SET-08).
  */
-async function signable(companyId: string, sale: LoadedSale, db: Db, receiptDate: Date) {
+export type SignedRetailTax = {
+  lineRates: Record<string, string>;
+  taxLines: Array<{ taxId: number; taxPercent: string | null; taxAmountCents: string; salesAmountCents: string }>;
+};
+
+function signedTaxOf(sale: LoadedSale, lines: RetailSaleLineForSigning[], taxLines: RetailFiscalTaxLine[]): SignedRetailTax {
+  return {
+    lineRates: Object.fromEntries(sale.lines.map((line, index) => [line.id, percent(lines[index]!.taxPercent).toFixed(2)])),
+    taxLines: taxLines.map((line) => ({
+      taxId: line.taxId,
+      taxPercent: line.taxPercent,
+      taxAmountCents: line.taxAmountCents.toString(),
+      salesAmountCents: line.salesAmountCents.toString(),
+    })),
+  };
+}
+
+function signedTaxLines(signed: SignedRetailTax): RetailFiscalTaxLine[] {
+  return signed.taxLines.map((line) => ({
+    taxId: line.taxId,
+    taxPercent: line.taxPercent,
+    taxAmountCents: BigInt(line.taxAmountCents),
+    salesAmountCents: BigInt(line.salesAmountCents),
+  }));
+}
+
+/**
+ * The facts ZIMRA signs for a sale, dated `receiptDate`, and the document it
+ * is told about. Signing, its tax is the tax as of the sale's own time, from
+ * each line's product; sent again (`signed`), it is the tax it was signed with,
+ * never re-read. Throws a mapping refusal; null for a reversal of a sale ZIMRA
+ * never saw.
+ */
+async function signable(companyId: string, sale: LoadedSale, db: Db, receiptDate: Date, signed: SignedRetailTax | null = null) {
   let credited: CreditedReceiptReference | null = null;
   if (sale.saleType !== "SALE") {
     credited = await loadCreditedReceipt(companyId, sale, db);
     if (!credited) return null;
   }
-  const lines = await resolveLineRates(companyId, sale, db);
-  const resolver = await loadRetailTaxResolver({ companyId, asOf: sale.postedAt ?? sale.createdAt }, db);
-  const bundle = buildRetailSaleSigningInput({ sale: { ...sale, receiptDate }, lines, resolver });
+  let lines: RetailSaleLineForSigning[];
+  let fiscal: FiscalSigningInput;
+  let taxLines: RetailFiscalTaxLine[];
+  if (signed) {
+    lines = sale.lines.map((line) => {
+      const taxPercent = signed.lineRates[line.id];
+      if (taxPercent === undefined) {
+        throw new RetailFiscalMappingError(
+          "RETAIL_TOTALS_INCONSISTENT",
+          `${line.itemName} on ${sale.saleNo} was not on the sale when its receipt was signed`,
+        );
+      }
+      return { itemName: line.itemName, taxAmount: line.taxAmount, lineTotal: line.lineTotal, taxPercent };
+    });
+    taxLines = signedTaxLines(signed);
+    fiscal = {
+      receiptType: retailReceiptType(sale.saleType),
+      receiptCurrency: sale.currency,
+      receiptDate,
+      receiptTotal: centsFromMoneyLike(sale.totalAmount, `total of sale ${sale.saleNo}`),
+      taxes: taxLines.map((line) => ({
+        taxId: line.taxId,
+        taxPercent: line.taxPercent === null ? null : Number(line.taxPercent),
+        taxAmount: centsFromMinorUnits(line.taxAmountCents) as Cents,
+      })),
+    };
+  } else {
+    lines = await resolveLineRates(companyId, sale, db);
+    const resolver = await loadRetailTaxResolver({ companyId, asOf: sale.postedAt ?? sale.createdAt }, db);
+    ({ fiscal, taxLines } = buildRetailSaleSigningInput({ sale: { ...sale, receiptDate }, lines, resolver }));
+  }
   const supplier = await db.accountingSettings.findUnique({
     where: { companyId },
     select: { legalName: true, tradingName: true, vatNumber: true, taxNumber: true, address: true, phone: true, email: true },
   });
   return {
-    fiscal: bundle.fiscal,
-    payload: buildRetailSalePayload({ sale, lines, taxLines: bundle.taxLines, credited, supplier }),
+    fiscal,
+    payload: buildRetailSalePayload({ sale, lines, taxLines, credited, supplier }),
+    signedTax: signed ?? signedTaxOf(sale, lines, taxLines),
   };
 }
 
@@ -989,6 +1053,8 @@ async function signInto(
       fiscal: facts.fiscal,
       signingKey,
     });
+    // Kept with the signature: what a resend sends and the day's report counts.
+    await tx.fiscalReceipt.update({ where: { id: receipt.id }, data: { signedTax: facts.signedTax } });
     return outcome(sale, {
       fiscalStatus: "PENDING",
       fiscalReceiptId: receipt.id,
@@ -1105,18 +1171,19 @@ function receiptOutcome(
   });
 }
 
-/** Send a signed sale's receipt to ZIMRA, on the shop's device: the same signed bytes and date, every time. */
+/** Send a signed sale's receipt to ZIMRA, on the shop's device: the same signed bytes, date and tax, every time. */
 async function sendSigned(
   sale: LoadedSale,
-  receipt: { id: string; receiptDate: Date | null },
+  receipt: { id: string; receiptDate: Date | null; signedTax: Prisma.JsonValue | null },
   holdWhileUnreachable: boolean,
 ): Promise<RetailFiscalOutcome> {
   const device = await tillDevice(sale.companyId, prisma);
   if (!device) return noDevice(sale);
   if (!receipt.receiptDate) throw new Error(`Fiscal receipt ${receipt.id} of ${sale.saleNo} is signed but has no receipt date`);
+  if (!receipt.signedTax) throw new Error(`Fiscal receipt ${receipt.id} of ${sale.saleNo} is signed but has no signed tax`);
   let facts: Awaited<ReturnType<typeof signable>>;
   try {
-    facts = await signable(sale.companyId, sale, prisma, receipt.receiptDate);
+    facts = await signable(sale.companyId, sale, prisma, receipt.receiptDate, receipt.signedTax as SignedRetailTax);
   } catch (error) {
     const refused = mappingRefusal(sale, error);
     if (refused) return refused;
@@ -1324,9 +1391,14 @@ export async function fiscaliseAfterPosting(input: {
  * ZIMRA has not taken yet again, oldest first — the same signed bytes, so the
  * day can close. Stops at the first one ZIMRA does not take: the rest would
  * meet the same silence, and each waits on its own for the fiscal worker.
- * Returns how many are still not taken.
+ * Returns how many are still not taken, and the refusal it stopped at when it
+ * was not ZIMRA's silence but the receipt itself (`errorCode`): one a person
+ * has to put right, which no retry sends.
  */
-export async function resendRetailReceipts(input: { companyId: string; fiscalDayId: string }): Promise<number> {
+export async function resendRetailReceipts(input: {
+  companyId: string;
+  fiscalDayId: string;
+}): Promise<{ left: number; refused: RetailFiscalOutcome | null }> {
   const unsent = await prisma.fiscalReceipt.findMany({
     where: {
       companyId: input.companyId,
@@ -1340,18 +1412,17 @@ export async function resendRetailReceipts(input: { companyId: string; fiscalDay
   let left = unsent.length;
   for (const receipt of unsent) {
     const result = await fiscaliseRetailSale({ companyId: input.companyId, saleId: receipt.retailSaleId! });
-    if (result.fiscalStatus !== "SUCCESS") break;
+    if (result.fiscalStatus !== "SUCCESS") return { left, refused: result.errorCode ? result : null };
     left -= 1;
   }
-  return left;
+  return { left, refused: null };
 }
 
 /**
  * A fiscal day's till receipts as the Z-report counts them: each receipt's
- * tax lines, rebuilt from its sale the way it was signed (SET-08 "Close
- * day"). The signer does not keep a receipt's per-tax breakdown, and a day
- * closed without it reports its sales as receipts without tax lines. A sale
- * whose lines no longer resolve to a taxID is left out and lands there.
+ * tax lines as it was signed (`FiscalReceipt.signedTax`, SET-08 "Close day"),
+ * never rebuilt from the catalogue, so a rate edited after a sale leaves the
+ * day's counters what ZIMRA was sent.
  */
 export async function retailFiscalDayTaxLines(input: {
   companyId: string;
@@ -1359,36 +1430,11 @@ export async function retailFiscalDayTaxLines(input: {
 }): Promise<Record<string, Array<{ taxId: number; taxPercent: string | null; salesAmountCents: bigint; taxAmountCents: bigint }>>> {
   const receipts = await prisma.fiscalReceipt.findMany({
     where: { companyId: input.companyId, fiscalDayId: input.fiscalDayId, retailSaleId: { not: null } },
-    select: { id: true, retailSaleId: true, receiptDate: true },
+    select: { id: true, signedTax: true },
   });
-  const lines: Awaited<ReturnType<typeof retailFiscalDayTaxLines>> = {};
-  for (const receipt of receipts) {
-    const sale = (await prisma.retailSale.findFirst({
-      where: { id: receipt.retailSaleId!, companyId: input.companyId },
-      include: SALE_INCLUDE,
-    })) as LoadedSale | null;
-    if (!sale) continue;
-    // Tax as of the sale's own time, on the date the receipt was signed with, as `signable` builds it.
-    const soldAt = sale.postedAt ?? sale.createdAt;
-    try {
-      const resolver = await loadRetailTaxResolver({ companyId: input.companyId, asOf: soldAt });
-      const bundle = buildRetailSaleSigningInput({
-        sale: { ...sale, receiptDate: receipt.receiptDate ?? soldAt },
-        lines: await resolveLineRates(input.companyId, sale),
-        resolver,
-      });
-      lines[receipt.id] = bundle.taxLines.map((line) => ({
-        taxId: line.taxId,
-        taxPercent: line.taxPercent,
-        salesAmountCents: line.salesAmountCents,
-        taxAmountCents: line.taxAmountCents,
-      }));
-    } catch (error) {
-      if (error instanceof RetailFiscalMappingError || error instanceof FiscalMappingError || error instanceof FiscalSigningError) {
-        continue;
-      }
-      throw error;
-    }
-  }
-  return lines;
+  return Object.fromEntries(
+    receipts
+      .filter((receipt) => receipt.signedTax)
+      .map((receipt) => [receipt.id, signedTaxLines(receipt.signedTax as SignedRetailTax)]),
+  );
 }
