@@ -3,7 +3,8 @@
  * below-cost price waits for the owner and nothing is written; the owner's
  * goes through; the shop's limits decide; a change on the default list moves
  * the fallback price too; a change dated later writes only its history row;
- * and two runs of `applyDuePriceChanges` at once apply each due row once.
+ * two runs of `applyDuePriceChanges` at once apply each due row once; and a
+ * due change on a product in the bin is cancelled, not applied.
  */
 import { Prisma } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -104,5 +105,30 @@ describe("changing a price", () => {
     const after = await prisma.platformAuditEvent.count({ where: { entityId: amarulaId, eventType: "RETAIL_PRICE.CHANGED" } });
     expect(after - before).toBe(1);
     expect(await applyDuePriceChanges(shop.companyId, due)).toBe(0);
+  });
+
+  it("cancels a change that comes due while its product is in the bin", async () => {
+    const binned = await addTestProduct(shop.companyId, { name: "Two Keys Brandy 750ml", price: "8.00" });
+    const later = new Date(Date.now() + 2 * 60 * 60_000);
+    await prisma.$transaction((tx) =>
+      changePrices(tx, {
+        companyId: shop.companyId,
+        actor: shop.owner(),
+        listId,
+        rows: [{ productId: binned.productId, price: "9.00" }],
+        source: "TYPED",
+        limits: LIMITS,
+        effectiveAt: later,
+      }),
+    );
+    await prisma.product.update({ where: { id: binned.productId }, data: { archivedAt: new Date(), isActive: false } });
+
+    const due = new Date(later.getTime() + 1000);
+    expect(await applyDuePriceChanges(shop.companyId, due)).toBe(0);
+    const product = await prisma.product.findUniqueOrThrow({ where: { id: binned.productId } });
+    expect(product.standardPrice.toFixed(2)).toBe("8.00");
+    const [waiting] = await prisma.productPriceChange.findMany({ where: { productId: binned.productId, source: "TYPED" } });
+    expect(waiting).toMatchObject({ appliedAt: null, cancelledAt: due });
+    expect(await prisma.platformAuditEvent.count({ where: { entityId: binned.productId, eventType: "RETAIL_PRICE.CHANGED" } })).toBe(0);
   });
 });

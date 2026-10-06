@@ -2,8 +2,8 @@
  * Changing a product (W-11, W-62; PRD-03), against the test database: each
  * field that moved is named once with its before and after, and written as
  * one `RETAIL_RECORD.EDITED`; the price goes through the price core (owner
- * rule, history); the cost moves the line's cost; opening stock is refused
- * once anything has moved; a binned product is refused with 409.
+ * rule, history); the cost moves the line's cost; opening stock and Sold as
+ * are refused once anything has moved; a binned product is refused with 409.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -86,6 +86,24 @@ describe("changing a product", () => {
       field: "openingStock",
       message: "It has stock history already. Adjust stock instead.",
     });
+  });
+
+  it("keeps Sold as once stock has moved, and reads the same value sent again as no change", async () => {
+    expect(await refusal(edit({ soldAs: "BY_WEIGHT" }))).toEqual({
+      status: 400,
+      field: "soldAs",
+      message: "It has stock history already. Add it again as a new product to sell it the other way.",
+    });
+    // The Edit sheet sends Sold as on every save.
+    const { changed } = await edit({ soldAs: "SINGLE", reorderAt: "25" });
+    expect(changed.map((change) => change.field)).toEqual(["reorderAt"]);
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: amarulaId } })).unit).toBe("EACH");
+
+    // Nothing has moved yet: the product and its line change together.
+    const loose = await addTestProduct(shop.companyId, { name: "Loose Biltong", price: "30.00" });
+    await edit({ soldAs: "BY_WEIGHT" }, shop.owner(), loose.productId);
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: loose.productId } })).unit).toBe("KILOGRAM");
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: loose.itemId } })).unit).toBe("kg");
   });
 
   it("refuses a name another live product has", async () => {

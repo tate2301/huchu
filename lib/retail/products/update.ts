@@ -134,7 +134,12 @@ export async function updateProduct(
           ? money(category?.depositAmount?.toString() ?? product.retailCategory?.depositAmount?.toString() ?? DEFAULT_DEPOSIT)
           : product.depositAmount;
   const cost = input.cost === undefined ? undefined : input.cost === null ? null : money(input.cost);
-  const soldAs = input.soldAs;
+  // Sold as is the unit the till sells in and the stock line is counted in:
+  // once stock has moved in one, it stays.
+  const soldAs = input.soldAs !== undefined && input.soldAs !== before.soldAs ? input.soldAs : undefined;
+  if (soldAs !== undefined && hasMovements) {
+    throw new ProductRefusal(400, "It has stock history already. Add it again as a new product to sell it the other way.", "soldAs");
+  }
 
   await tx.product.update({
     where: { id },
@@ -157,7 +162,7 @@ export async function updateProduct(
   });
   if (name !== undefined) await tx.inventoryItem.updateMany({ where: { productId: id }, data: { name } });
   if (cost !== undefined && line) await tx.inventoryItem.update({ where: { id: line.id }, data: { unitCost: cost } });
-  if (soldAs !== undefined && line && !hasMovements) {
+  if (soldAs !== undefined && line) {
     await tx.inventoryItem.update({ where: { id: line.id }, data: { unit: soldAs === "BY_WEIGHT" ? "kg" : "each" } });
   }
   if (line && (input.reorderAt !== undefined || input.reorderQty !== undefined)) {

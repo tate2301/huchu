@@ -6,8 +6,8 @@ import { getApprovalLimits } from "@/lib/retail/approvals/limits";
 import { canRetailSessionDo, requireRetailPermission, retailRoleKey } from "@/lib/retail/permissions";
 import { openingJournal } from "@/lib/retail/products/create";
 import { productFieldErrors, productPatch } from "@/lib/retail/products/input";
-import { productActor, productFailure } from "@/lib/retail/products/routes";
-import { updateProduct } from "@/lib/retail/products/update";
+import { afterCommit, productActor, productFailure } from "@/lib/retail/products/routes";
+import { updateProduct, type ProductUpdated } from "@/lib/retail/products/update";
 import { loadProductView } from "@/lib/retail/products/view";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 
@@ -50,8 +50,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const parsed = productPatch.safeParse((await request.json().catch(() => null)) ?? {});
   if (!parsed.success) {
-    const fieldErrors = productFieldErrors(parsed.error);
-    return fieldErrorResponse(Object.values(fieldErrors)[0] ?? "Check the fields.", fieldErrors);
+    const { error, fieldErrors } = productFieldErrors(parsed.error);
+    return fieldErrorResponse(error, fieldErrors);
   }
   const input = parsed.data;
   if (input.price !== undefined) {
@@ -63,19 +63,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const actor = productActor(session);
+  const where = "PATCH /api/v2/retail/products/[id]";
+  const id = path.data.id;
+  let updated: ProductUpdated;
   try {
     const limits = await getApprovalLimits(actor.companyId);
-    const updated = await prisma.$transaction((tx) => updateProduct(tx, { actor, id: path.data.id, input, limits }));
-    if (updated.opening) {
-      const journal = openingJournal({ productId: path.data.id, code: updated.code, name: updated.name, ...updated.opening }, actor);
-      if (journal) await postRetailJournal(journal);
-    }
-    const data = await loadProductView(actor.companyId, path.data.id, retailRoleKey(session));
-    return successResponse({
-      data,
-      changed: updated.changed.map(({ field, label, from, to }) => ({ field, label, from, to })),
-    });
+    updated = await prisma.$transaction((tx) => updateProduct(tx, { actor, id, input, limits }));
   } catch (error) {
-    return productFailure(error, "PATCH /api/v2/retail/products/[id]");
+    return productFailure(error, where);
   }
+
+  const journal = updated.opening
+    ? openingJournal({ productId: id, code: updated.code, name: updated.name, ...updated.opening }, actor)
+    : null;
+  if (journal) await afterCommit(() => postRetailJournal(journal), null, where);
+  const saved = { id, code: updated.code, name: updated.name };
+  const data = await afterCommit(
+    async () => (await loadProductView(actor.companyId, id, retailRoleKey(session))) ?? saved,
+    saved,
+    where,
+  );
+  return successResponse({
+    data,
+    changed: updated.changed.map(({ field, label, from, to }) => ({ field, label, from, to })),
+  });
 }

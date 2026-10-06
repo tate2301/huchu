@@ -171,7 +171,7 @@ const product: LookupNoun = {
   },
   async add(ctx, fields) {
     const parsed = productInput.safeParse({ name: fields.name ?? "", price: fields.price ?? "" });
-    if (!parsed.success) throw new LookupFieldErrors(productFieldErrors(parsed.error));
+    if (!parsed.success) throw new LookupFieldErrors(productFieldErrors(parsed.error).fieldErrors);
     try {
       const created = await prisma.$transaction((tx) =>
         createProduct(tx, {

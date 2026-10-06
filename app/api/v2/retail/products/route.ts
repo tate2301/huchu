@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { fieldErrorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
+import { getApprovalLimits } from "@/lib/retail/approvals/limits";
 import { requireRetailPermission, retailRoleKey } from "@/lib/retail/permissions";
-import { createProduct, openingJournal, openingOf } from "@/lib/retail/products/create";
+import { createProduct, openingJournal, openingOf, type ProductCreated } from "@/lib/retail/products/create";
 import { productFieldErrors, productInput } from "@/lib/retail/products/input";
-import { productActor, productFailure } from "@/lib/retail/products/routes";
+import { afterCommit, productActor, productFailure } from "@/lib/retail/products/routes";
 import { loadProductView } from "@/lib/retail/products/view";
 
 import { postRetailJournal, requireRetailSession } from "../_helpers";
@@ -15,8 +16,9 @@ import { postRetailJournal, requireRetailSession } from "../_helpers";
  * hand. `retail.catalog:create`, and `retail.prices:update` for the price it
  * goes on sale at. 201 `{ data: ProductView }`; 400 `{ error, fieldErrors }`
  * under the field (a name or barcode already taken, a barcode of the wrong
- * length, a category or supplier not the shop's). Opening stock with a cost
- * posts Dr Stock / Cr Opening balances after the commit.
+ * length, a category or supplier not the shop's, a manager's price below
+ * the cost given). Opening stock with a cost posts Dr Stock / Cr Opening
+ * balances after the commit.
  */
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -28,8 +30,8 @@ export async function POST(request: NextRequest) {
 
   const parsed = productInput.safeParse((await request.json().catch(() => null)) ?? {});
   if (!parsed.success) {
-    const fieldErrors = productFieldErrors(parsed.error);
-    return fieldErrorResponse(Object.values(fieldErrors)[0] ?? "Check the fields.", fieldErrors);
+    const { error, fieldErrors } = productFieldErrors(parsed.error);
+    return fieldErrorResponse(error, fieldErrors);
   }
 
   // The sheet asks for a category; only the product field's quick add goes without one.
@@ -38,13 +40,22 @@ export async function POST(request: NextRequest) {
   }
 
   const actor = productActor(session);
+  const where = "POST /api/v2/retail/products";
+  let created: ProductCreated;
   try {
-    const created = await prisma.$transaction((tx) => createProduct(tx, { actor, input: parsed.data, source: "ADDED" }));
-    const journal = openingJournal(openingOf(created), actor);
-    if (journal) await postRetailJournal(journal);
-    const data = await loadProductView(actor.companyId, created.productId, retailRoleKey(session));
-    return successResponse({ data }, 201);
+    const limits = await getApprovalLimits(actor.companyId);
+    created = await prisma.$transaction((tx) => createProduct(tx, { actor, input: parsed.data, source: "ADDED", limits }));
   } catch (error) {
-    return productFailure(error, "POST /api/v2/retail/products");
+    return productFailure(error, where);
   }
+
+  const journal = openingJournal(openingOf(created), actor);
+  if (journal) await afterCommit(() => postRetailJournal(journal), null, where);
+  const saved = { id: created.productId, code: created.code, name: created.name, price: Number(created.price) };
+  const data = await afterCommit(
+    async () => (await loadProductView(actor.companyId, created.productId, retailRoleKey(session))) ?? saved,
+    saved,
+    where,
+  );
+  return successResponse({ data }, 201);
 }

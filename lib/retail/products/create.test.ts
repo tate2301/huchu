@@ -81,7 +81,8 @@ describe("adding a product", () => {
     expect(await refusal(add({ name: "savanna LIGHT 330ml", price: "2.10" }))).toEqual({
       status: 400,
       field: "name",
-      message: "There is already a product called savanna LIGHT 330ml.",
+      // The name the shop already has, not the one typed.
+      message: "There is already a product called Savanna Light 330ml.",
     });
     const binned = await add({ name: "Zambezi Lager 375ml", price: "1.35" });
     await prisma.product.update({ where: { id: binned.productId }, data: { archivedAt: new Date(), isActive: false } });
@@ -93,12 +94,46 @@ describe("adding a product", () => {
     expect((await prisma.product.findUniqueOrThrow({ where: { id: created.productId } })).barcode).toBe("600110801234");
     const short = productInput.safeParse({ name: "Short", price: "1.00", barcode: "1234567" });
     expect(short.success).toBe(false);
-    expect(productFieldErrors(short.error!)).toEqual({ barcode: "A barcode has 8 to 14 digits." });
+    expect(productFieldErrors(short.error!).fieldErrors).toEqual({ barcode: "A barcode has 8 to 14 digits." });
     expect(await refusal(add({ name: "Castle Lite 340ml", price: "1.20", barcode: "600110801234" }))).toEqual({
       status: 400,
       field: "barcode",
       message: "Castle Lager 340ml already has this barcode.",
     });
+  });
+
+  it("refuses a manager's first price below its cost under Price, and takes the owner's", async () => {
+    const below = { name: "Cheap Wine 750ml", price: "1.00", cost: "5.00" };
+    const withLimits = (actor: ReturnType<TestShop["owner"]>, belowCostNeedsOwner: boolean) =>
+      prisma.$transaction((tx) =>
+        createProduct(tx, { actor, input: productInput.parse(below), source: "ADDED", limits: { belowCostNeedsOwner } }),
+      );
+    expect(await refusal(withLimits(shop.manager(), true))).toEqual({
+      status: 400,
+      field: "price",
+      message: "Below cost needs the owner. It costs US$5.00.",
+    });
+    expect(await prisma.product.count({ where: { companyId: shop.companyId, name: below.name } })).toBe(0);
+    // A shop that lets managers price below cost; and the owner, always.
+    const managers = await withLimits(shop.manager(), false);
+    await prisma.product.update({ where: { id: managers.productId }, data: { archivedAt: new Date(), isActive: false } });
+    expect((await withLimits(shop.owner(), true)).name).toBe(below.name);
+  });
+
+  it("answers a figure too big for its column, and a body that is not fields, in words", () => {
+    const big = productInput.safeParse({
+      name: "Big",
+      price: "99999999999999.99",
+      cost: "9999999999999999",
+      openingStock: "12345678901234567890",
+    });
+    expect(productFieldErrors(big.error!).fieldErrors).toEqual({
+      price: "Price is too big. Keep it under 10,000,000,000.",
+      cost: "Cost is too big. Keep it under 10,000,000,000.",
+      openingStock: "Opening stock is too big. Keep it under 10,000,000.",
+    });
+    expect(productInput.safeParse({ name: "Fits", price: "9999999999.99", openingStock: "9999999" }).success).toBe(true);
+    expect(productFieldErrors(productInput.safeParse("a string").error!)).toEqual({ error: "Check the fields.", fieldErrors: {} });
   });
 
   it("refuses a category that is not the shop's", async () => {
@@ -128,7 +163,7 @@ describe("adding a product", () => {
 
   it("refuses part of a bottle and keeps part of a kilo", async () => {
     const bottle = productInput.safeParse({ name: "Half", price: "1.00", openingStock: "1.5" });
-    expect(productFieldErrors(bottle.error!)).toEqual({ openingStock: "Opening stock is a whole number." });
+    expect(productFieldErrors(bottle.error!).fieldErrors).toEqual({ openingStock: "Opening stock is a whole number." });
     expect(productInput.safeParse({ name: "Biltong", price: "30.00", openingStock: "1.25", soldAs: "BY_WEIGHT" }).success).toBe(true);
   });
 

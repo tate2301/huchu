@@ -51,12 +51,14 @@
 .sf-cell--half { grid-column: span 1; }
 @media (max-width: 719px) { .sf-cell--half { grid-column: span 2; } }
 
-/* Footer: the note, or the saved line, or what went wrong. */
+/* Footer: the note, or the saved line, or what went wrong. It grows when a line wraps. */
+.sf-sheet .cx-sheet__foot { height: auto; min-height: 68px; padding-top: 10px; padding-bottom: 10px; }
 .sf-foot__note { flex: 1; min-width: 0; color: var(--ink-3); line-height: 1.4; }
 .sf-foot__note--bad { color: var(--bad); }
 .sf-foot__link { color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
-.sf-foot__note--ok { display: flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 500; }
-.sf-foot__note--ok svg { width: 16px; height: 16px; flex: none; }
+/* The done line wraps: it is a sentence to read, not a label to clip. */
+.sf-foot__note--ok { display: flex; align-items: flex-start; gap: 8px; color: var(--ok); font-weight: 500; }
+.sf-foot__note--ok svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
 .sf-danger { flex: none; height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--bad); font: inherit; font-size: 13px; cursor: pointer; }
 .sf-danger svg { width: 14px; height: 14px; }
 .sf-danger:hover { background: var(--bad-soft); }

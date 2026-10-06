@@ -595,7 +595,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
               ) : savedLine ? (
                 <span role="status" className="sf-foot__note sf-foot__note--ok">
                   <CheckCircle aria-hidden="true" />
-                  <span className="sf-ellipsis">{savedLine}</span>
+                  <span>{savedLine}</span>
                 </span>
               ) : (
                 <span className="sf-foot__note">

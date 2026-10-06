@@ -189,6 +189,31 @@ describe("the bin", () => {
     expect(outcomes).toContainEqual({ status: 409, message: "It is already in the bin" });
     expect((await events(id)).filter((event) => event.eventType === "RETAIL_RECORD.BINNED")).toHaveLength(1);
   });
+
+  it("keeps a product in the bin while a live one has its name or barcode", async () => {
+    const first = await addTestProduct(companyId, { name: "Dup Lager 340ml", price: "1.10", barcode: "60011080001" });
+    await moveToBin(actor(), { kind: "product", id: first.productId });
+    // Free while it is in the bin: a new product takes the name and the barcode.
+    const second = await addTestProduct(companyId, { name: "dup lager 340ML", price: "1.50", barcode: "60011080001" });
+
+    expect(await refusal(restoreFromBin(actor(), { kind: "product", id: first.productId }))).toEqual({
+      status: 409,
+      message: "There is already a product called dup lager 340ML. Rename one first.",
+    });
+    await prisma.product.update({ where: { id: second.productId }, data: { name: "Dup Lager 375ml" } });
+    expect(await refusal(restoreFromBin(actor(), { kind: "product", id: first.productId }))).toEqual({
+      status: 409,
+      message: "Dup Lager 375ml already has this barcode. Change one of the barcodes first.",
+    });
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: first.productId } })).archivedAt).not.toBeNull();
+
+    await prisma.product.update({ where: { id: second.productId }, data: { barcode: "60011080002" } });
+    expect(await restoreFromBin(actor(), { kind: "product", id: first.productId })).toEqual({ restored: true });
+    expect(await prisma.product.findUniqueOrThrow({ where: { id: first.productId } })).toMatchObject({
+      archivedAt: null,
+      isActive: false,
+    });
+  });
 });
 
 describe("gone for good", () => {

@@ -4,7 +4,8 @@ import { money, toNumberOrZero } from "@/lib/money";
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { RETAIL_AUDIT_EVENTS, auditAmount, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { STANDARD_VAT_RATE } from "@/lib/retail/category-words";
-import { defaultPriceList } from "@/lib/retail/prices/change";
+import type { ApprovalLimits } from "@/lib/retail/approvals/limits";
+import { defaultPriceList, priceChangeNeedsOwner } from "@/lib/retail/prices/change";
 import { recordOpeningStock } from "@/lib/retail/stock/opening";
 
 import { normalizeSku, type ProductInput } from "./input";
@@ -53,9 +54,9 @@ export async function checkProductUnique(
   if (input.name !== undefined) {
     const named = await tx.product.findFirst({
       where: { ...others, name: { equals: input.name, mode: "insensitive" } },
-      select: { id: true },
+      select: { name: true },
     });
-    if (named) throw new ProductRefusal(400, `There is already a product called ${input.name}.`, "name");
+    if (named) throw new ProductRefusal(400, `There is already a product called ${named.name}.`, "name");
   }
   if (input.barcode) {
     const scanned = await tx.product.findFirst({ where: { ...others, barcode: input.barcode }, select: { name: true } });
@@ -145,6 +146,13 @@ export async function createProduct(
     input: ProductInput;
     source: Extract<RetailPriceChangeSource, "ADDED" | "IMPORT">;
     siteId?: string | null;
+    /**
+     * The shop's approval limits, when a person adds it with a cost. A first
+     * price below that cost needs the owner, as a change to one does. "Price
+     * changes need the owner" does not stop a manager adding a product: its
+     * first price is not a change, and adding products is the manager's (W-09).
+     */
+    limits?: Pick<ApprovalLimits, "belowCostNeedsOwner">;
   },
 ): Promise<ProductCreated> {
   const { actor, input } = args;
@@ -157,12 +165,18 @@ export async function createProduct(
   const supplier = input.supplierId ? await supplierOf(tx, companyId, input.supplierId) : null;
   const site = await stockSiteOf(tx, companyId, input.siteId ?? args.siteId ?? null);
 
+  const price = money(input.price);
+  const cost = input.cost ? money(input.cost) : null;
+  if (args.limits) {
+    const limits = { priceChanges: "MANAGERS" as const, belowCostNeedsOwner: args.limits.belowCostNeedsOwner };
+    const refusal = priceChangeNeedsOwner(limits, actor, { price, cost });
+    if (refusal) throw new ProductRefusal(400, refusal, "price");
+  }
+
   // 2. Its code.
   const code = await freeCode(tx, companyId, site.id, input.name);
 
   // 3. The product.
-  const price = money(input.price);
-  const cost = input.cost ? money(input.cost) : null;
   const byWeight = input.soldAs === "BY_WEIGHT";
   const returnable = input.returnable ?? false;
   const deposit = returnable

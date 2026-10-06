@@ -2674,6 +2674,8 @@ async function seedBin(input: { companyId: string; siteId: string; locationId: s
       select: { createdAt: true },
     })
     if (binned && binned.createdAt.getTime() === existing.archivedAt.getTime() && existing.archivedAt.getTime() === at.getTime()) {
+      // In the bin is off every till: archived as well (PRD-03).
+      await prisma.product.update({ where: { id: existing.id }, data: { isActive: false } })
       console.log("  bin: Nederburg Rosé 750ml already in the bin")
     } else {
       await prisma.product.update({ where: { id: existing.id }, data: { archivedAt: null } })

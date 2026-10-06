@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
 import { auditRecordBin, auditRecordPurged, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
 import { categoryBinRefusal, restoreCategory } from "@/lib/retail/categories";
+import { checkProductUnique, lockProductNames, ProductRefusal } from "@/lib/retail/products/create";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 
 /**
@@ -99,7 +100,20 @@ const KINDS: Record<BinKind, BinKindSpec> = {
       return null;
     },
     // Back out of the bin archived: it sells again only when someone says so.
+    // Its name and barcode are free while it is in the bin, so a product
+    // added since may hold them; then it stays in the bin until one is renamed.
     restore: async (tx, companyId, id) => {
+      await lockProductNames(tx, companyId);
+      const product = await tx.product.findFirst({ where: { id, companyId }, select: { name: true, barcode: true } });
+      if (!product) return null;
+      try {
+        await checkProductUnique(tx, companyId, product, id);
+      } catch (error) {
+        if (error instanceof ProductRefusal) {
+          return `${error.message} ${error.field === "barcode" ? "Change one of the barcodes first." : "Rename one first."}`;
+        }
+        throw error;
+      }
       await tx.product.updateMany({ where: { id, companyId }, data: { archivedAt: null, isActive: false } });
       return null;
     },

@@ -412,7 +412,16 @@ const moreFields = (edit: boolean): FieldSpec[] => {
       optQuiet: true,
       schema: countSchema("Reorder at"),
     },
-    { id: "soldAs", t: "seg", l: "Sold as", half: true, o: SOLD_AS_SEG, v: "Single" },
+    {
+      id: "soldAs",
+      t: "seg",
+      l: "Sold as",
+      half: true,
+      o: SOLD_AS_SEG,
+      v: "Single",
+      // The unit its stock is counted in: fixed once stock has moved.
+      ...(edit ? { disabled: (values: SheetValues) => values._hasMovements === true } : {}),
+    },
     {
       id: "returnable",
       t: "toggle",

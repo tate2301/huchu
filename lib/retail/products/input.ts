@@ -13,6 +13,15 @@ import { z } from "zod";
 
 const MONEY = /^\d+(\.\d{1,2})?$/;
 
+/**
+ * The most whole digits a figure takes, so it fits its column: money is
+ * `Decimal(14,2)`, a count `Decimal(12,4)` with room left for the stock it
+ * is added to.
+ */
+const MONEY_DIGITS = 10;
+const COUNT_DIGITS = 7;
+const wholeDigits = (text: string) => text.split(".")[0].replace(/^0+(?=\d)/, "").length;
+
 /** "", null and undefined → null; a number → its text; text → trimmed. */
 const blankToNull = (value: unknown) => {
   if (value === undefined) return undefined;
@@ -25,7 +34,10 @@ const blankToNull = (value: unknown) => {
 const moneyText = (label: string) =>
   z.preprocess(
     blankToNull,
-    z.string({ message: `${label} is a figure, like 2.10.` }).regex(MONEY, `Write ${label.toLowerCase()} as a figure, like 2.10.`),
+    z
+      .string({ message: `${label} is a figure, like 2.10.` })
+      .regex(MONEY, `Write ${label.toLowerCase()} as a figure, like 2.10.`)
+      .refine((text) => wholeDigits(text) <= MONEY_DIGITS, `${label} is too big. Keep it under 10,000,000,000.`),
   );
 
 const optionalMoney = (label: string) => moneyText(label).nullable().optional();
@@ -36,7 +48,8 @@ const countText = (label: string) =>
       blankToNull,
       z
         .string({ message: `${label} is a figure.` })
-        .regex(/^\d+(\.\d+)?$/, `${label} is a figure, zero or more.`),
+        .regex(/^\d+(\.\d+)?$/, `${label} is a figure, zero or more.`)
+        .refine((text) => wholeDigits(text) <= COUNT_DIGITS, `${label} is too big. Keep it under 10,000,000.`),
     )
     .nullable()
     .optional();
@@ -127,14 +140,22 @@ export const productPatch = z
 
 export type ProductPatch = z.infer<typeof productPatch>;
 
-/** The first sentence per field, for `{ error, fieldErrors }`. */
-export function productFieldErrors(error: z.ZodError): Record<string, string> {
-  const errors: Record<string, string> = {};
+/** What a body that is not a set of fields at all (not a JSON object) is answered with. */
+export const CHECK_THE_FIELDS = "Check the fields.";
+
+/**
+ * The first sentence per field, for `{ error, fieldErrors }`, and the
+ * sentence to lead with. An issue with no field (the body is not an object)
+ * belongs under none: it is answered "Check the fields." with no field errors.
+ */
+export function productFieldErrors(error: z.ZodError): { error: string; fieldErrors: Record<string, string> } {
+  const fieldErrors: Record<string, string> = {};
   for (const issue of error.issues) {
-    const field = String(issue.path[0] ?? "name");
-    if (!errors[field]) errors[field] = issue.message;
+    if (issue.path.length === 0) return { error: CHECK_THE_FIELDS, fieldErrors: {} };
+    const field = String(issue.path[0]);
+    if (!fieldErrors[field]) fieldErrors[field] = issue.message;
   }
-  return errors;
+  return { error: Object.values(fieldErrors)[0] ?? CHECK_THE_FIELDS, fieldErrors };
 }
 
 /** "Savanna Light 330ml" → "SAVANNA-LIGHT-330ML": upper case, anything else a dash, at most 20. */

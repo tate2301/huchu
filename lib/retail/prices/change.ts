@@ -242,10 +242,19 @@ export async function changePrices(
  * Apply every scheduled change that has come due, once. Each row is claimed
  * by setting its `appliedAt` where it is still empty, so two runs at the same
  * moment apply each row exactly once; one transaction per list.
+ *
+ * A change that comes due while its product is in the bin is cancelled, not
+ * applied: the product left every list, and restored it comes back at the
+ * price it went in with, not one set for a shop it was no longer in.
  */
 export async function applyDuePriceChanges(companyId: string, now: Date = new Date()): Promise<number> {
+  const waiting = { companyId, effectiveAt: { lte: now }, appliedAt: null, cancelledAt: null };
+  await prisma.productPriceChange.updateMany({
+    where: { ...waiting, product: { archivedAt: { not: null } } },
+    data: { cancelledAt: now },
+  });
   const due = await prisma.productPriceChange.findMany({
-    where: { companyId, effectiveAt: { lte: now }, appliedAt: null, cancelledAt: null },
+    where: { ...waiting, product: { archivedAt: null } },
     orderBy: [{ effectiveAt: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -268,7 +277,8 @@ export async function applyDuePriceChanges(companyId: string, now: Date = new Da
       for (const row of rows) {
         const claimed = await tx.$executeRaw`
           UPDATE "ProductPriceChange" SET "appliedAt" = ${now}
-          WHERE "id" = ${row.id} AND "appliedAt" IS NULL AND "cancelledAt" IS NULL`;
+          WHERE "id" = ${row.id} AND "appliedAt" IS NULL AND "cancelledAt" IS NULL
+            AND EXISTS (SELECT 1 FROM "Product" WHERE "id" = ${row.productId} AND "archivedAt" IS NULL)`;
         if (claimed !== 1) continue;
         await applyPrice(tx, {
           companyId,

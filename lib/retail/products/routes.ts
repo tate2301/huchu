@@ -34,3 +34,19 @@ export function productFailure(error: unknown, where: string): NextResponse {
   console.error(`[API] ${where} error:`, error);
   return errorResponse("That did not work. Nothing was saved; try again.");
 }
+
+/**
+ * A step after the commit (the opening stock's journal, the view answered
+ * with). The product is saved by then, so a failure here is logged and the
+ * answer stays 2xx with the fallback: saying "nothing was saved" would make
+ * a retry refuse its own name. The journal's integration event is written
+ * before it posts, so the posting run picks up one that failed here.
+ */
+export async function afterCommit<T, F>(step: () => Promise<T>, fallback: F, where: string): Promise<T | F> {
+  try {
+    return await step();
+  } catch (error) {
+    console.error(`[API] ${where} after the commit:`, error);
+    return fallback;
+  }
+}
