@@ -46,7 +46,9 @@ import {
 } from "../../_services";
 import { fiscaliseRetailSales } from "@/lib/retail/fiscalisation";
 import { requirePosDevice, type PosDevice } from "@/lib/retail/devices";
-import { approverSchema } from "@/lib/retail/manager-pin";
+import { approverSchema, replayApproval } from "@/lib/retail/manager-pin";
+import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
+import { offlineDiscountReview } from "@/lib/retail/till-rule-words";
 import { SOLD_AFTER_UNPAIR, UNPAIRED_REVIEW_REASON, unpairedSaleVerdict } from "@/lib/retail/device-words";
 
 // ── Request Schemas ─────────────────────────────────────────────────────────
@@ -392,6 +394,8 @@ async function processCreateSale(
     offlineCreated?: boolean;
     /** The cashier confirmed the customer's ID at the counter. */
     idChecked?: boolean;
+    /** A manager's PIN taken at the till, when the discount rule asked for one. */
+    approver?: unknown;
   };
 
   try {
@@ -551,7 +555,36 @@ async function processCreateSale(
       };
     });
 
-    const overrideReason = [payload.overrideReason?.trim() || null, review.overrideNote]
+    /*
+      SET-06. The till rules' discount ceiling, the same rule as the counter's
+      (`saleDiscountRule`). The sale has happened, so it is not refused: over
+      the cashier's largest, with no manager's PIN that checks out, it goes in
+      marked for a manager to look at. The replay review above has already
+      explained every price, so the rule reads the discounts alone.
+    */
+    const tillRules = await loadTillRules(ctx.companyId);
+    const discount = await replayApproval({
+      companyId: ctx.companyId,
+      actorRole: ctx.session.user.role,
+      decision: saleDiscountRule(tillRules, {
+        lines: replayLines.map((line, index) => ({
+          quantity: line.item.quantity,
+          unitPrice: review.lines[index].unitPrice,
+          shelfUnitPrice: line.shelf.unitPrice,
+          lineDiscount: line.item.discountAmount ?? 0,
+        })),
+        orderDiscount: payload.discountAmount ?? 0,
+        pricesExplained: true,
+      }),
+      approver: replayedApprover(payload.approver),
+      review: (reason) => offlineDiscountReview(reason, tillRules.maxCashierDiscountPercent.toFixed(2)),
+    });
+
+    const overrideReason = [
+      payload.overrideReason?.trim() || null,
+      review.overrideNote,
+      discount.approvedBy ? `Discount approved by ${discount.approvedBy.name}` : null,
+    ]
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
@@ -621,8 +654,10 @@ async function processCreateSale(
       overrideReason: overrideReason || null,
       notes: payload.offlineCreated ? `Offline replay from device ${ctx.device.id}` : null,
       device: { id: ctx.device.id, registerId: ctx.device.registerId },
-      // Sold before this device was unpaired, sent in after: a manager looks at it.
-      reviewReason: ctx.device.unpairedAt ? UNPAIRED_REVIEW_REASON : null,
+      // Sold before this device was unpaired, sent in after, or over the discount
+      // rule with no manager: a manager looks at it.
+      reviewReason:
+        [ctx.device.unpairedAt ? UNPAIRED_REVIEW_REASON : null, discount.review].filter(Boolean).join(" ") || null,
       postedAt: soldAt,
       soldAt,
       // Every sync operation was rung offline: a tender turned off since is let in for a manager to look at.
@@ -697,6 +732,7 @@ async function processVoidSale(
       shiftId: resolvedShiftId,
       reason: payload.reason,
       approver: replayedApprover(payload.approver),
+      replay: true,
       notes: payload.notes ?? null,
       periodOverrideReason: payload.periodOverrideReason ?? null,
       postedAt: new Date(payload.voidedAt),
@@ -796,6 +832,7 @@ async function processRefundSale(
       shiftId: resolvedShiftId,
       reason: payload.reason,
       approver: replayedApprover(payload.approver),
+      replay: true,
       lines: requestedLines,
       payments:
         payload.payments && payload.payments.length > 0

@@ -7,6 +7,7 @@ import {
   ApprovalNeeded,
   ApprovalRefused,
   approvalFor,
+  replayApproval,
   tillRuleResponse,
   verifyManagerPin,
 } from "./manager-pin";
@@ -82,11 +83,11 @@ describe("a manager's PIN approving at the till", () => {
 
   it("refuses a cashier as the approver, and a wrong PIN, counting the miss", async () => {
     await expect(verifyManagerPin({ companyId, approver: { userId: cashierId, pin: "2580" } })).rejects.toMatchObject({
-      status: 400,
+      status: 409,
       field: "approver",
     });
     await expect(verifyManagerPin({ companyId, approver: { userId: managerId, pin: "1111" } })).rejects.toMatchObject({
-      status: 400,
+      status: 409,
       field: "pin",
       message: "That PIN is not right.",
     });
@@ -94,10 +95,27 @@ describe("a manager's PIN approving at the till", () => {
     expect(pin.failedAttempts).toBe(1);
   });
 
+  it("answers a wrong or refused approval 409 needsApprover with the field (C-31), a locked PIN 423", async () => {
+    const wrong = tillRuleResponse(new ApprovalRefused("That PIN is not right.", 409, "pin"))!;
+    expect(wrong.status).toBe(409);
+    expect(await wrong.json()).toEqual({
+      error: "That PIN is not right.",
+      needsApprover: true,
+      reason: "That PIN is not right.",
+      fieldErrors: { pin: "That PIN is not right." },
+    });
+    const notApprover = tillRuleResponse(new ApprovalRefused("Pick someone who can approve this.", 409, "approver"))!;
+    expect(notApprover.status).toBe(409);
+    expect(await notApprover.json()).toMatchObject({ needsApprover: true, fieldErrors: { approver: "Pick someone who can approve this." } });
+    const locked = tillRuleResponse(new ApprovalRefused("Too many tries. Try again in 15 minutes.", 423, null))!;
+    expect(locked.status).toBe(423);
+    expect(await locked.json()).toEqual({ error: "Too many tries. Try again in 15 minutes." });
+  });
+
   it("locks after five wrong tries and answers 423, even to the right PIN", async () => {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       await expect(verifyManagerPin({ companyId, approver: { userId: managerId, pin: "0000" } })).rejects.toMatchObject({
-        status: 400,
+        status: 409,
       });
     }
     await expect(verifyManagerPin({ companyId, approver: { userId: managerId, pin: "0000" } })).rejects.toMatchObject({
@@ -106,6 +124,24 @@ describe("a manager's PIN approving at the till", () => {
     const locked = verifyManagerPin({ companyId, approver: { userId: managerId, pin: "2580" } });
     await expect(locked).rejects.toBeInstanceOf(ApprovalRefused);
     await expect(locked).rejects.toMatchObject({ status: 423 });
+  });
+
+  it("lets an act sent in late through: approved when its approver checks out, else marked for review", async () => {
+    const review = (reason: string) => `Offline: ${reason}`;
+    expect(
+      await replayApproval({ companyId, actorRole: "CASHIER", decision: NEEDS, approver: { userId: managerId, pin: "2580" }, review }),
+    ).toEqual({ approvedBy: { id: managerId, name: "Tafara Nyathi" }, review: null });
+    expect(await replayApproval({ companyId, actorRole: "CASHIER", decision: NEEDS, review })).toEqual({
+      approvedBy: null,
+      review: `Offline: ${NEEDS.reason}`,
+    });
+    expect(
+      await replayApproval({ companyId, actorRole: "CASHIER", decision: NEEDS, approver: { userId: managerId, pin: "9999" }, review }),
+    ).toEqual({ approvedBy: null, review: `Offline: ${NEEDS.reason}` });
+    expect(await replayApproval({ companyId, actorRole: "CASHIER", decision: { needsApprover: false }, review })).toEqual({
+      approvedBy: null,
+      review: null,
+    });
   });
 
   it("answers a reason off the list with 400 under it", async () => {

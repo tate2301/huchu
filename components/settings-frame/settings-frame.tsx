@@ -26,7 +26,7 @@ import {
 } from "@/lib/retail/settings-pages";
 import { cn } from "@/lib/utils";
 import type { Ask } from "@/lib/workspace/ask";
-import type { FieldSpec, SheetCtx } from "@/lib/workspace/sheet-kind";
+import type { FieldSpec, SheetCtx, SheetCurrency } from "@/lib/workspace/sheet-kind";
 
 import { SettingsActivity } from "./settings-activity";
 import { SettingsAside } from "./settings-aside";
@@ -68,6 +68,15 @@ function focusField(fieldId: string) {
   target?.focus();
 }
 
+/**
+ * The money a page's amounts are in: the shop's price currency when its
+ * values carry it (`currency`, "US$" or "ZiG"), else US dollars. A field's
+ * own `cur` (the ZiG rate) wins.
+ */
+function pageCurrency(values: Record<string, unknown>): SheetCurrency {
+  return values.currency === "ZiG" ? "ZiG" : "US$";
+}
+
 /** "On", "Liquor store", "—": a value drawn as `read`. */
 function ReadField({ field, value, values }: { field: FieldSpec; value: unknown; values: Record<string, unknown> }) {
   const hint = typeof field.h === "function" ? field.h(values) : field.h;
@@ -102,8 +111,8 @@ function ReadField({ field, value, values }: { field: FieldSpec; value: unknown;
               : "Off"
             : empty
               ? null
-              : field.t === "money" && field.cur
-                ? `${field.cur} ${String(value)}`
+              : field.t === "money"
+                ? `${field.cur ?? pageCurrency(values)} ${String(value)}`
                 : String(value);
         return (
           <ReadValue
@@ -356,7 +365,7 @@ function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: Setti
                   controlId={controlId(field.id)}
                   ctx={ctx}
                   values={values}
-                  currency="US$"
+                  currency={pageCurrency(values)}
                   error={errors[field.id]}
                   onChange={(value) => setValue(field.id, value)}
                 />
@@ -368,7 +377,7 @@ function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: Setti
                   controlId={controlId(field.id)}
                   ctx={ctx}
                   values={values}
-                  currency="US$"
+                  currency={pageCurrency(values)}
                   onChange={() => {}}
                 />
               ) : (

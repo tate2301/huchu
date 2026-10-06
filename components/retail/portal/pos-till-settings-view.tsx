@@ -293,7 +293,7 @@ export function PosTillSettingsView() {
 
           <Rule
             on={rules.needsApproval}
-            when={`Refunds over US$${rules.refundPinOver} need a manager's PIN.`}
+            when={`Refunds over ${rules.currency}${rules.refundPinOver} need a manager's PIN.`}
             otherwise="You approve refunds yourself."
           />
           <Rule
@@ -318,7 +318,7 @@ export function PosTillSettingsView() {
           />
           <Rule
             on
-            when={`Drop cash to the safe above US$${rules.cashDropPromptOver}.`}
+            when={`Drop cash to the safe above ${rules.currency}${rules.cashDropPromptOver}.`}
             otherwise=""
           />
           <Rule

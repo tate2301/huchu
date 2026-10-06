@@ -99,9 +99,9 @@ export function reasonsProblem(reasons: string[]): string | null {
 
 /* ── What the till and the server answer with ─────────────────────────────── */
 
-/** "Refunds over US$20.00 need a manager PIN." */
-export function refundPinSentence(limit: string): string {
-  return `Refunds over US$${limit} need a manager PIN.`;
+/** "Refunds over US$20.00 need a manager PIN.", in the shop's base currency. */
+export function refundPinSentence(limit: string, currency = "US$"): string {
+  return `Refunds over ${currency}${limit} need a manager PIN.`;
 }
 
 export function voidPinSentence(rule: VoidPinRule): string {
@@ -128,6 +128,11 @@ export function referenceSentence(tenderLabel: string): string {
 /** The review line on a sale sent in from a till offline longer than the rules allow. */
 export function offlineTooLongSentence(hours: number): string {
   return `Sold offline for more than ${hoursWords(hours)}.`;
+}
+
+/** The review line on an offline refund or void the rules wanted a manager for, sent in without one. */
+export function offlineReversalReview(kind: "refund" | "void", reason: string): string {
+  return `${kind === "refund" ? "Refunded" : "Voided"} offline without the manager PIN it needed. ${reason}`;
 }
 
 /** The review line on an offline sale whose discount or price needed a manager the till could not ask. */

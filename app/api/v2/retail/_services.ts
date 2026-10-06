@@ -33,8 +33,10 @@ import {
   loadTillRules,
   offlineReview,
   tenderRuleProblem,
+  type TillRuleDecision,
 } from "@/lib/retail/till-rules";
-import { approvalFor, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
+import { offlineReversalReview } from "@/lib/retail/till-rule-words";
+import { approvalFor, replayApproval, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
 import {
   checkSaleTenders,
   loadPaymentSettings,
@@ -1138,6 +1140,27 @@ export async function createRetailSaleTransaction(input: {
   throw new Error("Unable to generate sale number");
 }
 
+/**
+ * The manager a refund or void needs (SET-06): at the counter, the approval or
+ * a 409; sent in late from an offline till, the approval if it carries one
+ * that checks out, else the act goes in with a review line.
+ */
+async function reversalApproval(
+  input: { actor: RetailActorContext; approver?: ApproverInput | null; replay?: boolean },
+  rule: { decision: TillRuleDecision; kind: "refund" | "void" },
+): Promise<{ approvedBy: Approval | null; review: string | null }> {
+  const asked = {
+    companyId: input.actor.companyId,
+    actorRole: input.actor.userRole,
+    decision: rule.decision,
+    approver: input.approver,
+  };
+  if (input.replay) {
+    return replayApproval({ ...asked, review: (reason) => offlineReversalReview(rule.kind, reason) });
+  }
+  return { approvedBy: await approvalFor(asked), review: null };
+}
+
 /** "Changed mind (approved by Tafara Nyathi)": the reason as the reversal keeps it. */
 function withApprover(reason: string, approvedBy: Approval | null): string {
   return approvedBy ? `${reason} (approved by ${approvedBy.name})` : reason;
@@ -1162,6 +1185,11 @@ export async function refundRetailSaleTransaction(input: {
    * goes on the refund and into the audit chain.
    */
   approver?: ApproverInput | null;
+  /**
+   * Done offline and sent in late (`pos/sync`): the money has left the
+   * drawer, so a missing approval marks it for review instead of refusing it.
+   */
+  replay?: boolean;
 }) {
   /*
     SET-06. The reason is one of the shop's refund reasons; the refund's value
@@ -1346,11 +1374,13 @@ export async function refundRetailSaleTransaction(input: {
 
     // The approval the refund's value needs. A wrong PIN still counts against
     // the approver: the attempt is written outside this transaction.
-    const approvedBy = await approvalFor({
-      companyId: input.actor.companyId,
-      actorRole: input.actor.userRole,
-      decision: checkTillRule(tillRules, { act: "refund", amount: refundValue }),
-      approver: input.approver,
+    // The limit is in the base currency: the refund is compared at its sale's rate.
+    const { approvedBy, review: approvalReview } = await reversalApproval(input, {
+      decision: checkTillRule(tillRules, {
+        act: "refund",
+        amount: toBaseAmount(refundValue, currentSourceSale.exchangeRate),
+      }),
+      kind: "refund",
     });
 
     const inventoryItems = await tx.inventoryItem.findMany({
@@ -1391,6 +1421,7 @@ export async function refundRetailSaleTransaction(input: {
         exchangeRate: currentSourceSale.exchangeRate,
         baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
         overrideReason: withApprover(reason, approvedBy),
+        reviewReason: approvalReview,
         status: "POSTED",
         notes: input.notes?.trim() || null,
         postedAt: input.postedAt ?? new Date(),
@@ -1531,6 +1562,8 @@ export async function voidRetailSaleTransaction(input: {
   deviceId?: string | null;
   /** A manager approving this with their till PIN, when the till rules ask for one. See the refund above. */
   approver?: ApproverInput | null;
+  /** Done offline and sent in late. See the refund above. */
+  replay?: boolean;
 }) {
   const tillRules = await loadTillRules(input.actor.companyId);
   const reason = listedReason(tillRules, "void", input.reason);
@@ -1564,15 +1597,13 @@ export async function voidRetailSaleTransaction(input: {
   }
 
   // "Voids need a manager PIN": always, after 5 minutes from the sale, or never.
-  const approvedBy = await approvalFor({
-    companyId: input.actor.companyId,
-    actorRole: input.actor.userRole,
+  const { approvedBy, review: approvalReview } = await reversalApproval(input, {
     decision: checkTillRule(tillRules, {
       act: "void",
       saleAt: sourceSale.postedAt ?? sourceSale.createdAt,
       at: input.postedAt ?? new Date(),
     }),
-    approver: input.approver,
+    kind: "void",
   });
 
   const voidNo = await reserveIdentifier(prisma, {
@@ -1660,6 +1691,7 @@ export async function voidRetailSaleTransaction(input: {
         ),
         promotionCode: currentSourceSale.promotionCode,
         overrideReason: withApprover(reason, approvedBy),
+        reviewReason: approvalReview,
         status: "POSTED",
         notes: input.notes?.trim() || null,
         postedAt: input.postedAt ?? new Date(),

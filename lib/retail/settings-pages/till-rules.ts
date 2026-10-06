@@ -18,9 +18,10 @@ import type { SettingsPage } from "./types";
  * Setup › Till rules (`/retail/manage/till-rules`, board TillRules, W-64):
  * when a refund, a void, a discount or the drawer needs a manager's PIN, the
  * reasons a cashier picks from, how a sale is paid, the cash-drop prompt and
- * how long a till sells offline (10-setup 5.7). Owners and managers change
- * it; the bookkeeper reads it. The server enforces every rule
- * (`lib/retail/till-rules.ts`).
+ * how long a till sells offline (10-setup 5.7). Owners and managers read
+ * and change it; the stock clerk and the bookkeeper do not see it. The money
+ * limits are in the shop's price currency, the `currency` its values carry.
+ * The server enforces every rule (`lib/retail/till-rules.ts`).
  */
 
 const onOff = z.boolean({ message: "Turn it on or off." });
@@ -65,7 +66,7 @@ export const tillRulesPage: SettingsPage = {
     {
       title: "Refunds and voids",
       fields: [
-        { id: "refundPinOver", t: "money", l: "Manager PIN for refunds over", half: true, cur: "US$" },
+        { id: "refundPinOver", t: "money", l: "Manager PIN for refunds over", half: true },
         { id: "voidPin", t: "seg", l: "Voids need a manager PIN", half: true, o: [...VOID_PIN_LABELS] },
         { id: "refundReasons", t: "tags", l: "Refund reasons", p: "Add a reason, then Enter", keepOne: true },
         { id: "voidReasons", t: "tags", l: "Void reasons", p: "Add a reason, then Enter", keepOne: true },
@@ -110,7 +111,6 @@ export const tillRulesPage: SettingsPage = {
           t: "money",
           l: "Ask for a cash drop above",
           half: true,
-          cur: "US$",
           h: "The till prompts the cashier to drop to the safe.",
         },
       ],

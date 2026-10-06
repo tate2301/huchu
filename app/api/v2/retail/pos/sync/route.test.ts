@@ -323,3 +323,49 @@ describe("a void of a ZiG cash sale with rounded change", () => {
     expect([...voidBooks.values()].reduce((total, net) => total + net, 0)).toBeCloseTo(0, 2);
   });
 });
+
+describe("the till rules on a sale and a void sent in from the offline queue (SET-06)", () => {
+  /** Two Castles at US$3.90, with the order discount the cashier keyed. */
+  function discounted(id: string, discountAmount: number) {
+    const base = sale(id, { tenderType: "CASH", currency: "USD", amount: Number((7.8 - discountAmount).toFixed(2)) });
+    return { ...base, payload: { ...base.payload, items: [{ productId, quantity: 2 }], discountAmount } };
+  }
+
+  it("takes a discount over the cashier's largest, marked for a manager, and one within it clean", async () => {
+    const results = await sync([discounted("discount-over", 2), discounted("discount-within", 0.5)]);
+    const over = results.get("discount-over")!;
+    const within = results.get("discount-within")!;
+    expect(over).toMatchObject({ status: "synced" });
+    expect(within).toMatchObject({ status: "synced" });
+    // US$2 off US$7.80 is 25.6%, over the shop's 10%.
+    const overSale = await prisma.retailSale.findUniqueOrThrow({ where: { id: over.serverId! } });
+    expect(overSale.reviewReason).toBe("Discount over 10% given while offline.");
+    const withinSale = await prisma.retailSale.findUniqueOrThrow({ where: { id: within.serverId! } });
+    expect(withinSale.reviewReason).toBeNull();
+  });
+
+  it("takes a void the rule wanted a manager for, marked for one, since the money has gone", async () => {
+    await prisma.retailTillRules.upsert({
+      where: { companyId },
+      update: { voidPin: "ALWAYS" },
+      create: { companyId, voidPin: "ALWAYS" },
+    });
+    const sold = (await sync([sale("void-later", { tenderType: "CASH", currency: "USD", amount: 3.9 })])).get("void-later")!;
+    expect(sold).toMatchObject({ status: "synced" });
+    const voided = (
+      await sync([
+        {
+          clientOperationId: "void-offline",
+          operation: "void-sale",
+          offlineCreatedAt: new Date().toISOString(),
+          payload: { saleId: sold.serverId, shiftId, reason: "Customer left", voidedAt: new Date().toISOString() },
+        },
+      ])
+    ).get("void-offline")!;
+    expect(voided).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: voided.serverId! } });
+    expect(stored.reviewReason).toBe(
+      "Voided offline without the manager PIN it needed. Voids need a manager PIN.",
+    );
+  });
+});

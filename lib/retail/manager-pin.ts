@@ -9,6 +9,11 @@
  * four digits must match their `RetailTillPin`, with the till's lockout: five
  * wrong tries and it is locked (423).
  *
+ * The answers (C-31): 409 `{ error, needsApprover: true, reason }` when an
+ * approval is missing or wrong — a wrong PIN and a person who may not approve
+ * also say which field under `fieldErrors` — and 423 `{ error }` while the
+ * approver's PIN is locked.
+ *
  * A person who holds the approve right themselves is their own approval:
  * nothing is typed, and the act is theirs (`approvalFor`).
  *
@@ -57,11 +62,11 @@ export class ApprovalNeeded extends Error {
   }
 }
 
-/** A manager was given and refused: 400 under `pin` or `approver`, or 423 while their PIN is locked. */
+/** A manager was given and refused: 409 under `pin` or `approver` (C-31), or 423 while their PIN is locked. */
 export class ApprovalRefused extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 423,
+    readonly status: 409 | 423,
     readonly field: "pin" | "approver" | null,
   ) {
     super(message);
@@ -93,7 +98,7 @@ export async function verifyManagerPin(input: {
     },
   });
   if (!record || !canRetailRoleDo(record.user.role, resource, action)) {
-    throw new ApprovalRefused(NOT_AN_APPROVER, 400, "approver");
+    throw new ApprovalRefused(NOT_AN_APPROVER, 409, "approver");
   }
 
   const state = { failedAttempts: record.failedAttempts, lockedUntil: record.lockedUntil };
@@ -109,7 +114,7 @@ export async function verifyManagerPin(input: {
     select: { id: true },
   });
   if (outcome.decision === "REJECTED_NOW_LOCKED") throw new ApprovalRefused(PIN_LOCKED, 423, null);
-  if (outcome.decision !== "ACCEPTED") throw new ApprovalRefused(WRONG_PIN, 400, "pin");
+  if (outcome.decision !== "ACCEPTED") throw new ApprovalRefused(WRONG_PIN, 409, "pin");
   return { id: record.user.id, name: record.user.name || record.user.email || "A manager" };
 }
 
@@ -134,9 +139,35 @@ export async function approvalFor(input: {
 }
 
 /**
+ * The approval for an act the till did offline and sends in late: the money
+ * has already moved, so it is never refused for want of a manager. An
+ * approver it carries who checks out approves it, as at the counter;
+ * otherwise, when the rules asked for one that the person did not hold, it
+ * goes in with `review` for a manager to look at. A locked PIN is treated as
+ * no approval.
+ */
+export async function replayApproval(input: {
+  companyId: string;
+  actorRole: string | null | undefined;
+  decision: TillRuleDecision;
+  approver?: ApproverInput | null;
+  /** The review line, from the reason the rules asked. */
+  review: (reason: string) => string;
+}): Promise<{ approvedBy: Approval | null; review: string | null }> {
+  try {
+    return { approvedBy: await approvalFor(input), review: null };
+  } catch (error) {
+    if (!(error instanceof ApprovalNeeded || error instanceof ApprovalRefused) || !input.decision.needsApprover) throw error;
+    return { approvedBy: null, review: input.review(input.decision.reason) };
+  }
+}
+
+/**
  * The response for a refusal of the till rules or an approval, or null for
- * any other error: 409 `{ error, needsApprover: true, reason }`, 400
- * `{ error, fieldErrors }`, 423 `{ error }`.
+ * any other error: 409 `{ error, needsApprover: true, reason }` for a missing
+ * or wrong approval (with `fieldErrors.pin` or `fieldErrors.approver` when one
+ * was given and refused), 423 `{ error }` while the PIN is locked, 400
+ * `{ error, fieldErrors }` for a reason not on the list.
  */
 export function tillRuleResponse(error: unknown): NextResponse | null {
   if (error instanceof ApprovalNeeded) {
@@ -145,9 +176,15 @@ export function tillRuleResponse(error: unknown): NextResponse | null {
   }
   if (error instanceof ApprovalRefused) {
     markActivityFailed();
+    if (error.status === 423) return NextResponse.json({ error: error.message }, { status: 423 });
     return NextResponse.json(
-      { error: error.message, ...(error.field ? { fieldErrors: { [error.field]: error.message } } : {}) },
-      { status: error.status },
+      {
+        error: error.message,
+        needsApprover: true,
+        reason: error.message,
+        ...(error.field ? { fieldErrors: { [error.field]: error.message } } : {}),
+      },
+      { status: 409 },
     );
   }
   if (error instanceof TillRuleRefused) {

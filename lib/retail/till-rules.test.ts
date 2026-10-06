@@ -14,6 +14,7 @@ import {
   listedReason,
   loadTillRules,
   offlineReview,
+  saleDiscountRule,
   tenderRuleProblem,
   TillRuleRefused,
   tillRulesForTill,
@@ -63,6 +64,36 @@ describe("when the till rules ask for a manager", () => {
     });
     expect(discountPercent("3.00", "20.00").toFixed(2)).toBe("15.00");
     expect(discountPercent("3.00", "0").toFixed(2)).toBe("0.00");
+  });
+
+  it("reads a sale's discounts, price cuts and dearer prices as one rule, for the counter and the queue", () => {
+    const line = { quantity: 2, unitPrice: 3.9, shelfUnitPrice: 3.9, lineDiscount: 0 };
+    // US$0.70 off US$7.80 is 8.97%: within the shop's 10%.
+    expect(saleDiscountRule(rules(), { lines: [line], orderDiscount: 0.7, pricesExplained: false })).toEqual({
+      needsApprover: false,
+    });
+    // A line discount and a price cut add up: 0.40 + 2 x 0.30 = US$1.00, 12.8%.
+    expect(
+      saleDiscountRule(rules(), {
+        lines: [{ ...line, unitPrice: 3.6, lineDiscount: 0.4 }],
+        orderDiscount: 0,
+        pricesExplained: false,
+      }),
+    ).toEqual({ needsApprover: true, reason: "Discounts over 10% need a manager PIN." });
+    // A replay whose prices were explained is judged on its discounts alone.
+    expect(
+      saleDiscountRule(rules(), { lines: [{ ...line, unitPrice: 4.5 }], orderDiscount: 0, pricesExplained: true }),
+    ).toEqual({ needsApprover: false });
+    expect(
+      saleDiscountRule(rules(), { lines: [{ ...line, unitPrice: 4.5 }], orderDiscount: 0, pricesExplained: false }),
+    ).toEqual({ needsApprover: true, reason: "A price above the shelf price needs a manager PIN." });
+  });
+
+  it("says the refund limit in the shop's base currency", () => {
+    expect(checkTillRule(rules({ currency: "ZiG", refundPinOver: new Prisma.Decimal(500) }), { act: "refund", amount: 501 })).toEqual({
+      needsApprover: true,
+      reason: "Refunds over ZiG500.00 need a manager PIN.",
+    });
   });
 
   it("asks for the drawer without a sale only while that is off", () => {
@@ -213,6 +244,8 @@ describe("saving Till rules", () => {
       drawerOpenWithoutSale: false,
       cashDropPromptOver: "500.00",
       offlineHours: "24 hours",
+      // The money the limits are in: the shop's base currency, read-only.
+      currency: "US$",
     });
     expect(page?.lastChanged).toBeNull();
   });

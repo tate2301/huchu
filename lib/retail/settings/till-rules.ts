@@ -52,6 +52,8 @@ export const tillRulesSettings: SettingsStore = {
       drawerOpenWithoutSale: rules.drawerOpenWithoutSale,
       cashDropPromptOver: rules.cashDropPromptOver.toFixed(2),
       offlineHours: hoursWords(rules.offlineHours),
+      // Read-only: the money the limits are in, which the page labels them with.
+      currency: rules.currency,
     };
   },
 

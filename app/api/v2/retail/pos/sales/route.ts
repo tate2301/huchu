@@ -34,8 +34,8 @@ import {
 import { ShiftElsewhere, createRetailSaleTransaction, postedChange, stampSalePayments } from "../../_services";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
-import { approverSchema, approvalFor, tillRuleResponse } from "@/lib/retail/manager-pin";
-import { checkTillRule, discountPercent, loadTillRules } from "@/lib/retail/till-rules";
+import { approverSchema, approvalFor, replayApproval, tillRuleResponse } from "@/lib/retail/manager-pin";
+import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
 import { offlineDiscountReview } from "@/lib/retail/till-rule-words";
 
 const saleLineSchema = z.object({
@@ -651,46 +651,42 @@ export async function POST(request: NextRequest) {
     }
 
     /*
-      SET-06. What the cashier took off — the order's discount (less points
-      redeemed), the lines' discounts and any price cut below the shelf — as a
-      share of the basket at the shelf. Over the till rules' largest, or a
-      price above the shelf, needs a manager's PIN; someone who holds the
-      approve right is their own approval. A replay cannot be approved after
-      the fact: it goes in, marked for a manager to look at.
+      SET-06. The discount rule (`saleDiscountRule`, shared with `pos/sync`):
+      over the cashier's largest, or a price above the shelf, needs a
+      manager's PIN; someone who holds the approve right is their own
+      approval. A replay cannot be refused after the fact: it goes in, marked
+      for a manager to look at.
     */
     const tillRules = await loadTillRules(session.user.companyId);
-    const shelfValue = preNormalizedLines.reduce((sum, line) => sum + line.shelf.unitPrice * line.quantity, 0);
-    const priceCut =
-      replayReview === null
-        ? preNormalizedLines.reduce(
-            (sum, line) => sum + Math.max(line.shelf.unitPrice - line.unitPrice, 0) * line.quantity,
-            0,
-          )
-        : 0;
-    const discountGiven =
-      Math.max(orderDiscountAmount - loyaltyDiscountAmount, 0) +
-      preNormalizedLines.reduce((sum, line) => sum + line.baseDiscountAmount, 0) +
-      priceCut;
-    const discountRule = checkTillRule(tillRules, {
-      act: "discount",
-      percent: discountPercent(round(discountGiven), round(shelfValue)),
-      priceUp:
-        replayReview === null && preNormalizedLines.some((line) => line.unitPrice - line.shelf.unitPrice > 0.009),
+    const discountRule = saleDiscountRule(tillRules, {
+      lines: preNormalizedLines.map((line) => ({
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        shelfUnitPrice: line.shelf.unitPrice,
+        lineDiscount: line.baseDiscountAmount,
+      })),
+      orderDiscount: round(Math.max(orderDiscountAmount - loyaltyDiscountAmount, 0)),
+      pricesExplained: replayReview !== null,
     });
-    let ruleReview: string | null = null;
-    if (replaySoldAt && discountRule.needsApprover) {
-      if (!canRetailSessionDo(session, "retail.sell", "approve")) {
-        ruleReview = offlineDiscountReview(discountRule.reason, tillRules.maxCashierDiscountPercent.toFixed(2));
-      }
-    } else {
-      const approvedBy = await approvalFor({
-        companyId: session.user.companyId,
-        actorRole: session.user.role,
-        decision: discountRule,
-        approver: input.approver,
-      });
-      if (approvedBy) overrideReason = `${overrideReason} (approved by ${approvedBy.name})`;
-    }
+    const approval = replaySoldAt
+      ? await replayApproval({
+          companyId: session.user.companyId,
+          actorRole: session.user.role,
+          decision: discountRule,
+          approver: input.approver,
+          review: (reason) => offlineDiscountReview(reason, tillRules.maxCashierDiscountPercent.toFixed(2)),
+        })
+      : {
+          approvedBy: await approvalFor({
+            companyId: session.user.companyId,
+            actorRole: session.user.role,
+            decision: discountRule,
+            approver: input.approver,
+          }),
+          review: null,
+        };
+    const ruleReview = approval.review;
+    if (approval.approvedBy) overrideReason = `${overrideReason} (approved by ${approval.approvedBy.name})`;
 
     // What the review found, written onto the sale. This is the record a manager
     // reads later — and the one the till's offline-queue screen reads back to say

@@ -18,6 +18,7 @@ import {
   voidPinSentence,
   type VoidPinRule,
 } from "@/lib/retail/till-rule-words";
+import { currencyLabel } from "@/lib/retail/settings/company";
 import { tenderLabel } from "@/lib/retail/words";
 
 /**
@@ -31,6 +32,10 @@ import { tenderLabel } from "@/lib/retail/words";
  * a manager, `tenderRuleProblem` for the tenders, `offlineReview` for a sale
  * sent in late. The till reads them from `devices/me` to ask first; the
  * server asks again on every sale, refund, void and drawer opening.
+ *
+ * The money limits (the refund PIN limit, the cash-drop prompt) are in the
+ * company's base currency, the one its prices are in (`currency`); a refund
+ * of a sale in other money is compared at that sale's rate.
  */
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -46,6 +51,8 @@ export type TillRules = {
   drawerOpenWithoutSale: boolean;
   cashDropPromptOver: Prisma.Decimal;
   offlineHours: number;
+  /** The base currency's label ("US$", "ZiG"): what the money limits are in. */
+  currency: string;
   updatedById: string | null;
   updatedAt: Date | null;
 };
@@ -63,14 +70,19 @@ export function defaultTillRules(): TillRules {
     drawerOpenWithoutSale: false,
     cashDropPromptOver: new Prisma.Decimal(500),
     offlineHours: 24,
+    currency: "US$",
     updatedById: null,
     updatedAt: null,
   };
 }
 
 export async function loadTillRules(companyId: string, db: Db = prisma): Promise<TillRules> {
-  const row = await db.retailTillRules.findUnique({ where: { companyId } });
-  if (!row) return defaultTillRules();
+  const [row, accounting] = await Promise.all([
+    db.retailTillRules.findUnique({ where: { companyId } }),
+    db.accountingSettings.findUnique({ where: { companyId }, select: { baseCurrency: true } }),
+  ]);
+  const currency = currencyLabel(accounting?.baseCurrency);
+  if (!row) return { ...defaultTillRules(), currency };
   return {
     refundPinOver: row.refundPinOver,
     voidPin: row.voidPin,
@@ -82,13 +94,14 @@ export async function loadTillRules(companyId: string, db: Db = prisma): Promise
     drawerOpenWithoutSale: row.drawerOpenWithoutSale,
     cashDropPromptOver: row.cashDropPromptOver,
     offlineHours: row.offlineHours,
+    currency,
     updatedById: row.updatedById,
     updatedAt: row.updatedAt,
   };
 }
 
 export type TillRulesPatch = Partial<
-  Omit<TillRules, "updatedById" | "updatedAt" | "refundPinOver" | "maxCashierDiscountPercent" | "cashDropPromptOver"> & {
+  Omit<TillRules, "currency" | "updatedById" | "updatedAt" | "refundPinOver" | "maxCashierDiscountPercent" | "cashDropPromptOver"> & {
     refundPinOver: string;
     maxCashierDiscountPercent: string;
     cashDropPromptOver: string;
@@ -108,7 +121,7 @@ export async function saveTillRules(tx: Db, actor: RetailAuditActor, patch: Till
 /* ── The acts that may need a manager ─────────────────────────────────────── */
 
 export type TillAct =
-  /** A refund worth `amount` (the goods and their deposits, in the sale's money). */
+  /** A refund worth `amount` (the goods and their deposits) in the base currency, at the sale's rate. */
   | { act: "refund"; amount: Prisma.Decimal.Value }
   /** A void of a sale rung at `saleAt`, done at `at`. */
   | { act: "void"; saleAt: Date; at: Date }
@@ -130,7 +143,7 @@ export function checkTillRule(rules: TillRules, act: TillAct): TillRuleDecision 
   switch (act.act) {
     case "refund":
       return money(act.amount).greaterThan(rules.refundPinOver)
-        ? { needsApprover: true, reason: refundPinSentence(rules.refundPinOver.toFixed(2)) }
+        ? { needsApprover: true, reason: refundPinSentence(rules.refundPinOver.toFixed(2), rules.currency) }
         : FREE;
     case "void": {
       if (rules.voidPin === "NEVER") return FREE;
@@ -152,6 +165,44 @@ export function discountPercent(discount: Prisma.Decimal.Value, shelfValue: Pris
   const shelf = new Prisma.Decimal(shelfValue);
   if (shelf.lessThanOrEqualTo(0)) return new Prisma.Decimal(0);
   return new Prisma.Decimal(discount).div(shelf).times(100);
+}
+
+/** One line of a sale as the discount rule reads it: what was charged against the shelf. */
+export type DiscountedLine = {
+  quantity: number;
+  unitPrice: number;
+  shelfUnitPrice: number;
+  /** The line's own discount, keyed by the cashier. */
+  lineDiscount: number;
+};
+
+/**
+ * The discount rule for a sale, decided once for the counter (`pos/sales`)
+ * and for the offline queue (`pos/sync`): what the cashier took off — the
+ * order's discount (less points redeemed), the lines' discounts and any price
+ * cut below the shelf — as a share of the basket at the shelf, against the
+ * largest a cashier gives; a price above the shelf always asks. A replay
+ * whose prices the replay review has explained (`pricesExplained`) is judged
+ * on its discounts alone.
+ */
+export function saleDiscountRule(
+  rules: TillRules,
+  input: { lines: DiscountedLine[]; orderDiscount: number; pricesExplained: boolean },
+): TillRuleDecision {
+  let shelfValue = new Prisma.Decimal(0);
+  let given = new Prisma.Decimal(Math.max(input.orderDiscount, 0));
+  for (const line of input.lines) {
+    shelfValue = shelfValue.plus(new Prisma.Decimal(line.shelfUnitPrice).times(line.quantity));
+    given = given.plus(Math.max(line.lineDiscount, 0));
+    if (!input.pricesExplained) {
+      given = given.plus(new Prisma.Decimal(Math.max(line.shelfUnitPrice - line.unitPrice, 0)).times(line.quantity));
+    }
+  }
+  return checkTillRule(rules, {
+    act: "discount",
+    percent: discountPercent(given.toDecimalPlaces(2), shelfValue.toDecimalPlaces(2)),
+    priceUp: !input.pricesExplained && input.lines.some((line) => line.unitPrice - line.shelfUnitPrice > 0.009),
+  });
 }
 
 /* ── Reasons ──────────────────────────────────────────────────────────────── */
@@ -208,6 +259,8 @@ export function offlineReview(rules: Pick<TillRules, "offlineHours">, soldAt: Da
 /* ── What the till is told (`devices/me`) ─────────────────────────────────── */
 
 export type TillRulesForTill = {
+  /** The base currency's label: what the money limits are in. */
+  currency: string;
   refundPinOver: string;
   voidPin: VoidPinRule;
   refundReasons: string[];
@@ -224,6 +277,7 @@ export type TillRulesForTill = {
 
 export function tillRulesForTill(rules: TillRules): TillRulesForTill {
   return {
+    currency: rules.currency,
     refundPinOver: rules.refundPinOver.toFixed(2),
     voidPin: rules.voidPin,
     refundReasons: rules.refundReasons,

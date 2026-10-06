@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { voidPinSentence } from "@/lib/retail/till-rule-words";
+import { refundPinSentence, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { History, Plus, RefreshCcw, Search, Trash2, XCircle } from "@/lib/icons";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
@@ -124,15 +124,26 @@ export function PosHistoryView() {
   const approvalPayload = () =>
     approverId && approverPin.length === 4 ? { approver: { userId: approverId, pin: approverPin } } : {};
 
-  /** A 409 `needsApprover` opens the approval with the server's sentence; a refused PIN is cleared. */
+  /**
+   * A 409 `needsApprover` (C-31) opens the approval with the server's sentence.
+   * When it names a field, the approver given was refused: the PIN is cleared
+   * (and the person, when they may not approve) and the error is shown. A
+   * locked PIN (423) is cleared and shown.
+   */
   const onRefused = (error: unknown) => {
     if (error instanceof ApiError) {
-      const details = error.details as { needsApprover?: boolean; reason?: string } | undefined;
+      const details = error.details as
+        | { needsApprover?: boolean; reason?: string; fieldErrors?: { pin?: string; approver?: string } }
+        | undefined;
       if (error.status === 409 && details?.needsApprover) {
-        setAskedFor(details.reason ?? error.message);
-        return true;
+        if (!details.fieldErrors) {
+          setAskedFor(details.reason ?? error.message);
+          return true;
+        }
+        setApproverPin("");
+        if (details.fieldErrors.approver) setApproverId("");
       }
-      if (error.status === 400 || error.status === 423) setApproverPin("");
+      if (error.status === 423) setApproverPin("");
     }
     return false;
   };
@@ -183,7 +194,7 @@ export function PosHistoryView() {
   const refundAsks =
     askedFor ??
     (!canOverride && rules && refundTotal > Number(rules.refundPinOver)
-      ? `Refunds over US$${rules.refundPinOver} need a manager PIN.`
+      ? refundPinSentence(rules.refundPinOver, rules.currency)
       : null);
   const saleAgeMs =
     voidOpenedAt !== null && selectedSale?.postedAt ? voidOpenedAt - new Date(selectedSale.postedAt).getTime() : 0;
