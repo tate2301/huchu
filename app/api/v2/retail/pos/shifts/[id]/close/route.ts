@@ -45,7 +45,7 @@ export async function POST(
     if (elsewhere) return elsewhere;
     const body = await request.json();
     const input = closePosShiftSchema.parse(body);
-    const { shift, accounting } = await closeRetailShiftTransaction({
+    const { shift, accounting, fiscalDayClosed } = await closeRetailShiftTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -60,7 +60,7 @@ export async function POST(
       allowManagerClose: false,
     });
 
-    return successResponse({ ...shift, ...accounting });
+    return successResponse({ ...shift, ...accounting, fiscalDayClosed });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);

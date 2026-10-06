@@ -17,7 +17,7 @@
  * The obvious fix — stop sending it — is wrong, and this is the whole reason
  * the column is here. That key is doing real work. If the POST commits and the
  * response is lost, `saleMutation.onError` treats it as a network failure and
- * queues the sale, and `pos/sync` replays it later. With a client-supplied key
+ * queues the sale, and the offline queue replays it to `pos/sales` later. With a client-supplied key
  * the replay collides on `@@unique([companyId, saleNo])` and
  * `createRetailSaleTransaction` returns the sale that already exists. Without
  * one, the shop charges the customer twice. On a Harare connection that is not

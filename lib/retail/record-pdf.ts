@@ -1,5 +1,6 @@
 import { esc } from "@/lib/documents/html-renderer";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
+import { ageCheckWords } from "@/lib/retail/products/age-check";
 import { loadProductView } from "@/lib/retail/products/view";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
@@ -109,6 +110,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         ...(product.cost === null ? [] : ([["Cost", formatMoney(product.cost)]] as Array<[string, string]>)),
         ["VAT", product.vatLabel],
         ...product.otherLists.map((list): [string, string] => [list.name, formatMoney(list.price, list.currency)]),
+        ["Most off", product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`],
       ]);
       const stock = product.stock;
       const stockRows = rows([
@@ -122,7 +124,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         ["Barcode", product.barcode ?? "—"],
         ["Category", product.category?.path ?? "—"],
         ["Supplier", product.supplier?.name ?? "—"],
-        ["ID check", product.ageCheck ? "Yes, 18 and over" : "No"],
+        ["ID check", ageCheckWords(product.ownAgeCheck, product.category)],
         ["Deposit", product.returnable && product.depositAmount ? formatMoney(product.depositAmount) : "None"],
       ]);
       return {

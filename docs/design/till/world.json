@@ -1,0 +1,513 @@
+{
+  "$comment": "The model every till screen is a view of. Codes, names, times and totals here are the only ones a screen may show.",
+  "tenancy": {
+    "unit": "business",
+    "sub": [
+      "site",
+      "till"
+    ],
+    "switcher": "the device is paired to one till; the person changes with a PIN"
+  },
+  "roles": [
+    {
+      "role": "cashier",
+      "device": "CounterMini, Kora or a browser at the POS address",
+      "conditions": "a queue waiting, the line dropping",
+      "can": [
+        "sell",
+        "hold and recall own sales",
+        "take card, mobile money, voucher and transfer with a reference",
+        "move cash on own shift",
+        "open and close own shift",
+        "set own PIN with own password"
+      ],
+      "cannot": [
+        "change a price or discount without a manager",
+        "refund or void without a manager",
+        "take the end-of-day report",
+        "pair or unpair a device"
+      ]
+    },
+    {
+      "role": "shop manager",
+      "device": "the same till, or the back office",
+      "conditions": "called over by the cashier",
+      "can": [
+        "approve discounts, price changes, refunds and voids with their password and a reason",
+        "make a pairing code",
+        "unpair a device",
+        "take the end-of-day report",
+        "sign off a short drawer in the back office"
+      ],
+      "cannot": [
+        "approve with a PIN"
+      ]
+    },
+    {
+      "role": "owner",
+      "device": "the back office",
+      "conditions": "evening, at home",
+      "can": [
+        "everything the manager can"
+      ],
+      "cannot": []
+    }
+  ],
+  "records": [
+    {
+      "record": "device",
+      "code": "CounterMini",
+      "written_by": [
+        "back office",
+        "till"
+      ],
+      "shown_on": [
+        "till settings",
+        "tills and devices"
+      ]
+    },
+    {
+      "record": "shift",
+      "code": "SH-00000",
+      "written_by": [
+        "till"
+      ],
+      "shown_on": [
+        "shift",
+        "end-of-day report",
+        "back office shifts"
+      ]
+    },
+    {
+      "record": "sale",
+      "code": "S-000000",
+      "written_by": [
+        "till",
+        "offline queue"
+      ],
+      "shown_on": [
+        "history",
+        "customer",
+        "shift",
+        "end-of-day report"
+      ]
+    },
+    {
+      "record": "refund",
+      "code": "R-000000",
+      "written_by": [
+        "till"
+      ],
+      "shown_on": [
+        "the sale",
+        "history",
+        "shift"
+      ]
+    },
+    {
+      "record": "void",
+      "code": "V-000000",
+      "written_by": [
+        "till"
+      ],
+      "shown_on": [
+        "the sale",
+        "history",
+        "shift"
+      ]
+    },
+    {
+      "record": "held sale",
+      "code": "H-000000",
+      "written_by": [
+        "till"
+      ],
+      "shown_on": [
+        "held sales"
+      ]
+    },
+    {
+      "record": "cash movement",
+      "code": "",
+      "written_by": [
+        "till"
+      ],
+      "shown_on": [
+        "shift",
+        "end-of-day report"
+      ]
+    },
+    {
+      "record": "end-of-day report",
+      "code": "Z-TILL1-20261003",
+      "written_by": [
+        "till"
+      ],
+      "shown_on": [
+        "reports",
+        "back office"
+      ]
+    }
+  ],
+  "states": {
+    "device": [
+      "Not a till yet",
+      "Paired",
+      "no longer a till"
+    ],
+    "person at the till": [
+      "Who is selling?",
+      "is locked",
+      "Too many wrong PINs"
+    ],
+    "shift": [
+      "Open here",
+      "Open on Till 2",
+      "closed",
+      "Short",
+      "Balanced"
+    ],
+    "sale": [
+      "Paid",
+      "a manager approves",
+      "Saved on this till",
+      "Part refunded",
+      "Refunded",
+      "Voided"
+    ],
+    "held sale": [
+      "Waiting",
+      "ended with the shift"
+    ],
+    "offline sale": [
+      "Saved on this till",
+      "No connection",
+      "Not enough stock"
+    ],
+    "fiscal receipt": [
+      "Fiscalised by ZIMRA",
+      "Waiting for ZIMRA"
+    ]
+  },
+  "transitions": [
+    {
+      "record": "device",
+      "from": "Not a till",
+      "to": "Paired",
+      "action": "Type the pairing code",
+      "decidedBy": "shop manager, by making the code",
+      "reversible": true
+    },
+    {
+      "record": "person at the till",
+      "from": "Signed out",
+      "to": "Signed in",
+      "action": "Type your PIN",
+      "decidedBy": "cashier",
+      "reversible": true
+    },
+    {
+      "record": "person at the till",
+      "from": "Signed in",
+      "to": "Locked",
+      "action": "Lock, or 5 idle minutes",
+      "decidedBy": "cashier",
+      "reversible": true
+    },
+    {
+      "record": "shift",
+      "from": "",
+      "to": "Open",
+      "action": "Open shift with the float",
+      "decidedBy": "cashier",
+      "reversible": false
+    },
+    {
+      "record": "sale",
+      "from": "In progress",
+      "to": "Waiting for approval",
+      "action": "Charge with a discount or changed price",
+      "decidedBy": "cashier",
+      "reversible": true
+    },
+    {
+      "record": "sale",
+      "from": "Waiting for approval",
+      "to": "Paid",
+      "action": "Approve and charge",
+      "decidedBy": "shop manager",
+      "reversible": false
+    },
+    {
+      "record": "sale",
+      "from": "In progress",
+      "to": "Paid",
+      "action": "Charge",
+      "decidedBy": "cashier",
+      "reversible": false
+    },
+    {
+      "record": "sale",
+      "from": "In progress",
+      "to": "Saved on this till",
+      "action": "Charge with no connection",
+      "decidedBy": "cashier",
+      "reversible": false
+    },
+    {
+      "record": "sale",
+      "from": "Paid",
+      "to": "Part refunded",
+      "action": "Refund lines",
+      "decidedBy": "shop manager",
+      "reversible": false
+    },
+    {
+      "record": "sale",
+      "from": "Paid",
+      "to": "Voided",
+      "action": "Void the sale",
+      "decidedBy": "shop manager",
+      "reversible": false
+    },
+    {
+      "record": "held sale",
+      "from": "Held",
+      "to": "Recalled",
+      "action": "Recall the sale",
+      "decidedBy": "cashier",
+      "reversible": false
+    },
+    {
+      "record": "held sale",
+      "from": "Held",
+      "to": "Discarded",
+      "action": "Discard the sale",
+      "decidedBy": "cashier",
+      "reversible": false
+    },
+    {
+      "record": "shift",
+      "from": "Open",
+      "to": "Closed short",
+      "action": "Close shift",
+      "decidedBy": "cashier",
+      "reversible": false
+    }
+  ],
+  "failures": [
+    {
+      "when": "Type the pairing code",
+      "what": "the code is wrong or older than 10 minutes",
+      "screen": "That code did not work",
+      "way_out": [
+        "Ask for a new code",
+        "Scan the QR instead"
+      ]
+    },
+    {
+      "when": "Type your PIN",
+      "what": "five wrong PINs",
+      "screen": "Too many wrong PINs",
+      "way_out": [
+        "Use my password",
+        "Someone else"
+      ]
+    },
+    {
+      "when": "Charge",
+      "what": "card or mobile money without a reference",
+      "screen": "Type the reference",
+      "way_out": [
+        "Type the reference"
+      ]
+    },
+    {
+      "when": "Charge",
+      "what": "a discount or changed price",
+      "screen": "A manager has to approve this",
+      "way_out": [
+        "Approve and charge",
+        "Take the discount off"
+      ]
+    },
+    {
+      "when": "Charge",
+      "what": "no connection",
+      "screen": "Saved on this till",
+      "way_out": [
+        "Next sale",
+        "Waiting to send"
+      ]
+    },
+    {
+      "when": "Send a saved sale",
+      "what": "not enough stock when it arrived",
+      "screen": "Not enough stock",
+      "way_out": [
+        "A manager fixes the stock",
+        "Discard"
+      ]
+    },
+    {
+      "when": "Recall the sale",
+      "what": "a sale is already on the till",
+      "screen": "Put this sale aside first?",
+      "way_out": [
+        "Hold it and recall",
+        "Cancel"
+      ]
+    },
+    {
+      "when": "Close shift",
+      "what": "the count differs from what was expected",
+      "screen": "Check the difference",
+      "way_out": [
+        "Count again",
+        "Close shift with the difference"
+      ]
+    },
+    {
+      "when": "Device replaced",
+      "what": "a manager pairs another device to this till",
+      "screen": "This device is no longer a till",
+      "way_out": [
+        "Pair it to a till"
+      ]
+    }
+  ],
+  "entities": [
+    {
+      "code": "Mbare Corner Groceries",
+      "site": "Mbare",
+      "till": "Till 1",
+      "device": "CounterMini",
+      "paired": "Sat 3 Oct 07:52 by Farai Mutasa",
+      "pairing_code": "482 916"
+    },
+    {
+      "code": "SH-00418",
+      "cashier": "Rudo Moyo",
+      "till": "Till 1",
+      "opened": "07:58",
+      "float": "US$20.00",
+      "closed": "16:03",
+      "counted": "US$247.00",
+      "expected": "US$254.15",
+      "variance": "short US$7.15"
+    },
+    {
+      "code": "SH-00421",
+      "cashier": "Tendai Sibanda",
+      "till": "Till 1",
+      "opened": "16:10",
+      "closed": "18:00",
+      "counted": "US$89.20",
+      "variance": "US$0.00"
+    },
+    {
+      "code": "S-005080",
+      "customer": "Rufaro Chipunza",
+      "time": "08:16",
+      "lines": 7,
+      "total": "US$21.68",
+      "vat": "US$0.68",
+      "paid": "cash US$25.00",
+      "change": "US$3.32",
+      "points": "+21, 1,261 now"
+    },
+    {
+      "code": "S-005081",
+      "customer": "Walk-in",
+      "time": "08:21",
+      "lines": 2,
+      "total": "US$4.78",
+      "discount": "US$0.42 off cooking oil, Dented bottle, approved by Farai Mutasa"
+    },
+    {
+      "code": "S-005082",
+      "customer": "Mai Tino",
+      "time": "08:30",
+      "lines": 3,
+      "total": "US$6.40",
+      "paid": "mobile money MP2410030830",
+      "from": "H-000031"
+    },
+    {
+      "code": "S-005078",
+      "customer": "Tapiwa Mhlanga",
+      "time": "08:06",
+      "lines": 5,
+      "total": "US$14.30",
+      "paid": "mobile money PP2410051838",
+      "refund": "R-000214"
+    },
+    {
+      "code": "R-000214",
+      "time": "08:40",
+      "lines": "Rice 2 kg × 1",
+      "total": "US$2.80",
+      "reason": "Damaged",
+      "approved_by": "Farai Mutasa"
+    },
+    {
+      "code": "S-005079",
+      "customer": "Walk-in",
+      "time": "08:09",
+      "lines": 2,
+      "total": "US$3.20",
+      "paid": "cash",
+      "void": "V-000031, Rung up twice, approved by Farai Mutasa"
+    },
+    {
+      "code": "H-000031",
+      "label": "Mai Tino, fetching cash",
+      "time": "08:02",
+      "lines": 3,
+      "total": "US$6.40"
+    },
+    {
+      "code": "H-000032",
+      "label": "Clinic order, collect at 9",
+      "time": "08:03",
+      "lines": 11,
+      "total": "US$38.25"
+    },
+    {
+      "code": "Z-TILL1-20261003",
+      "taken": "18:04 by Farai Mutasa",
+      "takings": "US$882.60",
+      "variance": "short US$7.15"
+    },
+    {
+      "code": "Avondale Bottle Store",
+      "till": "Till 1",
+      "cashier": "Kuda Banda",
+      "manager": "Chipo Dube"
+    },
+    {
+      "code": "S-002417",
+      "time": "Fri 2 Oct 19:42",
+      "total": "US$54.10",
+      "paid": "cash US$60.00",
+      "change": "US$5.90"
+    },
+    {
+      "code": "Till 3",
+      "device": "Kora",
+      "note": "the handheld at Mbare, its own till"
+    }
+  ],
+  "clock": {
+    "today": "Saturday 3 October 2026",
+    "now": "08:14",
+    "timezone": "Africa/Harare"
+  },
+  "money": {
+    "currency": "USD",
+    "symbol": "US$",
+    "decimals": 2,
+    "others": [],
+    "vat": "15.5%, basic foods zero-rated"
+  }
+}

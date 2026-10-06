@@ -5,6 +5,7 @@ import { archiveAsk } from "@/lib/retail/asks/products";
 import type { CategoryView } from "@/lib/retail/categories";
 import { parseMargin, type CategoryVat } from "@/lib/retail/category-words";
 import type { ProductNewContext } from "@/lib/retail/products/context";
+import { AGE_CHECK_SEG, ageCheckOfSeg, segOfAgeCheck } from "@/lib/retail/products/age-check";
 import { BARCODE_MESSAGE, normalizeBarcode } from "@/lib/retail/products/input";
 import type { ProductView } from "@/lib/retail/products/view";
 import { formatCount } from "@/lib/workspace/format";
@@ -317,6 +318,12 @@ const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven"
 
 const barcodeSchema = z.string().refine((typed) => normalizeBarcode(typed) !== null, BARCODE_MESSAGE);
 const countSchema = (label: string) => z.string().regex(/^\s*\d+(\.\d+)?\s*$/, `${label} is a figure, zero or more.`);
+const percentSchema = z
+  .string()
+  .refine((typed) => {
+    const bare = typed.trim().replace(/%$/, "").trim();
+    return bare === "" || (/^\d+(\.\d{1,2})?$/.test(bare) && Number(bare) <= 100);
+  }, "Write a percentage up to 100, like 10.");
 
 /** What new-context puts in a product sheet: the `_` facts, and At starting at the default site. */
 function contextValues(context: ProductNewContext): SheetValues {
@@ -429,6 +436,28 @@ const moreFields = (edit: boolean): FieldSpec[] => {
       h: (values) => `Charge a US$${String(values._deposit ?? "0.10")} deposit, refunded when the bottle comes back. Liquor store.`,
       show: (values) => values._liquor === true && values._depositsOn === true,
     },
+    {
+      id: "ageCheck",
+      t: "seg",
+      l: "ID check, 18 and over",
+      half: true,
+      o: AGE_CHECK_SEG,
+      v: "As category",
+      h: "As category asks only when its category does.",
+    },
+    {
+      id: "maxDiscountPercent",
+      t: "text",
+      l: "Most off",
+      half: true,
+      mono: true,
+      right: true,
+      p: "No limit",
+      opt: true,
+      optQuiet: true,
+      h: "The most any discount takes off it, a manager's too.",
+      schema: percentSchema,
+    },
   ];
 };
 
@@ -451,6 +480,8 @@ function productBody(values: SheetValues, ctx: SheetCtx, edit: boolean) {
     reorderAt: text(values.reorderAt) || null,
     soldAs: SOLD_AS_OF_SEG[String(values.soldAs)] ?? "SINGLE",
     ...(values._liquor === true && values._depositsOn === true ? { returnable: values.returnable === true } : {}),
+    ageCheck: ageCheckOfSeg(values.ageCheck),
+    maxDiscountPercent: text(values.maxDiscountPercent).replace(/%$/, "").trim() || null,
   };
 }
 
@@ -474,7 +505,7 @@ const productNew: SheetKind = {
   cur: "US$",
   sections: [
     { fields: productFields(false) },
-    { fold: ["More details", "Barcode, cost, supplier, opening stock, reorder"], fields: moreFields(false) },
+    { fold: ["More details", "Barcode, cost, supplier, opening stock, reorder, ID check, most off"], fields: moreFields(false) },
   ],
   note: "Saved means on sale, on every till. The rest can come later.",
   secondary: "Add, then another",
@@ -506,6 +537,8 @@ function productValues(view: ProductView, context: ProductNewContext): SheetValu
     reorderAt: view.stock.reorderAt === null ? "" : String(view.stock.reorderAt),
     soldAs: view.soldAsKind === "BY_WEIGHT" ? "By weight" : "Single",
     returnable: view.returnable,
+    ageCheck: segOfAgeCheck(view.ownAgeCheck),
+    maxDiscountPercent: view.maxDiscountPercent === null ? "" : String(view.maxDiscountPercent),
     _deposit: view.depositAmount === null ? context.defaultDeposit : view.depositAmount.toFixed(2),
     _name: view.name,
     _code: view.code,

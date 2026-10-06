@@ -1,14 +1,11 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  getHostHeaderFromRequestHeaders,
-  getPlatformHostContext,
-  getRealHostHeaderFromRequestHeaders,
-} from "@/lib/platform/tenant";
+import { redirect } from "next/navigation";
+
+import { PortalChoice } from "@/components/preview-host/portal-choice";
+import { tillMono, tillSans } from "@/components/retail/till/fonts";
+import { TillRoot } from "@/components/retail/till/till-root";
+import { CaretRight, Check, WarningCircle, X } from "@/lib/icons";
 import { getPortalHostPrefixes } from "@/lib/platform/portal-hosts";
 import {
   PREVIEW_HOST_PARAM,
@@ -16,6 +13,12 @@ import {
   isHostEnforcementBypassed,
   isPreviewHostOverrideEnabled,
 } from "@/lib/platform/preview-host";
+import {
+  getHostHeaderFromRequestHeaders,
+  getPlatformHostContext,
+  getRealHostHeaderFromRequestHeaders,
+  resolveTenantFromHost,
+} from "@/lib/platform/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -24,189 +27,210 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
+const PORTAL_LABEL: Record<string, string> = { pos: "Till", students: "Students", parents: "Parents", staff: "Staff" };
+
 /**
- * The control panel for the preview host override.
+ * Pointing a preview deployment at a workspace and one of its addresses.
  *
- * Deliberately reachable without a session and outside tenant routing — it is
- * where you go when the deployment is pointed at the wrong tenant, and a page
- * behind the check it exists to fix would be no use.
+ * Reachable without a session and outside tenant routing: it is where you go
+ * when the deployment is pointed at the wrong workspace, and a page behind the
+ * check it exists to fix would be no use. The choice is made here and handed to
+ * the proxy as `?__host=` or `?__tenant=`, which stores it and redirects to the
+ * clean address.
  */
 export default async function PreviewHostPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invalid?: string }>;
+  searchParams: Promise<{ invalid?: string; ws?: string; portal?: string }>;
 }) {
-  const { invalid } = await searchParams;
+  const { invalid, ws, portal } = await searchParams;
+  const overrideEnabled = isPreviewHostOverrideEnabled();
+  const rootDomain = process.env.PLATFORM_ROOT_DOMAIN?.trim().toLowerCase() || null;
+  const prefixes = getPortalHostPrefixes();
+
+  // The workspace-and-address form: one host, handed to the proxy.
+  if (ws !== undefined && overrideEnabled) {
+    const slug = ws.trim().toLowerCase();
+    const prefix = portal && prefixes.includes(portal) ? portal : "";
+    if (slug && rootDomain) {
+      redirect(
+        prefix
+          ? `/preview-host?${PREVIEW_HOST_PARAM}=${encodeURIComponent(`${prefix}.${slug}.${rootDomain}`)}`
+          : `/preview-host?${PREVIEW_TENANT_PARAM}=${encodeURIComponent(slug)}`,
+      );
+    }
+  }
+
   const requestHeaders = await headers();
   const realHost = getRealHostHeaderFromRequestHeaders(requestHeaders);
   const effectiveHost = getHostHeaderFromRequestHeaders(requestHeaders);
   const hostContext = getPlatformHostContext(effectiveHost);
-  const overrideEnabled = isPreviewHostOverrideEnabled();
+  const tenant = await resolveTenantFromHost(effectiveHost);
   const enforcementBypassed = isHostEnforcementBypassed();
-  const rootDomain = process.env.PLATFORM_ROOT_DOMAIN?.trim().toLowerCase() || null;
   const isOverridden = Boolean(realHost && effectiveHost && realHost !== effectiveHost);
-
-  const facts: Array<{ label: string; value: string }> = [
-    { label: "Real host", value: realHost ?? "unknown" },
-    { label: "Treated as", value: effectiveHost ?? "unknown" },
-    { label: "Root domain", value: rootDomain ?? "not set — tenant subdomains are off" },
-    { label: "Tenant slug", value: hostContext.tenantSlug ?? "none" },
-    { label: "Portal", value: hostContext.portalSubdomain ?? "none — main workspace" },
-    {
-      label: "Host enforcement",
-      value: enforcementBypassed
-        ? "bypassed"
-        : hostContext.strictTenantEnforcement
-          ? "strict"
-          : "off",
-    },
+  const portalLabel = hostContext.portalCanonicalPrefix ? PORTAL_LABEL[hostContext.portalCanonicalPrefix] ?? hostContext.portalCanonicalPrefix : null;
+  const workspaceName = tenant?.companyName ?? hostContext.tenantSlug;
+  // The till first after the workspace: it is the address a preview is most often pointed at.
+  const portals = [
+    { prefix: "", label: "Workspace" },
+    ...[...prefixes]
+      .sort((a, b) => Number(b === "pos") - Number(a === "pos"))
+      .map((prefix) => ({ prefix, label: PORTAL_LABEL[prefix] ?? prefix })),
   ];
+  const disabled = !overrideEnabled;
+  // The refused address without its scheme, so the error can quote the page on the end.
+  const invalidPath = invalid?.replace(/^https?:\/\//i, "") ?? "";
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 sm:px-6 sm:py-10">
-      <div className="mx-auto w-full max-w-2xl space-y-4">
-        <Card>
-          <CardHeader className="space-y-3 border-b border-border/80 pb-5">
-            <div className="flex items-center gap-2">
-              <Badge variant={isOverridden ? "default" : "secondary"} className="w-fit">
-                {isOverridden ? "Override active" : "No override"}
-              </Badge>
-              {enforcementBypassed ? (
-                <Badge variant="secondary" className="w-fit">
-                  Enforcement bypassed
-                </Badge>
-              ) : null}
+    <TillRoot fontClass={`${tillSans.variable} ${tillMono.variable}`}>
+      <main className="main is-page">
+        <div className="page is-centred">
+          <div className="stack-8">
+            <div className="who-head">
+              <h1 className="text-title">Preview host</h1>
+              {isOverridden && workspaceName ? (
+                <span className="status status-live">
+                  {workspaceName}’s {(portalLabel ?? "workspace").toLowerCase()}
+                </span>
+              ) : (
+                <span className="status">No override</span>
+              )}
             </div>
-            <h1 className="text-page-title text-foreground">Preview host</h1>
-            <p className="text-sm text-muted-foreground">
-              This deployment answers on a generated hostname that belongs to no tenant. Nominate
-              the host it should be treated as, and tenant routing, sign-in and the portals all
-              behave as they would on the real domain.
-            </p>
-          </CardHeader>
-
-          <CardContent className="space-y-6 py-5">
-            {!overrideEnabled ? (
-              <section className="rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-4">
-                <h2 className="text-sm font-semibold text-[var(--status-error-text)]">
-                  The override is switched off here
-                </h2>
-                <p className="mt-2 text-sm text-[var(--status-error-text)]">
-                  Set <code>PREVIEW_HOST_OVERRIDE=1</code> on this environment. It is refused
-                  outright when <code>VERCEL_ENV</code> is <code>production</code>.
-                </p>
-              </section>
-            ) : null}
-
-            {invalid ? (
-              <section className="rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-4">
-                <p className="text-sm text-[var(--status-error-text)]">
-                  <span className="font-mono">{invalid}</span> is not a host this deployment will
-                  accept. Check the spelling, and the allowlist if one is configured.
-                </p>
-              </section>
-            ) : null}
-
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-              {facts.map((fact) => (
-                <div key={fact.label} className="space-y-1">
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {fact.label}
-                  </dt>
-                  <dd className="font-mono text-sm text-foreground break-all">{fact.value}</dd>
-                </div>
-              ))}
-            </dl>
-
-            <form method="get" action="/preview-host" className="space-y-2">
-              <label htmlFor="tenant" className="text-sm font-medium text-foreground">
-                Tenant subdomain
-              </label>
-              <div className="flex gap-2">
-                <Input
-                  id="tenant"
-                  name={PREVIEW_TENANT_PARAM}
-                  placeholder="floorcode"
-                  defaultValue={hostContext.tenantSlug ?? ""}
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="font-mono"
-                />
-                <Button type="submit" disabled={!overrideEnabled}>
-                  Use tenant
-                </Button>
+            {disabled ? (
+              <div className="banner banner-danger is-card">
+                <WarningCircle className="ic" />
+                <span>
+                  <b className="weight-500">The override is off on this deployment.</b> Set PREVIEW_HOST_OVERRIDE to 1 on it.
+                  Production never takes one.
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {rootDomain
-                  ? `Expanded against ${rootDomain}.`
-                  : "PLATFORM_ROOT_DOMAIN is not set, so a slug cannot be expanded into a host. Use the full host below."}
-              </p>
-            </form>
-
-            <form method="get" action="/preview-host" className="space-y-2">
-              <label htmlFor="host" className="text-sm font-medium text-foreground">
-                Full host
-              </label>
-              <div className="flex gap-2">
-                <Input
-                  id="host"
-                  name={PREVIEW_HOST_PARAM}
-                  placeholder={rootDomain ? `pos.floorcode.${rootDomain}` : "pos.floorcode.example.com"}
-                  defaultValue={effectiveHost ?? ""}
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="font-mono"
-                />
-                <Button type="submit" variant="outline" disabled={!overrideEnabled}>
-                  Use host
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Portal prefixes work here too — a whole host is taken as written.
-              </p>
-            </form>
-
-            {rootDomain && hostContext.tenantSlug ? (
-              <section className="space-y-2">
-                <h2 className="text-sm font-medium text-foreground">
-                  Portals for {hostContext.tenantSlug}
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/preview-host?${PREVIEW_TENANT_PARAM}=${hostContext.tenantSlug}`}>
-                      workspace
-                    </Link>
-                  </Button>
-                  {getPortalHostPrefixes().map((prefix) => (
-                    <Button asChild variant="outline" size="sm" key={prefix}>
-                      <Link
-                        href={`/preview-host?${PREVIEW_HOST_PARAM}=${prefix}.${hostContext.tenantSlug}.${rootDomain}`}
-                      >
-                        {prefix}
-                      </Link>
-                    </Button>
-                  ))}
+            ) : isOverridden ? (
+              <>
+                <p className="lede-figure lede-20">
+                  This preview is {workspaceName ?? "a workspace"}’s {(portalLabel ?? "workspace").toLowerCase()}.{" "}
+                  <span className="q">
+                    Every page answers as <span className="num">{effectiveHost}</span> until you clear it.
+                  </span>
+                </p>
+                <div className="actions under">
+                  {/* The till's door is its root: the proxy shows /pair to a device with no key, "Who is selling?" to a till. */}
+                  <Link className="btn btn-primary btn-lg" href={portalLabel === "Till" ? "/" : "/login"}>
+                    <CaretRight className="ic" />
+                    {portalLabel === "Till" ? "Go to the till’s door" : "Go to sign-in"}
+                  </Link>
+                  <Link className="btn btn-lg" href={`/preview-host?${PREVIEW_HOST_PARAM}=`}>
+                    <X className="ic" />
+                    Clear it
+                  </Link>
                 </div>
-              </section>
-            ) : null}
+              </>
+            ) : (
+              <p className="lede-figure lede-20">
+                This preview answers on <span className="num">{realHost}</span>.{" "}
+                <span className="q">
+                  That address belongs to no workspace, so say which one it stands for. Sign-in, the till and the portals then
+                  behave as they will on the real address.
+                </span>
+              </p>
+            )}
+          </div>
 
-            <div className="flex flex-wrap gap-2 border-t border-border/80 pt-4">
-              <Button asChild size="sm">
-                <Link href="/login">Go to sign-in</Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm">
-                <Link href={`/preview-host?${PREVIEW_HOST_PARAM}=`}>Clear override</Link>
-              </Button>
+          {isOverridden ? <hr className="divider" /> : null}
+
+          <div className="form-sec">
+            <header>
+              <h2>Treat it as</h2>
+              <p>A workspace, and which of its addresses.</p>
+            </header>
+            <div className="body">
+              <PortalChoice
+                portals={portals}
+                initialSlug={hostContext.tenantSlug ?? ""}
+                initialPortal={hostContext.portalCanonicalPrefix ?? "pos"}
+                rootDomain={rootDomain}
+                disabled={disabled}
+                quiet={isOverridden}
+              />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <hr className="divider" />
 
-        <p className="text-xs text-muted-foreground">
-          Any page accepts <code className="font-mono">?{PREVIEW_TENANT_PARAM}=slug</code> or{" "}
-          <code className="font-mono">?{PREVIEW_HOST_PARAM}=host</code> — the proxy stores it and
-          redirects to the clean URL, so it never survives into a link you share.
-        </p>
-      </div>
-    </main>
+          <div className="form-sec">
+            <header>
+              <h2>Or a whole address</h2>
+              <p>Taken as written, portal prefix and all.</p>
+            </header>
+            <div className="body">
+              <form method="get" action="/preview-host" className="field">
+                <label htmlFor="preview-host-address">Address</label>
+                <div className="actions">
+                  <input
+                    id="preview-host-address"
+                    name={PREVIEW_HOST_PARAM}
+                    className="input input-lg num text-left grow"
+                    placeholder={rootDomain ? `pos.acme.${rootDomain}` : "pos.acme.example.com"}
+                    defaultValue={invalid ?? ""}
+                    inputMode="url"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    disabled={disabled}
+                    aria-invalid={invalid ? true : undefined}
+                    aria-describedby={invalid ? "preview-host-address-error" : undefined}
+                  />
+                  <button type="submit" className="btn btn-lg" disabled={disabled}>
+                    <Check className="ic" />
+                    Use address
+                  </button>
+                </div>
+                {invalid ? (
+                  <span className="error" id="preview-host-address-error">
+                    <WarningCircle className="ic" />
+                    {invalidPath.includes("/")
+                      ? `That is an address with a page on the end. Leave off ${invalidPath.slice(invalidPath.indexOf("/"))}.`
+                      : "This deployment does not take that address. Check the spelling, and the allowlist if one is set."}
+                  </span>
+                ) : (
+                  <span className="help">
+                    Any page takes <span className="num">?{PREVIEW_HOST_PARAM}=</span> or <span className="num">?{PREVIEW_TENANT_PARAM}=</span> too. It is
+                    kept and dropped from the address, so a link you share never carries it.
+                  </span>
+                )}
+              </form>
+            </div>
+          </div>
+          <hr className="divider" />
+
+          <div className="form-sec">
+            <header>
+              <h2>Right now</h2>
+            </header>
+            <div className="body">
+              <dl className="attrs is-wide">
+                <dt>Real address</dt>
+                <dd className="num text-left">
+                  {realHost ?? "Unknown"}
+                </dd>
+                <dt>Treated as</dt>
+                <dd className="num text-left">
+                  {effectiveHost ?? "Unknown"}
+                </dd>
+                <dt>Root domain</dt>
+                <dd className="num text-left">
+                  {rootDomain ?? "Not set: workspace addresses are off"}
+                </dd>
+                <dt>Workspace</dt>
+                <dd>{workspaceName ?? "None"}</dd>
+                <dt>Portal</dt>
+                <dd>{portalLabel ? `The ${portalLabel.toLowerCase()}` : "None, the main workspace"}</dd>
+                <dt>Host checks</dt>
+                <dd>{enforcementBypassed ? "Bypassed" : hostContext.strictTenantEnforcement ? "On" : "Off"}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </main>
+    </TillRoot>
   );
 }

@@ -7,11 +7,10 @@
  *
  * ── The cashier / manager decision, and why it is not a slider ─────────────
  *
- * The till portal is cashier-only. `canAccessPosPortal` in `lib/retail/pos-host.ts`
- * admits `CASHIER` and `POS_CASHIER` and nothing else, and `PosPortalAuthGuard`
- * sends everybody else to `/access-blocked`. A shop manager does not work at this
- * screen; they work in the back office at `/retail/manage/**` and they approve at
- * the counter by typing their password into the override dialog.
+ * Anyone the matrix lets open a shift may sign in at the till
+ * (`canAccessPosPortal` in `lib/retail/pos-host.ts`), managers included, so a
+ * manager can close the day and approve on the spot with their PIN. Nobody
+ * edits rules there: they are set in the back office at `/retail/manage/**`.
  *
  * So "what does a cashier see" is the whole question, and the answer is: all of
  * it, and none of it editable.

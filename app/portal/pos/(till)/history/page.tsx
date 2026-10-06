@@ -1,10 +1,7 @@
-import { PosHistoryView } from "@/components/retail/portal/pos-history-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { HistoryScreen } from "@/components/retail/till/history";
+import { requireTillDevice } from "../../device-page";
 
-export default async function PosPortalHistoryPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/history">
-      <PosHistoryView />
-    </PosPortalAuthGuard>
-  );
+export default async function TillHistoryPage() {
+  await requireTillDevice();
+  return <HistoryScreen />;
 }

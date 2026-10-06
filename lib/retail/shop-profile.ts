@@ -9,7 +9,7 @@ export * from "@/lib/retail/shop-profile-rules";
 
 /**
  * Reading and saving the shop's profile. The rules — what each type switches
- * on, the licence-hours clock, who may change it — are in
+ * on, when a liquor sale is refused — are in
  * `shop-profile-rules.ts`, which the browser can import without Prisma.
  */
 
@@ -23,10 +23,6 @@ function toProfile(row: ProfileRow | null): ShopProfile {
     licenceHours: row.licenceHours,
     emptiesAndDeposits: row.emptiesAndDeposits,
     casesAndSingles: row.casesAndSingles,
-    weekdayOpensAt: row.weekdayOpensAt,
-    weekdayClosesAt: row.weekdayClosesAt,
-    sundayOpensAt: row.sundayOpensAt,
-    sundayClosesAt: row.sundayClosesAt,
     licenceNumber: row.licenceNumber,
     licenceExpiresOn: row.licenceExpiresOn ? row.licenceExpiresOn.toISOString().slice(0, 10) : null,
     whatsapp: row.whatsapp,
@@ -66,10 +62,6 @@ export async function saveShopProfile(
     "licenceHours",
     "emptiesAndDeposits",
     "casesAndSingles",
-    "weekdayOpensAt",
-    "weekdayClosesAt",
-    "sundayOpensAt",
-    "sundayClosesAt",
     "vatRegistered",
     "defaultSiteId",
   ] as const) {

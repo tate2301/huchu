@@ -1,10 +1,7 @@
-import { PosTillActivityView } from "@/components/retail/portal/pos-till-activity-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { ActivityScreen } from "@/components/retail/till/person";
+import { requireTillDevice } from "../../device-page";
 
-export default async function PosPortalActivityPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/activity">
-      <PosTillActivityView />
-    </PosPortalAuthGuard>
-  );
+export default async function TillActivityPage() {
+  await requireTillDevice();
+  return <ActivityScreen />;
 }

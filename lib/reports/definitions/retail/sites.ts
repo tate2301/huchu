@@ -87,6 +87,7 @@ const sites: ListSpec = {
       when: [{ column: "state", op: "is", value: ["Open"] }],
       do: { sheet: "site-default" },
     },
+    { key: "licence", label: "Licence hours", requires: [["retail.sites", "view"]], do: { sheet: "site-licence" } },
     {
       key: "close",
       label: "Close this site",

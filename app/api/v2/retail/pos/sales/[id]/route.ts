@@ -4,6 +4,7 @@ import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice, requireRetailPermission, retailRoleKey } from "@/lib/retail/permissions";
+import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -60,6 +61,8 @@ export async function GET(
           select: { id: true, saleNo: true, saleType: true, totalAmount: true },
         })
       : Promise.resolve(null),
+    // Every refund and void of it, whoever did them: a cashier sees a
+    // manager's refund of their own sale.
     prisma.retailSale.findMany({
       where: { sourceSaleId: sale.id, companyId: session.user.companyId },
       select: {
@@ -68,7 +71,12 @@ export async function GET(
         saleType: true,
         status: true,
         totalAmount: true,
+        depositAmount: true,
         postedAt: true,
+        cashierName: true,
+        overrideReason: true,
+        lines: { select: { id: true, itemName: true, quantity: true, lineTotal: true } },
+        payments: { select: { tenderType: true, currency: true } },
       },
       orderBy: { postedAt: "desc" },
     }),
@@ -91,6 +99,30 @@ export async function GET(
       select: { id: true, name: true, code: true },
     }),
   ]);
+  const [promotion, reversalEvents] = await Promise.all([
+    // The promotion by its name, as the shop wrote it; the sale keeps only the code.
+    sale.promotionCode
+      ? prisma.retailPromotion.findFirst({
+          where: { companyId: session.user.companyId, promoCode: sale.promotionCode },
+          select: { name: true },
+        })
+      : Promise.resolve(null),
+    // Who approved each reversal with their PIN lives on the audit chain, not the sale row.
+    relatedSales.length
+      ? prisma.platformAuditEvent.findMany({
+          where: {
+            companyId: session.user.companyId,
+            entityType: "RetailSale",
+            entityId: { in: relatedSales.map((relatedSale) => relatedSale.id) },
+            eventType: { in: [RETAIL_AUDIT_EVENTS.saleRefunded, RETAIL_AUDIT_EVENTS.saleVoided] },
+          },
+          select: { entityId: true, payloadJson: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const approvedByReversal = new Map(
+    reversalEvents.map((event) => [event.entityId, approverName(event.payloadJson)]),
+  );
   const reversalLineRows = relatedSales.length
     ? await prisma.retailSaleLine.findMany({
         where: {
@@ -123,7 +155,11 @@ export async function GET(
       shift,
       site,
       sourceSale,
-      reversals: relatedSales,
+      promotion,
+      reversals: relatedSales.map((reversal) => ({
+        ...reversal,
+        approvedBy: approvedByReversal.get(reversal.id) ?? null,
+      })),
       lines: sale.lines.map((line) => {
         const refundedQuantity = refundedBySourceLine.get(line.id) ?? 0;
         // R-2.3. Opening a sale to refund it is a cashier's job; reading the
@@ -140,4 +176,15 @@ export async function GET(
       }),
     },
   });
+}
+
+/** The approver's name on a refund or void's audit event, or null when nobody had to approve. */
+function approverName(payloadJson: string | null): string | null {
+  if (!payloadJson) return null;
+  try {
+    const payload = JSON.parse(payloadJson) as { approvedByName?: unknown };
+    return typeof payload.approvedByName === "string" && payload.approvedByName ? payload.approvedByName : null;
+  } catch {
+    return null;
+  }
 }

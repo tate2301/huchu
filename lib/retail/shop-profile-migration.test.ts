@@ -3,10 +3,10 @@
  *
  * Required by `CONTRIBUTING.md`: a schema change ships with a test that reads
  * the database, not the schema file. These assert what the migration promises —
- * the business type is an enum with exactly two labels, licence hours refuse
- * anything that is not a 24-hour "HH:MM", a category's percentages stay in
- * range, a product survives its category being removed, and a company cannot
- * have two categories with one name.
+ * the business type is an enum with exactly two labels, a category's
+ * percentages stay in range, a product survives its category being removed,
+ * and a company cannot have two categories with one name. The licence-hours
+ * columns it added went in `20261006120000_retail_licence_hours_and_held_release`.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -44,21 +44,6 @@ describe("retail shop profile and categories, as stored", () => {
       SELECT udt_name FROM information_schema.columns
       WHERE table_name = 'RetailShopProfile' AND column_name = 'businessType'`;
     expect(column.udt_name).toBe("RetailBusinessType");
-  });
-
-  it("refuses licence hours that are not a 24-hour HH:MM", async () => {
-    for (const bad of ["8:00", "24:00", "22:60", "10pm"]) {
-      await expect(
-        prisma.$executeRaw`
-          INSERT INTO "RetailShopProfile" ("companyId", "weekdayClosesAt", "updatedAt")
-          VALUES (${companyId}, ${bad}, now())`,
-      ).rejects.toThrow(/RetailShopProfile_hours_format/);
-    }
-    await prisma.$executeRaw`
-      INSERT INTO "RetailShopProfile" ("companyId", "weekdayClosesAt", "updatedAt")
-      VALUES (${companyId}, '23:59', now())`;
-    const row = await prisma.retailShopProfile.findUniqueOrThrow({ where: { companyId } });
-    expect(row).toMatchObject({ businessType: "GENERAL", weekdayOpensAt: "08:00", weekdayClosesAt: "23:59" });
   });
 
   it("keeps a category's VAT, margin and deposit in range", async () => {

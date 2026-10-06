@@ -1,10 +1,7 @@
-import { PosOfflineQueueView } from "@/components/retail/portal/pos-offline-queue-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { WaitingScreen } from "@/components/retail/till/waiting";
+import { requireTillDevice } from "../../device-page";
 
-export default async function PosPortalOfflineQueuePage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/offline">
-      <PosOfflineQueueView />
-    </PosPortalAuthGuard>
-  );
+export default async function TillWaitingPage() {
+  await requireTillDevice();
+  return <WaitingScreen />;
 }

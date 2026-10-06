@@ -469,10 +469,6 @@ async function main() {
     licenceHours: true,
     emptiesAndDeposits: true,
     casesAndSingles: true,
-    weekdayOpensAt: "08:00",
-    weekdayClosesAt: "22:00",
-    sundayOpensAt: "10:00",
-    sundayClosesAt: "18:00",
     licenceNumber: "HRE/BL/2024/0711",
     licenceExpiresOn: new Date("2026-12-31T00:00:00.000Z"),
     // SET-01: the shop's WhatsApp, registered for VAT, and Harare Main Branch as the default site.
@@ -485,6 +481,15 @@ async function main() {
     update: liquorStore,
     create: { companyId, ...liquorStore },
   })
+  // Harare Main Branch's licence: alcohol from 08:00 to 22:00 Monday to Saturday, 10:00 to 18:00 on Sunday.
+  for (const weekday of [0, 1, 2, 3, 4, 5, 6]) {
+    const hours = weekday === 0 ? { alcoholFrom: 10 * 60, alcoholUntil: 18 * 60 } : { alcoholFrom: 8 * 60, alcoholUntil: 22 * 60 }
+    await prisma.retailLicenceHours.upsert({
+      where: { siteId_weekday: { siteId: site.id, weekday } },
+      update: hours,
+      create: { companyId, siteId: site.id, weekday, ...hours },
+    })
+  }
   await ensureRetailCategories(prisma, companyId, "LIQUOR")
   await seedCategories(companyId, reset)
   await seedShopSettingsSave(companyId)

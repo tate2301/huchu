@@ -1,4 +1,3 @@
-import { tillFiscal } from "@/lib/retail/fiscal-settings";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import type { Prisma } from "@prisma/client";
@@ -24,14 +23,17 @@ import {
   unpairedSaleVerdict,
   type UnpairReason,
 } from "@/lib/retail/device-words";
+import { tillFiscal } from "@/lib/retail/fiscal-settings";
 import { PAIRING_TTL_MS, PairingRefusal, checkTillRoom, hashCode } from "@/lib/retail/pairing";
 import { tillPayments, type TillTender } from "@/lib/retail/payment-settings";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { receiptWire } from "@/lib/retail/receipt-settings";
 import type { ReceiptWire } from "@/lib/retail/receipt-words";
+import type { LicenceWindow } from "@/lib/retail/licence-hours";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
-import type { ShopProfile } from "@/lib/retail/shop-profile-rules";
+import { shopFeatures, type ShopProfile } from "@/lib/retail/shop-profile-rules";
+import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { loadTillRules, tillRulesForTill, type TillRulesForTill } from "@/lib/retail/till-rules";
 import { checkTillPin, type PinPlace } from "@/lib/retail/till-pin-attempt";
 import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
@@ -77,6 +79,7 @@ const deviceSelect = {
       id: true,
       name: true,
       code: true,
+      isActive: true,
       hasPrinter: true,
       hasDrawer: true,
       hasScale: true,
@@ -93,6 +96,10 @@ export async function findDeviceByKey(key: string | null | undefined): Promise<P
   if (!key) return null;
   return prisma.retailDevice.findUnique({ where: { keyHash: hashDeviceKey(key) }, select: deviceSelect });
 }
+
+/** A device that is one of the shop's tills now: paired, on a till that is still open. */
+export const isLiveTill = (device: PosDevice | null): device is PosDevice =>
+  Boolean(device && !device.unpairedAt && device.register.isActive);
 
 /** The device behind a request's cookie. */
 export function deviceOfRequest(request: NextRequest): Promise<PosDevice | null> {
@@ -143,11 +150,11 @@ export const NOT_A_TILL = "This device is not a till. Pair it from Management �
 
 /**
  * The device this POS request comes from. No device key, a key nobody
- * issued, or another shop's device → 409 NOT_A_TILL. Unpaired → 401
- * DEVICE_UNPAIRED with who, when and why — unless `allowUnpaired`, which only
- * `pos/sync` asks for, so the device can send in what it sold before it was
- * told. Records that the device was seen (at most once a minute) and the
- * version its shell reports.
+ * issued, another shop's device, or a paired device whose till was closed
+ * → 409 NOT_A_TILL. Unpaired → 401 DEVICE_UNPAIRED with who, when and why —
+ * unless `allowUnpaired`, which only `pos/sales` asks for, so the device can
+ * send in what it sold before it was told. Records that the device was seen
+ * (at most once a minute) and the version its shell reports.
  */
 export async function requirePosDevice(
   request: NextRequest,
@@ -155,7 +162,7 @@ export async function requirePosDevice(
   options: { allowUnpaired?: boolean } = {},
 ): Promise<{ device: PosDevice; response: null } | { device: null; response: NextResponse }> {
   const device = await deviceOfRequest(request);
-  if (!device || device.companyId !== session.user.companyId) {
+  if (!device || device.companyId !== session.user.companyId || (!device.unpairedAt && !device.register.isActive)) {
     return { device: null, response: refuse(409, { error: NOT_A_TILL, code: "NOT_A_TILL" }) };
   }
   if (device.unpairedAt && !options.allowUnpaired) {
@@ -359,7 +366,7 @@ export async function pairDevice(
   now: Date = new Date(),
 ): Promise<{ key: string; till: { id: string; name: string }; site: { id: string; name: string } }> {
   const already = await findDeviceByKey(input.deviceKey);
-  if (already && already.companyId === input.companyId && !already.unpairedAt) {
+  if (already && already.companyId === input.companyId && isLiveTill(already)) {
     throw new PairRefusal(409, alreadyATillSentence(already.register.name), { code: "ALREADY_A_TILL" });
   }
 
@@ -513,6 +520,11 @@ export type TillContext = {
   device: { id: string; kind: DeviceKind; label: string; pairedAt: string; pairedBy: string; paired: string };
   /** What kind of shop: the till asks for ID and keeps licence hours on a liquor store. */
   shop: ShopProfile;
+  /**
+   * The site's licence hours, one window a weekday, while the shop keeps them
+   * (else empty: alcohol sells all day). The till judges them offline too.
+   */
+  licenceHours: LicenceWindow[];
   /** The tenders the shop takes, in the order the payment screen shows them (SET-05). Anything off is not here. */
   tenders: TillTender[];
   /** Today's ZiG rate and how ZiG change rounds, while the shop takes ZiG cash and has a rate. */
@@ -522,7 +534,13 @@ export type TillContext = {
   /** What its receipts say (SET-07): the shop's top and bottom lines, numbers and copies. */
   receipt: ReceiptWire;
   /** The shop's fiscal device (SET-08): its ID once registered, the open day, and whether the till stops while ZIMRA is away. */
-  fiscal: { deviceId: string | null; dayNo: number | null; whenUnreachable: "KEEP_SELLING" | "STOP_SELLING" };
+  fiscal: {
+    deviceId: string | null;
+    dayNo: number | null;
+    /** "With the last shift": the shop's last open shift closing closes the day. */
+    dayClose: "WITH_LAST_SHIFT" | "BY_HAND";
+    whenUnreachable: "KEEP_SELLING" | "STOP_SELLING";
+  };
   /** Who can approve with their PIN at this till: active staff with a till PIN who hold the approve right. */
   approvers: Array<{ userId: string; name: string }>;
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
@@ -531,7 +549,7 @@ export type TillContext = {
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
-  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal] = await Promise.all([
+  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal, licenceHours] = await Promise.all([
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
@@ -549,6 +567,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     }),
     receiptWire(device.companyId, register.site.id),
     tillFiscal(device.companyId),
+    loadLicenceHours(device.companyId, register.site.id),
   ]);
   const pairedBy = device.pairedBy.name ?? "";
   return {
@@ -570,6 +589,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
       paired: pairedFootnote(device.pairedAt, pairedBy, now),
     },
     shop,
+    licenceHours: shopFeatures(shop).licenceHours ? licenceHours : [],
     tenders: payments.tenders,
     zig: payments.zig,
     rules: tillRulesForTill(tillRules),
@@ -596,14 +616,23 @@ export async function shopSiteId(companyId: string): Promise<string | null> {
 
 /* ── Who is selling? (GET devices/people) ─────────────────────────────────── */
 
-export type TillPerson = { userId: string; label: string; outcome: string; locked: boolean };
+export type TillPerson = {
+  userId: string;
+  /** "Chipo D.": a till shows short names, never an email or a role. */
+  label: string;
+  outcome: string;
+  /** Five wrong PINs (ADM-03): locked until a manager sends a new one; their password still opens the till. */
+  pinLocked: boolean;
+  /** Their open shift, on this till (`here`) or on another one. */
+  openShift: { shiftNo: string; here: boolean; till: string } | null;
+};
 
 /**
- * The people who may sell at this till: active staff of the shop with a till
- * PIN, whom the till admits and the matrix lets sell. Whoever has the shift
- * open on this till comes first, then by surname. `outcome` says what their
- * PIN will do here: open their shift, carry it on, or send them to the till
- * their shift is open on first.
+ * The people who may sell at this till: active staff of the shop whom the
+ * till admits and the matrix lets sell, managers included, who hold a till
+ * PIN (issued from People, ADM-02/03). Whoever has the shift open on this till comes first, then by
+ * surname. `outcome` says what signing in will do here: open their shift,
+ * carry it on, or send them to the till their shift is open on first.
  */
 export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
   const pins = await prisma.retailTillPin.findMany({
@@ -617,7 +646,7 @@ export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
   const open = await prisma.retailShift.findMany({
     where: { companyId: device.companyId, status: "OPEN", cashierId: { in: sellers.map((user) => user.id) } },
     orderBy: { openedAt: "desc" },
-    select: { cashierId: true, registerId: true, registerName: true },
+    select: { cashierId: true, shiftNo: true, registerId: true, registerName: true },
   });
   const shiftOf = new Map<string, (typeof open)[number]>();
   for (const shift of open) if (!shiftOf.has(shift.cashierId)) shiftOf.set(shift.cashierId, shift);
@@ -630,16 +659,20 @@ export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
         surname(a.name ?? "").localeCompare(surname(b.name ?? "")) ||
         (a.name ?? "").localeCompare(b.name ?? ""),
     )
-    .map((user) => ({
-      userId: user.id,
-      label: personChip(user.name ?? ""),
-      outcome: pinOutcomeSentence(
-        user.name ?? "",
-        device.register.name,
-        onThisTill(user.id) ? { onThisTill: true } : { onThisTill: false, elsewhere: shiftOf.get(user.id)?.registerName ?? null },
-      ),
-      locked: lockedIds.has(user.id),
-    }));
+    .map((user) => {
+      const shift = shiftOf.get(user.id);
+      return {
+        userId: user.id,
+        label: personChip(user.name ?? ""),
+        outcome: pinOutcomeSentence(
+          user.name ?? "",
+          device.register.name,
+          onThisTill(user.id) ? { onThisTill: true } : { onThisTill: false, elsewhere: shift?.registerName ?? null },
+        ),
+        pinLocked: lockedIds.has(user.id),
+        openShift: shift ? { shiftNo: shift.shiftNo, here: onThisTill(user.id), till: shift.registerName } : null,
+      };
+    });
 }
 
 /* ── Messages (heartbeat, dismiss) ────────────────────────────────────────── */
@@ -666,15 +699,33 @@ export async function dismissTillMessage(device: PosDevice, id: string, now: Dat
   return (await prisma.retailDeviceMessage.count({ where: { id, companyId: device.companyId, registerId: device.registerId } })) > 0;
 }
 
-/* ── Who may sign in with a PIN (the `till-pin` provider) ─────────────────── */
+/* ── Who may sign in at the till (the `till-pin` provider) ────────────────── */
+
+type TillSignInRefusal = "NOT_A_TILL" | "DEVICE_UNPAIRED" | "NOT_ON_THIS_TILL";
 
 export type TillPinSignIn =
   | { ok: true; device: PosDevice; mustChange: boolean }
-  | { ok: false; reason: "NOT_A_TILL" | "DEVICE_UNPAIRED" | "NOT_ON_THIS_TILL" | "NO_PIN" | "LOCKED" | "WRONG_PIN"; triesLeft?: number };
+  | { ok: false; reason: TillSignInRefusal | "NO_PIN" | "LOCKED" | "WRONG_PIN"; triesLeft?: number };
+
+export type TillPasswordSignIn = { ok: true; device: PosDevice } | { ok: false; reason: TillSignInRefusal | "WRONG_PASSWORD" };
+
+/** The device a sign-in is made at, when it is a live till and the person is one it offers (`tillPeople`). */
+async function tillForSignIn(
+  deviceKey: string | null | undefined,
+  userId: string,
+): Promise<{ ok: true; device: PosDevice } | { ok: false; reason: TillSignInRefusal }> {
+  const device = await findDeviceByKey(deviceKey);
+  if (!device) return { ok: false, reason: "NOT_A_TILL" };
+  if (device.unpairedAt) return { ok: false, reason: "DEVICE_UNPAIRED" };
+  if (!device.register.isActive) return { ok: false, reason: "NOT_A_TILL" };
+  const people = await tillPeople(device);
+  if (!people.some((person) => person.userId === userId)) return { ok: false, reason: "NOT_ON_THIS_TILL" };
+  return { ok: true, device };
+}
 
 /**
- * A PIN sign-in at a paired device: the device must be active and the
- * shop's; the person must be one the till offers (`tillPeople`); the PIN is
+ * A PIN sign-in at a paired device: the device must be a live till of the
+ * shop; the person must be one the till offers (`tillPeople`); the PIN is
  * checked with the lockout of ADM-03 (`checkTillPin`: five wrong and it is
  * locked until a new one is sent). `mustChange` says the PIN was issued and
  * they choose their own before the till opens.
@@ -683,11 +734,9 @@ export async function checkTillPinSignIn(
   input: { deviceKey: string | null | undefined; userId: string; pin: string },
   now: Date = new Date(),
 ): Promise<TillPinSignIn> {
-  const device = await findDeviceByKey(input.deviceKey);
-  if (!device) return { ok: false, reason: "NOT_A_TILL" };
-  if (device.unpairedAt) return { ok: false, reason: "DEVICE_UNPAIRED" };
-  const people = await tillPeople(device);
-  if (!people.some((person) => person.userId === input.userId)) return { ok: false, reason: "NOT_ON_THIS_TILL" };
+  const till = await tillForSignIn(input.deviceKey, input.userId);
+  if (!till.ok) return till;
+  const { device } = till;
 
   const checked = await checkTillPin({
     companyId: device.companyId,
@@ -701,6 +750,28 @@ export async function checkTillPinSignIn(
   if (checked.decision === "ACCEPTED") return { ok: true, device, mustChange: checked.mustChange };
   if (checked.decision === "LOCKED" || checked.decision === "REJECTED_NOW_LOCKED") return { ok: false, reason: "LOCKED" };
   return { ok: false, reason: "WRONG_PIN", triesLeft: checked.attemptsRemaining };
+}
+
+/**
+ * The way round a locked PIN (ADM-03 keeps it locked until a manager sends a
+ * new one): the person's account password, at the same till and on the same
+ * list as a PIN. The PIN's counter is left alone, since the password is not a
+ * guess at it. The caller compares the bcrypt hash; the sign-in rate limit is
+ * the caller's too.
+ */
+export async function checkTillPasswordSignIn(input: {
+  deviceKey: string | null | undefined;
+  userId: string;
+  verify: (passwordHash: string) => Promise<boolean>;
+}): Promise<TillPasswordSignIn> {
+  const till = await tillForSignIn(input.deviceKey, input.userId);
+  if (!till.ok) return till;
+  const user = await prisma.user.findFirst({
+    where: { id: input.userId, companyId: till.device.companyId, isActive: true },
+    select: { password: true },
+  });
+  if (!user?.password || !(await input.verify(user.password))) return { ok: false, reason: "WRONG_PASSWORD" };
+  return till;
 }
 
 /** A refusal from `pairDevice`, or the generic one. */

@@ -317,6 +317,7 @@ model Company {
   retailPairingCodes            RetailPairingCode[]
   retailDeviceMessages          RetailDeviceMessage[]
   retailShopProfile             RetailShopProfile?
+  retailLicenceHours            RetailLicenceHours[]
   retailPaymentSettings         RetailPaymentSettings?
   retailPostingSettings         RetailPostingSettings?
   retailAccountRoleMappings     RetailAccountRoleMapping[]
@@ -1146,6 +1147,7 @@ model Site {
   goldPeriodCloses      GoldPeriodClose[]
   retailRegisters       RetailRegister[]
   retailDefaultFor      RetailShopProfile[]    @relation("RetailDefaultSite")
+  retailLicenceHours    RetailLicenceHours[]
   priceList             PriceList?             @relation("SitePriceList", fields: [priceListId], references: [id], onDelete: SetNull)
   closedBy              User?                  @relation("SiteClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
   retailPurchaseOrders  RetailPurchaseOrder[]
@@ -1423,6 +1425,7 @@ model User {
   retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
   retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
+  retailHeldCartsReleased           RetailHeldCart[]               @relation("RetailHeldCartReleasedBy")
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
@@ -4719,14 +4722,9 @@ model RetailShopProfile {
   businessType       RetailBusinessType @default(GENERAL)
   /// Liquor: the till asks for an ID check before selling anything that needs one.
   ageCheck           Boolean            @default(true)
-  /// Liquor: age-restricted lines stop selling outside the licence hours.
+  /// Liquor: age-restricted lines stop selling outside the licence hours,
+  /// which each site keeps weekday by weekday in `RetailLicenceHours`.
   licenceHours       Boolean            @default(true)
-  /// Licence hours as 24-hour "HH:MM", in the shop's time (Africa/Harare).
-  /// Monday to Saturday share one window; Sunday has its own.
-  weekdayOpensAt     String             @default("08:00")
-  weekdayClosesAt    String             @default("22:00")
-  sundayOpensAt      String             @default("10:00")
-  sundayClosesAt     String             @default("18:00")
   /// Liquor: returnable bottles carry a deposit that comes back with the empty.
   emptiesAndDeposits Boolean            @default(true)
   /// Liquor: a case is sold whole or broken into singles.
@@ -4746,6 +4744,30 @@ model RetailShopProfile {
   company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   defaultSite Site?   @relation("RetailDefaultSite", fields: [defaultSiteId], references: [id], onDelete: SetNull)
   updatedBy   User?   @relation("RetailShopProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// When a site may sell age-restricted products, one row per weekday, read on
+/// Harare's clock (`lib/retail/licence-hours.ts`). A licence is per premises,
+/// and Saturday often differs. A weekday with no row sells all day; a row whose
+/// start equals its end sells none that day; an end before the start runs past
+/// midnight. Read only while `RetailShopProfile.licenceHours` is on.
+model RetailLicenceHours {
+  id           String @id @default(uuid())
+  companyId    String
+  siteId       String
+  /// 0 is Sunday, as `Date.getDay()`.
+  weekday      Int
+  /// Minutes after midnight.
+  alcoholFrom  Int
+  alcoholUntil Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site    Site    @relation(fields: [siteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([siteId, weekday])
+  @@index([companyId])
 }
 
 /// A shop's product category: Beer, Spirits, Soft drinks. The shop's own list,
@@ -4864,6 +4886,7 @@ model RetailDevice {
   unpairedBy User?          @relation("RetailDeviceUnpairedBy", fields: [unpairedById], references: [id], onDelete: SetNull)
   shifts     RetailShift[]
   sales      RetailSale[]
+  pairingCodes RetailPairingCode[]
 
   @@index([companyId, registerId, unpairedAt])
 }
@@ -4885,6 +4908,8 @@ model RetailPairingCode {
   company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   register  RetailRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
   createdBy User           @relation("RetailPairingCodeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  /// The device the code paired, once used.
+  device    RetailDevice?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([companyId, codeHash])
   @@index([registerId, usedAt, expiresAt])
@@ -5557,12 +5582,16 @@ model RetailHeldCart {
   label        String?
   cartSnapshot Json
   status       RetailHeldCartStatus @default(HELD)
+  /// Discarded at the till (`RELEASED`): who let it go, and when.
+  releasedAt   DateTime?
+  releasedById String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  shift   RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  cashier User        @relation("RetailHeldCartCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  cashier    User        @relation("RetailHeldCartCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  releasedBy User?       @relation("RetailHeldCartReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, holdNo])
   @@index([companyId, shiftId, status])
@@ -13884,7 +13913,11 @@ model Product {
   barcode            String?
   /// A liquor licence is not optional, and a bottle store's range is mostly
   /// things it applies to. The counter has to be told to check.
-  ageRestricted      Boolean       @default(false)
+  ///
+  /// The product's own answer, overriding its category's: true checks ID even
+  /// in a category that does not, false sells a category's odd one out
+  /// (alcohol-free beer in Beer) without one. Null follows the category.
+  ageRestricted      Boolean?
   /// A Chibuku scud comes back and the empty is worth money. Ordinary Zimbabwean
   /// bottle-store trade, modelled nowhere in this repo before now.
   returnable         Boolean       @default(false)

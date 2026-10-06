@@ -187,8 +187,8 @@ export type DiscountedLine = {
 };
 
 /**
- * The discount rule for a sale, decided once for the counter (`pos/sales`)
- * and for the offline queue (`pos/sync`). W-64: "any line or sale discount
+ * The discount rule for a sale, decided once for the counter and for a sale
+ * the offline queue replays (both `pos/sales`). W-64: "any line or sale discount
  * above the cashier's largest → manager PIN". So each line is judged on its
  * own — its discount plus any price cut below the shelf, as a share of that
  * line at the shelf — and so is the sale as a whole: the order's discount
@@ -299,7 +299,7 @@ export function tenderRuleProblem(
 export const OFFLINE_ACT_MIN_AGE_MS = 60 * 1000;
 
 /**
- * Whether a refund or void sent through the offline queue (`pos/sync`) was
+ * Whether a refund or void sent from the offline queue (`refundedAt`/`voidedAt`) was
  * really done offline, and so may go in for review where the counter would
  * refuse it (an unlisted reason, no reference, no manager PIN). It must say
  * when it was done, that moment must not be in the future, and it must be at

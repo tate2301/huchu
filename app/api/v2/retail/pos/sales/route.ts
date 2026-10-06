@@ -5,12 +5,12 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
-  getCustomerLoyaltyBalance,
   getLoyaltyTier,
   LOYALTY_MAX_REDEEM_SHARE,
   LOYALTY_REDEEM_POINTS_PER_USD,
   parseLoyaltyRedeemPoints,
-} from "@/lib/retail/loyalty";
+} from "@/lib/retail/loyalty-rules";
+import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
 import {
   canRetailSessionDo,
   canSeeRetailCostPrice,
@@ -24,6 +24,7 @@ import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
 import { depositsDue, lineDeposit } from "@/lib/retail/deposits";
 import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
+import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { cashierFilterFor } from "@/lib/retail/own-rows";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
@@ -39,7 +40,7 @@ import { fiscalSaleRefusal } from "@/lib/retail/fiscal-settings";
 import { saleReceipt } from "@/lib/retail/receipt-settings";
 import { approverSchema, approvalFor, replayApproval, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
-import { offlineDiscountReview } from "@/lib/retail/till-rule-words";
+import { offlineDiscountReview, REPLAY_AHEAD_REVIEW } from "@/lib/retail/till-rule-words";
 
 const saleLineSchema = z.object({
   /**
@@ -116,6 +117,42 @@ type SaleListItem = Prisma.RetailSaleGetPayload<{
 
 function round(value: number) {
   return Number(value.toFixed(2));
+}
+
+/**
+ * The first line that comes off its shelf price by more than its product's
+ * `maxDiscountPercent` allows, as the sentence the till shows; null when every
+ * line keeps to its ceiling. A price under the shelf counts as discount.
+ */
+async function discountCeilingRefusal(
+  companyId: string,
+  lines: ReadonlyArray<{
+    listing: { productId: string; name: string };
+    shelf: { unitPrice: number };
+    quantity: number;
+    unitPrice: number;
+    baseDiscountAmount: number;
+  }>,
+): Promise<string | null> {
+  const capped = await prisma.product.findMany({
+    where: {
+      companyId,
+      id: { in: [...new Set(lines.map((line) => line.listing.productId))] },
+      maxDiscountPercent: { not: null },
+    },
+    select: { id: true, maxDiscountPercent: true },
+  });
+  const ceilingOf = new Map(capped.map((product) => [product.id, product.maxDiscountPercent!]));
+  for (const line of lines) {
+    const percent = ceilingOf.get(line.listing.productId);
+    if (!percent) continue;
+    const ceiling = money(line.shelf.unitPrice).times(line.quantity).times(percent).dividedBy(100).toDecimalPlaces(2);
+    const off = money(line.shelf.unitPrice - line.unitPrice).times(line.quantity).plus(line.baseDiscountAmount);
+    if (off.greaterThan(ceiling.plus(0.005))) {
+      return `The most off ${line.listing.name} is ${percent.toString()}% (US$${ceiling.toFixed(2)}).`;
+    }
+  }
+  return null;
 }
 
 function inPromotionWindow(promotion: {
@@ -429,7 +466,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = saleSchema.parse(body);
-    const unpaired = unpairedSaleGate(device, input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null);
+    // A replay's date is the till's word, but never ahead of the server's clock: a sale dated after it
+    // arrived goes in when it arrived, for review, so no receipt (nor those signed after it) is dated
+    // ahead (SET-08).
+    const arrived = new Date();
+    const claimedAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null;
+    const datedAhead = claimedAt !== null && claimedAt.getTime() > arrived.getTime();
+    const replaySoldAt = datedAhead ? arrived : claimedAt;
+    const unpaired = unpairedSaleGate(device, replaySoldAt);
     if (unpaired.response) return unpaired.response;
     // "If ZIMRA cannot be reached · Stop selling" (SET-08): a new sale waits for ZIMRA. A sale rung
     // offline already happened and is taken in either way.
@@ -499,13 +543,15 @@ export async function POST(request: NextRequest) {
     // A liquor store's licence: no alcohol outside its hours, and none without
     // an ID check. Judged at the moment of sale, which for a replay is when the
     // till rang it.
-    const soldAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : new Date();
+    const soldAt = replaySoldAt ?? arrived;
     const ageRestricted = [...sellable.values()]
       .filter((product) => product.ageRestricted)
       .map((product) => product.name);
     const shopProfile = await loadShopProfile(session.user.companyId);
     const refusal = liquorSaleRefusal({
       profile: shopProfile,
+      // The licence of the branch the till stands in, on Harare's clock.
+      hours: shopFeatures(shopProfile).licenceHours ? await loadLicenceHours(session.user.companyId, site.id) : [],
       ageRestricted,
       idChecked: input.idChecked === true,
       at: soldAt,
@@ -563,6 +609,16 @@ export async function POST(request: NextRequest) {
         baseDiscountAmount: lineDiscount,
       };
     });
+    /*
+      A product's own ceiling (`Product.maxDiscountPercent`): the most a line
+      of it may come off the shelf, managers included. Refused at the counter;
+      a replay already took the money, so it goes in for a manager to look at.
+    */
+    const ceilingRefusal = await discountCeilingRefusal(session.user.companyId, preNormalizedLines);
+    if (ceilingRefusal && !input.offlineCreatedAt) {
+      return errorResponse(ceilingRefusal, 400);
+    }
+
     const requestedInventoryQuantities = preNormalizedLines.reduce<Map<string, number>>(
       (accumulator, line) => {
         accumulator.set(
@@ -605,15 +661,14 @@ export async function POST(request: NextRequest) {
      * taken, loses the sale from the books and leaves the stock figure wrong.
      *
      * `reviewReplayedPrices` is the rule that was written for this in S-3 and
-     * until now had no caller — the client replays through this route, not through
-     * `pos/sync`, so the review never ran and a shelf price changed after an
+     * until now had no caller — the client replays through this route, so
+     * the review never ran and a shelf price changed after an
      * offline sale meant that sale could never be posted. It asks the narrower
      * question: is there an innocent explanation. A price rewritten after the sale
      * (SUPERSEDED) and a price changed by somebody entitled to change it with a
      * reason (OVERRIDDEN) are both explained; anything else is refused, and only
      * that last case is refused.
      */
-    const replaySoldAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null;
     const replayReview = replaySoldAt
       ? reviewReplayedPrices({
           lines: preNormalizedLines.map((line) => ({
@@ -660,7 +715,7 @@ export async function POST(request: NextRequest) {
     }
 
     /*
-      SET-06. The discount rule (`saleDiscountRule`, shared with `pos/sync`):
+      SET-06. The discount rule (`saleDiscountRule`):
       over the cashier's largest, or a price above the shelf, needs a
       manager's PIN; someone who holds the approve right is their own
       approval. A replay cannot be refused after the fact: it goes in, marked
@@ -767,7 +822,7 @@ export async function POST(request: NextRequest) {
       sale was rung comes in for a manager to look at), each at the rate the
       server stamps: the shop's own for the moment of the sale, never the
       till's. Checked before the customer is captured; the sale's transaction
-      stamps and checks them again on its own path, the one `pos/sync` takes.
+      stamps and checks them again.
     */
     try {
       await stampSalePayments({
@@ -917,7 +972,14 @@ export async function POST(request: NextRequest) {
       shiftId: shift.id,
       siteId: site.id,
       device: { id: device.id, registerId: device.registerId },
-      reviewReason: [unpaired.reviewReason, ruleReview].filter(Boolean).join(" ") || null,
+      reviewReason: [
+        unpaired.reviewReason,
+        datedAhead ? REPLAY_AHEAD_REVIEW : null,
+        ruleReview,
+        ceilingRefusal ? `${ceilingRefusal} Given while offline.` : null,
+      ]
+        .filter(Boolean)
+        .join(" ") || null,
       customerName: resolvedCustomerName,
       subtotal,
       discountAmount: totalDiscount,
@@ -925,6 +987,9 @@ export async function POST(request: NextRequest) {
       totalAmount,
       payments: input.payments,
       soldAt,
+      // A replay is dated when the till rang it, so the shift, the day and a
+      // refund or void sent in after it all read it in its place.
+      ...(replaySoldAt ? { postedAt: replaySoldAt } : {}),
       replay: Boolean(replaySoldAt),
       lines: normalizedLines.map((line, index) => ({
         depositAmount: lineDeposit(depositLines[index]),
@@ -967,10 +1032,11 @@ export async function POST(request: NextRequest) {
     const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
 
     /*
-      The sale's commit settled its fiscal day and signed its receipt (SET-08):
-      it goes to ZIMRA here, once committed. Never fails the sale: a shop with
-      no device gets SKIPPED, and a receipt ZIMRA did not take is sent again by
-      the fiscal worker.
+      The sale's commit settled its fiscal day and signed its receipt (SET-08),
+      rung now or replayed from the offline queue alike: it goes to ZIMRA
+      here, once committed. Never fails the sale: a shop with no device gets
+      SKIPPED, and a receipt ZIMRA did not take is sent again by the fiscal
+      worker.
     */
     const fiscal = await fiscaliseAfterPosting({
       companyId: session.user.companyId,

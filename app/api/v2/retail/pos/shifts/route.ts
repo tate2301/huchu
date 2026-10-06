@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
+import { prisma } from "@/lib/prisma";
 import { requireRetailSession } from "../../_helpers";
 import { requirePosDevice } from "@/lib/retail/devices";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { ShiftElsewhere, openRetailShiftTransaction } from "../../_services";
 
-/** No till and no site: a shift opens on this device's own till (10-setup W-04 step 8). */
+/**
+ * No till and no site: a shift opens on this device's own till (10-setup W-04
+ * step 8). One drawer, one person: a till with someone else's shift open says
+ * whose, and stays theirs until it closes. The person's own shift on another
+ * till is refused by `openRetailShiftTransaction` (`ShiftElsewhere`).
+ */
 const openPosShiftSchema = z.object({
   shiftNo: z.string().min(1).max(50).optional(),
   openingFloat: z.number().min(0).optional(),
@@ -31,6 +37,22 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = openPosShiftSchema.parse(body);
+
+    const taken = await prisma.retailShift.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        registerId: device.registerId,
+        status: "OPEN",
+        NOT: { cashierId: session.user.id },
+      },
+      select: { shiftNo: true, cashierName: true },
+    });
+    if (taken) {
+      return errorResponse(
+        `${taken.cashierName}’s shift ${taken.shiftNo} is open on ${device.register.name}. It closes before another opens.`,
+        409,
+      );
+    }
 
     const { shift, accounting } = await openRetailShiftTransaction({
       actor: {

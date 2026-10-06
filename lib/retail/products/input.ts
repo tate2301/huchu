@@ -54,6 +54,19 @@ const countText = (label: string) =>
     .nullable()
     .optional();
 
+/** "5", "12.5": a percentage up to 100, at most two decimals. */
+const percentText = (label: string) =>
+  z
+    .preprocess(
+      blankToNull,
+      z
+        .string({ message: `${label} is a percentage, like 10.` })
+        .regex(/^\d+(\.\d{1,2})?$/, `Write ${label.toLowerCase()} as a percentage, like 10.`)
+        .refine((text) => Number(text) <= 100, `${label} is at most 100%.`)
+        .nullable(),
+    )
+    .optional();
+
 const id = (message: string) => z.preprocess(blankToNull, z.string().uuid(message).nullable().optional());
 
 /** "6001496 00112" → "600149600112"; anything but digits and spaces, or not 8–14 digits, is refused. */
@@ -101,6 +114,10 @@ const fields = {
   returnable: z.boolean().optional(),
   depositAmount: optionalMoney("Deposit"),
   imageUrl: z.preprocess(blankToNull, z.string().max(2_000).nullable().optional()),
+  /** The product's own 18+ check: true or false; null follows its category (`age-check.ts`). */
+  ageCheck: z.boolean({ message: "Choose As category, Yes or No." }).nullable().optional(),
+  /** The most any discount may take off it, a manager's included. Null: no limit. */
+  maxDiscountPercent: percentText("Most off"),
 };
 
 /** Opening stock: whole for a single, three decimals at most by weight. */
@@ -129,7 +146,6 @@ export const productPatch = z
   .object({
     ...fields,
     reorderQty: countText("Reorder"),
-    ageCheck: z.boolean().optional(),
     code: z.preprocess(
       (value) => (typeof value === "string" ? value.trim() : value),
       z.string().min(1, "Code is needed.").max(40, "Keep the code to 40 characters."),

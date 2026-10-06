@@ -1,5 +1,6 @@
 import { fetchJson } from "@/lib/api-client";
 import { archiveAsk } from "@/lib/retail/asks/products";
+import { ageCheckWords } from "@/lib/retail/products/age-check";
 import type { ProductView } from "@/lib/retail/products/view";
 import { formatCount, formatMoney, formatSignedCount } from "@/lib/workspace/format";
 
@@ -34,6 +35,22 @@ function needed(label: string) {
     if (!text.trim()) throw new Error(`${label} is needed.`);
     return text.trim();
   };
+}
+
+/** "Yes" ("Yes, 18 and over", "18+"), "No", or nothing to follow the category. */
+function parseIdCheck(text: string): boolean | null {
+  const answer = text.trim().toLowerCase();
+  if (!answer) return null;
+  if (answer === "y" || answer.startsWith("yes") || answer.startsWith("18")) return true;
+  if (answer === "n" || answer.startsWith("no")) return false;
+  throw new Error("Write Yes or No, or clear it to follow the category.");
+}
+
+/** "10", "12.5": a percentage up to 100; blank is no limit. */
+function parsePercent(text: string): string | null {
+  const percent = figure(text.replace(/%\s*$/, ""), { optional: true });
+  if (percent !== null && Number(percent) > 100) throw new Error("Write a percentage up to 100, or clear it for no limit.");
+  return percent;
 }
 
 async function uploadPhoto(file: File): Promise<string> {
@@ -173,6 +190,24 @@ export const productKind: RecordKind<ProductView> = {
           // From the category: changed there, or by moving the product to another.
           { key: "vat", label: "VAT", value: product.vatLabel },
           {
+            key: "most-off",
+            label: "Most off",
+            value: product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`,
+            mono: product.maxDiscountPercent !== null,
+            muted: product.maxDiscountPercent === null,
+            ...(product.canEdit.maxDiscount
+              ? {
+                  edit: {
+                    field: "maxDiscountPercent",
+                    type: "number" as const,
+                    initial: product.maxDiscountPercent === null ? "" : String(product.maxDiscountPercent),
+                    parse: parsePercent,
+                    requires: UPDATE,
+                  },
+                }
+              : {}),
+          },
+          {
             key: "price-lists",
             label: "Price lists",
             value: product.otherLists.length
@@ -278,7 +313,23 @@ export const productKind: RecordKind<ProductView> = {
               requires: UPDATE,
             },
           },
-          { key: "id-check", label: "ID check", value: product.ageCheck ? "Yes, 18 and over" : "No" },
+          {
+            key: "id-check",
+            label: "ID check",
+            value: ageCheckWords(product.ownAgeCheck, product.category),
+            muted: product.ownAgeCheck === null,
+            ...(product.canEdit.ageCheck
+              ? {
+                  edit: {
+                    field: "ageCheck",
+                    type: "text" as const,
+                    initial: product.ownAgeCheck === null ? "" : product.ownAgeCheck ? "Yes" : "No",
+                    parse: parseIdCheck,
+                    requires: UPDATE,
+                  },
+                }
+              : {}),
+          },
           product.returnable
             ? {
                 key: "deposit",

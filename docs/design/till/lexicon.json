@@ -1,0 +1,26 @@
+{
+  "$comment": "One term per concept on the till. The left side is the word on screen; avoid is what it replaces.",
+  "terms": [
+    { "use": "till", "for": "the place money is taken, Till 1", "avoid": ["register", "terminal", "POS"] },
+    { "use": "device", "for": "what runs the till: a CounterMini, a Kora, a browser", "avoid": ["terminal", "machine"] },
+    { "use": "pair", "for": "make a device into a till with a manager's code", "avoid": ["register", "link", "enrol"] },
+    { "use": "PIN", "for": "a cashier's four digits", "avoid": ["passcode", "pin code"] },
+    { "use": "shift", "for": "one cashier's drawer from float to close", "avoid": ["session"] },
+    { "use": "float", "for": "the cash a drawer starts with", "avoid": ["opening balance"] },
+    { "use": "sale", "for": "what a customer buys, S-005080", "avoid": ["order", "transaction", "receipt"] },
+    { "use": "charge", "for": "taking the money for a sale", "avoid": ["checkout", "pay now", "submit"] },
+    { "use": "change due", "for": "cash handed back", "avoid": ["balance"] },
+    { "use": "hold", "for": "put a sale aside to pick up later", "avoid": ["park", "suspend", "save"] },
+    { "use": "recall", "for": "pick a held sale up", "avoid": ["resume", "restore"] },
+    { "use": "refund", "for": "money back for some lines of a sale", "avoid": ["return", "reversal"] },
+    { "use": "void", "for": "cancel a whole sale", "avoid": ["delete", "cancel sale"] },
+    { "use": "move cash", "for": "to the safe, in from the safe, paid out", "avoid": ["cash in/out", "petty cash"] },
+    { "use": "cash up", "for": "count the drawer and close the shift", "avoid": ["reconcile", "end shift"] },
+    { "use": "end-of-day report", "for": "the Z report for one till and one day", "avoid": ["Z-report", "daily close"] },
+    { "use": "mobile money", "for": "EcoCash, OneMoney, InnBucks without their marks", "avoid": ["EcoCash", "mobile wallet"] },
+    { "use": "reference", "for": "the slip or message number for card and mobile money", "avoid": ["ref", "transaction ID"] },
+    { "use": "saved on this till", "for": "a sale taken with no connection, not yet sent", "avoid": ["saved", "synced", "pending"] },
+    { "use": "walk-in", "for": "a sale with no customer on it", "avoid": ["guest", "anonymous"] },
+    { "use": "manager", "for": "who approves", "avoid": ["supervisor", "admin"] }
+  ]
+}

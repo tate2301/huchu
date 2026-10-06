@@ -12,8 +12,7 @@ import {
   salesHeadline,
   stockHeadline,
 } from "@/lib/retail/insight-headline";
-import { loadShopProfile } from "@/lib/retail/shop-profile";
-import { SHOP_TIME_ZONE, shopClock, type ShopHours } from "@/lib/retail/shop-profile-rules";
+import { SHOP_TIME_ZONE, shopClock } from "@/lib/retail/shop-profile-rules";
 import { COVER_AIM, daysOfCover } from "@/lib/retail/stock/levels";
 import {
   missedSales,
@@ -349,32 +348,17 @@ function categoryOf(line: LoadedSale["lines"][number]): Group {
 
 // ── Sales ───────────────────────────────────────────────────────────────────
 
-/** "08:00" as minutes after midnight. */
-function clockMinutes(hhmm: string) {
-  const [hours, minutes] = hhmm.split(":").map(Number);
-  return hours * 60 + minutes;
-}
+/** The grid's hours when nothing sold: a shop's ordinary day. */
+const QUIET_HOURS = { first: 8, last: 21 };
 
 /**
- * The heat grid's hours and which of them the shop is open, from its trading
- * hours: Monday to Saturday share one window, Sunday has its own. A window
- * that runs past midnight opens the whole day.
+ * The heat grid's hours: from the earliest hour anything sold to the latest,
+ * on any day of the window. The shop keeps no trading hours of its own.
  */
-export function tradingHours(hours: ShopHours) {
-  const windows = {
-    weekday: { opens: clockMinutes(hours.weekdayOpensAt), closes: clockMinutes(hours.weekdayClosesAt) },
-    sunday: { opens: clockMinutes(hours.sundayOpensAt), closes: clockMinutes(hours.sundayClosesAt) },
-  };
-  const open = (window: { opens: number; closes: number }, hour: number) =>
-    window.closes <= window.opens ? true : hour * 60 + 60 > window.opens && hour * 60 < window.closes;
-  const all = Object.values(windows);
-  const wraps = all.some((window) => window.closes <= window.opens);
-  const first = wraps ? 0 : Math.floor(Math.min(...all.map((window) => window.opens)) / 60);
-  const last = wraps ? 23 : Math.ceil(Math.max(...all.map((window) => window.closes)) / 60) - 1;
-  return {
-    hours: Array.from({ length: last - first + 1 }, (_, index) => first + index),
-    isOpen: (weekday: string, hour: number) => open(weekday === "Sun" ? windows.sunday : windows.weekday, hour),
-  };
+export function heatHours(saleHours: readonly number[]) {
+  const first = saleHours.length ? Math.min(...saleHours) : QUIET_HOURS.first;
+  const last = saleHours.length ? Math.max(...saleHours) : QUIET_HOURS.last;
+  return Array.from({ length: last - first + 1 }, (_, index) => first + index);
 }
 
 /** How many of each weekday the window touches, by the shop's calendar. */
@@ -391,31 +375,31 @@ export function weekdaysIn(from: Date, to: Date) {
 }
 
 /**
- * Takings by weekday and trading hour, averaged over the days of that weekday
- * in the window ("average a day"). A shut hour is null.
+ * Takings by weekday and hour, averaged over the days of that weekday in the
+ * window ("average a day").
  */
 export function salesHeat(
   sales: ReadonlyArray<Pick<LoadedSale, "postedAt" | "createdAt" | "totalAmount">>,
   window: Pick<InsightWindow, "from" | "to" | "period">,
-  hours: ShopHours,
 ): Extract<InsightChart, { kind: "heat" }> {
-  const trading = tradingHours(hours);
   const counts = weekdaysIn(window.from, window.to);
   const rows = window.period === "today" ? [shopClock(window.to).weekday] : WEEKDAYS;
   const sums = new Map<string, number>();
+  const saleHours = new Set<number>();
   for (const sale of sales) {
     const clock = shopClock(when(sale));
-    const key = `${clock.weekday}:${Math.floor(clock.minutes / 60)}`;
+    const hour = Math.floor(clock.minutes / 60);
+    saleHours.add(hour);
+    const key = `${clock.weekday}:${hour}`;
     sums.set(key, (sums.get(key) ?? 0) + n(sale.totalAmount));
   }
+  const hours = heatHours([...saleHours]);
   return {
     kind: "heat",
     rows,
-    columns: trading.hours.map((hour) => String(hour).padStart(2, "0")),
+    columns: hours.map((hour) => String(hour).padStart(2, "0")),
     values: rows.map((day) =>
-      trading.hours.map((hour) =>
-        trading.isOpen(day, hour) ? (sums.get(`${day}:${hour}`) ?? 0) / Math.max(counts.get(day) ?? 0, 1) : null,
-      ),
+      hours.map((hour) => (sums.get(`${day}:${hour}`) ?? 0) / Math.max(counts.get(day) ?? 0, 1)),
     ),
     format: "money",
   };
@@ -480,15 +464,14 @@ export function salesTable(input: {
 
 async function salesInsight(companyId: string, window: InsightWindow, siteId: string | null): Promise<InsightBody> {
   const { from, to, before, beforeTo } = window;
-  const [now, then, profile, site] = await Promise.all([
+  const [now, then, site] = await Promise.all([
     loadSales(companyId, from, to, siteId),
     loadSales(companyId, before, beforeTo, siteId),
-    loadShopProfile(companyId),
     siteChip(companyId, siteId),
   ]);
   const current = salesTotals(now);
   const previous = salesTotals(then);
-  const chart = salesHeat(now, window, profile);
+  const chart = salesHeat(now, window);
 
   // By category: line takings, and the baskets with a line in it.
   const categoriesNow = new Map<string, Tally & { name: string; sales: Set<string> }>();

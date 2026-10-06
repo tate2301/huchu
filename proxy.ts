@@ -37,7 +37,7 @@ import {
   isRouteAllowedForRole,
   landingPathForRole,
 } from "@/lib/auth-core/role-routes";
-import { getPosHostForCompany, isPublicPosPath, isTillOnlyRole } from "@/lib/retail/pos-host";
+import { isPublicPosPath } from "@/lib/retail/pos-host";
 import { DEVICE_COOKIE, DEVICE_COOKIE_MAX_AGE, INSTALL_COOKIE } from "@/lib/retail/device-words";
 import { PUBLIC_BASE_PATHS } from "@/lib/public-routes";
 
@@ -442,16 +442,6 @@ export default withAuth(
       }
 
       return redirectToPath(request, ADMIN_BASE_PATH);
-    }
-
-    if (!isApiRequest && token && isTillOnlyRole(token.role)) {
-      const posHost = getPosHostForCompany(token.companySlug, rootDomain);
-      if (posHost && hostContext.hostname !== posHost && !isAdminHost) {
-        const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = "/";
-        redirectUrl.search = "";
-        return redirectAcrossHost(posHost, redirectUrl);
-      }
     }
 
     if (hostContext.portalPath && !isApiRequest) {

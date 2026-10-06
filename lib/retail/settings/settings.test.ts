@@ -15,7 +15,7 @@ describe("the Shop page's rules", () => {
     for (const id of [
       "businessType",
       "ageCheck",
-      "weekdayHours",
+      "licenceHours",
       "casesAndSingles",
       "licenceExpiresOn",
       "currency",
@@ -57,26 +57,14 @@ describe("the Shop page's rules", () => {
     expect(checkSettingsChanges(companyPage, { whatsapp: "" })).toEqual({ ok: true, values: { whatsapp: "" } });
   });
 
-  it("holds the hours while licence hours are off, and the currency once prices are locked", () => {
-    const field = (id: string) => companyPage.sections.flatMap((section) => section.fields).find((f) => f.id === id)!;
-    expect(field("weekdayHours").disabled?.({ licenceHours: false })).toBe(true);
-    expect(field("sundayHours").disabled?.({ licenceHours: true })).toBe(false);
-    expect(field("currency").disabled?.({ pricesLocked: true })).toBe(true);
-    const hint = field("currency").h as (values: Record<string, unknown>) => string;
+  it("holds the currency once prices are locked, and keeps licence hours to Sites", () => {
+    const field = (id: string) => companyPage.sections.flatMap((section) => section.fields).find((f) => f.id === id);
+    expect(field("weekdayHours")).toBeUndefined();
+    expect(field("sundayHours")).toBeUndefined();
+    expect(field("currency")!.disabled?.({ pricesLocked: true })).toBe(true);
+    const hint = field("currency")!.h as (values: Record<string, unknown>) => string;
     expect(hint({ pricesLocked: true, currency: "US$" })).toBe("Prices stay in US$ because sales are recorded in it.");
     expect(hint({ pricesLocked: false, currency: "US$" })).toBe("");
-  });
-
-  it("refuses hours that are not two times joined by 'to', with the board's sentence", () => {
-    expect(checkSettingsChanges(companyPage, { weekdayHours: "8am till late" })).toEqual({
-      ok: false,
-      fieldErrors: { weekdayHours: "Write it as 08:00 to 22:00." },
-    });
-    expect(checkSettingsChanges(companyPage, { sundayHours: "10:00 to 25:00" })).toMatchObject({ ok: false });
-    expect(checkSettingsChanges(companyPage, { weekdayHours: "9:00 to 21:30" })).toEqual({
-      ok: true,
-      values: { weekdayHours: "9:00 to 21:30" },
-    });
   });
 
   it("refuses a field the page only shows, and one it does not have", () => {
@@ -97,8 +85,8 @@ describe("the Shop page's rules", () => {
 
   it("stores the page's words as the profile's values", () => {
     expect(
-      companyProfilePatch({ businessType: "General retail", weekdayHours: "9:00 to 21:30", licenceNumber: "  " }),
-    ).toEqual({ businessType: "GENERAL", weekdayOpensAt: "09:00", weekdayClosesAt: "21:30", licenceNumber: null });
+      companyProfilePatch({ businessType: "General retail", licenceHours: true, licenceNumber: "  " }),
+    ).toEqual({ businessType: "GENERAL", licenceHours: true, licenceNumber: null });
     expect(currencyLabel("USD")).toBe("US$");
     expect(currencyLabel("ZWG")).toBe("ZiG");
   });
@@ -151,8 +139,6 @@ describe("saving the Shop page", () => {
       values: {
         businessType: "Liquor store",
         ageCheck: true,
-        weekdayHours: "08:00 to 22:00",
-        sundayHours: "10:00 to 18:00",
         casesAndSingles: true,
         licenceNumber: "HRE/BL/2024/0711",
         licenceExpiresOn: "",
@@ -188,14 +174,14 @@ describe("saving the Shop page", () => {
   });
 
   it("writes nothing when nothing differs", async () => {
-    await saveSettings(actor(), "company", { casesAndSingles: false, weekdayHours: "08:00 to 22:00" });
+    await saveSettings(actor(), "company", { casesAndSingles: false, ageCheck: true });
     expect(await prisma.platformAuditEvent.count({ where: { companyId } })).toBe(2);
   });
 
-  it("refuses bad hours and saves nothing", async () => {
-    expect(await saveSettings(actor(), "company", { weekdayHours: "late", ageCheck: false })).toEqual({
+  it("refuses a bad value and saves nothing", async () => {
+    expect(await saveSettings(actor(), "company", { licenceExpiresOn: "late", ageCheck: false })).toEqual({
       ok: false,
-      fieldErrors: { weekdayHours: "Write it as 08:00 to 22:00." },
+      fieldErrors: { licenceExpiresOn: "Write a date such as 31 December 2026." },
     });
     expect((await prisma.retailShopProfile.findUniqueOrThrow({ where: { companyId } })).ageCheck).toBe(true);
   });

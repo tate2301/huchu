@@ -16,9 +16,9 @@
  * `pg_enum`, `pg_indexes` — and never the schema file. A green `prisma validate`
  * says the schema file parses; it is not evidence the database changed, and
  * `prisma db push` cannot cast a float column to `numeric` or add an enum label
- * at all. The scripts that did the work are `scripts/inventory-money-decimal.ts`,
- * `scripts/inventory-quantity-decimal.ts` and
- * `scripts/retail-price-engine-schema.ts`.
+ * at all. The scripts that did the work are `scripts/inventory-money-decimal.ts`
+ * and `scripts/inventory-quantity-decimal.ts`; the retail price engine's columns
+ * are in the migrations now.
  *
  * ## All eleven, in two passes
  *
@@ -61,7 +61,8 @@ const NULLABLE_PRICING = new Set(["Product.costPrice", "Product.maxDiscountPerce
 const NEW_COLUMNS: Array<[table: string, column: string, dataType: string, nullable: boolean]> = [
   ["PriceList", "taxInclusive", "boolean", false],
   ["Product", "barcode", "text", true],
-  ["Product", "ageRestricted", "boolean", false],
+  // Nullable since 20261006120000: null follows the category.
+  ["Product", "ageRestricted", "boolean", true],
   ["Product", "returnable", "boolean", false],
   ["Product", "depositAmount", "numeric", true],
 ];
@@ -257,9 +258,9 @@ describe("the price engine's new columns exist, typed and nullable as declared",
    * otherwise. A `taxInclusive` that defaulted to true would restate every price
    * list a tenant already had.
    */
+  // `Product.ageRestricted` has no default since 20261006120000: null follows the category.
   it.each([
     ["PriceList", "taxInclusive"],
-    ["Product", "ageRestricted"],
     ["Product", "returnable"],
   ])('"%s"."%s" defaults to false', async (table, column) => {
     const facts = await columnFacts(table, column);

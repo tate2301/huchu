@@ -3,7 +3,8 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { getCustomerLoyaltyBalance, parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty";
+import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
+import { parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty-rules";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../../_helpers";
 
