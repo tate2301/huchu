@@ -1812,6 +1812,11 @@
 .tl.tl.tl .pin i { width: 16px; height: 16px; border-radius: var(--radius-pill); box-shadow: inset 0 0 0 2px var(--color-ink-2); }
 .tl.tl.tl .pin i.on { background: var(--color-ink); box-shadow: none; }
 .tl.tl.tl .pin.is-wrong i { background: var(--color-danger); box-shadow: none; }
+/* Choosing a PIN: a row for the new one and a row for typing it again; the row still to come is quiet. */
+.tl.tl.tl .pin-rows { display: flex; flex-direction: column; gap: var(--space-16); }
+.tl.tl.tl .pin-row { display: flex; flex-direction: column; gap: var(--space-8); }
+.tl.tl.tl .pin-row.is-later .label { color: var(--color-muted); }
+.tl.tl.tl .pin-row.is-later .pin i { box-shadow: inset 0 0 0 2px var(--color-faint); }
 .tl.tl.tl .code-boxes { display: flex; align-items: center; gap: var(--space-8); }
 .tl.tl.tl .code-boxes span { width: 48px; height: 56px; border-radius: var(--radius-card); box-shadow: var(--shadow-ring), var(--shadow-raised); display: grid; place-items: center; font-family: var(--font-mono); font-size: var(--text-20); font-weight: 500; color: var(--color-ink); }
 .tl.tl.tl .code-boxes span.at { box-shadow: 0 0 0 2px var(--color-accent); }
@@ -2028,7 +2033,7 @@
 .tl.tl.tl .dialog-place { position: fixed; inset: 0; z-index: 101; display: grid; place-items: center; padding: var(--space-16); pointer-events: none; }
 .tl.tl.tl .dialog-place > * { pointer-events: auto; }
 .tl.tl.tl .pop.is-till { z-index: 60; }
-.tl.tl.tl .error.is-large { font-size: var(--text-14); }
+.tl.tl.tl .error.is-large, .tl.tl.tl .saved.is-large { font-size: var(--text-14); }
 /* The till under the lock: hidden, not unmounted, so the sale on it is kept as it was. */
 .tl.tl.tl .under-lock { display: contents; }
 .tl.tl.tl .under-lock[hidden] { display: none; }

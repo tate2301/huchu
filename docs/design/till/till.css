@@ -40,6 +40,11 @@
 .pin i { width: 16px; height: 16px; border-radius: var(--radius-pill); box-shadow: inset 0 0 0 2px var(--color-ink-2); }
 .pin i.on { background: var(--color-ink); box-shadow: none; }
 .pin.is-wrong i { background: var(--color-danger); box-shadow: none; }
+/* Choosing a PIN: a row for the new one and a row for typing it again; the row still to come is quiet. */
+.pin-rows { display: flex; flex-direction: column; gap: var(--space-16); }
+.pin-row { display: flex; flex-direction: column; gap: var(--space-8); }
+.pin-row.is-later .label { color: var(--color-muted); }
+.pin-row.is-later .pin i { box-shadow: inset 0 0 0 2px var(--color-faint); }
 .code-boxes { display: flex; align-items: center; gap: var(--space-8); }
 .code-boxes span { width: 48px; height: 56px; border-radius: var(--radius-card); box-shadow: var(--shadow-ring), var(--shadow-raised); display: grid; place-items: center; font-family: var(--font-mono); font-size: var(--text-20); font-weight: 500; color: var(--color-ink); }
 .code-boxes span.at { box-shadow: 0 0 0 2px var(--color-accent); }
@@ -256,7 +261,7 @@ a.tile { color: inherit; text-decoration: none; }
 .dialog-place { position: fixed; inset: 0; z-index: 101; display: grid; place-items: center; padding: var(--space-16); pointer-events: none; }
 .dialog-place > * { pointer-events: auto; }
 .pop.is-till { z-index: 60; }
-.error.is-large { font-size: var(--text-14); }
+.error.is-large, .saved.is-large { font-size: var(--text-14); }
 /* The till under the lock: hidden, not unmounted, so the sale on it is kept as it was. */
 .under-lock { display: contents; }
 .under-lock[hidden] { display: none; }

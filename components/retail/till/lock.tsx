@@ -29,9 +29,10 @@ import {
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
+import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Key, UserSwitch } from "@/lib/icons";
-import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
+import { CheckCircle, Key, UserSwitch } from "@/lib/icons";
+import { TILL_PIN_LOCKED, tillPinDenial } from "@/lib/retail/till-pin";
 import { count, firstName, pairedWhen } from "./format";
 import { Avatar, ErrorLine, GateSide, Keypad, KeysPaused, PinDots, useKeypadKeys, type KeypadKey } from "./parts";
 import { useSignOut } from "./sign-out";
@@ -286,7 +287,7 @@ function LockScreen({ onUnlocked }: { onUnlocked: (mustChange: boolean, typed: s
 /* ─── Choose your own PIN ──────────────────────────────────────────────── */
 
 /** The two tries did not match. */
-const MISMATCH = "Those two do not match. Try again.";
+const MISMATCH = "Those two do not match. Type your new PIN again.";
 
 /**
  * "Choose your own PIN" (ADM-03): a PIN sent from People opens the till once,
@@ -294,16 +295,22 @@ const MISMATCH = "Those two do not match. Try again.";
  * till like the lock, with nothing behind it reachable until it is done.
  * `currentPin` is the sent PIN when it was typed at the lock; a session opened
  * with it needs none (`chooseTillPin`).
+ *
+ * It says what is happening at each step: that the sent PIN worked and they are
+ * signed in, which row they are typing, that the first entry can be their PIN
+ * (asked of the server at once, so the sent PIN is refused before it is typed
+ * twice), and, once saved, that their PIN is set.
  */
 function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; onChosen: () => void }) {
   const { data: session } = useSession();
   const { context } = useTill();
   const { requestSignOut } = useSignOut();
+  const { toast } = useToast();
   const [first, setFirst] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const name = session?.user?.name ?? "You";
+  const [busy, setBusy] = useState<"checking" | "saving" | null>(null);
+  const name = session?.user?.name ?? "";
   const tillName = context?.till.name ?? "The till";
   const titleId = useId();
   const screen = useRef<HTMLDivElement>(null);
@@ -317,25 +324,47 @@ function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; 
     setError(sentence);
   };
 
-  const save = async (chosen: string) => {
-    setSaving(true);
+  const send = (chosen: string, check: boolean) =>
+    fetchJson("/api/v2/retail/pos/pin/change", {
+      method: "POST",
+      body: JSON.stringify({ newPin: chosen, ...(currentPin ? { currentPin } : {}), ...(check ? { check: true } : {}) }),
+    });
+  const refusal = (caught: unknown) => {
+    const fieldErrors =
+      caught instanceof ApiError ? (caught.details as { fieldErrors?: Record<string, string> } | undefined)?.fieldErrors : undefined;
+    return fieldErrors?.newPin ?? fieldErrors?.currentPin ?? getApiErrorMessage(caught);
+  };
+
+  const take = async (chosen: string) => {
+    const denial = tillPinDenial(chosen);
+    if (denial) return refuse(denial);
+    setBusy("checking");
     try {
-      await fetchJson("/api/v2/retail/pos/pin/change", {
-        method: "POST",
-        body: JSON.stringify({ newPin: chosen, ...(currentPin ? { currentPin } : {}) }),
-      });
+      await send(chosen, true);
+      setFirst(chosen);
+      setPin("");
+    } catch (caught) {
+      refuse(refusal(caught));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const save = async (chosen: string) => {
+    setBusy("saving");
+    try {
+      await send(chosen, false);
+      toast({ title: "Your PIN is set. Use it from now on.", variant: "success" });
       onChosen();
     } catch (caught) {
-      const fieldErrors =
-        caught instanceof ApiError ? (caught.details as { fieldErrors?: Record<string, string> } | undefined)?.fieldErrors : undefined;
-      refuse(fieldErrors?.newPin ?? fieldErrors?.currentPin ?? getApiErrorMessage(caught));
+      refuse(refusal(caught));
     } finally {
-      setSaving(false);
+      setBusy(null);
     }
   };
 
   const onKey = (key: KeypadKey) => {
-    if (saving) return;
+    if (busy) return;
     setError(null);
     if (key.kind === "delete") return setPin((current) => current.slice(0, -1));
     if (key.kind === "clear") return setPin("");
@@ -343,36 +372,59 @@ function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; 
     const next = pin + key.value;
     setPin(next);
     if (next.length < 4) return;
-    if (first === null) {
-      setFirst(next);
-      setPin("");
-    } else if (next !== first) {
-      refuse(MISMATCH);
-    } else {
-      void save(next);
-    }
+    if (first === null) void take(next);
+    else if (next !== first) refuse(MISMATCH);
+    else void save(next);
   };
   useKeypadKeys(onKey);
+
+  const help =
+    busy === "checking"
+      ? "Checking it…"
+      : busy === "saving"
+        ? "Saving your PIN…"
+        : first === null
+          ? "Not the PIN you were sent, not four of the same digit and not four in a row, like 1111 or 1234."
+          : "The same four digits, to be sure.";
 
   return (
     <div ref={screen} className="gate is-locked" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
       <div className="gate-form">
+        <span className="saved is-large">
+          <CheckCircle className="ic" />
+          {name ? `Signed in as ${firstName(name)} with the PIN you were sent` : "Signed in with the PIN you were sent"}
+        </span>
         <div className="who-head">
-          <Avatar name={name} image={session?.user?.image} size={40} />
+          <Avatar name={name || "You"} image={session?.user?.image} size={40} />
           <div>
-            <h1 id={titleId} className="text-title">{first === null ? "Choose your own PIN" : "Type it again"}</h1>
-            <p className="muted">
-              {first === null ? "Four digits only you know, in place of the one you were sent." : "The same four digits, to be sure."}
-            </p>
+            <h1 id={titleId} className="text-title">Now choose your own PIN</h1>
+            <p className="muted">The till opens once you have. The one you were sent stops working.</p>
           </div>
         </div>
-        <PinDots length={pin.length} wrong={Boolean(error)} />
-        {error ? (
-          <ErrorLine large>{error}</ErrorLine>
-        ) : (
-          <span className="help">Not four of the same digit and not four in a row, like 1111 or 1234.</span>
+        <div className="pin-rows">
+          <div className="pin-row">
+            <span className="label">New PIN</span>
+            <PinDots length={first !== null ? 4 : pin.length} wrong={Boolean(error)} />
+            {error ? (
+              <ErrorLine large>{error}</ErrorLine>
+            ) : first !== null ? (
+              <span className="saved">
+                <CheckCircle className="ic" />
+                Can be your PIN
+              </span>
+            ) : null}
+          </div>
+          <div className={first === null ? "pin-row is-later" : "pin-row"}>
+            <span className="label">Again</span>
+            <PinDots length={first === null ? 0 : pin.length} />
+          </div>
+        </div>
+        {error ? null : (
+          <span className="help" role="status">
+            {help}
+          </span>
         )}
-        <Keypad onKey={onKey} disabled={saving} />
+        <Keypad onKey={onKey} disabled={busy !== null} />
         <button type="button" className="btn btn-lg" onClick={() => requestSignOut()}>
           <UserSwitch className="ic" />
           Someone else
@@ -381,7 +433,7 @@ function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; 
       <GateSide
         lede={context ? `${context.till.name} at ${context.site.name}.` : tillName}
         quiet={context ? `Paired ${pairedWhen(context.device.pairedAt)} by ${context.device.pairedBy}.` : ""}
-        step="done"
+        step={2}
         till={context?.till.name}
       />
     </div>

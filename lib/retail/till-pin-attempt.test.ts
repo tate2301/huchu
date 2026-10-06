@@ -154,7 +154,7 @@ describe("five wrong PINs", () => {
 });
 
 describe("choosing your own PIN", () => {
-  const choose = (input: { currentPin?: string; newPin: string; openedByIssuedPin?: boolean }) =>
+  const choose = (input: { currentPin?: string; newPin: string; openedByIssuedPin?: boolean; check?: boolean }) =>
     chooseTillPin({
       companyId,
       userId: cashierId,
@@ -164,6 +164,7 @@ describe("choosing your own PIN", () => {
       newPin: input.newPin,
       openedByIssuedPin: input.openedByIssuedPin ?? false,
       place,
+      check: input.check,
     });
 
   it("after an issued PIN opened the till: no current PIN, not the one sent, not obvious", async () => {
@@ -175,7 +176,11 @@ describe("choosing your own PIN", () => {
       message: "Pick a PIN that is not four of the same digit or four in a row.",
     });
     const fresh = sent === "1593" ? "2684" : "1593";
-    expect(await choose({ newPin: fresh, openedByIssuedPin: true })).toEqual({ mustChange: false });
+    // Asked once before it is typed twice: the same answers, nothing saved.
+    await expect(choose({ newPin: sent, openedByIssuedPin: true, check: true })).rejects.toMatchObject({ field: "newPin", message: PIN_SAME_AS_SENT });
+    expect(await choose({ newPin: fresh, openedByIssuedPin: true, check: true })).toEqual({ saved: false });
+    expect(await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: cashierId } })).toMatchObject({ mustChange: true });
+    expect(await choose({ newPin: fresh, openedByIssuedPin: true })).toEqual({ saved: true });
     const row = await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: cashierId } });
     expect(row).toMatchObject({ mustChange: false, issuedById: null, failedAttempts: 0 });
     expect(await bcrypt.compare(fresh, row.pinHash)).toBe(true);
@@ -186,7 +191,7 @@ describe("choosing your own PIN", () => {
     await expect(choose({ newPin: "2684" })).rejects.toMatchObject({ status: 400, field: "currentPin", message: CURRENT_PIN_WRONG });
     await expect(choose({ currentPin: "1111", newPin: "2684" })).rejects.toMatchObject({ status: 400, field: "currentPin" });
     expect((await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: cashierId } })).failedAttempts).toBe(1);
-    expect(await choose({ currentPin: "6024", newPin: "2684" })).toEqual({ mustChange: false });
+    expect(await choose({ currentPin: "6024", newPin: "2684" })).toEqual({ saved: true });
 
     await prisma.retailTillPin.update({ where: { userId: cashierId }, data: { lockedAt: new Date(), failedAttempts: 5 } });
     await expect(choose({ currentPin: "2684", newPin: "3795" })).rejects.toMatchObject({
