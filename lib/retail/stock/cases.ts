@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import { reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
-import { money, quantity, toNumberOrZero } from "@/lib/money";
+import type { Prisma } from "@prisma/client";
+
+import { money, quantity, toNumberOrZero, ZERO } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
@@ -22,7 +24,8 @@ import { formatCount } from "@/lib/workspace/format";
  * branch, in one transaction under one BRK reference. The value does not
  * change — it is the same beer, on the same inventory account — so nothing
  * posts to the ledger; the singles come in at the case's cost shared over the
- * bottles.
+ * bottles, averaged with the singles already there (`blendedCost`), so the
+ * shelf's singles are not revalued.
  *
  * A manager or stock clerk opens cases on the product record
  * (`retail.adjustments:create`). A cashier may too, from the till, only when
@@ -43,6 +46,9 @@ export type BreakCaseResult = {
   singleOnHand: number;
   message: string;
 };
+
+/** The till rule's refusal, and the door's for a role that holds neither right. */
+export const CANNOT_ADJUST = "Your role cannot adjust stock";
 
 export class CaseBreakRefused extends Error {
   constructor(
@@ -76,6 +82,24 @@ async function siteFor(
   return lines.length === 1 ? lines[0]!.siteId : (profile?.defaultSiteId ?? null);
 }
 
+/**
+ * The singles' cost after a break: what was on hand at its cost and what came
+ * out of the case at the case's, averaged over them all, to the cent. The
+ * singles already on the shelf keep their value; the case's value moves into
+ * them whole, give or take the cent's rounding. Null when the case has no
+ * cost: the line keeps its own.
+ */
+export function blendedCost(
+  before: { onHand: Prisma.Decimal; unitCost: Prisma.Decimal | null },
+  singles: number,
+  caseShare: Prisma.Decimal | null,
+): Prisma.Decimal | null {
+  if (caseShare === null) return null;
+  const held = before.unitCost !== null && before.onHand.greaterThan(0) ? before.onHand : ZERO;
+  const value = held.times(before.unitCost ?? 0).plus(caseShare.times(singles));
+  return value.dividedBy(held.plus(singles)).toDecimalPlaces(2);
+}
+
 export async function breakCase(input: {
   actor: RetailAuditActor;
   caseProductId: string;
@@ -105,13 +129,13 @@ export async function breakCase(input: {
   const atTill = !canRetailRoleDo(actor.userRole, "retail.adjustments", "create");
   let shiftSiteId: string | null = null;
   if (atTill) {
-    if (!canRetailRoleDo(actor.userRole, "retail.sell", "create")) throw new CaseBreakRefused("Your role cannot adjust stock", 403);
+    if (!canRetailRoleDo(actor.userRole, "retail.sell", "create")) throw new CaseBreakRefused(CANNOT_ADJUST, 403);
     const shift = await prisma.retailShift.findFirst({
       where: { companyId, cashierId: actor.userId, status: "OPEN", ...(input.siteId ? { siteId: input.siteId } : {}) },
       orderBy: { openedAt: "desc" },
       select: { siteId: true },
     });
-    if (!shift) throw new CaseBreakRefused("Your role cannot adjust stock", 403);
+    if (!shift) throw new CaseBreakRefused(CANNOT_ADJUST, 403);
     shiftSiteId = shift.siteId;
   }
 
@@ -128,15 +152,13 @@ export async function breakCase(input: {
   const singleLines = await prisma.inventoryItem.findMany({
     where: { productId: single.id, site: { companyId } },
     orderBy: { createdAt: "asc" },
-    select: { id: true, siteId: true, unit: true, currentStock: true },
+    select: { id: true, siteId: true, unit: true },
   });
   const singleHere = singleLines.find((line) => line.siteId === siteId) ?? null;
-  if (atTill && singleHere && singleHere.currentStock.greaterThanOrEqualTo(1)) {
-    throw new CaseBreakRefused("Your role cannot adjust stock", 403);
-  }
 
   const singles = input.cases * pack.packSize;
-  const singleCost = caseLine.unitCost === null ? null : money(caseLine.unitCost).dividedBy(pack.packSize).toDecimalPlaces(2);
+  // What one single of this case cost: the case's cost shared over its bottles.
+  const caseShare = caseLine.unitCost === null ? null : money(caseLine.unitCost).dividedBy(pack.packSize);
   const notes = `Opened ${input.cases} × ${pack.name} into ${singles} × ${single.name}`;
 
   return prisma.$transaction(async (tx) => {
@@ -152,6 +174,18 @@ export async function breakCase(input: {
       const left = toNumberOrZero(fresh.currentStock);
       throw new CaseBreakRefused(`There ${left === 1 ? "is" : "are"} only ${formatCount(left)} of ${pack.name} to open.`);
     }
+
+    // The singles' line next, in the order the movements below take them.
+    // The till's rule is judged on it under that lock, so two cashiers at
+    // none left cannot both open a case.
+    let singlesBefore = { onHand: ZERO, unitCost: null as Prisma.Decimal | null };
+    if (singleHere) {
+      await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${singleHere.id} FOR UPDATE`;
+      const row = await tx.inventoryItem.findUniqueOrThrow({ where: { id: singleHere.id }, select: { currentStock: true, unitCost: true } });
+      singlesBefore = { onHand: row.currentStock, unitCost: row.unitCost };
+      if (atTill && row.currentStock.greaterThanOrEqualTo(1)) throw new CaseBreakRefused(CANNOT_ADJUST, 403);
+    }
+    const singleCost = blendedCost(singlesBefore, singles, caseShare);
 
     // A case at a branch means its singles live there: their line is made rather than refused.
     const singleLine =
@@ -171,10 +205,10 @@ export async function breakCase(input: {
             unit: singleLines[0]?.unit ?? "each",
             siteId,
             locationId: place.id,
-            unitCost: singleCost,
+            unitCost: caseShare?.toDecimalPlaces(2) ?? null,
             productId: single.id,
           },
-          select: { id: true, siteId: true, unit: true, currentStock: true },
+          select: { id: true, siteId: true, unit: true },
         });
       })());
 

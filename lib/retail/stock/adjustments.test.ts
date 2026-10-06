@@ -17,7 +17,7 @@ import { runRetailPosting } from "@/lib/retail/posting-settings";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
 
-import { adjustedToast, adjustmentDelta, adjustmentJournal, adjustStock, AdjustRefused } from "./adjustments";
+import { adjustedToast, adjustmentDelta, adjustmentJournal, adjustmentPhotoFolder, adjustStock, AdjustRefused, parseHowMany } from "./adjustments";
 import { reversalJournal, reverseMovements } from "./reverse";
 
 let shop: TestShop;
@@ -118,6 +118,29 @@ describe("adjustStock", () => {
     expect(await onHand(amarulaLine)).toBe(11);
   });
 
+  it("refuses more than a shop holds under How many, not as a 500", () => {
+    expect(() => parseHowMany("99999999999999999999", "each")).toThrow(new AdjustRefused(400, "That is more than a shop holds.", "n"));
+    expect(parseHowMany("99,999,999", "each")).toBe(99_999_999);
+  });
+
+  it("takes only a photo this shop uploaded, refusing any other address under Photo", async () => {
+    const own = `https://abc.public.blob.vercel-storage.com/${adjustmentPhotoFolder(shop.companyId)}/broken.jpg`;
+    for (const photoUrl of [
+      "javascript:alert(1)",
+      "https://example.com/broken.jpg",
+      "http://abc.public.blob.vercel-storage.com/" + adjustmentPhotoFolder(shop.companyId) + "/broken.jpg",
+      "https://abc.public.blob.vercel-storage.com/companies/another-shop/retail/adjustments/broken.jpg",
+    ]) {
+      await expect(adjustStock({ actor: shop.manager(), productId: amarula, why: "BROKEN", n: "1", note: "Dropped.", photoUrl })).rejects.toMatchObject({
+        message: "Add the photo again; that one did not come from here.",
+        field: "photoUrl",
+      });
+    }
+    const result = await adjustStock({ actor: shop.manager(), productId: amarula, why: "FOUND", n: "1", note: "Behind the crates.", photoUrl: own });
+    expect((await prisma.stockMovement.findUniqueOrThrow({ where: { id: result.movementId } })).photoUrl).toBe(own);
+    await adjustStock({ actor: shop.manager(), productId: amarula, why: "BROKEN", n: "1", note: "Put back what was found." });
+  });
+
   it("asks a stock clerk over US$50.00 for a manager's PIN", async () => {
     await expect(adjustStock({ actor: clerk(), productId: johnnie, why: "BROKEN", n: "2", note: "Dropped." })).rejects.toBeInstanceOf(ApprovalNeeded);
     await expect(adjustStock({ actor: clerk(), productId: johnnie, why: "BROKEN", n: "2", note: "Dropped." })).rejects.toThrow(
@@ -184,6 +207,52 @@ describe("the books", () => {
       { code: "1200", debit: 26.06, credit: 0 },
       { code: "5410", debit: 0, credit: 26.06 },
     ]);
+  });
+
+  it("reverses a loss whose posting still waits at what it will post, not at the line's cost today", async () => {
+    const actor = shop.manager();
+    const result = await adjustStock({ actor, productId: amarula, why: "BROKEN", n: "2", note: "Dropped while restocking the shelf." });
+    // The shop posts at the end of the day: the loss waits as its accounting event.
+    await postRetailJournal(adjustmentJournal(result, actor)!);
+    expect(await entryFor(result.movementId)).toHaveLength(0);
+    const waiting = await prisma.accountingIntegrationEvent.findFirstOrThrow({
+      where: { companyId: shop.companyId, sourceType: "RETAIL_STOCK_ADJUSTMENT", sourceId: result.movementId },
+    });
+    expect({ status: waiting.status, amount: waiting.amount }).toEqual({ status: "PENDING", amount: 26.06 });
+
+    // A delivery since has moved the cost.
+    await prisma.inventoryItem.update({ where: { id: amarulaLine }, data: { unitCost: "15.00" } });
+    try {
+      const back = (await reverseMovements({ actor, ids: [result.movementId] })).reversed[0]!;
+      await postRetailJournal((await reversalJournal(back, { companyId: shop.companyId, userId: actor.userId, role: actor.userRole }))!);
+      await runRetailPosting(shop.companyId, "BY_HAND", actor);
+
+      const [original] = await entryFor(result.movementId);
+      const [opposite] = await entryFor(back.reversalId);
+      expect(sides(original!.lines)).toEqual([
+        { code: "1200", debit: 0, credit: 26.06 },
+        { code: "5410", debit: 26.06, credit: 0 },
+      ]);
+      expect(sides(opposite!.lines)).toEqual([
+        { code: "1200", debit: 26.06, credit: 0 },
+        { code: "5410", debit: 0, credit: 26.06 },
+      ]);
+    } finally {
+      await prisma.inventoryItem.update({ where: { id: amarulaLine }, data: { unitCost: "13.03" } });
+    }
+  });
+
+  it("reverses one that never reached the books at the value its Activity recorded", async () => {
+    const actor = shop.manager();
+    const result = await adjustStock({ actor, productId: amarula, why: "OWN_USE", n: "1", note: "Taken for the owner’s function" });
+    await prisma.inventoryItem.update({ where: { id: amarulaLine }, data: { unitCost: "15.00" } });
+    try {
+      const back = (await reverseMovements({ actor, ids: [result.movementId] })).reversed[0]!;
+      const journal = await reversalJournal(back, { companyId: shop.companyId, userId: actor.userId, role: actor.userRole });
+      expect(journal).toMatchObject({ amount: 13.03, invertDirection: false, sourceId: back.reversalId });
+    } finally {
+      await prisma.inventoryItem.update({ where: { id: amarulaLine }, data: { unitCost: "13.03" } });
+    }
   });
 
   it("posts nothing without a cost", async () => {

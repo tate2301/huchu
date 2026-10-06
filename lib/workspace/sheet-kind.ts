@@ -89,6 +89,8 @@ export type FieldSpec = {
   upload?: string;
   /** `read`: the value in that tone, always or as the values say ("Paired" ok, "Not paired yet" warn). */
   tone?: "ok" | "warn" | ((values: SheetValues) => "ok" | "warn" | undefined);
+  /** `read`: kept to one line a size smaller, cut short with its whole text on hover (a half-width "Cases 22 → 21, singles 26 → 50"). */
+  oneLine?: boolean;
   /** `read`: a QR code of this payload beside the value, drawn in the browser (a pairing code for a Kora). */
   qr?: (values: SheetValues) => string | null;
   /** The hint in `--warn`, always or while this holds (the default site switched off). */

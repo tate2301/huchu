@@ -158,7 +158,14 @@ export function SheetField({
                   ? value
                   : String(value ?? "");
             const read = (
-              <ReadValue id={control.id} mono={field.mono} right={field.right} tone={tone}>
+              <ReadValue
+                id={control.id}
+                mono={field.mono}
+                right={field.right}
+                tone={tone}
+                className={field.oneLine ? "sf-read-line" : undefined}
+                title={field.oneLine ? shown : undefined}
+              >
                 {shown}
               </ReadValue>
             );

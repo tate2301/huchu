@@ -325,6 +325,7 @@ function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: Setti
           return next;
         });
       }
+      for (const queryKey of page.invalidates ?? []) void queryClient.invalidateQueries({ queryKey: [...queryKey] });
       setErrors({});
       setSavedAt(Date.now());
       setNow(new Date());

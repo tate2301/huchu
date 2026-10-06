@@ -85,19 +85,6 @@ const stockAdjust: SheetKind = {
   sections: [
     {
       fields: [
-        {
-          id: "siteId",
-          t: "auto",
-          l: "Site",
-          noun: "site",
-          show: (values) => Number(values._lineCount ?? 0) >= 2,
-          follow: async (value, _values, ctx) => {
-            const site = (value as PickedOption | null) ?? null;
-            if (!site) return null;
-            const answer = await readLines({ productId: productOf(ctx), siteId: site.id });
-            return { ...lineFacts(answer.data[0] ?? null), _site: site.label };
-          },
-        },
         { id: "why", t: "cards", l: "Why", nolabel: true, cols: 2, o: WHYS.map(([label, description]): [string, string] => [label, description]), v: WHYS[0]![0] },
         {
           id: "n",
@@ -167,11 +154,11 @@ const stockAdjust: SheetKind = {
     return {
       _name: line?.product.name ?? "",
       _siteCount: answer.siteCount,
-      _lineCount: answer.data.length,
       _pinOver: answer.pinOver,
       _canApprove: ctx.can("retail.adjustments", "approve"),
       ...lineFacts(line),
-      siteId: line ? { id: line.site.id, label: line.site.name } : null,
+      // The board draws no site picker: the sub names the site, and On hand's row menu opens another with `&siteId=`.
+      _siteId: line?.site.id ?? null,
     };
   },
   onRefused: (payload) => ((payload as { needsApprover?: boolean } | null)?.needsApprover ? { _needsApprover: true } : null),
@@ -183,7 +170,7 @@ const stockAdjust: SheetKind = {
       url: "/api/v2/retail/stock/adjustments",
       body: {
         productId: productOf(ctx),
-        siteId: (values.siteId as PickedOption | null)?.id ?? null,
+        siteId: (values._siteId as string | null) ?? null,
         why: whyOf(values),
         n: typeof values.n === "string" ? values.n.trim() : "",
         note: typeof values.note === "string" ? values.note : "",
@@ -246,7 +233,7 @@ const caseBreak: SheetKind = {
           },
         },
         { id: "cases", t: "text", l: "Cases", mono: true, right: true, half: true, v: "1", needed: "Say how many cases to open" },
-        { id: "then", t: "read", l: "Then", half: true, derive: (values) => caseThen(values) },
+        { id: "then", t: "read", l: "Then", half: true, oneLine: true, derive: (values) => caseThen(values) },
       ],
     },
   ],

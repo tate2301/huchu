@@ -5,6 +5,7 @@ import { put } from "@vercel/blob";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { checkCatalogImage } from "@/lib/retail/catalog-image";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { adjustmentPhotoFolder } from "@/lib/retail/stock/adjustments";
 
 import { requireRetailSession } from "../../../_helpers";
 
@@ -32,8 +33,7 @@ export async function POST(request: NextRequest) {
     const check = checkCatalogImage({ bytes, declaredType: file.type });
     if (!check.ok) return errorResponse(check.error, 400);
 
-    const company = session.user.companyId.replace(/[^a-zA-Z0-9-]/g, "-");
-    const path = `companies/${company}/retail/adjustments/${randomUUID()}.${check.extension}`;
+    const path = `${adjustmentPhotoFolder(session.user.companyId)}/${randomUUID()}.${check.extension}`;
     const uploaded = await put(path, new Blob([bytes], { type: check.type }), { access: "public", contentType: check.type });
     return successResponse({ data: { url: uploaded.url } });
   } catch (error) {

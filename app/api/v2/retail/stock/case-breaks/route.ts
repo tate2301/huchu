@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, fieldErrorResponse, successResponse } from "@/lib/api-response";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { breakCase, breakCaseInput, CaseBreakRefused } from "@/lib/retail/stock/cases";
+import { breakCase, breakCaseInput, CANNOT_ADJUST, CaseBreakRefused } from "@/lib/retail/stock/cases";
 
 import { requireRetailSession } from "../../_helpers";
 
@@ -18,10 +18,11 @@ export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
 
+  // A cashier may, at the till; anyone holding neither right is told what they cannot do.
   const gate = canRetailSessionDo(session, "retail.adjustments", "create")
     ? null
     : requireRetailPermission(session, "retail.sell", "create");
-  if (gate) return gate;
+  if (gate) return errorResponse(CANNOT_ADJUST, 403);
 
   const parsed = breakCaseInput.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

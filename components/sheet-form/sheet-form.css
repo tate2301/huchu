@@ -139,6 +139,9 @@
 /* A `text` field with choices: a select that reads as the text box it replaces. */
 .cx-input--select { appearance: none; cursor: pointer; }
 .cx-input:disabled { background: var(--ground); color: var(--ink-3); cursor: default; }
+/* A read value kept to one line, a size smaller: a short sentence in a half field. */
+.sf-read-line { display: block; line-height: 36px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* A read value with its QR code to the right (the pairing code on a Kora). */
 .sf-qr-row { display: flex; align-items: flex-start; gap: 12px; }
 .sf-qr-row > .cx-read { flex: 1 1 auto; }

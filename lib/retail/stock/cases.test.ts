@@ -13,7 +13,7 @@ import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
-import { breakCase, CaseBreakRefused } from "./cases";
+import { blendedCost, breakCase, CaseBreakRefused } from "./cases";
 
 let shop: TestShop;
 let cashierId: string;
@@ -116,6 +116,54 @@ describe("breaking a case into singles", () => {
     expect(result).toMatchObject({ cases: 1, singleOnHand: 24, caseOnHand: 2 });
   });
 
+  it("lets only one of two cashiers at no singles open a case at the same moment", async () => {
+    const otherId = (
+      await prisma.user.create({
+        data: { email: `farai-${shop.companyId}@shop.test`, name: "Farai Moyo", role: "CASHIER", companyId: shop.companyId },
+        select: { id: true },
+      })
+    ).id;
+    const registerId = (
+      await prisma.retailRegister.create({ data: { companyId: shop.companyId, siteId: shop.mainId, code: "BT", name: "Back till" }, select: { id: true } })
+    ).id;
+    await prisma.retailShift.create({
+      data: {
+        companyId: shop.companyId,
+        shiftNo: "SH-2",
+        registerCode: "BT",
+        registerName: "Back till",
+        registerId,
+        siteId: shop.mainId,
+        cashierId: otherId,
+        cashierName: "Farai Moyo",
+        openingFloat: money(50),
+      },
+    });
+    await setStock(single.itemId, 0);
+    await setStock(pack.itemId, 2);
+    const farai = { companyId: shop.companyId, userId: otherId, userName: "Farai Moyo", userRole: "CASHIER" };
+    const outcomes = await Promise.allSettled([
+      breakCase({ actor: cashier(), caseProductId: pack.productId, cases: 1 }),
+      breakCase({ actor: farai, caseProductId: pack.productId, cases: 1 }),
+    ]);
+    const lost = outcomes.filter((outcome): outcome is PromiseRejectedResult => outcome.status === "rejected");
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(lost).toHaveLength(1);
+    expect(lost[0]!.reason).toMatchObject({ message: "Your role cannot adjust stock", status: 403 });
+    expect(await onHand(single.itemId)).toBe(24);
+    expect(await onHand(pack.itemId)).toBe(1);
+  });
+
+  it("averages the singles' cost with the case's share, so the singles on the shelf keep their value", async () => {
+    await prisma.inventoryItem.update({ where: { id: single.itemId }, data: { unitCost: money("0.86"), currentStock: quantity(26) } });
+    await prisma.inventoryItem.update({ where: { id: pack.itemId }, data: { unitCost: money("20.10"), currentStock: quantity(2) } });
+    await open(1);
+    // (26 × 0.86 + 20.10) / 50 = 0.8492, not the case's 20.10 / 24 = 0.84 over all 50.
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: single.itemId } })).unitCost?.toNumber()).toBe(0.85);
+    await prisma.inventoryItem.update({ where: { id: pack.itemId }, data: { unitCost: money("20.40") } });
+    await prisma.inventoryItem.update({ where: { id: single.itemId }, data: { unitCost: money("0.85") } });
+  });
+
   it("opens the last case once when two people break it at the same moment", async () => {
     await setStock(pack.itemId, 1);
     const outcomes = await Promise.allSettled([open(1), open(1)]);
@@ -139,5 +187,19 @@ describe("breaking a case into singles", () => {
     expect(result).toMatchObject({ singleOnHand: 24, caseOnHand: 1 });
     const made = await prisma.inventoryItem.findFirstOrThrow({ where: { siteId: other.id, productId: single.productId } });
     expect(made.unitCost?.toNumber()).toBe(0.85);
+  });
+});
+
+describe("blendedCost", () => {
+  const share = money("20.10").dividedBy(24);
+  it("averages what is on hand with what came out of the case", () => {
+    expect(blendedCost({ onHand: quantity(26), unitCost: money("0.86") }, 24, share)?.toNumber()).toBe(0.85);
+    expect(blendedCost({ onHand: quantity(0), unitCost: money("0.86") }, 24, share)?.toNumber()).toBe(0.84);
+    expect(blendedCost({ onHand: quantity(-3), unitCost: money("0.86") }, 24, share)?.toNumber()).toBe(0.84);
+    expect(blendedCost({ onHand: quantity(26), unitCost: null }, 24, share)?.toNumber()).toBe(0.84);
+  });
+
+  it("leaves the line's cost alone when the case has none", () => {
+    expect(blendedCost({ onHand: quantity(26), unitCost: money("0.86") }, 24, null)).toBeNull();
   });
 });

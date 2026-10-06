@@ -37,25 +37,9 @@ export async function POST(request: NextRequest) {
     userName: session.user.name ?? null,
     userRole: session.user.role ?? null,
   };
+  let result: Awaited<ReturnType<typeof adjustStock>>;
   try {
-    const result = await adjustStock({ actor, ...parsed.data });
-    const journal = adjustmentJournal(result, actor);
-    if (journal) await postRetailJournal(journal);
-    const seeCost = canRetailSessionDo(session, "retail.catalog", "view-cost");
-    return successResponse(
-      {
-        data: {
-          reference: result.reference,
-          movementId: result.movementId,
-          lineId: result.lineId,
-          delta: result.delta,
-          onHand: result.onHand,
-          ...(seeCost ? { value: result.value } : {}),
-        },
-        message: result.message,
-      },
-      201,
-    );
+    result = await adjustStock({ actor, ...parsed.data });
   } catch (error) {
     const approval = tillRuleResponse(error);
     if (approval) return approval;
@@ -67,4 +51,32 @@ export async function POST(request: NextRequest) {
     console.error("[API] POST /api/v2/retail/stock/adjustments error:", error);
     return errorResponse("That adjustment was not saved. Nothing moved; try again.");
   }
+
+  // The stock has moved and its ADJ number is taken, so the answer is the
+  // saved adjustment, never "try again" (a retry would take it off twice). A
+  // posting that fails stays PENDING or FAILED as its accounting event, which
+  // the posting run retries.
+  const journal = adjustmentJournal(result, actor);
+  if (journal) {
+    try {
+      await postRetailJournal(journal);
+    } catch (error) {
+      console.error(`[API] POST /api/v2/retail/stock/adjustments: ${result.reference} saved, its journal did not post:`, error);
+    }
+  }
+  const seeCost = canRetailSessionDo(session, "retail.catalog", "view-cost");
+  return successResponse(
+    {
+      data: {
+        reference: result.reference,
+        movementId: result.movementId,
+        lineId: result.lineId,
+        delta: result.delta,
+        onHand: result.onHand,
+        ...(seeCost ? { value: result.value } : {}),
+      },
+      message: result.message,
+    },
+    201,
+  );
 }

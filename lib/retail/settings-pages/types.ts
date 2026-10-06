@@ -71,6 +71,11 @@ export type SettingsPage = {
   action?: SettingsAction;
   /** The clean save bar's line for a change of the page's own kind (`lastChanged.what`). */
   lastChangedLine?: (lastChanged: SettingsLastChanged, now: Date) => string | null;
+  /**
+   * Other screens' queries that read what this page saves, invalidated after
+   * a save so they do not show the old setting from their cache.
+   */
+  invalidates?: ReadonlyArray<readonly unknown[]>;
 };
 
 /** `GET /api/v2/retail/settings/[page]`. */

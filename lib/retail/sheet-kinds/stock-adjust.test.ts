@@ -32,7 +32,7 @@ describe("Adjust stock (W-23, board StockAdjust)", () => {
     expect(typeof adjust.sub === "function" && adjust.sub(clerk, loaded)).toBe("Amarula Cream 750ml · 13 on hand at Harare Main Branch");
     expect(typeof adjust.sub === "function" && adjust.sub(clerk, { ...loaded, _siteCount: 1 })).toBe("Amarula Cream 750ml · 13 on hand");
     expect(typeof adjust.note === "function" && adjust.note(loaded)).toBe("Over US$50.00 needs a manager PIN. Every adjustment shows in Activity.");
-    expect(fieldIds(adjust)).toEqual(["siteId", "why", "n", "atCost", "note", "photoUrl", "approver", "pin"]);
+    expect(fieldIds(adjust)).toEqual(["why", "n", "atCost", "note", "photoUrl", "approver", "pin"]);
   });
 
   it("values the change at cost, setting on hand for a mistake", () => {
@@ -55,6 +55,8 @@ describe("Adjust stock (W-23, board StockAdjust)", () => {
   it("sends the reason, and the approver only while asked", () => {
     const body = (values: SheetValues) => (adjust.submit(values, clerk)!.body as Record<string, unknown>);
     expect(body({ ...loaded, note: "Dropped." })).toMatchObject({ productId: "p-amarula", why: "BROKEN", n: "2", note: "Dropped." });
+    // The board draws no site picker: the line the sheet loaded is the one adjusted.
+    expect(body({ ...loaded, _siteId: "site-bdl", note: "Dropped." }).siteId).toBe("site-bdl");
     expect(body({ ...loaded, n: "4", approver: { id: "tafara", label: "Tafara Nyathi" }, pin: "2468" }).approver).toEqual({ userId: "tafara", pin: "2468" });
     expect(body({ ...loaded, approver: { id: "tafara", label: "Tafara Nyathi" }, pin: "2468" }).approver).toBeUndefined();
     expect(doneSentence(adjust, {}, loaded, { message: "2 off Amarula Cream 750ml. 11 left." })).toBe("2 off Amarula Cream 750ml. 11 left.");
@@ -64,6 +66,8 @@ describe("Adjust stock (W-23, board StockAdjust)", () => {
 describe("Break a case (W-26, board BreakCase)", () => {
   it("says what happens, and names its button by the count", () => {
     expect(caseThen({ _caseOnHand: 4, _singleOnHand: 2, _packSize: 24, cases: "1" })).toBe("Cases 4 → 3, singles 2 → 26");
+    // Kept to one line in its half-width box, as the board draws it.
+    expect(caseBreak.sections[0]!.fields.find((field) => field.id === "then")).toMatchObject({ t: "read", half: true, oneLine: true });
     expect(typeof caseBreak.primary === "function" && caseBreak.primary({ cases: "1" })).toBe("Break 1 case");
     expect(typeof caseBreak.primary === "function" && caseBreak.primary({ cases: "2" })).toBe("Break 2 cases");
     expect(typeof caseBreak.sub === "function" && caseBreak.sub(clerk, { caseProductId: null })).toBe("Pick a case");

@@ -11,6 +11,7 @@ import { getApprovalLimits } from "@/lib/retail/approvals/limits";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { approvalFor, ApprovalNeeded, approverSchema, type ApproverInput } from "@/lib/retail/manager-pin";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { isOwnBlobUrl } from "@/lib/uploads/blob-url";
 import { formatCount, formatMoney } from "@/lib/workspace/format";
 
 /**
@@ -36,18 +37,26 @@ export const adjustInput = z.object({
   why: z.enum(ADJUST_WHYS, { message: "Say why: broken, own use, found more or a mistake." }),
   n: z.string().max(20),
   note: z.string().max(2000),
-  photoUrl: z.string().url().max(2000).optional().nullable(),
+  photoUrl: z.string().max(2000).optional().nullable(),
   approver: approverSchema.optional().nullable(),
 });
 
 export type AdjustInput = z.infer<typeof adjustInput>;
+
+/** Where Adjust stock's photos are kept, under the company's own prefix. */
+export function adjustmentPhotoFolder(companyId: string): string {
+  return `companies/${companyId.replace(/[^a-zA-Z0-9-]/g, "-")}/retail/adjustments`;
+}
+
+/** The most one line can hold: `currentStock` is Decimal(12, 4). */
+const MOST = 99_999_999;
 
 /** A refusal in words, under a field (`n`, `note`) or for the whole sheet. */
 export class AdjustRefused extends Error {
   constructor(
     readonly status: 400 | 404 | 409,
     message: string,
-    readonly field: "n" | "note" | null = null,
+    readonly field: "n" | "note" | "photoUrl" | null = null,
   ) {
     super(message);
     this.name = "AdjustRefused";
@@ -70,7 +79,9 @@ export function parseHowMany(text: string, unit: string): number {
   const decimals = trimmed.split(".")[1]?.length ?? 0;
   if (decimals > 0 && !isWeight(unit)) throw new AdjustRefused(400, "Say how many, in whole units.", "n");
   if (decimals > 4) throw new AdjustRefused(400, "Say how many, to four decimals at most.", "n");
-  return Number(trimmed);
+  const n = Number(trimmed);
+  if (n > MOST) throw new AdjustRefused(400, "That is more than a shop holds.", "n");
+  return n;
 }
 
 /** The signed change the adjustment makes, refused in words when it makes none or takes too much. */
@@ -150,6 +161,10 @@ export async function adjustStock(input: {
   const n = parseHowMany(input.n, line.unit);
   const note = input.note.trim();
   if (!note || note.length > 500) throw new AdjustRefused(400, "Say what happened.", "note");
+  // Only a photo this shop uploaded through Adjust stock's own photo route.
+  if (input.photoUrl && !isOwnBlobUrl(input.photoUrl, adjustmentPhotoFolder(actor.companyId))) {
+    throw new AdjustRefused(400, "Add the photo again; that one did not come from here.", "photoUrl");
+  }
 
   const cost = line.unitCost === null ? 0 : toNumberOrZero(line.unitCost);
   const valueOf = (delta: number) => round2(Math.abs(delta) * cost);
@@ -211,6 +226,8 @@ export async function adjustStock(input: {
       reason: note,
       payload: {
         reference,
+        // Reverse values the opposite from this while the posting waits.
+        movementId: id,
         why: input.why,
         delta,
         from: before,

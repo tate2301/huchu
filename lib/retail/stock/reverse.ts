@@ -36,7 +36,6 @@ type Original = {
   reversedBy: { id: string } | null;
   item: {
     unit: string;
-    unitCost: Prisma.Decimal | null;
     currentStock: Prisma.Decimal;
     name: string;
     siteId: string;
@@ -59,7 +58,6 @@ const ORIGINAL_SELECT = {
   item: {
     select: {
       unit: true,
-      unitCost: true,
       currentStock: true,
       name: true,
       siteId: true,
@@ -100,7 +98,6 @@ export type ReversedMovement = {
   itemId: string;
   itemName: string;
   siteId: string;
-  unitCost: number;
 };
 
 export type ReverseResult = { reversed: ReversedMovement[]; skipped: Skipped[] };
@@ -184,7 +181,6 @@ export async function reverseMovements(input: { actor: RetailAuditActor; ids: st
         itemId: leg.itemId,
         itemName: leg.item.product?.name ?? leg.item.name,
         siteId: leg.item.siteId,
-        unitCost: leg.item.unitCost?.toNumber() ?? 0,
       });
     }
 
@@ -211,18 +207,31 @@ export async function reverseMovements(input: { actor: RetailAuditActor; ids: st
 }
 
 /**
- * What the adjustment put on the books: its journal's debits. An adjustment
- * whose posting has not landed is valued as it would have been, at the
- * line's cost.
+ * What the adjustment put on the books: its journal's debits once it has
+ * posted; while its posting waits for the day's run, the amount its
+ * accounting event will post; else the value its audit event recorded. Never
+ * the line's cost today: a delivery or a cost edit since would make the
+ * opposite differ from the original.
  */
 async function postedValue(movement: ReversedMovement, companyId: string): Promise<number> {
-  const entry = await prisma.journalEntry.findFirst({
-    where: { companyId, sourceType: "RETAIL_STOCK_ADJUSTMENT", sourceId: movement.id },
-    select: { lines: { select: { debit: true } } },
+  const source = { companyId, sourceType: "RETAIL_STOCK_ADJUSTMENT" as const, sourceId: movement.id };
+  const entry = await prisma.journalEntry.findFirst({ where: source, select: { lines: { select: { debit: true } } } });
+  if (entry) return round2(entry.lines.reduce((sum, line) => sum + line.debit, 0));
+  const event = await prisma.accountingIntegrationEvent.findFirst({
+    where: { ...source, amount: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: { amount: true },
   });
-  const posted = entry ? entry.lines.reduce((sum, line) => sum + line.debit, 0) : null;
-  return Math.round((posted ?? Math.abs(movement.change) * movement.unitCost) * 100) / 100;
+  if (event?.amount != null) return round2(event.amount);
+  const audit = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.stockAdjusted, payloadJson: { contains: `"movementId":"${movement.id}"` } },
+    select: { payloadJson: true },
+  });
+  const recorded = Number((JSON.parse(audit?.payloadJson ?? "{}") as { value?: string }).value ?? 0);
+  return Number.isFinite(recorded) ? round2(recorded) : 0;
 }
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
 
 /**
  * The books follow an adjustment put back: the opposite of what it posted,
@@ -256,7 +265,7 @@ export async function reversalJournal(movement: ReversedMovement, actor: { compa
           inventoryItemId: movement.itemId,
           itemName: movement.itemName,
           quantity: Math.abs(movement.change),
-          unitCost: Math.round((value / Math.abs(movement.change)) * 100) / 100,
+          unitCost: round2(value / Math.abs(movement.change)),
           totalCost: value,
         },
       ],
