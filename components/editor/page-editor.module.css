@@ -22,6 +22,10 @@
     padding: 48px 40px 120px 72px;
   }
 
+  .page[data-wide] {
+    max-width: 1120px;
+  }
+
   .items {
     display: grid;
     gap: 12px;

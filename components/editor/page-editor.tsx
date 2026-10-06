@@ -66,6 +66,8 @@ export type PageEditorProps<T> = {
   after?: ReactNode;
   /** What stands between this page and a save. Shown under the last item. */
   problems?: readonly string[];
+  /** A page of wide items — code, tables — gets the room a page of fields does not need. */
+  wide?: boolean;
 };
 
 let uidCounter = 0;
@@ -97,6 +99,7 @@ export function PageEditor<T>({
   before,
   after,
   problems = [],
+  wide = false,
 }: PageEditorProps<T>) {
   // Focus moves by the page's own markup — each row is marked with its id and
   // the add line with `data-editor-add` — so no element registry is kept.
@@ -194,7 +197,7 @@ export function PageEditor<T>({
         }
       }}
     >
-      <div className={styles.page}>
+      <div className={styles.page} data-wide={wide || undefined}>
         {header}
         {before}
 

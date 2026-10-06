@@ -124,6 +124,7 @@ model Company {
   accountingSeedExecutions      AccountingSeedExecution[]
   documentTemplates             DocumentTemplate[]
   reportSettings                ReportSetting[]
+  customReports                 CustomReport[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
   idSequences                   IdSequence[]
@@ -6613,6 +6614,27 @@ model ReportSetting {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, reportKey])
+}
+
+model CustomReport {
+  id          String   @id @default(uuid())
+  companyId   String
+  title       String
+  description String?
+  /// A `CustomDocument` (`lib/reports/custom/document.ts`): the page's blocks
+  /// and the queries behind them. Rows are never stored — they are fetched
+  /// through the report sources each time, under the reader's own access.
+  document    Json
+  /// Everybody in the workspace can open it; otherwise only its maker.
+  shared      Boolean  @default(false)
+  createdById String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdById])
 }
 
 model DocumentTemplate {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -29,6 +30,7 @@ import {
   EXPORT_TEMPLATES,
   type ExportTemplateId,
 } from "@/lib/reports/export-layouts";
+import type { CustomReport } from "@/lib/reports/custom/document";
 import { formatTotal } from "@/lib/reports/format";
 import type { ReportColumnKind, ReportParam, ReportRow, ReportView } from "@/lib/reports/types";
 import { aggregate, applyView } from "@/lib/reports/view";
@@ -212,6 +214,20 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["reports", reportKey] });
 
+  const router = useRouter();
+  /** This report's page as a report of one's own, every block a query to take further. */
+  const buildOn = async () => {
+    try {
+      const made = await fetchJson<{ report: CustomReport }>("/api/v2/reports/custom", {
+        method: "POST",
+        body: JSON.stringify({ fromReport: reportKey }),
+      });
+      router.push(`/reports/custom/${made.report.id}/edit`);
+    } catch (error) {
+      toast({ title: "Report not created", description: getApiErrorMessage(error), variant: "destructive" });
+    }
+  };
+
   // Managers set up reports for everybody; the API checks this again.
   const role = (session?.user as { role?: string } | undefined)?.role;
   const manager = role === "SUPERADMIN" || role === "MANAGER";
@@ -248,36 +264,35 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
               <ExportChoices onChoose={(format, template) => void runExport(format, false, template)} />
             </DropdownMenuContent>
           </DropdownMenu>
-          {customised || manager ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="More">
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {customised ? <DropdownMenuItem onSelect={resetView}>Reset the view</DropdownMenuItem> : null}
-                {manager ? (
-                  <>
-                    {customised ? <DropdownMenuSeparator /> : null}
-                    <DropdownMenuItem asChild>
-                      <Link href={`/reports/${reportKey}/arrange`}>Arrange the page</Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="More">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {customised ? <DropdownMenuItem onSelect={resetView}>Reset the view</DropdownMenuItem> : null}
+              <DropdownMenuItem onSelect={() => void buildOn()}>Build a report from this one</DropdownMenuItem>
+              {manager ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href={`/reports/${reportKey}/arrange`}>Arrange the page</Link>
+                  </DropdownMenuItem>
+                  {customised && view ? (
+                    <DropdownMenuItem onSelect={() => void saveStartingView(view)}>
+                      Make this everyone&apos;s starting view
                     </DropdownMenuItem>
-                    {customised && view ? (
-                      <DropdownMenuItem onSelect={() => void saveStartingView(view)}>
-                        Make this everyone&apos;s starting view
-                      </DropdownMenuItem>
-                    ) : null}
-                    {meta.defaultView ? (
-                      <DropdownMenuItem onSelect={() => void saveStartingView(null)}>
-                        Clear the starting view
-                      </DropdownMenuItem>
-                    ) : null}
-                  </>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+                  ) : null}
+                  {meta.defaultView ? (
+                    <DropdownMenuItem onSelect={() => void saveStartingView(null)}>
+                      Clear the starting view
+                    </DropdownMenuItem>
+                  ) : null}
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       ) : null}
     </PageChrome>
