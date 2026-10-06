@@ -7,7 +7,7 @@ import {
   discountPinSentence,
   DRAWER_PIN_SENTENCE,
   MIN_REFERENCE_LENGTH,
-  offlineTooLongSentence,
+  OFFLINE_TOO_LONG_SENTENCE,
   ONE_TENDER_SENTENCE,
   PRICE_UP_SENTENCE,
   REASON_NOT_LISTED,
@@ -122,8 +122,13 @@ export async function saveTillRules(tx: Db, actor: RetailAuditActor, patch: Till
 /* ── The acts that may need a manager ─────────────────────────────────────── */
 
 export type TillAct =
-  /** A refund worth `amount` (the goods and their deposits) in the base currency, at the sale's rate. */
-  | { act: "refund"; amount: Prisma.Decimal.Value }
+  /**
+   * A refund worth `amount` (the goods and their deposits) in the base
+   * currency, at the sale's rate. `alreadyRefunded` is what earlier refunds of
+   * the same sale gave back: the limit is on the sale's refunds together, so a
+   * sale cannot be handed back in pieces under it.
+   */
+  | { act: "refund"; amount: Prisma.Decimal.Value; alreadyRefunded?: Prisma.Decimal.Value }
   /** A void of a sale rung at `saleAt`, done at `at`. */
   | { act: "void"; saleAt: Date; at: Date }
   /** A sale's discount as a share of its shelf value; `priceUp` when a line is dearer than the shelf. */
@@ -143,7 +148,9 @@ const FREE: TillRuleDecision = { needsApprover: false };
 export function checkTillRule(rules: TillRules, act: TillAct): TillRuleDecision {
   switch (act.act) {
     case "refund":
-      return money(act.amount).greaterThan(rules.refundPinOver)
+      return money(act.amount)
+        .plus(money(act.alreadyRefunded ?? 0))
+        .greaterThan(rules.refundPinOver)
         ? { needsApprover: true, reason: refundPinSentence(rules.refundPinOver.toFixed(2), rules.currency) }
         : FREE;
     case "void": {
@@ -282,10 +289,31 @@ export function tenderRuleProblem(
   return null;
 }
 
+/**
+ * How old a refund or void sent through the offline queue must be to count as
+ * done offline. One from a till that was online when it was done is younger:
+ * it gets the counter's rules.
+ */
+export const OFFLINE_ACT_MIN_AGE_MS = 60 * 1000;
+
+/**
+ * Whether a refund or void sent through the offline queue (`pos/sync`) was
+ * really done offline, and so may go in for review where the counter would
+ * refuse it (an unlisted reason, no reference, no manager PIN). It must say
+ * when it was done, that moment must not be in the future, and it must be at
+ * least a minute old on arrival. Anything else is treated as done at the
+ * counter, so the queue is no way round the till rules.
+ */
+export function doneOffline(at: Date | null | undefined, now: Date): boolean {
+  if (!at || Number.isNaN(at.getTime())) return false;
+  const age = now.getTime() - at.getTime();
+  return age >= OFFLINE_ACT_MIN_AGE_MS;
+}
+
 /** The review line for a sale the till kept offline longer than the rules allow; null when it is within them. */
 export function offlineReview(rules: Pick<TillRules, "offlineHours">, soldAt: Date, now: Date): string | null {
   return now.getTime() - soldAt.getTime() > rules.offlineHours * 60 * 60 * 1000
-    ? offlineTooLongSentence(rules.offlineHours)
+    ? OFFLINE_TOO_LONG_SENTENCE
     : null;
 }
 

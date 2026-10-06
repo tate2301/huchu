@@ -28,6 +28,8 @@ import { voidRetailSaleTransaction } from "../../_services";
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const key = `sync-key-${stamp}`;
 const HOUR = 60 * 60 * 1000;
+/** When a refund or void was done offline: after the sale (5 minutes ago), more than a minute before it arrives. */
+const offlineAct = () => new Date(Date.now() - 3 * 60 * 1000).toISOString();
 let companyId = "";
 let cashierId = "";
 let shiftId = "";
@@ -378,8 +380,8 @@ describe("the till rules on a sale and a void sent in from the offline queue (SE
         {
           clientOperationId: "void-offline",
           operation: "void-sale",
-          offlineCreatedAt: new Date().toISOString(),
-          payload: { saleId: sold.serverId, shiftId, reason: "Customer left", voidedAt: new Date().toISOString() },
+          offlineCreatedAt: offlineAct(),
+          payload: { saleId: sold.serverId, shiftId, reason: "Customer left", voidedAt: offlineAct() },
         },
       ])
     ).get("void-offline")!;
@@ -440,7 +442,7 @@ describe("a refund or void sent in late that the rules would refuse now (SET-06)
         {
           clientOperationId: "card-refund-offline",
           operation: "refund-sale",
-          offlineCreatedAt: new Date().toISOString(),
+          offlineCreatedAt: offlineAct(),
           payload: {
             saleId: sold.serverId,
             shiftId,
@@ -448,7 +450,7 @@ describe("a refund or void sent in late that the rules would refuse now (SET-06)
             items: [{ productId, name: "Castle Lager 340ml", quantity: 1, unitPrice: 3.9, refundAmount: 3.9 }],
             refundTotal: 3.9,
             payments: [{ tenderType: "CARD", amount: 3.9 }],
-            refundedAt: new Date().toISOString(),
+            refundedAt: offlineAct(),
           },
         },
       ])
@@ -470,13 +472,71 @@ describe("a refund or void sent in late that the rules would refuse now (SET-06)
         {
           clientOperationId: "void-unlisted-offline",
           operation: "void-sale",
-          offlineCreatedAt: new Date().toISOString(),
-          payload: { saleId: sold.serverId, shiftId, reason: "Price check", voidedAt: new Date().toISOString() },
+          offlineCreatedAt: offlineAct(),
+          payload: { saleId: sold.serverId, shiftId, reason: "Price check", voidedAt: offlineAct() },
         },
       ])
     ).get("void-unlisted-offline")!;
     expect(voided).toMatchObject({ status: "synced" });
     const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: voided.serverId! } });
     expect([stored.overrideReason, stored.reviewReason]).toEqual(["Price check", "Reason no longer on the list."]);
+  });
+});
+
+describe("a refund or void through the queue that was not done offline (SET-06)", () => {
+  /** Sent through the queue, dated now: an online till, or a client getting round the counter. */
+  function reversal(id: string, operation: "void-sale" | "refund-sale", payload: Record<string, unknown>) {
+    const at = new Date().toISOString();
+    return { clientOperationId: id, operation, offlineCreatedAt: at, payload: { ...payload, voidedAt: at, refundedAt: at } };
+  }
+
+  it("refuses a void without the manager PIN the rule asks for, as the counter does", async () => {
+    await prisma.retailTillRules.upsert({
+      where: { companyId },
+      update: { voidPin: "ALWAYS" },
+      create: { companyId, voidPin: "ALWAYS" },
+    });
+    const sold = (await sync([sale("void-now-sale", { tenderType: "CASH", currency: "USD", amount: 3.9 })])).get("void-now-sale")!;
+    const voided = (
+      await sync([reversal("void-now", "void-sale", { saleId: sold.serverId, shiftId, reason: "Customer left" })])
+    ).get("void-now")!;
+    expect(voided).toMatchObject({ status: "failed", error: "Voids need a manager PIN." });
+    expect(await prisma.retailSale.count({ where: { companyId, sourceSaleId: sold.serverId } })).toBe(0);
+  });
+
+  it("refuses an unlisted reason and a card refund without its reference", async () => {
+    await prisma.retailTillRules.upsert({
+      where: { companyId },
+      update: { voidPin: "NEVER" },
+      create: { companyId, voidPin: "NEVER" },
+    });
+    const sold = (
+      await sync([sale("refund-now-sale", { tenderType: "CARD", currency: "USD", amount: 3.9, reference: "SLIP-5521" })])
+    ).get("refund-now-sale")!;
+    const line = { productId, name: "Castle Lager 340ml", quantity: 1, unitPrice: 3.9, refundAmount: 3.9 };
+    const results = await sync([
+      reversal("refund-now-unlisted", "refund-sale", {
+        saleId: sold.serverId,
+        shiftId,
+        reason: "Gone off list",
+        items: [line],
+        refundTotal: 3.9,
+        payments: [{ tenderType: "CARD", amount: 3.9, reference: "SLIP-5521" }],
+      }),
+      reversal("refund-now-no-reference", "refund-sale", {
+        saleId: sold.serverId,
+        shiftId,
+        reason: "Damaged",
+        items: [line],
+        refundTotal: 3.9,
+        payments: [{ tenderType: "CARD", amount: 3.9 }],
+      }),
+    ]);
+    expect(results.get("refund-now-unlisted")).toMatchObject({ status: "failed", error: "Pick a reason from the list." });
+    expect(results.get("refund-now-no-reference")).toMatchObject({
+      status: "failed",
+      error: "Card needs its slip or confirmation number, 4 characters or more.",
+    });
+    expect(await prisma.retailSale.count({ where: { companyId, sourceSaleId: sold.serverId } })).toBe(0);
   });
 });

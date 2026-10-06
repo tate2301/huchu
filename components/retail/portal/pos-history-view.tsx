@@ -190,10 +190,21 @@ export function PosHistoryView() {
   );
   const refundTenderGap = round(refundPaymentSummary.tenderedTotal - refundTotal);
 
+  // What earlier refunds of this sale gave back: the limit is on the sale's refunds together.
+  const alreadyRefunded = round(
+    (selectedSale?.lines ?? []).reduce((sum, line) => {
+      if (line.quantity <= 0) return sum;
+      const refundedQuantity = Math.max(line.quantity - Number(line.refundableQuantity ?? line.quantity), 0);
+      return (
+        sum + round(Math.abs(line.lineTotal) * (refundedQuantity / line.quantity)) + Math.abs(Number(line.depositRefunded ?? 0))
+      );
+    }, 0),
+  );
+
   // What the till rules ask before the server is asked: the server decides again.
   const refundAsks =
     askedFor ??
-    (!canOverride && rules && refundTotal > Number(rules.refundPinOver)
+    (!canOverride && rules && refundTotal + alreadyRefunded > Number(rules.refundPinOver)
       ? refundPinSentence(rules.refundPinOver, rules.currency)
       : null);
   const saleAgeMs =

@@ -7,6 +7,7 @@ import {
   ApprovalNeeded,
   ApprovalRefused,
   approvalFor,
+  PIN_LOCKED,
   replayApproval,
   tillRuleResponse,
   verifyManagerPin,
@@ -107,9 +108,9 @@ describe("a manager's PIN approving at the till", () => {
     const notApprover = tillRuleResponse(new ApprovalRefused("Pick someone who can approve this.", 409, "approver"))!;
     expect(notApprover.status).toBe(409);
     expect(await notApprover.json()).toMatchObject({ needsApprover: true, fieldErrors: { approver: "Pick someone who can approve this." } });
-    const locked = tillRuleResponse(new ApprovalRefused("Too many tries. Try again in 15 minutes.", 423, null))!;
+    const locked = tillRuleResponse(new ApprovalRefused(PIN_LOCKED, 423, null))!;
     expect(locked.status).toBe(423);
-    expect(await locked.json()).toEqual({ error: "Too many tries. Try again in 15 minutes." });
+    expect(await locked.json()).toEqual({ error: "Too many tries. This manager's PIN is locked." });
   });
 
   it("locks after five wrong tries and answers 423, even to the right PIN", async () => {

@@ -686,7 +686,7 @@ export async function POST(request: NextRequest) {
           review: null,
         };
     const ruleReview = approval.review;
-    if (approval.approvedBy) overrideReason = `${overrideReason} (approved by ${approval.approvedBy.name})`;
+    // The approver goes into the sale's audit event, not into the reason text.
 
     // What the review found, written onto the sale. This is the record a manager
     // reads later — and the one the till's offline-queue screen reads back to say
@@ -931,6 +931,7 @@ export async function POST(request: NextRequest) {
       })),
       promotionCode: promotion?.promoCode ?? null,
       overrideReason: overrideReason ?? null,
+      approvedBy: approval.approvedBy,
       notes: normalizedNotes || null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       idCheckedAt: input.idChecked && ageRestricted.length > 0 ? soldAt : null,

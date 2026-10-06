@@ -50,7 +50,11 @@ export type ApproverInput = z.infer<typeof approverSchema>;
 export type Approval = { id: string; name: string };
 
 export const WRONG_PIN = "That PIN is not right.";
-export const PIN_LOCKED = "Too many tries. Try again in 15 minutes.";
+/**
+ * Said without a duration: how long the lock lasts is ADM-03's rule (C-31:
+ * until a new PIN is issued), which `evaluateTillPinAttempt` carries.
+ */
+export const PIN_LOCKED = "Too many tries. This manager's PIN is locked.";
 export const NOT_AN_APPROVER = "Pick someone who can approve this.";
 
 /** 409: the rules ask for a manager and none (or nobody who may) was given. The till opens its PIN dialog. */

@@ -254,6 +254,8 @@ export async function auditSalePosted(
     lineCount: number;
     /** A discount taken at the counter needs a reason and sometimes an approver. */
     overrideReason?: string | null;
+    /** The manager whose PIN approved the discount or price (SET-06), when the till rules asked for one. */
+    approvedBy?: { id: string; name: string } | null;
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -270,6 +272,8 @@ export async function auditSalePosted(
       currency: input.currency,
       baseAmount: auditAmount(input.baseAmount),
       lineCount: input.lineCount,
+      approvedById: input.approvedBy?.id ?? null,
+      approvedByName: input.approvedBy?.name ?? null,
     },
   });
 }
@@ -288,7 +292,7 @@ export async function auditSaleReversed(
     currency: string;
     reason: string | null;
     /**
-     * The manager who stood at the till and typed their password, when the
+     * The manager who stood at the till and typed their PIN, when the
      * person doing the reversing could not do it on their own authority.
      *
      * This is the single most important field in the module. A reversal is how

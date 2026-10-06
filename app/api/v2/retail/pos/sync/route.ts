@@ -47,7 +47,7 @@ import {
 import { fiscaliseRetailSales } from "@/lib/retail/fiscalisation";
 import { requirePosDevice, type PosDevice } from "@/lib/retail/devices";
 import { approverSchema, replayApproval } from "@/lib/retail/manager-pin";
-import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
+import { doneOffline, loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
 import { offlineDiscountReview } from "@/lib/retail/till-rule-words";
 import { SOLD_AFTER_UNPAIR, UNPAIRED_REVIEW_REASON, unpairedSaleVerdict } from "@/lib/retail/device-words";
 
@@ -583,7 +583,6 @@ async function processCreateSale(
     const overrideReason = [
       payload.overrideReason?.trim() || null,
       review.overrideNote,
-      discount.approvedBy ? `Discount approved by ${discount.approvedBy.name}` : null,
     ]
       .filter((value): value is string => Boolean(value))
       .join(" | ");
@@ -652,6 +651,8 @@ async function processCreateSale(
       lines: saleLines,
       promotionCode: promotion?.promoCode ?? null,
       overrideReason: overrideReason || null,
+      // The manager whose PIN let the discount through: into the audit event, not the reason text.
+      approvedBy: discount.approvedBy,
       notes: payload.offlineCreated ? `Offline replay from device ${ctx.device.id}` : null,
       device: { id: ctx.device.id, registerId: ctx.device.registerId },
       // Sold before this device was unpaired, sent in after, or over the discount
@@ -720,6 +721,10 @@ async function processVoidSale(
       return { clientOperationId: op.clientOperationId, status: "failed", error: "Open shift not found" };
     }
 
+    // Lenient (kept for review) only when it was really done offline; else the counter's rules.
+    const voidedAt = new Date(payload.voidedAt);
+    const offline = doneOffline(voidedAt, new Date());
+
     const { sale, accounting } = await voidRetailSaleTransaction({
       actor: {
         companyId: ctx.companyId,
@@ -732,10 +737,10 @@ async function processVoidSale(
       shiftId: resolvedShiftId,
       reason: payload.reason,
       approver: replayedApprover(payload.approver),
-      replay: true,
+      replay: offline,
       notes: payload.notes ?? null,
       periodOverrideReason: payload.periodOverrideReason ?? null,
-      postedAt: new Date(payload.voidedAt),
+      postedAt: offline ? voidedAt : new Date(),
       deviceId: ctx.device.id,
     });
 
@@ -820,6 +825,10 @@ async function processRefundSale(
       };
     });
 
+    // Lenient (kept for review) only when it was really done offline; else the counter's rules.
+    const refundedAt = payload.refundedAt ? new Date(payload.refundedAt) : null;
+    const offline = doneOffline(refundedAt, new Date());
+
     const { sale, accounting } = await refundRetailSaleTransaction({
       actor: {
         companyId: ctx.companyId,
@@ -832,7 +841,7 @@ async function processRefundSale(
       shiftId: resolvedShiftId,
       reason: payload.reason,
       approver: replayedApprover(payload.approver),
-      replay: true,
+      replay: offline,
       lines: requestedLines,
       payments:
         payload.payments && payload.payments.length > 0
@@ -846,7 +855,7 @@ async function processRefundSale(
             ],
       notes: payload.notes ?? payload.reason,
       periodOverrideReason: payload.periodOverrideReason ?? null,
-      postedAt: payload.refundedAt ? new Date(payload.refundedAt) : undefined,
+      postedAt: offline && refundedAt ? refundedAt : undefined,
       deviceId: ctx.device.id,
     });
 

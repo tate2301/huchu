@@ -34,7 +34,8 @@ export const OFFLINE_HOURS_MAX = 72;
 /** The highest refund PIN limit and cash-drop prompt the page takes (W-64). */
 export const REFUND_PIN_OVER_MAX = 100_000;
 export const CASH_DROP_PROMPT_MAX = 1_000_000;
-export const REASONS_MAX = 12;
+/** W-64: 1–20 reasons in each list. */
+export const REASONS_MAX = 20;
 
 /** "10%". */
 export function percentWords(value: string | number): string {
@@ -130,10 +131,8 @@ export function referenceSentence(tenderLabel: string): string {
   return `${tenderLabel} needs its slip or confirmation number, ${MIN_REFERENCE_LENGTH} characters or more.`;
 }
 
-/** The review line on a sale sent in from a till offline longer than the rules allow. */
-export function offlineTooLongSentence(hours: number): string {
-  return `Sold offline for more than ${hoursWords(hours)}.`;
-}
+/** The review line on a sale sent in from a till offline longer than the rules allow (W-64's copy). */
+export const OFFLINE_TOO_LONG_SENTENCE = "Sold offline longer than the till rules allow";
 
 /** The review line on an offline refund or void the rules wanted a manager for, sent in without one. */
 export function offlineReversalReview(kind: "refund" | "void", reason: string): string {

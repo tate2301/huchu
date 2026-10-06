@@ -11,6 +11,7 @@ import {
   checkTillRule,
   defaultTillRules,
   discountPercent,
+  doneOffline,
   listedReason,
   loadTillRules,
   offlineReview,
@@ -32,6 +33,16 @@ describe("when the till rules ask for a manager", () => {
     });
     expect(checkTillRule(rules(), { act: "refund", amount: "20.00" })).toEqual({ needsApprover: false });
     expect(checkTillRule(rules(), { act: "refund", amount: 15 })).toEqual({ needsApprover: false });
+  });
+
+  it("judges a sale's refunds together, so it cannot be handed back in pieces under the limit", () => {
+    // US$31.20 refunded as two halves: the first is under the limit, the second takes the sale over it.
+    expect(checkTillRule(rules(), { act: "refund", amount: "15.60" })).toEqual({ needsApprover: false });
+    expect(checkTillRule(rules(), { act: "refund", amount: "15.60", alreadyRefunded: "15.60" })).toEqual({
+      needsApprover: true,
+      reason: "Refunds over US$20.00 need a manager PIN.",
+    });
+    expect(checkTillRule(rules(), { act: "refund", amount: "4.40", alreadyRefunded: "15.60" })).toEqual({ needsApprover: false });
   });
 
   it("asks for voids always, after five minutes, or never", () => {
@@ -134,6 +145,16 @@ describe("when the till rules ask for a manager", () => {
 });
 
 describe("reasons, tenders and offline sales", () => {
+  it("counts a refund or void from the queue as done offline only when it says when, and that is over a minute ago", () => {
+    const now = new Date("2026-10-05T12:00:00Z");
+    expect(doneOffline(new Date("2026-10-05T11:30:00Z"), now)).toBe(true);
+    expect(doneOffline(new Date("2026-10-05T11:59:00Z"), now)).toBe(true);
+    expect(doneOffline(new Date("2026-10-05T11:59:30Z"), now)).toBe(false);
+    expect(doneOffline(new Date("2026-10-05T12:05:00Z"), now)).toBe(false);
+    expect(doneOffline(new Date("not a date"), now)).toBe(false);
+    expect(doneOffline(null, now)).toBe(false);
+  });
+
   it("takes only a listed reason, in the list's spelling", () => {
     expect(listedReason(rules(), "refund", " changed MIND ")).toBe("Changed mind");
     expect(listedReason(rules(), "void", "Test sale")).toBe("Test sale");
@@ -172,7 +193,7 @@ describe("reasons, tenders and offline sales", () => {
   it("marks a sale kept offline longer than the rules allow", () => {
     const now = new Date("2026-10-05T12:00:00Z");
     expect(offlineReview(rules(), new Date("2026-10-04T13:00:00Z"), now)).toBeNull();
-    expect(offlineReview(rules(), new Date("2026-10-04T11:00:00Z"), now)).toBe("Sold offline for more than 24 hours.");
+    expect(offlineReview(rules(), new Date("2026-10-04T11:00:00Z"), now)).toBe("Sold offline longer than the till rules allow");
   });
 
   it("tells the till the rules as it uses them", () => {
@@ -251,6 +272,18 @@ describe("the Till rules page's rules", () => {
     ).toEqual({
       ok: true,
       values: { refundPinOver: "100000.00", cashDropPromptOver: "1000000.00", offlineHours: "72 hours" },
+    });
+  });
+
+  it("takes 1 to 20 reasons in each list", () => {
+    const reasons = (count: number) => Array.from({ length: count }, (_, index) => `Reason ${index + 1}`);
+    expect(checkSettingsChanges(tillRulesPage, { refundReasons: reasons(20) })).toEqual({
+      ok: true,
+      values: { refundReasons: reasons(20) },
+    });
+    expect(checkSettingsChanges(tillRulesPage, { voidReasons: reasons(21) })).toEqual({
+      ok: false,
+      fieldErrors: { voidReasons: "Keep it to 20 reasons." },
     });
   });
 

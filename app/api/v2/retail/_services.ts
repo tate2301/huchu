@@ -835,6 +835,11 @@ export async function createRetailSaleTransaction(input: {
   lines: RetailSaleLineInput[];
   promotionCode?: string | null;
   overrideReason?: string | null;
+  /**
+   * The manager whose PIN let a discount or a price over the shelf through
+   * (SET-06). It goes into the sale's audit event, not into `overrideReason`.
+   */
+  approvedBy?: Approval | null;
   notes?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
@@ -1084,6 +1089,7 @@ export async function createRetailSaleTransaction(input: {
           baseAmount: created.baseAmount,
           lineCount: input.lines.length,
           overrideReason: created.overrideReason,
+          approvedBy: input.approvedBy ?? null,
         });
 
         return created;
@@ -1159,11 +1165,6 @@ async function reversalApproval(
     return replayApproval({ ...asked, review: (reason) => offlineReversalReview(rule.kind, reason) });
   }
   return { approvedBy: await approvalFor(asked), review: null };
-}
-
-/** "Changed mind (approved by Tafara Nyathi)": the reason as the reversal keeps it. */
-function withApprover(reason: string, approvedBy: Approval | null): string {
-  return approvedBy ? `${reason} (approved by ${approvedBy.name})` : reason;
 }
 
 export async function refundRetailSaleTransaction(input: {
@@ -1377,11 +1378,19 @@ export async function refundRetailSaleTransaction(input: {
 
     // The approval the refund's value needs. A wrong PIN still counts against
     // the approver: the attempt is written outside this transaction.
-    // The limit is in the base currency: the refund is compared at its sale's rate.
+    // The limit is on the sale's refunds together — what earlier refunds gave
+    // back plus this one — so a sale cannot be handed back in pieces under it.
+    // It is in the base currency: the refunds are compared at their sale's rate.
+    const alreadyRefunded = sumMoney(
+      priorRefunds
+        .filter((sale) => sale.saleType === "REFUND")
+        .map((sale) => money(sale.totalAmount).abs().plus(money(sale.depositAmount).abs())),
+    );
     const { approvedBy, review: approvalReview } = await reversalApproval(input, {
       decision: checkTillRule(tillRules, {
         act: "refund",
         amount: toBaseAmount(refundValue, currentSourceSale.exchangeRate),
+        alreadyRefunded: toBaseAmount(alreadyRefunded, currentSourceSale.exchangeRate),
       }),
       kind: "refund",
     });
@@ -1423,7 +1432,7 @@ export async function refundRetailSaleTransaction(input: {
         currency: currentSourceSale.currency,
         exchangeRate: currentSourceSale.exchangeRate,
         baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
-        overrideReason: withApprover(reason, approvedBy),
+        overrideReason: reason,
         reviewReason: [approvalReview, reasonReview, referenceReview].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
@@ -1522,9 +1531,10 @@ export async function refundRetailSaleTransaction(input: {
       A reversal is how a till is stolen from — ring the sale, take the cash,
       refund it — and the question afterwards is always who allowed it.
       Over the till rules' limit a cashier reaches this only with a manager's
-      PIN verified at the counter, and `approvedBy` is that manager. It also
-      goes into `overrideReason` as text on the sale row; that row is mutable,
-      and free text is not evidence.
+      PIN verified at the counter, and `approvedBy` is that manager. The
+      approver lives here, in the audit chain, and not in `overrideReason`:
+      that column keeps the listed reason alone, so Insights groups refunds by
+      why, and a mutable row's free text is not evidence anyway.
     */
     await auditSaleReversed(tx, {
       actor: input.actor,
@@ -1693,7 +1703,7 @@ export async function voidRetailSaleTransaction(input: {
           currentSourceSale.exchangeRate,
         ),
         promotionCode: currentSourceSale.promotionCode,
-        overrideReason: withApprover(reason, approvedBy),
+        overrideReason: reason,
         reviewReason: [approvalReview, reasonReview].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,

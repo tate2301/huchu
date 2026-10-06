@@ -63,7 +63,7 @@
 .cx-seg__item:hover { background: var(--active); color: var(--ink); }
 .cx-seg__item:disabled { opacity: 0.6; cursor: default; }
 .cx-seg__item[aria-pressed="true"], .cx-seg__item[aria-checked="true"], .cx-seg__item[aria-selected="true"] { background: var(--sel-fill); color: var(--on-sel); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
-.cx-seg--field .cx-seg__item { min-height: 30px; font-size: 14px; white-space: normal; text-align: center; }
+.cx-seg--field .cx-seg__item { min-height: 30px; font-size: 13px; line-height: 1.2; white-space: normal; text-align: center; }
 
 /* Switch: on is ink, not a state colour. */
 .cx-switch { flex: none; position: relative; width: 34px; height: 20px; padding: 0; border: 0; border-radius: 99px; background: var(--line-strong); cursor: pointer; }
@@ -74,7 +74,7 @@
 .cx-switch-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .cx-switch-row[aria-checked="true"] { border-color: var(--ink); }
 .cx-switch-row__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cx-switch-row__label { font-weight: 500; }
+.cx-switch-row__label { font-weight: 500; line-height: 1.2; }
 .cx-switch-row__hint { font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
 
 /* Choice chips: one or many picked, in ink. */
@@ -120,7 +120,8 @@
 
 /* ── Fields (5.7.4) ──────────────────────────────────────── */
 .cx-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.cx-label { font-size: 13px; font-weight: 500; color: var(--ink); }
+/* Labels and section titles sit at the boards' normal line height (about 1.2), not the body's 1.4. */
+.cx-label { font-size: 13px; font-weight: 500; line-height: 1.2; color: var(--ink); }
 .cx-label__opt { font-weight: 400; color: var(--ink-3); }
 .cx-hint { font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
 .cx-hint--warn { color: var(--warn); }
@@ -146,7 +147,8 @@
 .cx-tag { height: 26px; display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 10px; border-radius: 6px; background: var(--tray); color: var(--ink); font-size: 13px; }
 .cx-tag__remove { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--ink-3); cursor: pointer; }
 .cx-tag__remove:hover { background: var(--active); color: var(--ink); }
-.cx-tag__remove svg { width: 12px; height: 12px; }
+/* The board's small ×: about 6px of cross in a 20px target. */
+.cx-tag__remove svg { width: 10px; height: 10px; }
 .cx-tags input { flex: 1; min-width: 180px; height: 26px; padding: 0 4px; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink); }
 .cx-photo { position: relative; min-height: 76px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px dashed var(--line-strong); border-radius: 10px; background: var(--ground); color: var(--ink); cursor: pointer; }
 .cx-photo[data-dragging="true"] { border-color: var(--action); }
@@ -261,7 +263,7 @@
 .cx-sheet__body { flex: 1; min-height: 0; overflow: auto; padding: 4px 24px 24px; }
 .cx-sheet__section { padding-top: 20px; display: flex; flex-direction: column; gap: 14px; }
 .cx-sheet__section + .cx-sheet__section { margin-top: 20px; border-top: 1px solid var(--line); }
-.cx-sheet__section-title { margin: 0; font-size: 14px; font-weight: 600; }
+.cx-sheet__section-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.2; }
 .cx-sheet__foot { height: 68px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-top: 1px solid var(--line); background: var(--ground); }
 @media (max-width: 719px) { .cx-sheet, .cx-sheet--wide { width: 100%; } }
 
