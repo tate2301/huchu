@@ -620,6 +620,40 @@ export function buildFiscalDayCountersJson(counters: FiscalDayCounters): string 
 // Close
 // ---------------------------------------------------------------------------
 
+/**
+ * Stop a day taking receipts: OPENED -> CLOSING, the first step of closing it.
+ *
+ * Guarded so a day that closed underneath us is never put back into CLOSING.
+ * Says which state the day was claimed from, so a caller whose close does not
+ * happen can give an open day back ({@link reopenFiscalDay}) and leave one
+ * that was already closing as it was.
+ */
+export async function claimFiscalDayClosing(
+  dayId: string,
+  db: FiscalDayDb = prisma,
+): Promise<typeof FISCAL_DAY_STATUS.OPENED | typeof FISCAL_DAY_STATUS.CLOSING> {
+  const opened = await db.fiscalDay.updateMany({
+    where: { id: dayId, status: FISCAL_DAY_STATUS.OPENED },
+    data: { status: FISCAL_DAY_STATUS.CLOSING, lastError: null },
+  });
+  if (opened.count === 1) return FISCAL_DAY_STATUS.OPENED;
+  const closing = await db.fiscalDay.updateMany({
+    where: { id: dayId, status: FISCAL_DAY_STATUS.CLOSING },
+    data: { lastError: null },
+  });
+  if (closing.count === 1) return FISCAL_DAY_STATUS.CLOSING;
+  const current = await getFiscalDay(dayId, db);
+  throw new FiscalDayNotOpenError({ dayId: current.id, status: current.status });
+}
+
+/** CLOSING -> OPENED: a close that did not happen gives the day back its receipts. */
+export async function reopenFiscalDay(dayId: string, db: FiscalDayDb = prisma): Promise<void> {
+  await db.fiscalDay.updateMany({
+    where: { id: dayId, status: FISCAL_DAY_STATUS.CLOSING },
+    data: { status: FISCAL_DAY_STATUS.OPENED },
+  });
+}
+
 export type CloseFiscalDayInput = {
   dayId: string;
   /** Tenant guard for callers that hold a session rather than a trusted id. */
@@ -669,29 +703,37 @@ export async function closeFiscalDay(input: CloseFiscalDayInput): Promise<CloseF
     throw new FiscalDayNotFoundError(input.dayId);
   }
 
-  const receipts = await prisma.fiscalReceipt.findMany({
-    where: { fiscalDayId: day.id },
-    select: {
-      id: true,
-      status: true,
-      receiptType: true,
-      receiptCurrency: true,
-      receiptCounter: true,
-      receiptGlobalNo: true,
-    },
-    orderBy: [{ receiptGlobalNo: "asc" }],
-  });
+  const readReceipts = () =>
+    prisma.fiscalReceipt.findMany({
+      where: { fiscalDayId: day.id },
+      select: {
+        id: true,
+        status: true,
+        receiptType: true,
+        receiptCurrency: true,
+        receiptCounter: true,
+        receiptGlobalNo: true,
+      },
+      orderBy: [{ receiptGlobalNo: "asc" }],
+    });
 
   if (day.status === FISCAL_DAY_STATUS.CLOSED) {
     return {
       day,
       counters: aggregateFiscalDayCounters({
-        receipts,
+        receipts: await readReceipts(),
         taxLinesByReceiptId: input.taxLinesByReceiptId ?? {},
       }),
       alreadyClosed: true,
     };
   }
+
+  // The day stops taking receipts before they are read: a receipt signed
+  // between a read and the claim would be in the day but missing from its
+  // Z-report. The claim waits on the row lock of any signing in flight, so
+  // what is read after it is every receipt the day will ever hold.
+  const claimedFrom = await claimFiscalDayClosing(day.id);
+  const receipts = await readReceipts();
 
   const unsubmitted = receipts.filter((r) => UNSUBMITTED_STATUSES.includes(r.status));
   if (unsubmitted.length > 0) {
@@ -700,27 +742,15 @@ export async function closeFiscalDay(input: CloseFiscalDayInput): Promise<CloseF
       status: r.status as string,
       receiptGlobalNo: r.receiptGlobalNo,
     }));
-    // Recorded on the day as well as thrown: the supervisor who hits this is
-    // usually not the person reading the API response.
+    // A day that was open goes back to taking receipts: refusing to close must
+    // not half-close it. Recorded on the day as well as thrown: the supervisor
+    // who hits this is usually not the person reading the API response.
+    if (claimedFrom === FISCAL_DAY_STATUS.OPENED) await reopenFiscalDay(day.id);
     await prisma.fiscalDay.update({
       where: { id: day.id },
       data: { lastError: `${unsubmitted.length} unsubmitted receipt(s) block close` },
     });
     throw new FiscalDayHasPendingReceiptsError(day.id, detail);
-  }
-
-  // OPENED -> CLOSING, guarded: a day that closed underneath us must not be
-  // reopened into CLOSING by this update.
-  const claimed = await prisma.fiscalDay.updateMany({
-    where: {
-      id: day.id,
-      status: { in: [FISCAL_DAY_STATUS.OPENED, FISCAL_DAY_STATUS.CLOSING] },
-    },
-    data: { status: FISCAL_DAY_STATUS.CLOSING, lastError: null },
-  });
-  if (claimed.count !== 1) {
-    const current = await getFiscalDay(day.id);
-    throw new FiscalDayNotOpenError({ dayId: current.id, status: current.status });
   }
 
   const counters = aggregateFiscalDayCounters({

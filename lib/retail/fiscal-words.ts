@@ -39,10 +39,10 @@ export function connectionWords(input: {
   if (!input.registered) return { state: "NOT_CONNECTED", text: "Not connected yet." };
   const day = input.activeDay;
   if (day?.status === "CLOSING") {
-    // Its report went to ZIMRA and was not taken: no day is open until it is.
+    // Its report is on its way to ZIMRA, or was not taken: no day is open until it is.
     return {
       state: input.unreachableSince ? "UNREACHABLE" : "CONNECTED",
-      text: `Day ${day.no}'s report waits for ZIMRA. Sales are not signed until it is taken.`,
+      text: `Day ${day.no}'s report waits for ZIMRA. Sales wait for day ${day.no + 1} until it is taken.`,
     };
   }
   if (input.unreachableSince) {
@@ -84,9 +84,9 @@ export function heldReceiptWords(silentSince: Date): string {
   return `ZIMRA has not answered since ${formatTime(silentSince)}. The receipt is signed and waits to be sent.`;
 }
 
-/** Rung while a day's report waits for ZIMRA: no day is open to sign it in. */
+/** Rung while a day's report is on its way to ZIMRA: no day is open, so the sale waits for the next one. */
 export function saleWhileClosingWords(dayNo: number): string {
-  return `Day ${dayNo}'s report waits for ZIMRA. Sales are not signed until it is taken.`;
+  return `Day ${dayNo}'s report waits for ZIMRA. This sale is signed into day ${dayNo + 1} once it is taken.`;
 }
 
 /** Rung before the open day began (an old offline sale): ZIMRA takes no receipt dated before its day. */

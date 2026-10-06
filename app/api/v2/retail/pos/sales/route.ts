@@ -496,12 +496,6 @@ export async function POST(request: NextRequest) {
       return errorResponse("One or more catalog items are invalid", 400);
     }
 
-    // A sale that finds no fiscal day open (closed by hand while the tills sell) opens one to be signed in
-    // (SET-08), before the sale is stamped: ZIMRA takes no receipt dated before its day.
-    await openFiscalDayIfNone(
-      session.user.companyId,
-      input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : undefined,
-    );
     // A liquor store's licence: no alcohol outside its hours, and none without
     // an ID check. Judged at the moment of sale, which for a replay is when the
     // till rang it.
@@ -908,6 +902,13 @@ export async function POST(request: NextRequest) {
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
+    // A sale that finds no fiscal day open (closed by hand while the tills sell) opens one to be signed in
+    // (SET-08): once every check above has let it through, so a refused sale opens nothing, and before the
+    // sale is stamped, because ZIMRA takes no receipt dated before its day.
+    await openFiscalDayIfNone(
+      session.user.companyId,
+      input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : undefined,
+    );
     const { sale, accounting } = await createRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,

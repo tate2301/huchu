@@ -12,9 +12,11 @@ import { fiscalRefusal } from "../../../_respond";
 /**
  * "Close day {n}" on Setup › Fiscal device (W-06, C-14: its own endpoint).
  * The owner closes the open day: its Z-report, signed by the device, goes to
- * ZIMRA, and the page's values come back with the day closed. A day whose
- * receipts ZIMRA has not all taken is refused (409); ZIMRA refusing the
- * report, or not answering, is a 502 and the day stays closing.
+ * ZIMRA, and the page's values come back with the day closed, and the sales
+ * the tills rang while it closed signed into the next day. A day whose
+ * receipts ZIMRA has not all taken is refused (409) and stays open. ZIMRA not
+ * answering GetStatus or CloseDay is a 502 and the day stays open; a report
+ * ZIMRA refuses is a 502 and the day stays closing.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);

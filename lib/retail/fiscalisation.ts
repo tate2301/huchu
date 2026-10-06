@@ -90,9 +90,10 @@
  * Every receipt is dated with the sale's own `postedAt`, because that is what
  * the customer holds a slip for, and ZIMRA takes no receipt dated before its
  * fiscal day opened (SET-08). A sale rung before the open day began (an old
- * offline sale), or while no day is open because one's report waits on ZIMRA,
- * is therefore not signed, and says so. Nothing here redates a sale to make it
- * fit.
+ * offline sale) is therefore not signed, and says so. One rung while no day is
+ * open because the last one's report is on its way to ZIMRA is PENDING with no
+ * receipt: the next day opens no later than it and it is signed there once the
+ * report is taken. Nothing here redates a sale to make it fit.
  */
 import type { RetailSale, RetailSaleLine } from "@prisma/client";
 import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
@@ -820,6 +821,15 @@ async function activeFiscalDevice(companyId: string) {
   return { provider, day };
 }
 
+/** A sale rung while day `dayNo` closes: not signed yet, and not failed — it goes into the next day. */
+function waitsForNextDay(sale: { id: string; saleNo: string | null }, dayNo: number): RetailFiscalOutcome {
+  return outcome(sale, {
+    fiscalStatus: "PENDING",
+    errorCode: "FISCAL_DAY_NOT_OPEN",
+    fiscalError: saleWhileClosingWords(dayNo),
+  });
+}
+
 /**
  * Fiscalise one posted till sale. Never throws for a fiscalisation problem —
  * every outcome is a value, because the caller is a till whose money has
@@ -873,17 +883,13 @@ export async function fiscaliseRetailSale(input: {
   const receiptDate = sale.postedAt ?? sale.createdAt;
 
   // A receipt is signed into the day that is open, and ZIMRA takes none dated
-  // before its day opened (SET-08). While a day's report waits on ZIMRA no day
-  // is open, so a sale rung then has no day to go into; one rung before the
-  // open day began (an old offline sale) does not fit it. Neither is signed,
-  // and each says so. A receipt already signed is sent as it was.
+  // before its day opened (SET-08). While a day's report is on its way to ZIMRA
+  // no day is open, so a sale rung then waits, unsigned, and goes into the next
+  // day once the report is taken (`signSalesRungWhileClosing`). One rung
+  // before the open day began (an old offline sale) does not fit it and is not
+  // signed. Each says so. A receipt already signed is sent as it was.
   if (!signed && device.day?.status === FISCAL_DAY_STATUS.CLOSING) {
-    return outcome(sale, {
-      fiscalStatus: "FAILED",
-      errorCode: "FISCAL_DAY_NOT_OPEN",
-      fiscalError: saleWhileClosingWords(device.day.fiscalDayNo),
-      blocksDevice: true,
-    });
+    return waitsForNextDay(sale, device.day.fiscalDayNo);
   }
   if (!signed && device.day && device.day.openedAt.getTime() > receiptDate.getTime()) {
     return outcome(sale, {
@@ -976,6 +982,12 @@ export async function fiscaliseRetailSale(input: {
     fiscal: bundle.fiscal,
     holdWhileUnreachableMs: input.holdWhileUnreachable ? FISCAL_OFFLINE_WINDOW_MS : undefined,
   });
+
+  // The day stopped taking receipts while this one was being signed: it waits for the next day too.
+  if (!result.receiptId && result.errorCode === "FISCAL_DAY_NOT_OPEN") {
+    const now = await activeFiscalDevice(input.companyId);
+    if (now?.day?.status === FISCAL_DAY_STATUS.CLOSING) return waitsForNextDay(sale, now.day.fiscalDayNo);
+  }
 
   // Read back what the signer wrote. The QR and the global number exist from
   // the moment the receipt is signed — before FDMS has answered — which is what

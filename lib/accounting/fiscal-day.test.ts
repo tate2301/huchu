@@ -22,10 +22,12 @@ import {
   FiscalDayHasPendingReceiptsError,
   FiscalDayNotOpenError,
   aggregateFiscalDayCounters,
+  claimFiscalDayClosing,
   closeFiscalDay,
   getOpenFiscalDay,
   openFiscalDay,
   recordReceiptHash,
+  reopenFiscalDay,
   requireOpenFiscalDay,
   reserveNextReceiptNumbers,
 } from "@/lib/accounting/fiscal-day";
@@ -352,6 +354,19 @@ describe("closeFiscalDay", () => {
       where: { id: { in: [pending.id, failed.id] } },
       data: { status: "SUCCESS" },
     });
+  });
+
+  it("stops the day taking receipts before it counts them, and gives an open day back when it does not close", async () => {
+    const day = await requireOpenFiscalDay({ companyId, providerConfigId });
+
+    expect(await claimFiscalDayClosing(day.id)).toBe(FISCAL_DAY_STATUS.OPENED);
+    // Nothing signed from here on lands in the day its report is counting.
+    await expect(reserveNextReceiptNumbers(day.id)).rejects.toBeInstanceOf(FiscalDayNotOpenError);
+    // A close that is tried again finds it closing, and says so.
+    expect(await claimFiscalDayClosing(day.id)).toBe(FISCAL_DAY_STATUS.CLOSING);
+
+    await reopenFiscalDay(day.id);
+    expect((await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).status).toBe(FISCAL_DAY_STATUS.OPENED);
   });
 
   it("closes with aggregated counters and the closing signature", async () => {

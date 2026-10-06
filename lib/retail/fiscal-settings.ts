@@ -18,6 +18,7 @@ import {
 } from "@/lib/accounting/fdms-receipt-signing";
 import { registerFiscalDevice } from "@/lib/accounting/fdms-registration";
 import {
+  claimFiscalDayClosing,
   closeFiscalDay,
   FISCAL_DAY_STATUS,
   FiscalDayAlreadyOpenError,
@@ -25,10 +26,11 @@ import {
   FiscalDayNotFoundError,
   FiscalDayNotOpenError,
   openFiscalDay,
+  reopenFiscalDay,
 } from "@/lib/accounting/fiscal-day";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
-import { resendRetailReceipts, retailFiscalDayTaxLines } from "@/lib/retail/fiscalisation";
+import { fiscaliseRetailSales, resendRetailReceipts, retailFiscalDayTaxLines } from "@/lib/retail/fiscalisation";
 import {
   connectionWords,
   DAY_CLOSE_WORDS,
@@ -375,9 +377,11 @@ class FdmsCloseRefused extends Error {
   }
 }
 
-/** ZIMRA did not answer, so the day stays open: what "Close day" and the tills are told. */
-function silentCloseWords(dayNo: number, detail: string): string {
-  return `ZIMRA did not answer, so day ${dayNo} stays open and the tills keep signing into it. Close it again once ZIMRA is back. (${detail})`;
+/** ZIMRA did not answer: an open day stays open, and a day whose report it refused still waits. */
+function silentCloseWords(dayNo: number, wasClosing: boolean, detail: string): string {
+  return wasClosing
+    ? `ZIMRA did not answer, so day ${dayNo}'s report still waits. Close it again once ZIMRA is back. (${detail})`
+    : `ZIMRA did not answer, so day ${dayNo} stays open and the tills keep signing into it. Close it again once ZIMRA is back. (${detail})`;
 }
 
 /**
@@ -385,12 +389,15 @@ function silentCloseWords(dayNo: number, detail: string): string {
  * the device's key and sent to ZIMRA as its Z-report (`CloseDay`).
  *
  * ZIMRA is asked how the device stands first: while it does not answer, the
- * day is left as it is, open, and its tills keep signing into it ("Keep
+ * day is left as it is, and an open day's tills keep signing into it ("Keep
  * selling, sign later") — a report ZIMRA never received has not closed
- * anything. Then the day's receipts ZIMRA has not taken go again, and the
- * report. A report that goes unanswered leaves the day open the same way; one
- * ZIMRA answers with a no leaves it closing (no day open, the tills' sales not
- * signed) until it is closed again.
+ * anything. Then the day stops taking receipts (closing) before anything is
+ * counted, so the report counts every receipt the day holds; its receipts
+ * ZIMRA has not taken go again, and the report. A report that goes unanswered
+ * gives an open day back its receipts; one ZIMRA answers with a no leaves it
+ * closing until it is closed again. A sale rung while the day is closing waits
+ * and is signed into the next day once the report is taken
+ * ({@link signSalesRungWhileClosing}).
  */
 export async function closeShopFiscalDay(
   actor: RetailAuditActor,
@@ -407,19 +414,32 @@ export async function closeShopFiscalDay(
   if (day.status === FISCAL_DAY_STATUS.CLOSED) throw new FiscalRefused(`Day ${day.fiscalDayNo} is already closed.`, 409);
   const key = resolveDeviceSigningKey(device);
   if (!key) throw new FiscalRefused("Connect the device before closing a day.", 409);
+  const wasClosing = day.status === FISCAL_DAY_STATUS.CLOSING;
 
   try {
     await getDeviceStatus({ provider: device });
   } catch (error) {
     await recordFdmsContact(device.id, false);
-    throw new FiscalRefused(silentCloseWords(day.fiscalDayNo, error instanceof Error ? error.message : "no reply"), 502);
+    throw new FiscalRefused(silentCloseWords(day.fiscalDayNo, wasClosing, error instanceof Error ? error.message : "no reply"), 502);
   }
   await recordFdmsContact(device.id, true);
 
-  // "Sign later": what the tills signed while ZIMRA was away goes again now, so the report can count it.
-  await resendRetailReceipts({ companyId: actor.companyId, fiscalDayId: day.id });
-  const taxLinesByReceiptId = await retailFiscalDayTaxLines({ companyId: actor.companyId, fiscalDayId: day.id });
+  let claimedFrom: Awaited<ReturnType<typeof claimFiscalDayClosing>>;
   try {
+    claimedFrom = await claimFiscalDayClosing(day.id);
+  } catch (error) {
+    if (error instanceof FiscalDayNotOpenError) throw new FiscalRefused(`Day ${day.fiscalDayNo} is already closed.`, 409);
+    throw error;
+  }
+  // Not closed after all: a day that was open takes the tills' receipts again.
+  const giveBack = async () => {
+    if (claimedFrom === FISCAL_DAY_STATUS.OPENED) await reopenFiscalDay(day.id);
+  };
+
+  try {
+    // "Sign later": what the tills signed while ZIMRA was away goes again now, so the report can count it.
+    await resendRetailReceipts({ companyId: actor.companyId, fiscalDayId: day.id });
+    const taxLinesByReceiptId = await retailFiscalDayTaxLines({ companyId: actor.companyId, fiscalDayId: day.id });
     await closeFiscalDay({
       dayId: day.id,
       companyId: actor.companyId,
@@ -446,12 +466,15 @@ export async function closeShopFiscalDay(
           });
         } catch (error) {
           await recordFdmsContact(device.id, false);
-          throw new FdmsCloseRefused(silentCloseWords(day.fiscalDayNo, error instanceof Error ? error.message : "no reply"), true);
+          throw new FdmsCloseRefused(
+            silentCloseWords(day.fiscalDayNo, wasClosing, error instanceof Error ? error.message : "no reply"),
+            true,
+          );
         }
         await recordFdmsContact(device.id, true);
         if (answer.status !== "SUCCESS") {
           throw new FdmsCloseRefused(
-            `ZIMRA did not take day ${day.fiscalDayNo}'s report: ${answer.error ?? "no reason given"}. Sales are not signed until it is taken.`,
+            `ZIMRA did not take day ${day.fiscalDayNo}'s report: ${answer.error ?? "no reason given"}. Sales wait for day ${day.fiscalDayNo + 1} until it is taken.`,
             false,
           );
         }
@@ -460,15 +483,12 @@ export async function closeShopFiscalDay(
     });
   } catch (error) {
     if (error instanceof FdmsCloseRefused) {
-      // Never received, so never closed: the day takes the tills' receipts again.
-      if (error.silent) {
-        await prisma.fiscalDay.updateMany({
-          where: { id: day.id, status: FISCAL_DAY_STATUS.CLOSING },
-          data: { status: FISCAL_DAY_STATUS.OPENED },
-        });
-      }
+      // Never received, so never closed.
+      if (error.silent) await giveBack();
       throw new FiscalRefused(error.message, 502);
     }
+    // closeFiscalDay gives back only a day it claimed itself; this one was claimed here.
+    await giveBack();
     if (error instanceof FiscalDayHasPendingReceiptsError) {
       const count = error.receipts.length;
       throw new FiscalRefused(
@@ -492,6 +512,8 @@ export async function closeShopFiscalDay(
     ...FISCAL_SETTINGS_ENTITY,
     payload: { dayNo: day.fiscalDayNo, deviceId: day.deviceId, total, how },
   });
+  // The tills kept selling while the report was on its way: those sales go into the next day now.
+  await signSalesRungWhileClosing(actor.companyId);
 }
 
 /** Whether FDMS has not answered the device for less than the offline window: nothing new is sent to it meanwhile. */
@@ -535,7 +557,8 @@ export async function closeFiscalDayIfLastShift(
  * day still open after its last shift closed — ZIMRA did not answer then — is
  * closed once ZIMRA answers, while no shift is open. A day that a shift is
  * selling into stays open, even past midnight: it closes with that shift.
- * Nothing on a till or a shift opening ever sends a day's report.
+ * Nothing on a till or a shift opening ever sends a day's report. Sales rung
+ * while a day closed that the close did not get to are signed first.
  */
 export async function closeWaitingFiscalDays(onlyCompanyId?: string): Promise<string> {
   const devices = await prisma.fiscalisationProviderConfig.findMany({
@@ -549,6 +572,9 @@ export async function closeWaitingFiscalDays(onlyCompanyId?: string): Promise<st
   const said: string[] = [];
   for (const device of devices) {
     const { companyId } = device;
+    // A close that stopped before signing what the tills rang meanwhile: those sales go in now.
+    const signed = await signSalesRungWhileClosing(companyId);
+    if (signed > 0) said.push(`${signed} ${signed === 1 ? "sale" : "sales"} rung while a day closed signed`);
     if ((await loadFiscalSettings(companyId)).dayClose !== "WITH_LAST_SHIFT") continue;
     const day = await activeDay(device);
     if (!day || day.status !== FISCAL_DAY_STATUS.OPENED) continue;
@@ -571,16 +597,58 @@ export async function closeWaitingFiscalDays(onlyCompanyId?: string): Promise<st
 }
 
 /**
+ * The moment a closed day stopped taking receipts, as far as the next day is
+ * concerned: the newest till sale signed into it, or its own opening when it
+ * took none. The next day opens no earlier, because ZIMRA takes no receipt
+ * dated before its day and none dated before the last one it took.
+ */
+async function lastReceiptAt(day: { id: string; openedAt: Date }): Promise<Date> {
+  const last = await prisma.fiscalReceipt.findFirst({
+    where: { fiscalDayId: day.id, retailSale: { postedAt: { not: null } } },
+    orderBy: { retailSale: { postedAt: "desc" } },
+    select: { retailSale: { select: { postedAt: true } } },
+  });
+  const at = last?.retailSale?.postedAt;
+  return at && at.getTime() > day.openedAt.getTime() ? at : day.openedAt;
+}
+
+/**
+ * The till sales rung while a day was closing: posted after its last receipt
+ * and before its report was taken, and not signed — no day was open to take
+ * them. Oldest first, the order they are signed in.
+ */
+async function salesRungWhileClosing(
+  companyId: string,
+  day: { id: string; openedAt: Date; closedAt: Date | null },
+  take?: number,
+) {
+  if (!day.closedAt) return [];
+  return prisma.retailSale.findMany({
+    where: {
+      companyId,
+      status: "POSTED",
+      postedAt: { gte: await lastReceiptAt(day), lte: day.closedAt },
+      fiscalReceipt: { is: null },
+    },
+    orderBy: [{ postedAt: "asc" }, { id: "asc" }],
+    select: { id: true, postedAt: true },
+    ...(take ? { take } : {}),
+  });
+}
+
+/**
  * The shop's fiscal day, opened when none is open: by the day's first shift
- * (the counterpart of closing it with the last shift), and by a sale that
- * finds none (after "Close day" by hand with tills still selling), so every
- * sale has a day to be signed in. A day still open takes the sale, whatever
- * its date; a day whose report waits on ZIMRA (closing) holds the next one
- * back. Local only: nothing here calls ZIMRA.
+ * (the counterpart of closing it with the last shift), by a sale that finds
+ * none (after "Close day" by hand with tills still selling), and by the sales
+ * rung while the last day was closing, so every sale has a day to be signed
+ * in. A day still open takes the sale, whatever its date; a day whose report
+ * waits on ZIMRA (closing) holds the next one back. Local only: nothing here
+ * calls ZIMRA.
  *
  * `from` is the earliest moment the day must take a receipt from (an offline
- * sale's time); it opens then, or when the previous day closed if that was
- * later, because ZIMRA takes no receipt dated before its day. Never throws.
+ * sale's time). It opens then, or at the first sale rung while the last day
+ * was closing if that was earlier — but never before the last day's last
+ * receipt ({@link lastReceiptAt}). Never throws.
  */
 export async function openFiscalDayIfNone(companyId: string, from: Date = new Date()): Promise<{ opened: number | null }> {
   try {
@@ -590,16 +658,58 @@ export async function openFiscalDayIfNone(companyId: string, from: Date = new Da
     const previous = await prisma.fiscalDay.findFirst({
       where: { companyId, providerConfigId: device.id },
       orderBy: { fiscalDayNo: "desc" },
-      select: { openedAt: true, closedAt: true },
+      select: { id: true, openedAt: true, closedAt: true },
     });
-    const floor = previous ? (previous.closedAt ?? previous.openedAt) : from;
-    const openedAt = new Date(Math.min(Math.max(from.getTime(), floor.getTime()), Date.now()));
+    let start = from.getTime();
+    let floor = start;
+    if (previous) {
+      floor = (await lastReceiptAt(previous)).getTime();
+      const [waiting] = await salesRungWhileClosing(companyId, previous, 1);
+      if (waiting?.postedAt) start = Math.min(start, waiting.postedAt.getTime());
+    }
+    const openedAt = new Date(Math.min(Math.max(start, floor), Date.now()));
     const day = await openFiscalDay({ companyId, providerConfigId: device.id, openedAt });
     return { opened: day.fiscalDayNo };
   } catch (error) {
     if (error instanceof FiscalDayAlreadyOpenError) return { opened: null };
     console.error("[retail] opening the fiscal day failed:", error);
     return { opened: null };
+  }
+}
+
+/**
+ * Sign the sales rung while the last day's report was on its way to ZIMRA
+ * into the next day, opening it for them when no sale has yet. Run by the
+ * close once the report is taken, and by the retail worker in case that close
+ * stopped before it got here. Nothing while a day is still closing. Never
+ * throws; says how many it signed.
+ */
+export async function signSalesRungWhileClosing(companyId: string): Promise<number> {
+  try {
+    const device = await shopFiscalDevice(companyId);
+    if (!device?.registeredAt || !device.isActive) return 0;
+    const active = await activeDay(device);
+    if (active?.status === FISCAL_DAY_STATUS.CLOSING) return 0;
+    const previous = await prisma.fiscalDay.findFirst({
+      where: { companyId, providerConfigId: device.id, status: FISCAL_DAY_STATUS.CLOSED },
+      orderBy: { fiscalDayNo: "desc" },
+      select: { id: true, openedAt: true, closedAt: true },
+    });
+    if (!previous) return 0;
+    const waiting = (await salesRungWhileClosing(companyId, previous)).filter(
+      (sale) => !active || (sale.postedAt && sale.postedAt.getTime() >= active.openedAt.getTime()),
+    );
+    if (waiting.length === 0) return 0;
+    if (!active) await openFiscalDayIfNone(companyId, waiting[0].postedAt ?? undefined);
+    const outcomes = await fiscaliseRetailSales({
+      companyId,
+      saleIds: waiting.map((sale) => sale.id),
+      holdWhileUnreachable: true,
+    });
+    return outcomes.filter((outcome) => outcome.fiscalReceiptId !== null && outcome.fiscalStatus !== "FAILED").length;
+  } catch (error) {
+    console.error("[retail] signing the sales rung while the day closed failed:", error);
+    return 0;
   }
 }
 

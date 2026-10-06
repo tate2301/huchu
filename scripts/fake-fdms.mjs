@@ -12,9 +12,10 @@
  * address at `http://127.0.0.1:9911` to use it.
  *
  * It checks one thing ZIMRA checks: a receipt dated before its fiscal day opened is refused
- * (RCPT014). The app never sends OpenDay, so the fake takes a device's day as opening when
- * its previous day's report arrived. Anything else is accepted if it arrives, and a device
- * is registered with whatever key it asks for.
+ * (RCPT014). The app never sends OpenDay, so the fake takes a device's day as opening no
+ * earlier than the last receipt of its previous day, as the app opens it: a sale rung while
+ * that day's report was on its way is signed into the next day with its own time. Anything
+ * else is accepted if it arrives, and a device is registered with whatever key it asks for.
  */
 
 import http from "node:http";
@@ -63,7 +64,9 @@ function signDevice(csrPem) {
 }
 
 let receiptCounter = 0;
-/** When each device's last day report arrived: its next day opens no earlier. */
+/** The newest receipt date each device's current day has taken. */
+const lastReceiptDate = new Map();
+/** Where each device's day opened, as far as the fake knows: its previous day's last receipt. */
 const dayOpenedAfter = new Map();
 
 function send(res, status, body) {
@@ -106,6 +109,10 @@ const server = http.createServer((req, res) => {
           error: `RCPT014: receipt dated ${receiptDate.toISOString()} is before its fiscal day opened (${opened.toISOString()}).`,
         });
       }
+      if (receiptDate && !Number.isNaN(receiptDate.getTime())) {
+        const last = lastReceiptDate.get(deviceId);
+        if (!last || receiptDate > last) lastReceiptDate.set(deviceId, receiptDate);
+      }
       receiptCounter += 1;
       const receiptID = 100000 + receiptCounter;
       return send(res, 200, {
@@ -118,7 +125,8 @@ const server = http.createServer((req, res) => {
       });
     }
     if (operation === "CloseDay") {
-      dayOpenedAfter.set(deviceId, new Date());
+      const last = lastReceiptDate.get(deviceId);
+      if (last) dayOpenedAfter.set(deviceId, last);
       return send(res, 200, { status: "SUCCESS", operationID: `close-${deviceId}-${Date.now()}` });
     }
     if (operation === "GetStatus") {
