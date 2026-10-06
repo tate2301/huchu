@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     if (!currentMatches) {
       await logAuthEvent({
         eventType: "auth.password.change.failed",
-        actor: user.email.toLowerCase(),
+        actor: user.email?.toLowerCase() ?? user.id,
         companyId: user.companyId,
         reason: "CURRENT_PASSWORD_MISMATCH",
         entityType: "user",
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     await logAuthEvent({
       eventType: "auth.password.changed",
-      actor: user.email.toLowerCase(),
+      actor: user.email?.toLowerCase() ?? user.id,
       companyId: user.companyId,
       entityType: "user",
       entityId: user.id,

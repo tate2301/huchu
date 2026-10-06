@@ -11,20 +11,13 @@ import { companyIdFor, db } from "./_support/db";
  * subscription alone, so nothing here is turned away for reasons that belong to
  * `demo-focus` rather than to the product.
  *
- * ## Ten of these routes are redirects, and that is the finding
+ * ## Five of these routes are redirects, and that is the finding
  *
- * `/user-management` and its four children, and all five of `/settings/*`, are
- * aliases into `/preferences/organization/*`. That is fine — the pages moved and
- * the old links are bookmarked — but it was not written down anywhere, and a
- * broken alias is a dead link in a menu somebody still ships. Each one now says
- * where it goes and fails if it goes elsewhere.
- *
- * Worth noticing while reading the list: the four `/user-management` sub-actions
- * — create, password-reset, role-change, status — all land on the same users
- * list. The actions became dialogs on that list and the routes were kept as
- * doors to the room rather than to the drawer. `/stores/issue` kept its
- * `?record=` query when it made the same move; these did not, so a bookmark to
- * "create a user" now opens a list. Recorded in `docs/testing/e2e-status.md`.
+ * All five of `/settings/*` are aliases into `/preferences/organization/*`.
+ * That is fine — the pages moved and the old links are bookmarked — but it was
+ * not written down anywhere, and a broken alias is a dead link in a menu
+ * somebody still ships. Each one now says where it goes and fails if it goes
+ * elsewhere.
  *
  * ## Two shells, one settings area
  *
@@ -117,7 +110,7 @@ const ORGANIZATION: readonly Route[] = [
 ];
 
 /**
- * The legacy `/settings/*` and `/user-management/*` doors.
+ * The legacy `/settings/*` doors.
  *
  * Named `redirectsTo` rather than dropped from the list, so the suite fails if
  * one of them ever starts 404ing or lands somewhere new.
@@ -153,20 +146,6 @@ const ALIASES: readonly Route[] = [
     redirectsTo: "/preferences/organization/templates",
     expect: /Template Library/i,
   },
-  ...(
-    [
-      ["", "Legacy user management"],
-      ["/create", "Legacy user management — create"],
-      ["/password-reset", "Legacy user management — password reset"],
-      ["/role-change", "Legacy user management — role change"],
-      ["/status", "Legacy user management — status"],
-    ] as const
-  ).map(([suffix, name]) => ({
-    path: `/user-management${suffix}`,
-    name,
-    redirectsTo: "/preferences/organization/users",
-    expect: /Manage workspace users, roles, and account lifecycle/i,
-  })),
 ];
 
 const TEMPLATES: readonly Route[] = [

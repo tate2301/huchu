@@ -101,10 +101,10 @@ export function checkValues(kind: SheetKind, values: SheetValues, ctx: SheetCtx)
   for (const section of shownSections(kind, values, ctx)) {
     if (section.forDanger) continue;
     for (const field of shownFields(section, values, ctx)) {
-      if (field.t === "read" || field.fixed?.(ctx)) continue;
+      if (field.t === "read" || field.fixed?.(ctx) || field.readWhen?.(values, ctx)) continue;
       const value = values[field.id];
       if (isEmptyValue(field, value)) {
-        if (!field.opt) errors[field.id] = neededMessage(field.l);
+        if (!field.opt) errors[field.id] = field.needed ?? neededMessage(field.l);
         continue;
       }
       if (field.schema) {

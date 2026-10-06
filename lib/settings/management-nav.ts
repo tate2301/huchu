@@ -80,7 +80,7 @@ export const managementModuleItems: ManagementModuleItem[] = [
     label: "Users",
     href: "/preferences/organization/users",
     icon: MedusaIdBadgeIcon,
-    matchPrefixes: ["/management/users", "/user-management", "/preferences/organization/users"],
+    matchPrefixes: ["/management/users", "/preferences/organization/users"],
   },
   {
     id: "document-templates",
@@ -375,7 +375,7 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     href: "/preferences/organization/users",
     icon: Users,
     gate: { kind: "preference", itemId: "users" },
-    matchPrefixes: ["/management/users", "/user-management"],
+    matchPrefixes: ["/management/users"],
   },
   {
     id: "departments",

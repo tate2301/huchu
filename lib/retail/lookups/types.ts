@@ -35,6 +35,8 @@ export type LookupCtx = {
   userId: string;
   userName: string | null;
   session: SessionLike;
+  /** The request's address: a person added inline gets a join link on this shop's host. */
+  requestUrl?: string;
 };
 
 export type LookupNoun = {
@@ -50,8 +52,16 @@ export type LookupNoun = {
    * `context` narrows where the noun needs it.
    */
   search(ctx: LookupCtx, q: string, context: Record<string, unknown>): Promise<LookupOption[]>;
-  /** The noun's own create service. Throws `LookupFieldErrors` for a 400. */
-  add?(ctx: LookupCtx, fields: Record<string, string>): Promise<LookupOption>;
+  /**
+   * The noun's own create service. Throws `LookupFieldErrors` for a 400.
+   * `context` is the field's own (a person added from "Owner approvals go to"
+   * is an owner). May say something for the toast (`notice`).
+   */
+  add?(
+    ctx: LookupCtx,
+    fields: Record<string, string>,
+    context: Record<string, unknown>,
+  ): Promise<LookupOption & { notice?: string }>;
 };
 
 /** A quick add refused field by field: `{ name: "There is already a category called Beer." }`. */

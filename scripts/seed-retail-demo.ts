@@ -68,6 +68,7 @@ import {
   writeRetailAuditEvent,
 } from "@/lib/retail/audit"
 import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services"
+import { hashInviteToken, INVITE_DAYS } from "@/lib/retail/people/invite"
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -1265,6 +1266,7 @@ async function main() {
   await seedTills(companyId)
   await seedStockPeople(companyId, passwordHash)
   await seedTillPins(companyId, passwordHash)
+  await seedPeople({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, passwordHash, reset })
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
@@ -1452,6 +1454,9 @@ const TILL_PINS: Array<{ email: string; name: string; pin: string }> = [
   { email: "farai.till@bottlestore.test", name: "Farai Moyo", pin: "3691" },
   // The manager approves at the till with hers (SET-06).
   { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", pin: "4826" },
+  // ADM-02: the owner and the stock clerk who counts on the phone carry one too (Staff and PINs: "Set").
+  { email: "owner@bottlestore.test", name: "Tendai Mhlanga", pin: "1357" },
+  { email: "rudo.stock@bottlestore.test", name: "Rudo Moyo", pin: "5091" },
 ]
 
 async function seedTillPins(companyId: string, passwordHash: string) {
@@ -1461,18 +1466,224 @@ async function seedTillPins(companyId: string, passwordHash: string) {
     update: { name: "Kuda Banda", role: "CASHIER", companyId, isActive: true },
     create: { email: "kuda.till@bottlestore.test", name: "Kuda Banda", role: "CASHIER", companyId, password: passwordHash, isActive: true },
   })
+  // ADM-02: when each was last used (Last in on Staff and PINs), and Farai's
+  // locked after five wrong tries a moment ago (the till's 15-minute lock).
+  const now = Date.now()
+  const todayAt = (hour: number, minute: number) => new Date(Math.min(harareTime(0, hour, minute).getTime(), now - 60_000))
+  const used: Record<string, Date> = {
+    "chipo.till@bottlestore.test": new Date(now - 4 * 60_000),
+    "kuda.till@bottlestore.test": new Date(now - 6 * 60_000),
+    "rudo.stock@bottlestore.test": todayAt(10, 40),
+    "tafara.manager@bottlestore.test": todayAt(12, 31),
+    "farai.till@bottlestore.test": harareTime(1, 21, 40),
+  }
   for (const person of TILL_PINS) {
     const user = await prisma.user.findFirst({ where: { companyId, email: person.email }, select: { id: true } })
     if (!user) continue
     const pinHash = await bcrypt.hash(person.pin, 10)
-    await prisma.retailTillPin.upsert({
-      where: { userId: user.id },
-      update: { companyId, pinHash, failedAttempts: 0, lockedUntil: null },
-      create: { companyId, userId: user.id, pinHash },
-    })
+    const locked = person.email === "farai.till@bottlestore.test"
+    const state = {
+      companyId,
+      pinHash,
+      failedAttempts: locked ? 5 : 0,
+      lockedUntil: locked ? new Date(now - 2 * 60_000 + 15 * 60_000) : null,
+      mustChange: false,
+      issuedById: null,
+      lastUnlockedAt: used[person.email] ?? null,
+    }
+    await prisma.retailTillPin.upsert({ where: { userId: user.id }, update: state, create: { userId: user.id, ...state } })
   }
   console.log(`  till PINs: ${TILL_PINS.map((person) => `${person.name} ${person.pin}`).join(", ")}`)
   await seedTillRules(companyId)
+}
+
+/**
+ * ADM-02. Setup › Staff and PINs as the PeopleList board draws it, with the
+ * test accounts of 98-decisions C-40: Tendai Sibanda stays the active stock
+ * clerk and Ruvimbo Chari the bookkeeper who signs in
+ * (`bookkeeper@bottlestore.test`), so the board's invited Ruvimbo is Tatenda
+ * Gumbo here — a cashier at Borrowdale invited two days ago with a PIN, whose
+ * link the run prints. Rufaro Ndlovu is the manager without access (C-44).
+ * Farai Moyo works at Borrowdale and Harare Main Branch (C-42). Phones as the
+ * board has them, in E.164. Each person's `RETAIL_PERSON.INVITED` is at
+ * their `createdAt` (not the owner's), and Rufaro's removal at its day.
+ * `--reset` takes away people an acceptance run added (deleted when nothing
+ * else refers to them, else their access removed).
+ */
+async function seedPeople(input: {
+  companyId: string
+  mainSiteId: string
+  borrowdaleId: string
+  passwordHash: string
+  reset: boolean
+}) {
+  const { companyId, mainSiteId, borrowdaleId, passwordHash } = input
+  type Seeded = {
+    email: string | null
+    name: string
+    role: "SUPERADMIN" | "MANAGER" | "CASHIER" | "STOCK_CLERK" | "FINANCE_OFFICER"
+    sites: string[] | "ALL"
+    phone: string
+    removedDaysAgo?: number
+  }
+  const PEOPLE: Seeded[] = [
+    { email: "owner@bottlestore.test", name: "Tendai Mhlanga", role: "SUPERADMIN", sites: "ALL", phone: "+263774120098" },
+    { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", role: "MANAGER", sites: [mainSiteId], phone: "+263773012290" },
+    { email: "chipo.till@bottlestore.test", name: "Chipo Dube", role: "CASHIER", sites: [mainSiteId], phone: "+263712204410" },
+    { email: "kuda.till@bottlestore.test", name: "Kuda Banda", role: "CASHIER", sites: [mainSiteId], phone: "+263785510921" },
+    { email: "rudo.stock@bottlestore.test", name: "Rudo Moyo", role: "STOCK_CLERK", sites: "ALL", phone: "+263771182044" },
+    { email: "farai.till@bottlestore.test", name: "Farai Moyo", role: "CASHIER", sites: [borrowdaleId, mainSiteId], phone: "+263719027713" },
+    { email: "bookkeeper@bottlestore.test", name: "Ruvimbo Chari", role: "FINANCE_OFFICER", sites: "ALL", phone: "+263775510283" },
+    { email: "tendai.stock@bottlestore.test", name: "Tendai Sibanda", role: "STOCK_CLERK", sites: "ALL", phone: "+263776401187" },
+    { email: "rufaro.manager@bottlestore.test", name: "Rufaro Ndlovu", role: "MANAGER", sites: [mainSiteId], phone: "+263713305521", removedDaysAgo: 19 },
+    { email: null, name: "Tatenda Gumbo", role: "CASHIER", sites: [borrowdaleId], phone: "+263782206614" },
+  ]
+  const owner = await prisma.user.findFirstOrThrow({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true } })
+  const ownerActor = { companyId, userId: owner.id, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" }
+  const personRole: Record<Seeded["role"], string> = {
+    SUPERADMIN: "OWNER",
+    MANAGER: "MANAGER",
+    CASHIER: "CASHIER",
+    STOCK_CLERK: "STOCK_CLERK",
+    FINANCE_OFFICER: "BOOKKEEPER",
+  }
+  const siteName = (id: string) => (id === mainSiteId ? "Harare Main Branch" : "Borrowdale")
+  const keep: string[] = []
+  let link: string | null = null
+
+  for (const person of PEOPLE) {
+    const found = person.email
+      ? await prisma.user.findFirst({ where: { email: person.email }, select: { id: true, createdAt: true } })
+      : await prisma.user.findFirst({ where: { companyId, phone: person.phone }, select: { id: true, createdAt: true } })
+    const removedAt = person.removedDaysAgo ? harareTime(person.removedDaysAgo, 9, 15) : null
+    const data = {
+      name: person.name,
+      role: person.role,
+      companyId,
+      phone: person.phone,
+      allSites: person.sites === "ALL",
+      isActive: !removedAt,
+      accessRemovedAt: removedAt,
+      accessRemovedById: removedAt ? owner.id : null,
+    }
+    const invitedAt = person.email ? null : harareTime(2, 10, 0)
+    const user = found
+      ? await prisma.user.update({ where: { id: found.id }, data, select: { id: true, createdAt: true } })
+      : await prisma.user.create({
+          data: { ...data, email: person.email, password: person.email ? passwordHash : null, ...(invitedAt ? { createdAt: invitedAt } : {}) },
+          select: { id: true, createdAt: true },
+        })
+    keep.push(user.id)
+    await prisma.userSiteAccess.deleteMany({ where: { userId: user.id } })
+    if (person.sites !== "ALL") {
+      await prisma.userSiteAccess.createMany({ data: person.sites.map((siteId) => ({ userId: user.id, siteId, companyId })) })
+    }
+
+    // The one still to join: a link for 7 days from two days ago, and a PIN sent with it.
+    if (invitedAt) {
+      const waiting = await prisma.retailStaffInvite.findFirst({ where: { userId: user.id, acceptedAt: null, revokedAt: null } })
+      if (!waiting || input.reset) {
+        await prisma.retailStaffInvite.deleteMany({ where: { userId: user.id } })
+        const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "")
+        await prisma.retailStaffInvite.create({
+          data: {
+            companyId,
+            userId: user.id,
+            invitedById: owner.id,
+            tokenHash: hashInviteToken(token),
+            sentTo: person.phone,
+            expiresAt: new Date(invitedAt.getTime() + INVITE_DAYS * 86_400_000),
+            createdAt: invitedAt,
+          },
+        })
+        const bcrypt = await import("bcryptjs")
+        const pinHash = await bcrypt.hash("8257", 10)
+        const pin = { companyId, pinHash, failedAttempts: 0, lockedUntil: null, mustChange: true, issuedById: owner.id, issuedAt: invitedAt, lastUnlockedAt: null }
+        await prisma.retailTillPin.upsert({ where: { userId: user.id }, update: pin, create: { userId: user.id, ...pin } })
+        link = `/join/${token}`
+      }
+    }
+
+    // Their invite, at the moment they were added (the owner was there first).
+    if (person.role !== "SUPERADMIN") {
+      const invited = await prisma.platformAuditEvent.findFirst({
+        where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.personInvited },
+        select: { id: true },
+      })
+      if (!invited) {
+        await writeRetailAuditEvent(prisma, {
+          actor: ownerActor,
+          eventType: RETAIL_AUDIT_EVENTS.personInvited,
+          entityType: "User",
+          entityId: user.id,
+          payload: {
+            name: person.name,
+            role: personRole[person.role],
+            sites: person.sites === "ALL" ? ["All sites"] : person.sites.map(siteName),
+            pin: person.role !== "FINANCE_OFFICER",
+            email: Boolean(person.email),
+          },
+        })
+        const written = await prisma.platformAuditEvent.findFirst({
+          where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.personInvited },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        })
+        if (written) await prisma.platformAuditEvent.update({ where: { id: written.id }, data: { createdAt: user.createdAt } })
+      }
+    }
+    if (removedAt) {
+      await prisma.retailTillPin.deleteMany({ where: { userId: user.id } })
+      const removed = await prisma.platformAuditEvent.findFirst({
+        where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.personAccessRemoved },
+        select: { id: true },
+      })
+      if (!removed) {
+        await writeRetailAuditEvent(prisma, {
+          actor: ownerActor,
+          eventType: RETAIL_AUDIT_EVENTS.personAccessRemoved,
+          entityType: "User",
+          entityId: user.id,
+          payload: { closedShifts: [] },
+        })
+        const written = await prisma.platformAuditEvent.findFirst({
+          where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.personAccessRemoved },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        })
+        if (written) await prisma.platformAuditEvent.update({ where: { id: written.id }, data: { createdAt: removedAt } })
+      }
+    }
+  }
+
+  // People an acceptance run added: gone when nothing refers to them, else without access.
+  if (input.reset) {
+    const extra = await prisma.user.findMany({
+      where: {
+        companyId,
+        id: { notIn: keep },
+        role: { in: ["SUPERADMIN", "MANAGER", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"] },
+        OR: [{ staffInvites: { some: {} } }, { email: null }],
+      },
+      select: { id: true, name: true },
+    })
+    for (const person of extra) {
+      try {
+        await prisma.user.delete({ where: { id: person.id } })
+      } catch {
+        await prisma.user.update({
+          where: { id: person.id },
+          data: { isActive: false, accessRemovedAt: new Date(), accessRemovedById: owner.id },
+        })
+        await prisma.retailTillPin.deleteMany({ where: { userId: person.id } })
+      }
+    }
+    if (extra.length) console.log(`  people: ${extra.map((person) => person.name).join(", ")} taken away (acceptance)`)
+  }
+  console.log(
+    `  people: ${PEOPLE.length} on Staff and PINs; Tatenda Gumbo's PIN 8257` +
+      (link ? `, join link ${link} on the shop's host` : ", invite already out"),
+  )
 }
 
 /**

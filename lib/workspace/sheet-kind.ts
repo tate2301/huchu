@@ -92,7 +92,10 @@ export type FieldSpec = {
    * [label, description?, badge?]; or worked out from what was loaded ("Move
    * some from Harare Main Branch").
    */
-  o?: string[] | Array<[label: string, sub?: string, badge?: string]> | ((values: SheetValues) => string[]);
+  o?:
+    | string[]
+    | Array<[label: string, sub?: string, badge?: string]>
+    | ((values: SheetValues) => string[] | Array<[label: string, sub?: string, badge?: string]>);
   cols?: number;
   rows?: number;
   /** `area`: grows with what is typed, a row a line, up to this many rows (never below `rows`). */
@@ -100,7 +103,7 @@ export type FieldSpec = {
   /** `auto` and `lines`: the lookup noun (`GET /api/v2/retail/lookup/<noun>`). */
   noun?: string;
   /**
-   * `auto` and `lines`: narrows the lookup (`?context=`), e.g. `{ can: "sell" }`,
+   * `auto` and `lines`: narrows the lookup (`?context=`), e.g. `{ sells: true }`,
    * or from the sheet's address and the other values (the stock lines at From).
    */
   context?: Record<string, unknown> | ((ctx: SheetCtx, values: SheetValues) => Record<string, unknown>);
@@ -126,9 +129,18 @@ export type FieldSpec = {
   keepOne?: boolean;
   /**
    * Follows the other values until the person types in it (a short code
-   * suggested from the name). Worked out from every value, `_` facts included.
+   * suggested from the name, a PIN toggle that follows the role card).
+   * Worked out from every value, `_` facts included.
    */
-  derive?: (values: SheetValues) => string;
+  derive?: (values: SheetValues) => unknown;
+  /** The message when a required field is empty ("Write their name."), instead of "<label> is needed.". */
+  needed?: string;
+  /** Drawn as `read` while this holds (every field of someone whose access was removed). */
+  readWhen?: (values: SheetValues, ctx: SheetCtx) => boolean;
+  /** `tags`: only these may be added, offered as the person types ("All sites", each site). */
+  tagOptions?: (values: SheetValues) => string[];
+  /** `tags`: the tag that stands for all of them: picking it removes the rest, picking another removes it. */
+  tagAll?: string;
   /** Checked on a non-empty value before sending: the endpoint's own rule. */
   schema?: ZodType;
   /** Drawn but not changeable while this holds (hours while licence hours are off). */
@@ -159,6 +171,13 @@ export type SheetSection = {
 export type SheetRequest = { method: "POST" | "PATCH" | "PUT" | "DELETE"; url: string; body?: unknown };
 
 /**
+ * What the sheet shows instead of closing when a save could not deliver a
+ * secret (a WhatsApp invite or PIN that did not go): the sentence, then the
+ * link and the PIN for whoever issued them, shown once.
+ */
+export type HandOverPanel = { line: string; link: string | null; pin: string | null };
+
+/**
  * Values whose keys start with `_` are what `load` brought that no field
  * holds (a record's name for the title, its product count for the note).
  */
@@ -166,6 +185,17 @@ export type SheetKind = {
   title: string | ((ctx: SheetCtx, values: SheetValues) => string);
   sub: string | ((ctx: SheetCtx, values: SheetValues) => string);
   wide?: boolean;
+  /** "matrix": 1120px (less 56 on a narrower screen), for the Who can do what table. */
+  size?: "matrix";
+  /** A body drawn by a component instead of sections (`components/sheet-form/views.tsx`): "roles". */
+  view?: string;
+  /** A link-styled action under the sub ("Send the invite again"), while this gives one. */
+  headLink?: (
+    ctx: SheetCtx,
+    values: SheetValues,
+  ) => { label: string; request: SheetRequest; done: (payload: unknown) => string } | null;
+  /** After a save or the head link: the hand-over panel instead of closing, when the answer carries one. */
+  handOver?: (payload: unknown, values: SheetValues) => HandOverPanel | null;
   steps?: string[];
   at?: number;
   /** A note at the top of the body, fixed or from what was loaded; nothing when empty. */
@@ -184,7 +214,8 @@ export type SheetKind = {
    * sheet's address, so Back does not reopen it.
    */
   next?: (result: unknown, values: SheetValues) => string | null;
-  primary: string;
+  /** The primary's words, fixed or from the values ("Save", or "Give access back" for someone without access). */
+  primary: string | ((values: SheetValues) => string);
   /** The primary is drawn but cannot send while this holds (no room on the plan); the note says why. */
   primaryDisabled?: (values: SheetValues) => boolean;
   /** A link after the note ("Plan and billing"), while this gives one. */

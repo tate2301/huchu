@@ -77,6 +77,17 @@ function areaRows(rows: number, maxRows: number | undefined, value: unknown): nu
   return Math.min(Math.max(lines, rows), Math.max(maxRows, rows));
 }
 
+/**
+ * The tag that stands for all of them ("All sites"): picking it removes the
+ * rest, picking another removes it.
+ */
+export function withAllTag(before: unknown, next: string[], all: string): string[] {
+  const had = Array.isArray(before) && before.includes(all);
+  if (next.includes(all) && !had) return [all];
+  if (had && next.length > 1) return next.filter((tag) => tag !== all);
+  return next;
+}
+
 function shownValue(value: unknown): string {
   if (value && typeof value === "object" && "label" in value) return String((value as PickedOption).label);
   if (Array.isArray(value)) return value.length > 0 ? value.map(String).join(", ") : "—";
@@ -100,7 +111,8 @@ export function SheetField({
   const value = values[field.id];
   const hint = typeof field.h === "function" ? field.h(values) : field.h;
   const fixed = field.fixed?.(ctx) ?? null;
-  const t = fixed || (readOnly && field.t !== "toggle") ? "read" : field.t;
+  const readHere = field.readWhen?.(values, ctx) ?? false;
+  const t = fixed || ((readOnly || readHere) && field.t !== "toggle") ? "read" : field.t;
   const nolabel = field.nolabel || t === "toggle" || t === "lines";
   const disabled = readOnly || (field.disabled?.(values) ?? false);
   const warn = typeof field.warn === "function" ? field.warn(values) : (field.warn ?? false);
@@ -138,7 +150,13 @@ export function SheetField({
       {(control) => {
         switch (t) {
           case "read": {
-            const shown = fixed ? fixed.shown : readOnly ? shownValue(value) : typeof value === "string" ? value : String(value ?? "");
+            const shown = fixed
+              ? fixed.shown
+              : readOnly || readHere
+                ? shownValue(value)
+                : typeof value === "string"
+                  ? value
+                  : String(value ?? "");
             const read = (
               <ReadValue id={control.id} mono={field.mono} right={field.right} tone={tone}>
                 {shown}
@@ -205,6 +223,7 @@ export function SheetField({
                 id={control.id}
                 aria-label={field.l}
                 cols={field.cols}
+                disabled={disabled}
                 options={cardOptions(field, values)}
                 value={typeof value === "string" ? value : null}
                 onValueChange={onChange}
@@ -217,8 +236,9 @@ export function SheetField({
                 keepOne={field.keepOne}
                 disabled={disabled}
                 placeholder={field.p}
+                suggestions={field.tagOptions?.(values)}
                 value={Array.isArray(value) ? (value as string[]) : []}
-                onValueChange={onChange}
+                onValueChange={(next) => onChange(field.tagAll ? withAllTag(value, next, field.tagAll) : next)}
               />
             );
           case "photo":

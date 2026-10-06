@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { toast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson } from "@/lib/api-client";
 import { ChevronDown, Plus } from "@/lib/icons";
 import type { PickedOption } from "@/lib/workspace/sheet-kind";
@@ -151,13 +152,15 @@ export function LookupField({
     setAddErrors({});
     setAddFailure(null);
     try {
-      const answer = await fetchJson<{ option: PickedOption }>(`/api/v2/retail/lookup/${encodeURIComponent(noun)}`, {
-        method: "POST",
-        body: JSON.stringify({ fields: adding }),
-      });
+      const answer = await fetchJson<{ option: PickedOption; notice?: string }>(
+        `/api/v2/retail/lookup/${encodeURIComponent(noun)}`,
+        { method: "POST", body: JSON.stringify({ fields: adding, ...(context ? { context } : {}) }) },
+      );
       await queryClient.invalidateQueries({ queryKey: lookupKey(noun) });
       setAdding(null);
       pick(answer.option);
+      // What the add could not do, said once ("WhatsApp is not set up, so give them their link from People.").
+      if (answer.notice) toast({ title: answer.notice, variant: "warning" });
     } catch (error) {
       const details = error instanceof ApiError ? (error.details as { fieldErrors?: Record<string, string> }) : null;
       if (details?.fieldErrors && Object.keys(details.fieldErrors).length > 0) setAddErrors(details.fieldErrors);

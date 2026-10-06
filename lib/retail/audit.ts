@@ -177,6 +177,22 @@ export const RETAIL_AUDIT_EVENTS = {
   fiscalConnected: "RETAIL_FISCAL.CONNECTED",
   /** A fiscal day closed and its Z-report taken by ZIMRA (SET-08): by hand, or with the last shift. Entity `RetailSettings`, id `fiscal`; carries the day, its total and how. */
   fiscalDayClosed: "RETAIL_FISCAL.DAY_CLOSED",
+  /**
+   * Someone added to the shop from People (ADM-02), or sent their invite
+   * again (`again`). Entity `User`; carries their name, role, sites and
+   * whether a PIN and an email went with it — never the PIN or the link.
+   */
+  personInvited: "RETAIL_PERSON.INVITED",
+  /** They came in: by their link, their first till PIN, or their first sign-in. Entity `User`. */
+  personJoined: "RETAIL_PERSON.JOINED",
+  /** Their name, phone, role or sites changed. Entity `User`; carries each change before and after. */
+  personChanged: "RETAIL_PERSON.CHANGED",
+  /** A new till PIN sent to them. Entity `User`; carries whether the old one was locked and whether WhatsApp took it. */
+  personPinSent: "RETAIL_PERSON.PIN_SENT",
+  /** Their access removed. Entity `User`; carries the shifts closed without a count first. */
+  personAccessRemoved: "RETAIL_PERSON.ACCESS_REMOVED",
+  /** Their access given back. Entity `User`; carries whether a new PIN went with it. */
+  personAccessRestored: "RETAIL_PERSON.ACCESS_RESTORED",
 } as const;
 
 export type RetailAuditEvent =

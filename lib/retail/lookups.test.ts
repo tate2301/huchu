@@ -133,7 +133,7 @@ describe("till lookup", () => {
         ["Back till", "Open"],
       ]);
 
-      const sellers = await searchLookup(as("MANAGER"), "person", { context: { can: "sell" } });
+      const sellers = await searchLookup(as("MANAGER"), "person", { context: { sells: true } });
       expect(sellers.status === 200 && sellers.body.options).toEqual([
         { id: cashier.id, label: "Farai Moyo", sub: "Cashier" },
       ]);

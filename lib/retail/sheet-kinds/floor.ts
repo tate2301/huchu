@@ -21,7 +21,7 @@ const shiftOpen: SheetKind = {
           t: "auto",
           l: "Cashier",
           noun: "person",
-          context: { can: "sell" },
+          context: { sells: true },
           // The signed-in person when they may sell at a till.
           v: (ctx: SheetCtx) => (ctx.can("retail.sell", "open-shift") ? { id: ctx.user.id, label: ctx.user.name } : null),
           // Someone who may only open their own sees themselves, fixed.

@@ -140,3 +140,46 @@
 .sf-qr-row > .cx-read { flex: 1 1 auto; }
 .sf-qr { flex: none; display: inline-flex; border-radius: 8px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
 .sf-qr img { display: block; width: 100%; height: 100%; }
+
+/* "matrix": the Who can do what sheet (80-admin 5.4), 1120px less 56 on a narrower screen. */
+.cx-sheet.sf-sheet--matrix { width: min(1120px, calc(100vw - 56px)); }
+@media (max-width: 719px) { .cx-sheet.sf-sheet--matrix { width: 100%; } }
+
+/* A link-styled action under the sheet's sub ("Send the invite again"). */
+.sf-head__link { align-self: flex-start; margin-top: 2px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
+.sf-head__link:disabled { color: var(--ink-3); cursor: default; }
+.sf-head__link:focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+
+/* The hand-over panel (80-admin 5.5.4). */
+.sf-handover { display: flex; flex-direction: column; gap: 14px; }
+.sf-handover__line { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--ink); font-size: 14px; line-height: 1.45; }
+.sf-handover__row { display: flex; align-items: center; gap: 8px; }
+.sf-handover__link { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; font-size: 13px; }
+.sf-handover__pin { font-size: 20px; letter-spacing: 0.08em; }
+
+/* Who can do what: the Roles board as a table. */
+.sf-roles { padding: 4px 0 0; }
+.sf-roles__lede { max-width: 820px; margin: 0 0 20px; font-size: 16px; line-height: 1.5; color: var(--ink-2); }
+.sf-roles__lede a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+.sf-roles__scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.sf-roles__table { width: 100%; min-width: 980px; border-collapse: collapse; table-layout: fixed; }
+.sf-roles__table th, .sf-roles__table td { padding: 0 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.sf-roles__table thead th { height: 92px; border-top: 0; vertical-align: middle; }
+.sf-roles__record { width: 210px; font-size: 15px; font-weight: 400; color: var(--ink); position: sticky; left: 0; background: var(--surface); }
+thead .sf-roles__record { font-size: 13px; color: var(--ink-3); font-weight: 400; }
+.sf-roles__role { width: 96px; padding: 0 4px !important; text-align: center !important; }
+.sf-roles__role-name { display: block; font-size: 15px; font-weight: 600; color: var(--ink); }
+.sf-roles__role-sub { display: block; margin-top: 6px; font-size: 11px; font-weight: 400; color: var(--ink-3); line-height: 1.3; }
+.sf-roles__limits { width: auto; font-size: 15px; font-weight: 400; color: var(--ink-3); }
+.sf-roles__section th { height: 40px; background: var(--ground); font-size: 15px; font-weight: 600; color: var(--ink); }
+.sf-roles__table tbody tr:not(.sf-roles__section) { height: 40px; }
+.sf-roles__cell { padding: 0 4px !important; text-align: center !important; }
+.sf-roles__chips { display: inline-flex; gap: 2px; }
+.sf-roles__chip { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; background: var(--tray); color: var(--ink); font-family: var(--font-mono); font-size: 10px; font-weight: 600; }
+.sf-roles__chip--d { background: var(--ink); color: var(--surface); }
+.sf-roles__none { color: var(--faint); }
+.sf-roles__limit { font-size: 12.5px; line-height: 1.35; color: var(--ink-2); padding-top: 6px !important; padding-bottom: 6px !important; }
+.sf-roles__limit a { color: inherit; text-decoration: none; }
+.sf-roles__limit a:hover { text-decoration: underline; }
+/* With a head link the header grows to hold it under the sub. */
+.cx-sheet__head:has(.sf-head__link) { height: auto; min-height: 64px; padding-top: 12px; padding-bottom: 12px; }

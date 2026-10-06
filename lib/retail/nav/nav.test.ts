@@ -103,6 +103,7 @@ describe("the Setup module per role (ADM-01)", () => {
       "Receipts",
       "Fiscal device",
       "Posting to the books",
+      "Staff and PINs",
       "Bin",
     ]);
   });
@@ -127,6 +128,7 @@ describe("the Setup module per role (ADM-01)", () => {
       "Till rules",
       "Receipts",
       "Fiscal device",
+      "Staff and PINs",
       "Bin",
     ]);
   });

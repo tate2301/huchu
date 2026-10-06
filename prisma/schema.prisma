@@ -338,6 +338,8 @@ model Company {
   retailReceiptSettings         RetailReceiptSettings?
   retailFiscalSettings          RetailFiscalSettings?
   retailMessages                RetailMessage[]
+  userSiteAccess     UserSiteAccess[]
+  retailStaffInvites RetailStaffInvite[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -1085,6 +1087,8 @@ model PlatformAuditEvent {
   @@index([companyId, createdAt])
   @@index([eventType, createdAt])
   @@index([companyId, entityType, entityId, createdAt])
+  /// "Last in" on People, and Activity's Who filter (ADM-02).
+  @@index([companyId, actor, createdAt])
 }
 
 model Site {
@@ -1149,6 +1153,7 @@ model Site {
   retailZReports        RetailZReport[]
   retailTransfersOut    RetailStockTransfer[]  @relation("RetailStockTransferFrom")
   retailTransfersIn     RetailStockTransfer[]  @relation("RetailStockTransferTo")
+  userAccess            UserSiteAccess[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1200,13 +1205,23 @@ enum UserRole {
 
 model User {
   id                String    @id @default(uuid())
-  email             String    @unique
+  /// Null for someone who only uses a till: they never sign in to the admin.
+  email             String?   @unique
   name              String
   password          String? // Optional for OAuth users
   role              UserRole
   companyId         String
+  /// E.164 ("+263719027713"). Required for retail people (checked in the
+  /// service, `lib/retail/people`); other products leave it null. Not unique:
+  /// a school's guardians may share a number.
   phone             String?
   isActive          Boolean   @default(true)
+  /// Works at every site, now and later. False: only the sites in `siteAccess`.
+  allSites          Boolean   @default(true)
+  /// When their access was removed (isActive went false), and by whom. Null
+  /// while they have access.
+  accessRemovedAt   DateTime?
+  accessRemovedById String?
   emailVerified     DateTime? // For NextAuth
   image             String? // For NextAuth
   /// When the password was last set. Null means it has never been changed since
@@ -1423,9 +1438,55 @@ model User {
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
   retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
   retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
+  accessRemovedBy                   User?                          @relation("UserAccessRemovedBy", fields: [accessRemovedById], references: [id], onDelete: SetNull)
+  accessRemovals                    User[]                         @relation("UserAccessRemovedBy")
+  siteAccess                        UserSiteAccess[]
+  staffInvites                      RetailStaffInvite[]            @relation("RetailStaffInvitee")
+  staffInvitesSent                  RetailStaffInvite[]            @relation("RetailStaffInviter")
+  retailTillPinsIssued              RetailTillPin[]                @relation("RetailTillPinIssuedBy")
 
   @@index([companyId])
   @@index([email])
+  @@index([companyId, phone])
+}
+
+/// The sites a person works at, when they do not work at all of them (ADM-02).
+model UserSiteAccess {
+  userId    String
+  siteId    String
+  companyId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site    Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, siteId])
+  @@index([companyId, siteId])
+}
+
+/// The WhatsApp link a new person joins with (ADM-02). Works for 7 days;
+/// stored only as its SHA-256.
+model RetailStaffInvite {
+  id          String    @id @default(uuid())
+  companyId   String
+  userId      String
+  invitedById String?
+  tokenHash   String    @unique
+  /// The phone it was sent to.
+  sentTo      String
+  expiresAt   DateTime
+  /// They opened the link and joined, used their PIN, or signed in.
+  acceptedAt  DateTime?
+  /// Sent again (a newer invite replaces it) or their access was removed.
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User    @relation("RetailStaffInvitee", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User?   @relation("RetailStaffInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, userId])
 }
 
 model Employee {
@@ -3075,6 +3136,13 @@ enum NotificationType {
   RETAIL_COUNT_SUBMITTED
   RETAIL_TRANSFER_SENT
   RETAIL_TRANSFER_CANCELLED
+  /// The admin area's (80-admin 3.5), in its first migration.
+  RETAIL_PRICE_APPROVAL
+  RETAIL_PRICE_DECIDED
+  RETAIL_PIN_LOCKED
+  RETAIL_SUPPORT
+  /// A message to staff from People (ADM-02); the floor's "Message the cashier" sends it too.
+  RETAIL_STAFF_MESSAGE
 }
 
 enum NotificationSeverity {
@@ -3106,6 +3174,9 @@ enum NotificationEntityType {
   CRM_RECORD
   RETAIL_STOCK_COUNT
   RETAIL_STOCK_TRANSFER
+  RETAIL_PRICE_APPROVAL
+  RETAIL_PERSON
+  RETAIL_SETTINGS
 }
 
 enum HrIncidentCategory {
@@ -5246,11 +5317,18 @@ model RetailTillPin {
   /// When the terminal was last unlocked with it. Shown on the settings screen so
   /// a cashier can tell whether a PIN they have forgotten is in use.
   lastUnlockedAt DateTime?
+  /// True for a PIN somebody else issued from People (ADM-02): the person
+  /// chooses their own the first time they use it (ADM-03).
+  mustChange     Boolean   @default(false)
+  /// When this PIN was issued or set, and who issued it (null: they chose it).
+  issuedAt       DateTime  @default(now())
+  issuedById     String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  user    User    @relation("RetailTillPinUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user     User    @relation("RetailTillPinUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  issuedBy User?   @relation("RetailTillPinIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
 
   @@index([companyId])
 }

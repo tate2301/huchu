@@ -229,11 +229,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/management/users/password-reset", featureKey: "admin.user-management.password-reset" },
   { scope: "page", prefix: "/management/users/role-change", featureKey: "admin.user-management.role-change" },
   { scope: "page", prefix: "/management/users", featureKey: "admin.user-management.directory" },
-  { scope: "page", prefix: "/user-management/create", featureKey: "admin.user-management.create" },
-  { scope: "page", prefix: "/user-management/status", featureKey: "admin.user-management.status" },
-  { scope: "page", prefix: "/user-management/password-reset", featureKey: "admin.user-management.password-reset" },
-  { scope: "page", prefix: "/user-management/role-change", featureKey: "admin.user-management.role-change" },
-  { scope: "page", prefix: "/user-management", featureKey: "admin.user-management.directory" },
   { scope: "page", prefix: "/shift-report", featureKey: "ops.shift-report.submit" },
   { scope: "page", prefix: "/plant-report", featureKey: "ops.plant-report.submit" },
   // The production dashboard is built entirely on plant reports; gate it with

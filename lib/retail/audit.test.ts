@@ -469,6 +469,12 @@ describe("the chain", () => {
       drawerOpened: "RETAIL_DRAWER.OPENED",
       fiscalConnected: "RETAIL_FISCAL.CONNECTED",
       fiscalDayClosed: "RETAIL_FISCAL.DAY_CLOSED",
+      personInvited: "RETAIL_PERSON.INVITED",
+      personJoined: "RETAIL_PERSON.JOINED",
+      personChanged: "RETAIL_PERSON.CHANGED",
+      personPinSent: "RETAIL_PERSON.PIN_SENT",
+      personAccessRemoved: "RETAIL_PERSON.ACCESS_REMOVED",
+      personAccessRestored: "RETAIL_PERSON.ACCESS_RESTORED",
     });
   });
 });

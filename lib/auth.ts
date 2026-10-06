@@ -50,6 +50,7 @@ import type {
   PlatformJwtClaims,
   SessionPolicy,
 } from "@/lib/auth-core/types";
+import { acceptPendingInvite } from "@/lib/retail/people/join";
 
 type AuthenticatedUserLike = {
   id: string;
@@ -304,7 +305,7 @@ type SignInContext = {
 
 type SignInUserRecord = {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   password: string | null;
   role: UserRole;
@@ -372,23 +373,30 @@ async function resolveSignInCompanyScope(ctx: SignInContext): Promise<string | u
   return scope.companyId;
 }
 
+const SIGN_IN_USER_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  password: true,
+  role: true,
+  companyId: true,
+  isActive: true,
+  image: true,
+} as const;
+
 async function findSignInUser(email: string, companyId: string | undefined): Promise<SignInUserRecord | null> {
   return prisma.user.findFirst({
     where: {
       email: { equals: email, mode: "insensitive" },
       ...(companyId ? { companyId } : {}),
     },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      password: true,
-      role: true,
-      companyId: true,
-      isActive: true,
-      image: true,
-    },
+    select: SIGN_IN_USER_SELECT,
   });
+}
+
+/** The same record by id: someone who only uses a till has no email (80-admin, People). */
+async function findSignInUserById(id: string, companyId: string | undefined): Promise<SignInUserRecord | null> {
+  return prisma.user.findFirst({ where: { id, ...(companyId ? { companyId } : {}) }, select: SIGN_IN_USER_SELECT });
 }
 
 async function assertAccountUsable(user: SignInUserRecord, ctx: SignInContext): Promise<void> {
@@ -429,6 +437,8 @@ async function completeSignIn(user: SignInUserRecord, ctx: SignInContext, rememb
     entityId: ctx.strategy,
     payload: { hostHeader: ctx.hostHeader, clientAddress: ctx.clientAddress, rememberMe },
   });
+  // In: a staff invite still waiting has done its job (80-admin W-57).
+  await acceptPendingInvite(user.id, ctx.strategy === "till-pin" ? "pin" : "sign-in");
 
   const sessionPolicy: SessionPolicy = rememberMe ? "remember" : "standard";
   return {
@@ -681,7 +691,8 @@ export const authOptions: NextAuthOptions = {
           return failSignIn(ctx, "INVALID_CODE");
         }
 
-        const verified = await verifyEmailCode({ email: user.email, purpose: "SIGN_IN", code });
+        // Found by this address, so it has one.
+        const verified = await verifyEmailCode({ email: user.email ?? email, purpose: "SIGN_IN", code });
         if (!verified.ok) {
           const reason =
             verified.reason === "EXPIRED" ? "CODE_EXPIRED" : verified.reason === "LOCKED" ? "CODE_LOCKED" : "INVALID_CODE";
@@ -713,12 +724,13 @@ export const authOptions: NextAuthOptions = {
 
         const account = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
         if (!account) throw new Error("NOT_ON_THIS_TILL");
-        const ctx = buildSignInContext(account.email, "till-pin", req?.headers);
+        // Someone who only uses a till has no email; their id names them in the log.
+        const ctx = buildSignInContext(account.email ?? userId, "till-pin", req?.headers);
         if (getPlatformHostContext(ctx.hostHeader).portalCanonicalPrefix !== "pos") {
           return failSignIn(ctx, "NOT_A_TILL");
         }
         const scopedCompanyId = await resolveSignInCompanyScope(ctx);
-        const user = await findSignInUser(account.email, scopedCompanyId);
+        const user = await findSignInUserById(userId, scopedCompanyId);
         if (!user || user.id !== userId) return failSignIn(ctx, "NOT_ON_THIS_TILL");
 
         const checked = await checkTillPinSignIn({
@@ -762,9 +774,9 @@ export const authOptions: NextAuthOptions = {
           throw new Error("HANDOFF_INVALID");
         }
 
-        const ctx = buildSignInContext(account.email, "handoff", req?.headers);
+        const ctx = buildSignInContext(account.email ?? userId, "handoff", req?.headers);
         const scopedCompanyId = await resolveSignInCompanyScope(ctx);
-        const user = await findSignInUser(account.email, scopedCompanyId);
+        const user = await findSignInUserById(userId, scopedCompanyId);
         if (!user || user.id !== userId) {
           return failSignIn(ctx, "TENANT_HOST_MISMATCH");
         }

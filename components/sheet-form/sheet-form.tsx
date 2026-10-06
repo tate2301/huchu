@@ -13,7 +13,7 @@ import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { CheckCircle, Plus, Trash, X } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type { Ask } from "@/lib/workspace/ask";
-import type { SheetCtx, SheetKind, SheetRequest, SheetValues } from "@/lib/workspace/sheet-kind";
+import type { HandOverPanel, SheetCtx, SheetKind, SheetRequest, SheetValues } from "@/lib/workspace/sheet-kind";
 
 import {
   checkValues,
@@ -29,7 +29,9 @@ import {
   submitFailure,
   withDerived,
 } from "./model";
+import { HandOver } from "./hand-over";
 import { SheetField } from "./sheet-field";
+import { SheetView } from "./views";
 
 /**
  * SheetForm — every create and edit form (00-foundations 5.7).
@@ -94,6 +96,9 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const [asking, setAsking] = React.useState<null | "discard" | "danger" | "confirm">(null);
   const listsOpen = React.useRef(0);
   const bodyRef = React.useRef<HTMLDivElement>(null);
+  // A save that could not deliver its secret: the hand-over replaces the body until Done.
+  const [panel, setPanel] = React.useState<HandOverPanel | null>(null);
+  const [headBusy, setHeadBusy] = React.useState(false);
 
   // An edit kind starts from the record's current values.
   const { load } = kind;
@@ -256,8 +261,14 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     listsOpen.current = Math.max(0, listsOpen.current + (isOpen ? 1 : -1));
   };
 
-  const after = async (result: unknown, again: boolean) => {
+  const after = async (result: unknown, again: boolean, payload: unknown = result) => {
     await Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
+    const handOver = kind.handOver?.(payload, values) ?? null;
+    if (handOver) {
+      setInitial(values);
+      setPanel(handOver);
+      return;
+    }
     const sentence = doneSentence(kind, result, values);
     if (again) {
       const fresh = initialValues(kind, ctx);
@@ -319,7 +330,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       const answer = await send(request);
       if (answer.ok) {
         const result = (answer.payload as { data?: unknown } | null)?.data ?? answer.payload;
-        await after(result, again);
+        await after(result, again, answer.payload);
         return;
       }
       const failure = submitFailure(answer.status, answer.payload, fieldIds(kind));
@@ -350,6 +361,32 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     onClose();
   };
 
+  const headLink = !readOnly && !panel ? (kind.headLink?.(ctx, values) ?? null) : null;
+  const runHeadLink = async () => {
+    if (!headLink || headBusy) return;
+    setHeadBusy(true);
+    setFooterError(null);
+    try {
+      const answer = await send(headLink.request);
+      if (!answer.ok) {
+        setFooterError(submitFailure(answer.status, answer.payload, []).footer);
+        return;
+      }
+      await Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
+      const handOver = kind.handOver?.(answer.payload, values) ?? null;
+      if (handOver) setPanel(handOver);
+      else toast({ title: headLink.done(answer.payload), variant: "success" });
+    } catch {
+      setFooterError("That did not reach the server. Nothing was sent; try again.");
+    } finally {
+      setHeadBusy(false);
+    }
+  };
+  const finishHandOver = () => {
+    settle(false);
+    onClose();
+  };
+
   const ask: Ask | null =
     asking === "discard"
       ? discardAsk(title, { record: typeof kind.title === "function" && kind.load !== undefined })
@@ -364,6 +401,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const sections = shownSections(kind, values, ctx);
   const danger = !readOnly && kind.danger && (kind.danger.show?.(ctx, values) ?? true) ? kind.danger : null;
   const note = typeof kind.note === "function" ? kind.note(values) : kind.note;
+  const primaryLabel = typeof kind.primary === "function" ? kind.primary(values) : kind.primary;
   const guide = typeof kind.guide === "function" ? kind.guide(values) : kind.guide;
   const primaryDisabled = kind.primaryDisabled?.(values) ?? false;
   const noteLink = readOnly ? null : (kind.noteLink?.(values) ?? null);
@@ -381,7 +419,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
         <Dialog.Portal>
           <Dialog.Overlay className="cx-scrim sf-scrim" />
           <Dialog.Content
-            className={cn("cx-sheet sf-sheet", kind.wide && "cx-sheet--wide")}
+            className={cn("cx-sheet sf-sheet", kind.wide && "cx-sheet--wide", kind.size === "matrix" && "sf-sheet--matrix")}
             aria-describedby={undefined}
             onOpenAutoFocus={(event) => {
               event.preventDefault();
@@ -413,6 +451,11 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
               <div className="sf-head__text">
                 <Dialog.Title className="cx-sheet__title sf-ellipsis">{title}</Dialog.Title>
                 <span className="cx-sheet__sub sf-ellipsis">{sub}</span>
+                {headLink ? (
+                  <button type="button" className="sf-head__link" onClick={() => void runHeadLink()} disabled={headBusy}>
+                    {headLink.label}
+                  </button>
+                ) : null}
               </div>
               <button type="button" className="sf-close" aria-label="Close" onClick={() => requestClose()}>
                 <X aria-hidden="true" />
@@ -452,12 +495,14 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                 }
               }}
             >
-              {guide ? (
+              {panel ? <HandOver panel={panel} /> : null}
+              {!panel && kind.view ? <SheetView name={kind.view} ctx={ctx} /> : null}
+              {!panel && guide ? (
                 <div role="note" className="cx-note sf-guide">
                   {guide}
                 </div>
               ) : null}
-              {sections.map((section) => {
+              {(panel ? [] : sections).map((section) => {
                 const index = kind.sections.indexOf(section);
                 const folded = section.fold && !unfolded[index];
                 return (
@@ -499,6 +544,14 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
               })}
             </div>
 
+            {panel ? (
+              <footer className="cx-sheet__foot">
+                <span className="sf-foot__note" />
+                <Button size="field" variant="primary" onClick={finishHandOver}>
+                  Done
+                </Button>
+              </footer>
+            ) : (
             <footer className="cx-sheet__foot">
               {danger ? (
                 <button type="button" className="sf-danger" onClick={() => setAsking("danger")} disabled={saving}>
@@ -547,10 +600,11 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   disabled={primaryDisabled}
                   onClick={() => void submit(false)}
                 >
-                  {kind.primary}
+                  {primaryLabel}
                 </Button>
               )}
             </footer>
+            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

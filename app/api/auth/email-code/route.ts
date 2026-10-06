@@ -44,12 +44,14 @@ export async function POST(request: NextRequest) {
   // A throttled address gets the same answer as an unknown one. Telling them
   // apart would say which addresses have accounts here. The form shows its own
   // resend countdown, and the last code sent still works.
-  const issued = await issueEmailCode({ email: user.email, purpose: "SIGN_IN" });
+  // Found by this address, so it has one.
+  const address = user.email ?? email;
+  const issued = await issueEmailCode({ email: address, purpose: "SIGN_IN" });
   if (!issued.ok) return NextResponse.json({ ok: true });
 
   try {
     await sendEmailCodeMail({
-      to: user.email,
+      to: address,
       code: issued.code,
       productName: getProduct(user.company.product).name,
       purpose: "SIGN_IN",

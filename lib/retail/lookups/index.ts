@@ -1,6 +1,7 @@
 import { canRetailSessionDo, retailPermissionDenial } from "@/lib/retail/permission-matrix";
 
 import { FLOOR_LOOKUPS } from "./floor";
+import { PEOPLE_LOOKUPS } from "./people";
 import { PRODUCT_LOOKUPS } from "./products";
 import { SETUP_LOOKUPS } from "./setup";
 import { STOCK_LOOKUPS } from "./stock";
@@ -12,7 +13,7 @@ import { LookupFieldErrors, type LookupCtx, type LookupNoun, type LookupOption, 
  * line here.
  */
 export const LOOKUP_NOUNS: ReadonlyMap<string, LookupNoun> = new Map(
-  [...FLOOR_LOOKUPS, ...PRODUCT_LOOKUPS, ...SETUP_LOOKUPS, ...STOCK_LOOKUPS].map((noun) => [noun.noun, noun]),
+  [...FLOOR_LOOKUPS, ...PEOPLE_LOOKUPS, ...PRODUCT_LOOKUPS, ...SETUP_LOOKUPS, ...STOCK_LOOKUPS].map((noun) => [noun.noun, noun]),
 );
 
 export type { LookupCtx, LookupNoun, LookupOption, QuickField } from "./types";
@@ -80,12 +81,13 @@ export async function searchLookup(
   };
 }
 
-/** `POST /api/v2/retail/lookup/[noun]` `{ fields }`: the noun's create service. */
+/** `POST /api/v2/retail/lookup/[noun]` `{ fields, context? }`: the noun's create service. */
 export async function addLookupOption(
   ctx: LookupCtx,
   nounKey: string,
   fields: Record<string, string>,
-): Promise<LookupAnswer<{ option: LookupOption }, 201>> {
+  context: Record<string, unknown> = {},
+): Promise<LookupAnswer<{ option: LookupOption; notice?: string }, 201>> {
   const noun = LOOKUP_NOUNS.get(nounKey);
   if (!noun || !noun.add || !noun.create) {
     return { status: 404, body: { error: "Nothing to add by that name" } };
@@ -94,7 +96,8 @@ export async function addLookupOption(
   if (denied) return { status: 403, body: { error: denied } };
 
   try {
-    return { status: 201, body: { option: await noun.add(ctx, fields) } };
+    const { notice, ...option } = await noun.add(ctx, fields, context);
+    return { status: 201, body: { option, ...(notice ? { notice } : {}) } };
   } catch (error) {
     if (error instanceof LookupFieldErrors) {
       return { status: 400, body: { error: error.message, fieldErrors: error.fieldErrors } };

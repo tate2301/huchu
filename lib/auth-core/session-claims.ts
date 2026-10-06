@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 import {
   getAllowedHostsForCompany,
   getTenantClaimsForCompany,
@@ -97,6 +98,19 @@ export function buildInitialTokenClaims(input: {
 export async function enrichTokenClaims(token: PlatformJwtClaims): Promise<PlatformJwtClaims> {
   if (!token.companyId) {
     return token;
+  }
+
+  // Who they are now, on every request (80-admin, People): a changed role
+  // applies at once, and someone whose access was removed — or who is gone —
+  // has no session from their next request on. An empty token is no session.
+  if (token.id) {
+    const user = await prisma.user.findUnique({
+      where: { id: token.id },
+      select: { role: true, isActive: true, name: true },
+    });
+    if (!user || !user.isActive) return {} as PlatformJwtClaims;
+    token.role = user.role;
+    token.name = user.name;
   }
 
   const tenantClaims = await getTenantClaimsForCompany(token.companyId);

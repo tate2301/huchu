@@ -219,6 +219,12 @@ function siteChangedWords(payload: Payload): ActivityWords {
 }
 
 /** The table. Keyed by event type; area specs add theirs here. */
+/** "a bookkeeper", "an owner" from a People role (`OWNER`, `STOCK_CLERK`). */
+function roleWords(role: string): string {
+  const word = role === "STOCK_CLERK" ? "stock clerk" : role.toLowerCase();
+  return /^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`;
+}
+
 const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWords> = {
   [RETAIL_AUDIT_EVENTS.recordEdited]: recordEditedWords,
   [RETAIL_AUDIT_EVENTS.movementsReversed]: movementsReversedWords,
@@ -260,6 +266,45 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
       payload.how === "LAST_SHIFT" ? ", with the last shift" : ""
     }`,
     tone: "info",
+  }),
+  // People (ADM-02): "Invited Ruvimbo Chari as a bookkeeper", "Sent the invite again".
+  [RETAIL_AUDIT_EVENTS.personInvited]: (payload) =>
+    payload.again
+      ? { what: "Sent the invite again", tone: "info" }
+      : {
+          what: `Invited ${text(payload.name) ?? "someone"}${text(payload.role) ? ` as ${roleWords(text(payload.role)!)}` : ""}`,
+          tone: "info",
+        },
+  [RETAIL_AUDIT_EVENTS.personJoined]: (payload) => ({
+    what: payload.how === "pin" ? "Joined with their till PIN" : payload.how === "sign-in" ? "Joined by signing in" : "Joined by their link",
+    tone: "ok",
+  }),
+  // "Changed role from Manager to Cashier"; several fields: "Changed role, sites".
+  [RETAIL_AUDIT_EVENTS.personChanged]: (payload) => {
+    const changes = Array.isArray(payload.changes) ? (payload.changes as Payload[]) : [];
+    if (changes.length === 1) {
+      const [change] = changes;
+      return {
+        what: `Changed ${(text(change!.label) ?? "a detail").toLowerCase()} from ${text(change!.from) || "nothing"} to ${text(change!.to) || "nothing"}`,
+        tone: "info",
+      };
+    }
+    return { what: `Changed ${changes.map((change) => (text(change.label) ?? "").toLowerCase()).join(", ")}`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.personPinSent]: (payload) => ({
+    what: payload.wasLocked ? "Sent a new PIN for a locked one" : "Sent a new PIN",
+    tone: "info",
+  }),
+  [RETAIL_AUDIT_EVENTS.personAccessRemoved]: (payload) => {
+    const shifts = Array.isArray(payload.closedShifts) ? payload.closedShifts.map(String) : [];
+    return {
+      what: shifts.length ? `Removed their access, closing ${shifts.join(", ")} without a count` : "Removed their access",
+      tone: "bad",
+    };
+  },
+  [RETAIL_AUDIT_EVENTS.personAccessRestored]: (payload) => ({
+    what: payload.pin ? "Gave their access back, with a new PIN" : "Gave their access back",
+    tone: "ok",
   }),
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,
