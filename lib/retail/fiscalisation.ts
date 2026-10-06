@@ -92,8 +92,11 @@
  * fiscal day opened (SET-08). A sale rung before the open day began (an old
  * offline sale) is therefore not signed, and says so. One rung while no day is
  * open because the last one's report is on its way to ZIMRA is PENDING with no
- * receipt: the next day opens no later than it and it is signed there once the
- * report is taken. Nothing here redates a sale to make it fit.
+ * receipt and marked as waiting (`RetailSale.fiscalWaitsSince`): it is signed,
+ * before anything rung after it, into the next day that is open — the same day
+ * when the close is given back, else the next, which opens no later than it.
+ * One rung before the closing day's last receipt fits neither and is not
+ * signed. Nothing here redates a sale to make it fit.
  */
 import type { RetailSale, RetailSaleLine } from "@prisma/client";
 import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
@@ -114,7 +117,13 @@ import {
 } from "@/lib/accounting/fdms-receipt-signing";
 import { isTaxCodeEffectiveOnDate } from "@/lib/accounting/tax-selection";
 import { FISCAL_DAY_STATUS } from "@/lib/accounting/fiscal-day";
-import { FISCAL_OFFLINE_WINDOW_MS, heldReceiptWords, saleBeforeDayWords, saleWhileClosingWords } from "@/lib/retail/fiscal-words";
+import {
+  FISCAL_OFFLINE_WINDOW_MS,
+  heldReceiptWords,
+  saleBeforeDayWords,
+  saleBeforeLastReceiptWords,
+  saleWhileClosingWords,
+} from "@/lib/retail/fiscal-words";
 
 /**
  * Refusals this module makes itself, on top of the ones the issue path makes.
@@ -134,6 +143,7 @@ export type RetailFiscalErrorCode =
   | "RETAIL_SIGN_MISMATCH"
   | "RETAIL_ORIGINAL_NOT_SIGNED"
   | "RETAIL_SALE_BEFORE_DAY"
+  | "RETAIL_SALE_BEFORE_LAST_RECEIPT"
   | FiscalIssueErrorCode;
 
 /** Raised while mapping a till sale onto the facts ZIMRA signs. */
@@ -805,8 +815,8 @@ export function buildRetailSalePayload(input: {
  *  The gate is the *device*, not a billing flag: a shop with a registered ZIMRA
  *  device is required to fiscalise what it sells whatever an entitlement says,
  *  and a shop without one has nothing to send to. A missing provider config is
- *  therefore SKIPPED and silent, not FAILED. */
-/** The active device (the one `issueFiscalDocument` signs with) and its day that has not closed yet. */
+ *  therefore SKIPPED and silent, not FAILED. Returns the active device (the one
+ *  `issueFiscalDocument` signs with) and its day that has not closed yet. */
 async function activeFiscalDevice(companyId: string) {
   const provider = await prisma.fiscalisationProviderConfig.findFirst({
     where: { companyId, isActive: true },
@@ -816,19 +826,94 @@ async function activeFiscalDevice(companyId: string) {
   if (!provider) return null;
   const day = await prisma.fiscalDay.findFirst({
     where: { companyId, providerConfigId: provider.id, status: { not: FISCAL_DAY_STATUS.CLOSED } },
-    select: { fiscalDayNo: true, status: true, openedAt: true },
+    select: { id: true, fiscalDayNo: true, status: true, openedAt: true },
   });
   return { provider, day };
 }
 
-/** A sale rung while day `dayNo` closes: not signed yet, and not failed — it goes into the next day. */
-function waitsForNextDay(sale: { id: string; saleNo: string | null }, dayNo: number): RetailFiscalOutcome {
+/**
+ * The moment a day stopped taking receipts as far as the next one is
+ * concerned: the newest till sale signed into it, or its own opening when it
+ * took none. ZIMRA takes no receipt dated before the last one it took, so the
+ * next day opens no earlier and a sale dated before it is signed nowhere.
+ */
+export async function lastReceiptAt(day: { id: string; openedAt: Date }): Promise<Date> {
+  const last = await prisma.fiscalReceipt.findFirst({
+    where: { fiscalDayId: day.id, retailSale: { postedAt: { not: null } } },
+    orderBy: { retailSale: { postedAt: "desc" } },
+    select: { retailSale: { select: { postedAt: true } } },
+  });
+  const at = last?.retailSale?.postedAt;
+  return at && at.getTime() > day.openedAt.getTime() ? at : day.openedAt;
+}
+
+/** The sales marked as waiting for a day to be signed into, oldest first (SET-08). */
+export async function waitingSales(
+  companyId: string,
+  options: { upTo?: Date; except?: string; take?: number } = {},
+) {
+  return prisma.retailSale.findMany({
+    where: {
+      companyId,
+      fiscalWaitsSince: { not: null },
+      fiscalReceipt: { is: null },
+      ...(options.upTo ? { postedAt: { lte: options.upTo } } : {}),
+      ...(options.except ? { id: { not: options.except } } : {}),
+    },
+    orderBy: [{ postedAt: "asc" }, { id: "asc" }],
+    select: { id: true, postedAt: true },
+    ...(options.take ? { take: options.take } : {}),
+  });
+}
+
+/** Waits for a day to be signed into: not signed yet, and not failed. */
+function waitsForDay(sale: { id: string; saleNo: string | null }, dayNo: number): RetailFiscalOutcome {
   return outcome(sale, {
     fiscalStatus: "PENDING",
     errorCode: "FISCAL_DAY_NOT_OPEN",
     fiscalError: saleWhileClosingWords(dayNo),
   });
 }
+
+function isWaiting(result: RetailFiscalOutcome): boolean {
+  return result.fiscalStatus === "PENDING" && result.fiscalReceiptId === null;
+}
+
+function beforeLastReceipt(sale: { id: string; saleNo: string }, dayNo: number): RetailFiscalOutcome {
+  return outcome(sale, {
+    fiscalStatus: "FAILED",
+    errorCode: "RETAIL_SALE_BEFORE_LAST_RECEIPT",
+    fiscalError: saleBeforeLastReceiptWords(sale.saleNo, dayNo),
+  });
+}
+
+/**
+ * A sale rung while `day` closes waits for a day, marked. The mark is taken
+ * under a share lock on the day while it is still closing, so a close that
+ * ends — taken, or given back — waits for it and then sees it: once a day
+ * leaves closing, the sales that wait on it are all marked. Null when the day
+ * has left closing already: the caller looks again.
+ */
+async function parkWhileClosing(
+  sale: { id: string; saleNo: string },
+  day: { id: string; fiscalDayNo: number; openedAt: Date },
+  receiptDate: Date,
+): Promise<RetailFiscalOutcome | null> {
+  if (receiptDate.getTime() < (await lastReceiptAt(day)).getTime()) return beforeLastReceipt(sale, day.fiscalDayNo);
+  const parked = await prisma.$executeRaw`
+    UPDATE "RetailSale"
+       SET "fiscalWaitsSince" = COALESCE("fiscalWaitsSince", NOW())
+     WHERE "id" = ${sale.id}
+       AND EXISTS (
+         SELECT 1 FROM "FiscalDay"
+          WHERE "id" = ${day.id} AND "status" = ${FISCAL_DAY_STATUS.CLOSING}
+          FOR SHARE
+       )`;
+  return parked > 0 ? waitsForDay(sale, day.fiscalDayNo) : null;
+}
+
+/** How many times one sale looks at the device's day again when the day moved while it was signed. */
+const DAY_LOOKS = 3;
 
 /**
  * Fiscalise one posted till sale. Never throws for a fiscalisation problem —
@@ -841,21 +926,43 @@ export async function fiscaliseRetailSale(input: {
   /** A till's own sale: kept signed for the fiscal worker while FDMS is silent (SET-08). */
   holdWhileUnreachable?: boolean;
 }): Promise<RetailFiscalOutcome> {
+  return (await fiscaliseOne(input, { waitingFirst: true })).outcome;
+}
+
+/** One sale's outcome, and whether this call is the one that signed it. */
+type Attempt = { outcome: RetailFiscalOutcome; signedNow: boolean };
+
+async function fiscaliseOne(
+  input: { companyId: string; saleId: string; holdWhileUnreachable?: boolean },
+  options: { waitingFirst: boolean },
+): Promise<Attempt> {
   const sale = (await prisma.retailSale.findFirst({
     where: { id: input.saleId, companyId: input.companyId },
     include: SALE_INCLUDE,
   })) as LoadedSale | null;
 
   if (!sale) {
-    return outcome(
-      { id: input.saleId, saleNo: null },
-      {
-        fiscalStatus: "FAILED",
-        errorCode: "RETAIL_SALE_NOT_FOUND",
-        fiscalError: "Sale not found for this company",
-      },
-    );
+    return {
+      outcome: outcome(
+        { id: input.saleId, saleNo: null },
+        {
+          fiscalStatus: "FAILED",
+          errorCode: "RETAIL_SALE_NOT_FOUND",
+          fiscalError: "Sale not found for this company",
+        },
+      ),
+      signedNow: false,
+    };
   }
+
+  // A sale that waited for a day stops waiting once it is signed, or once it
+  // is clear it never will be; a refusal about the device leaves it waiting.
+  const done = async (result: RetailFiscalOutcome, signedNow = false): Promise<Attempt> => {
+    if (sale.fiscalWaitsSince && !isWaiting(result) && !result.blocksDevice) {
+      await prisma.retailSale.updateMany({ where: { id: sale.id }, data: { fiscalWaitsSince: null } });
+    }
+    return { outcome: result, signedNow };
+  };
 
   // A sale that was voided before it was ever drained was never given to ZIMRA
   // and never should be: the reversal that voided it is skipped for the same
@@ -866,150 +973,211 @@ export async function fiscaliseRetailSale(input: {
     select: { id: true },
   });
   if (sale.status !== "POSTED" && !signed) {
-    return outcome(sale, {
-      fiscalStatus: "SKIPPED",
-      fiscalError: `Sale ${sale.saleNo} is ${sale.status} and is not fiscalised`,
-    });
-  }
-
-  const device = await activeFiscalDevice(input.companyId);
-  if (!device) {
-    return outcome(sale, {
-      fiscalStatus: "SKIPPED",
-      fiscalError: "No active fiscalisation device is configured for this company",
-    });
+    return done(
+      outcome(sale, {
+        fiscalStatus: "SKIPPED",
+        fiscalError: `Sale ${sale.saleNo} is ${sale.status} and is not fiscalised`,
+      }),
+    );
   }
 
   const receiptDate = sale.postedAt ?? sale.createdAt;
+  // The day this sale last found, when the day moves under it while it is signed.
+  let seen: { id: string; fiscalDayNo: number; openedAt: Date } | null = null;
 
-  // A receipt is signed into the day that is open, and ZIMRA takes none dated
-  // before its day opened (SET-08). While a day's report is on its way to ZIMRA
-  // no day is open, so a sale rung then waits, unsigned, and goes into the next
-  // day once the report is taken (`signSalesRungWhileClosing`). One rung
-  // before the open day began (an old offline sale) does not fit it and is not
-  // signed. Each says so. A receipt already signed is sent as it was.
-  if (!signed && device.day?.status === FISCAL_DAY_STATUS.CLOSING) {
-    return waitsForNextDay(sale, device.day.fiscalDayNo);
-  }
-  if (!signed && device.day && device.day.openedAt.getTime() > receiptDate.getTime()) {
-    return outcome(sale, {
-      fiscalStatus: "FAILED",
-      errorCode: "RETAIL_SALE_BEFORE_DAY",
-      fiscalError: saleBeforeDayWords(sale.saleNo, device.day.fiscalDayNo),
-    });
-  }
-
-  let bundle: RetailSigningBundle;
-  let credited: CreditedReceiptReference | null = null;
-  let lines: RetailSaleLineForSigning[];
-  try {
-    if (sale.saleType !== "SALE") {
-      credited = await loadCreditedReceipt(input.companyId, sale);
-      if (!credited) {
-        // Nothing at ZIMRA to reduce. Not a failure: the original never got
-        // there, so the reversal has nothing to say.
-        return outcome(sale, {
+  for (let look = 1; ; look += 1) {
+    const device = await activeFiscalDevice(input.companyId);
+    if (!device) {
+      return done(
+        outcome(sale, {
           fiscalStatus: "SKIPPED",
-          fiscalError: `Sale ${sale.saleNo} reverses a sale that was never fiscalised, so no credit note is due`,
+          fiscalError: "No active fiscalisation device is configured for this company",
+        }),
+      );
+    }
+
+    // A receipt is signed into the day that is open, and ZIMRA takes none
+    // dated before its day opened (SET-08). While a day's report is on its way
+    // to ZIMRA no day is open, so a sale rung then waits, unsigned and marked,
+    // and is signed into the next day that is open (`signWaitingSales`). One
+    // rung before the open day began (an old offline sale), or before the
+    // closing day's last receipt, fits no day and is not signed. Each says so.
+    // A receipt already signed is sent as it was.
+    if (!signed) {
+      const day = device.day;
+      if (day?.status === FISCAL_DAY_STATUS.CLOSING) {
+        const parked = await parkWhileClosing(sale, day, receiptDate);
+        if (parked) return done(parked);
+        seen = day;
+        if (look < DAY_LOOKS) continue;
+      }
+      if (!day && seen) {
+        // The day closed while this sale was being signed, and the next one is not open yet: it waits for it.
+        if (receiptDate.getTime() < (await lastReceiptAt(seen)).getTime()) return done(beforeLastReceipt(sale, seen.fiscalDayNo));
+        await prisma.retailSale.updateMany({
+          where: { id: sale.id, fiscalWaitsSince: null },
+          data: { fiscalWaitsSince: new Date() },
         });
+        return done(waitsForDay(sale, seen.fiscalDayNo));
+      }
+      if (day && day.openedAt.getTime() > receiptDate.getTime()) {
+        return done(
+          outcome(sale, {
+            fiscalStatus: "FAILED",
+            errorCode: "RETAIL_SALE_BEFORE_DAY",
+            fiscalError: saleBeforeDayWords(sale.saleNo, day.fiscalDayNo),
+          }),
+        );
+      }
+      // The sales that waited for this day go into it before anything rung after them.
+      if (day?.status === FISCAL_DAY_STATUS.OPENED && options.waitingFirst) {
+        await signWaitingSales(input.companyId, { upTo: receiptDate, except: sale.id });
       }
     }
 
-    lines = await resolveLineRates(input.companyId, sale);
-    const resolver = await loadRetailTaxResolver({
+    let bundle: RetailSigningBundle;
+    let credited: CreditedReceiptReference | null = null;
+    let lines: RetailSaleLineForSigning[];
+    try {
+      if (sale.saleType !== "SALE") {
+        credited = await loadCreditedReceipt(input.companyId, sale);
+        if (!credited) {
+          // Nothing at ZIMRA to reduce. Not a failure: the original never got
+          // there, so the reversal has nothing to say.
+          return done(
+            outcome(sale, {
+              fiscalStatus: "SKIPPED",
+              fiscalError: `Sale ${sale.saleNo} reverses a sale that was never fiscalised, so no credit note is due`,
+            }),
+          );
+        }
+      }
+
+      lines = await resolveLineRates(input.companyId, sale);
+      const resolver = await loadRetailTaxResolver({
+        companyId: input.companyId,
+        asOf: receiptDate,
+      });
+      bundle = buildRetailSaleSigningInput({
+        sale: { ...sale, receiptDate },
+        lines,
+        resolver,
+      });
+    } catch (error) {
+      if (error instanceof RetailFiscalMappingError || error instanceof FiscalMappingError) {
+        return done(
+          outcome(sale, {
+            fiscalStatus: "FAILED",
+            errorCode: error.code,
+            fiscalError: error.message,
+          }),
+        );
+      }
+      // The float boundary refusing an amount finer than a cent. Named rather
+      // than thrown, so a till gets told which sale and why.
+      if (error instanceof FiscalSigningError) {
+        return done(
+          outcome(sale, {
+            fiscalStatus: "FAILED",
+            errorCode: "FISCAL_SIGNING_REFUSED",
+            fiscalError: error.message,
+          }),
+        );
+      }
+      throw error;
+    }
+
+    const supplier = await prisma.accountingSettings.findUnique({
+      where: { companyId: input.companyId },
+      select: {
+        legalName: true,
+        tradingName: true,
+        vatNumber: true,
+        taxNumber: true,
+        address: true,
+        phone: true,
+        email: true,
+      },
+    });
+
+    const result = await issueFiscalDocument({
       companyId: input.companyId,
-      asOf: receiptDate,
+      source: { kind: "RETAIL_SALE", retailSaleId: sale.id },
+      documentNumber: sale.saleNo,
+      // Namespaced: a till sale id and an invoice id are both uuids and the
+      // provider sees only this string.
+      idempotencyKey: `${input.companyId}:retail-sale:${sale.id}`,
+      payload: buildRetailSalePayload({
+        sale,
+        lines,
+        taxLines: bundle.taxLines,
+        credited,
+        supplier,
+      }),
+      fiscal: bundle.fiscal,
+      holdWhileUnreachableMs: input.holdWhileUnreachable ? FISCAL_OFFLINE_WINDOW_MS : undefined,
     });
-    bundle = buildRetailSaleSigningInput({
-      sale: { ...sale, receiptDate },
-      lines,
-      resolver,
-    });
-  } catch (error) {
-    if (error instanceof RetailFiscalMappingError) {
-      return outcome(sale, {
-        fiscalStatus: "FAILED",
-        errorCode: error.code,
-        fiscalError: error.message,
-      });
+
+    // The day stopped taking receipts while this one was being signed: look at it again.
+    if (!signed && !result.receiptId && result.errorCode === "FISCAL_DAY_NOT_OPEN" && device.day && look < DAY_LOOKS) {
+      seen = device.day;
+      continue;
     }
-    if (error instanceof FiscalMappingError) {
-      return outcome(sale, {
-        fiscalStatus: "FAILED",
-        errorCode: error.code,
-        fiscalError: error.message,
-      });
-    }
-    // The float boundary refusing an amount finer than a cent. Named rather
-    // than thrown, so a till gets told which sale and why.
-    if (error instanceof FiscalSigningError) {
-      return outcome(sale, {
-        fiscalStatus: "FAILED",
-        errorCode: "FISCAL_SIGNING_REFUSED",
-        fiscalError: error.message,
-      });
-    }
-    throw error;
+
+    // Read back what the signer wrote. The QR and the global number exist from
+    // the moment the receipt is signed — before FDMS has answered — which is what
+    // lets a till print a scannable slip while it is still PENDING.
+    const row = result.receiptId
+      ? await prisma.fiscalReceipt.findUnique({
+          where: { id: result.receiptId },
+          select: { qrCodeData: true, receiptGlobalNo: true },
+        })
+      : null;
+
+    return done(
+      outcome(sale, {
+        fiscalStatus: result.status,
+        fiscalReceiptId: result.receiptId ?? null,
+        fiscalNumber: result.fiscalNumber ?? null,
+        qrCodeData: row?.qrCodeData ?? null,
+        receiptGlobalNo: row?.receiptGlobalNo ?? null,
+        providerReference: result.providerReference ?? null,
+        fiscalError: result.heldSince ? heldReceiptWords(result.heldSince) : (result.error ?? null),
+        errorCode: result.errorCode ?? null,
+        blocksDevice: Boolean(result.errorCode && DEVICE_SCOPED_CODES.has(result.errorCode)),
+      }),
+      Boolean(result.signedNow),
+    );
   }
+}
 
-  const supplier = await prisma.accountingSettings.findUnique({
-    where: { companyId: input.companyId },
-    select: {
-      legalName: true,
-      tradingName: true,
-      vatNumber: true,
-      taxNumber: true,
-      address: true,
-      phone: true,
-      email: true,
-    },
-  });
-
-  const result = await issueFiscalDocument({
-    companyId: input.companyId,
-    source: { kind: "RETAIL_SALE", retailSaleId: sale.id },
-    documentNumber: sale.saleNo,
-    // Namespaced: a till sale id and an invoice id are both uuids and the
-    // provider sees only this string.
-    idempotencyKey: `${input.companyId}:retail-sale:${sale.id}`,
-    payload: buildRetailSalePayload({
-      sale,
-      lines,
-      taxLines: bundle.taxLines,
-      credited,
-      supplier,
-    }),
-    fiscal: bundle.fiscal,
-    holdWhileUnreachableMs: input.holdWhileUnreachable ? FISCAL_OFFLINE_WINDOW_MS : undefined,
-  });
-
-  // The day stopped taking receipts while this one was being signed: it waits for the next day too.
-  if (!result.receiptId && result.errorCode === "FISCAL_DAY_NOT_OPEN") {
-    const now = await activeFiscalDevice(input.companyId);
-    if (now?.day?.status === FISCAL_DAY_STATUS.CLOSING) return waitsForNextDay(sale, now.day.fiscalDayNo);
+/**
+ * Sign the sales waiting for a day (rung while the last day's report was on
+ * its way to ZIMRA) into the day that is open, oldest first (SET-08): run by
+ * a close once it is taken or given back, by the retail worker, and by every
+ * sale before it is signed itself, so nothing rung after them goes first.
+ * Stops where the device or the day stops them; a sale that another caller
+ * signs at the same moment is left to it. Says how many this call signed.
+ */
+export async function signWaitingSales(
+  companyId: string,
+  options: { upTo?: Date; except?: string } = {},
+): Promise<number> {
+  let signedNow = 0;
+  for (const waiting of await waitingSales(companyId, options)) {
+    let attempt: Attempt;
+    try {
+      attempt = await fiscaliseOne({ companyId, saleId: waiting.id, holdWhileUnreachable: true }, { waitingFirst: false });
+    } catch (error) {
+      // Its receipt is the sale's own: another caller signing it at the same moment wins, and this one moves on.
+      const signedElsewhere = typeof error === "object" && error !== null && (error as { code?: unknown }).code === "P2002";
+      if (!signedElsewhere) console.error(`[retail] signing waiting sale ${waiting.id} failed:`, error);
+      continue;
+    }
+    if (attempt.signedNow && attempt.outcome.fiscalStatus !== "FAILED") signedNow += 1;
+    if (attempt.outcome.blocksDevice || isWaiting(attempt.outcome)) break;
   }
-
-  // Read back what the signer wrote. The QR and the global number exist from
-  // the moment the receipt is signed — before FDMS has answered — which is what
-  // lets a till print a scannable slip while it is still PENDING.
-  const row = result.receiptId
-    ? await prisma.fiscalReceipt.findUnique({
-        where: { id: result.receiptId },
-        select: { qrCodeData: true, receiptGlobalNo: true },
-      })
-    : null;
-
-  return outcome(sale, {
-    fiscalStatus: result.status,
-    fiscalReceiptId: result.receiptId ?? null,
-    fiscalNumber: result.fiscalNumber ?? null,
-    qrCodeData: row?.qrCodeData ?? null,
-    receiptGlobalNo: row?.receiptGlobalNo ?? null,
-    providerReference: result.providerReference ?? null,
-    fiscalError: result.heldSince ? heldReceiptWords(result.heldSince) : (result.error ?? null),
-    errorCode: result.errorCode ?? null,
-    blocksDevice: Boolean(result.errorCode && DEVICE_SCOPED_CODES.has(result.errorCode)),
-  });
+  return signedNow;
 }
 
 /**

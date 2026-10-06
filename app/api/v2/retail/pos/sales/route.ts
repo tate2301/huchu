@@ -902,13 +902,9 @@ export async function POST(request: NextRequest) {
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
-    // A sale that finds no fiscal day open (closed by hand while the tills sell) opens one to be signed in
-    // (SET-08): once every check above has let it through, so a refused sale opens nothing, and before the
-    // sale is stamped, because ZIMRA takes no receipt dated before its day.
-    await openFiscalDayIfNone(
-      session.user.companyId,
-      input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : undefined,
-    );
+    // Before the sale is stamped: a fiscal day it opens opens no later than this (ZIMRA takes no receipt dated
+    // before its day).
+    const beforeStamp = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : new Date();
     const { sale, accounting } = await createRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
@@ -970,6 +966,10 @@ export async function POST(request: NextRequest) {
         : 0;
     const loyaltyPointsRedeemed = parseLoyaltyRedeemPoints(sale.notes);
     const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
+
+    // A sale that finds no fiscal day open (closed by hand while the tills sell) opens one to be signed in
+    // (SET-08): only once it has committed, so a sale refused anywhere opens nothing.
+    await openFiscalDayIfNone(session.user.companyId, beforeStamp);
 
     /*
       The online sale goes onto the fiscal chain here, after it has committed —

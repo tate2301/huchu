@@ -105,13 +105,17 @@ Recorded unit choices:
 - **SET-08 sends a day's report only from "Close day", the last shift closing and the retail worker.** No sale and no shift
   opening calls ZIMRA's CloseDay. A day whose report ZIMRA never answered stays open and the tills keep signing into it; the
   worker sends the report every five minutes while no shift is open, so a day a shift is still selling into stays open past
-  midnight and closes with that shift. A day stops taking receipts before its report is counted (closing), so the report
-  counts every receipt in it. While the report is on its way, and after ZIMRA answers it with a no (the day stays closing),
-  no day is open: a sale rung meanwhile waits unsigned ("Day {n}'s report waits for ZIMRA. This sale is signed into day
-  {n+1} once it is taken.", the till's "Waiting for ZIMRA"), and once the report is taken the close opens day {n+1} no later
-  than that sale and signs it there; the retail worker does the same if a close stopped before it. The next day opens no
-  earlier than the closed day's last receipt. A sale dated before the open day began (an old offline sale) is not signed:
-  ZIMRA takes no receipt dated before its day.
+  midnight and closes with that shift. One close holds a day at a time: a second close (by hand, with the last shift, from
+  the worker or the books' console) is refused while the first is on its way, and a close that died is taken over after five
+  minutes. A day stops taking receipts before its report is counted (closing), so the report counts every receipt in it.
+  While the report is on its way, and after ZIMRA answers it with a no (the day stays closing), no day is open: a sale rung
+  meanwhile waits unsigned and marked ("Day {n}'s report waits for ZIMRA. This sale is signed as soon as a day is open
+  again.", the till's "Waiting for ZIMRA"). When ZIMRA does not answer, the day is given back and the sales that waited are
+  signed into it at once; once the report is taken, the close opens day {n+1} no later than the first of them and signs them
+  there. Either way they go in oldest first and before any sale rung after them, and the retail worker signs any a close did
+  not get to. The next day opens no earlier than the closed day's last receipt. A sale dated before the open day began (an
+  old offline sale), or before a closing day's last receipt, is not signed: ZIMRA takes no receipt dated before its day or
+  before the last one it took.
 - **SET-08 prices the demo shelf at 15.5% VAT.** The boards draw 15%; ZIMRA maps only 15.5% (VAT15_5, taxID 1) since
   1 January 2026, and the till signs only a rate ZIMRA maps. The seed prices the products, the categories and the history at 15.5%.
 

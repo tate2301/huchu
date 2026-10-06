@@ -5497,6 +5497,11 @@ model RetailSale {
   reviewedAt     DateTime?
   reviewedById   String?
   postedAt       DateTime?
+  /// SET-08: rung while a fiscal day's report was on its way to ZIMRA, so no
+  /// day was open to sign it into. It is signed, oldest first, into the next
+  /// day that is open: the same day when its close is given back, else the
+  /// next. Null once it has its receipt or cannot be signed.
+  fiscalWaitsSince DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -5520,6 +5525,7 @@ model RetailSale {
   @@index([companyId, siteId, status, postedAt])
   @@index([shiftId])
   @@index([companyId, registerId, postedAt])
+  @@index([companyId, fiscalWaitsSince])
 }
 
 model RetailSaleLine {
@@ -7136,6 +7142,10 @@ model FiscalDay {
   lastReceiptHash     String?
   closingSignature    String?
   countersJson        String?
+  /// While a close holds the day (CLOSING): when it took it. One close at a
+  /// time; null when no close holds it (a report ZIMRA refused waits for the
+  /// next close). A hold older than the close lease is a close that died.
+  closingSince        DateTime?
   lastError           String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

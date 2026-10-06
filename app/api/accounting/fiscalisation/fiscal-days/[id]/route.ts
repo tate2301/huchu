@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOnSharedRoute } from "@/lib/retail/permissions";
 import {
   closeFiscalDay,
+  FiscalDayCloseInProgressError,
   FiscalDayHasPendingReceiptsError,
   FiscalDayNotFoundError,
   FiscalDayNotOpenError,
@@ -278,6 +279,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
     if (error instanceof FiscalDayNotOpenError) {
       return errorResponse(error.message, 409, { code: error.code, status: error.status });
+    }
+    if (error instanceof FiscalDayCloseInProgressError) {
+      // One close at a time: the till's close or another console close holds the day.
+      return errorResponse(error.message, 409, { code: error.code, dayId: error.dayId });
     }
     console.error("[API] POST /api/accounting/fiscalisation/fiscal-days/[id] error:", error);
     return errorResponse("Failed to close fiscal day");

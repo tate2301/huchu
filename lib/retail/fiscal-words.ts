@@ -39,10 +39,10 @@ export function connectionWords(input: {
   if (!input.registered) return { state: "NOT_CONNECTED", text: "Not connected yet." };
   const day = input.activeDay;
   if (day?.status === "CLOSING") {
-    // Its report is on its way to ZIMRA, or was not taken: no day is open until it is.
+    // Its report is on its way to ZIMRA, or was not taken: no day is open until it is taken, or the day is given back.
     return {
       state: input.unreachableSince ? "UNREACHABLE" : "CONNECTED",
-      text: `Day ${day.no}'s report waits for ZIMRA. Sales wait for day ${day.no + 1} until it is taken.`,
+      text: `Day ${day.no}'s report waits for ZIMRA. Sales wait to be signed until a day is open again.`,
     };
   }
   if (input.unreachableSince) {
@@ -84,9 +84,22 @@ export function heldReceiptWords(silentSince: Date): string {
   return `ZIMRA has not answered since ${formatTime(silentSince)}. The receipt is signed and waits to be sent.`;
 }
 
-/** Rung while a day's report is on its way to ZIMRA: no day is open, so the sale waits for the next one. */
+/**
+ * Rung while a day's report is on its way to ZIMRA: no day is open, so the
+ * sale waits. It is signed into the next day once the report is taken, or
+ * into the same day when ZIMRA does not answer and the day is given back.
+ */
 export function saleWhileClosingWords(dayNo: number): string {
-  return `Day ${dayNo}'s report waits for ZIMRA. This sale is signed into day ${dayNo + 1} once it is taken.`;
+  return `Day ${dayNo}'s report waits for ZIMRA. This sale is signed as soon as a day is open again.`;
+}
+
+/**
+ * Rung before the closing day's last receipt (an offline sale that arrives
+ * while the day closes): it fits neither that day, which takes no receipt
+ * now and none dated before its last, nor the next, which opens no earlier.
+ */
+export function saleBeforeLastReceiptWords(saleNo: string, dayNo: number): string {
+  return `${saleNo} was rung before day ${dayNo}'s last receipt, and day ${dayNo} is closing. ZIMRA takes no receipt dated before the last one it took, so it is not signed.`;
 }
 
 /** Rung before the open day began (an old offline sale): ZIMRA takes no receipt dated before its day. */

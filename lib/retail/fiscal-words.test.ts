@@ -8,6 +8,7 @@ import {
   fiscalDayTotal,
   heldReceiptWords,
   saleBeforeDayWords,
+  saleBeforeLastReceiptWords,
   saleWhileClosingWords,
   taxpayerNumberProblem,
   vatNumberProblem,
@@ -46,7 +47,7 @@ describe("the connection line", () => {
   it("says a day's report waits for ZIMRA while it is closing, and that sales are not signed meanwhile", () => {
     expect(
       connectionWords({ registered: true, unreachableSince: null, activeDay: { no: 214, openedAt: NOW, status: "CLOSING" } }),
-    ).toEqual({ state: "CONNECTED", text: "Day 214's report waits for ZIMRA. Sales wait for day 215 until it is taken." });
+    ).toEqual({ state: "CONNECTED", text: "Day 214's report waits for ZIMRA. Sales wait to be signed until a day is open again." });
   });
 });
 
@@ -55,7 +56,10 @@ describe("what a till sale is told about its receipt", () => {
     expect(heldReceiptWords(at("2026-10-03T09:42:00"))).toBe(
       "ZIMRA has not answered since 09:42. The receipt is signed and waits to be sent.",
     );
-    expect(saleWhileClosingWords(214)).toBe("Day 214's report waits for ZIMRA. This sale is signed into day 215 once it is taken.");
+    expect(saleWhileClosingWords(214)).toBe("Day 214's report waits for ZIMRA. This sale is signed as soon as a day is open again.");
+    expect(saleBeforeLastReceiptWords("RS-0270", 214)).toBe(
+      "RS-0270 was rung before day 214's last receipt, and day 214 is closing. ZIMRA takes no receipt dated before the last one it took, so it is not signed.",
+    );
     expect(saleBeforeDayWords("RS-0271", 215)).toBe(
       "RS-0271 was rung before day 215 opened, and ZIMRA takes no receipt dated before its day. It is not signed.",
     );

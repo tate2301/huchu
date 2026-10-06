@@ -82,6 +82,8 @@ export type FiscalIssueResult = {
   errorCode?: FiscalIssueErrorCode;
   /** Signed and kept, not sent: FDMS has not answered the device since then (`holdWhileUnreachableMs`). */
   heldSince?: Date;
+  /** This call signed the receipt (took its numbers), rather than sending one already signed again. */
+  signedNow?: boolean;
 };
 
 /**
@@ -606,6 +608,7 @@ export async function issueFiscalDocument(input: {
   }
 
   if (input.onAttempt) await input.onAttempt();
+  const signedNow = native && !alreadySigned;
 
   if (native && input.holdWhileUnreachableMs && provider.lastFailedAt && isFdmsUnreachable(provider)) {
     const silentFor = Date.now() - provider.lastFailedAt.getTime();
@@ -621,6 +624,7 @@ export async function issueFiscalDocument(input: {
         providerKey: updated.providerKey,
         error: held,
         heldSince: provider.lastFailedAt,
+        signedNow,
       };
     }
   }
@@ -670,6 +674,7 @@ export async function issueFiscalDocument(input: {
       fiscalNumber: updated.fiscalNumber,
       providerReference: updated.providerReference,
       error: updated.lastError ?? undefined,
+      signedNow,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown FDMS connector error";
@@ -688,6 +693,7 @@ export async function issueFiscalDocument(input: {
       receiptId: updated.id,
       providerKey: updated.providerKey,
       error: message,
+      signedNow,
     };
   }
 }

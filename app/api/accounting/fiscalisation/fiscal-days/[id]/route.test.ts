@@ -40,6 +40,7 @@ vi.mock("@/lib/accounting/fiscal-day", async () => {
 });
 
 import {
+  FiscalDayCloseInProgressError,
   FiscalDayHasPendingReceiptsError,
   FiscalDayNotFoundError,
   FiscalDayNotOpenError,
@@ -333,6 +334,16 @@ describe("POST /api/accounting/fiscalisation/fiscal-days/[id]", () => {
 
     expect(response.status).toBe(409);
     expect(body.details.status).toBe("CLOSED");
+  });
+
+  it("returns 409 for a day another close holds", async () => {
+    closeFiscalDayMock.mockRejectedValue(new FiscalDayCloseInProgressError({ id: DAY_ID, fiscalDayNo: 214 }));
+
+    const response = await POST(postRequest({ action: "close" }), params);
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.details).toEqual({ code: "FISCAL_DAY_CLOSE_IN_PROGRESS", dayId: DAY_ID });
   });
 
   it("refuses a cashier before touching the service", async () => {

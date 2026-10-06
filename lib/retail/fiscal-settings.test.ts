@@ -492,12 +492,12 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
     expect(await fiscaliseRetailSale({ companyId, saleId: during.id, holdWhileUnreachable: true })).toMatchObject({
       fiscalStatus: "PENDING",
       fiscalReceiptId: null,
-      fiscalError: `Day ${open.fiscalDayNo}'s report waits for ZIMRA. This sale is signed into day ${open.fiscalDayNo + 1} once it is taken.`,
+      fiscalError: `Day ${open.fiscalDayNo}'s report waits for ZIMRA. This sale is signed as soon as a day is open again.`,
     });
     expect(Date.now() - started).toBeLessThan(2_000);
     expect(await prisma.fiscalReceipt.findUnique({ where: { retailSaleId: during.id } })).toBeNull();
     expect((await readSettings(companyId, "fiscal", true))?.values).toMatchObject({
-      connection: `Day ${open.fiscalDayNo}'s report waits for ZIMRA. Sales wait for day ${open.fiscalDayNo + 1} until it is taken.`,
+      connection: `Day ${open.fiscalDayNo}'s report waits for ZIMRA. Sales wait to be signed until a day is open again.`,
     });
     // ZIMRA still silent: closing it again leaves its report waiting, not the day open.
     await prisma.fiscalisationProviderConfig.update({ where: { id: device.id }, data: { apiBaseUrl: "http://127.0.0.1:9" } });
@@ -568,7 +568,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
       expect(await openFiscalDayIfNone(companyId)).toEqual({ opened: null });
       expect(await fiscaliseRetailSale({ companyId, saleId: during.id, holdWhileUnreachable: true })).toMatchObject({
         fiscalStatus: "PENDING",
-        fiscalError: `Day ${day.fiscalDayNo}'s report waits for ZIMRA. This sale is signed into day ${day.fiscalDayNo + 1} once it is taken.`,
+        fiscalError: `Day ${day.fiscalDayNo}'s report waits for ZIMRA. This sale is signed as soon as a day is open again.`,
       });
       release();
       await closing;
