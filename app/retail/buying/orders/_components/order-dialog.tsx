@@ -7,6 +7,7 @@ import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FormField } from "@/components/management/ui";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
 import {
@@ -21,6 +22,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import { fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { startOfDayIn } from "@/lib/reports/list-query";
+import { DEFAULT_TIME_ZONE, dayKey, todayIn } from "@/lib/workspace/format";
 import { Plus, Trash2 } from "@/lib/icons";
 
 /**
@@ -68,7 +71,7 @@ function formFor(order: EditableOrder | null): OrderForm {
   return {
     supplierName: order.supplierName,
     siteId: order.siteId,
-    expectedDate: order.expectedDate ? order.expectedDate.slice(0, 10) : "",
+    expectedDate: order.expectedDate ? dayKey(new Date(order.expectedDate)) : "",
     notes: order.notes ?? "",
     lines: order.lines.map((line) => ({
       id: line.id,
@@ -138,7 +141,8 @@ export function OrderDialog({
         ...(order ? {} : { poNo: poNo || undefined }),
         supplierName: form.supplierName.trim(),
         siteId,
-        expectedDate: form.expectedDate ? new Date(form.expectedDate).toISOString() : null,
+        // The day starts at the shop's midnight, not the browser's.
+        expectedDate: form.expectedDate ? startOfDayIn(form.expectedDate, DEFAULT_TIME_ZONE).toISOString() : null,
         notes: form.notes.trim() || null,
         lines: form.lines.map((line) => ({
           ...(order && line.id ? { id: line.id } : {}),
@@ -238,11 +242,13 @@ export function OrderDialog({
         </FormField>
         <FormField label="Expected">
           {(id) => (
-            <Input
+            <DatePicker
               id={id}
-              type="date"
-              value={form.expectedDate}
-              onChange={(event) => setForm((current) => ({ ...current, expectedDate: event.target.value }))}
+              label="Expected"
+              clearable
+              earliest={todayIn()}
+              value={form.expectedDate || null}
+              onChange={(day) => setForm((current) => ({ ...current, expectedDate: day ?? "" }))}
             />
           )}
         </FormField>

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { Field } from "@/components/workspace/fields/field";
 import { MoneyInput } from "@/components/workspace/fields/money-input";
 import { FileField } from "@/components/workspace/fields/file-field";
@@ -14,10 +15,13 @@ import { OptionCardGroup } from "@/components/workspace/option-card";
 import { Segmented } from "@/components/workspace/segmented";
 import { SwitchRow } from "@/components/workspace/switch";
 import { fetchJson } from "@/lib/api-client";
+import { CalendarIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { formatPicked } from "@/lib/workspace/format";
 import type { FieldSpec, PickedOption, SheetCtx, SheetCurrency, SheetLine, SheetValues } from "@/lib/workspace/sheet-kind";
 
 import { LinesField } from "./lines-field";
+import { dayBound } from "./model";
 import { QrCode } from "./qr-code";
 import { LookupField } from "./lookup-field";
 import { LookupTags } from "./lookup-tags";
@@ -289,6 +293,37 @@ export function SheetField({
                 onValueChange={onChange}
               />
             );
+          case "date":
+          case "datetime": {
+            const picked = typeof value === "string" && value ? value : null;
+            return (
+              <DatePicker
+                value={picked}
+                onChange={onChange}
+                time={t === "datetime"}
+                earliest={dayBound(field.earliest, values) ?? undefined}
+                latest={dayBound(field.latest, values) ?? undefined}
+                clearable={field.clearable}
+                label={field.l}
+                disabled={disabled}
+                trigger={
+                  <button
+                    type="button"
+                    id={control.id}
+                    className="cx-input dp-field"
+                    disabled={disabled}
+                    aria-describedby={control["aria-describedby"]}
+                    data-invalid={control["aria-invalid"] ? "true" : undefined}
+                  >
+                    <span className={picked ? "dp-trigger__value" : "dp-trigger__placeholder"}>
+                      {picked ? formatPicked(picked) : (field.p ?? (t === "datetime" ? "Choose a date and time" : "Choose a date"))}
+                    </span>
+                    <CalendarIcon className="dp-trigger__icon" aria-hidden="true" />
+                  </button>
+                }
+              />
+            );
+          }
           case "lines":
             return (
               <LinesField

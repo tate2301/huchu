@@ -1,5 +1,6 @@
 import type { Ask } from "@/lib/workspace/ask";
-import type { FieldSpec, SheetCtx, SheetKind, SheetLine, SheetSection, SheetValues } from "@/lib/workspace/sheet-kind";
+import { dayBoundRefusal, todayIn } from "@/lib/workspace/format";
+import type { DayBound, FieldSpec, SheetCtx, SheetKind, SheetLine, SheetSection, SheetValues } from "@/lib/workspace/sheet-kind";
 
 /**
  * The rules of a sheet that are not drawing (00-foundations 5.7): starting
@@ -17,6 +18,8 @@ function emptyValue(field: FieldSpec): unknown {
     case "auto":
     case "photo":
     case "file":
+    case "date":
+    case "datetime":
       return null;
     case "toggle":
       return false;
@@ -87,9 +90,18 @@ export function isEmptyValue(field: FieldSpec, value: unknown): boolean {
   return false;
 }
 
-/** "Till is needed." */
-export function neededMessage(label: string): string {
+/** "Till is needed."; a date field asks for its date. */
+export function neededMessage(label: string, field?: Pick<FieldSpec, "t">): string {
+  if (field?.t === "date") return "Choose a date.";
+  if (field?.t === "datetime") return "Choose a date and time.";
   return `${label} is needed.`;
+}
+
+/** A date field's bound as a day: "today" is today in the shop's zone. */
+export function dayBound(bound: DayBound | undefined, values: SheetValues): string | null {
+  if (bound === undefined) return null;
+  if (bound === "today") return todayIn();
+  return typeof bound === "function" ? bound(values) : bound;
 }
 
 /**
@@ -105,8 +117,16 @@ export function checkValues(kind: SheetKind, values: SheetValues, ctx: SheetCtx)
       if (field.t === "read" || field.fixed?.(ctx) || field.readWhen?.(values, ctx)) continue;
       const value = values[field.id];
       if (isEmptyValue(field, value)) {
-        if (!field.opt) errors[field.id] = field.needed ?? neededMessage(field.l);
+        if (!field.opt) errors[field.id] = field.needed ?? neededMessage(field.l, field);
         continue;
+      }
+      if (field.t === "date" || field.t === "datetime") {
+        const day = String(value).slice(0, 10);
+        const refusal = dayBoundRefusal(day, dayBound(field.earliest, values), dayBound(field.latest, values));
+        if (refusal) {
+          errors[field.id] = refusal;
+          continue;
+        }
       }
       if (field.schema) {
         const parsed = field.schema.safeParse(value);

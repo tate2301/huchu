@@ -1,0 +1,77 @@
+/* DatePicker and DateRangePicker (FND-DATES). Tokens are the DS names, which
+   every theme (Corelith, Tender, Tender dark) defines. */
+
+.dp-pop { max-width: calc(100vw - 32px); }
+
+.dp, .dpr-main { display: flex; flex-direction: column; gap: 10px; padding: 12px; font-family: var(--font-sans); font-size: 13px; color: var(--text-strong); }
+.dp { width: 304px; }
+
+.dp-head { display: flex; align-items: center; gap: 8px; }
+.dp-head .dp-input { flex: 1; }
+
+.dp-input { min-width: 0; width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-md, 8px); background: var(--surface); color: var(--text-strong); font: 500 13px/1 var(--font-mono); outline: none; }
+.dp-input::placeholder { color: var(--text-subtle); font-weight: 400; }
+.dp-input:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+.dp-input[aria-invalid="true"] { border-color: var(--bad, var(--tone-danger)); }
+
+.dp-quiet { height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius-md, 8px); background: transparent; color: var(--text-muted); font: inherit; cursor: pointer; white-space: nowrap; }
+.dp-quiet:hover { background: var(--surface-muted); color: var(--text-strong); }
+
+.dp-line { margin: 0; min-height: 18px; color: var(--text-muted); font-size: 12.5px; line-height: 18px; }
+.dp-line--bad { color: var(--bad, var(--tone-danger)); }
+
+.dp-grid { width: 280px; max-width: 100%; align-self: center; }
+.dp-calendar { width: 100%; }
+
+/* The DS draws these cells with inline styles, so the marks need !important. */
+.dp-grid [role="gridcell"][data-range="in"] { background: var(--brand-soft) !important; color: var(--text-strong) !important; border-radius: 0 !important; }
+.dp-grid [role="gridcell"][data-range="end"] { background: var(--brand) !important; color: var(--text-inverse) !important; border: 0 !important; }
+.dp-grid [role="gridcell"]:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.dp-grid [role="gridcell"]:not([disabled]):not([data-range]):not([aria-selected="true"]):hover { background: var(--surface-muted) !important; }
+
+.dp-foot, .dpr-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.dp-foot__buttons { display: inline-flex; gap: 8px; margin-left: auto; }
+.dp-time { display: flex; flex-direction: column; gap: 4px; width: 96px; color: var(--text-muted); font-size: 12px; }
+
+/* The range picker: presets | rule | ends, grid, line, buttons. */
+.dpr { display: flex; }
+.dpr-main { width: 304px; }
+.dpr-presets { width: 168px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 8px; border-right: 1px solid var(--border); }
+.dpr-preset { height: 32px; display: flex; align-items: center; gap: 8px; width: 100%; padding: 0 8px; border: 0; border-radius: var(--radius-md, 8px); background: transparent; color: var(--text-strong); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.dpr-preset:hover { background: var(--surface-muted); }
+.dpr-preset.is-on { font-weight: 600; }
+.dpr-preset__mark { width: 14px; height: 14px; flex: none; display: inline-flex; color: var(--brand); }
+.dpr-preset__mark svg { width: 14px; height: 14px; }
+
+.dpr-ends { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dp-end { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dp-end__label { color: var(--text-muted); font-size: 12px; }
+.dp-end.is-editing .dp-input { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+
+.dpr-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 12px 0; }
+.dpr-chip { height: 32px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text-strong); font: inherit; font-size: 13px; cursor: pointer; }
+.dpr-chip.is-on { border-color: var(--brand); background: var(--brand-soft); font-weight: 600; }
+
+/* The default trigger: a field showing the day in mono. */
+.dp-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-md, 8px); background: var(--surface); color: var(--text-strong); font: 500 13px/1 var(--font-mono); text-align: left; cursor: pointer; }
+.dp-trigger:disabled { cursor: default; opacity: .6; }
+.dp-trigger.is-invalid { border-color: var(--bad, var(--tone-danger)); }
+.dp-trigger__value, .dp-trigger__placeholder { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-trigger__placeholder { color: var(--text-subtle); font-family: var(--font-sans); font-weight: 400; }
+.dp-trigger__icon { width: 16px; height: 16px; flex: none; color: var(--text-muted); }
+
+/* A field-style trigger in a sheet takes the sheet's own input class. */
+.cx-input.dp-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; cursor: pointer; font-family: var(--font-mono); }
+.cx-input.dp-field .dp-trigger__icon { margin-left: auto; }
+.cx-input.dp-field[data-invalid="true"] { border-color: var(--bad, var(--tone-danger)); }
+
+/* On a phone sheet the range picker stacks and its buttons go full width. */
+@media (max-width: 639px) {
+  .dp, .dpr-main { width: 100%; }
+  .dpr { flex-direction: column; }
+  .dp-grid { width: 100%; }
+  .dp-foot, .dpr-foot { flex-direction: column; align-items: stretch; }
+  .dp-foot__buttons { flex-direction: column-reverse; margin-left: 0; }
+  .dp-foot__buttons > * { width: 100%; }
+  .dp-time { width: 100%; }
+}

@@ -4,8 +4,10 @@ import * as React from "react";
 
 import "@/components/sheet-form/sheet-form.css";
 import { LookupField } from "@/components/sheet-form/lookup-field";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Segmented } from "@/components/workspace/segmented";
 import { Check, Loader2, Pencil } from "@/lib/icons";
+import { todayIn } from "@/lib/workspace/format";
 import type { PickedOption } from "@/lib/workspace/sheet-kind";
 import type { RailEdit, RailRow } from "@/lib/retail/record-kinds/types";
 
@@ -39,6 +41,17 @@ export function DetailRow({
   onSave: (edit: RailEdit, value: unknown) => Promise<void>;
 }) {
   const valueClass = `cx-rf-row__value${row.mono ? " cx-rf-mono" : ""}${row.muted ? " cx-rf-row__value--muted" : ""}`;
+  if (editable && row.edit?.type === "date") {
+    return (
+      <div className="cx-rf-row">
+        <span className="cx-rf-row__key">
+          {row.label}
+          {saved && !editing ? <span className="cx-rf-row__saved">Saved</span> : null}
+        </span>
+        <DateRowEditor row={row} edit={row.edit} editing={editing} valueClass={valueClass} onEdit={onEdit} onCancel={onCancel} onSave={onSave} />
+      </div>
+    );
+  }
   // A choice being made takes its own line under the key, across both columns.
   const seg = editing && row.edit?.type === "seg";
   return (
@@ -213,6 +226,83 @@ function RowEditor({
           </button>
         )}
       </span>
+      {error ? (
+        <span id={errorId} role="alert" className="cx-rf-edit__error">
+          {error}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** A rail bound: "today" is today in the shop's zone. */
+function railBound(bound: string | undefined): string | undefined {
+  return bound === "today" ? todayIn() : bound;
+}
+
+/**
+ * A `date` row: the row's own edit button opens the date picker, labelled by
+ * the row, and picking a day saves it at once through the same path a `seg`
+ * choice takes. A refusal shows under the value.
+ */
+function DateRowEditor({
+  row,
+  edit,
+  editing,
+  valueClass,
+  onEdit,
+  onCancel,
+  onSave,
+}: {
+  row: RailRow;
+  edit: RailEdit;
+  editing: boolean;
+  valueClass: string;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: (edit: RailEdit, value: unknown) => Promise<void>;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const errorId = React.useId();
+
+  const save = async (day: string | null) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onSave(edit, day);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "That was not saved. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <span className={valueClass}>
+      <DatePicker
+        value={edit.initial || null}
+        onChange={(day) => void save(day)}
+        label={row.label}
+        earliest={railBound(edit.earliest)}
+        latest={railBound(edit.latest)}
+        clearable={edit.clearable}
+        open={editing}
+        onOpenChange={(next) => (next ? onEdit() : onCancel())}
+        trigger={
+          <button
+            type="button"
+            className="cx-rf-ev"
+            aria-label={`Edit ${row.label}: ${row.value}`}
+            aria-describedby={error ? errorId : undefined}
+            disabled={busy}
+            aria-busy={busy || undefined}
+          >
+            <span className="cx-rf-ev__text">{row.value}</span>
+            {busy ? <Loader2 className="cx-rf-ev__pen" aria-hidden="true" /> : <Pencil className="cx-rf-ev__pen" aria-hidden="true" />}
+          </button>
+        }
+      />
       {error ? (
         <span id={errorId} role="alert" className="cx-rf-edit__error">
           {error}

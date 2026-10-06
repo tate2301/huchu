@@ -87,7 +87,7 @@ import paths. Worth consolidating regardless of the DS work.
 | `segmented-control.tsx` | native | `SegmentedControl<T>` | `⇄` |
 | `input-otp.tsx` | `input-otp` | `InputOtp` | `⇄` Ref is `{focus()}`, not an element |
 | `calendar.tsx` | `react-day-picker` | `Calendar` | `⇄` Local-time `Date` |
-| `date-picker.tsx` | `react-day-picker` | `DatePicker` | `~` Single date only. Ranges → `useDateRange()` |
+| `date-picker.tsx` | `react-day-picker` | `Calendar` | `~` Days as `YYYY-MM-DD` strings. `DatePicker` (a day, or a day and time) and `DateRangePicker` (range marks and arrow keys added on the DS grid) |
 | `label.tsx` | native | `Field` / `Field.Label` | `~` `Field` owns `id` + `aria-describedby` wiring |
 | `dialog.tsx` | `@base-ui/react/dialog` | `Modal` / `Dialog` | `~` DS has its own overlay stack — see the z-index warning below |
 | `alert-dialog.tsx` | `radix-ui` | `AlertDialog` | `⇄` Gains async `onConfirm` + imperative `AlertDialog.confirm()` |

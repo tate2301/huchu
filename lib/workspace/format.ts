@@ -196,3 +196,88 @@ export function formatDuration(minutes: number): string {
   const total = Math.max(0, Math.floor(minutes));
   return `${Math.floor(total / 60)}h ${pad(total % 60)}m`;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Picking days: a day is a `YYYY-MM-DD` string with no zone
+   ────────────────────────────────────────────────────────────────────────── */
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Today in a zone, as `YYYY-MM-DD`: Harare's tomorrow already at 23:30 UTC. */
+export function todayIn(timeZone = DEFAULT_TIME_ZONE, now: Date = new Date()): string {
+  return dayKey(now, timeZone);
+}
+
+function utcOf(day: string): number {
+  const [year, month, date] = day.split("-").map(Number);
+  return Date.UTC(year!, month! - 1, date!);
+}
+
+function dayOfUtc(ms: number): string {
+  const date = new Date(ms);
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+/** The day `n` days after (or before) a day. */
+export function addDays(day: string, n: number): string {
+  return dayOfUtc(utcOf(day) + n * DAY_MS);
+}
+
+/** The days from one day to another, both counted: the 1st to the 3rd is 3. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((utcOf(to) - utcOf(from)) / DAY_MS) + 1;
+}
+
+/** A time as a person types it, 24-hour: "9:05", "09:05" or "0905" → "09:05". Null when it is not a time. */
+export function parseTime(text: string): string | null {
+  const match = /^(\d{1,2}):?(\d{2})$/.exec(text.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
+function dayWords(day: string, withYear: boolean): string {
+  const w = wall(day, DEFAULT_TIME_ZONE);
+  return withYear ? `${w.day} ${MONTHS_LONG[w.month - 1]} ${w.year}` : `${w.day} ${MONTHS_LONG[w.month - 1]}`;
+}
+
+/**
+ * A range of days as words: "3 October", "1 to 3 October", "28 September to
+ * 3 October", with the year on both ends once either is not this year's
+ * ("28 December 2025 to 3 January 2026"). Open ends read "From 1 October" and
+ * "Up to 3 October"; no ends at all is "".
+ */
+export function dayRangeWords(range: { from: string | null; to: string | null }, today: string): string {
+  const { from, to } = range;
+  const year = today.slice(0, 4);
+  if (from && to) {
+    const withYear = from.slice(0, 4) !== year || to.slice(0, 4) !== year;
+    if (from === to) return dayWords(from, withYear);
+    if (from.slice(0, 7) === to.slice(0, 7)) return `${Number(from.slice(8))} to ${dayWords(to, withYear)}`;
+    return `${dayWords(from, withYear)} to ${dayWords(to, withYear)}`;
+  }
+  if (from) return `From ${dayWords(from, from.slice(0, 4) !== year)}`;
+  if (to) return `Up to ${dayWords(to, to.slice(0, 4) !== year)}`;
+  return "";
+}
+
+/** A picked day, or day and time, as its control shows it: "3 October 2026", "3 October 2026, 14:30". */
+export function formatPicked(value: string): string {
+  const [day, time] = value.split("T");
+  return time ? `${formatDay(day!)}, ${time}` : formatDay(day!);
+}
+
+/** The sentence that refuses a day outside its bounds (both inclusive), or null when it is inside. */
+export function dayBoundRefusal(day: string, earliest?: string | null, latest?: string | null): string | null {
+  if (earliest && day < earliest) return `Choose a day from ${formatDay(earliest)}.`;
+  if (latest && day > latest) return `Choose a day up to ${formatDay(latest)}.`;
+  return null;
+}
+
+/** The sentence under a day that could not be read. */
+export const BAD_DAY = "Write a date, like 7 October 2026.";
+
+/** The sentence under a time that could not be read. */
+export const BAD_TIME = "Write a time, like 09:00.";

@@ -10,7 +10,8 @@ import { fillTemplate } from "@/lib/reports/actions";
 import { PERIOD_PRESETS, type ListAction, type ListColumn, type ListSpecPublic, type ReportRow, type ReportValue, type ResolvedListQuery } from "@/lib/reports/types";
 import { formatCount } from "@/lib/workspace/format";
 
-import { PERIOD_LABELS, cellText, countWords, diffTone, drawnFilters, filterValueLabel, isBlank, rowMatches, sortLabel, toneOf, totalText } from "./model";
+import { PeriodPicker } from "./filters-popover";
+import { PERIOD_LABELS, cellText, countWords, diffTone, drawnFilters, filterValueLabel, isBlank, rowMatches, sortLabel, toneOf, totalText, type DrawnFilter } from "./model";
 
 /**
  * A list on a phone (00-foundations 5.4.12, Mobile board): a 52px toolbar of
@@ -236,7 +237,15 @@ export function PhoneFooter({
   );
 }
 
-type SheetRow = { key: string; label: string; value: string; options: Array<{ value: string; label: string }>; pick: (value: string) => void };
+type SheetRow = {
+  key: string;
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  pick: (value: string) => void;
+  /** A period filter: its options end with "Choose dates…". */
+  period?: DrawnFilter;
+};
 
 /** Every filter, the tabs as "Show", Sort and Group, in a bottom sheet. */
 export function PhoneFiltersSheet({
@@ -261,6 +270,8 @@ export function PhoneFiltersSheet({
   onGroup: (group: string | null) => void;
 }) {
   const [picking, setPicking] = React.useState<string | null>(null);
+  // "Choose dates…" closes this sheet and opens the range picker's own sheet, titled by the filter.
+  const [dates, setDates] = React.useState<{ filter: DrawnFilter; open: boolean } | null>(null);
   const rows: SheetRow[] = [];
   if (spec.tabs?.length) {
     rows.push({
@@ -288,6 +299,7 @@ export function PhoneFiltersSheet({
             ]
           : [{ value: "any", label: filter.any }, ...(filter.options ?? []).map(({ value: v, label }) => ({ value: v, label }))],
       pick: (next) => onFilter(filter.key, next),
+      period: filter.type === "period" ? filter : undefined,
     });
   }
   rows.push({
@@ -318,8 +330,21 @@ export function PhoneFiltersSheet({
           ? (query.group ?? "none")
           : (query.filters[row.key] ?? "any");
   const active = rows.find((row) => row.key === picking) ?? null;
+  const custom = active?.period && current(active).includes("..") ? current(active) : null;
+  const option = (key: string, chosen: boolean, label: string, onClick: () => void) => (
+    <button key={key} type="button" role="menuitemradio" aria-checked={chosen} className="cx-lf-option" onClick={onClick}>
+      <span className="cx-lf-option__mark">{chosen ? <Check aria-hidden /> : null}</span>
+      {label}
+    </button>
+  );
+  const chooseDates = (filter: DrawnFilter) => {
+    onOpenChange(false);
+    setPicking(null);
+    setDates({ filter, open: true });
+  };
 
   return (
+    <>
     <Dialog.Root
       open={open}
       onOpenChange={(next) => {
@@ -343,25 +368,22 @@ export function PhoneFiltersSheet({
           </div>
           <div className="cx-lf-msheet__body">
             {active
-              ? active.options.map((option) => {
-                  const chosen = current(active) === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={chosen}
-                      className="cx-lf-option"
-                      onClick={() => {
-                        active.pick(option.value);
-                        setPicking(null);
-                      }}
-                    >
-                      <span className="cx-lf-option__mark">{chosen ? <Check aria-hidden /> : null}</span>
-                      {option.label}
-                    </button>
-                  );
-                })
+              ? [
+                  ...active.options.map((entry) =>
+                    option(entry.value, current(active) === entry.value, entry.label, () => {
+                      active.pick(entry.value);
+                      setPicking(null);
+                    }),
+                  ),
+                  ...(active.period
+                    ? [
+                        ...(custom
+                          ? [option("custom", true, `${filterValueLabel(active.period, custom)} …`, () => chooseDates(active.period!))]
+                          : []),
+                        option("choose", false, "Choose dates…", () => chooseDates(active.period!)),
+                      ]
+                    : []),
+                ]
               : rows.map((row) => (
                   <button key={row.key} type="button" className="cx-lf-pop__row" onClick={() => setPicking(row.key)}>
                     <span className="cx-lf-pop__label">{row.label}</span>
@@ -373,5 +395,15 @@ export function PhoneFiltersSheet({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+    {dates ? (
+      <PeriodPicker
+        filter={dates.filter}
+        value={query.filters[dates.filter.key] ?? "any"}
+        open={dates.open}
+        onOpenChange={(next) => setDates((now) => now && { ...now, open: next })}
+        onPick={(next) => onFilter(dates.filter.key, next)}
+      />
+    ) : null}
+    </>
   );
 }

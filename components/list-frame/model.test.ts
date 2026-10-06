@@ -210,7 +210,10 @@ describe("the toolbar's words", () => {
     const state = spec.filters.find((filter) => filter.key === "state")!;
     expect(filterValueLabel(opened, "30d")).toBe("Last 30 days");
     expect(filterValueLabel(opened, "any")).toBe("Any time");
-    expect(filterValueLabel(opened, "2026-09-01..2026-09-30")).toBe("1 Sep 2026 to 30 Sep 2026");
+    expect(filterValueLabel(opened, "2026-09-01..2026-09-30", "2026-10-06")).toBe("1 to 30 September");
+    expect(filterValueLabel(opened, "2026-10-01..2026-10-03", "2026-10-06")).toBe("1 to 3 October");
+    expect(filterValueLabel(opened, "2025-12-28..2026-01-03", "2026-10-06")).toBe("28 December 2025 to 3 January 2026");
+    expect(filterValueLabel(opened, "2026-10-01..", "2026-10-06")).toBe("From 1 October");
     expect(filterValueLabel(state, "not-counted")).toBe("Not counted");
     expect(filterValueLabel(state, "nonsense")).toBe("Any");
   });

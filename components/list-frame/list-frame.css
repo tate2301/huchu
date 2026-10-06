@@ -72,10 +72,6 @@
 .cx-lf-pop__row.is-on { background: var(--sel-bg); color: var(--sel-ink); }
 .cx-lf-pop__row.is-on .cx-lf-pop__label { color: var(--sel-ink); }
 .cx-lf-pop__row svg { width: 12px; height: 12px; flex: none; color: var(--ink-3); }
-.cx-lf-dates { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
-.cx-lf-dates label { display: flex; align-items: center; gap: 8px; color: var(--ink-3); }
-.cx-lf-dates label span { width: 40px; }
-.cx-lf-dates input { flex: 1; height: 32px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font-family: var(--font-mono); font-size: 12.5px; }
 
 /* View menu (≤1060): three 34px rows. */
 .cx-lf-viewrow { height: 34px; display: flex; align-items: center; gap: 8px; }

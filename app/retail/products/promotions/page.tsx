@@ -18,6 +18,7 @@ import {
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { dsConfirm } from "@/components/ui/ds-confirm";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -30,6 +31,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { startOfDayIn } from "@/lib/reports/list-query";
+import { DEFAULT_TIME_ZONE, dayKey, formatTime } from "@/lib/workspace/format";
 import { formatRetailDate, promotionStatusLabel, promotionTypeLabel } from "@/lib/retail/words";
 
 type Promotion = {
@@ -60,13 +63,19 @@ const STATUS_OPTIONS = new Map(STATUSES.map((status) => [status, promotionStatus
 
 const WIDTH = 960;
 
-/** A stored instant as a `datetime-local` value, in the viewer's own time. */
+/** A stored instant as the shop's wall clock, `YYYY-MM-DDTHH:mm`. */
 function localInput(value: string | Date | null): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${dayKey(date, DEFAULT_TIME_ZONE)}T${formatTime(date, DEFAULT_TIME_ZONE)}`;
+}
+
+/** The shop's wall clock back to an instant, read in the shop's zone. */
+function shopInstant(value: string): string {
+  const [day, time] = value.split("T");
+  const [hours, minutes] = (time ?? "00:00").split(":").map(Number);
+  return new Date(startOfDayIn(day!, DEFAULT_TIME_ZONE).getTime() + (hours! * 60 + minutes!) * 60_000).toISOString();
 }
 
 function formFor(promotion: Promotion | null): PromotionForm {
@@ -312,8 +321,8 @@ function PromotionDialog({
         name: form.name.trim(),
         type: form.type,
         value: Number(form.value),
-        startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
-        endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+        startsAt: form.startsAt ? shopInstant(form.startsAt) : null,
+        endsAt: form.endsAt ? shopInstant(form.endsAt) : null,
         status: form.status,
         notes: form.notes.trim() || null,
       };
@@ -344,7 +353,7 @@ function PromotionDialog({
     const value = Number(form.value);
     if (!form.value.trim() || !(value > 0)) problems.push(`${valueLabel(form.type)} is a number above zero.`);
     else if (form.type === "PERCENT" && value > 100) problems.push("Percent off is at most 100.");
-    if (form.startsAt && form.endsAt && new Date(form.endsAt) <= new Date(form.startsAt))
+    if (form.startsAt && form.endsAt && form.endsAt <= form.startsAt)
       problems.push("It has to end after it starts.");
     setErrors(problems);
     if (problems.length === 0) save.mutate();
@@ -424,21 +433,25 @@ function PromotionDialog({
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField label="Starts">
           {(id) => (
-            <Input
+            <DatePicker
               id={id}
-              type="datetime-local"
-              value={form.startsAt}
-              onChange={(event) => set("startsAt", event.target.value)}
+              time
+              label="Starts"
+              value={form.startsAt || null}
+              onChange={(value) => set("startsAt", value ?? "")}
             />
           )}
         </FormField>
         <FormField label="Ends">
           {(id) => (
-            <Input
+            <DatePicker
               id={id}
-              type="datetime-local"
-              value={form.endsAt}
-              onChange={(event) => set("endsAt", event.target.value)}
+              time
+              clearable
+              label="Ends"
+              earliest={form.startsAt ? form.startsAt.slice(0, 10) : undefined}
+              value={form.endsAt || null}
+              onChange={(value) => set("endsAt", value ?? "")}
             />
           )}
         </FormField>

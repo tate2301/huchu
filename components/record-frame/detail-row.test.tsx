@@ -2,9 +2,11 @@
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { RailRow } from "@/lib/retail/record-kinds/types";
+
+import { gridIndex } from "@/components/ui/date-picker";
 
 import { DetailRow } from "./detail-row";
 
@@ -62,5 +64,51 @@ describe("DetailRow seg editor", () => {
     await act(async () => item("7 days").click());
     expect(onSave).toHaveBeenCalledWith(pays.edit, "7 days");
     expect(onCancel).not.toHaveBeenCalled();
+  });
+});
+
+describe("DetailRow date editor", () => {
+  beforeAll(() => {
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+
+  const expected: RailRow = {
+    key: "expected",
+    label: "Expected",
+    value: "3 October 2026",
+    mono: true,
+    edit: { field: "expectedDate", type: "date", initial: "2026-10-03", requires: ["retail.purchasing", "update"] },
+  };
+
+  it("opens the picker from the row and saves a picked day at once", async () => {
+    const onEdit = vi.fn();
+    const onSave = vi.fn(async () => {});
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const draw = (editing: boolean) =>
+      act(() =>
+        root!.render(
+          <DetailRow row={expected} editable editing={editing} saved={false} onEdit={onEdit} onCancel={() => {}} onSave={onSave} />,
+        ),
+      );
+    draw(false);
+    act(() => container.querySelector<HTMLButtonElement>(".cx-rf-ev")!.click());
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    draw(true);
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Expected, as a date");
+    const seventh = document.querySelectorAll<HTMLButtonElement>('[role="gridcell"]')[gridIndex("2026-10-01", "2026-10-07")]!;
+    await act(async () => seventh.click());
+    expect(onSave).toHaveBeenCalledWith(expected.edit, "2026-10-07");
   });
 });

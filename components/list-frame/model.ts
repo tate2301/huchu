@@ -13,6 +13,7 @@ import type {
 } from "@/lib/reports/types";
 import { filterRows, ratioOf } from "@/lib/reports/view";
 import {
+  dayRangeWords,
   formatCount,
   formatDay,
   formatMediumDay,
@@ -21,6 +22,7 @@ import {
   formatRelativeDay,
   formatSigned,
   formatSignedCount,
+  todayIn,
 } from "@/lib/workspace/format";
 
 /**
@@ -316,24 +318,14 @@ export const PERIOD_LABELS: Record<string, string> = {
   "this-year": "This year",
 };
 
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function shortDay(day: string): string {
-  const [year, month, date] = day.split("-").map(Number);
-  return `${date} ${SHORT_MONTHS[(month ?? 1) - 1]} ${year}`;
-}
-
-/** What a filter's chip says it is set to. */
-export function filterValueLabel(filter: ListFilter, value: string | undefined): string {
+/** What a filter's chip says it is set to. A chosen range reads as `dayRangeWords` ("1 to 3 October"). */
+export function filterValueLabel(filter: ListFilter, value: string | undefined, today: string = todayIn()): string {
   if (filter.type === "parent") return value ?? "";
   if (!value || value === "any") return filter.any;
   if (filter.type === "period") {
     if (PERIOD_LABELS[value]) return PERIOD_LABELS[value]!;
     const [from, to] = value.split("..");
-    if (from && to) return from === to ? shortDay(from) : `${shortDay(from)} to ${shortDay(to)}`;
-    if (from) return `From ${shortDay(from)}`;
-    if (to) return `Up to ${shortDay(to)}`;
-    return filter.any;
+    return dayRangeWords({ from: from || null, to: to || null }, today) || filter.any;
   }
   return filter.options?.find((option) => option.value === value)?.label ?? filter.any;
 }

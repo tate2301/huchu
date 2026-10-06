@@ -112,12 +112,20 @@ export type RecordTab<R> = SourceTab<R> | ActivityTab;
 export type RailEdit = {
   /** The field the `PATCH` body carries. */
   field: string;
-  /** `auto`: the lookup over `GET /api/v2/retail/lookup/<noun>` with quick add (5.7.5); it sends the picked id, or null. */
-  type: "text" | "money" | "number" | "auto" | "seg";
+  /**
+   * `auto`: the lookup over `GET /api/v2/retail/lookup/<noun>` with quick add (5.7.5); it sends the picked id, or null.
+   * `date`: the date picker; picking saves at once and sends the `YYYY-MM-DD`, or null from "Clear".
+   */
+  type: "text" | "money" | "number" | "auto" | "seg" | "date";
   /** `seg`: the choices, drawn as the sheet's segmented control; it sends the chosen word. */
   options?: string[];
-  /** What the control starts with: the text, or for `auto` the picked id. */
+  /** What the control starts with: the text, for `auto` the picked id, for `date` the `YYYY-MM-DD` or "". */
   initial: string;
+  /** `date`: the first and last day that may be picked ("today" is today in the shop's zone). */
+  earliest?: string | "today";
+  latest?: string | "today";
+  /** `date`: the picker draws "Clear", which sends null. */
+  clearable?: boolean;
   /** `auto`: the noun looked up ("category") and what is picked now. */
   lookup?: { noun: string; picked: { id: string; label: string } | null; context?: Record<string, unknown> };
   mono?: boolean;

@@ -6,12 +6,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FormField } from "@/components/management/ui";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { startOfDayIn } from "@/lib/reports/list-query";
+import { DEFAULT_TIME_ZONE, todayIn } from "@/lib/workspace/format";
 import { RETAIL_REQUISITION_CATEGORIES } from "@/lib/retail/requisition-words";
 
 type Form = { category: string; purpose: string; amount: string; neededBy: string; siteId: string; notes: string };
@@ -47,7 +50,8 @@ export function RequisitionDialog({ open, onOpenChange }: { open: boolean; onOpe
           category: form.category,
           purpose: form.purpose.trim(),
           amount: Number(form.amount),
-          neededBy: form.neededBy || null,
+          // The day starts at the shop's midnight, not UTC's.
+          neededBy: form.neededBy ? startOfDayIn(form.neededBy, DEFAULT_TIME_ZONE).toISOString() : null,
           notes: form.notes.trim() || null,
           submit,
         }),
@@ -131,7 +135,14 @@ export function RequisitionDialog({ open, onOpenChange }: { open: boolean; onOpe
         </FormField>
         <FormField label="Needed by">
           {(id) => (
-            <Input id={id} type="date" value={form.neededBy} onChange={(event) => set("neededBy", event.target.value)} />
+            <DatePicker
+              id={id}
+              label="Needed by"
+              clearable
+              earliest={todayIn()}
+              value={form.neededBy || null}
+              onChange={(day) => set("neededBy", day ?? "")}
+            />
           )}
         </FormField>
         {sites.length > 1 ? (

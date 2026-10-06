@@ -61,7 +61,14 @@ export type FieldType =
   | "read"
   | "photo"
   /** A document sent with the request as multipart (a spreadsheet to import); the value is the File. */
-  | "file";
+  | "file"
+  /** A day, `"YYYY-MM-DD"`, from the date picker; null when empty. */
+  | "date"
+  /** A day and a shop wall-clock time, `"YYYY-MM-DDTHH:mm"`; null when empty. */
+  | "datetime";
+
+/** A `date` field's bound: a day, today in the shop's zone, or worked out from the other values. */
+export type DayBound = string | "today" | ((values: SheetValues) => string | null);
 
 export type FieldSpec = {
   id: string;
@@ -77,6 +84,11 @@ export type FieldSpec = {
   /** Hint under the control. */
   h?: string | ((values: SheetValues) => string);
   half?: boolean;
+  /** `date`/`datetime`: the first and last day that may be picked, both included. */
+  earliest?: DayBound;
+  latest?: DayBound;
+  /** `date`/`datetime`: the picker draws "Clear". */
+  clearable?: boolean;
   /** Optional: a field without it is required. */
   opt?: boolean;
   /** With `opt`: optional without the word "optional" beside the label (the board leaves it off). */

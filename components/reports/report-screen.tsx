@@ -9,7 +9,7 @@ import { EmptyState, Skeleton } from "@corelithzw/react";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { Button } from "@/components/ui/button";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -150,14 +150,17 @@ function ParamControls({
   const from = params.find((param) => param.key === "from" && param.type === "date");
   const to = params.find((param) => param.key === "to" && param.type === "date");
   const choices = params.filter((param): param is Extract<ReportParam, { type: "choice" }> => param.type === "choice");
+  const range = { from: values.from || null, to: to ? values.to || null : null };
   return (
     <div className="flex flex-wrap items-center gap-2">
       {from ? (
-        <DateRangeFilter
-          label={from.label}
-          anyLabel="Any time"
-          value={{ from: values.from ?? null, to: to ? values.to ?? null : null }}
+        <DateRangePicker
+          openEnded
+          presets={COMMON_PRESETS}
+          title={from.label}
+          value={range}
           onChange={(next) => onChange({ from: next.from ?? "", ...(to ? { to: next.to ?? "" } : {}) })}
+          trigger={<DayRangeChip label={from.label} range={range} />}
         />
       ) : null}
       {choices.map((param) => (

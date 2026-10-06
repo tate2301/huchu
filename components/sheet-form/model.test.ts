@@ -5,6 +5,7 @@ import { FLOOR_SHEETS } from "@/lib/retail/sheet-kinds/floor";
 import { PRODUCT_SHEETS } from "@/lib/retail/sheet-kinds/products";
 import { SETUP_SHEETS } from "@/lib/retail/sheet-kinds/setup";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { addDays, formatDay, todayIn } from "@/lib/workspace/format";
 import type { SheetCtx, SheetKind } from "@/lib/workspace/sheet-kind";
 
 import {
@@ -14,6 +15,7 @@ import {
   initialValues,
   isDirty,
   lineTotals,
+  neededMessage,
   sheetText,
   shownSections,
   submitFailure,
@@ -267,5 +269,54 @@ describe("the Sites sheets (SET-02)", () => {
     expect(site.danger?.show?.(ctxFor("MANAGER"), { _name: "Borrowdale" })).toBe(false);
     expect(site.danger?.show?.(owner, { _name: "Borrowdale", _isDefault: false })).toBe(true);
     expect(site.danger?.show?.(owner, { _name: "Harare Main Branch", _isDefault: true })).toBe(false);
+  });
+});
+
+describe("a date field", () => {
+  const dated: SheetKind = {
+    title: "Expected",
+    sub: "",
+    sections: [
+      {
+        fields: [
+          { id: "expected", t: "date", l: "Expected", earliest: "today" },
+          { id: "opens", t: "datetime", l: "Opens", opt: true, latest: "2026-12-31" },
+        ],
+      },
+    ],
+    cur: "US$",
+    note: "",
+    done: "Saved",
+    primary: "Save",
+    submit: (values) => ({ method: "PATCH", url: "/x", body: { expectedDate: values.expected, opensAt: values.opens } }),
+    invalidate: [],
+    requires: [],
+  };
+  const ctx = ctxFor("MANAGER");
+  const today = todayIn();
+
+  it("starts empty and asks for a date when required", () => {
+    const values = initialValues(dated, ctx);
+    expect(values).toEqual({ expected: null, opens: null });
+    expect(checkValues(dated, values, ctx)).toEqual({ expected: "Choose a date." });
+  });
+
+  it("refuses a day outside its bounds in words", () => {
+    const yesterday = addDays(today, -1);
+    expect(checkValues(dated, { expected: yesterday, opens: null }, ctx)).toEqual({
+      expected: `Choose a day from ${formatDay(today)}.`,
+    });
+    expect(checkValues(dated, { expected: today, opens: "2027-01-01T09:00" }, ctx)).toEqual({
+      opens: "Choose a day up to 31 December 2026.",
+    });
+  });
+
+  it("sends the day as it was picked", () => {
+    const values = { expected: "2026-10-07", opens: "2026-10-07T09:30" };
+    expect(dated.submit(values, ctx)?.body).toEqual({ expectedDate: "2026-10-07", opensAt: "2026-10-07T09:30" });
+  });
+
+  it("asks for a date and time when a required datetime is empty", () => {
+    expect(neededMessage("Opens", { t: "datetime" })).toBe("Choose a date and time.");
   });
 });

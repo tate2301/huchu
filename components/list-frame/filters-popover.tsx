@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Popover from "@radix-ui/react-popover";
 
 import { OnBadge } from "@/components/workspace/count-pill";
+import { DateRangePicker, type DayRange } from "@/components/ui/date-picker";
 import { FilterChip } from "@/components/workspace/filter-chip";
 import { Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from "@/components/workspace/menu";
 import { ChevronRight, Funnel } from "@/lib/icons";
-import { isPeriodValue } from "@/lib/reports/list-query";
 import { PERIOD_PRESETS } from "@/lib/reports/types";
 
 import { PERIOD_LABELS, filterValueLabel, heldFilters, type DrawnFilter } from "./model";
@@ -25,16 +26,14 @@ export function FilterOptions({
   filter,
   value,
   onPick,
+  onChooseDates,
 }: {
   filter: DrawnFilter;
   value: string;
   onPick: (value: string) => void;
+  /** "Choose dates…": the menu closes and the range picker opens in its place. */
+  onChooseDates?: () => void;
 }) {
-  const [choosing, setChoosing] = React.useState(false);
-  const range = filter.type === "period" && value.includes("..") ? value.split("..") : ["", ""];
-  const [from, setFrom] = React.useState(range[0] ?? "");
-  const [to, setTo] = React.useState(range[1] ?? "");
-
   const options =
     filter.type === "period"
       ? [
@@ -50,47 +49,72 @@ export function FilterOptions({
 
   return (
     <>
-      <MenuRadioGroup value={custom ? "" : value} onValueChange={onPick}>
+      <MenuRadioGroup value={value} onValueChange={(next) => next !== custom && onPick(next)}>
         {options.map((option) => (
           <MenuRadioItem key={option.value} value={option.value}>
             {option.label}
           </MenuRadioItem>
         ))}
       </MenuRadioGroup>
-      {filter.type === "period" ? (
+      {filter.type === "period" && onChooseDates ? (
         <>
           <MenuSeparator />
-          {choosing || custom ? (
-            <form
-              className="cx-lf-dates"
-              onKeyDown={(event) => event.stopPropagation()}
-              onSubmit={(event) => {
-                event.preventDefault();
-                const next = `${from}..${to}`;
-                if (isPeriodValue(next)) onPick(next);
-              }}
-            >
-              <label>
-                <span>From</span>
-                <input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} />
-              </label>
-              <label>
-                <span>To</span>
-                <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} />
-              </label>
-              <button type="submit" className="cx-btn cx-btn--primary" disabled={!isPeriodValue(`${from}..${to}`)}>
-                Apply
-              </button>
-            </form>
-          ) : (
-            <button type="button" className="cx-menu__item" onClick={() => setChoosing(true)}>
-              <span className="cx-menu__mark" />
-              <span style={{ flex: 1 }}>Choose dates…</span>
-            </button>
-          )}
+          <MenuRadioGroup value={value}>
+            {custom ? (
+              <MenuRadioItem value={custom} onSelect={onChooseDates}>
+                {filterValueLabel(filter, custom)} …
+              </MenuRadioItem>
+            ) : null}
+          </MenuRadioGroup>
+          <DropdownMenu.Item className="cx-menu__item" onSelect={onChooseDates}>
+            <span className="cx-menu__mark" />
+            <span style={{ flex: 1 }}>Choose dates…</span>
+          </DropdownMenu.Item>
         </>
       ) : null}
     </>
+  );
+}
+
+/** A period's "from..to" as the range picker holds it. */
+export function periodDays(value: string): DayRange {
+  if (!value.includes("..")) return { from: null, to: null };
+  const [from, to] = value.split("..");
+  return { from: from || null, to: to || null };
+}
+
+/**
+ * The range picker a period's "Choose dates…" opens, under the element that
+ * held the menu. No presets (the menu is the preset list) and no latest day:
+ * a list may show dates still to come.
+ */
+export function PeriodPicker({
+  filter,
+  value,
+  open,
+  onOpenChange,
+  anchor,
+  onPick,
+}: {
+  filter: DrawnFilter;
+  value: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  anchor?: React.RefObject<HTMLElement | null>;
+  onPick: (value: string) => void;
+}) {
+  return (
+    <DateRangePicker
+      value={periodDays(value)}
+      onChange={(range) => {
+        if (range.from && range.to) onPick(`${range.from}..${range.to}`);
+      }}
+      latest={null}
+      title={filter.label}
+      open={open}
+      onOpenChange={onOpenChange}
+      anchor={anchor}
+    />
   );
 }
 
@@ -104,15 +128,40 @@ export function FilterChipMenu({
   value: string;
   onPick: (value: string) => void;
 }) {
+  const chip = React.useRef<HTMLButtonElement>(null);
+  const [picking, setPicking] = React.useState(false);
+  // The picker takes focus as the menu closes; the menu must not hand it back to the chip.
+  const keepFocus = React.useRef(false);
   return (
-    <Menu>
-      <MenuTrigger asChild>
-        <FilterChip label={filter.label} value={filterValueLabel(filter, value)} isSet={value !== "any"} />
-      </MenuTrigger>
-      <MenuContent roomy style={{ minWidth: 200, maxHeight: 420, overflowY: "auto" }}>
-        <FilterOptions filter={filter} value={value} onPick={onPick} />
-      </MenuContent>
-    </Menu>
+    <>
+      <Menu>
+        <MenuTrigger asChild>
+          <FilterChip ref={chip} label={filter.label} value={filterValueLabel(filter, value)} isSet={value !== "any"} />
+        </MenuTrigger>
+        <MenuContent
+          roomy
+          style={{ minWidth: 200, maxHeight: 420, overflowY: "auto" }}
+          onCloseAutoFocus={(event) => {
+            if (!keepFocus.current) return;
+            keepFocus.current = false;
+            event.preventDefault();
+          }}
+        >
+          <FilterOptions
+            filter={filter}
+            value={value}
+            onPick={onPick}
+            onChooseDates={() => {
+              keepFocus.current = true;
+              setPicking(true);
+            }}
+          />
+        </MenuContent>
+      </Menu>
+      {filter.type === "period" ? (
+        <PeriodPicker filter={filter} value={value} open={picking} onOpenChange={setPicking} anchor={chip} onPick={onPick} />
+      ) : null}
+    </>
   );
 }
 
@@ -134,12 +183,22 @@ export function FiltersPopover({
   onClearAll: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
+  const button = React.useRef<HTMLButtonElement>(null);
+  // A period's "Choose dates…" closes the popover and opens the picker under the Filters button.
+  const [picking, setPicking] = React.useState<{ key: string; open: boolean } | null>(null);
+  const keepFocus = React.useRef(false);
+  const holdFocus = (event: Event) => {
+    if (keepFocus.current) event.preventDefault();
+  };
   const rows = heldFilters(filters, folded);
   if (rows.length === 0) return null;
+  const pickingFilter = picking ? (filters.find((filter) => filter.key === picking.key) ?? null) : null;
   return (
+    <>
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button
+          ref={button}
           type="button"
           className="cx-lf-btn cx-lf-btn--strong"
           aria-label={`More filters, ${onCount} on`}
@@ -158,6 +217,10 @@ export function FiltersPopover({
           side="bottom"
           align="start"
           sideOffset={8}
+          onCloseAutoFocus={(event) => {
+            holdFocus(event);
+            keepFocus.current = false;
+          }}
         >
           <div className="cx-lf-pop__head">
             <span className="cx-lf-pop__title">Filters</span>
@@ -177,8 +240,23 @@ export function FiltersPopover({
                     <ChevronRight aria-hidden />
                   </button>
                 </MenuTrigger>
-                <MenuContent side="right" align="start" roomy style={{ minWidth: 220, maxHeight: 420, overflowY: "auto" }}>
-                  <FilterOptions filter={filter} value={value} onPick={(next) => onPick(filter.key, next)} />
+                <MenuContent
+                  side="right"
+                  align="start"
+                  roomy
+                  style={{ minWidth: 220, maxHeight: 420, overflowY: "auto" }}
+                  onCloseAutoFocus={holdFocus}
+                >
+                  <FilterOptions
+                    filter={filter}
+                    value={value}
+                    onPick={(next) => onPick(filter.key, next)}
+                    onChooseDates={() => {
+                      keepFocus.current = true;
+                      setOpen(false);
+                      setPicking({ key: filter.key, open: true });
+                    }}
+                  />
                 </MenuContent>
               </Menu>
             );
@@ -186,5 +264,16 @@ export function FiltersPopover({
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+    {pickingFilter ? (
+      <PeriodPicker
+        filter={pickingFilter}
+        value={values[pickingFilter.key] ?? "any"}
+        open={picking?.open ?? false}
+        onOpenChange={(next) => setPicking((current) => current && { ...current, open: next })}
+        anchor={button}
+        onPick={(next) => onPick(pickingFilter.key, next)}
+      />
+    ) : null}
+    </>
   );
 }
