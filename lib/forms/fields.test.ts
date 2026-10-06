@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   answerSchemaFor,
+  convertLength,
   emptyField,
   fieldListSchema,
   fieldProblems,
   formatAnswer,
+  isShown,
   keyFromLabel,
+  measureOf,
+  measureWarning,
   retypeField,
   validateAnswers,
   type FieldDefinition,
@@ -160,5 +164,110 @@ describe("choices", () => {
     const twice = { ...pick, options: [{ value: "a", label: "A" }, { value: "a", label: "Again" }] };
     expect(fieldListSchema.safeParse([twice]).success).toBe(false);
     expect(fieldProblems([twice])).toContain('"Leave type" offers the same choice twice.');
+  });
+});
+
+describe("measuring", () => {
+  const areas: FieldDefinition = { key: "areas", label: "Areas to be coated", type: "areas", required: true, unit: "m" };
+  const shop = [
+    { name: "Shop floor", length: 18, width: 10.5 },
+    { name: "Storeroom", length: 6.2, width: 5 },
+    { name: "Loading bay", length: 5, width: 4 },
+  ];
+
+  it("adds areas up to the figure a quote uses", () => {
+    expect(measureOf(areas, shop)).toBe(240);
+    expect(formatAnswer(areas, shop)).toBe("3 areas, 240.00 m²");
+  });
+
+  it("works out an area from its length and width, or takes its total", () => {
+    const rect: FieldDefinition = { key: "floor", label: "Floor", type: "area", required: false, unit: "m", shape: "rect" };
+    expect(measureOf(rect, { length: "18", width: 10.5 })).toBe(189);
+    expect(formatAnswer(rect, { length: 18, width: 10.5 })).toBe("18.00 × 10.50 m = 189.00 m²");
+    expect(measureOf({ ...rect, shape: "total" }, { area: 48.84 })).toBe(48.84);
+  });
+
+  it("adds a run of lengths along several walls", () => {
+    const coves: FieldDefinition = { key: "coves", label: "Coves", type: "run", required: false, unit: "m" };
+    expect(measureOf(coves, [18, 21, 13])).toBe(52);
+    expect(formatAnswer(coves, [18, 21, 13])).toBe("18.00 + 21.00 + 13.00 = 52.00 m");
+  });
+
+  it("refuses an area nobody named, and a length below zero", () => {
+    expect(answerSchemaFor(areas).safeParse([{ name: "", length: 1, width: 1 }]).success).toBe(false);
+    expect(answerSchemaFor(areas).safeParse([]).success).toBe(false);
+    const length: FieldDefinition = { key: "door", label: "Door", type: "length", required: true, unit: "m" };
+    expect(answerSchemaFor(length).safeParse(-1).success).toBe(false);
+    expect(answerSchemaFor(length).safeParse("0.9").success).toBe(true);
+  });
+
+  it("says when a reading is past its limit, in the question's own words", () => {
+    const moisture: FieldDefinition = {
+      key: "moisture",
+      label: "Moisture in the slab",
+      type: "reading",
+      required: false,
+      unit: "%",
+      warnAbove: 4,
+      warning: "Over 4%. A damp-proof primer is added to the quote.",
+    };
+    expect(measureWarning(moisture, 3.8)).toBeNull();
+    expect(measureWarning(moisture, 4.6)).toBe("Over 4%. A damp-proof primer is added to the quote.");
+    expect(measureWarning({ ...moisture, warning: undefined }, 4.6)).toBe("Over 4%");
+  });
+
+  it("converts lengths between units", () => {
+    expect(convertLength(0.9, "m", "cm")).toBe(90);
+    expect(convertLength(1200, "mm", "m")).toBe(1.2);
+  });
+
+  it("keeps a unit moving between kinds that measure lengths, and sets one on a new kind", () => {
+    expect(retypeField({ key: "a", label: "A", type: "length", required: false, unit: "mm" }, "run").unit).toBe("mm");
+    expect(retypeField({ key: "a", label: "A", type: "text", required: false }, "areas").unit).toBe("m");
+    expect(retypeField({ key: "a", label: "A", type: "length", required: false, unit: "m" }, "text").unit).toBeUndefined();
+  });
+
+  it("refuses a length measured in something other than m, cm or mm", () => {
+    const parsed = fieldListSchema.safeParse([{ key: "door", label: "Door", type: "length", required: false, unit: "ft" }]);
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe("questions asked only when another answer says so", () => {
+  const fields: FieldDefinition[] = [
+    { key: "use", label: "Use", type: "select", required: true, options: [{ value: "warehouse", label: "Warehouse" }, { value: "retail", label: "Retail" }] },
+    { key: "forklifts", label: "Forklifts?", type: "checkbox", required: false, showWhen: { key: "use", op: "is", value: "warehouse" } },
+    { key: "load", label: "Heaviest load", type: "number", required: true, unit: "kg", showWhen: { key: "forklifts", op: "is", value: "true" } },
+    { key: "moisture", label: "Moisture", type: "reading", required: false, unit: "%" },
+    { key: "membrane", label: "Membrane", type: "text", required: true, showWhen: { key: "moisture", op: "above", value: 4 } },
+  ];
+
+  it("asks them only when the rule holds, through a chain of rules", () => {
+    expect(isShown(fields[1]!, fields, { use: "retail" })).toBe(false);
+    expect(isShown(fields[1]!, fields, { use: "warehouse" })).toBe(true);
+    expect(isShown(fields[2]!, fields, { use: "retail", forklifts: true })).toBe(false);
+    expect(isShown(fields[2]!, fields, { use: "warehouse", forklifts: true })).toBe(true);
+    expect(isShown(fields[4]!, fields, { moisture: 4.6 })).toBe(true);
+    expect(isShown(fields[4]!, fields, { moisture: 3.8 })).toBe(false);
+  });
+
+  it("does not require a hidden question, and does not store one", () => {
+    const { values, problems } = validateAnswers(fields, { use: "retail", moisture: 3.8, load: 900 });
+    expect(problems).toEqual([]);
+    expect(values).toEqual({ use: "retail", moisture: 3.8 });
+  });
+
+  it("refuses a rule that points at a question not on the form", () => {
+    const parsed = fieldListSchema.safeParse([{ key: "a", label: "A", type: "text", required: false, showWhen: { key: "nope", op: "isAnswered" } }]);
+    expect(parsed.success).toBe(false);
+    expect(fieldProblems([{ key: "a", label: "A", type: "text", required: false, showWhen: { key: "nope", op: "isAnswered" } }])).toContain(
+      '"A" is shown by an answer that is not on the form.',
+    );
+  });
+
+  it("never asks a section or a note", () => {
+    const { values, problems } = validateAnswers([{ key: "intro", label: "The floor in use", type: "section", required: true }], {});
+    expect(problems).toEqual([]);
+    expect(values).toEqual({});
   });
 });
