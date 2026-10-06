@@ -37,6 +37,19 @@ export function phoneDisplay(e164: string | null | undefined): string {
   return match ? `+263 ${match[1]} ${match[2]} ${match[3]}` : e164;
 }
 
+/**
+ * Every way someone types a phone, for the list's search: as shown
+ * ("+263 77 551 0921"), its digits, and the local forms ("077 551 0921",
+ * "0775510921"), so "+263 77 551", "077 551" and "0921" all find it.
+ */
+export function phoneSearchText(e164: string | null | undefined): string {
+  if (!e164) return "";
+  const display = phoneDisplay(e164);
+  const digits = e164.replace(/\D/g, "");
+  const local = display.startsWith("+263 ") ? [`0${display.slice(5)}`, `0${digits.slice(3)}`] : [];
+  return [display, digits, ...local].join(" | ");
+}
+
 /** "All sites", or the names joined ("Harare Main Branch, Borrowdale"). */
 export function sitesLabel(sites: { all: boolean; names: string[] }): string {
   return sites.all ? "All sites" : sites.names.join(", ");

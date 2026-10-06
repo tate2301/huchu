@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
-import { fieldRefusal } from "./refusal";
+import { fieldRefusal, PeopleRefusal } from "./refusal";
 import type { PersonRole } from "./roles";
 
 /**
@@ -55,6 +55,24 @@ export async function checkSites(input: {
     throw fieldRefusal({ sites: "You can only give sites you work at." });
   }
   return { all: false, ids };
+}
+
+/**
+ * `checkSites` for a form that reports every field at once: a sites refusal
+ * goes into `fieldErrors` (null back) instead of being thrown.
+ */
+export async function checkSitesInto(
+  fieldErrors: Record<string, string>,
+  input: Parameters<typeof checkSites>[0],
+): Promise<SiteScope | null> {
+  try {
+    return await checkSites(input);
+  } catch (error) {
+    const sites = error instanceof PeopleRefusal ? error.fieldErrors?.sites : undefined;
+    if (!sites) throw error;
+    fieldErrors.sites = sites;
+    return null;
+  }
 }
 
 /** Put a person's sites in place: `allSites`, and the access rows replaced. */

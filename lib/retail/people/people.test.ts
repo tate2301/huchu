@@ -138,6 +138,11 @@ describe("inviting someone", () => {
       phone: "Write a mobile number such as +263 77 123 4567.",
       email: "That email does not look right.",
     });
+    const noSites = await refusal(
+      invitePerson(asOwner(), { name: "", phone: "123", role: "CASHIER", sites: [], givePin: true }),
+    );
+    expect(noSites.fieldErrors).toMatchObject({ name: "Write their name.", sites: "Pick at least one site." });
+    expect(noSites.fieldErrors?.phone).toBeTruthy();
   });
 
   it("names whoever has the number, asks owners for an email, and wants a way in", async () => {
@@ -278,6 +283,25 @@ describe("changing a person", () => {
     );
   });
 
+  it("lets a site-limited manager change the role of someone who also works elsewhere, sites untouched", async () => {
+    const farai = await prisma.user.create({
+      data: {
+        companyId,
+        name: "Farai Moyo",
+        role: "CASHIER",
+        phone: phone(),
+        allSites: false,
+        siteAccess: { create: [{ siteId: mainId, companyId }, { siteId: borrowdaleId, companyId }] },
+      },
+    });
+    const result = await changePerson(asManager(), farai.id, { role: "STOCK_CLERK" });
+    expect(result.changed).toEqual([{ field: "role", label: "Role", from: "Cashier", to: "Stock clerk" }]);
+    expect(result.data.sites).toMatchObject({ all: false, ids: expect.arrayContaining([mainId, borrowdaleId]) });
+    // Sending sites is still checked against the manager's own.
+    const elsewhere = await refusal(changePerson(asManager(), farai.id, { sites: [borrowdaleId] }));
+    expect(elsewhere.fieldErrors).toEqual({ sites: "You can only give sites you work at." });
+  });
+
   it("asks for an email on file before making someone a bookkeeper", async () => {
     const refused = await refusal(changePerson(asOwner(), cashierId, { role: "BOOKKEEPER" }));
     expect(refused.fieldErrors).toEqual({
@@ -366,6 +390,8 @@ describe("from People's selection", () => {
   it("messages them in the app and queues WhatsApp for those with a phone", async () => {
     const refused = await refusal(messagePeople(asOwner(), [cashierId], "  "));
     expect(refused.fieldErrors).toEqual({ message: "Write a message." });
+    const long = await refusal(messagePeople(asOwner(), [cashierId], "x".repeat(501)));
+    expect(long.fieldErrors).toEqual({ message: "Keep it to 500 characters." });
     expect(await messagePeople(asOwner(), [cashierId, managerId], "Stock take at 18:00.")).toEqual({ sent: 2, whatsapp: 2 });
     const queued = await prisma.retailMessage.count({ where: { companyId, template: "staff-message", status: "QUEUED" } });
     expect(queued).toBe(2);

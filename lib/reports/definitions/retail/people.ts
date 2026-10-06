@@ -23,8 +23,8 @@ const ROLE_OPTIONS = [
 const people: ListSpec = {
   noun: "people",
   read: VIEW,
-  // Digits match the phone's digits ("0283" finds Ruvimbo); the email too.
-  search: { placeholder: "Name or phone", keys: ["name", "phoneDigits", "email"] },
+  // The phone as shown, its digits and its local forms ("0283", "+263 77 551", "077 551"); the email too.
+  search: { placeholder: "Name or phone", keys: ["name", "phoneSearch", "email"] },
   tabs: [
     { key: "active", label: "Active", where: [{ column: "stateKey", op: "is", value: ["ACTIVE", "PIN_LOCKED"] }] },
     { key: "invited", label: "Invited", where: [{ column: "stateKey", op: "is", value: ["INVITED", "INVITE_EXPIRED"] }] },

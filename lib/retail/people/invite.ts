@@ -14,7 +14,7 @@ import { checkEmail, checkPhone, cleanName, NAME_NEEDED, NO_WAY_IN, type InviteI
 import { issueTillPin } from "./pins";
 import { fieldRefusal, PeopleRefusal } from "./refusal";
 import { rolesCallerMayGive, roleInSentence, userRoleOf, type PersonRole } from "./roles";
-import { checkSites, siteScopeOf, writeSites } from "./scope";
+import { checkSitesInto, siteScopeOf, writeSites } from "./scope";
 import { loadPerson, type PersonView } from "./view";
 
 /**
@@ -118,13 +118,14 @@ export async function invitePerson(actor: PeopleActor, input: InviteInput, now =
   if ("error" in email) fieldErrors.email = email.error;
   const givePin = input.givePin || Boolean(input.pin);
   if (!givePin && "email" in email && !email.email && !fieldErrors.email) fieldErrors.pin = NO_WAY_IN;
-  if (Object.keys(fieldErrors).length > 0) throw fieldRefusal(fieldErrors);
-  const scope = await checkSites({
+  const checkedScope = await checkSitesInto(fieldErrors, {
     companyId: actor.companyId,
     sites: input.sites,
     role: input.role,
     caller: await siteScopeOf(actor.companyId, actor.userId),
   });
+  if (!checkedScope || Object.keys(fieldErrors).length > 0) throw fieldRefusal(fieldErrors);
+  const scope = checkedScope;
   const e164 = (phone as { phone: string }).phone;
   const address = (email as { email: string | null }).email;
 

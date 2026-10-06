@@ -84,12 +84,37 @@ export function pinsHandOverAsk(handOver: Array<{ name: string; pin: string }>):
   };
 }
 
+/**
+ * "Send the invite again" from the row menu when WhatsApp did not take it:
+ * the new link (and a PIN they never used) for whoever sent it, shown once —
+ * the person sheet's hand-over panel, as a dialog over the list.
+ */
+export function inviteHandOverAsk(name: string, handOver: { link: string | null; pin: string | null }, error?: string): Ask {
+  const why = !error || error === "WhatsApp is not set up" ? "WhatsApp is not set up" : `WhatsApp did not take it (${error})`;
+  const both = Boolean(handOver.link && handOver.pin);
+  const lines = [
+    ...(handOver.link ? [`Link · ${handOver.link}`] : []),
+    ...(handOver.pin ? [`Till PIN · ${handOver.pin.split("").join(" ")}`] : []),
+  ].join("\n");
+  return {
+    title: `Give ${name} the invite yourself`,
+    body: `${why}, so give ${name} ${both ? "these" : "this"} yourself. ${both ? "They are" : "It is"} not shown again.\n\n${lines}`,
+    keep: "Done",
+    go: "",
+    fill: "action",
+  };
+}
+
 const text = (row: ReportRow | undefined, key: string) => (typeof row?.[key] === "string" ? (row[key] as string) : "");
 
 type RemoveAnswer = { data?: { name?: string }; closedShifts?: string[] } | null;
 type RemoveManyAnswer = { removed?: string[]; skipped?: Skipped[]; closedShifts?: string[] } | null;
 type PinsAnswer = { sent?: string[]; skipped?: Skipped[]; handOver?: Array<{ name: string; pin: string }> } | null;
-type InviteAnswer = { data?: { name?: string }; sent?: { whatsapp: boolean; error?: string } } | null;
+type InviteAnswer = {
+  data?: { name?: string };
+  sent?: { whatsapp: boolean; error?: string };
+  handOver?: { link: string | null; pin: string | null };
+} | null;
 
 export const PEOPLE_LIST_RUNS: Record<string, ListActionRun> = {
   removeaccess: {
@@ -127,12 +152,13 @@ export const PEOPLE_LIST_RUNS: Record<string, ListActionRun> = {
     done: (_count, rows, answer) => {
       const result = answer as InviteAnswer;
       const name = result?.data?.name ?? (text(rows[0], "name") || "them");
-      return result?.sent?.whatsapp
-        ? `Invite sent again to ${name}.`
-        : {
-            title: `${result?.sent?.error ?? "WhatsApp did not take it"}, so the invite did not reach ${name}. Open ${name} and send it again there to see the link.`,
-            variant: "warning",
-          };
+      if (result?.sent?.whatsapp) return `Invite sent again to ${name}.`;
+      return { title: `The new invite did not reach ${name}. The old link has stopped.`, variant: "warning" };
+    },
+    // WhatsApp did not take it: the new link (and PIN) for whoever sent it, shown once.
+    after: (answer) => {
+      const result = answer as InviteAnswer;
+      return result?.handOver ? inviteHandOverAsk(result.data?.name ?? "them", result.handOver, result.sent?.error) : null;
     },
   },
 };

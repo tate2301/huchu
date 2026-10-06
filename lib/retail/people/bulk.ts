@@ -65,6 +65,7 @@ export async function resetPins(
 }
 
 export const MESSAGE_NEEDED = "Write a message.";
+export const MESSAGE_TOO_LONG = "Keep it to 500 characters.";
 
 /**
  * "Send a message": in the app to each (a `RETAIL_STAFF_MESSAGE`
@@ -77,7 +78,8 @@ export async function messagePeople(
   raw: string,
 ): Promise<{ sent: number; whatsapp: number }> {
   const message = raw.trim();
-  if (message.length < 1 || message.length > 500) throw fieldRefusal({ message: MESSAGE_NEEDED });
+  if (message.length < 1) throw fieldRefusal({ message: MESSAGE_NEEDED });
+  if (message.length > 500) throw fieldRefusal({ message: MESSAGE_TOO_LONG });
   const people = await prisma.user.findMany({
     where: { companyId: actor.companyId, id: { in: ids }, isActive: true },
     select: { id: true, phone: true },

@@ -10,7 +10,7 @@ import { fillTemplate } from "@/lib/reports/actions";
 import { PERIOD_PRESETS, type ListAction, type ListColumn, type ListSpecPublic, type ReportRow, type ReportValue, type ResolvedListQuery } from "@/lib/reports/types";
 import { formatCount } from "@/lib/workspace/format";
 
-import { PERIOD_LABELS, cellText, diffTone, drawnFilters, filterValueLabel, isBlank, rowMatches, sortLabel, toneOf, totalText } from "./model";
+import { PERIOD_LABELS, cellText, countWords, diffTone, drawnFilters, filterValueLabel, isBlank, rowMatches, sortLabel, toneOf, totalText } from "./model";
 
 /**
  * A list on a phone (00-foundations 5.4.12, Mobile board): a 52px toolbar of
@@ -103,6 +103,10 @@ export function ListCards({
           ? (spec.rowMenu ?? []).find((action) => action.key === spec.card.action && rowMatches(row, spec.columns, action.when))
           : undefined;
         const figure2 = figure2Column ? row[figure2Column.key] : null;
+        const badgeEl =
+          badgeColumn && !isBlank(badge) ? (
+            <StateBadge tone={toneOf(badgeColumn, row) ?? "neutral"}>{String(badge)}</StateBadge>
+          ) : null;
         return (
           <Link
             key={row.id}
@@ -124,11 +128,10 @@ export function ListCards({
           >
             <span className="cx-lf-card__top">
               <span className="cx-lf-card__title">{titleColumn ? cellText(titleColumn, row) : row.id}</span>
-              {badgeColumn && !isBlank(badge) ? (
-                <StateBadge tone={toneOf(badgeColumn, row) ?? "neutral"}>{String(badge)}</StateBadge>
-              ) : null}
+              {figureColumn ? badgeEl : null}
             </span>
-            <span className="cx-lf-card__fig">{figureColumn ? cellText(figureColumn, row) : null}</span>
+            {/* A card without a figure carries its badge at the right instead (People, Tills). */}
+            <span className="cx-lf-card__fig">{figureColumn ? cellText(figureColumn, row) : badgeEl}</span>
             <span className="cx-lf-card__meta">{fillTemplate(spec.card.meta, row, false) ?? ""}</span>
             <span className="cx-lf-card__fig2">
               {figure2Column ? (
@@ -191,7 +194,8 @@ export function PhoneFooter({
   return (
     <div className="cx-lf-mfoot" data-toast-floor="">
       <div className="cx-lf-mtotals" aria-label={`Totals for every ${spec.noun.replace(/s$/, "")} the filters let through`}>
-        <span>{total === null ? "—" : formatCount(total)}</span>
+        {/* The count alone beside money totals ("312"); with none, it carries its noun ("7 people"). */}
+        <span>{total === null ? "—" : money.length > 0 ? formatCount(total) : countWords(total, spec.noun)}</span>
         <span style={{ flex: 1 }} />
         {money.map((column) => {
           const tone = column.cell === "diff" ? diffTone(column, totals[column.key]) : "zero";

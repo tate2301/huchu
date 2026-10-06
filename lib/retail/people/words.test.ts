@@ -6,6 +6,7 @@ import {
   personState,
   personSub,
   phoneDisplay,
+  phoneSearchText,
   pinState,
   pinText,
   sitesLabel,
@@ -34,6 +35,14 @@ describe("a phone", () => {
     expect(phoneDisplay("+263719027713")).toBe("+263 71 902 7713");
     expect(phoneDisplay("+263774120098")).toBe("+263 77 412 0098");
     expect(phoneDisplay(null)).toBe("");
+  });
+
+  it("is found as shown, by its digits, and in its local forms", () => {
+    const text = phoneSearchText("+263775510921");
+    for (const typed of ["+263 77 551", "0921", "263775510921", "077 551 0921", "0775510921"]) {
+      expect(text).toContain(typed);
+    }
+    expect(phoneSearchText(null)).toBe("");
   });
 });
 

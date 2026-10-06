@@ -3,7 +3,7 @@ import { result } from "@/lib/reports/loaders/shared";
 import type { ListOption, ReportContext, ReportLoader, ReportOption, ReportRow } from "@/lib/reports/types";
 import { PERSON_ROLES } from "@/lib/retail/people/roles";
 import { loadPeople } from "@/lib/retail/people/view";
-import { STATE_TONES } from "@/lib/retail/people/words";
+import { phoneSearchText, STATE_TONES } from "@/lib/retail/people/words";
 
 /**
  * Staff and PINs (80-admin 5.1, `retail-people`): every person through the
@@ -29,7 +29,7 @@ async function loadPeopleRows(ctx: ReportContext) {
         sites: person.sitesLabel,
         siteKeys: person.sites.all ? everySite : person.sites.ids.join(","),
         phone: person.phoneDisplay,
-        phoneDigits: (person.phone ?? "").replace(/\D/g, ""),
+        phoneSearch: phoneSearchText(person.phone),
         pin: person.pin.column,
         pinKey: person.pin.state,
         lastIn: person.lastIn,

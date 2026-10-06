@@ -10,7 +10,7 @@ import type { HandOver } from "./invite";
 import { issueTillPin } from "./pins";
 import { fieldRefusal, PeopleRefusal, PERSON_NOT_FOUND } from "./refusal";
 import { mayChangeRole, needsEmail, PERSON_ROLE_LABELS, rolesCallerMayGive, userRoleOf } from "./roles";
-import { checkSites, siteScopeOf, writeSites, type SiteScope } from "./scope";
+import { checkSitesInto, siteScopeOf, writeSites, type SiteScope } from "./scope";
 import { loadPerson, type PersonView } from "./view";
 import { phoneDisplay } from "./words";
 
@@ -67,19 +67,22 @@ export async function changePerson(actor: PeopleActor, id: string, input: Change
     else phone = checked.phone;
   }
   if (role !== person.role && needsEmail(role) && !person.email) fieldErrors.role = EMAIL_NEEDED_ON_FILE;
-  if (Object.keys(fieldErrors).length > 0) throw fieldRefusal(fieldErrors);
 
+  // Sites are checked only when the request sends them; a role change alone
+  // keeps where they work (an owner works at every site).
   const current: SiteScope = person.sites.all ? { all: true } : { all: false, ids: person.sites.ids };
-  const wantsSites = input.sites ?? (current.all ? "ALL" : current.ids);
   const scope =
-    input.sites === undefined && role === person.role
-      ? current
-      : await checkSites({
+    input.sites === undefined
+      ? role === "OWNER"
+        ? ({ all: true } as const)
+        : current
+      : await checkSitesInto(fieldErrors, {
           companyId: actor.companyId,
-          sites: wantsSites,
+          sites: input.sites,
           role,
           caller: await siteScopeOf(actor.companyId, actor.userId),
         });
+  if (!scope || Object.keys(fieldErrors).length > 0) throw fieldRefusal(fieldErrors);
 
   const siteRows = await prisma.site.findMany({ where: { companyId: actor.companyId }, select: { id: true, name: true } });
   const siteNames = new Map(siteRows.map((site) => [site.id, site.name]));
