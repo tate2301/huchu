@@ -159,6 +159,21 @@ Recorded unit choices:
   singles (STK-04's `blendedCost`; the case's US$20.10 is the Products and Buying boards'); Jameson's cover is
   3 days, not 2 (9 on hand, 90 sold in 30 days); Amarula's suggested level is 34, not 32 (63 sold is 2.1 a day,
   ceil(2.1 × 16)); and the tabs read All 31 · Too much 12, not 26 · 3, over the whole demo shelf.
+- **STK-05 seeds the shop's real lines, so four of `CountsList.png`'s line figures differ** (for the canvas owner to confirm).
+  The demo shelf holds 24 lines at Harare Main Branch, not the board’s 214, so the seed is not bent to the sample:
+  CNT-0020 (every Spirits and Wine line) reads 9 lines, not 38; CNT-0018 (Everything) 24, not 214; CNT-0019 (the
+  back store, where the five beer lines are kept) 5, not 22; CNT-0021 (the cold room: soft drinks, ciders and
+  coolers) "3 of 7", not "12 of 40". Every money figure is the board's: −US$41.20, −US$1.72, −US$63.10, Σ Differ
+  13 over those four rows and −US$106.02, Done 18 · All 20. Bols Brandy 50ml is a new line, so On hand's All tab
+  reads 32. CNT-0019's Zambezi line keeps the spec's US$0.86 (its cost on 2 October); the fourteen older counts
+  matched what was expected.
+- **STK-05's acceptance starts its count on a category no open count holds.** Every Spirits line at Harare Main
+  Branch is in CNT-0020, which waits for approval, and a line in a count that is counting or to approve cannot be
+  counted again (the 409 the spec defines). Some categories + Spirits therefore answers "8 products are already
+  being counted in CNT-0020. Finish that count first."; the walk counts Ice and mixers for Tendai Sibanda instead.
+- **STK-05's phone count marks the current line with `--selected`.** The theme has no `--action-soft`; `--selected`
+  is the same warm tint the board draws. The phone's counter rule lets a cashier asked to count open
+  `/retail/stock/counts/<id>/count` (outside the shell, like the till) while Counts itself stays closed to them.
 - **Reseeding with `--reset` clears what acceptance walks did to the shop's stock and records.** Every order and
   delivery goes (PO-00001 and GRN-00001 are written again) with the movements, journals and Activity they
   wrote, and so do the products' edit lines in Activity (the seed's own, Amarula's price, is written again).

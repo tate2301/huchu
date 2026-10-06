@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 import { countLowLines } from "@/lib/retail/stock/on-hand";
 
 import type { NavBadgeProvider } from "./types";
@@ -14,4 +15,12 @@ export const ON_HAND_NAV_BADGE: NavBadgeProvider = {
   label: (count) => `${count} low`,
 };
 
-export const STOCK_NAV_BADGES: readonly NavBadgeProvider[] = [ON_HAND_NAV_BADGE];
+/** Counts: the counts sent for review and waiting for an approver ("1 to approve"). */
+export const COUNTS_NAV_BADGE: NavBadgeProvider = {
+  href: "/retail/stock/counts",
+  requires: [["retail.counts", "approve"]],
+  count: ({ companyId }) => prisma.retailStockCount.count({ where: { companyId, status: "TO_APPROVE" } }),
+  label: (count) => `${count} to approve`,
+};
+
+export const STOCK_NAV_BADGES: readonly NavBadgeProvider[] = [ON_HAND_NAV_BADGE, COUNTS_NAV_BADGE];

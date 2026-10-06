@@ -467,6 +467,8 @@ describe("the chain", () => {
       transferCancelled: "RETAIL_STOCK_TRANSFER.CANCELLED",
       transferChanged: "RETAIL_STOCK_TRANSFER.CHANGED",
       transferReceived: "RETAIL_STOCK_TRANSFER.RECEIVED",
+      countStarted: "RETAIL_STOCK_COUNT.STARTED",
+      countSubmitted: "RETAIL_STOCK_COUNT.SUBMITTED",
       zigRateSet: "RETAIL_ZIG_RATE.SET",
       postingRun: "RETAIL_POSTING.RUN",
       postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",

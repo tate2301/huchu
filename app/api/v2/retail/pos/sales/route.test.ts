@@ -668,3 +668,57 @@ describe("a liquor store's licence on a sale (per site, per weekday)", () => {
     expect(refused.body.error).toMatch(/^Gordon's Gin 750ml can't be sold today under the licence\./);
   });
 });
+
+describe("a product being counted, at the till (STK-05, W-22)", () => {
+  let countId = "";
+  const atCounter = (ref: string) =>
+    SELL(
+      request("sales", {
+        clientRef: `${ref}-${stamp}`,
+        shiftId,
+        items: [{ productId, quantity: 1 }],
+        payments: [{ tenderType: "CASH", currency: "USD", amount: 3.9 }],
+      }),
+    ).then(result);
+
+  beforeAll(async () => {
+    const castle = await prisma.inventoryItem.findFirstOrThrow({ where: { productId }, select: { id: true, siteId: true, currentStock: true } });
+    countId = (
+      await prisma.retailStockCount.create({
+        data: {
+          companyId,
+          countNo: `CNT-${stamp}`,
+          siteId: castle.siteId,
+          name: "Castle Lager 340ml",
+          scope: "PRODUCTS",
+          keepSelling: false,
+          counterId: cashierId,
+          createdById: cashierId,
+          lines: { create: { companyId, inventoryItemId: castle.id, productId, expected: castle.currentStock, sortKey: "~|Castle Lager 340ml" } },
+        },
+        select: { id: true },
+      })
+    ).id;
+  });
+  afterAll(async () => {
+    await prisma.retailStockCount.deleteMany({ where: { companyId } });
+  });
+
+  it("refuses it at the counter while a count that does not keep selling is open", async () => {
+    expect(await atCounter("counted-refused")).toMatchObject({
+      status: 409,
+      body: { error: "Castle Lager 340ml is being counted. It sells again when the count is sent." },
+    });
+  });
+
+  it("takes it from the offline queue, since the money was already taken", async () => {
+    expect((await sell("counted-replay", { tenderType: "CASH", currency: "USD", amount: 3.9 })).status).toBe(201);
+  });
+
+  it("sells it while the count keeps selling, and once the count is sent", async () => {
+    await prisma.retailStockCount.update({ where: { id: countId }, data: { keepSelling: true } });
+    expect((await atCounter("counted-keeps-selling")).status).toBe(201);
+    await prisma.retailStockCount.update({ where: { id: countId }, data: { keepSelling: false, status: "TO_APPROVE" } });
+    expect((await atCounter("counted-sent")).status).toBe(201);
+  });
+});

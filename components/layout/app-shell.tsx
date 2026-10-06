@@ -13,6 +13,7 @@ import { ShellNavProvider, useShellNav, type ShopConditions, type WorkspaceBrand
 import { ShellProvider, useShell } from "@/components/layout/shell-state";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@/lib/public-routes";
+import { isCountPhonePath } from "@/lib/retail/stock/count-paths";
 import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
@@ -60,6 +61,8 @@ export function AppShell({
   const isPreviewHostRoute = pathname === "/preview-host";
   // Settings and preferences are a full-screen dialog of their own.
   const isSettingsRoute = isSettingsSurfacePath(pathname);
+  // The phone count, full screen like the till: the counter's, whatever their role.
+  const isCountPhoneRoute = isCountPhonePath(pathname);
 
   if (
     isAuthRoute ||
@@ -68,7 +71,8 @@ export function AppShell({
     isAdminRoute ||
     isPublicRoute ||
     isPreviewHostRoute ||
-    isSettingsRoute
+    isSettingsRoute ||
+    isCountPhoneRoute
   ) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }

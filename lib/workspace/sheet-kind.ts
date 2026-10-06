@@ -112,10 +112,13 @@ export type FieldSpec = {
   rows?: number;
   /** `area`: grows with what is typed, a row a line, up to this many rows (never below `rows`). */
   maxRows?: number;
-  /** `auto` and `lines`: the lookup noun (`GET /api/v2/retail/lookup/<noun>`). */
+  /**
+   * `auto`, `lines` and `tags`: the lookup noun (`GET /api/v2/retail/lookup/<noun>`).
+   * A `tags` field with a noun holds picked options (`PickedOption[]`), not words.
+   */
   noun?: string;
   /**
-   * `auto` and `lines`: narrows the lookup (`?context=`), e.g. `{ sells: true }`,
+   * `auto`, `lines` and noun `tags`: narrows the lookup (`?context=`), e.g. `{ sells: true }`,
    * or from the sheet's address and the other values (the stock lines at From).
    */
   context?: Record<string, unknown> | ((ctx: SheetCtx, values: SheetValues) => Record<string, unknown>);
@@ -222,9 +225,9 @@ export type SheetKind = {
   /** The toast: fixed, or from the answer's `data` (`result`), the values, and the whole answer (`{ data, message }`). */
   done: string | ((result: unknown, values: SheetValues, payload: unknown) => string);
   /** Where the toast's action goes for a created record. */
-  open?: (result: unknown) => string | null;
-  /** The toast action's words. Default "Open". */
-  openLabel?: string;
+  open?: (result: unknown, values: SheetValues) => string | null;
+  /** The toast action's words, fixed or from the answer ("Count now" on a count that is yours). Default "Open". */
+  openLabel?: string | ((result: unknown, values: SheetValues) => string);
   /**
    * Where to go once saved instead of back to the page underneath: the next
    * sheet of the job ("Move some from …" opens the transfer). Replaces this

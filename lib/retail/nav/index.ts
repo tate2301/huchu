@@ -1,5 +1,6 @@
 import { bestNavHref, type QueryLike } from "@/lib/nav-match";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { isCountPhonePath } from "@/lib/retail/stock/count-paths";
 
 import { buyingNav } from "./buying";
 import { floorNav } from "./floor";
@@ -57,13 +58,15 @@ export function roleMeetsRetailRequires(
 /**
  * Whether this role may open the retail page at `pathname`: the same grants
  * that show its nav item (a record page inherits its list's). Paths with no
- * item answer true; their own server decides.
+ * item answer true; their own server decides. So does the phone count, the
+ * counter's page whatever their role.
  */
 export function canRoleOpenRetailPath(
   role: string | null | undefined,
   pathname: string,
   query: QueryLike | null,
 ): boolean {
+  if (isCountPhonePath(pathname)) return true;
   const item = retailNavItemForPath(pathname, query);
   return !item || roleMeetsRetailRequires(role, item.requires);
 }

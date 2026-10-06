@@ -53,7 +53,7 @@ describe("Move stock (30-stock 5.13)", () => {
     );
     const sent = { id: "t8", transferNo: "TRF-0008", units: 540, to: { id: "bdl", name: "Borrowdale" } };
     expect(doneSentence(kind, sent)).toBe("TRF-0008 sent. Borrowdale will see it to receive.");
-    expect(kind.open?.(sent)).toBe("/retail/stock/transfers/t8");
+    expect(kind.open?.(sent, values)).toBe("/retail/stock/transfers/t8");
   });
 
   it("shows a line's refusal on that line", () => {

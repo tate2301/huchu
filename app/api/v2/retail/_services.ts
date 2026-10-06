@@ -40,6 +40,7 @@ import {
 } from "@/lib/retail/till-rules";
 import { OFFLINE_REFUND_NO_REFERENCE_REVIEW, offlineReversalReview } from "@/lib/retail/till-rule-words";
 import { approvalFor, replayApproval, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
+import { refuseWhileCounted } from "@/lib/retail/stock/counts";
 import {
   checkSaleTenders,
   loadPaymentSettings,
@@ -924,6 +925,15 @@ export async function createRetailSaleTransaction(input: {
       });
       return { sale: alreadyPosted, accounting, fiscal: null };
     }
+  }
+
+  // A count that does not keep selling holds its products back until it is
+  // sent (W-22). A replay is not asked: the money was already taken.
+  if (!input.replay) {
+    await refuseWhileCounted(
+      input.actor.companyId,
+      input.lines.map((line) => line.inventoryItemId),
+    );
   }
 
   for (let attempt = 0; attempt < 5; attempt += 1) {

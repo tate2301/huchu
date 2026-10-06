@@ -20,6 +20,7 @@ import type { FieldSpec, PickedOption, SheetCtx, SheetCurrency, SheetLine, Sheet
 import { LinesField } from "./lines-field";
 import { QrCode } from "./qr-code";
 import { LookupField } from "./lookup-field";
+import { LookupTags } from "./lookup-tags";
 
 /**
  * One field of a sheet (00-foundations 5.7.4): the label (with "optional"),
@@ -91,7 +92,10 @@ export function withAllTag(before: unknown, next: string[], all: string): string
 
 function shownValue(value: unknown): string {
   if (value && typeof value === "object" && "label" in value) return String((value as PickedOption).label);
-  if (Array.isArray(value)) return value.length > 0 ? value.map(String).join(", ") : "—";
+  if (Array.isArray(value)) {
+    const words = value.map((entry) => (entry && typeof entry === "object" && "label" in entry ? String(entry.label) : String(entry)));
+    return words.length > 0 ? words.join(", ") : "—";
+  }
   if (typeof value === "string" && value.trim()) return value;
   return "—";
 }
@@ -238,6 +242,21 @@ export function SheetField({
               />
             );
           case "tags":
+            if (field.noun) {
+              return (
+                <LookupTags
+                  {...control}
+                  label={field.l}
+                  noun={field.noun}
+                  context={context}
+                  disabled={disabled}
+                  placeholder={field.p}
+                  value={Array.isArray(value) ? (value as PickedOption[]) : []}
+                  onValueChange={onChange}
+                  onOpenChange={onListOpen}
+                />
+              );
+            }
             return (
               <TagsInput
                 {...control}

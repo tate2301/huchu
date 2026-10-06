@@ -32,6 +32,7 @@ import {
   isPosSupportedPromotionType,
   requireRetailSession,
 } from "../../_helpers";
+import { BeingCounted } from "@/lib/retail/stock/counts";
 import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "../../_services";
 import { postedChange } from "@/lib/retail/sale-totals";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
@@ -1094,7 +1095,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
-    if (error instanceof ShiftElsewhere) return errorResponse(error.message, 409);
+    if (error instanceof ShiftElsewhere || error instanceof BeingCounted) return errorResponse(error.message, 409);
     return errorResponse(error instanceof Error ? error.message : "Failed to post sale", 400);
   }
 }

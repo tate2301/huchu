@@ -196,6 +196,17 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     });
   });
 
+  it("counts started and sent for review (30-stock 3.3)", () => {
+    expect(activityWords("RETAIL_STOCK_COUNT.STARTED", { countNo: "CNT-0020", lines: 38, counter: "Rudo Moyo" })).toEqual({
+      what: "Started the count: 38 products, sent to Rudo Moyo",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_STOCK_COUNT.SUBMITTED", { lines: 38, differ: 3 })).toEqual({
+      what: "Counted 38 lines and sent them for review",
+      tone: "info",
+    });
+  });
+
   it("transfers sent, changed, received and cancelled (30-stock 3.3)", () => {
     expect(activityWords("RETAIL_STOCK_TRANSFER.SENT", { units: 540, to: "Borrowdale" })).toEqual({ what: "Sent 540 units to Borrowdale", tone: "info" });
     expect(activityWords("RETAIL_STOCK_TRANSFER.CHANGED", { units: 560 })).toEqual({ what: "Changed the lines: 560 units on the way", tone: "info" });

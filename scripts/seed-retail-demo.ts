@@ -142,6 +142,7 @@ const CATALOGUE: CatalogueEntry[] = [
   { code: "TONIC-200", name: "Schweppes Tonic 200ml", unit: "can", price: "0.60", cost: "0.38", stock: 96, sold30: 40, min: 24, reorder: 48, weight: 40, category: "Ice and mixers" },
   { code: "TWOKEYS-750", name: "Two Keys Whisky 750ml", unit: "bottle", price: "9.75", cost: "7.10", stock: 28, sold30: 30, min: 12, reorder: 12, weight: 30, category: "Spirits" },
   { code: "ZAMBEZI-375", name: "Zambezi Lager 375ml", unit: "bottle", price: "1.35", cost: "0.95", stock: 144, sold30: 0, min: 48, reorder: 48, weight: 40, category: "Beer", deposit: "0.10", archived: true },
+  { code: "BOLS-50", name: "Bols Brandy 50ml", unit: "bottle", price: "1.80", cost: "1.20", stock: 6, sold30: 12, min: 2, reorder: 12, weight: 12, category: "Spirits" },
   { code: "BOLS-750", name: "Bols Brandy 750ml", unit: "bottle", price: "14.20", cost: "11.22", stock: 6, sold30: 0, min: 6, reorder: 6, weight: 6, category: "Spirits", archived: true },
 ]
 
@@ -1314,6 +1315,7 @@ async function main() {
   await seedSuppliers({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null, reset })
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedAdjustments({ companyId, mainSiteId: site.id, reset })
+  await seedCounts({ companyId, mainSiteId: site.id })
   await seedPriceHistory(companyId)
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
@@ -2442,6 +2444,348 @@ async function seedAdjustments(input: { companyId: string; mainSiteId: string; r
     if (journal) await postRetailJournal({ ...journal, entryDate: entry.at })
   }
   console.log("  adjustments: BRK-0012, ADJ-0030, ADJ-0031")
+}
+
+type SeedCountLine = { code: string; counted: number; why?: "BROKEN" | "NOT_KNOWN" | "FOUND"; expected?: number; cost?: string }
+
+type SeedCount = {
+  no: string
+  name: string
+  scope: "EVERYTHING" | "CATEGORIES" | "PLACE"
+  categories?: string[]
+  place?: "BACK" | "COLD"
+  counter: string
+  startedAt: Date
+  submittedAt: Date | null
+  approvedAt: Date | null
+  /** Only the lines that differ; every other line of the count matches what was expected. */
+  differ?: SeedCountLine[]
+  /** COUNTING: how many lines, in the phone's order, already have a figure. */
+  counted?: number
+}
+
+/**
+ * STK-05. The counts the CountsList board shows, at Harare Main Branch:
+ * CNT-0020 (the spirits shelf with the wine on it, sent by Rudo Moyo this
+ * morning and waiting for approval: Gordon's and Nederburg two short, Bols
+ * Brandy 50ml two over), CNT-0021 (the cold room, Kuda Banda counting it
+ * now), and the approved ones before them back to June. The beer lines are
+ * kept in the back store and the soft drinks and ciders in the cold room.
+ *
+ * Approved counts are history: their rows carry the final figures, and each
+ * differing line's COUNT movement is written at the approval time, before the
+ * ledger seed solves each line's opening so on hand lands where it should.
+ * Every run starts again from these: what an acceptance run started goes.
+ */
+async function seedCounts(input: { companyId: string; mainSiteId: string }) {
+  const { companyId, mainSiteId } = input
+  const people = await prisma.user.findMany({
+    where: {
+      companyId,
+      email: { in: ["tafara.manager@bottlestore.test", "rudo.stock@bottlestore.test", "kuda.till@bottlestore.test"] },
+    },
+    select: { id: true, email: true, name: true },
+  })
+  const who = (prefix: string) => people.find((person) => person.email?.startsWith(prefix))
+  const tafara = who("tafara")
+  if (!tafara || !who("rudo") || !who("kuda")) {
+    console.log("  counts: Tafara Nyathi, Rudo Moyo or Kuda Banda missing, skipped")
+    return
+  }
+
+  // What an earlier run (or an acceptance run) left: the counts, their stock movements, Activity and messages.
+  await prisma.stockMovement.deleteMany({ where: { reason: "COUNT", item: { site: { companyId } } } })
+  await prisma.retailStockCount.deleteMany({ where: { companyId } })
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailStockCount" } })
+  await prisma.notification.deleteMany({
+    where: { companyId, type: { in: ["RETAIL_COUNT_ASSIGNED", "RETAIL_COUNT_SUBMITTED"] as NotificationType[] } },
+  })
+  await prisma.retailMessage.deleteMany({ where: { companyId, template: "count-link" } })
+
+  // Where things are kept at the main branch.
+  const placeOf = async (code: string) =>
+    prisma.stockLocation.findUniqueOrThrow({ where: { siteId_code: { siteId: mainSiteId, code } }, select: { id: true, name: true } })
+  const [back, cold] = await Promise.all([placeOf("BACK"), placeOf("COLD")])
+  const categoryId = async (name: string) =>
+    (await prisma.retailCategory.findFirst({ where: { companyId, name, archivedAt: null }, select: { id: true } }))?.id ?? null
+  const ids = async (names: string[]) => (await Promise.all(names.map(categoryId))).filter((id): id is string => Boolean(id))
+  await prisma.inventoryItem.updateMany({
+    where: { siteId: mainSiteId, product: { is: { categoryId: { in: await ids(["Beer"]) } } } },
+    data: { locationId: back.id },
+  })
+  await prisma.inventoryItem.updateMany({
+    where: { siteId: mainSiteId, product: { is: { categoryId: { in: await ids(["Soft drinks", "Ciders and coolers"]) } } } },
+    data: { locationId: cold.id },
+  })
+
+  // The phone walks the shelves in order, so the shelves are set before the lines are read.
+  for (const [namePrefix, shelf] of SHELVES) {
+    await prisma.inventoryItem.updateMany({ where: { siteId: mainSiteId, name: { startsWith: namePrefix } }, data: { shelf } })
+  }
+  const lines = await prisma.inventoryItem.findMany({
+    where: { siteId: mainSiteId, productId: { not: null }, product: { is: { companyId, archivedAt: null } } },
+    select: {
+      id: true,
+      itemCode: true,
+      unit: true,
+      shelf: true,
+      locationId: true,
+      currentStock: true,
+      unitCost: true,
+      product: { select: { id: true, name: true, isActive: true, categoryId: true } },
+    },
+  })
+  const kept = lines.filter((line) => line.product!.isActive || !line.currentStock.isZero())
+  const sortKey = (line: (typeof lines)[number]) => `${line.shelf?.trim() || "~"}|${line.product!.name}`
+
+  // Today's, never later than now: a run before 10:40 still reads them as this morning's.
+  const today = (hour: number, minute: number, before: number) =>
+    new Date(Math.min(harareTime(0, hour, minute).getTime(), Date.now() - before * 60 * 1000))
+  const counts: SeedCount[] = []
+  // Fourteen weekly counts from June to the start of September, every figure as expected.
+  const rota: Array<Pick<SeedCount, "name" | "scope" | "categories" | "place">> = [
+    { name: "Spirits shelf", scope: "CATEGORIES", categories: ["Spirits"] },
+    { name: "Beer, back store", scope: "PLACE", place: "BACK" },
+    { name: "Soft drinks", scope: "CATEGORIES", categories: ["Soft drinks"] },
+    { name: "Cold room", scope: "PLACE", place: "COLD" },
+  ]
+  for (let index = 0; index < 14; index += 1) {
+    const daysBack = 7 * (14 - index) + 21
+    counts.push({
+      no: `CNT-${String(index + 2).padStart(4, "0")}`,
+      ...rota[index % rota.length]!,
+      counter: index % 2 === 0 ? "rudo" : "tafara",
+      startedAt: harareTime(daysBack, 7, 0),
+      submittedAt: harareTime(daysBack, 7, 50),
+      approvedAt: harareTime(daysBack, 9, 5),
+    })
+  }
+  const daysTo = (month: number, day: number) => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare" }).format(new Date())
+    const [year] = today.split("-").map(Number)
+    return Math.round((Date.parse(`${today}T00:00:00Z`) - Date.UTC(year!, month - 1, day)) / DAY_MS)
+  }
+  counts.push(
+    {
+      no: "CNT-0016",
+      name: "Spirits shelf",
+      scope: "CATEGORIES",
+      categories: ["Spirits"],
+      counter: "tafara",
+      startedAt: harareTime(daysTo(9, 16), 7, 0),
+      submittedAt: harareTime(daysTo(9, 16), 7, 40),
+      approvedAt: harareTime(daysTo(9, 16), 8, 15),
+      differ: [{ code: "JAMESON-750", counted: -1, why: "NOT_KNOWN" }],
+    },
+    {
+      no: "CNT-0017",
+      name: "Soft drinks",
+      scope: "CATEGORIES",
+      categories: ["Soft drinks"],
+      counter: "rudo",
+      startedAt: harareTime(daysTo(9, 23), 7, 0),
+      submittedAt: harareTime(daysTo(9, 23), 7, 35),
+      approvedAt: harareTime(daysTo(9, 23), 9, 20),
+      differ: [
+        { code: "COKE-6PK", counted: -1, why: "NOT_KNOWN" },
+        { code: "FANTA-500", counted: -3, why: "BROKEN" },
+        { code: "SPRITE-500", counted: -5, why: "NOT_KNOWN" },
+      ],
+    },
+    {
+      no: "CNT-0018",
+      name: "Everything",
+      scope: "EVERYTHING",
+      counter: "tafara",
+      startedAt: harareTime(daysTo(9, 30), 5, 30),
+      submittedAt: harareTime(daysTo(9, 30), 6, 40),
+      approvedAt: harareTime(daysTo(9, 30), 7, 0),
+      differ: [
+        { code: "BLKLABEL-750", counted: -1, why: "NOT_KNOWN" },
+        { code: "CASTLE-340", counted: -1, why: "BROKEN" },
+        { code: "CASTLE-CASE", counted: -1, why: "NOT_KNOWN" },
+        { code: "CHIBUKU-1L", counted: -3, why: "BROKEN" },
+        { code: "BERNINI-275", counted: -1, why: "BROKEN" },
+        { code: "HUNTERS-330", counted: -2, why: "NOT_KNOWN" },
+        { code: "SAVANNA-330", counted: -1, why: "NOT_KNOWN" },
+        { code: "TONIC-200", counted: -1, why: "NOT_KNOWN" },
+        { code: "COKE-500", counted: -1, why: "NOT_KNOWN" },
+      ],
+    },
+    {
+      no: "CNT-0019",
+      name: "Beer, back store",
+      scope: "PLACE",
+      place: "BACK",
+      counter: "tafara",
+      startedAt: harareTime(daysTo(10, 2), 8, 30),
+      submittedAt: harareTime(daysTo(10, 2), 8, 58),
+      approvedAt: harareTime(daysTo(10, 2), 9, 12),
+      differ: [{ code: "ZAMBEZI-375", counted: -2, why: "BROKEN", cost: "0.86" }],
+    },
+    {
+      no: "CNT-0020",
+      name: "Spirits shelf",
+      scope: "CATEGORIES",
+      categories: ["Spirits", "Wine"],
+      counter: "rudo",
+      startedAt: today(10, 6, 40),
+      submittedAt: today(10, 40, 6),
+      approvedAt: null,
+      differ: [
+        { code: "GORDONS-750", expected: 22, counted: -2, why: "NOT_KNOWN" },
+        { code: "NEDERBURG-750", expected: 18, counted: -2, why: "NOT_KNOWN" },
+        { code: "BOLS-50", expected: 6, counted: 2, why: "FOUND" },
+      ],
+    },
+    {
+      no: "CNT-0021",
+      name: "Cold room",
+      scope: "PLACE",
+      place: "COLD",
+      counter: "kuda",
+      startedAt: today(11, 5, 5),
+      submittedAt: null,
+      approvedAt: null,
+      counted: 3,
+    },
+  )
+
+  const placeIds = { BACK: back.id, COLD: cold.id }
+  let movements = 0
+  for (const spec of counts) {
+    const categoryIds = await ids(spec.categories ?? [])
+    const covered = kept
+      .filter((line) =>
+        spec.scope === "EVERYTHING"
+          ? true
+          : spec.scope === "PLACE"
+            ? line.locationId === placeIds[spec.place!]
+            : categoryIds.includes(line.product!.categoryId ?? ""),
+      )
+      .sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : sortKey(a) > sortKey(b) ? 1 : 0))
+    const counter = who(spec.counter)!
+    const done = spec.approvedAt !== null || spec.submittedAt !== null
+    const firstAt = new Date(spec.startedAt.getTime() + 6 * 60 * 1000)
+    let short = ZERO
+    let over = ZERO
+    const rows = covered.map((line, index) => {
+      const differs = spec.differ?.find((entry) => entry.code === line.itemCode)
+      const cost = money(differs?.cost ?? line.unitCost ?? 0)
+      const expected = quantity(differs?.expected ?? line.currentStock)
+      const difference = quantity(differs?.counted ?? 0)
+      const isCounted = done || index < (spec.counted ?? 0)
+      const value = multiplyMoney(difference, cost)
+      if (difference.isNegative()) short = short.plus(value)
+      else over = over.plus(value)
+      return {
+        id: randomUUID(),
+        companyId,
+        inventoryItemId: line.id,
+        productId: line.product!.id,
+        expected,
+        counted: isCounted ? expected.plus(difference) : null,
+        countedAt: isCounted ? new Date(firstAt.getTime() + index * 60 * 1000) : null,
+        countedById: isCounted ? counter.id : null,
+        expectedAtCount: isCounted ? expected : null,
+        difference: isCounted ? difference : null,
+        unitCost: cost,
+        why: differs?.why ?? null,
+        sortKey: sortKey(line),
+      }
+    })
+    const unitOf = new Map(covered.map((line) => [line.id, line.unit]))
+    const count = await prisma.retailStockCount.create({
+      data: {
+        companyId,
+        countNo: spec.no,
+        siteId: mainSiteId,
+        name: spec.name,
+        scope: spec.scope,
+        categoryIds,
+        placeId: spec.place ? placeIds[spec.place] : null,
+        blind: true,
+        keepSelling: true,
+        status: spec.approvedAt ? "APPROVED" : spec.submittedAt ? "TO_APPROVE" : "COUNTING",
+        counterId: counter.id,
+        createdById: tafara.id,
+        firstCountedAt: done || (spec.counted ?? 0) > 0 ? firstAt : null,
+        submittedAt: spec.submittedAt,
+        approvedAt: spec.approvedAt,
+        approvedById: spec.approvedAt ? tafara.id : null,
+        differenceValue: spec.approvedAt ? short.plus(over) : null,
+        shortValue: spec.approvedAt ? short : null,
+        overValue: spec.approvedAt ? over : null,
+        createdAt: spec.startedAt,
+        lines: { create: rows },
+      },
+      select: { id: true },
+    })
+
+    // The open counts' Activity: started by Tafara Nyathi, and sent by its counter.
+    if (!spec.approvedAt) {
+      const stamp = async (eventType: string, at: Date) => {
+        const event = await prisma.platformAuditEvent.findFirst({
+          where: { companyId, entityId: count.id, eventType },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        })
+        if (event) await prisma.platformAuditEvent.update({ where: { id: event.id }, data: { createdAt: at } })
+      }
+      const actorOf = (person: { id: string; name: string }, role: string) => ({ companyId, userId: person.id, userName: person.name, userRole: role })
+      await writeRetailAuditEvent(prisma, {
+        actor: actorOf(tafara, "MANAGER"),
+        eventType: RETAIL_AUDIT_EVENTS.countStarted,
+        entityType: "RetailStockCount",
+        entityId: count.id,
+        payload: { countNo: spec.no, lines: rows.length, counterId: counter.id, counter: counter.name, blind: true, keepSelling: true },
+      })
+      await stamp(RETAIL_AUDIT_EVENTS.countStarted, spec.startedAt)
+      if (spec.submittedAt) {
+        const differ = rows.filter((row) => row.difference && !row.difference.isZero()).length
+        await writeRetailAuditEvent(prisma, {
+          actor: actorOf(counter, "STOCK_CLERK"),
+          eventType: RETAIL_AUDIT_EVENTS.countSubmitted,
+          entityType: "RetailStockCount",
+          entityId: count.id,
+          payload: { countNo: spec.no, lines: rows.length, differ },
+        })
+        await stamp(RETAIL_AUDIT_EVENTS.countSubmitted, spec.submittedAt)
+      }
+      continue
+    }
+    // Approved: each line that differed moved by its difference when the count was approved.
+    for (const row of rows) {
+      if (!row.difference || row.difference.isZero()) continue
+      await prisma.stockMovement.create({
+        data: {
+          referenceId: await reserveIdentifier(prisma, { companyId, entity: "STOCK_MOVEMENT" }),
+          itemId: row.inventoryItemId,
+          movementType: "ADJUSTMENT",
+          quantity: row.difference,
+          unit: unitOf.get(row.inventoryItemId)!,
+          issuedById: tafara.id,
+          notes: { BROKEN: "Broken", NOT_KNOWN: "Not known", FOUND: "Found" }[row.why ?? "NOT_KNOWN"],
+          sourceType: "RETAIL_STOCK_ADJUSTMENT",
+          sourceId: `${count.id}:${row.id}`,
+          reason: "COUNT",
+          reference: spec.no,
+          change: row.difference,
+          createdAt: spec.approvedAt,
+        },
+      })
+      movements += 1
+    }
+  }
+
+  // The next count the shop starts is CNT-0022.
+  const sequence = { companyId_entityKey_scopeKey: { companyId, entityKey: "RETAIL_STOCK_COUNT", scopeKey: "GLOBAL" } }
+  await prisma.idSequence.upsert({
+    where: sequence,
+    create: { companyId, entityKey: "RETAIL_STOCK_COUNT", scopeKey: "GLOBAL", lastNumber: 21 },
+    update: { lastNumber: 21 },
+  })
+  console.log(`  counts: ${counts.length} (CNT-0020 to approve, CNT-0021 counting), ${movements} count movement(s)`)
 }
 
 /**

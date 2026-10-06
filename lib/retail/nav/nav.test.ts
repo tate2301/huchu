@@ -54,6 +54,12 @@ describe("who may open a retail page", () => {
     }
   });
 
+  it("lets a cashier asked to count reach the phone count, never Counts itself", () => {
+    expect(canRoleOpenRetailPath("CASHIER", "/retail/stock/counts/0b0c4f9e-2a0f-4a7e-9a52-0d1f0c0e7a11/count", q())).toBe(true);
+    expect(canRoleOpenRetailPath("CASHIER", "/retail/stock/counts", q())).toBe(false);
+    expect(canRoleOpenRetailPath("CASHIER", "/retail/stock/counts/0b0c4f9e-2a0f-4a7e-9a52-0d1f0c0e7a11", q())).toBe(false);
+  });
+
   it("keeps the stock clerk out of the overview and Setup", () => {
     expect(canRoleOpenRetailPath("STOCK_CLERK", "/retail/stock/counts", q())).toBe(true);
     expect(canRoleOpenRetailPath("STOCK_CLERK", "/retail/buying/deliveries", q())).toBe(true);

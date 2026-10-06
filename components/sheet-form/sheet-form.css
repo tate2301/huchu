@@ -85,6 +85,9 @@
 .sf-auto__sub { flex: none; max-width: 50%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink-3); font-size: 12px; }
 .sf-auto__none { padding: 6px 8px; color: var(--ink-3); }
 .sf-auto__rule { height: 1px; margin: 4px 0; background: var(--line); }
+/* A tags field over a noun: the list opens under the chips, however many rows they take. */
+.sf-tags__list { top: calc(100% + 4px); }
+.cx-tags[data-invalid="true"] { border-color: var(--bad); }
 .sf-auto__add { height: 36px; color: var(--action-ink); font-weight: 600; }
 .sf-auto__add svg { width: 14px; height: 14px; flex: none; }
 

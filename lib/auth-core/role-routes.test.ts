@@ -66,7 +66,7 @@ describe("role route allowlist", () => {
     expect(isRouteAllowedForRole("STOCK_CLERK", "/api/v2/inventory/products", "GET")).toBe(false);
     expect(isRouteAllowedForRole("STOCK_CLERK", "/stores/movements")).toBe(false);
     // Retail's stock writes go through the matrix and the ledger.
-    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/v2/retail/stock/count", "POST")).toBe(true);
+    expect(isRouteAllowedForRole("STOCK_CLERK", "/api/v2/retail/stock/counts", "POST")).toBe(true);
   });
 
   it("lets the bookkeeper read stock and the fiscal device, never change them", () => {

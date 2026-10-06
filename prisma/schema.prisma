@@ -327,6 +327,7 @@ model Company {
   retailPurchaseOrders          RetailPurchaseOrder[]
   retailPurchaseOrderLines      RetailPurchaseOrderLine[]
   retailStockTransfers          RetailStockTransfer[]
+  retailStockCounts             RetailStockCount[]
   retailGoodsReceipts           RetailGoodsReceipt[]
   retailGoodsReceiptLines       RetailGoodsReceiptLine[]
   retailShifts                  RetailShift[]
@@ -1158,6 +1159,7 @@ model Site {
   retailZReports        RetailZReport[]
   retailTransfersOut    RetailStockTransfer[]  @relation("RetailStockTransferFrom")
   retailTransfersIn     RetailStockTransfer[]  @relation("RetailStockTransferTo")
+  retailStockCounts     RetailStockCount[]
   userAccess            UserSiteAccess[]
 
   @@unique([companyId, code])
@@ -1447,6 +1449,11 @@ model User {
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
   retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
   retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
+  retailCountsToCount               RetailStockCount[]             @relation("RetailStockCountCounter")
+  retailCountsStarted               RetailStockCount[]             @relation("RetailStockCountCreatedBy")
+  retailCountsApproved              RetailStockCount[]             @relation("RetailStockCountApprovedBy")
+  retailCountsCancelled             RetailStockCount[]             @relation("RetailStockCountCancelledBy")
+  retailCountLinesCounted           RetailStockCountLine[]         @relation("RetailStockCountLineCountedBy")
   accessRemovedBy                   User?                          @relation("UserAccessRemovedBy", fields: [accessRemovedById], references: [id], onDelete: SetNull)
   accessRemovals                    User[]                         @relation("UserAccessRemovedBy")
   siteAccess                        UserSiteAccess[]
@@ -4291,6 +4298,7 @@ model StockLocation {
   items             InventoryItem[]
   equipment         Equipment[]
   incomingMovements StockMovement[] @relation("StockMovementDestination")
+  retailStockCounts RetailStockCount[]
 
   @@unique([siteId, code])
   @@index([siteId])
@@ -4341,6 +4349,7 @@ model InventoryItem {
   retailSaleLines          RetailSaleLine[]
   retailTransferLinesFrom  RetailStockTransferLine[] @relation("RetailStockTransferLineFrom")
   retailTransferLinesTo    RetailStockTransferLine[] @relation("RetailStockTransferLineTo")
+  retailCountLines         RetailStockCountLine[]
 
   @@unique([siteId, itemCode])
   @@index([siteId])
@@ -13952,6 +13961,7 @@ model Product {
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
   retailTransferLines RetailStockTransferLine[]
+  retailCountLines    RetailStockCountLine[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
 
@@ -14617,4 +14627,102 @@ model RetailStockTransferLine {
 
   @@unique([transferId, productId])
   @@index([companyId, productId])
+}
+
+/// STK-05: a stock count (W-22). Lines are counted on a phone, sent for review
+/// and approved (STK-06); nothing on hand changes until then.
+enum RetailStockCountScope {
+  EVERYTHING
+  CATEGORIES
+  PRODUCTS
+  PLACE
+}
+
+enum RetailStockCountStatus {
+  COUNTING
+  TO_APPROVE
+  APPROVED
+  CANCELLED
+}
+
+/// Why a counted line differs, as the approver records it ("Why" on the review).
+enum RetailStockCountWhy {
+  BROKEN
+  NOT_KNOWN
+  FOUND
+}
+
+model RetailStockCount {
+  id              String                 @id @default(uuid())
+  companyId       String
+  /// "CNT-0020".
+  countNo         String
+  siteId          String
+  /// "Spirits shelf". Shown as "Shelf" in the record's rail, editable there.
+  name            String
+  scope           RetailStockCountScope
+  categoryIds     String[]               @default([])
+  placeId         String?
+  blind           Boolean                @default(true)
+  keepSelling     Boolean                @default(true)
+  status          RetailStockCountStatus @default(COUNTING)
+  counterId       String
+  createdById     String
+  firstCountedAt  DateTime?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  approvedById    String?
+  cancelledAt     DateTime?
+  cancelledById   String?
+  /// Set on approval, at cost, signed. Short ≤ 0, over ≥ 0, difference = short + over.
+  differenceValue Decimal?               @db.Decimal(14, 2)
+  shortValue      Decimal?               @db.Decimal(14, 2)
+  overValue       Decimal?               @db.Decimal(14, 2)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site        Site                   @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  place       StockLocation?         @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  counter     User                   @relation("RetailStockCountCounter", fields: [counterId], references: [id], onDelete: Restrict)
+  createdBy   User                   @relation("RetailStockCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy  User?                  @relation("RetailStockCountApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  cancelledBy User?                  @relation("RetailStockCountCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  lines       RetailStockCountLine[]
+
+  @@unique([companyId, countNo])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, siteId, name])
+}
+
+model RetailStockCountLine {
+  id              String               @id @default(uuid())
+  companyId       String
+  countId         String
+  inventoryItemId String
+  productId       String?
+  /// On hand when the count started: what a counter sees when the count is not blind.
+  expected        Decimal              @db.Decimal(12, 4)
+  counted         Decimal?             @db.Decimal(12, 4)
+  countedAt       DateTime?
+  countedById     String?
+  /// On hand at the moment the figure was saved: sales during the count are allowed for, line by line.
+  expectedAtCount Decimal?             @db.Decimal(12, 4)
+  /// counted − expectedAtCount.
+  difference      Decimal?             @db.Decimal(12, 4)
+  unitCost        Decimal              @default(0) @db.Decimal(14, 2)
+  why             RetailStockCountWhy?
+  recount         Boolean              @default(false)
+  /// Shelf, then product name: the phone's order.
+  sortKey         String
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  count         RetailStockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem    @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  product       Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  countedBy     User?            @relation("RetailStockCountLineCountedBy", fields: [countedById], references: [id], onDelete: SetNull)
+
+  @@unique([countId, inventoryItemId])
+  @@index([companyId, inventoryItemId])
 }

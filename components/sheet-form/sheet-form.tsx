@@ -300,11 +300,11 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       });
       return;
     }
-    const href = kind.open?.(result) ?? null;
+    const href = kind.open?.(result, values) ?? null;
     toast({
       title: sentence,
       variant: "success",
-      ...(href ? { action: { label: kind.openLabel ?? "Open", onClick: () => router.push(href) } } : {}),
+      ...(href ? { action: { label: (typeof kind.openLabel === "function" ? kind.openLabel(result, values) : kind.openLabel) ?? "Open", onClick: () => router.push(href) } } : {}),
     });
     settle(false);
     const next = kind.next?.(result, values) ?? null;

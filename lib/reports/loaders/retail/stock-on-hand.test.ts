@@ -159,7 +159,7 @@ describe("what each reader sees", () => {
     expect(clerk.report.list.bulk?.map((action) => action.key)).not.toContain("reorder");
     const owner = await page(shop, "SUPERADMIN");
     expect(owner.report.columns.map((column) => column.key)).toContain("value");
-    expect(owner.report.list.rowMenu?.map((action) => action.key)).toEqual(["open", "adjust", "move", "reorder"]);
+    expect(owner.report.list.rowMenu?.map((action) => action.key)).toEqual(["open", "adjust", "move", "reorder", "count"]);
   });
 
   it("never says Site, or offers a move, in a shop with one site", async () => {

@@ -182,6 +182,10 @@ export const RETAIL_AUDIT_EVENTS = {
   transferChanged: "RETAIL_STOCK_TRANSFER.CHANGED",
   /** Some or all of a transfer counted in at the site it went to. Carries received, lost and still to come. */
   transferReceived: "RETAIL_STOCK_TRANSFER.RECEIVED",
+  /** A count started (W-22). Entity `RetailStockCount`; carries the number, lines, counter and the blind and keep-selling choices. */
+  countStarted: "RETAIL_STOCK_COUNT.STARTED",
+  /** A count sent for review from the phone. Carries the lines and how many differ. */
+  countSubmitted: "RETAIL_STOCK_COUNT.SUBMITTED",
   /** A new ZiG rate (W-05), typed in on Payments. Entity `RetailSettings`, id `payments`; carries the rate and the one it replaced. */
   zigRateSet: "RETAIL_ZIG_RATE.SET",
   /**

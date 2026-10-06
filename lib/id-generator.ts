@@ -32,6 +32,7 @@ export type ReservableIdEntity =
   | "RETAIL_STOCK_ADJUSTMENT"
   | "RETAIL_CASE_BREAK"
   | "RETAIL_STOCK_TRANSFER"
+  | "RETAIL_STOCK_COUNT"
   | "RETAIL_SUPPLIER"
   | "CRM_CLIENT"
   | "CRM_LEAD"
@@ -97,6 +98,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_CASE_BREAK: { prefix: "BRK", requiresSiteId: false },
   // "TRF-0008": stock sent from one site to another (W-24).
   RETAIL_STOCK_TRANSFER: { prefix: "TRF", requiresSiteId: false },
+  // "CNT-0020": a stock count (W-22).
+  RETAIL_STOCK_COUNT: { prefix: "CNT", requiresSiteId: false },
   // "SUP-0001": a supplier the shop buys from (W-29), company-wide.
   RETAIL_SUPPLIER: { prefix: "SUP", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
@@ -438,6 +441,13 @@ async function findEntityMaxExistingCode(
         select: { transferNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.transferNo), prefix);
+    }
+    case "RETAIL_STOCK_COUNT": {
+      const records = await db.retailStockCount.findMany({
+        where: { companyId },
+        select: { countNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.countNo), prefix);
     }
     case "RETAIL_SUPPLIER": {
       const records = await db.vendor.findMany({

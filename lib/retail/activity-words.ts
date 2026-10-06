@@ -419,6 +419,20 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     what: `Sent ${unitWords(amount(payload.units) ?? 0)}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,
     tone: "info",
   }),
+  // "Started the count: 38 products, sent to Rudo Moyo" (30-stock 3.3).
+  [RETAIL_AUDIT_EVENTS.countStarted]: (payload) => {
+    const lines = amount(payload.lines) ?? 0;
+    const counter = text(payload.counter);
+    return {
+      what: `Started the count: ${lines} ${lines === 1 ? "product" : "products"}${counter ? `, sent to ${counter}` : ""}`,
+      tone: "info",
+    };
+  },
+  // "Counted 38 lines and sent them for review" (30-stock 3.3).
+  [RETAIL_AUDIT_EVENTS.countSubmitted]: (payload) => {
+    const lines = amount(payload.lines) ?? 0;
+    return { what: `Counted ${lines} ${lines === 1 ? "line and sent it" : "lines and sent them"} for review`, tone: "info" };
+  },
   // "Changed the lines: 560 units on the way" (30-stock 3.3).
   [RETAIL_AUDIT_EVENTS.transferChanged]: (payload) => ({
     what: `Changed the lines: ${unitWords(amount(payload.units) ?? 0)} on the way`,

@@ -89,4 +89,39 @@ const stockLine: LookupNoun = {
   },
 };
 
-export const STOCK_LOOKUPS: LookupNoun[] = [stockLine];
+/**
+ * `place`: the open places at `context.siteId` (a count of "A place"), in the
+ * site's own order, each with how many stock lines are kept there. Places are
+ * added on the site (SET-02), never inline.
+ */
+const place: LookupNoun = {
+  noun: "place",
+  read: [
+    ["retail.stock", "view"],
+    ["retail.counts", "create"],
+  ],
+  quick: [],
+  ranked: true,
+  async search(ctx, q, context) {
+    const siteId = typeof context.siteId === "string" ? context.siteId : null;
+    if (!siteId) return [];
+    const needle = q.trim();
+    const places = await prisma.stockLocation.findMany({
+      where: {
+        siteId,
+        isActive: true,
+        site: { companyId: ctx.companyId },
+        ...(needle ? { name: { contains: needle, mode: "insensitive" as const } } : {}),
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, _count: { select: { items: true } } },
+    });
+    return places.map((row) => ({
+      id: row.id,
+      label: row.name,
+      sub: `${formatCount(row._count.items)} ${row._count.items === 1 ? "line" : "lines"} kept here`,
+    }));
+  },
+};
+
+export const STOCK_LOOKUPS: LookupNoun[] = [stockLine, place];

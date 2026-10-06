@@ -11,6 +11,7 @@ import { STOCK_LEVEL_LABEL, STOCK_LEVEL_TONE } from "@/lib/retail/stock/levels";
 
 const VIEW: ListGrant[] = [["retail.stock", "view"]];
 const UPDATE: ListGrant[] = [["retail.stock", "update"]];
+const COUNT: ListGrant[] = [["retail.counts", "create"]];
 const level = (key: keyof typeof STOCK_LEVEL_LABEL) => [{ column: "level", op: "is" as const, value: [STOCK_LEVEL_LABEL[key]] }];
 
 const onHand: ListSpec = {
@@ -157,6 +158,7 @@ const onHand: ListSpec = {
       do: { sheet: "transfer-new" },
     },
     { key: "reorder", label: "Change reorder level", requires: UPDATE, do: { sheet: "reorder-levels" } },
+    { key: "count", label: "Count it", requires: COUNT, do: { sheet: "count-new" } },
   ],
   bulk: [
     {
@@ -167,6 +169,7 @@ const onHand: ListSpec = {
       do: { sheet: "transfer-new" },
     },
     { key: "reorder", label: "Change reorder level", requires: UPDATE, do: { sheet: "reorder-levels" } },
+    { key: "count", label: "Count these", requires: COUNT, do: { sheet: "count-new" } },
     { key: "export" },
   ],
   primary: { label: "Add a product", icon: "plus", requires: [["retail.catalog", "create"]], sheet: "product-new" },
