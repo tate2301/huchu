@@ -15,6 +15,7 @@ import type { SettingsPage } from "./types";
 export const APPROVAL_MONEY_MAX = 1_000_000;
 export const AMOUNT_WRONG = "Write an amount such as 500.00.";
 export const PICK_AN_OWNER = "Pick an owner.";
+export const CHOOSE_COUNT_RULE = "Choose who approves count differences.";
 export const WHO_CAN_CHANGE_APPROVALS = "Owners only.";
 
 /** An amount from 0.00 to 1,000,000.00 with two decimals at most, written back as "500.00". */
@@ -27,12 +28,13 @@ const moneyRule = z
   .transform((value) => Number(value).toFixed(2));
 
 /**
- * A person picked in "Owner approvals go to": the picked option as the page
- * holds it, or a bare id. The save checks they are an active owner.
+ * A person picked in "Owner approvals go to", as their id: the picked option
+ * the page holds, or a bare id. The store checks they are an active owner and
+ * rebuilds the option from the database.
  */
 const ownerRule = z
-  .union([z.string().min(1), z.object({ id: z.string().min(1) }).passthrough()], { message: PICK_AN_OWNER })
-  .transform((value) => (typeof value === "string" ? { id: value } : value));
+  .union([z.string().min(1), z.object({ id: z.string().min(1) })], { message: PICK_AN_OWNER })
+  .transform((value) => (typeof value === "string" ? value : value.id));
 
 export const approvalsPage: SettingsPage = {
   title: "Approvals",
@@ -113,11 +115,8 @@ export const approvalsPage: SettingsPage = {
     }),
     belowCostNeedsOwner: z.boolean({ message: "Turn it on or off." }),
     adjustmentPinOver: moneyRule,
-    countDifferences: z
-      .string({ message: "Choose who approves count differences." })
-      .refine((value) => value === "Any manager" || value.startsWith("Owner approves over "), {
-        message: "Choose who approves count differences.",
-      }),
+    // One of the two labels built from the stored amount; the store checks which.
+    countDifferences: z.string({ message: CHOOSE_COUNT_RULE }),
     accountOwnerOver: moneyRule,
     askBy: z.enum([ASK_BY_WORDS.APP, ASK_BY_WORDS.WHATSAPP_AND_APP], { message: "Choose how to ask." }),
   }),

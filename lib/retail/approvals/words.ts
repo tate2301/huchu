@@ -22,10 +22,12 @@ export const ASK_BY_WORDS: Record<ApprovalChannel, string> = {
   WHATSAPP_AND_APP: "WhatsApp and the app",
 };
 
+export const COUNT_ANY_MANAGER = "Any manager";
+
 /** "Any manager" · "Owner approves over US$100": the second segment carries the stored amount. */
 export function countDifferencesWords(countOwnerOver: string | number): Record<CountApprovalRule, string> {
   return {
-    ANY_MANAGER: "Any manager",
+    ANY_MANAGER: COUNT_ANY_MANAGER,
     OWNER_OVER_LIMIT: `Owner approves over ${formatLimitMoney(countOwnerOver)}`,
   };
 }

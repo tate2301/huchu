@@ -119,4 +119,49 @@ describe("the Approvals page", () => {
     );
     expect((await getApprovalLimits(companyId)).ownerApproverId).toBe(ownerId);
   });
+
+  it("refuses a count label the page does not offer for the stored amount, and writes nothing", async () => {
+    await saveSettings(actor(), "approvals", { countDifferences: "Owner approves over US$100" });
+    const before = await prisma.platformAuditEvent.count({ where: { companyId, entityId: "approvals" } });
+    const refused = saveSettings(actor(), "approvals", { countDifferences: "Owner approves over US$5" });
+    await expect(refused).rejects.toMatchObject({
+      message: "Choose who approves count differences.",
+      refusal: { status: 400, field: "countDifferences" },
+    });
+    expect(await prisma.platformAuditEvent.count({ where: { companyId, entityId: "approvals" } })).toBe(before);
+    expect((await getApprovalLimits(companyId)).countOwnerOver.toFixed(2)).toBe("100.00");
+  });
+
+  it("compares the owner approver by the person, and audits only what the database says about them", async () => {
+    const before = await prisma.platformAuditEvent.count({ where: { companyId, entityId: "approvals" } });
+    // The person already named, as a bare id: nothing changed, nothing audited.
+    expect(await saveSettings(actor(), "approvals", { ownerApproverId: ownerId })).toMatchObject({ ok: true });
+    expect(await prisma.platformAuditEvent.count({ where: { companyId, entityId: "approvals" } })).toBe(before);
+
+    const secondId = (
+      await prisma.user.create({
+        data: { companyId, name: "Rudo Mhlanga", email: `owner2-${stamp}@limits.test`, role: "SUPERADMIN" },
+      })
+    ).id;
+    await saveSettings(actor(), "approvals", {
+      ownerApproverId: { id: secondId, label: "Someone else", sub: "Owner", extra: "<script>" },
+    });
+    const latest = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, entityId: "approvals" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    expect(JSON.parse(latest!.payloadJson ?? "{}").changes).toEqual([
+      {
+        field: "ownerApproverId",
+        label: "Owner approvals go to",
+        from: { id: ownerId, label: "Tendai Mhlanga", sub: "Owner" },
+        to: { id: secondId, label: "Rudo Mhlanga", sub: "Owner" },
+      },
+    ]);
+
+    // Once they are no longer an active owner, the page shows what the asks do: every active owner.
+    await prisma.user.update({ where: { id: secondId }, data: { isActive: false } });
+    expect((await readSettings(companyId, "approvals", true))?.values.ownerApproverId).toBeNull();
+    expect((await getApprovalLimits(companyId)).ownerApprover?.id).toBe(ownerId);
+  });
 });
