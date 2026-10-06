@@ -1,4 +1,4 @@
-import { Money, TrayArrowDown, Truck } from "@/lib/icons";
+import { Money, Storefront, TrayArrowDown, Truck } from "@/lib/icons";
 
 import type { RetailNavModule } from "./types";
 
@@ -8,6 +8,7 @@ export const buyingNav: RetailNavModule = {
   title: "Buying",
   icon: TrayArrowDown,
   items: [
+    { href: "/retail/buying/suppliers", icon: Storefront, label: "Suppliers", requires: [["retail.suppliers", "view"]] },
     { href: "/retail/buying/orders", icon: TrayArrowDown, label: "Orders", requires: [["retail.purchasing", "view"]] },
     { href: "/retail/buying/deliveries", icon: Truck, label: "Deliveries", requires: [["retail.purchasing", "view"]] },
     {

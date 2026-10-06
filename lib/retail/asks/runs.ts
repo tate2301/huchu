@@ -11,6 +11,8 @@ export type ListActionRun = {
   ask?: (count: number, rows: ReportRow[]) => Ask;
   /** The toast; a warning when the server refused some of it ("2 restored. … cannot come back first."). */
   done: (count: number, rows: ReportRow[], answer?: unknown) => string | { title: string; variant: "warning" };
+  /** The method, when the endpoint is a record's own `PATCH` or `DELETE` rather than a `POST` of ids. */
+  method?: "PATCH" | "DELETE";
   /** The POST body, when the endpoint takes more than `{ ids }` (the bin's `{ items: [{ kind, id }] }`). */
   body?: (ids: string[], rows: ReportRow[]) => unknown;
   /** Something to show once it is done, from the answer: the PINs WhatsApp did not take. Only "keep" is offered. */

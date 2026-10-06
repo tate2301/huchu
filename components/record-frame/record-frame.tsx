@@ -88,9 +88,9 @@ export function RecordFrame<R>({
 
   // Post, then read the record again and say what happened.
   const post = React.useCallback(
-    async (target: { url: string; body?: unknown; done: string }) => {
+    async (target: { url: string; method?: "POST" | "DELETE"; body?: unknown; done: string }) => {
       try {
-        await fetchJson(target.url, { method: "POST", body: JSON.stringify(target.body ?? {}) });
+        await fetchJson(target.url, { method: target.method ?? "POST", body: JSON.stringify(target.body ?? {}) });
       } catch (error) {
         throw new Error(getApiErrorMessage(error));
       }
@@ -262,7 +262,7 @@ export function RecordFrame<R>({
       {bin ? (
         <BinBanner state={bin} viewerId={user?.id ?? null} canRestore={can(["retail.bin", "update"])} onRestore={restore} />
       ) : banner ? (
-        <KindBanner banner={banner} canAct={banner.action ? can(banner.action.requires) : false} onAct={(action) => post({ url: action.post, body: action.body, done: action.done })} />
+        <KindBanner banner={banner} canAct={banner.action ? can(banner.action.requires) : false} onAct={(action) => post({ url: action.post, method: action.method, body: action.body, done: action.done })} />
       ) : null}
       <RecordStrip
         title={title}

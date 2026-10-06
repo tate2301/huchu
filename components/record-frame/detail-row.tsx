@@ -4,6 +4,7 @@ import * as React from "react";
 
 import "@/components/sheet-form/sheet-form.css";
 import { LookupField } from "@/components/sheet-form/lookup-field";
+import { Segmented } from "@/components/workspace/segmented";
 import { Check, Loader2, Pencil } from "@/lib/icons";
 import type { PickedOption } from "@/lib/workspace/sheet-kind";
 import type { RailEdit, RailRow } from "@/lib/retail/record-kinds/types";
@@ -130,12 +131,28 @@ function RowEditor({
               id={lookupId}
               label={row.label}
               noun={edit.lookup.noun}
+              context={edit.lookup.context}
               value={picked}
               onValueChange={setPicked}
               onOpenChange={setListOpen}
               disabled={busy}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? errorId : undefined}
+            />
+          </span>
+        ) : edit.type === "seg" ? (
+          // A choice saves as it is picked.
+          <span className="cx-rf-edit__auto" onKeyDown={keys}>
+            <Segmented
+              aria-label={row.label}
+              block
+              disabled={busy}
+              items={(edit.options ?? []).map((option) => ({ value: option, label: option }))}
+              value={text}
+              onValueChange={(next) => {
+                setText(next);
+                void save(next);
+              }}
             />
           </span>
         ) : edit.type === "money" ? (

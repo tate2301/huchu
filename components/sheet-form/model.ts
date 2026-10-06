@@ -16,6 +16,7 @@ function emptyValue(field: FieldSpec): unknown {
   switch (field.t) {
     case "auto":
     case "photo":
+    case "file":
       return null;
     case "toggle":
       return false;

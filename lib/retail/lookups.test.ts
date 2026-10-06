@@ -46,6 +46,9 @@ afterAll(async () => {
   await prisma.retailRegister.deleteMany({ where: { companyId } });
   await prisma.retailCategory.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
+  await prisma.vendor.deleteMany({ where: { companyId } });
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
+  await prisma.user.deleteMany({ where: { companyId } });
   await prisma.company.deleteMany({ where: { id: companyId } });
 });
 
@@ -169,6 +172,72 @@ describe("till lookup", () => {
 
   it("answers 404 for a noun nobody registered", async () => {
     expect((await searchLookup(as("SUPERADMIN"), "spaceship", {})).status).toBe(404);
+  });
+});
+
+describe("supplier, contact and contact role lookups", () => {
+  let manager: LookupCtx;
+  let deltaId: string;
+
+  beforeAll(async () => {
+    const user = await prisma.user.create({
+      data: { email: `tafara-${companyId}@lookups.test`, name: "Tafara Nyathi", role: "MANAGER", companyId },
+      select: { id: true },
+    });
+    manager = { ...as("MANAGER"), userId: user.id, userName: "Tafara Nyathi" };
+  });
+
+  it("adds a supplier from the panel, then finds it with its terms", async () => {
+    const answer = await addLookupOption(manager, "supplier", { name: "Delta Beverages", phone: "0772149080" });
+    expect(answer.status).toBe(201);
+    if (answer.status !== 201) return;
+    expect(answer.body).toMatchObject({ option: { label: "Delta Beverages" }, notice: "Delta Beverages added. It is in every supplier field now." });
+    deltaId = answer.body.option.id;
+    expect(await prisma.vendor.findUniqueOrThrow({ where: { id: deltaId } })).toMatchObject({ code: "SUP-0001", whatsapp: "+263 77 214 9080" });
+
+    const found = await searchLookup(manager, "supplier", { q: "delta" });
+    expect(found.status === 200 && found.body.options).toEqual([{ id: deltaId, label: "Delta Beverages", sub: "on delivery" }]);
+  });
+
+  it("refuses the same name from the panel under Name", async () => {
+    expect(await addLookupOption(manager, "supplier", { name: "delta beverages", phone: "" })).toMatchObject({
+      status: 400,
+      body: { fieldErrors: { name: "There is already a supplier called Delta Beverages." } },
+    });
+  });
+
+  it("adds the first contact as the rep and lists them by the supplier", async () => {
+    const answer = await addLookupOption(manager, "contact", { name: "Tinashe Moyo", phone: "0773012290" }, { supplierId: deltaId });
+    expect(answer.status === 201 && answer.body.option).toMatchObject({ label: "Tinashe Moyo, rep", sub: "+263 77 301 2290" });
+    const found = await searchLookup(manager, "contact", { context: { supplierId: deltaId } });
+    expect(found.status === 200 && found.body.options.map((option) => option.label)).toEqual(["Tinashe Moyo, rep"]);
+  });
+
+  it("offers the four roles, and gives back a new word as typed", async () => {
+    const found = await searchLookup(manager, "contact role", {});
+    expect(found.status === 200 && found.body.options.map((option) => option.label)).toEqual(["Sales rep", "Accounts", "Orders desk", "Driver"]);
+    const added = await addLookupOption(manager, "contact role", { name: " Credit  controller " });
+    expect(added.status === 201 && added.body.option).toEqual({ id: "Credit controller", label: "Credit controller", sub: null });
+  });
+
+  it("is closed to a cashier, and a stock clerk reads but cannot add", async () => {
+    for (const noun of ["supplier", "contact", "contact role"]) {
+      expect(await searchLookup(as("CASHIER"), noun, { context: { supplierId: deltaId } })).toEqual({
+        status: 403,
+        body: { error: "Your role cannot view suppliers" },
+      });
+      const clerk = await searchLookup(as("STOCK_CLERK"), noun, { context: { supplierId: deltaId } });
+      expect(clerk.status === 200 && clerk.body.add).toBeNull();
+    }
+    expect(await addLookupOption(as("STOCK_CLERK"), "supplier", { name: "Natbrew", phone: "" })).toEqual({
+      status: 403,
+      body: { error: "Your role cannot create suppliers" },
+    });
+    expect(await addLookupOption(as("STOCK_CLERK"), "contact", { name: "Rumbi Chari", phone: "0772000000" }, { supplierId: deltaId })).toEqual({
+      status: 403,
+      body: { error: "Your role cannot change suppliers" },
+    });
+    expect(await prisma.vendor.count({ where: { companyId, name: "Natbrew" } })).toBe(0);
   });
 });
 

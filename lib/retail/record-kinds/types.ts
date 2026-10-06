@@ -35,8 +35,10 @@ export type RecordDo =
 export type RecordBanner = {
   lead: string;
   text: string;
-  /** Drawn for roles holding `requires`. */
-  action?: { label: string; post: string; body: unknown; done: string; requires: Grant };
+  /** "bad": the bin banner's red ("You stopped buying from Pamela…"); else the quiet note. */
+  tone?: "bad";
+  /** Drawn for roles holding `requires`; sent as a `POST` unless `method` says (`DELETE …/stop`). */
+  action?: { label: string; post: string; method?: "POST" | "DELETE"; body: unknown; done: string; requires: Grant };
 };
 
 export type RecordAction = {
@@ -111,11 +113,13 @@ export type RailEdit = {
   /** The field the `PATCH` body carries. */
   field: string;
   /** `auto`: the lookup over `GET /api/v2/retail/lookup/<noun>` with quick add (5.7.5); it sends the picked id, or null. */
-  type: "text" | "money" | "number" | "auto";
+  type: "text" | "money" | "number" | "auto" | "seg";
+  /** `seg`: the choices, drawn as the sheet's segmented control; it sends the chosen word. */
+  options?: string[];
   /** What the control starts with: the text, or for `auto` the picked id. */
   initial: string;
   /** `auto`: the noun looked up ("category") and what is picked now. */
-  lookup?: { noun: string; picked: { id: string; label: string } | null };
+  lookup?: { noun: string; picked: { id: string; label: string } | null; context?: Record<string, unknown> };
   mono?: boolean;
   /** The text typed, as the value sent; throws a sentence to show under it. */
   parse?: (text: string) => unknown;

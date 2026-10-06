@@ -252,6 +252,8 @@ export type ListColumn = ReportColumn & {
   runningKey?: string;
   /** link/ref: default `list.rowHref`. */
   href?: RowTemplate;
+  /** link: the row key holding muted words after the link (" · stopped"). */
+  suffixKey?: string;
   /** bar: the fill % key, and the % under which the bar warns. */
   bar?: { pctKey: string; warnBelow: number };
   /** num: the row key holding the unit word printed after the figure ("13 bottles"). */

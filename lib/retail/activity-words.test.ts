@@ -213,6 +213,22 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     });
   });
 
+  it("suppliers added, their people, stopped and messaged (40-buying 3.4)", () => {
+    expect(activityWords("RETAIL_SUPPLIER.CREATED", { code: "SUP-0008", name: "Natbrew" })).toEqual({ what: "Added Natbrew", tone: "ok" });
+    expect(activityWords("RETAIL_SUPPLIER.CONTACT_ADDED", { name: "Rumbi Chari", role: "Accounts", sends: "STATEMENTS" })).toEqual({
+      what: "Added Rumbi Chari, Accounts, who gets statements",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_SUPPLIER.CONTACT_ADDED", { name: "Simon", role: null, sends: "NOTHING" })).toEqual({
+      what: "Added Simon, who gets nothing",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_SUPPLIER.CONTACT_REMOVED", { name: "Rumbi Chari" })).toEqual({ what: "Removed Rumbi Chari", tone: "hollow" });
+    expect(activityWords("RETAIL_SUPPLIER.STOPPED", {})).toEqual({ what: "Stopped buying from them", tone: "bad" });
+    expect(activityWords("RETAIL_SUPPLIER.RESUMED", {})).toEqual({ what: "Started buying from them again", tone: "ok" });
+    expect(activityWords("RETAIL_SUPPLIER.MESSAGED", { to: "+263 77 214 9080" })).toEqual({ what: "Sent a message on WhatsApp", tone: "hollow" });
+  });
+
   it("anything else reads as its type's last segment", () => {
     expect(fallbackWords("RETAIL_EXPORT.DOWNLOADED")).toBe("Downloaded");
     expect(activityWords("STOCK.COUNT_POSTED", null)).toEqual({ what: "Count posted", tone: "hollow" });

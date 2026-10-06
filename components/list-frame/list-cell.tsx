@@ -54,6 +54,17 @@ export function ListCell({
     case "link": {
       const href = column.href ? fillTemplate(column.href, row) : rowHref;
       const className = column.cell === "ref" ? "cx-lf-ref" : "cx-lf-link-cell";
+      const suffix = column.suffixKey ? row[column.suffixKey] : null;
+      if (href && !isBlank(suffix)) {
+        return (
+          <>
+            <Link href={href} className={className}>
+              {text}
+            </Link>
+            <span className="cx-lf-muted">{String(suffix)}</span>
+          </>
+        );
+      }
       return href ? (
         <Link href={href} className={className}>
           {text}
@@ -82,7 +93,8 @@ export function ListCell({
     case "zero":
       return <span className="cx-lf-zerocell">{text}</span>;
     case "owed":
-      return <span className="cx-lf-pill cx-lf-pill--warn">{text}</span>;
+      // Owing nothing is a quiet zero; in credit, a quiet "US$40.00 credit".
+      return Number(value) > 0 ? <span className="cx-lf-pill cx-lf-pill--warn">{text}</span> : <span className="cx-lf-zerocell">{text}</span>;
     case "diff": {
       const tone = diffTone(column, value);
       return <span className={`cx-lf-pill cx-lf-pill--${tone}`}>{text}</span>;
@@ -124,6 +136,8 @@ export function ListCell({
       );
     }
     case "bar": {
+      // No figure to draw ("No deliveries yet"): the words alone, faint.
+      if (column.bar && isBlank(row[column.bar.pctKey])) return <span className="cx-lf-none">{text}</span>;
       const pct = column.bar ? Number(row[column.bar.pctKey] ?? 0) : 0;
       const low = column.bar ? pct < column.bar.warnBelow : false;
       return (

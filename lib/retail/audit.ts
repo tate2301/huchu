@@ -217,6 +217,18 @@ export const RETAIL_AUDIT_EVENTS = {
   pinChosen: "RETAIL_PERSON.PIN_CHOSEN",
   /** The fifth wrong till PIN in a row locked theirs until a new one is sent (ADM-03). Entity `User`; carries the till and the source. */
   pinLocked: "RETAIL_PIN.LOCKED",
+  /** A supplier added (W-29): Suppliers, a supplier field's inline add, an import. Entity `Vendor`; carries its code and name. */
+  supplierCreated: "RETAIL_SUPPLIER.CREATED",
+  /** Someone at a supplier added. Entity `Vendor`; carries their name, role and what they are sent. */
+  supplierContactAdded: "RETAIL_SUPPLIER.CONTACT_ADDED",
+  /** Someone at a supplier removed. Entity `Vendor`; carries their name. */
+  supplierContactRemoved: "RETAIL_SUPPLIER.CONTACT_REMOVED",
+  /** "Stop buying from them": the supplier leaves the list and every supplier field. Entity `Vendor`. */
+  supplierStopped: "RETAIL_SUPPLIER.STOPPED",
+  /** "Buy from them again". Entity `Vendor`. */
+  supplierResumed: "RETAIL_SUPPLIER.RESUMED",
+  /** A message to a supplier queued on WhatsApp. Entity `Vendor`; carries the number it goes to. */
+  suppliersMessaged: "RETAIL_SUPPLIER.MESSAGED",
 } as const;
 
 export type RetailAuditEvent =
