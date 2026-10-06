@@ -1,4 +1,4 @@
-import { TILL_PIN_LOCK_MS, TILL_PIN_MAX_ATTEMPTS } from "@/lib/retail/till-pin";
+import { TILL_PIN_MAX_ATTEMPTS } from "@/lib/retail/till-pin";
 import { DEFAULT_TIME_ZONE, dayKey, formatDay, formatShortDay, formatTime } from "@/lib/workspace/format";
 
 import { PERSON_ROLE_LABELS, type PersonRole } from "./roles";
@@ -45,24 +45,20 @@ export function sitesLabel(sites: { all: boolean; names: string[] }): string {
 /** What the database holds about a PIN, as People reads it. */
 export type PinFacts = {
   failedAttempts: number;
-  lockedUntil: Date | null;
+  lockedAt: Date | null;
   mustChange: boolean;
   issuedAt: Date;
   lastUnlockedAt: Date | null;
 } | null;
 
-/**
- * Locked while the till refuses it (`lib/retail/till-pin.ts`); locked at the
- * fifth wrong try, which is the lock's start.
- */
-export function pinLockedAt(pin: PinFacts, now: Date): Date | null {
-  if (!pin?.lockedUntil || pin.lockedUntil.getTime() <= now.getTime()) return null;
-  return new Date(pin.lockedUntil.getTime() - TILL_PIN_LOCK_MS);
+/** Locked at the fifth wrong try, until somebody sends a new PIN (`lib/retail/till-pin.ts`). */
+export function pinLockedAt(pin: PinFacts): Date | null {
+  return pin?.lockedAt ?? null;
 }
 
-export function pinState(pin: PinFacts, now: Date): PinState {
+export function pinState(pin: PinFacts): PinState {
   if (!pin) return "NONE";
-  if (pinLockedAt(pin, now)) return "LOCKED";
+  if (pinLockedAt(pin)) return "LOCKED";
   return pin.mustChange ? "NEW" : "SET";
 }
 
@@ -87,10 +83,10 @@ export function dayInSentence(value: Date): string {
  */
 export function pinText(pin: PinFacts, now: Date, removedAt: Date | null = null): string {
   if (removedAt) return `Removed with their access on ${dayInSentence(removedAt)}.`;
-  const state = pinState(pin, now);
+  const state = pinState(pin);
   if (!pin || state === "NONE") return "No PIN yet.";
   if (state === "LOCKED") {
-    const at = dayAt(pinLockedAt(pin, now)!, now);
+    const at = dayAt(pinLockedAt(pin)!, now);
     return `Locked ${at} after ${TILL_PIN_MAX_ATTEMPTS} wrong tries`;
   }
   if (state === "NEW") return `Sent ${formatShortDay(pin.issuedAt)}. Not used yet.`;

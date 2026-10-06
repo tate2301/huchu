@@ -17,8 +17,9 @@
  * each setting lives rather than pretending to a control it does not have.
  * `lib/retail/till-settings.ts` carries the full reasoning.
  *
- * The one thing a cashier *can* change from the till is their own unlock PIN,
- * which is a credential rather than a setting and lives at `pos/pin`.
+ * The one thing a cashier *can* change from the till is their own till PIN,
+ * which is a credential rather than a setting: Change my PIN (ADM-03,
+ * `pos/pin/change`).
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -42,6 +43,7 @@ import { hoursWords, percentWords, voidPinSentence } from "@/lib/retail/till-rul
 import { tenderLabel } from "@/lib/retail/words";
 import { cn } from "@/lib/utils";
 
+import { PosChangePin } from "./pos-change-pin";
 import {
   PosEmptyState,
   PosPanel,
@@ -367,6 +369,8 @@ export function PosTillSettingsView() {
         </PosPanel>
       </div>
 
+      <PosChangePin />
+
       {/* ── Where to change it ───────────────────────────────────────── */}
       <PosPanel>
         <div className="flex items-start gap-3">
@@ -379,8 +383,8 @@ export function PosTillSettingsView() {
             </h3>
             <p className="mt-1 max-w-[62ch] text-sm leading-6 text-[var(--text-muted)]">
               A manager changes these in the back office under{" "}
-              <span className="font-medium text-[var(--text-strong)]">Settings → Shop</span>. Your
-              unlock PIN is set on the lock screen.
+              <span className="font-medium text-[var(--text-strong)]">Settings → Shop</span>. A
+              forgotten PIN is replaced: a manager sends you a new one from People.
             </p>
           </div>
         </div>

@@ -7,11 +7,11 @@ import {
   ApprovalNeeded,
   ApprovalRefused,
   approvalFor,
-  PIN_LOCKED,
   replayApproval,
   tillRuleResponse,
   verifyManagerPin,
 } from "./manager-pin";
+import { TILL_PIN_LOCKED } from "./till-pin";
 import { TillRuleRefused } from "./till-rules";
 
 const NEEDS = { needsApprover: true as const, reason: "Refunds over US$20.00 need a manager PIN." };
@@ -48,11 +48,14 @@ describe("a manager's PIN approving at the till", () => {
   });
 
   beforeEach(async () => {
-    await prisma.retailTillPin.updateMany({ where: { companyId }, data: { failedAttempts: 0, lockedUntil: null } });
+    await prisma.retailTillPin.updateMany({ where: { companyId }, data: { failedAttempts: 0, lockedAt: null } });
   });
 
   afterAll(async () => {
     if (!companyId) return;
+    await prisma.notificationRecipient.deleteMany({ where: { notification: { companyId } } });
+    await prisma.notification.deleteMany({ where: { companyId } });
+    await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
     await prisma.retailTillPin.deleteMany({ where: { companyId } });
     await prisma.user.deleteMany({ where: { companyId } });
     await prisma.company.delete({ where: { id: companyId } });
@@ -108,9 +111,9 @@ describe("a manager's PIN approving at the till", () => {
     const notApprover = tillRuleResponse(new ApprovalRefused("Pick someone who can approve this.", 409, "approver"))!;
     expect(notApprover.status).toBe(409);
     expect(await notApprover.json()).toMatchObject({ needsApprover: true, fieldErrors: { approver: "Pick someone who can approve this." } });
-    const locked = tillRuleResponse(new ApprovalRefused(PIN_LOCKED, 423, null))!;
+    const locked = tillRuleResponse(new ApprovalRefused(TILL_PIN_LOCKED, 423, null))!;
     expect(locked.status).toBe(423);
-    expect(await locked.json()).toEqual({ error: "Too many tries. This manager's PIN is locked." });
+    expect(await locked.json()).toEqual({ error: "Too many tries. Ask a manager to send you a new PIN." });
   });
 
   it("locks after five wrong tries and answers 423, even to the right PIN", async () => {
@@ -124,7 +127,10 @@ describe("a manager's PIN approving at the till", () => {
     });
     const locked = verifyManagerPin({ companyId, approver: { userId: managerId, pin: "2580" } });
     await expect(locked).rejects.toBeInstanceOf(ApprovalRefused);
-    await expect(locked).rejects.toMatchObject({ status: 423 });
+    await expect(locked).rejects.toMatchObject({ status: 423, message: "Too many tries. Ask a manager to send you a new PIN." });
+    const later = verifyManagerPin({ companyId, approver: { userId: managerId, pin: "2580" }, now: new Date(Date.now() + 86_400_000) });
+    await expect(later).rejects.toMatchObject({ status: 423 });
+    expect(await prisma.platformAuditEvent.count({ where: { companyId, entityId: managerId, eventType: "RETAIL_PIN.LOCKED" } })).toBe(1);
   });
 
   it("lets an act sent in late through: approved when its approver checks out, else marked for review", async () => {

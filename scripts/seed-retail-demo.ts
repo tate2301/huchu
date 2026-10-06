@@ -1265,7 +1265,7 @@ async function main() {
   await seedSites({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedTills(companyId)
   await seedStockPeople(companyId, passwordHash)
-  await seedTillPins(companyId, passwordHash)
+  await seedPins(companyId, passwordHash)
   await seedPeople({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, passwordHash, reset })
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
@@ -1444,31 +1444,35 @@ async function seedTills(companyId: string) {
 }
 
 /**
- * SET-04: who sells at the tills, with their PINs, so a paired till's "Who is
- * selling?" offers Chipo D., Kuda B. and Farai M. Kuda Banda is a cashier the
- * admin area also seeds (upserted by email, so the two converge). The PINs are
- * demo values, printed here and nowhere else.
+ * ADM-03 `seedPins()`: the PINs testers type at a paired till, chosen (not
+ * issued) so "Who is selling?" opens the till at once. Demo values, printed
+ * here and nowhere else:
+ *
+ *   Tendai Mhlanga 1357 · Tafara Nyathi 2468 · Chipo Dube 1928
+ *   Kuda Banda 3746 · Rudo Moyo 5091 · Farai Moyo 6024 (locked)
+ *
+ * Kuda Banda is a cashier the admin area also seeds (upserted by email, so the
+ * two converge). Ruvimbo Chari has no PIN.
  */
 const TILL_PINS: Array<{ email: string; name: string; pin: string }> = [
-  { email: "chipo.till@bottlestore.test", name: "Chipo Dube", pin: "2580" },
-  { email: "kuda.till@bottlestore.test", name: "Kuda Banda", pin: "1470" },
-  { email: "farai.till@bottlestore.test", name: "Farai Moyo", pin: "3691" },
-  // The manager approves at the till with hers (SET-06).
-  { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", pin: "4826" },
-  // ADM-02: the owner and the stock clerk who counts on the phone carry one too (Staff and PINs: "Set").
   { email: "owner@bottlestore.test", name: "Tendai Mhlanga", pin: "1357" },
+  { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", pin: "2468" },
+  { email: "chipo.till@bottlestore.test", name: "Chipo Dube", pin: "1928" },
+  { email: "kuda.till@bottlestore.test", name: "Kuda Banda", pin: "3746" },
   { email: "rudo.stock@bottlestore.test", name: "Rudo Moyo", pin: "5091" },
+  { email: "farai.till@bottlestore.test", name: "Farai Moyo", pin: "6024" },
 ]
 
-async function seedTillPins(companyId: string, passwordHash: string) {
+async function seedPins(companyId: string, passwordHash: string) {
   const bcrypt = await import("bcryptjs")
   await prisma.user.upsert({
     where: { email: "kuda.till@bottlestore.test" },
     update: { name: "Kuda Banda", role: "CASHIER", companyId, isActive: true },
     create: { email: "kuda.till@bottlestore.test", name: "Kuda Banda", role: "CASHIER", companyId, password: passwordHash, isActive: true },
   })
-  // ADM-02: when each was last used (Last in on Staff and PINs), and Farai's
-  // locked after five wrong tries a moment ago (the till's 15-minute lock).
+  // When each was last used (Last in on People): Chipo and Kuda selling now,
+  // Rudo 10:40, Tafara 12:31, Farai last night — and Farai's locked by five
+  // wrong tries on Back till at 08:12 today, until somebody sends a new one.
   const now = Date.now()
   const todayAt = (hour: number, minute: number) => new Date(Math.min(harareTime(0, hour, minute).getTime(), now - 60_000))
   const used: Record<string, Date> = {
@@ -1478,8 +1482,9 @@ async function seedTillPins(companyId: string, passwordHash: string) {
     "tafara.manager@bottlestore.test": todayAt(12, 31),
     "farai.till@bottlestore.test": harareTime(1, 21, 40),
   }
+  const lockedAt = todayAt(8, 12)
   for (const person of TILL_PINS) {
-    const user = await prisma.user.findFirst({ where: { companyId, email: person.email }, select: { id: true } })
+    const user = await prisma.user.findFirst({ where: { companyId, email: person.email }, select: { id: true, name: true, role: true } })
     if (!user) continue
     const pinHash = await bcrypt.hash(person.pin, 10)
     const locked = person.email === "farai.till@bottlestore.test"
@@ -1487,14 +1492,35 @@ async function seedTillPins(companyId: string, passwordHash: string) {
       companyId,
       pinHash,
       failedAttempts: locked ? 5 : 0,
-      lockedUntil: locked ? new Date(now - 2 * 60_000 + 15 * 60_000) : null,
+      lockedAt: locked ? lockedAt : null,
       mustChange: false,
       issuedById: null,
       lastUnlockedAt: used[person.email] ?? null,
     }
     await prisma.retailTillPin.upsert({ where: { userId: user.id }, update: state, create: { userId: user.id, ...state } })
+    if (!locked) continue
+    // The lock's event, at 08:12 on Back till (once).
+    const event = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.pinLocked, createdAt: { gte: harareTime(0, 0, 0) } },
+      select: { id: true },
+    })
+    if (!event) {
+      await writeRetailAuditEvent(prisma, {
+        actor: { companyId, userId: user.id, userName: user.name, userRole: user.role },
+        eventType: RETAIL_AUDIT_EVENTS.pinLocked,
+        entityType: "User",
+        entityId: user.id,
+        payload: { registerName: "Back till", source: "TILL" },
+      })
+      const written = await prisma.platformAuditEvent.findFirst({
+        where: { companyId, entityId: user.id, eventType: RETAIL_AUDIT_EVENTS.pinLocked },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      })
+      if (written) await prisma.platformAuditEvent.update({ where: { id: written.id }, data: { createdAt: lockedAt } })
+    }
   }
-  console.log(`  till PINs: ${TILL_PINS.map((person) => `${person.name} ${person.pin}`).join(", ")}`)
+  console.log(`  till PINs: ${TILL_PINS.map((person) => `${person.name} ${person.pin}`).join(", ")} (Farai locked at 08:12)`)
   await seedTillRules(companyId)
 }
 
@@ -1599,7 +1625,7 @@ async function seedPeople(input: {
         })
         const bcrypt = await import("bcryptjs")
         const pinHash = await bcrypt.hash("8257", 10)
-        const pin = { companyId, pinHash, failedAttempts: 0, lockedUntil: null, mustChange: true, issuedById: owner.id, issuedAt: invitedAt, lastUnlockedAt: null }
+        const pin = { companyId, pinHash, failedAttempts: 0, lockedAt: null, mustChange: true, issuedById: owner.id, issuedAt: invitedAt, lastUnlockedAt: null }
         await prisma.retailTillPin.upsert({ where: { userId: user.id }, update: pin, create: { userId: user.id, ...pin } })
         link = `/join/${token}`
       }

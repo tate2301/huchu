@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { TILL_PIN_LOCK_MS } from "@/lib/retail/till-pin";
 
 import {
   lastInWord,
@@ -23,7 +22,7 @@ const at = (iso: string) => new Date(iso);
 
 const pin = (over: Partial<NonNullable<Parameters<typeof pinText>[0]>> = {}) => ({
   failedAttempts: 0,
-  lockedUntil: null,
+  lockedAt: null,
   mustChange: false,
   issuedAt: at("2026-10-02T08:00:00Z"),
   lastUnlockedAt: null,
@@ -46,17 +45,16 @@ describe("sites", () => {
 });
 
 describe("the till PIN", () => {
-  it("is locked while the till refuses it, from the fifth wrong try", () => {
-    const lockedAt = at("2026-10-03T11:55:00Z");
-    const locked = pin({ failedAttempts: 5, lockedUntil: new Date(lockedAt.getTime() + TILL_PIN_LOCK_MS) });
-    expect(pinState(locked, NOW)).toBe("LOCKED");
+  it("is locked from the fifth wrong try until a new one is sent", () => {
+    const locked = pin({ failedAttempts: 5, lockedAt: at("2026-10-03T11:55:00Z") });
+    expect(pinState(locked)).toBe("LOCKED");
     expect(pinText(locked, NOW)).toBe("Locked today at 13:55 after 5 wrong tries");
   });
 
   it("says when it was last used, or that a sent one is not used yet", () => {
     expect(pinText(pin({ lastUnlockedAt: at("2026-10-03T05:58:00Z") }), NOW)).toBe("Set. Last used today at 07:58.");
     expect(pinText(pin({ lastUnlockedAt: at("2026-10-02T19:40:00Z") }), NOW)).toBe("Set. Last used yesterday at 21:40.");
-    expect(pinState(pin({ mustChange: true }), NOW)).toBe("NEW");
+    expect(pinState(pin({ mustChange: true }))).toBe("NEW");
     expect(pinText(pin({ mustChange: true }), NOW)).toBe("Sent 2 Oct. Not used yet.");
     expect(pinText(null, NOW)).toBe("No PIN yet.");
   });

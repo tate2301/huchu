@@ -62,6 +62,7 @@ type AuthenticatedUserLike = {
   authExpiresAt?: string;
   deviceId?: string;
   registerId?: string;
+  pinMustChange?: boolean;
 };
 
 /** One cookie out of a request's `Cookie` header. */
@@ -736,7 +737,7 @@ export const authOptions: NextAuthOptions = {
         const checked = await checkTillPinSignIn({
           deviceKey: readRequestCookie(req?.headers, DEVICE_COOKIE),
           userId: user.id,
-          verify: (pinHash) => bcrypt.compare(pin, pinHash),
+          pin,
         });
         if (!checked.ok) {
           return failSignIn(ctx, checked.reason, {
@@ -748,7 +749,13 @@ export const authOptions: NextAuthOptions = {
 
         await assertAccountUsable(user, ctx);
         const signedIn = await completeSignIn(user, ctx, false);
-        return { ...signedIn, deviceId: checked.device.id, registerId: checked.device.registerId };
+        // An issued PIN (ADM-03): the till asks them to choose their own before it opens.
+        return {
+          ...signedIn,
+          deviceId: checked.device.id,
+          registerId: checked.device.registerId,
+          ...(checked.mustChange ? { pinMustChange: true } : {}),
+        };
       },
     }),
     CredentialsProvider({
@@ -832,6 +839,7 @@ export const authOptions: NextAuthOptions = {
             rememberMe: typedUser.rememberMe === true,
             deviceId: typedUser.deviceId,
             registerId: typedUser.registerId,
+            pinMustChange: typedUser.pinMustChange,
           }),
         );
       } else {

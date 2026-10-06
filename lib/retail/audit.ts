@@ -193,6 +193,10 @@ export const RETAIL_AUDIT_EVENTS = {
   personAccessRemoved: "RETAIL_PERSON.ACCESS_REMOVED",
   /** Their access given back. Entity `User`; carries whether a new PIN went with it. */
   personAccessRestored: "RETAIL_PERSON.ACCESS_RESTORED",
+  /** They chose their own till PIN in place of the one they were sent (ADM-03). Entity `User`; carries nothing. */
+  pinChosen: "RETAIL_PERSON.PIN_CHOSEN",
+  /** The fifth wrong till PIN in a row locked theirs until a new one is sent (ADM-03). Entity `User`; carries the till and the source. */
+  pinLocked: "RETAIL_PIN.LOCKED",
 } as const;
 
 export type RetailAuditEvent =

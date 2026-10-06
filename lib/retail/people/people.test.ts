@@ -3,7 +3,6 @@ import bcrypt from "bcryptjs";
 
 import { enrichTokenClaims } from "@/lib/auth-core/session-claims";
 import { prisma } from "@/lib/prisma";
-import { TILL_PIN_LOCK_MS } from "@/lib/retail/till-pin";
 
 import { giveAccessBack, removeAccess, removeAccessMany } from "./access";
 import type { PeopleActor } from "./actor";
@@ -97,7 +96,7 @@ beforeAll(async () => {
       userId: cashierId,
       pinHash: await bcrypt.hash("1928", 4),
       failedAttempts: 5,
-      lockedUntil: new Date(Date.now() + TILL_PIN_LOCK_MS - 60_000),
+      lockedAt: new Date(Date.now() - 60_000),
     },
   });
 });
@@ -294,7 +293,7 @@ describe("changing a person", () => {
     expect(result.handOver?.pin).toMatch(/^\d{4}$/);
     expect(result.data).toMatchObject({ state: "ACTIVE", sitesLabel: "Borrowdale", pin: { state: "NEW" } });
     const pin = await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: cashierId } });
-    expect(pin).toMatchObject({ failedAttempts: 0, lockedUntil: null, mustChange: true, issuedById: ownerId });
+    expect(pin).toMatchObject({ failedAttempts: 0, lockedAt: null, mustChange: true, issuedById: ownerId });
     const sent = await prisma.platformAuditEvent.findFirstOrThrow({ where: { entityId: cashierId, eventType: "RETAIL_PERSON.PIN_SENT" } });
     expect(JSON.parse(sent.payloadJson ?? "{}")).toMatchObject({ wasLocked: true });
   });

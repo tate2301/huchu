@@ -42,7 +42,7 @@ export async function issueTillPin(
   const issued = {
     pinHash,
     failedAttempts: 0,
-    lockedUntil: null,
+    lockedAt: null,
     mustChange: true,
     issuedById: input.issuedById,
     issuedAt: input.now ?? new Date(),

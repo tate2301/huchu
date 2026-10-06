@@ -306,7 +306,7 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
     The point of the assertion is that the *server* checks it.
   */
   await refundDialog.getByRole("radio", { name: "Tafara Nyathi" }).click();
-  await refundDialog.getByPlaceholder("Manager PIN").fill("4826");
+  await refundDialog.getByPlaceholder("Manager PIN").fill("2468");
   await settle(page, 1500);
   await shot(page, "manager-approves-at-the-counter");
 

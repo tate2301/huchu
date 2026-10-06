@@ -200,3 +200,17 @@
   opacity: 0;
   pointer-events: none;
 }
+
+/* A chip whose PIN is locked (ADM-03): its name over "Locked". */
+.device-chip-note {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--warn);
+}
+
+.device-chip[aria-pressed="true"] .device-chip-note {
+  color: inherit;
+  opacity: 0.8;
+}

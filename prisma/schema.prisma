@@ -5361,11 +5361,11 @@ model RetailTillPin {
   /// returned by any endpoint, or written to a log.
   pinHash   String
   /// Consecutive wrong guesses since the last correct one. Reset on success and
-  /// when a lock expires.
+  /// when somebody sends a new PIN.
   failedAttempts Int       @default(0)
-  /// Set on the fifth wrong guess. While it is in the future the unlock route
-  /// refuses without comparing the hash at all.
-  lockedUntil    DateTime?
+  /// Set on the fifth wrong PIN in a row. While set the PIN is refused without
+  /// comparing it, until somebody sends a new one (ADM-03).
+  lockedAt       DateTime?
   /// When the terminal was last unlocked with it. Shown on the settings screen so
   /// a cashier can tell whether a PIN they have forgotten is in use.
   lastUnlockedAt DateTime?

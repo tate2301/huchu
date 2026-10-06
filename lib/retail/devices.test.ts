@@ -116,6 +116,8 @@ afterAll(async () => {
   await prisma.retailDevice.deleteMany({ where: { companyId } });
   await prisma.retailRegister.deleteMany({ where: { companyId } });
   await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
+  await prisma.notificationRecipient.deleteMany({ where: { notification: { companyId } } });
+  await prisma.notification.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
   await prisma.companySubscription.deleteMany({ where: { companyId } });
   if (planId) await prisma.subscriptionPlan.delete({ where: { id: planId } });
@@ -296,18 +298,39 @@ describe("every POS request names its device (W-04 step 8)", () => {
   });
 
   it("signs a person in with their PIN at the device, with the till PIN's lockout", async () => {
-    const verify = (pin: string) => (hash: string) => bcrypt.compare(pin, hash);
-    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.chipo!, verify: verify("2580") })).toMatchObject({ ok: true });
-    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, verify: verify("1111") })).toEqual({
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.chipo!, pin: "2580" })).toMatchObject({ ok: true, mustChange: false });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, pin: "1111" })).toEqual({
       ok: false,
       reason: "WRONG_PIN",
       triesLeft: 4,
     });
-    expect(await checkTillPinSignIn({ deviceKey: null, userId: people.chipo!, verify: verify("2580") })).toEqual({ ok: false, reason: "NOT_A_TILL" });
-    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.clerk!, verify: verify("2580") })).toEqual({
+    expect(await checkTillPinSignIn({ deviceKey: null, userId: people.chipo!, pin: "2580" })).toEqual({ ok: false, reason: "NOT_A_TILL" });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.clerk!, pin: "2580" })).toEqual({
       ok: false,
       reason: "NOT_ON_THIS_TILL",
     });
+  });
+
+  it("says an issued PIN must be changed, and locks a PIN on the fifth wrong try until a new one is sent (ADM-03)", async () => {
+    await prisma.retailTillPin.update({ where: { userId: people.farai! }, data: { mustChange: true } });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.farai!, pin: "2580" })).toMatchObject({ ok: true, mustChange: true });
+
+    for (let attempt = 0; attempt < 3; attempt += 1) await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, pin: "1111" });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, pin: "1111" })).toEqual({ ok: false, reason: "LOCKED" });
+    const later = new Date(Date.now() + 7 * 86_400_000);
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, pin: "2580" }, later)).toEqual({ ok: false, reason: "LOCKED" });
+    expect((await tillPeople(device)).find((person) => person.userId === people.kuda)).toMatchObject({ label: "Kuda B.", locked: true });
+
+    const event = await prisma.platformAuditEvent.findFirstOrThrow({ where: { companyId, entityId: people.kuda!, eventType: "RETAIL_PIN.LOCKED" } });
+    expect(JSON.parse(event.payloadJson ?? "{}")).toMatchObject({ registerName: "Test till", source: "TILL" });
+    const notice = await prisma.notification.findFirstOrThrow({
+      where: { companyId, type: "RETAIL_PIN_LOCKED" },
+      include: { recipients: { select: { userId: true } } },
+    });
+    expect(notice.title).toBe("Kuda Banda’s PIN is locked");
+    expect(notice.summary).toMatch(/^Five wrong tries at Test till, \d{2}:\d{2}\. Send a new PIN from People\.$/);
+    expect(notice.recipients.map((row) => row.userId)).toEqual([ownerId]);
+    await prisma.retailTillPin.update({ where: { userId: people.kuda! }, data: { failedAttempts: 0, lockedAt: null } });
   });
 
   it("acts only on its own till's shifts", async () => {
@@ -354,7 +377,7 @@ describe("every POS request names its device (W-04 step 8)", () => {
     expect(unpairedSaleGate(gone, new Date(unpairedAt.getTime() - 60_000))).toEqual({ reviewReason: UNPAIRED_REVIEW_REASON, response: null });
     expect(unpairedSaleGate(gone, new Date(unpairedAt.getTime() + 60_000)).response?.status).toBe(401);
     expect(unpairedSaleGate(gone, null).response?.status).toBe(401);
-    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.chipo!, verify: async () => true })).toEqual({
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.chipo!, pin: "2580" })).toEqual({
       ok: false,
       reason: "DEVICE_UNPAIRED",
     });

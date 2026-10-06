@@ -306,6 +306,12 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
     what: payload.pin ? "Gave their access back, with a new PIN" : "Gave their access back",
     tone: "ok",
   }),
+  // Till PINs (ADM-03): "Chose a PIN"; "PIN locked after 5 wrong tries at Back till".
+  [RETAIL_AUDIT_EVENTS.pinChosen]: () => ({ what: "Chose a PIN", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.pinLocked]: (payload) => ({
+    what: `PIN locked after 5 wrong tries${text(payload.registerName) ? ` at ${text(payload.registerName)}` : ""}`,
+    tone: "warn",
+  }),
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,
     tone: "info",

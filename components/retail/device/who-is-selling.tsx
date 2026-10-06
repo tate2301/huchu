@@ -8,20 +8,22 @@ import { PosNumericKeypad } from "@/components/retail/portal/pos-numeric-keypad"
 import type { PosKeypadAction } from "@/components/retail/portal/pos-numeric-input";
 import { fetchJson } from "@/lib/api-client";
 import { wrongPinSentence } from "@/lib/retail/device-words";
-import { TILL_PIN_LENGTH } from "@/lib/retail/till-pin";
+import { TILL_PIN_LENGTH, TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
 
 import "./device-screen.css";
 
-type Person = { userId: string; label: string; outcome: string };
-
-/** The till PIN's own lock sentence (`pos/pin/unlock`). */
-const LOCKED = "Too many wrong PINs. Sign in with your password to carry on.";
+type Person = { userId: string; label: string; outcome: string; locked: boolean };
 
 /**
  * "Who is selling?" (10-setup W-04 step 7, TillPairing panel 3): the till is
  * known; a person says who they are with their PIN. A chip per person who may
  * sell here, four dots, the keypad. The fourth digit signs in with the
  * `till-pin` provider, which reads this device's key from its cookie.
+ *
+ * A PIN locked by five wrong tries (ADM-03) says so on its chip, "Locked",
+ * and stays locked until a manager sends a new one; the password sign-in is
+ * offered beside the sentence. A PIN somebody sent opens the till's
+ * "Choose your own PIN" first (`PosTillLockProvider`).
  */
 export function WhoIsSelling({
   base,
@@ -39,6 +41,7 @@ export function WhoIsSelling({
     queryFn: () => fetchJson<{ data: Person[] }>("/api/v2/retail/devices/people"),
   });
   const list = people.data?.data ?? [];
+  const refetchPeople = people.refetch;
   const [picked, setPicked] = useState<string | null>(null);
   const chosen = picked && list.some((person) => person.userId === picked) ? picked : (list[0]?.userId ?? null);
   const [pin, setPin] = useState("");
@@ -46,6 +49,7 @@ export function WhoIsSelling({
   const [locked, setLocked] = useState(false);
   const [shake, setShake] = useState(false);
   const [busy, setBusy] = useState(false);
+  const chosenLocked = list.find((person) => person.userId === chosen)?.locked ?? false;
 
   const send = useCallback(
     async (userId: string, digits: string) => {
@@ -63,13 +67,14 @@ export function WhoIsSelling({
       setShake(true);
       if (reason === "LOCKED") {
         setLocked(true);
-        setError(LOCKED);
+        setError(TILL_PIN_LOCKED);
+        void refetchPeople();
         return;
       }
       const left = /^WRONG_PIN:(\d+)$/.exec(reason);
       setError(left ? wrongPinSentence(Number(left[1])) : "That did not work. Try your PIN again.");
     },
-    [base],
+    [base, refetchPeople],
   );
 
   const press = useCallback(
@@ -79,7 +84,7 @@ export function WhoIsSelling({
       if (action.type === "backspace") return setPin((current) => current.slice(0, -1));
       if (action.type === "clear") return setPin("");
       if (action.type !== "digit") return;
-      setError(locked ? LOCKED : null);
+      setError(locked ? TILL_PIN_LOCKED : null);
       const next = `${pin}${action.value}`.slice(0, TILL_PIN_LENGTH);
       setPin(next);
       if (next.length === TILL_PIN_LENGTH) void send(chosen, next);
@@ -132,6 +137,7 @@ export function WhoIsSelling({
                   }}
                 >
                   {person.label}
+                  {person.locked ? <span className="device-chip-note">Locked</span> : null}
                 </button>
               ))}
             </div>
@@ -140,10 +146,10 @@ export function WhoIsSelling({
                 <span key={index} className="device-dot" data-filled={index < pin.length ? "true" : undefined} />
               ))}
             </div>
-            {error ? (
+            {error || chosenLocked ? (
               <p className="device-error" role="alert">
-                {error}
-                {locked ? (
+                {error ?? TILL_PIN_LOCKED}
+                {locked || chosenLocked ? (
                   <>
                     {" "}
                     <a className="device-link" href={`${base}/login`}>Sign in with a password</a>

@@ -1,16 +1,15 @@
 /**
- * S-7.5 — the lockout rule, hand-worked.
+ * The lockout rule, hand-worked (ADM-03).
  *
  * The rule is the whole security argument for a four-digit code, so it is pinned
- * rather than trusted: five wrong guesses buy a quarter of an hour, a locked
- * terminal is refused without the hash ever being compared, and a correct PIN
- * puts the counter back to zero.
+ * rather than trusted: five wrong guesses lock it until somebody sends a new
+ * PIN, a locked PIN is refused without the hash ever being compared, and a
+ * correct PIN puts the counter back to zero.
  */
 
 import { describe, expect, it } from "vitest";
 
 import {
-  TILL_PIN_LOCK_MS,
   TILL_PIN_MAX_ATTEMPTS,
   evaluateTillPinAttempt,
   isObviousTillPin,
@@ -18,113 +17,56 @@ import {
   tillPinDenial,
 } from "./till-pin";
 
-/** A fixed clock. Every expectation below is arithmetic off this instant. */
+/** A fixed clock. */
 const NOW = new Date("2026-08-13T14:00:00.000Z");
-const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
 function fresh() {
-  return { failedAttempts: 0, lockedUntil: null };
+  return { failedAttempts: 0, lockedAt: null };
 }
 
 describe("evaluateTillPinAttempt", () => {
   it("accepts a correct PIN and clears the counter", () => {
-    const outcome = evaluateTillPinAttempt({
-      state: { failedAttempts: 3, lockedUntil: null },
-      verified: true,
-      now: NOW,
-    });
-
+    const outcome = evaluateTillPinAttempt({ state: { failedAttempts: 3, lockedAt: null }, verified: true, now: NOW });
     expect(outcome.decision).toBe("ACCEPTED");
-    expect(outcome.next).toEqual({ failedAttempts: 0, lockedUntil: null });
+    expect(outcome.next).toEqual({ failedAttempts: 0, lockedAt: null });
     expect(outcome.attemptsRemaining).toBe(TILL_PIN_MAX_ATTEMPTS);
   });
 
   it("counts a wrong PIN down from five", () => {
     const first = evaluateTillPinAttempt({ state: fresh(), verified: false, now: NOW });
     expect(first.decision).toBe("REJECTED");
-    expect(first.next.failedAttempts).toBe(1);
-    expect(first.next.lockedUntil).toBeNull();
+    expect(first.next).toEqual({ failedAttempts: 1, lockedAt: null });
     expect(first.attemptsRemaining).toBe(4);
 
-    const fourth = evaluateTillPinAttempt({
-      state: { failedAttempts: 3, lockedUntil: null },
-      verified: false,
-      now: NOW,
-    });
+    const fourth = evaluateTillPinAttempt({ state: { failedAttempts: 3, lockedAt: null }, verified: false, now: NOW });
     expect(fourth.decision).toBe("REJECTED");
     expect(fourth.next.failedAttempts).toBe(4);
     expect(fourth.attemptsRemaining).toBe(1);
   });
 
-  it("locks on the fifth wrong PIN, for exactly fifteen minutes", () => {
-    const outcome = evaluateTillPinAttempt({
-      state: { failedAttempts: 4, lockedUntil: null },
-      verified: false,
-      now: NOW,
-    });
-
+  it("locks on the fifth wrong PIN, from that moment, with no expiry", () => {
+    const outcome = evaluateTillPinAttempt({ state: { failedAttempts: 4, lockedAt: null }, verified: false, now: NOW });
     expect(outcome.decision).toBe("REJECTED_NOW_LOCKED");
-    expect(outcome.next.failedAttempts).toBe(5);
-    expect(outcome.next.lockedUntil).toEqual(new Date("2026-08-13T14:15:00.000Z"));
+    expect(outcome.next).toEqual({ failedAttempts: 5, lockedAt: NOW });
     expect(outcome.attemptsRemaining).toBe(0);
-    expect(outcome.retryAfterMs).toBe(FIFTEEN_MINUTES);
-    // The constant and the arithmetic have to agree, or one of them is a lie.
-    expect(TILL_PIN_LOCK_MS).toBe(FIFTEEN_MINUTES);
+    expect(outcome).not.toHaveProperty("retryAfterMs");
   });
 
-  it("refuses a locked terminal without comparing anything", () => {
-    const lockedUntil = new Date("2026-08-13T14:15:00.000Z");
-
-    // `verified: true` — the right PIN, typed one minute into the lock. Still no.
-    // The route never gets this far, and the rule says so on its own.
-    const outcome = evaluateTillPinAttempt({
-      state: { failedAttempts: 5, lockedUntil },
-      verified: true,
-      now: new Date("2026-08-13T14:01:00.000Z"),
-    });
-
+  it("refuses a locked PIN without comparing anything, however long after", () => {
+    const state = { failedAttempts: 5, lockedAt: NOW };
+    // `verified: true` — the right PIN, typed a month into the lock. Still no.
+    const outcome = evaluateTillPinAttempt({ state, verified: true, now: new Date("2026-09-13T14:00:00.000Z") });
     expect(outcome.decision).toBe("LOCKED");
-    expect(outcome.next).toEqual({ failedAttempts: 5, lockedUntil });
-    expect(outcome.retryAfterMs).toBe(14 * 60 * 1000);
-  });
-
-  it("reports the lock through isTillPinLocked up to the last millisecond", () => {
-    const lockedUntil = new Date("2026-08-13T14:15:00.000Z");
-    const state = { failedAttempts: 5, lockedUntil };
-
-    expect(isTillPinLocked(state, new Date("2026-08-13T14:14:59.999Z"))).toBe(true);
-    expect(isTillPinLocked(state, lockedUntil)).toBe(false);
-    expect(isTillPinLocked(fresh(), NOW)).toBe(false);
-  });
-
-  it("gives five fresh attempts once the lock runs out", () => {
-    const outcome = evaluateTillPinAttempt({
-      state: { failedAttempts: 5, lockedUntil: new Date("2026-08-13T14:15:00.000Z") },
-      verified: false,
-      now: new Date("2026-08-13T14:15:00.001Z"),
-    });
-
-    // Not "six failures, still locked": an expired lock has already done the
-    // slowing down the counter exists for, so it counts from one again.
-    expect(outcome.decision).toBe("REJECTED");
-    expect(outcome.next.failedAttempts).toBe(1);
-    expect(outcome.next.lockedUntil).toBeNull();
-    expect(outcome.attemptsRemaining).toBe(4);
+    expect(outcome.next).toEqual(state);
+    expect(isTillPinLocked(state)).toBe(true);
+    expect(isTillPinLocked(fresh())).toBe(false);
   });
 
   it("answers the lock question before the hash is compared", () => {
-    const locked = evaluateTillPinAttempt({
-      state: { failedAttempts: 5, lockedUntil: new Date("2026-08-13T14:15:00.000Z") },
-      verified: null,
-      now: NOW,
-    });
+    const locked = evaluateTillPinAttempt({ state: { failedAttempts: 5, lockedAt: NOW }, verified: null, now: NOW });
     expect(locked.decision).toBe("LOCKED");
 
-    const open = evaluateTillPinAttempt({
-      state: { failedAttempts: 2, lockedUntil: null },
-      verified: null,
-      now: NOW,
-    });
+    const open = evaluateTillPinAttempt({ state: { failedAttempts: 2, lockedAt: null }, verified: null, now: NOW });
     expect(open.decision).toBe("REJECTED");
     // Nothing was compared, so nothing is counted against the cashier.
     expect(open.next.failedAttempts).toBe(2);

@@ -11,13 +11,18 @@
  * - the till locks between customers, on the Lock key or after five idle minutes;
  * - four digits clear the lock. Same session, same user, nothing new granted.
  *
- * `lib/retail/till-pin.ts` carries the threat model and the lockout arithmetic;
+ * `lib/retail/till-pin.ts` carries the threat model and the lockout rule;
  * `app/api/v2/retail/pos/pin/unlock` enforces it server-side, so the digits are
- * never compared in this bundle and a locked terminal never even hashes.
+ * never compared in this bundle and a locked PIN never even hashes. Five wrong
+ * PINs lock it until a manager sends a new one (ADM-03): "Too many tries. Ask a
+ * manager to send you a new PIN."
  *
- * **Sign in with your password** is on this screen at all times. That is what makes
- * a five-attempt lockout safe to ship into a queue: the worst case for a cashier who
- * has forgotten their PIN is fifteen seconds and a keyboard, never a closed till.
+ * **Sign in with your password** is on this screen at all times, for people who
+ * have one.
+ *
+ * The provider also holds the first use of an issued PIN (80-admin 5.14): a
+ * session opened by a PIN somebody sent (`pinMustChange`) shows "Choose your
+ * own PIN" over the till until they have.
  *
  * ── What this is not ───────────────────────────────────────────────────────
  *
@@ -36,11 +41,13 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type PropsWithChildren,
 } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
+import { ChooseYourPin } from "@/components/retail/device/choose-pin";
 import { fetchJson, getApiErrorMessage, ApiError } from "@/lib/api-client";
 import { Lock, LogOut } from "@/lib/icons";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
@@ -61,11 +68,10 @@ const LOCK_STORAGE_KEY = "retail_pos_till_locked";
 export const POS_IDLE_LOCK_MS = 5 * 60 * 1000;
 
 export type PosTillPinStatus = {
-  configured: boolean;
+  hasPin: boolean;
+  mustChange: boolean;
   locked: boolean;
-  lockedUntil: string | null;
   lastUnlockedAt: string | null;
-  updatedAt: string | null;
 };
 
 type PosTillLockValue = {
@@ -78,6 +84,8 @@ type PosTillLockValue = {
 };
 
 const PosTillLockContext = createContext<PosTillLockValue | null>(null);
+
+const noSubscribe = () => () => {};
 
 export function usePosTillLock() {
   const context = useContext(PosTillLockContext);
@@ -110,7 +118,12 @@ export function PosTillLockProvider({ children }: PropsWithChildren) {
     staleTime: 30_000,
   });
   const pinStatus = statusQuery.data?.data ?? null;
-  const pinConfigured = Boolean(pinStatus?.configured);
+  const pinConfigured = Boolean(pinStatus?.hasPin);
+  const { data: session } = useSession();
+  // Opened with a PIN somebody sent, and not yet replaced: they choose their own first.
+  // Only once in the browser, so the server's HTML and the first client render agree.
+  const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
+  const mustChoose = inBrowser && Boolean(session?.user?.pinMustChange && pinStatus?.mustChange);
 
   const lock = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -165,7 +178,11 @@ export function PosTillLockProvider({ children }: PropsWithChildren) {
   return (
     <PosTillLockContext.Provider value={value}>
       {children}
-      {value.isLocked ? <PosLockScreen onUnlocked={unlock} /> : null}
+      {mustChoose ? (
+        <ChooseYourPin name={session?.user?.name ?? ""} onChosen={() => void statusQuery.refetch()} />
+      ) : value.isLocked ? (
+        <PosLockScreen onUnlocked={unlock} />
+      ) : null}
     </PosTillLockContext.Provider>
   );
 }

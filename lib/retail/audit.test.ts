@@ -475,6 +475,8 @@ describe("the chain", () => {
       personPinSent: "RETAIL_PERSON.PIN_SENT",
       personAccessRemoved: "RETAIL_PERSON.ACCESS_REMOVED",
       personAccessRestored: "RETAIL_PERSON.ACCESS_RESTORED",
+      pinChosen: "RETAIL_PERSON.PIN_CHOSEN",
+      pinLocked: "RETAIL_PIN.LOCKED",
     });
   });
 });

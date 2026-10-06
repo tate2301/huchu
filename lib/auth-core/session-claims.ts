@@ -79,6 +79,7 @@ export function buildInitialTokenClaims(input: {
   rememberMe?: boolean;
   deviceId?: string;
   registerId?: string;
+  pinMustChange?: boolean;
 }): PlatformJwtClaims {
   const sessionPolicy = resolvePolicyForStrategy(input.authStrategy, input.rememberMe === true);
 
@@ -89,6 +90,7 @@ export function buildInitialTokenClaims(input: {
     ...(input.authStrategy ? { authStrategy: input.authStrategy } : {}),
     ...(input.deviceId ? { deviceId: input.deviceId } : {}),
     ...(input.registerId ? { registerId: input.registerId } : {}),
+    ...(input.pinMustChange ? { pinMustChange: true } : {}),
     sessionPolicy,
     rememberMe: sessionPolicy === "remember",
     authExpiresAt: buildAuthExpiresAt(sessionPolicy),
@@ -166,6 +168,7 @@ export function applyTokenToSessionClaims(
     allowedHosts: token.allowedHosts,
     deviceId: token.deviceId,
     registerId: token.registerId,
+    pinMustChange: token.pinMustChange,
   };
 
   return session;

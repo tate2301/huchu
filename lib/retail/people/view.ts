@@ -78,7 +78,7 @@ const PERSON_SELECT = {
   accessRemovedBy: { select: { name: true } },
   siteAccess: { select: { site: { select: { id: true, name: true } } } },
   retailTillPin: {
-    select: { failedAttempts: true, lockedUntil: true, mustChange: true, issuedAt: true, lastUnlockedAt: true },
+    select: { failedAttempts: true, lockedAt: true, mustChange: true, issuedAt: true, lastUnlockedAt: true },
   },
   staffInvites: {
     where: { revokedAt: null },
@@ -99,7 +99,7 @@ function toView(row: PersonRow, viewer: Viewer, seenAt: Date | null, now: Date):
   const role = personRoleOf(row.role);
   if (!role) return null;
   const pin = row.retailTillPin;
-  const pinNow = pinState(pin, now);
+  const pinNow = pinState(pin);
   const invite = row.staffInvites[0] ?? null;
   const state = personState({ isActive: row.isActive, invite, pin: pinNow, now });
   const names = row.siteAccess.map((access) => access.site.name).sort((a, b) => a.localeCompare(b));
@@ -108,7 +108,7 @@ function toView(row: PersonRow, viewer: Viewer, seenAt: Date | null, now: Date):
     : ({ all: false, ids: row.siteAccess.map((access) => access.site.id), names } as const);
   const label = sitesLabel({ all: row.allSites, names });
   const removedAt = row.isActive ? null : row.accessRemovedAt;
-  const lockedAt = pinLockedAt(pin, now);
+  const lockedAt = pinLockedAt(pin);
   const lastUsed = pin?.lastUnlockedAt ?? null;
   const lastSeen = [seenAt, lastUsed].reduce<Date | null>(
     (latest, at) => (at && (!latest || at.getTime() > latest.getTime()) ? at : latest),

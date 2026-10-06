@@ -33,7 +33,7 @@ import type { ReceiptWire } from "@/lib/retail/receipt-words";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import type { ShopProfile } from "@/lib/retail/shop-profile-rules";
 import { loadTillRules, tillRulesForTill, type TillRulesForTill } from "@/lib/retail/till-rules";
-import { TILL_PIN_LOCK_MS, evaluateTillPinAttempt } from "@/lib/retail/till-pin";
+import { checkTillPin } from "@/lib/retail/till-pin-attempt";
 import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
 
 /**
@@ -264,6 +264,26 @@ const SHOP_WINDOW_MS = PAIRING_TTL_MS;
 type ThrottleRow = { installId: string; failedAttempts: number; lockedUntil: Date | null; updatedAt: Date };
 type ThrottleState = { failedAttempts: number; lockedUntil: Date | null };
 
+/** Five wrong codes from one caller, then it waits this long. Unlike a PIN's lock, a pairing lock runs out. */
+const PAIR_MAX_WRONG = 5;
+const PAIR_LOCK_MS = 15 * 60 * 1000;
+
+type PairGate = { decision: "LOCKED" | "OPEN" | "WRONG" | "NOW_LOCKED"; next: ThrottleState; attemptsRemaining: number };
+
+/** One count's answer to a code: refused while locked; a wrong code counts, the fifth locks it for 15 minutes. */
+function pairGate(state: ThrottleState, wrong: boolean, now: Date): PairGate {
+  if (state.lockedUntil && state.lockedUntil.getTime() > now.getTime()) {
+    return { decision: "LOCKED", next: state, attemptsRemaining: 0 };
+  }
+  const base = state.lockedUntil ? 0 : Math.max(0, state.failedAttempts);
+  if (!wrong) return { decision: "OPEN", next: { failedAttempts: base, lockedUntil: null }, attemptsRemaining: PAIR_MAX_WRONG - base };
+  const failedAttempts = base + 1;
+  if (failedAttempts >= PAIR_MAX_WRONG) {
+    return { decision: "NOW_LOCKED", next: { failedAttempts, lockedUntil: new Date(now.getTime() + PAIR_LOCK_MS) }, attemptsRemaining: 0 };
+  }
+  return { decision: "WRONG", next: { failedAttempts, lockedUntil: null }, attemptsRemaining: PAIR_MAX_WRONG - failedAttempts };
+}
+
 /** The caller's own counts: its install, when it sent one, and its address. */
 function callerKeys(input: PairInput): string[] {
   return [...(input.installId ? [`install:${input.installId}`] : []), `ip:${input.address}`];
@@ -338,12 +358,12 @@ export async function pairDevice(
     key,
     state: throttleState(
       rows.find((row) => row.installId === key),
-      TILL_PIN_LOCK_MS,
+      PAIR_LOCK_MS,
       now,
     ),
   }));
-  // The same five-and-fifteen-minutes rule as a PIN, held on each count.
-  const gates = counted.map((entry) => evaluateTillPinAttempt({ state: entry.state, verified: null, now }));
+  // Five and fifteen minutes, held on each count.
+  const gates = counted.map((entry) => pairGate(entry.state, false, now));
   const lockedUntil = latestLock(counted.filter((_, index) => gates[index]!.decision === "LOCKED").map((entry) => entry.state.lockedUntil));
   if (lockedUntil) throw lockedRefusal(lockedUntil);
   const triesLeft = Math.min(...gates.map((gate) => gate.attemptsRemaining));
@@ -360,7 +380,7 @@ export async function pairDevice(
   if (!live) {
     const outcomes = counted.map((entry) => ({
       key: entry.key,
-      outcome: evaluateTillPinAttempt({ state: entry.state, verified: false, now }),
+      outcome: pairGate(entry.state, true, now),
     }));
     await prisma.$transaction(
       outcomes.map(({ key, outcome }) =>
@@ -373,7 +393,7 @@ export async function pairDevice(
     );
     await countShopWrongCode(input.companyId, now);
     const nowLocked = latestLock(
-      outcomes.filter(({ outcome }) => outcome.decision === "REJECTED_NOW_LOCKED").map(({ outcome }) => outcome.next.lockedUntil),
+      outcomes.filter(({ outcome }) => outcome.decision === "NOW_LOCKED").map(({ outcome }) => outcome.next.lockedUntil),
     );
     if (nowLocked) throw lockedRefusal(nowLocked);
     const left = Math.min(...outcomes.map(({ outcome }) => outcome.attemptsRemaining));
@@ -562,7 +582,7 @@ export async function shopSiteId(companyId: string): Promise<string | null> {
 
 /* ── Who is selling? (GET devices/people) ─────────────────────────────────── */
 
-export type TillPerson = { userId: string; label: string; outcome: string };
+export type TillPerson = { userId: string; label: string; outcome: string; locked: boolean };
 
 /**
  * The people who may sell at this till: active staff of the shop with a till
@@ -574,8 +594,9 @@ export type TillPerson = { userId: string; label: string; outcome: string };
 export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
   const pins = await prisma.retailTillPin.findMany({
     where: { companyId: device.companyId, user: { isActive: true, companyId: device.companyId } },
-    select: { user: { select: { id: true, name: true, role: true } } },
+    select: { lockedAt: true, user: { select: { id: true, name: true, role: true } } },
   });
+  const lockedIds = new Set(pins.filter((pin) => pin.lockedAt).map((pin) => pin.user.id));
   const sellers = pins
     .map((pin) => pin.user)
     .filter((user) => canAccessPosPortal(user.role) && canRetailRoleDo(user.role, "retail.sell", "create"));
@@ -603,6 +624,7 @@ export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
         device.register.name,
         onThisTill(user.id) ? { onThisTill: true } : { onThisTill: false, elsewhere: shiftOf.get(user.id)?.registerName ?? null },
       ),
+      locked: lockedIds.has(user.id),
     }));
 }
 
@@ -633,16 +655,18 @@ export async function dismissTillMessage(device: PosDevice, id: string, now: Dat
 /* ── Who may sign in with a PIN (the `till-pin` provider) ─────────────────── */
 
 export type TillPinSignIn =
-  | { ok: true; device: PosDevice }
+  | { ok: true; device: PosDevice; mustChange: boolean }
   | { ok: false; reason: "NOT_A_TILL" | "DEVICE_UNPAIRED" | "NOT_ON_THIS_TILL" | "NO_PIN" | "LOCKED" | "WRONG_PIN"; triesLeft?: number };
 
 /**
  * A PIN sign-in at a paired device: the device must be active and the
  * shop's; the person must be one the till offers (`tillPeople`); the PIN is
- * checked with the till's lockout. The caller compares the bcrypt hash.
+ * checked with the lockout of ADM-03 (`checkTillPin`: five wrong and it is
+ * locked until a new one is sent). `mustChange` says the PIN was issued and
+ * they choose their own before the till opens.
  */
 export async function checkTillPinSignIn(
-  input: { deviceKey: string | null | undefined; userId: string; verify: (pinHash: string) => Promise<boolean> },
+  input: { deviceKey: string | null | undefined; userId: string; pin: string },
   now: Date = new Date(),
 ): Promise<TillPinSignIn> {
   const device = await findDeviceByKey(input.deviceKey);
@@ -651,27 +675,18 @@ export async function checkTillPinSignIn(
   const people = await tillPeople(device);
   if (!people.some((person) => person.userId === input.userId)) return { ok: false, reason: "NOT_ON_THIS_TILL" };
 
-  const record = await prisma.retailTillPin.findFirst({
-    where: { userId: input.userId, companyId: device.companyId },
-    select: { id: true, pinHash: true, failedAttempts: true, lockedUntil: true },
+  const checked = await checkTillPin({
+    companyId: device.companyId,
+    userId: input.userId,
+    pin: input.pin,
+    place: { registerName: device.register.name },
+    opens: true,
+    now,
   });
-  if (!record) return { ok: false, reason: "NO_PIN" };
-  const state = { failedAttempts: record.failedAttempts, lockedUntil: record.lockedUntil };
-  if (evaluateTillPinAttempt({ state, verified: null, now }).decision === "LOCKED") return { ok: false, reason: "LOCKED" };
-
-  const outcome = evaluateTillPinAttempt({ state, verified: await input.verify(record.pinHash), now });
-  await prisma.retailTillPin.update({
-    where: { id: record.id },
-    data: {
-      failedAttempts: outcome.next.failedAttempts,
-      lockedUntil: outcome.next.lockedUntil,
-      ...(outcome.decision === "ACCEPTED" ? { lastUnlockedAt: now } : {}),
-    },
-    select: { id: true },
-  });
-  if (outcome.decision === "ACCEPTED") return { ok: true, device };
-  if (outcome.decision === "REJECTED_NOW_LOCKED") return { ok: false, reason: "LOCKED" };
-  return { ok: false, reason: "WRONG_PIN", triesLeft: outcome.attemptsRemaining };
+  if (checked.decision === "NO_PIN") return { ok: false, reason: "NO_PIN" };
+  if (checked.decision === "ACCEPTED") return { ok: true, device, mustChange: checked.mustChange };
+  if (checked.decision === "LOCKED" || checked.decision === "REJECTED_NOW_LOCKED") return { ok: false, reason: "LOCKED" };
+  return { ok: false, reason: "WRONG_PIN", triesLeft: checked.attemptsRemaining };
 }
 
 /** A refusal from `pairDevice`, or the generic one. */

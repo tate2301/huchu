@@ -10,13 +10,21 @@
  *
  * Four digits is 10,000 possibilities. Against an offline attack on the hash that
  * is nothing; against someone at the counter of a paired till it is five
- * guesses, then fifteen minutes. That is the threat it is sized for, and it is
- * a factor beside the device key, never on its own.
+ * guesses, then nothing until a manager sends a new PIN (ADM-03). That is the
+ * threat it is sized for, and it is a factor beside the device key, never on
+ * its own.
  *
  * A manager's PIN also approves, at the till, what a cashier may not do alone
  * under the till rules (SET-06, `lib/retail/manager-pin.ts`): the device key,
  * the lockout and the approver's name on every record are what make four
  * digits enough there.
+ *
+ * ── Issued, then chosen ────────────────────────────────────────────────────
+ *
+ * A PIN is issued from People (`lib/retail/people/pins.ts`), never set with a
+ * password. An issued PIN must be changed: the first time the person uses it
+ * the till asks them to choose their own (`mustChange`, the session's
+ * `pinMustChange` claim, `POST /api/v2/retail/pos/pin/change`).
  *
  * ── Storage ────────────────────────────────────────────────────────────────
  *
@@ -24,34 +32,27 @@
  * endpoint echoes a PIN back, not even to the person who set it; a forgotten PIN
  * is replaced, not recovered.
  *
- * This module is pure so the lockout rule can be tested without a database.
+ * This module is pure so the lockout rule can be tested without a database;
+ * `till-pin-attempt.ts` reads and writes the counter around it.
  */
 
 /** Five guesses. Enough for a wet finger on a tablet, not enough to search. */
 export const TILL_PIN_MAX_ATTEMPTS = 5;
 
-/**
- * How long the terminal refuses PINs after the fifth wrong one.
- *
- * Fifteen minutes rather than a permanent lock, because a permanent lock puts a
- * manager between a cashier and a queue, and because the password is available
- * on the lock screen throughout — a locked PIN never strands anybody. The
- * arithmetic it buys: 10,000 codes, five per quarter-hour, is on the order of a
- * fortnight of uninterrupted access to an unattended till whose session would
- * expire long before.
- */
-export const TILL_PIN_LOCK_MS = 15 * 60 * 1000;
-
 export const TILL_PIN_LENGTH = 4;
+
+/** What the till says while a PIN is locked, wherever it is typed. */
+export const TILL_PIN_LOCKED = "Too many tries. Ask a manager to send you a new PIN.";
 
 /** What the database holds between attempts. */
 export type TillPinAttemptState = {
   failedAttempts: number;
-  lockedUntil: Date | null;
+  /** When the fifth wrong PIN locked it. Set until somebody sends a new one. */
+  lockedAt: Date | null;
 };
 
 export type TillPinDecision =
-  /** Refused without comparing anything, because the terminal is locked. */
+  /** Refused without comparing anything, because the PIN is locked. */
   | "LOCKED"
   /** The digits matched. */
   | "ACCEPTED"
@@ -66,20 +67,17 @@ export type TillPinAttemptOutcome = {
   next: TillPinAttemptState;
   /** How many wrong guesses are left before the lock. Zero while locked. */
   attemptsRemaining: number;
-  /** Milliseconds until the terminal will accept a PIN again. Zero when it will. */
-  retryAfterMs: number;
 };
 
 /**
- * Whether the terminal is currently refusing PINs.
+ * Whether the PIN is refused outright.
  *
- * Exported because the unlock route asks this **before** it compares a hash: a
- * locked terminal must not do the bcrypt work, both to keep a lock cheap under a
- * script and so the response time cannot distinguish a wrong PIN from a locked
- * one.
+ * Asked **before** a hash is compared: a locked PIN must not do the bcrypt
+ * work, both to keep a lock cheap under a script and so the response time
+ * cannot distinguish a wrong PIN from a locked one.
  */
-export function isTillPinLocked(state: TillPinAttemptState, now: Date): boolean {
-  return state.lockedUntil !== null && state.lockedUntil.getTime() > now.getTime();
+export function isTillPinLocked(state: TillPinAttemptState): boolean {
+  return state.lockedAt !== null;
 }
 
 /**
@@ -88,9 +86,9 @@ export function isTillPinLocked(state: TillPinAttemptState, now: Date): boolean 
  * `verified` is `null` when the caller has not compared the hash yet — the lock
  * check is the first thing that happens and it short-circuits everything else.
  *
- * A lock that has expired resets the counter rather than leaving the cashier one
- * wrong digit away from another quarter of an hour. That is deliberate: the
- * counter exists to slow a search down, and an expired lock has already done it.
+ * There is no time-out. A locked PIN stays locked until somebody sends a new
+ * one (`issueTillPin` clears `lockedAt` and the counter); the password sign-in
+ * stays on the lock screen for people who have one.
  */
 export function evaluateTillPinAttempt(input: {
   state: TillPinAttemptState;
@@ -99,33 +97,25 @@ export function evaluateTillPinAttempt(input: {
 }): TillPinAttemptOutcome {
   const { state, verified, now } = input;
 
-  if (isTillPinLocked(state, now)) {
-    return {
-      decision: "LOCKED",
-      next: state,
-      attemptsRemaining: 0,
-      retryAfterMs: (state.lockedUntil as Date).getTime() - now.getTime(),
-    };
+  if (isTillPinLocked(state)) {
+    return { decision: "LOCKED", next: state, attemptsRemaining: 0 };
   }
 
-  // The lock, if there was one, has run out. Everything from here counts from zero.
-  const baseAttempts = state.lockedUntil === null ? Math.max(0, state.failedAttempts) : 0;
+  const baseAttempts = Math.max(0, state.failedAttempts);
 
   if (verified === null) {
     return {
       decision: "REJECTED",
-      next: { failedAttempts: baseAttempts, lockedUntil: null },
+      next: { failedAttempts: baseAttempts, lockedAt: null },
       attemptsRemaining: Math.max(0, TILL_PIN_MAX_ATTEMPTS - baseAttempts),
-      retryAfterMs: 0,
     };
   }
 
   if (verified) {
     return {
       decision: "ACCEPTED",
-      next: { failedAttempts: 0, lockedUntil: null },
+      next: { failedAttempts: 0, lockedAt: null },
       attemptsRemaining: TILL_PIN_MAX_ATTEMPTS,
-      retryAfterMs: 0,
     };
   }
 
@@ -134,20 +124,15 @@ export function evaluateTillPinAttempt(input: {
   if (failedAttempts >= TILL_PIN_MAX_ATTEMPTS) {
     return {
       decision: "REJECTED_NOW_LOCKED",
-      next: {
-        failedAttempts,
-        lockedUntil: new Date(now.getTime() + TILL_PIN_LOCK_MS),
-      },
+      next: { failedAttempts, lockedAt: now },
       attemptsRemaining: 0,
-      retryAfterMs: TILL_PIN_LOCK_MS,
     };
   }
 
   return {
     decision: "REJECTED",
-    next: { failedAttempts, lockedUntil: null },
+    next: { failedAttempts, lockedAt: null },
     attemptsRemaining: TILL_PIN_MAX_ATTEMPTS - failedAttempts,
-    retryAfterMs: 0,
   };
 }
 
