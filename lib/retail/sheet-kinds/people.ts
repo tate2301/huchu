@@ -53,7 +53,25 @@ async function siteIds(): Promise<Record<string, string>> {
   return Object.fromEntries(options.map((option) => [option.label, option.id]));
 }
 
+/**
+ * The sites the person opening the sheet may give (W-57): every open site and
+ * "All sites" for someone who works at all of them; only their own sites for
+ * a site-limited manager, read from their own record.
+ */
+async function sitesToGive(ctx: SheetCtx): Promise<{ _siteIds: Record<string, string>; _allSites: boolean }> {
+  const all = await siteIds();
+  if (ctx.can("retail.people", "delete")) return { _siteIds: all, _allSites: true };
+  const self = await call(`/api/v2/retail/people/${encodeURIComponent(ctx.user.id)}`);
+  const sites = (self.payload?.data as PersonView | undefined)?.sites;
+  if (!self.ok || !sites || sites.all) return { _siteIds: all, _allSites: true };
+  const mine = new Set(sites.ids);
+  return { _siteIds: Object.fromEntries(Object.entries(all).filter(([, id]) => mine.has(id))), _allSites: false };
+}
+
 const siteNames = (values: SheetValues) => Object.keys((values._siteIds as Record<string, string> | undefined) ?? {});
+
+/** The Sites tags' options: "All sites" first when the caller may give it. */
+const siteOptions = (values: SheetValues) => (values._allSites === false ? siteNames(values) : [ALL_SITES, ...siteNames(values)]);
 
 /** The tags as the API takes them: "ALL", or the sites' ids. */
 function sitesBody(values: SheetValues): "ALL" | string[] {
@@ -129,7 +147,7 @@ const personNew: SheetKind = {
           v: [ALL_SITES],
           p: "Add a site, then Enter",
           needed: "Pick at least one site.",
-          tagOptions: (values) => [ALL_SITES, ...siteNames(values)],
+          tagOptions: siteOptions,
           tagAll: ALL_SITES,
         },
         {
@@ -148,7 +166,11 @@ const personNew: SheetKind = {
   ],
   note: "They get a WhatsApp message with a link. It works for 7 days.",
   primary: "Send the invite",
-  load: async (ctx) => ({ _roles: [...rolesFor(ctx)], _siteIds: await siteIds() }),
+  load: async (ctx) => {
+    const give = await sitesToGive(ctx);
+    // "All sites" by default; a site-limited manager starts from their own sites.
+    return { _roles: [...rolesFor(ctx)], ...give, sites: give._allSites ? [ALL_SITES] : Object.keys(give._siteIds) };
+  },
   done: (result) => `Invite sent to ${(result as PersonView).name}.`,
   handOver: (payload, values) => handOverOf(payload, text(values.name)),
   submit: (values): SheetRequest => ({
@@ -173,9 +195,9 @@ const personOf = (values: SheetValues) => values._person as PersonView | undefin
 const noAccess = (values: SheetValues) => personOf(values)?.state === "NO_ACCESS";
 
 async function loadPerson(ctx: SheetCtx): Promise<SheetValues> {
-  const [answer, ids] = await Promise.all([
+  const [answer, give] = await Promise.all([
     call(`/api/v2/retail/people/${encodeURIComponent(ctx.id ?? "")}`),
-    siteIds(),
+    sitesToGive(ctx),
   ]);
   if (!answer.ok) throw failure(answer);
   const person = answer.payload!.data as PersonView;
@@ -186,7 +208,7 @@ async function loadPerson(ctx: SheetCtx): Promise<SheetValues> {
     _person: person,
     _roles: roles.includes(person.role) ? [...roles] : [...roles, person.role],
     _roleLocked: person.can.roles.length === 0,
-    _siteIds: ids,
+    ...give,
     _orig: { name: person.name, phone: person.phoneDisplay, role: person.roleLabel, sites },
     name: person.name,
     phone: person.phoneDisplay,
@@ -251,7 +273,7 @@ const person: SheetKind = {
           l: "Sites",
           p: "Add a site, then Enter",
           needed: "Pick at least one site.",
-          tagOptions: (values) => [ALL_SITES, ...siteNames(values)],
+          tagOptions: siteOptions,
           tagAll: ALL_SITES,
           readWhen: noAccess,
         },
