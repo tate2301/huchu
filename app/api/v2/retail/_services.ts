@@ -1084,13 +1084,9 @@ export async function createRetailSaleTransaction(input: {
           createdById: input.actor.userId,
         });
 
-        // Last: the sale's fiscal day, settled in this commit (SET-08). A sale rung now is dated here.
-        const assigned = await assignRetailSaleFiscalDay(tx, {
-          companyId: input.actor.companyId,
-          saleId: created.id,
-          rungNow: !input.postedAt,
-        });
-        return { ...created, postedAt: assigned.postedAt, fiscal: assigned.outcome };
+        // Last: the sale's fiscal day, settled in this commit (SET-08). Its receipt is dated here; the sale keeps its time.
+        const fiscal = await assignRetailSaleFiscalDay(tx, { companyId: input.actor.companyId, saleId: created.id });
+        return { ...created, fiscal };
       });
 
       const accounting = await ensureRetailSaleAccountingPosted({
@@ -1184,7 +1180,7 @@ function lostRace(error: unknown): boolean {
  * that checks out, else the act goes in with a review line.
  */
 async function reversalApproval(
-  input: { actor: RetailActorContext; approver?: ApproverInput | null; offlineAt?: Date | null },
+  input: { actor: RetailActorContext; approver?: ApproverInput | null; offlineAt?: Date | null; deviceId?: string | null },
   rule: { decision: TillRuleDecision; kind: "refund" | "void" },
 ): Promise<{ approvedBy: Approval | null; review: string | null }> {
   const asked = {
@@ -1192,6 +1188,8 @@ async function reversalApproval(
     actorRole: input.actor.userRole,
     decision: rule.decision,
     approver: input.approver,
+    // The till the approver typed their PIN at, for a lock's words.
+    place: { deviceId: input.deviceId ?? null },
   };
   if (input.offlineAt) {
     return replayApproval({ ...asked, review: (reason) => offlineReversalReview(rule.kind, reason) });
@@ -1592,13 +1590,9 @@ export async function refundRetailSaleTransaction(input: {
       approvedBy,
     });
 
-    // Last: its fiscal day, settled in this commit (SET-08). One done now is dated here.
-    const assigned = await assignRetailSaleFiscalDay(tx, {
-      companyId: input.actor.companyId,
-      saleId: created.id,
-      rungNow: !input.offlineAt,
-    });
-    return { ...created, postedAt: assigned.postedAt, fiscal: assigned.outcome };
+    // Last: its fiscal day, settled in this commit (SET-08). Its receipt is dated here; the reversal keeps its time.
+    const fiscal = await assignRetailSaleFiscalDay(tx, { companyId: input.actor.companyId, saleId: created.id });
+    return { ...created, fiscal };
   });
 
   const accounting = await ensureRetailSaleAccountingPosted({
@@ -1873,13 +1867,9 @@ export async function voidRetailSaleTransaction(input: {
       approvedBy,
     });
 
-    // Last: its fiscal day, settled in this commit (SET-08). One done now is dated here.
-    const assigned = await assignRetailSaleFiscalDay(tx, {
-      companyId: input.actor.companyId,
-      saleId: created.id,
-      rungNow: !input.offlineAt,
-    });
-    return { ...created, postedAt: assigned.postedAt, fiscal: assigned.outcome };
+    // Last: its fiscal day, settled in this commit (SET-08). Its receipt is dated here; the reversal keeps its time.
+    const fiscal = await assignRetailSaleFiscalDay(tx, { companyId: input.actor.companyId, saleId: created.id });
+    return { ...created, fiscal };
   });
 
   const accounting = await ensureRetailSaleAccountingPosted({

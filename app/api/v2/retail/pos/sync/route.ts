@@ -49,7 +49,7 @@ import { fiscaliseRetailSales, type RetailFiscalOutcome } from "@/lib/retail/fis
 import { requirePosDevice, type PosDevice } from "@/lib/retail/devices";
 import { approverSchema, replayApproval } from "@/lib/retail/manager-pin";
 import { doneOffline, loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
-import { offlineDiscountReview } from "@/lib/retail/till-rule-words";
+import { offlineDiscountReview, REPLAY_AHEAD_REVIEW } from "@/lib/retail/till-rule-words";
 import { SOLD_AFTER_UNPAIR, UNPAIRED_REVIEW_REASON, unpairedSaleVerdict } from "@/lib/retail/device-words";
 
 // ── Request Schemas ─────────────────────────────────────────────────────────
@@ -423,7 +423,12 @@ async function processCreateSale(
       return { clientOperationId: op.clientOperationId, status: "failed", error: "One or more catalog items invalid" };
     }
 
-    const soldAt = new Date(payload.offlineCreatedAt ?? op.offlineCreatedAt ?? Date.now());
+    // The till's clock is its word, but never ahead of the server's: a sale dated after it arrived goes in
+    // when it arrived, for review, so no receipt — nor the receipts signed after it — is dated ahead (SET-08).
+    const arrived = new Date();
+    const claimedAt = new Date(payload.offlineCreatedAt ?? op.offlineCreatedAt ?? arrived);
+    const ahead = claimedAt.getTime() > arrived.getTime();
+    const soldAt = ahead ? arrived : claimedAt;
 
     // The liquor licence, judged when the till rang the sale. A replay is not a
     // second chance to sell after hours, nor a way round the ID check.
@@ -573,6 +578,7 @@ async function processCreateSale(
         pricesExplained: true,
       }),
       approver: replayedApprover(payload.approver),
+      place: { registerId: ctx.device.registerId },
       review: (reason) => offlineDiscountReview(reason, tillRules.maxCashierDiscountPercent.toFixed(2)),
     });
 
@@ -654,10 +660,12 @@ async function processCreateSale(
       approvedBy: discount.approvedBy,
       notes: payload.offlineCreated ? `Offline replay from device ${ctx.device.id}` : null,
       device: { id: ctx.device.id, registerId: ctx.device.registerId },
-      // Sold before this device was unpaired, sent in after, or over the discount
-      // rule with no manager: a manager looks at it.
+      // Sold before this device was unpaired, sent in after, dated ahead of the
+      // server, or over the discount rule with no manager: a manager looks at it.
       reviewReason:
-        [ctx.device.unpairedAt ? UNPAIRED_REVIEW_REASON : null, discount.review].filter(Boolean).join(" ") || null,
+        [ctx.device.unpairedAt ? UNPAIRED_REVIEW_REASON : null, ahead ? REPLAY_AHEAD_REVIEW : null, discount.review]
+          .filter(Boolean)
+          .join(" ") || null,
       postedAt: soldAt,
       soldAt,
       // Every sync operation was rung offline: a tender turned off since is let in for a manager to look at.

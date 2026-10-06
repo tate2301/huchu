@@ -87,29 +87,16 @@ export function heldReceiptWords(silentSince: Date): string {
 /**
  * Rung while a day's report is on its way to ZIMRA: no day is open, so the
  * sale waits. It is signed into the next day once the report is taken, or
- * into the same day when ZIMRA does not answer and the day is given back.
+ * into the same day when the close stops before its report goes out and the
+ * day is given back.
  */
 export function saleWhileClosingWords(dayNo: number): string {
   return `Day ${dayNo}'s report waits for ZIMRA. This sale is signed as soon as a day is open again.`;
 }
 
-/**
- * Rung before a day's last receipt (an offline sale sent in late): it fits
- * neither that day, which takes none dated before its last, nor the next,
- * which opens no earlier.
- */
-export function saleBeforeLastReceiptWords(saleNo: string, dayNo: number): string {
-  return `${saleNo} was rung before day ${dayNo}'s last receipt. ZIMRA takes no receipt dated before the last one it took, so it is not signed.`;
-}
-
 /** Sent in again after its commit found it no day: it was not signed then, and is not now. */
 export function saleNotSignedWords(saleNo: string): string {
   return `${saleNo} was not signed when it was rung, so it is not signed now.`;
-}
-
-/** Rung before the open day began (an old offline sale): ZIMRA takes no receipt dated before its day. */
-export function saleBeforeDayWords(saleNo: string, dayNo: number): string {
-  return `${saleNo} was rung before day ${dayNo} opened, and ZIMRA takes no receipt dated before its day. It is not signed.`;
 }
 
 /** Cents by currency → "US$3,912.20", "US$40.00 · ZiG 1,200.00"; nothing sold → "US$0.00". */

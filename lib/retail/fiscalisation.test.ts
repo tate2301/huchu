@@ -55,6 +55,7 @@ vi.mock("@/lib/accounting/fdms-connector", async (importOriginal) => {
 import type { RetailTaxMapping, RetailTaxResolver } from "@/lib/retail/fiscalisation";
 
 const {
+  FISCAL_PROVIDER_KEY,
   RetailFiscalMappingError,
   assignRetailSaleFiscalDay,
   buildRetailSaleSigningInput,
@@ -215,7 +216,7 @@ async function openDay() {
 
 /** What a sale's own commit does (SET-08): settle its fiscal day, signing it into the day; the sale keeps its date. */
 async function assign(saleId: string) {
-  return (await prisma.$transaction((tx) => assignRetailSaleFiscalDay(tx, { companyId, saleId, rungNow: false }))).outcome;
+  return prisma.$transaction((tx) => assignRetailSaleFiscalDay(tx, { companyId, saleId }));
 }
 
 /** A sale's commit, then what the till does after it: send what the commit signed. */
@@ -266,7 +267,7 @@ beforeAll(async () => {
   const provider = await prisma.fiscalisationProviderConfig.create({
     data: {
       companyId,
-      providerKey: `zimra-${suite}`,
+      providerKey: FISCAL_PROVIDER_KEY,
       apiBaseUrl: "https://fdms.invalid",
       deviceId: DEVICE_ID,
       certificateRef,
@@ -1152,7 +1153,7 @@ describe("a refund is a credit note against the original (invariant 3)", () => {
         companyId,
         retailSaleId: original.id,
         status: "SUCCESS",
-        providerKey: `zimra-${suite}`,
+        providerKey: FISCAL_PROVIDER_KEY,
         fiscalNumber: "LEGACY-1",
       },
     });

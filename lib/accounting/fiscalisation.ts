@@ -451,13 +451,20 @@ export async function issueFiscalDocument(input: {
    * not wait out the timeout once per sale. Unsigned documents always go.
    */
   holdWhileUnreachableMs?: number;
+  /**
+   * The device to issue on, when the caller has its own (a till sale goes on
+   * the shop's fiscal device, SET-08). Otherwise the company's active one.
+   */
+  provider?: FiscalisationProviderConfig;
 }): Promise<FiscalIssueResult> {
   const { companyId, source, idempotencyKey, payload } = input;
 
-  const provider = await prisma.fiscalisationProviderConfig.findFirst({
-    where: { companyId, isActive: true },
-    orderBy: { updatedAt: "desc" },
-  });
+  const provider =
+    input.provider ??
+    (await prisma.fiscalisationProviderConfig.findFirst({
+      where: { companyId, isActive: true },
+      orderBy: { updatedAt: "desc" },
+    }));
   if (!provider) {
     return { status: "FAILED", error: "Missing fiscalisation provider configuration" };
   }
@@ -783,6 +790,8 @@ export async function signFiscalReceipt(
     receiptHash,
     receiptType: fiscal.receiptType,
     receiptCurrency: fiscal.receiptCurrency.toUpperCase(),
+    // The date it was signed with, kept: a resend sends the same one (SET-08).
+    receiptDate: fiscal.receiptDate instanceof Date ? fiscal.receiptDate : new Date(fiscal.receiptDate),
     signature,
     qrCodeData,
   };

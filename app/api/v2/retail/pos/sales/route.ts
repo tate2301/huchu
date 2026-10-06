@@ -683,6 +683,7 @@ export async function POST(request: NextRequest) {
           actorRole: session.user.role,
           decision: discountRule,
           approver: input.approver,
+          place: { registerId: device.registerId },
           review: (reason) => offlineDiscountReview(reason, tillRules.maxCashierDiscountPercent.toFixed(2)),
         })
       : {
@@ -691,6 +692,7 @@ export async function POST(request: NextRequest) {
             actorRole: session.user.role,
             decision: discountRule,
             approver: input.approver,
+            place: { registerId: device.registerId },
           }),
           review: null,
         };

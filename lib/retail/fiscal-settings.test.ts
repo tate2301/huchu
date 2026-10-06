@@ -17,7 +17,12 @@ import { closeRetailShiftTransaction } from "@/app/api/v2/retail/_services";
 import { readSettings, saveSettings } from "@/lib/retail/settings";
 import { checkSettingsChanges } from "@/lib/retail/settings-pages";
 import { fiscalPage } from "@/lib/retail/settings-pages/fiscal";
-import { assignRetailSaleFiscalDay, fiscaliseRetailSale, type RetailFiscalOutcome } from "@/lib/retail/fiscalisation";
+import {
+  assignRetailSaleFiscalDay,
+  fiscaliseRetailSale,
+  shopFiscalDevice,
+  type RetailFiscalOutcome,
+} from "@/lib/retail/fiscalisation";
 
 import {
   closeFiscalDayIfLastShift,
@@ -27,7 +32,6 @@ import {
   fiscalSaleRefusal,
   FiscalRefused,
   openFiscalDayIfNone,
-  shopFiscalDevice,
   testFiscalDevice,
   tillFiscal,
 } from "./fiscal-settings";
@@ -164,8 +168,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
         },
         select: { id: true, saleNo: true },
       });
-      const assigned = await assignRetailSaleFiscalDay(tx, { companyId, saleId: sale.id, rungNow: !offlineAt });
-      return { ...sale, postedAt: assigned.postedAt, assigned: assigned.outcome };
+      return { ...sale, assigned: await assignRetailSaleFiscalDay(tx, { companyId, saleId: sale.id }) };
     });
   };
   /** What the till does once the sale has committed: send what its commit signed. */
@@ -484,10 +487,10 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
     expect(await openFiscalDayIfNone(companyId)).toEqual({ opened: stale.fiscalDayNo + 1 });
   });
 
-  it("keeps a sale rung while a day's report waits for ZIMRA for the next day, signs it there once the report is taken, and never one rung before its day", async () => {
+  it("keeps a sale rung while a day's report waits for ZIMRA for the next day, signs it there once the report is taken, and one rung before its day too, dated with its last receipt", async () => {
     const open = (await prisma.fiscalDay.findFirst({ where: { companyId, status: "OPENED" } }))!;
     const device = (await shopFiscalDevice(companyId))!;
-    // An old offline sale, rung before this day opened, sent in once the next is open: it fits no day that opens after it.
+    // An old offline sale, rung before this day opened, sent in once the next is open: it goes into the open day.
     const oldAt = new Date(open.openedAt.getTime() - 3_600_000);
     // ZIMRA said no to the report: the day stays closing and none is open. ZIMRA silent too: the sale must not wait on it.
     await prisma.fiscalDay.update({ where: { id: open.id }, data: { status: "CLOSING" } });
@@ -525,13 +528,15 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
       fiscalDayId: next.id,
     });
     const old = await ringSale(oldAt);
-    expect(old.assigned).toMatchObject({
-      fiscalStatus: "FAILED",
-      errorCode: "RETAIL_SALE_BEFORE_DAY",
-      fiscalError: `${old.saleNo} was rung before day ${next.fiscalDayNo} opened, and ZIMRA takes no receipt dated before its day. It is not signed.`,
+    expect(old.assigned).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: expect.any(String), errorCode: null });
+    expect(await sign(old)).toMatchObject({ fiscalStatus: "SUCCESS" });
+    // Dated with the day's last receipt, not before it; the sale keeps the time it was rung.
+    const duringReceipt = await prisma.fiscalReceipt.findUniqueOrThrow({ where: { retailSaleId: during.id } });
+    expect(await prisma.fiscalReceipt.findUniqueOrThrow({ where: { retailSaleId: old.id } })).toMatchObject({
+      fiscalDayId: next.id,
+      receiptDate: duringReceipt.receiptDate,
     });
-    expect(await sign(old)).toEqual(old.assigned);
-    expect(await prisma.fiscalReceipt.findUnique({ where: { retailSaleId: old.id } })).toBeNull();
+    expect((await prisma.retailSale.findUniqueOrThrow({ where: { id: old.id } })).postedAt).toEqual(oldAt);
     // A sale rung now is signed into it.
     const now = await ringSale();
     expect(await sign(now)).toMatchObject({ fiscalStatus: "SUCCESS" });
@@ -598,6 +603,39 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
       release();
       await prisma.fiscalisationProviderConfig.update({ where: { id: device.id }, data: { apiBaseUrl: fdmsUrl } });
       await new Promise<void>((resolve) => proxy.close(() => resolve()));
+    }
+  });
+
+  it("has the worker close a day left closing by an unanswered report, with a shift open, and sign the sale that waited into the next day", async () => {
+    await openFiscalDayIfNone(companyId);
+    const day = (await prisma.fiscalDay.findFirst({ where: { companyId, status: "OPENED" } }))!;
+    const device = (await shopFiscalDevice(companyId))!;
+    expect(await sign(await ringSale())).toMatchObject({ fiscalStatus: "SUCCESS" });
+    // The last shift closes; its close of the day sent the report and ZIMRA never answered it: the day stays closing.
+    const last = await prisma.retailShift.create({
+      data: { companyId, shiftNo: `SH-${stamp}-unanswered`, registerCode: `T-${stamp}`, registerName: "Front till", registerId, siteId, cashierId: ownerId, cashierName: "Tendai Mhlanga" },
+    });
+    await prisma.fiscalisationProviderConfig.update({ where: { id: device.id }, data: { lastFailedAt: new Date(), lastOkAt: new Date(Date.now() - 60_000) } });
+    await closeRetailShiftTransaction({ actor: owner(), shiftId: last.id, countedCash: 0 });
+    await prisma.fiscalDay.update({ where: { id: day.id }, data: { status: "CLOSING", closingSince: null } });
+    await prisma.fiscalisationProviderConfig.update({ where: { id: device.id }, data: { lastFailedAt: null, lastOkAt: new Date() } });
+    const waiting = await ringSale();
+    expect(waiting.assigned).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: null });
+    // A new shift opens and sells meanwhile: the day's report goes again all the same, since its sales wait.
+    const open = await prisma.retailShift.create({
+      data: { companyId, shiftNo: `SH-${stamp}-next`, registerCode: `T-${stamp}`, registerName: "Front till", registerId, siteId, cashierId: ownerId, cashierName: "Tendai Mhlanga" },
+    });
+    try {
+      expect(await closeWaitingFiscalDays(companyId)).toBe(`day ${day.fiscalDayNo} closed`);
+      expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).toMatchObject({ status: "CLOSED" });
+      const next = (await prisma.fiscalDay.findFirst({ where: { companyId, status: "OPENED" } }))!;
+      expect(await prisma.fiscalReceipt.findUniqueOrThrow({ where: { retailSaleId: waiting.id } })).toMatchObject({
+        status: "SUCCESS",
+        fiscalDayId: next.id,
+      });
+      await closeShopFiscalDay(owner(), next.id);
+    } finally {
+      await prisma.retailShift.update({ where: { id: open.id }, data: { status: "CLOSED", closedAt: new Date() } });
     }
   });
 

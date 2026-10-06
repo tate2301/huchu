@@ -7,8 +7,6 @@ import {
   fiscalDayLabel,
   fiscalDayTotal,
   heldReceiptWords,
-  saleBeforeDayWords,
-  saleBeforeLastReceiptWords,
   saleNotSignedWords,
   saleWhileClosingWords,
   taxpayerNumberProblem,
@@ -53,18 +51,12 @@ describe("the connection line", () => {
 });
 
 describe("what a till sale is told about its receipt", () => {
-  it("says a held receipt is signed and waits, a sale while a report waits is not signed, nor one older than its day", () => {
+  it("says a held receipt is signed and waits, and a sale while a report waits is not signed yet", () => {
     expect(heldReceiptWords(at("2026-10-03T09:42:00"))).toBe(
       "ZIMRA has not answered since 09:42. The receipt is signed and waits to be sent.",
     );
     expect(saleWhileClosingWords(214)).toBe("Day 214's report waits for ZIMRA. This sale is signed as soon as a day is open again.");
-    expect(saleBeforeLastReceiptWords("RS-0270", 214)).toBe(
-      "RS-0270 was rung before day 214's last receipt. ZIMRA takes no receipt dated before the last one it took, so it is not signed.",
-    );
     expect(saleNotSignedWords("RS-0272")).toBe("RS-0272 was not signed when it was rung, so it is not signed now.");
-    expect(saleBeforeDayWords("RS-0271", 215)).toBe(
-      "RS-0271 was rung before day 215 opened, and ZIMRA takes no receipt dated before its day. It is not signed.",
-    );
   });
 });
 

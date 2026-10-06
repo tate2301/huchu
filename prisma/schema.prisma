@@ -7348,6 +7348,11 @@ model FiscalReceipt {
   fiscalDayId           String?
   receiptType           String?
   receiptCurrency       String?
+  /// SET-08 — the date the receipt was signed with, kept so a resend sends the
+  /// same one. A till sale's is its own time, or the last receipt's when that
+  /// is later (ZIMRA takes no receipt dated before the last one it took), so
+  /// the sale's `postedAt` stays when it was really rung.
+  receiptDate           DateTime?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 

@@ -8,13 +8,14 @@
  * close's claim also takes: it is signed into the open day before the claim,
  * or marked to wait after it. Only the send to ZIMRA comes after the commit.
  * What these hold the close to: one close holds a day at a time, so a report
- * counts every receipt in its day; a sale rung while a report is on its way is
- * signed exactly once, into a day ZIMRA takes it in — the same day when the
- * close is given back, the next when the report is taken — and before anything
- * rung after it; receipts are dated in the order they are signed; an offline
- * sale that fits no day says so instead of promising to wait; and a close
- * taken over after ZIMRA took the dead close's report records it, without
- * sending it again.
+ * counts every receipt in its day; a day whose report went out is never given
+ * back to the tills, even when ZIMRA's answer is lost — ZIMRA is asked, and a
+ * report it took is recorded, not sent again; a sale rung while a report is on
+ * its way is signed exactly once, into a day ZIMRA takes it in — the next when
+ * the report is taken — and before anything rung after it; every sale that
+ * took money is signed, none refused for its date; receipts carry their own
+ * date, in the order they are signed, never ahead of the clock, while each
+ * sale keeps the time it was rung; and the tills sign on the shop's device.
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -39,9 +40,11 @@ import {
   assignRetailSaleFiscalDay,
   fiscaliseRetailSale,
   fiscaliseRetailSales,
+  shopFiscalDevice,
   signWaitingSales,
   type RetailFiscalOutcome,
 } from "@/lib/retail/fiscalisation";
+import { REPLAY_AHEAD_REVIEW } from "@/lib/retail/till-rule-words";
 import { saveSettings } from "@/lib/retail/settings";
 
 import {
@@ -49,7 +52,6 @@ import {
   closeWaitingFiscalDays,
   connectFiscalDevice,
   openFiscalDayIfNone,
-  shopFiscalDevice,
 } from "./fiscal-settings";
 
 // Only the sign-in is faked, for the bursts through POST /pos/sales.
@@ -60,6 +62,7 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 }));
 
 const { POST: SELL } = await import("@/app/api/v2/retail/pos/sales/route");
+const { POST: SYNC } = await import("@/app/api/v2/retail/pos/sync/route");
 
 // Real rows, a real connector and bursts of concurrent sales: well past vitest's five seconds.
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
@@ -77,6 +80,8 @@ async function freePort(): Promise<number> {
 
 type HeldClose = { req: IncomingMessage; res: ServerResponse; body: string };
 type RungSale = { id: string; saleNo: string; postedAt: Date | null; assigned: RetailFiscalOutcome };
+const UNANSWERED = (dayNo: number) =>
+  `ZIMRA did not answer day ${dayNo}'s report, so the day stays closed to sales and they wait for day ${dayNo + 1}. Close it again once ZIMRA is back.`;
 
 const WAITS = (dayNo: number) => `Day ${dayNo}'s report waits for ZIMRA. This sale is signed as soon as a day is open again.`;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -102,6 +107,8 @@ describe("closing a fiscal day while the tills sell", () => {
   // CloseDay calls queue here until the test forwards one to the connector or drops it.
   const closes: HeldClose[] = [];
   let closeArrived: (() => void) | null = null;
+  // While set, ZIMRA's GetStatus goes unanswered too.
+  let statusSilent = false;
   const forward = async ({ req, res, body }: HeldClose) => {
     const answer = await fetch(`${fdmsUrl}${req.url}`, {
       method: req.method,
@@ -144,6 +151,10 @@ describe("closing a fiscal day while the tills sell", () => {
         if (req.url?.endsWith("/CloseDay")) {
           closes.push(held);
           closeArrived?.();
+          return;
+        }
+        if (statusSilent && req.url?.endsWith("/GetStatus")) {
+          drop(held);
           return;
         }
         void forward(held);
@@ -275,7 +286,7 @@ describe("closing a fiscal day while the tills sell", () => {
           ],
         },
       },
-      select: { id: true, saleNo: true },
+      select: { id: true, saleNo: true, postedAt: true },
     });
   };
   /**
@@ -285,8 +296,7 @@ describe("closing a fiscal day while the tills sell", () => {
   const ringSale = (offlineAt?: Date): Promise<RungSale> =>
     prisma.$transaction(async (tx) => {
       const sale = await createSale(tx, offlineAt ?? new Date());
-      const assigned = await assignRetailSaleFiscalDay(tx, { companyId, saleId: sale.id, rungNow: !offlineAt });
-      return { ...sale, postedAt: assigned.postedAt, assigned: assigned.outcome };
+      return { ...sale, assigned: await assignRetailSaleFiscalDay(tx, { companyId, saleId: sale.id }) };
     });
   /** What the till does once its sale has committed: send what the commit signed. */
   const sign = (sale: RungSale) => fiscaliseRetailSale({ companyId, saleId: sale.id, assigned: sale.assigned, holdWhileUnreachable: true });
@@ -314,8 +324,8 @@ describe("closing a fiscal day while the tills sell", () => {
 
   /**
    * Every promise the close makes, over the days opened since `since`: counters gap-free, no receipt dated
-   * before its day opened, before the receipt ahead of it or before the last day's last receipt, every report
-   * counting every receipt its day holds, and no signed sale still marked waiting.
+   * before its day opened, before the receipt ahead of it, before the last day's last receipt or after it was
+   * signed, every report counting every receipt its day holds, and no signed sale still marked waiting.
    */
   async function audit(since: Date): Promise<string[]> {
     const problems: string[] = [];
@@ -325,7 +335,7 @@ describe("closing a fiscal day while the tills sell", () => {
       const receipts = await prisma.fiscalReceipt.findMany({
         where: { fiscalDayId: day.id },
         orderBy: { receiptGlobalNo: "asc" },
-        include: { retailSale: { select: { postedAt: true, saleNo: true } } },
+        include: { retailSale: { select: { saleNo: true } } },
       });
       receipts.forEach((receipt, index) => {
         if (receipt.receiptCounter !== index + 1) problems.push(`day ${day.fiscalDayNo}: counter ${receipt.receiptCounter} at ${index + 1}`);
@@ -333,8 +343,9 @@ describe("closing a fiscal day while the tills sell", () => {
       if (day.lastReceiptCounter !== receipts.length) problems.push(`day ${day.fiscalDayNo}: holds ${receipts.length}, counts ${day.lastReceiptCounter}`);
       let ahead: number | null = null;
       for (const receipt of receipts) {
-        const at = receipt.retailSale!.postedAt!.getTime();
+        const at = receipt.receiptDate!.getTime();
         const name = receipt.retailSale!.saleNo;
+        if (at > receipt.createdAt.getTime()) problems.push(`day ${day.fiscalDayNo}: ${name} dated after it was signed`);
         if (at < day.openedAt.getTime()) problems.push(`day ${day.fiscalDayNo}: ${name} dated before the day opened`);
         if (ahead !== null && at < ahead) problems.push(`day ${day.fiscalDayNo}: ${name} dated before the receipt ahead of it`);
         if (lastOfPrevious !== null && at < lastOfPrevious) problems.push(`day ${day.fiscalDayNo}: ${name} dated before the last day's last receipt`);
@@ -387,26 +398,29 @@ describe("closing a fiscal day while the tills sell", () => {
     );
     expect(closes).toHaveLength(1);
 
-    // ZIMRA never answers the first: the day is given back to the tills.
+    // ZIMRA never answers the first: the report went out, so the day stays closing and a sale waits.
     drop(closes[0]);
     expect(await first).toMatchObject({ status: 502 });
-    expect((await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).status).toBe("OPENED");
+    expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).toMatchObject({ status: "CLOSING", closingSince: null });
     await via(fdmsUrl);
     const w = await tillSale();
-    expect(w.outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
-    expect((await receiptOf(w.sale.id))?.fiscalDayId).toBe(day.id);
+    expect(w.outcome).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: null });
 
     await closeShopFiscalDay(owner(), day.id);
     const closed = await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } });
     const counters = JSON.parse(closed.countersJson!) as { receiptCount: number; lastReceiptCounter: number };
     expect(closed).toMatchObject({ status: "CLOSED", closingSince: null });
     expect(counters.receiptCount).toBe(await prisma.fiscalReceipt.count({ where: { fiscalDayId: day.id } }));
-    expect(counters.receiptCount).toBe(2);
+    expect(counters.receiptCount).toBe(1);
     expect(counters.lastReceiptCounter).toBe(closed.lastReceiptCounter);
+    const wReceipt = (await receiptOf(w.sale.id))!;
+    expect(wReceipt.status).toBe("SUCCESS");
+    expect(wReceipt.fiscalDayId).not.toBe(day.id);
   });
 
-  it("signs a sale rung during a close ZIMRA never answers into the day given back, once, before the next sale (S5)", async () => {
+  it("keeps a day whose report ZIMRA never answered closed to the tills, and signs the sale that waited once, into the next day, before the next sale (S5)", async () => {
     await via(proxyUrl);
+    const since = new Date();
     const day = await openDay();
     expect((await tillSale()).outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
 
@@ -417,29 +431,33 @@ describe("closing a fiscal day while the tills sell", () => {
     expect(await sign(y)).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: null, fiscalError: WAITS(day.fiscalDayNo) });
     expect(await waitsSince(y.id)).toBeInstanceOf(Date);
 
-    // The CloseDay socket drops: day n is given back, and the sale that waited on it goes in straight away.
+    // The CloseDay socket drops and ZIMRA's GetStatus is silent too: the report may have been taken, so day n
+    // stays closing, free for the next close, and the sale that waited still waits.
+    statusSilent = true;
     drop(closes[0]);
-    expect(await closing).toMatchObject({
-      status: 502,
-      message: expect.stringContaining(`ZIMRA did not answer, so day ${day.fiscalDayNo} stays open`),
-    });
-    expect((await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).status).toBe("OPENED");
-    const yReceipt = await receiptOf(y.id);
-    expect(yReceipt).toMatchObject({ fiscalDayId: day.id, signature: expect.any(String) });
-    expect(await waitsSince(y.id)).toBeNull();
+    expect(await closing).toMatchObject({ status: 502, message: expect.stringContaining(UNANSWERED(day.fiscalDayNo)) });
+    statusSilent = false;
+    expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).toMatchObject({ status: "CLOSING", closingSince: null });
+    expect(await receiptOf(y.id)).toBeNull();
+    expect(await waitsSince(y.id)).toBeInstanceOf(Date);
+    const z = await ringSale();
+    expect(z.assigned).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: null });
 
-    // The shop keeps selling into the day; the next sale goes after it.
-    await via(fdmsUrl);
-    const z = await tillSale();
-    expect(z.outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
-    expect(z.outcome.receiptGlobalNo!).toBeGreaterThan(yReceipt!.receiptGlobalNo!);
-
-    await closeShopFiscalDay(owner(), day.id);
+    // Closed again: ZIMRA says the day is still open there (the report never reached it), so the report goes again.
+    const again = closeShopFiscalDay(owner(), day.id).catch((error: unknown) => error);
+    await closeHeld(2);
+    await forward(closes[1]);
+    expect(await again).toBeUndefined();
     const closed = await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } });
-    expect(JSON.parse(closed.countersJson!)).toMatchObject({ receiptCount: 3 });
-    expect(await receiptOf(y.id)).toMatchObject({ id: yReceipt!.id, status: "SUCCESS", fiscalDayId: day.id });
+    expect(closed.status).toBe("CLOSED");
+    expect(JSON.parse(closed.countersJson!)).toMatchObject({ receiptCount: 1 });
+    const next = (await prisma.fiscalDay.findFirst({ where: { companyId, status: "OPENED" } }))!;
+    const [yReceipt, zReceipt] = [await receiptOf(y.id), await receiptOf(z.id)];
+    expect(yReceipt).toMatchObject({ fiscalDayId: next.id, status: "SUCCESS", receiptCounter: 1 });
+    expect(zReceipt).toMatchObject({ fiscalDayId: next.id, status: "SUCCESS", receiptCounter: 2 });
     expect(await closeWaitingFiscalDays(companyId)).toBe("nothing waiting");
     expect(await prisma.fiscalReceipt.count({ where: { retailSaleId: y.id } })).toBe(1);
+    expect(await audit(since)).toEqual([]);
   });
 
   it("signs a sale that waited before a newer one even when the day was given back without it (S5)", async () => {
@@ -499,13 +517,15 @@ describe("closing a fiscal day while the tills sell", () => {
     ]);
   });
 
-  it("says an offline sale rung before the closing day's last receipt is not signed, and signs one rung after it (S7)", async () => {
+  it("signs an offline sale rung before the closing day's last receipt into the next day, dated with that receipt, and one rung after it, keeping both sales' times (S7)", async () => {
     await via(proxyUrl);
+    const since = new Date();
     const day = await openDay();
     await pause(30);
     const earlier = new Date();
     await pause(30);
-    expect((await tillSale()).outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
+    const signed = await tillSale();
+    expect(signed.outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
     await pause(30);
     const later = new Date();
     await pause(30);
@@ -515,28 +535,27 @@ describe("closing a fiscal day while the tills sell", () => {
     // The till's offline queue arrives (pos/sync) while the report is on its way: each settled in its commit.
     const before = await ringSale(earlier);
     const after = await ringSale(later);
-    const [beforeOutcome, afterOutcome] = await fiscaliseRetailSales({
+    const outcomes = await fiscaliseRetailSales({
       companyId,
       sales: [before, after].map((sale) => ({ saleId: sale.id, assigned: sale.assigned })),
       holdWhileUnreachable: true,
     });
-    expect(beforeOutcome).toMatchObject({
-      fiscalStatus: "FAILED",
-      fiscalReceiptId: null,
-      errorCode: "RETAIL_SALE_BEFORE_LAST_RECEIPT",
-      fiscalError: `${before.saleNo} was rung before day ${day.fiscalDayNo}'s last receipt. ZIMRA takes no receipt dated before the last one it took, so it is not signed.`,
-    });
-    expect(await waitsSince(before.id)).toBeNull();
-    expect(afterOutcome).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: null, fiscalError: WAITS(day.fiscalDayNo) });
+    for (const result of outcomes) expect(result).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: null, fiscalError: WAITS(day.fiscalDayNo) });
 
     await forward(closes[0]);
     expect(await closing).toBeUndefined();
     const next = (await prisma.fiscalDay.findFirst({ where: { companyId, status: "OPENED" } }))!;
     expect(next.fiscalDayNo).toBe(day.fiscalDayNo + 1);
-    expect(next.openedAt.getTime()).toBeLessThanOrEqual(after.postedAt!.getTime());
-    expect(await receiptOf(after.id)).toMatchObject({ fiscalDayId: next.id, status: "SUCCESS", receiptCounter: 1 });
-    expect(await receiptOf(before.id)).toBeNull();
+    const lastOfDay = (await receiptOf(signed.sale.id))!.receiptDate!;
+    // Opened no earlier than day n's last receipt, and no later than the first sale that waited for it.
+    expect(next.openedAt).toEqual(lastOfDay);
+    expect(await receiptOf(before.id)).toMatchObject({ fiscalDayId: next.id, status: "SUCCESS", receiptCounter: 1, receiptDate: lastOfDay });
+    expect(await receiptOf(after.id)).toMatchObject({ fiscalDayId: next.id, status: "SUCCESS", receiptCounter: 2, receiptDate: later });
+    for (const [sale, at] of [[before, earlier], [after, later]] as const) {
+      expect((await prisma.retailSale.findUniqueOrThrow({ where: { id: sale.id } })).postedAt).toEqual(at);
+    }
     expect(await closeWaitingFiscalDays(companyId)).toBe("nothing waiting");
+    expect(await audit(since)).toEqual([]);
   });
 
   it("signs the sales that waited before a till sale rung once the next day could open, in the order they were rung (S9)", async () => {
@@ -558,11 +577,11 @@ describe("closing a fiscal day while the tills sell", () => {
     const rows = await prisma.fiscalReceipt.findMany({
       where: { fiscalDayId: next.id },
       orderBy: { receiptGlobalNo: "asc" },
-      select: { retailSaleId: true, status: true, retailSale: { select: { postedAt: true } } },
+      select: { retailSaleId: true, status: true, receiptDate: true },
     });
     expect(rows.map((row) => row.retailSaleId)).toEqual([y.id, t.sale.id]);
     expect(rows.every((row) => row.status === "SUCCESS")).toBe(true);
-    const dates = rows.map((row) => row.retailSale!.postedAt!.getTime());
+    const dates = rows.map((row) => row.receiptDate!.getTime());
     expect([...dates].sort((p, q) => p - q)).toEqual(dates);
     expect(await closeWaitingFiscalDays(companyId)).toBe("nothing waiting");
   });
@@ -635,7 +654,7 @@ describe("closing a fiscal day while the tills sell", () => {
     const unsigned: string[] = [];
     for (const { saleId } of rung) {
       const receipt = await receiptOf(saleId);
-      if (receipt?.status !== "SUCCESS") unsigned.push(`${saleId}: ${receipt?.status ?? "no receipt"}`);
+      if (receipt?.status !== "SUCCESS") unsigned.push(`${saleId}: ${receipt?.status ?? "no receipt"} ${receipt?.lastError ?? ""}`.trim());
     }
     expect(unsigned).toEqual([]);
     expect(await prisma.retailSale.count({ where: { companyId, fiscalWaitsSince: { not: null } } })).toBe(0);
@@ -708,7 +727,7 @@ describe("closing a fiscal day while the tills sell", () => {
     expect(await audit(since)).toEqual([]);
   });
 
-  it("dates two tills' receipts in the order they are signed when the earlier sale's commit is slower and a close claims between (A11)", async () => {
+  it("dates two tills' receipts in the order they are signed, and keeps each sale's time, when the earlier sale's commit is slower and a close claims between (A11)", async () => {
     await via(proxyUrl);
     const since = new Date();
     const day = await openDay();
@@ -723,8 +742,7 @@ describe("closing a fiscal day while the tills sell", () => {
       const sale = await createSale(tx, new Date());
       reached();
       await resumed;
-      const assigned = await assignRetailSaleFiscalDay(tx, { companyId, saleId: sale.id, rungNow: true });
-      return { ...sale, postedAt: assigned.postedAt, assigned: assigned.outcome };
+      return { ...sale, assigned: await assignRetailSaleFiscalDay(tx, { companyId, saleId: sale.id }) };
     });
     await started;
     await pause(5);
@@ -734,18 +752,22 @@ describe("closing a fiscal day while the tills sell", () => {
     const closing = closeShopFiscalDay(owner(), day.id).catch((error: unknown) => error);
     await closeHeld(1);
 
-    // Till 1's commit lands now: the day is closing, so it waits — dated when it was decided, after till 2's.
+    // Till 1's commit lands now: the day is closing, so it waits. It keeps the time it was rung, before till 2's.
     resume();
     const t = await slow;
     expect(t.assigned).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: null, fiscalError: WAITS(day.fiscalDayNo) });
-    expect(t.postedAt!.getTime()).toBeGreaterThanOrEqual(u.sale.postedAt!.getTime());
+    expect(t.postedAt!.getTime()).toBeLessThanOrEqual(u.sale.postedAt!.getTime());
     await forward(closes[0]);
     expect(await closing).toBeUndefined();
 
     expect(await sign(t)).toMatchObject({ fiscalStatus: "SUCCESS" });
     const closed = await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } });
     expect(JSON.parse(closed.countersJson!)).toMatchObject({ receiptCount: 2 });
-    expect((await receiptOf(t.id))!.fiscalDayId).not.toBe(day.id);
+    const [tReceipt, uReceipt] = [(await receiptOf(t.id))!, (await receiptOf(u.sale.id))!];
+    expect(tReceipt.fiscalDayId).not.toBe(day.id);
+    // Its receipt, signed after till 2's, is dated no earlier than it.
+    expect(tReceipt.receiptDate!.getTime()).toBeGreaterThanOrEqual(uReceipt.receiptDate!.getTime());
+    expect((await prisma.retailSale.findUniqueOrThrow({ where: { id: t.id } })).postedAt).toEqual(t.postedAt);
     expect(await audit(since)).toEqual([]);
   });
 
@@ -778,5 +800,217 @@ describe("closing a fiscal day while the tills sell", () => {
     expect(JSON.parse(closed.countersJson!)).toMatchObject({ receiptCount: 1, lastReceiptCounter: 1 });
     const next = (await prisma.fiscalDay.findFirst({ where: { companyId, status: "OPENED" } }))!;
     expect(await receiptOf(w.id)).toMatchObject({ fiscalDayId: next.id, status: "SUCCESS" });
+  });
+
+  /** Sales that took money with neither a receipt, a waiting mark nor a SKIPPED answer: lost. */
+  const lostSales = (ids: string[]) =>
+    prisma.retailSale.findMany({
+      where: { id: { in: ids }, fiscalWaitsSince: null, fiscalReceipt: { is: null }, status: "POSTED" },
+      select: { id: true, saleNo: true },
+    });
+
+  it("records a day whose report ZIMRA took but whose answer was lost, and never gives it back to the tills (R5-4b)", async () => {
+    await via(proxyUrl);
+    const since = new Date();
+    const day = await openDay();
+    await tillSale();
+    const closing = closeShopFiscalDay(owner(), day.id).catch((error: unknown) => error);
+    await closeHeld(1);
+    // ZIMRA takes the report; its answer never reaches the shop (the socket drops on the way back).
+    const held = closes[0];
+    const taken = await fetch(`${fdmsUrl}${held.req.url}`, {
+      method: held.req.method,
+      headers: { "Content-Type": "application/json" },
+      body: held.body || undefined,
+    });
+    expect(taken.status).toBe(200);
+    drop(held);
+
+    // The close asks ZIMRA how the day stands: closed there, so it is recorded closed with its report.
+    expect(await closing).toBeUndefined();
+    const closed = await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } });
+    expect(closed).toMatchObject({ status: "CLOSED", closingSince: null, closingSignature: expect.any(String) });
+    expect(JSON.parse(closed.countersJson!)).toMatchObject({ receiptCount: 1 });
+    expect(closes).toHaveLength(1);
+
+    // A till sale now goes into day n+1, never into the day ZIMRA has closed.
+    const after = await tillSale();
+    expect(after.outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
+    const receipt = (await receiptOf(after.sale.id))!;
+    expect(receipt.fiscalDayId).not.toBe(day.id);
+    expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: receipt.fiscalDayId! } })).toMatchObject({ fiscalDayNo: day.fiscalDayNo + 1 });
+    expect(await audit(since)).toEqual([]);
+  });
+
+  it("keeps the day closing while ZIMRA is silent after a report from an open day, and records it once GetStatus shows it closed (R5-4b)", async () => {
+    await via(proxyUrl);
+    const since = new Date();
+    const day = await openDay();
+    await tillSale();
+    const closing = closeShopFiscalDay(owner(), day.id).catch((error: unknown) => error);
+    await closeHeld(1);
+    // ZIMRA takes the report, but neither its answer nor GetStatus reaches the shop.
+    const held = closes[0];
+    await fetch(`${fdmsUrl}${held.req.url}`, { method: held.req.method, headers: { "Content-Type": "application/json" }, body: held.body || undefined });
+    statusSilent = true;
+    drop(held);
+    expect(await closing).toMatchObject({ status: 502, message: expect.stringContaining(UNANSWERED(day.fiscalDayNo)) });
+    statusSilent = false;
+    expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).toMatchObject({ status: "CLOSING", closingSince: null });
+    // Not given back: a sale waits for day n+1.
+    const w = await tillSale();
+    expect(w.outcome).toMatchObject({ fiscalStatus: "PENDING", fiscalReceiptId: null, fiscalError: WAITS(day.fiscalDayNo) });
+
+    // The next close asks first: ZIMRA has the day closed, so it is recorded and the report is not sent again.
+    await closeShopFiscalDay(owner(), day.id);
+    expect(closes).toHaveLength(1);
+    expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).toMatchObject({ status: "CLOSED", closingSignature: expect.any(String) });
+    const next = (await prisma.fiscalDay.findFirst({ where: { companyId, status: "OPENED" } }))!;
+    expect(next.fiscalDayNo).toBe(day.fiscalDayNo + 1);
+    expect(await receiptOf(w.sale.id)).toMatchObject({ fiscalDayId: next.id, status: "SUCCESS" });
+    expect(await audit(since)).toEqual([]);
+  });
+
+  it("signs the till's sales on the shop's fiscal device when the books' console adds another active device (R5-6)", async () => {
+    await via(fdmsUrl);
+    const shop = (await shopFiscalDevice(companyId))!;
+    const day = await openDay();
+    const before = await tillSale();
+    expect(await receiptOf(before.sale.id)).toMatchObject({ fiscalDayId: day.id });
+    // Another active device, updated after the shop's: what "the most recently updated active one" would pick.
+    const other = await prisma.fiscalisationProviderConfig.create({
+      data: {
+        companyId,
+        providerKey: `BOOKS-${stamp}`,
+        apiBaseUrl: fdmsUrl,
+        deviceId: "0441-9999",
+        serialNumber: "HC-FD-99990",
+        certificateRef: shop.certificateRef,
+        registeredAt: new Date(),
+        isActive: true,
+      },
+    });
+    try {
+      const after = await tillSale();
+      expect(after.outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
+      const receipt = (await receiptOf(after.sale.id))!;
+      expect(receipt).toMatchObject({ fiscalDayId: day.id, providerKey: shop.providerKey });
+      expect(await prisma.fiscalDay.count({ where: { providerConfigId: other.id } })).toBe(0);
+    } finally {
+      await prisma.fiscalReceipt.deleteMany({ where: { fiscalDay: { providerConfigId: other.id } } });
+      await prisma.fiscalDay.deleteMany({ where: { providerConfigId: other.id } });
+      await prisma.fiscalisationProviderConfig.delete({ where: { id: other.id } });
+    }
+  });
+
+  it("dates no receipt ahead of the clock for a till whose clock runs two hours fast, and moves no later sale's time (R5-7)", async () => {
+    await via(fdmsUrl);
+    const since = new Date();
+    await openDay();
+    const aheadAt = new Date(Date.now() + 2 * 3600_000);
+    const fast = await ringSale(aheadAt);
+    expect(await sign(fast)).toMatchObject({ fiscalStatus: "SUCCESS" });
+    const fastReceipt = (await receiptOf(fast.id))!;
+    expect(fastReceipt.receiptDate!.getTime()).toBeLessThanOrEqual(fastReceipt.createdAt.getTime());
+    // The live sales after it keep the time they were rung, and their receipts are dated now, not two hours on.
+    for (let i = 0; i < 3; i += 1) {
+      const live = await tillSale();
+      expect(live.outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
+      const row = await prisma.retailSale.findUniqueOrThrow({ where: { id: live.sale.id }, select: { postedAt: true } });
+      expect(row.postedAt).toEqual(live.sale.postedAt);
+      const receipt = (await receiptOf(live.sale.id))!;
+      expect(receipt.receiptDate!.getTime()).toBeLessThan(Date.now() + 1_000);
+      expect(receipt.receiptDate!.getTime()).toBeGreaterThanOrEqual(fastReceipt.receiptDate!.getTime());
+    }
+    expect(await audit(since)).toEqual([]);
+  });
+
+  it("enters an offline sale the till dated in the future at the time it arrived, for review, through pos/sync; live sales after it keep their times (R5-7)", async () => {
+    await via(fdmsUrl);
+    const since = new Date();
+    await openDay();
+    const aheadAt = new Date(Date.now() + 2 * 3600_000).toISOString();
+    const sentAt = Date.now();
+    const response = await SYNC(
+      new NextRequest("http://pos.test.localtest.me/api/v2/retail/pos/sync", {
+        method: "POST",
+        headers: { cookie: `${DEVICE_COOKIE}=${deviceKey}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          operations: [
+            {
+              clientOperationId: `ahead-${stamp}`,
+              operation: "create-sale",
+              payload: {
+                clientRef: `ahead-${stamp}`,
+                shiftId,
+                items: [{ productId, quantity: 1 }],
+                payments: [{ tenderType: "CASH", currency: "USD", amount: 5 }],
+                offlineCreatedAt: aheadAt,
+                offlineCreated: true,
+              },
+              offlineCreatedAt: aheadAt,
+            },
+          ],
+        }),
+      }),
+    );
+    expect(response.status).toBeLessThan(300);
+    const body = (await response.json()) as { data?: { results?: Array<Record<string, unknown>> }; results?: Array<Record<string, unknown>> };
+    const [result] = body.data?.results ?? body.results ?? [];
+    expect(result).toMatchObject({ status: "synced", fiscalStatus: "SUCCESS" });
+    const synced = await prisma.retailSale.findUniqueOrThrow({ where: { id: result.serverId as string }, select: { postedAt: true, reviewReason: true } });
+    expect(synced.postedAt!.getTime()).toBeGreaterThanOrEqual(sentAt);
+    expect(synced.postedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(synced.reviewReason).toContain(REPLAY_AHEAD_REVIEW);
+
+    for (let i = 0; i < 2; i += 1) {
+      const live = await tillSale();
+      expect(live.outcome).toMatchObject({ fiscalStatus: "SUCCESS" });
+      expect((await prisma.retailSale.findUniqueOrThrow({ where: { id: live.sale.id } })).postedAt).toEqual(live.sale.postedAt);
+      expect((await receiptOf(live.sale.id))!.receiptDate!.getTime()).toBeLessThanOrEqual(Date.now());
+    }
+    expect(await audit(since)).toEqual([]);
+  });
+
+  it("signs every sale two tills ring online and offline at once while a close is taken mid-burst: none refused, none lost, no chain broken (R5-3)", async () => {
+    await via(proxyUrl);
+    const since = new Date();
+    const day = await openDay();
+    await tillSale();
+    const rung: RungSale[] = [];
+    const tillA = (async () => {
+      for (let i = 0; i < 12; i += 1) {
+        // Till A rings live.
+        rung.push(await ringSale());
+        await pause(3);
+      }
+    })();
+    const tillB = (async () => {
+      for (let i = 0; i < 12; i += 1) {
+        // Till B's queue drains with its own, slightly earlier, clock.
+        rung.push(await ringSale(new Date(Date.now() - 15)));
+        await pause(2);
+      }
+    })();
+    await pause(25);
+    const closing = closeShopFiscalDay(owner(), day.id).catch((error: unknown) => error);
+    await closeHeld(1);
+    await pause(40);
+    await forward(closes[0]);
+    await Promise.all([tillA, tillB]);
+    expect(await closing).toBeUndefined();
+
+    expect(rung.filter((sale) => sale.assigned.fiscalStatus === "FAILED")).toEqual([]);
+    for (const sale of rung) await sign(sale);
+    await signWaitingSales(companyId);
+    const ids = rung.map((sale) => sale.id);
+    expect(await lostSales(ids)).toEqual([]);
+    expect(await prisma.retailSale.count({ where: { id: { in: ids }, fiscalWaitsSince: { not: null } } })).toBe(0);
+    expect(await prisma.fiscalReceipt.count({ where: { retailSaleId: { in: ids }, status: "SUCCESS" } })).toBe(ids.length);
+    // Each sale keeps the time its till rang it.
+    for (const sale of rung) {
+      expect((await prisma.retailSale.findUniqueOrThrow({ where: { id: sale.id } })).postedAt).toEqual(sale.postedAt);
+    }
+    expect(await audit(since)).toEqual([]);
   });
 });

@@ -67,8 +67,8 @@
  * the day with an update of the same locked row, so a sale is either in the
  * day before the claim (and in its report) or marked after it; there is no
  * moment between the two. Receipts are signed in the order the lock is taken,
- * and a sale rung now is dated after it is taken, so their dates run in the
- * same order.
+ * and each is dated under it, no earlier than the one before, so their dates
+ * run in the same order.
  *
  * Only the call to ZIMRA comes after the commit ({@link fiscaliseRetailSale}):
  * it sends the bytes that were signed, and never decides a day again. A
@@ -77,19 +77,23 @@
  * leaves no gap in the chain; a transport failure leaves the signed receipt
  * holding its place, and replay resends the *same* bytes.
  *
- * ## A receipt fits its day
+ * ## Every sale that took money gets one receipt, in a day ZIMRA takes
  *
- * Every receipt is dated with the sale's own `postedAt`, because that is what
- * the customer holds a slip for, and ZIMRA takes no receipt dated before its
- * fiscal day opened, or before the last receipt it took. A sale rung offline
- * that fits no day — rung before the open day began, or before its last
- * receipt — is not signed, and says so. One rung while no day is open because
- * the last one's report is on its way to ZIMRA is PENDING with no receipt and
- * marked as waiting (`RetailSale.fiscalWaitsSince`): it is signed, oldest
- * first and before anything rung after it, into the next day that is open —
- * the same day when the close is given back, else the next, which opens no
- * later than it ({@link signWaitingSales}). Nothing here redates a sale rung
- * offline to make it fit.
+ * ZIMRA takes no receipt dated before its fiscal day opened, or before the
+ * last receipt it took. So a receipt carries a date of its own
+ * (`FiscalReceipt.receiptDate`), kept with it so a resend sends the same one:
+ * the sale's own time — never later than now, so a till whose clock runs fast
+ * dates nothing ahead — or the last receipt's date when that is later (an
+ * offline sale sent in after another till's receipts, or after its day
+ * closed). The sale's `postedAt` is never moved: it stays when the sale was
+ * rung, for its slip, its reports and its books. No sale is refused for its
+ * date: one dated before the open day began goes into that day, dated with
+ * its last receipt. One rung while no day is open because the last one's
+ * report is on its way to ZIMRA is PENDING with no receipt and marked as
+ * waiting (`RetailSale.fiscalWaitsSince`): it is signed, oldest first and
+ * before anything rung after it, into the next day, which opens no later
+ * than it and no earlier than the last day's last receipt
+ * ({@link signWaitingSales}).
  */
 import type { FiscalisationProviderConfig, Prisma, RetailSale, RetailSaleLine } from "@prisma/client";
 import { percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
@@ -116,8 +120,6 @@ import { FISCAL_DAY_STATUS, lockDeviceDay, openFiscalDay, type LockedFiscalDay }
 import {
   FISCAL_OFFLINE_WINDOW_MS,
   heldReceiptWords,
-  saleBeforeDayWords,
-  saleBeforeLastReceiptWords,
   saleNotSignedWords,
   saleWhileClosingWords,
 } from "@/lib/retail/fiscal-words";
@@ -142,8 +144,6 @@ export type RetailFiscalErrorCode =
   | "RETAIL_TOTALS_INCONSISTENT"
   | "RETAIL_SIGN_MISMATCH"
   | "RETAIL_ORIGINAL_NOT_SIGNED"
-  | "RETAIL_SALE_BEFORE_DAY"
-  | "RETAIL_SALE_BEFORE_LAST_RECEIPT"
   | "RETAIL_SALE_NOT_SIGNED"
   | FiscalIssueErrorCode;
 
@@ -820,12 +820,24 @@ export function buildRetailSalePayload(input: {
 // The sale's fiscal day, settled in the commit that records the sale (SET-08)
 // ---------------------------------------------------------------------------
 
-/** The device a till signs with: the company's active one. None means the shop does not fiscalise. */
-function activeDevice(companyId: string, db: Db) {
-  return db.fiscalisationProviderConfig.findFirst({
-    where: { companyId, isActive: true },
-    orderBy: { updatedAt: "desc" },
+export const FISCAL_PROVIDER_KEY = "ZIMRA_FDMS";
+
+/**
+ * The shop's fiscal device: the company's `ZIMRA_FDMS` provider config. The
+ * one device the tills sign with, the close closes and Setup › Fiscal device
+ * shows (SET-08); a device the books' console adds under another key is not
+ * the shop's.
+ */
+export function shopFiscalDevice(companyId: string, db: Db = prisma): Promise<FiscalisationProviderConfig | null> {
+  return db.fiscalisationProviderConfig.findUnique({
+    where: { companyId_providerKey: { companyId, providerKey: FISCAL_PROVIDER_KEY } },
   });
+}
+
+/** The shop's fiscal device while it is in use. None means the shop does not fiscalise. */
+async function tillDevice(companyId: string, db: Db): Promise<FiscalisationProviderConfig | null> {
+  const device = await shopFiscalDevice(companyId, db);
+  return device?.isActive ? device : null;
 }
 
 function loadSale(companyId: string, saleId: string, db: Db): Promise<LoadedSale | null> {
@@ -836,18 +848,18 @@ function loadSale(companyId: string, saleId: string, db: Db): Promise<LoadedSale
 }
 
 /**
- * The moment a day stopped taking receipts as far as a later one is
- * concerned: the date of the last till sale signed into it, or its own
- * opening when it took none. Receipts are signed in date order, so the last
- * signed is the latest. ZIMRA takes no receipt dated before the last one it took.
+ * The earliest date the day's next receipt may carry: its last receipt's
+ * date, or its own opening when it took none. Receipts are dated in the order
+ * they are signed, so the last signed is the latest. ZIMRA takes no receipt
+ * dated before the last one it took.
  */
 async function lastReceiptAt(db: Db, day: { id: string; openedAt: Date }): Promise<Date> {
   const last = await db.fiscalReceipt.findFirst({
-    where: { fiscalDayId: day.id, retailSale: { postedAt: { not: null } } },
+    where: { fiscalDayId: day.id, receiptDate: { not: null } },
     orderBy: { receiptCounter: "desc" },
-    select: { retailSale: { select: { postedAt: true } } },
+    select: { receiptDate: true },
   });
-  const at = last?.retailSale?.postedAt;
+  const at = last?.receiptDate;
   return at && at.getTime() > day.openedAt.getTime() ? at : day.openedAt;
 }
 
@@ -883,14 +895,6 @@ function isWaiting(result: RetailFiscalOutcome): boolean {
   return result.fiscalStatus === "PENDING" && result.fiscalReceiptId === null;
 }
 
-function beforeLastReceipt(sale: { id: string; saleNo: string }, dayNo: number): RetailFiscalOutcome {
-  return outcome(sale, {
-    fiscalStatus: "FAILED",
-    errorCode: "RETAIL_SALE_BEFORE_LAST_RECEIPT",
-    fiscalError: saleBeforeLastReceiptWords(sale.saleNo, dayNo),
-  });
-}
-
 function noDevice(sale: { id: string; saleNo: string | null }): RetailFiscalOutcome {
   return outcome(sale, {
     fiscalStatus: "SKIPPED",
@@ -911,18 +915,18 @@ function mappingRefusal(sale: { id: string; saleNo: string }, error: unknown): R
 }
 
 /**
- * The facts ZIMRA signs for a sale, and the document it is told about.
- * Throws a mapping refusal; null for a reversal of a sale ZIMRA never saw.
+ * The facts ZIMRA signs for a sale, dated `receiptDate`, and the document it
+ * is told about. Its tax is the tax as of the sale's own time. Throws a
+ * mapping refusal; null for a reversal of a sale ZIMRA never saw.
  */
-async function signable(companyId: string, sale: LoadedSale, db: Db) {
-  const receiptDate = sale.postedAt ?? sale.createdAt;
+async function signable(companyId: string, sale: LoadedSale, db: Db, receiptDate: Date) {
   let credited: CreditedReceiptReference | null = null;
   if (sale.saleType !== "SALE") {
     credited = await loadCreditedReceipt(companyId, sale, db);
     if (!credited) return null;
   }
   const lines = await resolveLineRates(companyId, sale, db);
-  const resolver = await loadRetailTaxResolver({ companyId, asOf: receiptDate }, db);
+  const resolver = await loadRetailTaxResolver({ companyId, asOf: sale.postedAt ?? sale.createdAt }, db);
   const bundle = buildRetailSaleSigningInput({ sale: { ...sale, receiptDate }, lines, resolver });
   const supplier = await db.accountingSettings.findUnique({
     where: { companyId },
@@ -949,16 +953,17 @@ function idempotencyKeyOf(companyId: string, saleId: string): string {
 }
 
 /**
- * Sign a sale into `day`, in the transaction that holds the day: its numbers
- * taken, its hash chained, its PENDING receipt written. Nothing is sent: the
- * receipt goes to ZIMRA after the commit ({@link fiscaliseRetailSale}).
- * Refusals come back before a number is taken.
+ * Sign a sale into `day`, dated `receiptDate`, in the transaction that holds
+ * the day: its numbers taken, its hash chained, its PENDING receipt written.
+ * Nothing is sent: the receipt goes to ZIMRA after the commit
+ * ({@link fiscaliseRetailSale}). Refusals come back before a number is taken.
  */
 async function signInto(
   tx: Prisma.TransactionClient,
   device: FiscalisationProviderConfig,
   day: { id: string; fiscalDayNo: number },
   sale: LoadedSale,
+  receiptDate: Date,
 ): Promise<RetailFiscalOutcome> {
   const signingKey = resolveDeviceSigningKey(device);
   if (!signingKey) {
@@ -970,7 +975,7 @@ async function signInto(
     });
   }
   try {
-    const facts = await signable(sale.companyId, sale, tx);
+    const facts = await signable(sale.companyId, sale, tx, receiptDate);
     if (!facts) return skippedReversal(sale);
     const receipt = await signFiscalReceipt(tx, {
       provider: device,
@@ -1002,14 +1007,13 @@ async function signInto(
  * ({@link lockDeviceDay}) so nothing can change it before the commit:
  *
  * - The day is closing (its report is on its way to ZIMRA): the sale waits,
- *   marked, for the next day that is open — unless it was rung before that
- *   day's last receipt, when it fits no day and is not signed.
+ *   marked, for the next day that is open.
  * - Sales are waiting (`waitingFirst`): it waits behind them, so they go in
  *   oldest first and before it.
  * - No day is open: it opens one, no later than the sale, if the device is
  *   registered — never before the last day's last receipt.
- * - A day is open: it is signed into it, unless it was rung before the day
- *   opened or before its last receipt (an old offline sale).
+ * - A day is open: it is signed into it, dated its own time or the day's last
+ *   receipt's, whichever is later. Never refused for its date.
  */
 async function placeSale(
   tx: Prisma.TransactionClient,
@@ -1023,16 +1027,14 @@ async function placeSale(
   if (sale.status !== "POSTED") {
     return outcome(sale, { fiscalStatus: "SKIPPED", fiscalError: `Sale ${sale.saleNo} is ${sale.status} and is not fiscalised` });
   }
-  const at = sale.postedAt ?? sale.createdAt;
+  // The sale's own time, never later than now: a till whose clock runs fast dates no receipt ahead of the rest.
+  const at = Math.min((sale.postedAt ?? sale.createdAt).getTime(), Date.now());
   const wait = async (dayNo: number) => {
     if (!sale.fiscalWaitsSince) await tx.retailSale.update({ where: { id: sale.id }, data: { fiscalWaitsSince: new Date() } });
     return waitsForDay(sale, dayNo);
   };
 
-  if (locked?.status === FISCAL_DAY_STATUS.CLOSING) {
-    if (at.getTime() < (await lastReceiptAt(tx, locked)).getTime()) return beforeLastReceipt(sale, locked.fiscalDayNo);
-    return wait(locked.fiscalDayNo);
-  }
+  if (locked?.status === FISCAL_DAY_STATUS.CLOSING) return wait(locked.fiscalDayNo);
   const ahead =
     options.waitingFirst &&
     (await tx.retailSale.findFirst({
@@ -1041,10 +1043,7 @@ async function placeSale(
     }));
   if (ahead) {
     const last = locked ?? (await latestDay(tx, device.id));
-    if (last) {
-      if (at.getTime() < (await lastReceiptAt(tx, last)).getTime()) return beforeLastReceipt(sale, last.fiscalDayNo);
-      return wait(last.fiscalDayNo);
-    }
+    if (last) return wait(last.fiscalDayNo);
   }
 
   let day = locked;
@@ -1058,21 +1057,11 @@ async function placeSale(
       });
     }
     const last = await latestDay(tx, device.id);
-    if (last && at.getTime() < (await lastReceiptAt(tx, last)).getTime()) return beforeLastReceipt(sale, last.fiscalDayNo);
-    day = await openFiscalDay(
-      { companyId: sale.companyId, providerConfigId: device.id, openedAt: new Date(Math.min(at.getTime(), Date.now())) },
-      tx,
-    );
+    const floor = last ? (await lastReceiptAt(tx, last)).getTime() : 0;
+    day = await openFiscalDay({ companyId: sale.companyId, providerConfigId: device.id, openedAt: new Date(Math.max(at, floor)) }, tx);
   }
-  if (at.getTime() < day.openedAt.getTime()) {
-    return outcome(sale, {
-      fiscalStatus: "FAILED",
-      errorCode: "RETAIL_SALE_BEFORE_DAY",
-      fiscalError: saleBeforeDayWords(sale.saleNo, day.fiscalDayNo),
-    });
-  }
-  if (at.getTime() < (await lastReceiptAt(tx, day)).getTime()) return beforeLastReceipt(sale, day.fiscalDayNo);
-  return signInto(tx, device, day, sale);
+  const receiptDate = new Date(Math.max(at, (await lastReceiptAt(tx, day)).getTime()));
+  return signInto(tx, device, day, sale, receiptDate);
 }
 
 /**
@@ -1084,31 +1073,20 @@ async function placeSale(
  * before (the sale waits, marked) or after (the sale is in the day, and in
  * its report).
  *
- * A sale rung now (`rungNow`) is dated here, after the lock, so receipts are
- * dated in the order they are signed; a sale rung offline keeps the till's
- * time and is judged by it. The receipt is signed and written here; it is
- * sent after the commit, by {@link fiscaliseRetailSale}, which never decides
- * a day again.
+ * The receipt is dated here, under the lock, so receipts are dated in the
+ * order they are signed; the sale keeps its own `postedAt`. The receipt is
+ * signed and written here; it is sent after the commit, by
+ * {@link fiscaliseRetailSale}, which never decides a day again.
  */
 export async function assignRetailSaleFiscalDay(
   tx: Prisma.TransactionClient,
-  input: { companyId: string; saleId: string; rungNow: boolean },
-): Promise<{ outcome: RetailFiscalOutcome; postedAt: Date | null }> {
-  const device = await activeDevice(input.companyId, tx);
+  input: { companyId: string; saleId: string },
+): Promise<RetailFiscalOutcome> {
+  const device = await tillDevice(input.companyId, tx);
   const locked = device ? await lockDeviceDay(tx, device.id) : null;
-  if (device && input.rungNow) {
-    // Dated now, under the lock, so receipts are dated in the order they are signed — and never before the
-    // receipt signed ahead of it, whatever another host's clock said.
-    const last = locked ?? (await latestDay(tx, device.id));
-    const floor = last ? (await lastReceiptAt(tx, last)).getTime() : 0;
-    await tx.retailSale.update({ where: { id: input.saleId }, data: { postedAt: new Date(Math.max(Date.now(), floor)) } });
-  }
   const sale = await loadSale(input.companyId, input.saleId, tx);
   if (!sale) throw new Error(`Sale ${input.saleId} is not this company's`);
-  return {
-    outcome: device ? await placeSale(tx, device, locked, sale, { waitingFirst: true }) : noDevice(sale),
-    postedAt: sale.postedAt,
-  };
+  return device ? placeSale(tx, device, locked, sale, { waitingFirst: true }) : noDevice(sale);
 }
 
 /** What the receipt row says, for a sale another caller signed and sends. */
@@ -1127,11 +1105,18 @@ function receiptOutcome(
   });
 }
 
-/** Send a signed sale's receipt to ZIMRA: the same signed bytes, every time. */
-async function sendSigned(sale: LoadedSale, holdWhileUnreachable: boolean): Promise<RetailFiscalOutcome> {
+/** Send a signed sale's receipt to ZIMRA, on the shop's device: the same signed bytes and date, every time. */
+async function sendSigned(
+  sale: LoadedSale,
+  receipt: { id: string; receiptDate: Date | null },
+  holdWhileUnreachable: boolean,
+): Promise<RetailFiscalOutcome> {
+  const device = await tillDevice(sale.companyId, prisma);
+  if (!device) return noDevice(sale);
+  if (!receipt.receiptDate) throw new Error(`Fiscal receipt ${receipt.id} of ${sale.saleNo} is signed but has no receipt date`);
   let facts: Awaited<ReturnType<typeof signable>>;
   try {
-    facts = await signable(sale.companyId, sale, prisma);
+    facts = await signable(sale.companyId, sale, prisma, receipt.receiptDate);
   } catch (error) {
     const refused = mappingRefusal(sale, error);
     if (refused) return refused;
@@ -1146,6 +1131,7 @@ async function sendSigned(sale: LoadedSale, holdWhileUnreachable: boolean): Prom
     payload: facts.payload,
     fiscal: facts.fiscal,
     holdWhileUnreachableMs: holdWhileUnreachable ? FISCAL_OFFLINE_WINDOW_MS : undefined,
+    provider: device,
   });
   // The QR and the global number exist from the moment the receipt is signed —
   // before FDMS has answered — which is what lets a till print a scannable slip
@@ -1203,7 +1189,7 @@ export async function fiscaliseRetailSale(input: {
     if (placed) return placed;
     receipt = await signedReceiptOf(input.companyId, sale.id);
     if (!receipt) {
-      const device = await activeDevice(input.companyId, prisma);
+      const device = await tillDevice(input.companyId, prisma);
       const last = device ? await latestDay(prisma, device.id) : null;
       return input.assigned ?? waitsForDay(sale, last?.fiscalDayNo ?? 0);
     }
@@ -1212,12 +1198,12 @@ export async function fiscaliseRetailSale(input: {
   }
   if (!receipt) {
     if (input.assigned) return input.assigned;
-    if (!(await activeDevice(input.companyId, prisma))) return noDevice(sale);
+    if (!(await tillDevice(input.companyId, prisma))) return noDevice(sale);
     return outcome(sale, { fiscalStatus: "FAILED", errorCode: "RETAIL_SALE_NOT_SIGNED", fiscalError: saleNotSignedWords(sale.saleNo) });
   }
   // A sale that waited and was signed by another caller's pass: that pass sends it.
   if (input.assigned && input.assigned.fiscalReceiptId !== receipt.id) return receiptOutcome(sale, receipt);
-  return sendSigned(sale, hold);
+  return sendSigned(sale, receipt, hold);
 }
 
 /** How many sales one pass over the waiting ones takes at most; the next pass takes the rest. */
@@ -1242,7 +1228,7 @@ export async function signWaitingSales(companyId: string): Promise<RetailFiscalO
       const step = await prisma.$transaction(async (tx) => {
         // The sale first, then its day: the order a refund or a void of it takes them in.
         await tx.$queryRaw`SELECT "id" FROM "RetailSale" WHERE "id" = ${next.id} FOR UPDATE`;
-        const device = await activeDevice(companyId, tx);
+        const device = await tillDevice(companyId, tx);
         const locked = device ? await lockDeviceDay(tx, device.id) : null;
         const [oldest] = await waitingSales(companyId, { take: 1 }, tx);
         if (oldest?.id !== next.id) return "again" as const;
@@ -1254,7 +1240,8 @@ export async function signWaitingSales(companyId: string): Promise<RetailFiscalO
       });
       if (step === "stop") break;
       if (step === "again") continue;
-      placed.push(step.result.fiscalReceiptId ? await sendSigned({ ...step.sale, fiscalWaitsSince: null }, true) : step.result);
+      const receipt = step.result.fiscalReceiptId ? await signedReceiptOf(companyId, step.sale.id) : null;
+      placed.push(receipt ? await sendSigned({ ...step.sale, fiscalWaitsSince: null }, receipt, true) : step.result);
     }
   } catch (error) {
     console.error(`[retail] signing the sales waiting for a fiscal day failed (${companyId}):`, error);

@@ -33,8 +33,10 @@ import {
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import {
+  FISCAL_PROVIDER_KEY,
   resendRetailReceipts,
   retailFiscalDayTaxLines,
+  shopFiscalDevice,
   signWaitingSales,
   waitingSales,
 } from "@/lib/retail/fiscalisation";
@@ -59,14 +61,13 @@ import {
  * Setup › Fiscal device (SET-08, W-06): the shop's ZIMRA device, how its
  * fiscal day closes, and what the tills do while ZIMRA cannot be reached.
  *
- * The device is the company's `ZIMRA_FDMS` `FiscalisationProviderConfig`;
- * the taxpayer and VAT numbers are `AccountingSettings`' (what the signer
- * reads; VAT also onto the branding the receipts print); the two rules are
- * `RetailFiscalSettings`. Every till signs with this one device (10-setup
- * open question 11).
+ * The device is the company's `ZIMRA_FDMS` `FiscalisationProviderConfig`
+ * ({@link shopFiscalDevice}); the taxpayer and VAT numbers are
+ * `AccountingSettings`' (what the signer reads; VAT also onto the branding the
+ * receipts print); the two rules are `RetailFiscalSettings`. Every till signs
+ * with this one device (10-setup open question 11).
  */
 
-export const FISCAL_PROVIDER_KEY = "ZIMRA_FDMS";
 export const FISCAL_SETTINGS_ENTITY = { entityType: "RetailSettings", entityId: "fiscal" } as const;
 
 type Db = typeof prisma | Prisma.TransactionClient;
@@ -81,12 +82,6 @@ export class FiscalRefused extends Error {
     super(message);
     this.name = "FiscalRefused";
   }
-}
-
-export async function shopFiscalDevice(companyId: string, db: Db = prisma): Promise<FiscalisationProviderConfig | null> {
-  return db.fiscalisationProviderConfig.findUnique({
-    where: { companyId_providerKey: { companyId, providerKey: FISCAL_PROVIDER_KEY } },
-  });
 }
 
 export async function loadFiscalSettings(
@@ -374,21 +369,23 @@ export async function testFiscalDevice(companyId: string, clock: () => number = 
 
 /* ── Close a day ─────────────────────────────────────────────────────────── */
 
-/** ZIMRA did not take the Z-report: `silent` when it never answered. */
-class FdmsCloseRefused extends Error {
-  constructor(
-    message: string,
-    readonly silent: boolean,
-  ) {
-    super(message);
-  }
-}
+/** ZIMRA did not take the Z-report, or did not answer it: the day stays closing for the next close. */
+class FdmsCloseRefused extends Error {}
 
-/** ZIMRA did not answer: an open day stays open, and a day whose report it refused still waits. */
+/** ZIMRA did not answer before the report was sent: an open day stays open, and a day whose report waits still waits. */
 function silentCloseWords(dayNo: number, wasClosing: boolean, detail: string): string {
   return wasClosing
     ? `ZIMRA did not answer, so day ${dayNo}'s report still waits. Close it again once ZIMRA is back. (${detail})`
     : `ZIMRA did not answer, so day ${dayNo} stays open and the tills keep signing into it. Close it again once ZIMRA is back. (${detail})`;
+}
+
+/**
+ * ZIMRA did not answer the report: it may have taken it and only its answer
+ * was lost, so the day never takes receipts again — it stays closing, and
+ * the sales wait for the next day.
+ */
+function unansweredReportWords(dayNo: number, detail: string): string {
+  return `ZIMRA did not answer day ${dayNo}'s report, so the day stays closed to sales and they wait for day ${dayNo + 1}. Close it again once ZIMRA is back. (${detail})`;
 }
 
 /** Whether ZIMRA's GetStatus says it has closed `dayNo` already: closed, or a later day on the device. */
@@ -396,6 +393,19 @@ function zimraClosed(status: Awaited<ReturnType<typeof getDeviceStatus>>, dayNo:
   const last = status.data?.lastFiscalDayNo ?? null;
   if (last === null) return false;
   return last > dayNo || (last === dayNo && status.data?.fiscalDayStatus === "FiscalDayClosed");
+}
+
+/** Whether ZIMRA says it has closed `dayNo`; false while it does not answer. */
+async function zimraHasClosed(device: FiscalisationProviderConfig, dayNo: number): Promise<boolean> {
+  let status: Awaited<ReturnType<typeof getDeviceStatus>>;
+  try {
+    status = await getDeviceStatus({ provider: device });
+  } catch {
+    await recordFdmsContact(device.id, false);
+    return false;
+  }
+  await recordFdmsContact(device.id, true);
+  return status.status === "SUCCESS" && zimraClosed(status, dayNo);
 }
 
 /**
@@ -408,15 +418,20 @@ function zimraClosed(status: Awaited<ReturnType<typeof getDeviceStatus>>, dayNo:
  * anything. Then the day stops taking receipts (closing) before anything is
  * counted: the claim waits for every sale signing into the day under its
  * lock, so the report counts every receipt the day holds. Its receipts ZIMRA
- * has not taken go again, and the report. A report that goes unanswered gives
- * an open day back its receipts; one ZIMRA answers with a no leaves it closing
- * until it is closed again. One close holds the day at a time: a second, by
- * hand, with the last shift or from the worker, is refused while the first is
- * on its way, and a close that died is taken over — and when ZIMRA already
- * has the day closed (the dead close's report was taken), it is recorded
- * closed with its report and not sent again. A sale rung while the day is
- * closing waits, and is signed into the next day once the report is taken,
- * or into the same day when it is given back ({@link signWaitingSales}).
+ * has not taken go again, and the report. Once the report has gone out the
+ * day never takes receipts again, whatever comes back: ZIMRA may have taken
+ * it with only its answer lost. So when the report goes unanswered ZIMRA is
+ * asked how the day stands (GetStatus): closed there, the day is recorded
+ * closed with its report; otherwise, or when ZIMRA is still silent, it stays
+ * closing, and so does one whose report ZIMRA answers with a no, until it is
+ * closed again. A day is given back to the tills only when its report never
+ * went out. One close holds the day at a time: a second, by hand, with the
+ * last shift or from the worker, is refused while the first is on its way,
+ * and a closing day no close holds is taken over — and when ZIMRA already has
+ * the day closed (an earlier report was taken), it is recorded closed with its
+ * report and not sent again. A sale rung while the day is closing waits, and
+ * is signed into the next day once the report is taken, or into the same day
+ * when it is given back ({@link signWaitingSales}).
  */
 export async function closeShopFiscalDay(
   actor: RetailAuditActor,
@@ -454,11 +469,14 @@ export async function closeShopFiscalDay(
     if (error instanceof FiscalDayNotOpenError) throw new FiscalRefused(`Day ${day.fiscalDayNo} is already closed.`, 409);
     throw error;
   }
+  // Once the report has gone out, ZIMRA may have closed the day whatever came back: it is never given back.
+  let reportSent = false;
   // Not closed after all, the close lets go of the day. Given back, a day it took open takes the tills'
   // receipts again, the sales that waited on it first; otherwise it stays closing, for the next close.
   const letGo = async (giveBack: boolean) => {
-    const released = await releaseFiscalDayClosing(claim, { reopen: giveBack });
-    if (released && giveBack && claim.from === FISCAL_DAY_STATUS.OPENED) await signWaitingSales(actor.companyId);
+    const reopen = giveBack && !reportSent && claim.from === FISCAL_DAY_STATUS.OPENED;
+    const released = await releaseFiscalDayClosing(claim, { reopen });
+    if (released && reopen) await signWaitingSales(actor.companyId);
   };
   // A day taken over from a close that died, or whose report ZIMRA refused: ZIMRA may have taken its report already.
   const takenAlready = claim.from === FISCAL_DAY_STATUS.CLOSING && zimraClosed(status, day.fiscalDayNo);
@@ -485,6 +503,7 @@ export async function closeShopFiscalDay(
         // The report ZIMRA already took is the one recorded: the same counters, signed the same way.
         if (takenAlready) return signature;
         let answer: Awaited<ReturnType<typeof closeDayOnDevice>>;
+        reportSent = true;
         try {
           answer = await closeDayOnDevice({
             provider: device,
@@ -496,20 +515,14 @@ export async function closeShopFiscalDay(
           });
         } catch (error) {
           await recordFdmsContact(device.id, false);
-          throw new FdmsCloseRefused(
-            silentCloseWords(
-              day.fiscalDayNo,
-              claim.from === FISCAL_DAY_STATUS.CLOSING,
-              error instanceof Error ? error.message : "no reply",
-            ),
-            true,
-          );
+          // The report may have reached ZIMRA with only its answer lost: ZIMRA says whether it closed the day.
+          if (await zimraHasClosed(device, day.fiscalDayNo)) return signature;
+          throw new FdmsCloseRefused(unansweredReportWords(day.fiscalDayNo, error instanceof Error ? error.message : "no reply"));
         }
         await recordFdmsContact(device.id, true);
         if (answer.status !== "SUCCESS") {
           throw new FdmsCloseRefused(
             `ZIMRA did not take day ${day.fiscalDayNo}'s report: ${answer.error ?? "no reason given"}. Sales wait for day ${day.fiscalDayNo + 1} until it is taken.`,
-            false,
           );
         }
         return signature;
@@ -517,11 +530,11 @@ export async function closeShopFiscalDay(
     });
   } catch (error) {
     if (error instanceof FdmsCloseRefused) {
-      // Never received, so never closed: given back. Refused, it waits closing for the next close.
-      await letGo(error.silent);
+      // Refused, or perhaps taken with the answer lost: it waits closing for the next close.
+      await letGo(false);
       throw new FiscalRefused(error.message, 502);
     }
-    // The close holds the day, not closeFiscalDay: it lets go of it here.
+    // The close holds the day, not closeFiscalDay: it lets go of it here — given back only if its report never went out.
     await letGo(true);
     if (error instanceof FiscalDayCloseInProgressError) {
       throw new FiscalRefused(`Day ${day.fiscalDayNo} is already being closed. Its report is on its way to ZIMRA.`, 409, error.code);
@@ -593,9 +606,12 @@ export async function closeFiscalDayIfLastShift(
  * The retail worker's half of "With the last shift" (every five minutes): a
  * day still open after its last shift closed — ZIMRA did not answer then — is
  * closed once ZIMRA answers, while no shift is open. A day that a shift is
- * selling into stays open, even past midnight: it closes with that shift.
- * Nothing on a till or a shift opening ever sends a day's report. Sales rung
- * while a day closed that the close did not get to are signed first.
+ * selling into stays open, even past midnight: it closes with that shift. A
+ * day whose report went unanswered or was refused waits closing, its sales
+ * waiting with it: it is closed again whatever the shifts do — ZIMRA asked
+ * first, so a report it took is recorded, not sent again. Nothing on a till
+ * or a shift opening ever sends a day's report. Sales rung while a day closed
+ * that the close did not get to are signed first.
  */
 export async function closeWaitingFiscalDays(onlyCompanyId?: string): Promise<string> {
   const devices = await prisma.fiscalisationProviderConfig.findMany({
@@ -614,8 +630,9 @@ export async function closeWaitingFiscalDays(onlyCompanyId?: string): Promise<st
     if (signed > 0) said.push(`${signed} ${signed === 1 ? "sale" : "sales"} rung while a day closed signed`);
     if ((await loadFiscalSettings(companyId)).dayClose !== "WITH_LAST_SHIFT") continue;
     const day = await activeDay(device);
-    if (!day || day.status !== FISCAL_DAY_STATUS.OPENED) continue;
-    if ((await prisma.retailShift.count({ where: { companyId, status: "OPEN" } })) > 0) continue;
+    if (!day) continue;
+    const waitsClosing = day.status === FISCAL_DAY_STATUS.CLOSING;
+    if (!waitsClosing && (await prisma.retailShift.count({ where: { companyId, status: "OPEN" } })) > 0) continue;
     const last = await prisma.retailShift.findFirst({
       where: { companyId, status: "CLOSED", closedAt: { gte: day.openedAt } },
       orderBy: { closedAt: "desc" },
