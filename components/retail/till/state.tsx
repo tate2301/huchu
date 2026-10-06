@@ -105,14 +105,17 @@ function savedTag(clientRef: string) {
   return clientRef.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
 }
 
-function lineFromItem(item: PosCatalogItem, depositsOn: boolean): CartItem {
+/** `typedPrice`: what the cashier typed for an open-price product, which is its shelf price. */
+function lineFromItem(item: PosCatalogItem, depositsOn: boolean, typedPrice?: number): CartItem {
+  const price = item.openPrice && typedPrice !== undefined ? typedPrice : item.unitPrice;
   return {
     id: item.id,
     name: item.name,
     catalogItemId: item.id,
     quantity: 1,
-    unitPrice: item.unitPrice,
-    shelfPrice: item.unitPrice,
+    unitPrice: price,
+    shelfPrice: price,
+    openPrice: item.openPrice,
     taxPercent: item.taxPercent,
     taxInclusive: item.taxInclusive,
     lineDiscountAmount: 0,
@@ -526,15 +529,26 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     setSaleRefusal(null);
   };
 
-  const addToCart = (item: PosCatalogItem) => {
+  /** One more of a product; an open-price product comes with the price the cashier typed. */
+  const addToCart = (item: PosCatalogItem, typedPrice?: number) => {
     setCart((current) => {
       const existing = current.find((entry) => entry.catalogItemId === item.id);
+      // Another amount of an open price already on the sale (airtime for US$5, then US$2):
+      // the line is one sale of it, at the two together.
+      if (existing && item.openPrice && typedPrice !== undefined && Math.abs(typedPrice - existing.unitPrice) > 0.009) {
+        const price = round(existing.unitPrice * existing.quantity + typedPrice);
+        return current.map((entry) =>
+          entry.catalogItemId === item.id
+            ? { ...entry, quantity: 1, unitPrice: price, shelfPrice: price, stock: item.inventoryItem?.currentStock }
+            : entry,
+        );
+      }
       if (existing) {
         return current.map((entry) =>
           entry.catalogItemId === item.id ? { ...entry, quantity: entry.quantity + 1, stock: item.inventoryItem?.currentStock } : entry,
         );
       }
-      return [...current, lineFromItem(item, Boolean(features?.emptiesAndDeposits))];
+      return [...current, lineFromItem(item, Boolean(features?.emptiesAndDeposits), typedPrice)];
     });
   };
 
@@ -674,8 +688,15 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
               entry.catalogItemId === catalogItemId ? { ...entry, quantity, emptiesBack: Math.min(entry.emptiesBack, Math.floor(quantity)) } : entry,
             ),
       ),
+    // An open price changed on its line is still the shelf price: not a change, no reason, no manager.
     updateLine: (catalogItemId: string, patch: Partial<Pick<CartItem, "unitPrice" | "lineDiscountAmount" | "stock">>) =>
-      setCart((current) => current.map((entry) => (entry.catalogItemId === catalogItemId ? { ...entry, ...patch } : entry))),
+      setCart((current) =>
+        current.map((entry) =>
+          entry.catalogItemId === catalogItemId
+            ? { ...entry, ...patch, ...(entry.openPrice && patch.unitPrice !== undefined ? { shelfPrice: patch.unitPrice } : {}) }
+            : entry,
+        ),
+      ),
     /** Empties back against a returnable line: whole bottles, never more than the line sells. */
     setEmptiesBack: (catalogItemId: string, emptiesBack: number) =>
       setCart((current) =>

@@ -31,7 +31,11 @@ export type PaymentRow = {
   currency?: TenderCurrency;
 };
 
-/** One product on the shelf, as `pos/catalog` sends it: the till's offline snapshot of its own site. */
+/**
+ * One product on the shelf, as `pos/catalog` sends it: the till's offline
+ * snapshot of its own site, most sold first. `inventoryItem.reorderLevel` is the
+ * stock row's `minStock` (price check's "the reorder level is 6").
+ */
 export type PosCatalogItem = ShelfListing & {
   /** The case this single comes in, while the shop sells cases and singles. */
   openableCase: OpenableCase | null;
@@ -39,6 +43,8 @@ export type PosCatalogItem = ShelfListing & {
   caseOf: CaseOf | null;
   /** The price before a cut on the default list in the last 60 days; struck through on the tile. */
   wasPrice: number | null;
+  /** What the shop calls this deposit ("Bottles, 340 to 375ml"); null when unnamed or none. */
+  depositName: string | null;
 };
 
 /** A line on the sale. `catalogItemId` is the product's id. */
@@ -50,6 +56,8 @@ export type CartItem = {
   unitPrice: number;
   /** What the shelf says; a different `unitPrice` is a change the till rules may send to a manager. */
   shelfPrice: number;
+  /** Sold at whatever the cashier types (airtime): the typed price is the shelf price, never a change. */
+  openPrice: boolean;
   taxPercent: number;
   taxInclusive: boolean;
   lineDiscountAmount: number;

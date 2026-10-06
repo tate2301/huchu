@@ -139,7 +139,13 @@ function OpenShiftGate() {
         <div>
           <h1 className="text-display">Open the shift</h1>
           <p className="under">
-            {session?.user?.name ?? "You"} on {context?.till.name}. Count the float into the drawer.
+            {session?.user?.name ?? "You"} on {context?.till.name}
+            {context?.nextShiftNo ? (
+              <>
+                , shift <span className="num">{context.nextShiftNo}</span>
+              </>
+            ) : null}
+            . Count the float into the drawer.
           </p>
         </div>
         <div className="tender">
@@ -210,9 +216,9 @@ function Workbench() {
   const [pendingTake, setPendingTake] = React.useState(false);
   const selling = cart.filter((item) => !lineStopped(item)).length;
 
-  const add = (item: PosCatalogItem) => {
+  const add = (item: PosCatalogItem, typedPrice?: number) => {
     const firstAdult = Boolean(features?.ageCheck) && item.ageRestricted && !idChecked && !cart.some((line) => line.ageRestricted);
-    addToCart(item);
+    addToCart(item, typedPrice);
     if (firstAdult) setIdCheck(true);
   };
 
@@ -304,10 +310,12 @@ function Shelf({
   onTake,
 }: {
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onAdd: (item: PosCatalogItem) => void;
+  onAdd: (item: PosCatalogItem, typedPrice?: number) => void;
   onShowSale: () => void;
   onTake: () => void;
 }) {
+  // The open-price product whose amount is being asked for. Enter in the search asks for it as well.
+  const [pricing, setPricing] = React.useState<{ id: string; fromSearch: boolean } | null>(null);
   const { data: session } = useSession();
   const {
     context,
@@ -404,6 +412,10 @@ function Shelf({
             type="search"
             aria-label="Scan or search products"
             placeholder="Scan a barcode or type a product"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             autoFocus={pointer}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -411,7 +423,8 @@ function Shelf({
               if (event.key === "Enter") {
                 event.preventDefault();
                 const first = catalogItems[0];
-                if (search.trim() && first) {
+                if (search.trim() && first?.openPrice) setPricing({ id: first.id, fromSearch: true });
+                else if (search.trim() && first) {
                   onAdd(first);
                   setSearch("");
                 }
@@ -427,7 +440,7 @@ function Shelf({
           <Segmented
             label="Product groups"
             value={selectedCategory ?? ""}
-            options={[{ value: "", label: "Everything" }, ...categories.map((category) => ({ value: category.name, label: enumLabel(category.name) }))]}
+            options={[{ value: "", label: "Most sold" }, ...categories.map((category) => ({ value: category.name, label: enumLabel(category.name) }))]}
             onChange={(next) => setSelectedCategory(next || null)}
           />
         </div>
@@ -462,7 +475,23 @@ function Shelf({
       ) : (
         <div className="tile-grid">
           {catalogItems.map((item) => (
-            <ProductTile key={item.id} item={item} stoppedUntil={stoppedUntil} depositsOn={depositsOn} onAdd={onAdd} />
+            <ProductTile
+              key={item.id}
+              item={item}
+              stoppedUntil={stoppedUntil}
+              depositsOn={depositsOn}
+              onAdd={(added, typedPrice) => {
+                onAdd(added, typedPrice);
+                // Asked for from the search: the search clears, as it does for anything Enter adds.
+                if (pricing?.fromSearch) {
+                  setSearch("");
+                  // After the popover hands focus back to its tile (its own timeout, set as it closes).
+                  window.setTimeout(() => window.setTimeout(() => searchRef.current?.focus(), 0), 0);
+                }
+              }}
+              pricing={pricing?.id === item.id}
+              onPricing={(open) => setPricing(open ? { id: item.id, fromSearch: false } : null)}
+            />
           ))}
           {showBottles ? <BottlesBackPopover trigger={<BottlesBackTile count={emptiesBackCount} />} /> : null}
         </div>

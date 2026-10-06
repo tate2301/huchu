@@ -153,9 +153,11 @@ export async function loadShelfListings(
     take?: number;
     /** Read binned lines too: only the record page, which draws the bin banner. */
     includeBinned?: boolean;
+    /** These products lead, in this order (the till's most sold); the rest follow by name. */
+    firstIds?: readonly string[];
   } = {},
 ): Promise<ShelfListing[]> {
-  const { siteId, search, activeOnly, status, category, productIds, take, includeBinned } = options;
+  const { siteId, search, activeOnly, status, category, productIds, take, includeBinned, firstIds = [] } = options;
 
   const stockWhere: Prisma.InventoryItemWhereInput = {
     site: { companyId },
@@ -184,15 +186,32 @@ export async function loadShelfListings(
     ];
   }
 
-  const products = await prisma.product.findMany({
-    where,
-    // Active first, then alphabetical — what `RetailCatalogItem`'s
-    // `[{ status: "asc" }, { name: "asc" }]` came to, since ACTIVE sorts before
-    // INACTIVE.
-    orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    select: listingSelect,
-    ...(take ? { take } : {}),
-  });
+  // The leaders first, then the rest by name to fill `take`: the ranking comes
+  // before the cut, or a best seller late in the alphabet falls off the shelf.
+  const rank = new Map(firstIds.map((id, index) => [id, index]));
+  const leaders = firstIds.length
+    ? (
+        await prisma.product.findMany({
+          where: { AND: [where, { id: { in: [...firstIds] } }] },
+          select: listingSelect,
+        })
+      )
+        .sort((a, b) => rank.get(a.id)! - rank.get(b.id)!)
+        .slice(0, take)
+    : [];
+  const rest =
+    take && leaders.length >= take
+      ? []
+      : await prisma.product.findMany({
+          where: firstIds.length ? { AND: [where, { id: { notIn: [...firstIds] } }] } : where,
+          // Active first, then alphabetical — what `RetailCatalogItem`'s
+          // `[{ status: "asc" }, { name: "asc" }]` came to, since ACTIVE sorts before
+          // INACTIVE.
+          orderBy: [{ isActive: "desc" }, { name: "asc" }],
+          select: listingSelect,
+          ...(take ? { take: take - leaders.length } : {}),
+        });
+  const products = [...leaders, ...rest];
 
   if (products.length === 0) return [];
 
@@ -290,6 +309,35 @@ export async function loadShelfListings(
   }
 
   return listings;
+}
+
+/**
+ * What sells most at one branch: product ids by units on posted sales over the
+ * last `days`, most first. Refunds and voids are documents of their own and do
+ * not count against it; a tie goes by product id so the order holds between loads.
+ */
+export async function mostSoldProductIds(
+  companyId: string,
+  siteId: string,
+  { days = 30, now = new Date() }: { days?: number; now?: Date } = {},
+): Promise<string[]> {
+  const grouped = await prisma.retailSaleLine.groupBy({
+    by: ["productId"],
+    where: {
+      companyId,
+      productId: { not: null },
+      sale: {
+        companyId,
+        siteId,
+        saleType: "SALE",
+        status: "POSTED",
+        postedAt: { gte: new Date(now.getTime() - days * 24 * 60 * 60 * 1000) },
+      },
+    },
+    _sum: { quantity: true },
+    orderBy: [{ _sum: { quantity: "desc" } }, { productId: "asc" }],
+  });
+  return grouped.flatMap((entry) => (entry.productId && toNumberOrZero(entry._sum.quantity) > 0 ? [entry.productId] : []));
 }
 
 /** One line, by product id. Returns null when the product is not this tenant's. */

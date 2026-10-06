@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import {
   ArrowsCounterClockwise,
   BeerBottle,
@@ -14,11 +16,14 @@ import {
   Martini,
   Package,
   PintGlass,
+  Plus,
   SimCard,
   Wine,
 } from "@/lib/icons";
 import { clockLabel } from "@/lib/retail/licence-hours";
 import { count, MEASURES, qty, usd } from "./format";
+import { TillPopover } from "./parts";
+import { useTill } from "./state";
 import type { PosCatalogItem } from "./types";
 
 /** A glyph for a product with no photo, from what its name says it is. */
@@ -69,24 +74,34 @@ function stockLine(item: PosCatalogItem) {
   return `${qty(stock)} ${word} left`;
 }
 
-/** A product on the shelf: press to add one to the sale. */
+/**
+ * A product on the shelf: press to add one to the sale. An open-price product
+ * (airtime) shows "Any" and asks for the amount in a popover from the tile first.
+ */
 export function ProductTile({
   item,
   stoppedUntil,
   depositsOn,
   onAdd,
+  pricing,
+  onPricing,
 }: {
   item: PosCatalogItem;
   /** Minutes after midnight when 18+ products sell again, when they are stopped now. */
   stoppedUntil: number | null | undefined;
   /** The shop charges deposits on returnable bottles. */
   depositsOn: boolean;
-  onAdd: (item: PosCatalogItem) => void;
+  /** `typedPrice`: the amount typed for an open-price product. */
+  onAdd: (item: PosCatalogItem, typedPrice?: number) => void;
+  /** An open-price product's amount is being asked for; Enter in the search opens it too. */
+  pricing?: boolean;
+  onPricing?: (open: boolean) => void;
 }) {
   const stock = item.inventoryItem?.currentStock ?? 0;
   const stopped = item.ageRestricted && stoppedUntil !== undefined;
   const empty = stock <= 0 && !item.openableCase;
   const off = stopped || empty;
+  const was = !item.openPrice && item.wasPrice !== null && item.wasPrice > item.unitPrice ? item.wasPrice : null;
   const tags = [
     ...(item.ageRestricted ? ["18+"] : []),
     ...(depositsOn && item.returnable && item.depositAmount ? [`+${item.depositAmount < 1 ? `${Math.round(item.depositAmount * 100)}c` : usd(item.depositAmount)} deposit`] : []),
@@ -99,28 +114,28 @@ export function ProductTile({
       ? item.openableCase
         ? "None loose, a case opens"
         : "None left"
-      : stockLine(item);
+      : item.openPrice
+        ? "Type the amount"
+        : stockLine(item);
 
-  return (
+  const tile = (
     <button
       type="button"
       className="tile"
-      aria-label={[
-        item.name,
-        usd(item.unitPrice),
-        ...(item.wasPrice !== null && item.wasPrice > item.unitPrice ? [`was ${usd(item.wasPrice)}`] : []),
-        ...tags,
-        status,
-      ].join(", ")}
+      aria-label={[item.name, item.openPrice ? "any amount" : usd(item.unitPrice), ...(was !== null ? [`was ${usd(was)}`] : []), ...tags, status].join(", ")}
       aria-disabled={off || undefined}
-      onClick={() => {
-        if (!off) onAdd(item);
-      }}
+      onClick={
+        item.openPrice
+          ? undefined
+          : () => {
+              if (!off) onAdd(item);
+            }
+      }
     >
       <ProductPreview name={item.name} imageUrl={item.imageUrl} />
       <span className="p">
-        {usd(item.unitPrice)}
-        {item.wasPrice !== null && item.wasPrice > item.unitPrice ? <s className="was">{usd(item.wasPrice)}</s> : null}
+        {item.openPrice ? "Any" : usd(item.unitPrice)}
+        {was !== null ? <s className="was">{usd(was)}</s> : null}
       </span>
       <span className="n">{item.name}</span>
       {tags.length ? (
@@ -132,8 +147,93 @@ export function ProductTile({
           ))}
         </span>
       ) : null}
-      <span className={`s${!off && stock > 0 && stock <= LOW_STOCK ? " low" : !off && item.ageRestricted ? " age" : ""}`}>{status}</span>
+      <span className={`s${!off && !item.openPrice && stock > 0 && stock <= LOW_STOCK ? " low" : !off && item.ageRestricted ? " age" : ""}`}>
+        {status}
+      </span>
     </button>
+  );
+
+  if (!item.openPrice || off) return tile;
+  return (
+    <AmountPopover item={item} open={pricing} onOpenChange={onPricing} onAdd={(price) => onAdd(item, price)}>
+      {tile}
+    </AmountPopover>
+  );
+}
+
+/** The amount for an open-price product, typed in a popover from its tile; Enter adds it. */
+function AmountPopover({
+  item,
+  open,
+  onOpenChange,
+  onAdd,
+  children,
+}: {
+  item: PosCatalogItem;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onAdd: (price: number) => void;
+  children: React.ReactElement;
+}) {
+  const { cart } = useTill();
+  const [own, setOwn] = React.useState(false);
+  const isOpen = open ?? own;
+  const [typed, setTyped] = React.useState("");
+  const id = React.useId();
+  const value = Number(typed);
+  const valid = typed.trim() !== "" && Number.isFinite(value) && value > 0;
+  const onSale = cart.find((line) => line.catalogItemId === item.id);
+  // Every opening starts empty, whether the tile or Enter in the search opened it.
+  const setOpen = (next: boolean) => {
+    setTyped("");
+    setOwn(next);
+    onOpenChange?.(next);
+  };
+
+  return (
+    <TillPopover open={isOpen} onOpenChange={setOpen} label={`${item.name}: the amount`} trigger={children}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!valid) return;
+          onAdd(Number(value.toFixed(2)));
+          setOpen(false);
+        }}
+      >
+        <div className="pop-body">
+          <b className="strong">{item.name}</b>
+          <div className="field">
+            <label htmlFor={id}>Amount</label>
+            <label className="input-wrap input-lg">
+              <span className="muted">US$</span>
+              <input
+                id={id}
+                className="num text-left"
+                inputMode="decimal"
+                autoComplete="off"
+                autoFocus
+                value={typed}
+                aria-describedby={onSale ? `${id}h` : undefined}
+                // Digits and one point, two places at most: anything typed is an amount or on its way to one.
+                onChange={(event) => setTyped(event.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1").replace(/(\.\d{2})\d+$/, "$1"))}
+              />
+            </label>
+          </div>
+          {onSale ? (
+            <span id={`${id}h`} className="help">
+              Already on this sale at {usd(onSale.unitPrice * onSale.quantity)}. This adds to it.
+            </span>
+          ) : null}
+        </div>
+        <div className="pop-foot">
+          <span className="kbd push-left">Esc</span>
+          <button type="submit" className="btn btn-ink" disabled={!valid}>
+            <Plus className="ic" />
+            {valid ? `Add ${usd(value)}` : "Add"}
+          </button>
+        </div>
+      </form>
+    </TillPopover>
   );
 }
 
