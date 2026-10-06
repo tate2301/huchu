@@ -16,6 +16,7 @@ import type { Grant, RecordKind } from "./types";
 
 const UPDATE: Grant = ["retail.catalog", "update"];
 const VIEW: Grant = ["retail.catalog", "view"];
+const ADJUST: Grant = ["retail.adjustments", "create"];
 
 /** "18.50" → "18.50", as the API reads money. A blank or a word is refused in words. */
 function figure(text: string, { optional = false } = {}): string | null {
@@ -75,12 +76,14 @@ export const productKind: RecordKind<ProductView> = {
   reference: (product) => product.code,
   actions: (product) => [
     { key: "edit", label: "Edit", requires: [UPDATE], do: { sheet: "product-edit", id: product.id } },
-    // STK-04 replaces this with its own case-break sheet.
-    ...(product.packOf
-      ? [{ key: "break-case", label: "Open cases into singles", requires: [["retail.stock", "update"] as Grant], do: { event: "break-case" } }]
-      : []),
+    // W-23: breakage, own use, found more or a fixed mistake.
+    { key: "adjust", label: "Adjust stock", requires: [ADJUST], do: { sheet: "stock-adjust", params: { productId: product.id } } },
   ],
   more: (product) => [
+    // W-26: a case, or a single sold by the case too, while the shop sells cases and singles.
+    ...((product.packOf || product.hasCases) && product.casesAndSingles
+      ? [{ key: "case-break", label: "Break a case", requires: [ADJUST], do: { sheet: "case-break", params: { productId: product.id } } }]
+      : []),
     { key: "pdf", label: "Export as PDF", requires: [VIEW], do: { download: `/api/v2/retail/records/Product/${product.id}/pdf` } },
     product.isActive
       ? {

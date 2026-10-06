@@ -38,6 +38,11 @@ export type StockMovementType = "RECEIPT" | "ISSUE" | "ADJUSTMENT" | "TRANSFER";
 export type StockMovementSourceType = AccountingSourceType;
 
 export type RecordStockMovementInput = {
+  /**
+   * The row's id, when the caller needs it before the row exists: a stock
+   * adjustment is its own document, so its `sourceId` is its own id (STK-04).
+   */
+  id?: string;
   companyId: string;
   userId: string;
   itemId: string;
@@ -269,7 +274,7 @@ async function writeMovement(
     throw new Error("Stock cannot be negative.");
   }
 
-  const id = randomUUID();
+  const id = input.id ?? randomUUID();
   const createdAt = input.entryDate ?? new Date();
 
   // Rows already later than this one in (createdAt, id) order.

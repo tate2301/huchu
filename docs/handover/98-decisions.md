@@ -137,6 +137,19 @@ Recorded unit choices:
   under another key is not the shop's, however recently it was changed.
 - **SET-08 prices the demo shelf at 15.5% VAT.** The boards draw 15%; ZIMRA maps only 15.5% (VAT15_5, taxID 1) since
   1 January 2026, and the till signs only a rate ZIMRA maps. The seed prices the products, the categories and the history at 15.5%.
+- **STK-04 Adjust stock draws no Site field.** `StockAdjust.png` has none, so the sheet adjusts the line it opened on: the
+  default site's (or the product's only line), named in the sub ("· 13 on hand at Harare Main Branch" with two sites);
+  On hand's row menu opens it on another site with `&siteId=`.
+- **STK-04 Break a case averages the singles' cost.** The singles come in at the case's cost shared over its bottles,
+  averaged with the singles already on the line (`blendedCost` in `lib/retail/stock/cases.ts`), to the cent. The singles
+  on the shelf are not revalued, and the case's value moves into them whole, give or take that cent's rounding, so a
+  break still posts nothing.
+- **STK-04 Reverse posts back what the adjustment posted.** The opposite is the original's journal; while that waits for
+  the day's run, the amount its accounting event holds; else the value its `RETAIL_STOCK.ADJUSTED` event recorded. Never
+  the line's cost at the time of the reversal.
+- **STK-04 seeds BRK-0012 as Tafara Nyathi on the Castle case's record.** The packet's "Farai Moyo on his open shift" is
+  not true on 30 Sep (his open shift began on 4 Oct), and the till's rule needs no singles left. The seed's break is the
+  record's: cases 23 → 22, singles 2 → 26.
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

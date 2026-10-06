@@ -269,7 +269,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       setPanel(handOver);
       return;
     }
-    const sentence = doneSentence(kind, result, values);
+    const sentence = doneSentence(kind, result, values, payload);
     if (again) {
       // What the load brought (`_` facts) stays, and the fields the kind keeps;
       // every other field starts again empty.
@@ -341,6 +341,8 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
         await after(result, again, answer.payload);
         return;
       }
+      const refused = kind.onRefused?.(answer.payload, values) ?? null;
+      if (refused) setValues((current) => ({ ...current, ...refused }));
       const failure = submitFailure(answer.status, answer.payload, fieldIds(kind));
       setErrors(failure.fieldErrors);
       setFooterError(failure.footer);

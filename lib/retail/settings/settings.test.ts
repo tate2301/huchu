@@ -31,6 +31,10 @@ describe("the Shop page's rules", () => {
     }
   });
 
+  it("refreshes product records on save, so Break a case follows Cases and singles", () => {
+    expect(companyPage.invalidates).toContainEqual(["retail-product"]);
+  });
+
   it("offers the twelve months the year can start in, and the two currencies", () => {
     expect(YEAR_STARTS).toHaveLength(12);
     expect([YEAR_STARTS[0], YEAR_STARTS[11]]).toEqual(["1 January", "1 December"]);

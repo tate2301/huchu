@@ -174,6 +174,28 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     );
   });
 
+  it("adjustments and case breaks (W-23, W-26), money only for those who see cost", () => {
+    expect(activityWords("RETAIL_STOCK.ADJUSTED", { why: "BROKEN", delta: -2, value: "26.06" })).toEqual({
+      what: "Took 2 off: broken or spoilt, US$26.06",
+      tone: "warn",
+    });
+    expect(activityWords("RETAIL_STOCK.ADJUSTED", { why: "OWN_USE", delta: -1, value: "13.03" }).what).toBe(
+      "Took 1 off: own use or gift, US$13.03",
+    );
+    expect(activityWords("RETAIL_STOCK.ADJUSTED", { why: "BROKEN", delta: -2, value: "26.06" }, { seeCost: false }).what).toBe(
+      "Took 2 off: broken or spoilt",
+    );
+    expect(activityWords("RETAIL_STOCK.ADJUSTED", { why: "FOUND", delta: 2, value: "26.06" }, { seeCost: false }).what).toBe("Added 2: found more");
+    expect(activityWords("RETAIL_STOCK.ADJUSTED", { why: "CORRECTION", delta: -2, from: 13, to: 11 })).toEqual({
+      what: "Set on hand from 13 to 11",
+      tone: "warn",
+    });
+    expect(activityWords("RETAIL_STOCK.CASE_BROKEN", { reference: "BRK-0012", cases: 1, singles: 24 })).toEqual({
+      what: "Broke 1 case into 24 singles (BRK-0012)",
+      tone: "hollow",
+    });
+  });
+
   it("transfers sent, changed, received and cancelled (30-stock 3.3)", () => {
     expect(activityWords("RETAIL_STOCK_TRANSFER.SENT", { units: 540, to: "Borrowdale" })).toEqual({ what: "Sent 540 units to Borrowdale", tone: "info" });
     expect(activityWords("RETAIL_STOCK_TRANSFER.CHANGED", { units: 560 })).toEqual({ what: "Changed the lines: 560 units on the way", tone: "info" });

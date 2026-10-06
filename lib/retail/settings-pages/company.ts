@@ -48,6 +48,8 @@ export const companyPage: SettingsPage = {
   read: ["retail.company", "view"],
   change: ["retail.company", "update"],
   whoCanChange: "Owners only. Every change shows in Activity with who made it.",
+  // A product record's "Break a case" and its liquor details follow these switches.
+  invalidates: [["retail-product"]],
   sections: [
     {
       title: "Business type",

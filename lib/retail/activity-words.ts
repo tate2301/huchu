@@ -69,6 +69,49 @@ function movementsReversedWords(payload: Payload): ActivityWords {
   return { what: `Reversed ${list}`, tone: "hollow" };
 }
 
+const WHY_WORDS: Record<string, string> = {
+  BROKEN: "broken or spoilt",
+  OWN_USE: "own use or gift",
+  FOUND: "found more",
+};
+
+/** A count as typed: whole numbers grouped, a weight to its decimals. */
+const countWords = (value: number) => (Number.isInteger(value) ? formatCount(value) : String(value));
+
+/**
+ * "Took 2 off: broken or spoilt, US$26.06", "Added 2: found more", "Set on
+ * hand from 13 to 11" (W-23). The money part only for those who may see cost.
+ */
+function stockAdjustedWords(payload: Payload, seeCost: boolean): ActivityWords {
+  const delta = amount(payload.delta) ?? 0;
+  const value = amount(payload.value);
+  const money = seeCost && value !== null && value > 0 ? `, ${formatMoney(value)}` : "";
+  const why = text(payload.why) ?? "";
+  if (why === "CORRECTION") {
+    const from = amount(payload.from);
+    const to = amount(payload.to);
+    return {
+      what: from !== null && to !== null ? `Set on hand from ${countWords(from)} to ${countWords(to)}` : "Set the number on hand",
+      tone: "warn",
+    };
+  }
+  if (delta > 0) return { what: `Added ${countWords(delta)}: ${WHY_WORDS[why] ?? "found more"}${money}`, tone: "warn" };
+  return { what: `Took ${countWords(-delta)} off: ${WHY_WORDS[why] ?? "adjusted"}${money}`, tone: "warn" };
+}
+
+/** "Broke 1 case into 24 singles (BRK-0012)" (W-26). */
+function caseBrokenWords(payload: Payload): ActivityWords {
+  const cases = amount(payload.cases) ?? 1;
+  const singles = amount(payload.singles);
+  const ref = text(payload.reference);
+  return {
+    what: `Broke ${formatCount(cases)} ${cases === 1 ? "case" : "cases"}${
+      singles === null ? "" : ` into ${formatCount(singles)} ${singles === 1 ? "single" : "singles"}`
+    }${ref ? ` (${ref})` : ""}`,
+    tone: "hollow",
+  };
+}
+
 function shiftClosedWords(payload: Payload): ActivityWords {
   const variance = amount(payload.variance);
   if (variance === null || amount(payload.countedCash) === null) {
@@ -226,9 +269,11 @@ function roleWords(role: string): string {
   return /^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`;
 }
 
-const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWords> = {
+const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boolean) => ActivityWords> = {
   [RETAIL_AUDIT_EVENTS.recordEdited]: recordEditedWords,
   [RETAIL_AUDIT_EVENTS.movementsReversed]: movementsReversedWords,
+  [RETAIL_AUDIT_EVENTS.stockAdjusted]: (payload, _type, seeCost) => stockAdjustedWords(payload, seeCost),
+  [RETAIL_AUDIT_EVENTS.caseBroken]: caseBrokenWords,
   [RETAIL_AUDIT_EVENTS.recordBinned]: () => ({ what: "Moved to the bin", tone: "bad" }),
   [RETAIL_AUDIT_EVENTS.recordRestored]: () => ({ what: "Restored from the bin", tone: "ok" }),
   [RETAIL_AUDIT_EVENTS.recordPurged]: (payload) => ({
@@ -395,8 +440,9 @@ export function fallbackWords(eventType: string): string {
 }
 
 /** The sentence and tone for one event. */
-export function activityWords(eventType: string, payload: Payload | null): ActivityWords {
+/** `seeCost`: the reader may see what the shop paid; without it, money at cost is left out. */
+export function activityWords(eventType: string, payload: Payload | null, { seeCost = true }: { seeCost?: boolean } = {}): ActivityWords {
   const words = WORDS[eventType];
-  if (words) return words(payload ?? {}, eventType);
+  if (words) return words(payload ?? {}, eventType, seeCost);
   return { what: fallbackWords(eventType), tone: "hollow" };
 }

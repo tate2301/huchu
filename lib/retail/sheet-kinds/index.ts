@@ -5,6 +5,7 @@ import { PEOPLE_SHEETS } from "./people";
 import { PRODUCT_SHEETS } from "./products";
 import { SETUP_SHEETS } from "./setup";
 import { STOCK_SHEETS } from "./stock";
+import { STOCK_ADJUST_SHEETS } from "./stock-adjust";
 import { TILL_SHEETS } from "./tills";
 
 /**
@@ -16,6 +17,7 @@ export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...PRODUCT_SHEETS,
   ...SETUP_SHEETS,
   ...STOCK_SHEETS,
+  ...STOCK_ADJUST_SHEETS,
   ...TILL_SHEETS,
   ...PEOPLE_SHEETS,
 };

@@ -8,6 +8,7 @@ import { categoryPath, vatLabelOf } from "@/lib/retail/category-words";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { ageCheckFor } from "@/lib/retail/products/age-check";
 import { onHandLabel } from "@/lib/retail/products/figures";
+import { shopFeatures } from "@/lib/retail/shop-profile-rules";
 
 /**
  * One product as its record and its Edit sheet read it (20-products 4.2,
@@ -67,6 +68,10 @@ export type ProductView = {
   packOf: { id: string; name: string } | null;
   packSize: number | null;
   breakAtTill: boolean;
+  /** Sold by the case too: an active case holds this single. */
+  hasCases: boolean;
+  /** The shop's Cases and singles switch (liquor stores). */
+  casesAndSingles: boolean;
   returnable: boolean;
   depositAmount: number | null;
   /** The stock line's unit: "bottle". */
@@ -156,7 +161,10 @@ export async function loadProductView(companyId: string, id: string, role: strin
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true, currency: true, taxInclusive: true },
     }),
-    prisma.retailShopProfile.findUnique({ where: { companyId }, select: { defaultSiteId: true } }),
+    prisma.retailShopProfile.findUnique({
+      where: { companyId },
+      select: { defaultSiteId: true, businessType: true, ageCheck: true, licenceHours: true, emptiesAndDeposits: true, casesAndSingles: true },
+    }),
     binState(companyId, "Product", id, product.archivedAt),
   ]);
 
@@ -218,6 +226,8 @@ export async function loadProductView(companyId: string, id: string, role: strin
     packOf: product.packOf,
     packSize: product.packOf ? product.packSize : null,
     breakAtTill: product.breakAtTill,
+    hasCases: product.packs.length > 0,
+    casesAndSingles: profile ? shopFeatures(profile).casesAndSingles : false,
     returnable: product.returnable,
     depositAmount: num(product.depositAmount),
     unit,

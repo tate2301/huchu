@@ -71,7 +71,7 @@ export async function readRecordActivity(
   type: string,
   id: string,
   spec: RecordActivityType,
-  { page, size }: { page: number; size: number },
+  { page, size, seeCost = true }: { page: number; size: number; seeCost?: boolean },
 ): Promise<ActivityPage> {
   const related = (await spec.related?.(companyId, id)) ?? [];
   const where = {
@@ -119,7 +119,7 @@ export async function readRecordActivity(
     total,
     rows: events.map((event, index) => {
       const payload = payloads[index]!;
-      const words = activityWords(event.eventType, payload);
+      const words = activityWords(event.eventType, payload, { seeCost });
       const carried = typeof payload.actorName === "string" && payload.actorName ? payload.actorName : null;
       const name = event.actor ? (carried ?? names.get(event.actor) ?? "Someone") : "Automatic";
       return {

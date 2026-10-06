@@ -79,6 +79,14 @@ export const RETAIL_AUDIT_EVENTS = {
    */
   movementsReversed: "RETAIL_STOCK.MOVEMENTS_REVERSED",
   /**
+   * Stock taken off or put on by hand (W-23): broken, own use, found more or
+   * a fixed mistake. Entity `Product`; carries the reference, why, the signed
+   * change, its value at cost, the site and who approved it.
+   */
+  stockAdjusted: "RETAIL_STOCK.ADJUSTED",
+  /** Cases opened into singles (W-26). Entity the case `Product`; carries the reference, cases, singles and site. */
+  caseBroken: "RETAIL_STOCK.CASE_BROKEN",
+  /**
    * The shop stopped waiting for the rest of an order, or started waiting
    * again. Carries what was still owed, because a supplier who short-delivers
    * every month is a conversation the owner needs the figures for.
