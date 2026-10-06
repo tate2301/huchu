@@ -555,9 +555,9 @@ export function buildRetailSaleSigningInput(input: {
     fiscal: {
       receiptType,
       receiptCurrency: sale.currency,
-      // The sale's own timestamp, not "now": a queued sale is dated when it was
-      // rung, because that is the date on the slip the customer walked out with
-      // and the date a portal lookup has to match.
+      // The receipt's own date (`FiscalReceipt.receiptDate`): the sale's time,
+      // never later than now, or the day's last receipt when that is later, so
+      // ZIMRA's dates never go backwards and a resend sends the same one.
       receiptDate: sale.receiptDate,
       receiptTotal,
       taxes,
@@ -1359,7 +1359,7 @@ export async function retailFiscalDayTaxLines(input: {
 }): Promise<Record<string, Array<{ taxId: number; taxPercent: string | null; salesAmountCents: bigint; taxAmountCents: bigint }>>> {
   const receipts = await prisma.fiscalReceipt.findMany({
     where: { companyId: input.companyId, fiscalDayId: input.fiscalDayId, retailSaleId: { not: null } },
-    select: { id: true, retailSaleId: true },
+    select: { id: true, retailSaleId: true, receiptDate: true },
   });
   const lines: Awaited<ReturnType<typeof retailFiscalDayTaxLines>> = {};
   for (const receipt of receipts) {
@@ -1368,11 +1368,12 @@ export async function retailFiscalDayTaxLines(input: {
       include: SALE_INCLUDE,
     })) as LoadedSale | null;
     if (!sale) continue;
-    const receiptDate = sale.postedAt ?? sale.createdAt;
+    // Tax as of the sale's own time, on the date the receipt was signed with, as `signable` builds it.
+    const soldAt = sale.postedAt ?? sale.createdAt;
     try {
-      const resolver = await loadRetailTaxResolver({ companyId: input.companyId, asOf: receiptDate });
+      const resolver = await loadRetailTaxResolver({ companyId: input.companyId, asOf: soldAt });
       const bundle = buildRetailSaleSigningInput({
-        sale: { ...sale, receiptDate },
+        sale: { ...sale, receiptDate: receipt.receiptDate ?? soldAt },
         lines: await resolveLineRates(input.companyId, sale),
         resolver,
       });
