@@ -44,7 +44,9 @@ import {
   foldAt,
   gridMinWidth,
   gridTemplate,
+  impliedColumns,
   nextColumnSort,
+  pageSpec,
   runEndpoint,
   selectionTotals,
   shownColumns,
@@ -93,7 +95,20 @@ function isTyping(target: EventTarget | null): boolean {
 
 type AllSelected = { key: string; ids: string[]; rows: ReportRow[] };
 
-export function ListFrame({ source, title }: { source: string; title: string }) {
+export type ListFrameProps = {
+  source: string;
+  title: string;
+  /** The header's sub, where the page says it rather than the source ("Templates that read stock …"). */
+  sub?: string;
+  /** The filters on the toolbar row, in place of the source's `primary`; the others sit inside Filters. */
+  rowFilters?: readonly string[];
+  /** This page's sort before anyone picks one, in place of the source's first. */
+  defaultSort?: string;
+  /** This page's grouping before anyone picks one (`null`: none), in place of the source's. */
+  defaultGroup?: string | null;
+};
+
+export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup }: ListFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -103,7 +118,7 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   const home = useHomeLink();
   const phone = shell.width === "phone";
 
-  const address = useListAddress(source);
+  const address = useListAddress(source, { sort: defaultSort, group: defaultGroup });
   const apiQuery = address.listParams.toString();
   const listQuery = useQuery({
     queryKey: ["list", source, apiQuery],
@@ -119,8 +134,10 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   });
   // Nothing from a cache until mounted, so the first render matches the server's.
   const data = address.ready ? listQuery.data : undefined;
-  const spec = data?.report.list ?? null;
   const resolved = data?.query ?? null;
+  const spec = React.useMemo(() => pageSpec(data?.report.list ?? null, rowFilters), [data?.report.list, rowFilters]);
+  // Columns the page already says (the area of an area page, the grouped column) are not drawn on every row.
+  const implied = React.useMemo(() => impliedColumns(spec, resolved), [resolved, spec]);
   const definition = React.useMemo(() => getReportDefinition(source), [source]);
 
   const [phoneFilters, setPhoneFilters] = React.useState(false);
@@ -139,8 +156,8 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   );
   const columns = React.useMemo(() => {
     const all = spec?.columns ?? (definition?.list?.columns ?? []).filter((column) => column.requires !== "view-cost");
-    return shownColumns(all, hidden, width);
-  }, [definition, hidden, spec?.columns, width]);
+    return shownColumns(all, [...hidden, ...implied], width);
+  }, [definition, hidden, implied, spec?.columns, width]);
   const template = gridTemplate(columns);
   const minWidth = gridMinWidth(columns);
 
@@ -148,11 +165,11 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   const defaults = React.useMemo(
     () => ({
       tab: spec?.tabs?.[0]?.key ?? null,
-      sort: spec?.sorts[0]?.key,
-      group: spec?.defaultGroup ?? null,
+      sort: defaultSort ?? spec?.sorts[0]?.key,
+      group: defaultGroup !== undefined ? defaultGroup : (spec?.defaultGroup ?? null),
       filters: spec ? defaultFilters(spec) : {},
     }),
-    [spec],
+    [defaultGroup, defaultSort, spec],
   );
   const write = React.useCallback(
     (patch: Parameters<typeof address.write>[0]) => address.write(patch, defaults),
@@ -507,7 +524,7 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   const chrome = (
     <PageChrome
       title={title}
-      sub={parent?.label ?? definition?.list?.sub ?? null}
+      sub={sub ?? parent?.label ?? definition?.list?.sub ?? null}
       subLink={clearParent ?? (refusal ? null : sheetLink)}
       primary={refusal ? null : primary}
     />
@@ -526,6 +543,11 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   const total = data?.total ?? null;
   const everEmpty = Boolean(data?.everEmpty);
   const noMatch = Boolean(data && !everEmpty && data.total === 0);
+  // A tab that holds nothing at all says so in its own words ("Nothing of yours yet. …").
+  const tabEmpty =
+    noMatch && resolved?.tab && data?.tabs?.[resolved.tab] === 0
+      ? (spec?.tabs?.find((tab) => tab.key === resolved.tab)?.empty ?? null)
+      : null;
   const firstLoad = !data && !listQuery.error;
   const loadError = !data && listQuery.error ? getApiErrorMessage(listQuery.error, "") : null;
   const stale = listQuery.isPlaceholderData || (listQuery.isFetching && !listQuery.isPending);
@@ -671,7 +693,7 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
         ) : loadError !== null ? (
           <LoadError noun={definition?.list?.noun ?? "rows"} message={loadError} onRetry={() => listQuery.refetch()} />
         ) : noMatch && spec ? (
-          <NoMatch noun={spec.noun} onClear={clearAll} />
+          <NoMatch noun={spec.noun} line={tabEmpty} onClear={clearAll} />
         ) : spec ? (
           <ListCards
             spec={spec}
@@ -707,7 +729,7 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
   ) : loadError !== null ? (
     <LoadError noun={definition?.list?.noun ?? "rows"} message={loadError} onRetry={() => listQuery.refetch()} />
   ) : noMatch && spec ? (
-    <NoMatch noun={spec.noun} onClear={clearAll} />
+    <NoMatch noun={spec.noun} line={tabEmpty} onClear={clearAll} />
   ) : undefined;
 
   return (
@@ -734,6 +756,7 @@ export function ListFrame({ source, title }: { source: string; title: string }) 
                 onSort={(sort) => write({ sort })}
                 onGroup={(group) => write({ group })}
                 hidden={hidden}
+                implied={implied}
                 onHidden={(next) => address.setHidden(next)}
                 onExport={(format) => doExport(format)}
               />

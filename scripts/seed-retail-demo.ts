@@ -54,6 +54,9 @@ import { RETAIL_ROLE_ACCOUNT_CODES } from "@/lib/accounting/defaults"
 import { postIntegrationEvent } from "@/lib/accounting/integration"
 import { RETAIL_SOURCE_TYPES } from "@/lib/retail/posting-settings"
 import { prisma } from "@/lib/prisma"
+import { builtInTemplate, type TemplateQuery } from "@/lib/reports/definitions/retail/templates"
+import { getReportDefinition } from "@/lib/reports/registry"
+import { fromTemplateQuery } from "@/lib/reports/template-query"
 import { addContact, createSupplier, type SendsWord, type SupplierInput } from "@/lib/retail/buying/suppliers"
 import { createProduct } from "@/lib/retail/products/create"
 import { productInput } from "@/lib/retail/products/input"
@@ -1325,6 +1328,7 @@ async function main() {
   await seedFiscal(companyId)
   await seedApprovals(companyId)
   await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
+  await seedReportTemplates(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -3268,6 +3272,132 @@ async function seedSuppliers(input: { companyId: string; mainSiteId: string; sof
     })
   }
   console.log(`  ${SEED_SUPPLIERS.length} suppliers (SUP-0001 to SUP-0007), their products, and Sprite 500ml from Delta`)
+}
+
+/**
+ * INS-07. Reports › Every template (70-insights-reports 3.8): the team's saved
+ * templates and when each template was last opened in the shop. A saved
+ * template is seeded only once its source reads through a report face, so the
+ * catalogue never lists a template that cannot run: today "Voids and refunds
+ * by cashier" (shifts); "Weekend takings by shop" and "Empties owed by
+ * supplier" join when their sources do. Idempotent: by name, and one use row
+ * per template.
+ */
+async function seedReportTemplates(companyId: string) {
+  const people = await prisma.user.findMany({
+    where: { companyId, email: { in: ["owner@bottlestore.test", "tafara.manager@bottlestore.test", "rufaro.manager@bottlestore.test"] } },
+    select: { id: true, email: true },
+  })
+  const who = (email: string) => people.find((person) => person.email === email)?.id ?? null
+  const owner = who("owner@bottlestore.test")
+  if (!owner) return
+
+  const now = Date.now()
+  /** A time of day `daysBack` days ago, never in the future. */
+  const at = (daysBack: number, hour: number, minute: number) =>
+    new Date(Math.min(harareTime(daysBack, hour, minute).getTime(), now - 60_000))
+
+  type SavedSeed = {
+    name: string
+    maker: string
+    audience: "JUST_ME" | "MANAGERS" | "EVERYONE"
+    description: string
+    source: string
+    query: TemplateQuery
+    createdDaysAgo: number
+    opened: { opens: number; at: Date }
+  }
+  const saved: SavedSeed[] = [
+    {
+      name: "Weekend takings by shop",
+      maker: "owner@bottlestore.test",
+      audience: "MANAGERS",
+      description: "Friday 17:00 to Sunday close, each shop, by payment",
+      source: "retail-sales",
+      query: {
+        filters: { when: "last-weekend" },
+        rows: ["site"],
+        cols: ["site", "sales", "cash", "ecocash", "card", "account", "taken"],
+        sort: "most-taken",
+      },
+      createdDaysAgo: 19,
+      opened: { opens: 22, at: at(5, 7, 5) },
+    },
+    {
+      name: "Empties owed by supplier",
+      maker: "rufaro.manager@bottlestore.test",
+      audience: "EVERYONE",
+      description: "Bottles and crates out, and the deposit each supplier holds",
+      source: "retail-empties",
+      query: { filters: { kind: "supplier" }, rows: ["supplier"], cols: ["supplier", "bottles", "crates", "deposit"] },
+      createdDaysAgo: 26,
+      opened: { opens: 1, at: at(1, 16, 20) },
+    },
+    {
+      name: "Voids and refunds by cashier",
+      maker: "tafara.manager@bottlestore.test",
+      audience: "JUST_ME",
+      description: "Who voided or refunded what, this month",
+      source: "retail-shifts",
+      query: {
+        filters: { opened: "this-month" },
+        rows: ["cashier"],
+        cols: ["cashier", "shifts", "refunds", "voids", "noSaleOpens"],
+      },
+      createdDaysAgo: 12,
+      opened: { opens: 1, at: at(4, 18, 20) },
+    },
+  ]
+
+  let made = 0
+  for (const seed of saved) {
+    const face = getReportDefinition(seed.source)?.report
+    const maker = who(seed.maker)
+    if (!face || !maker) continue
+    const { view, params } = fromTemplateQuery(seed.query, face)
+    const data = {
+      reportKey: seed.source,
+      description: seed.description,
+      view: view as unknown as Prisma.InputJsonValue,
+      params,
+      audience: seed.audience,
+      createdById: maker,
+    }
+    const existing = await prisma.reportTemplate.findFirst({ where: { companyId, name: seed.name }, select: { id: true } })
+    const template = existing
+      ? await prisma.reportTemplate.update({ where: { id: existing.id }, data, select: { id: true } })
+      : await prisma.reportTemplate.create({
+          data: { ...data, companyId, name: seed.name, createdAt: at(seed.createdDaysAgo, 10, 0) },
+          select: { id: true },
+        })
+    await prisma.reportTemplateUse.upsert({
+      where: { companyId_templateRef: { companyId, templateRef: template.id } },
+      create: { companyId, templateRef: template.id, templateId: template.id, opens: seed.opened.opens, lastOpenedAt: seed.opened.at, lastOpenedById: maker },
+      update: { opens: seed.opened.opens, lastOpenedAt: seed.opened.at, lastOpenedById: maker },
+    })
+    made += 1
+  }
+
+  // When each built-in was last opened in the shop (the board's Last opened column).
+  const builtInsOpened: Array<[slug: string, daysBack: number, hour: number, minute: number]> = [
+    ["items-sold", 1, 17, 40],
+    ["stock-on-hand", 1, 9, 15],
+    ["count-differences", 3, 10, 2],
+    ["stock-movements", 2, 15, 30],
+    ["takings-by-payment", 0, 8, 2],
+    ["till-shifts", 0, 7, 58],
+  ]
+  for (const [slug, daysBack, hour, minute] of builtInsOpened) {
+    if (!builtInTemplate(slug)) continue
+    const templateRef = `builtin:${slug}`
+    const lastOpenedAt = at(daysBack, hour, minute)
+    await prisma.reportTemplateUse.upsert({
+      where: { companyId_templateRef: { companyId, templateRef } },
+      create: { companyId, templateRef, opens: 1, lastOpenedAt, lastOpenedById: owner },
+      update: { opens: 1, lastOpenedAt, lastOpenedById: owner },
+    })
+  }
+  console.log(`  report templates: ${made} saved, ${builtInsOpened.length} built-ins last opened`)
 }
 
 /**

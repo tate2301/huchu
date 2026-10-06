@@ -29,8 +29,18 @@ export function SkeletonRows({ columns, template }: { columns: ListColumn[]; tem
   );
 }
 
-/** Nothing matches: the head stays; a 160px block under it. */
-export function NoMatch({ noun, onClear }: { noun: string; onClear: () => void }) {
+/**
+ * Nothing matches: the head stays; a 160px block under it. A tab that holds
+ * nothing at all says so in its own `line`, with nothing to clear.
+ */
+export function NoMatch({ noun, line, onClear }: { noun: string; line?: string | null; onClear: () => void }) {
+  if (line) {
+    return (
+      <div className="cx-lf-block" role="status">
+        <span className="cx-lf-block__line">{line}</span>
+      </div>
+    );
+  }
   return (
     <div className="cx-lf-block" role="status">
       <span className="cx-lf-block__line">No {noun} match these filters.</span>

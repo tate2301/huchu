@@ -32,6 +32,7 @@ export function ListToolbar({
   onSort,
   onGroup,
   hidden,
+  implied,
   onHidden,
   onExport,
 }: {
@@ -50,6 +51,7 @@ export function ListToolbar({
   onSort: (sort: string) => void;
   onGroup: (group: string | null) => void;
   hidden: string[];
+  implied?: readonly string[];
   onHidden: (hidden: string[]) => void;
   onExport: (format: ExportFormat) => void;
 }) {
@@ -107,6 +109,7 @@ export function ListToolbar({
         sort={query.sort}
         group={query.group}
         hidden={hidden}
+        implied={implied}
         onSort={onSort}
         onGroup={onGroup}
         onHidden={onHidden}

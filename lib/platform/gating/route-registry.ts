@@ -150,6 +150,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/retail/customers", featureKey: "crm.customers" },
   { scope: "page", prefix: "/retail/accounts", featureKey: "crm.customers" },
   { scope: "page", prefix: "/retail/insights", featureKey: "retail.reports" },
+  { scope: "page", prefix: "/retail/reports", featureKey: "retail.reports" },
   { scope: "page", prefix: "/retail/manage/fiscal", featureKey: "accounting.zimra.fiscalisation" },
   { scope: "page", prefix: "/retail/manage", featureKey: "retail.core" },
   // First-run setup (onboarding) keeps its prefix (99-coverage C-18).
@@ -471,6 +472,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/retail/shifts", featureKey: "retail.shifts" },
   { scope: "api", prefix: "/api/v2/retail/pos", featureKey: "retail.pos" },
   { scope: "api", prefix: "/api/v2/retail/insights", featureKey: "retail.reports" },
+  { scope: "api", prefix: "/api/v2/retail/reports", featureKey: "retail.reports" },
   // Setup › Fiscal device (SET-08): its settings and its actions (connect, test, close a day).
   { scope: "api", prefix: "/api/v2/retail/settings/fiscal", featureKey: "accounting.zimra.fiscalisation" },
   { scope: "api", prefix: "/api/v2/retail/fiscal", featureKey: "accounting.zimra.fiscalisation" },

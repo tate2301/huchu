@@ -12,7 +12,8 @@ import { STOCK_COUNT_LOADERS } from "@/lib/reports/loaders/retail/stock-counts";
 import { SITE_LOADERS } from "@/lib/reports/loaders/retail/sites";
 import { TILL_LOADERS } from "@/lib/reports/loaders/retail/tills";
 import { REPORT_ONLY_LOADERS } from "@/lib/reports/loaders/retail/reports";
+import { REPORT_CATALOG_LOADERS } from "@/lib/reports/loaders/retail/reports-catalog";
 import type { ReportLoader } from "@/lib/reports/types";
 
 /** Retail's loaders, one file per area, paired by key with `definitions/retail`. */
-export const RETAIL_LOADERS: Record<string, ReportLoader> = { ...FLOOR_LOADERS, ...SHIFT_RECORD_LOADERS, ...PRODUCT_LOADERS, ...STOCK_ON_HAND_LOADERS, ...STOCK_MOVEMENT_LOADERS, ...STOCK_TRANSFER_LOADERS, ...STOCK_COUNT_LOADERS, ...CATEGORY_LOADERS, ...BIN_LOADERS, ...SITE_LOADERS, ...TILL_LOADERS, ...PEOPLE_LOADERS, ...BUYING_LOADERS, ...REPORT_ONLY_LOADERS };
+export const RETAIL_LOADERS: Record<string, ReportLoader> = { ...FLOOR_LOADERS, ...SHIFT_RECORD_LOADERS, ...PRODUCT_LOADERS, ...STOCK_ON_HAND_LOADERS, ...STOCK_MOVEMENT_LOADERS, ...STOCK_TRANSFER_LOADERS, ...STOCK_COUNT_LOADERS, ...CATEGORY_LOADERS, ...BIN_LOADERS, ...SITE_LOADERS, ...TILL_LOADERS, ...PEOPLE_LOADERS, ...BUYING_LOADERS, ...REPORT_ONLY_LOADERS, ...REPORT_CATALOG_LOADERS };

@@ -162,10 +162,12 @@ export function ShellNavProvider({
   // server's HTML: until then the panel draws the facts the server found.
   const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   const conditions = (mounted ? badgesQuery.data?.conditions : undefined) ?? shopConditions;
+  const badges = (mounted && badgesQuery.data?.badges) || NO_BADGES;
 
-  // An item whose shop condition does not hold is not drawn for anyone.
+  // An item whose shop condition does not hold is not drawn for anyone; one
+  // that waits on a badge is not drawn without it.
   const model = React.useMemo(() => {
-    const hidden = hiddenRetailNavHrefs(conditions);
+    const hidden = hiddenRetailNavHrefs(conditions, badges);
     if (hidden.size === 0) return built;
     return {
       ...built,
@@ -174,7 +176,7 @@ export function ShellNavProvider({
         items: section.items.filter((item) => !hidden.has(item.href)),
       })),
     };
-  }, [built, conditions]);
+  }, [badges, built, conditions]);
 
   const selectWorkspace = React.useCallback(
     (id: string) => {
@@ -236,7 +238,7 @@ export function ShellNavProvider({
       refused,
       refusalNoun,
       homeHref: model.homeHref,
-      badges: (mounted && badgesQuery.data?.badges) || NO_BADGES,
+      badges,
       companyName,
       initials: logoInitials(brand?.legalName, companyName),
       logoUrl: brand?.logoUrl ?? null,
@@ -247,12 +249,11 @@ export function ShellNavProvider({
     [
       activeHref,
       activeItem,
-      badgesQuery.data,
+      badges,
       brand,
       companyName,
       currentArea,
       model,
-      mounted,
       pageItem,
       pending,
       rail,

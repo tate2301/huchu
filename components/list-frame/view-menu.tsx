@@ -21,6 +21,8 @@ type ViewProps = {
   sort: string;
   group: string | null;
   hidden: string[];
+  /** Columns the page already says (`impliedBy`): not drawn, so not offered under Columns. */
+  implied?: readonly string[];
   onSort: (sort: string) => void;
   onGroup: (group: string | null) => void;
   onHidden: (hidden: string[]) => void;
@@ -62,6 +64,7 @@ function GroupOptions({ spec, group, onGroup }: Pick<ViewProps, "spec" | "group"
 export function ViewControls(props: ViewProps & { folded: boolean }) {
   const { spec, sort, group, folded } = props;
   const canGroup = (spec.groups ?? []).length > 0;
+  const columns = props.implied?.length ? spec.columns.filter((column) => !props.implied!.includes(column.key)) : spec.columns;
 
   if (folded) {
     return (
@@ -82,7 +85,7 @@ export function ViewControls(props: ViewProps & { folded: boolean }) {
             </ViewRow>
           ) : null}
           <ViewRow label="Columns" value="Choose">
-            <ColumnsMenuContent columns={spec.columns} hidden={props.hidden} onHidden={props.onHidden} />
+            <ColumnsMenuContent columns={columns} hidden={props.hidden} onHidden={props.onHidden} />
           </ViewRow>
         </MenuContent>
       </Menu>
@@ -119,7 +122,7 @@ export function ViewControls(props: ViewProps & { folded: boolean }) {
           </MenuContent>
         </Menu>
       ) : null}
-      <ColumnsMenu columns={spec.columns} hidden={props.hidden} onHidden={props.onHidden} />
+      <ColumnsMenu columns={columns} hidden={props.hidden} onHidden={props.onHidden} />
     </div>
   );
 }

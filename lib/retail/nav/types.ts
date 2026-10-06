@@ -19,15 +19,6 @@ export type RetailNavModule = {
    * exists; each item's `requires` (any of) is who sees it.
    */
   items: RetailNavItem[];
-  /**
-   * Destinations another workspace module owns, listed in this panel after
-   * the module's own (Reports, until `/retail/reports` exists).
-   */
-  borrowed?: Array<{
-    moduleId: "reporting";
-    href: string;
-    requires: Array<[RetailResource, RetailAction]>;
-  }>;
 };
 
 /**
@@ -38,5 +29,13 @@ export type RetailNavModule = {
  */
 export type RetailNavCondition = "multi-site";
 
-/** A retail nav item always says who sees it, and may say what the shop must have. */
-export type RetailNavItem = NavItem & { requires: Array<[RetailResource, RetailAction]>; when?: RetailNavCondition };
+/**
+ * A retail nav item always says who sees it, and may say what the shop must
+ * have. `onlyWithBadge`: drawn only while its badge counts at least one for
+ * this person (a Reports area with no template they may open).
+ */
+export type RetailNavItem = NavItem & {
+  requires: Array<[RetailResource, RetailAction]>;
+  when?: RetailNavCondition;
+  onlyWithBadge?: boolean;
+};

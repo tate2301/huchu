@@ -545,10 +545,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
     sections: RETAIL_NAV_MODULES.map((module) => ({
       id: module.id,
       title: module.title,
-      refs: [
-        ...module.items.map((item) => ({ moduleId: "retail" as const, href: item.href })),
-        ...(module.borrowed ?? []),
-      ],
+      refs: module.items.map((item) => ({ moduleId: "retail" as const, href: item.href })),
     })),
   },
   PAYROLL: {

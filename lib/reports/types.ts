@@ -287,6 +287,14 @@ export type ListColumn = ReportColumn & {
    * `multi-site`: dropped while the company has one open site.
    */
   requires?: "view-cost" | "multi-site";
+  /** Grouped by this column, its groups are drawn in this order of values (Reports' areas); others after, by name. */
+  groupOrder?: readonly string[];
+  /**
+   * Said once by the page instead of on every row: not drawn while the list is
+   * grouped by it (`group`), or while the parent filter named here narrows the
+   * list to one value of it (`parent`). The Group menu turns it back on.
+   */
+  impliedBy?: { group?: boolean; parent?: string };
 };
 
 /** A choice. `where` narrows the rows itself, for a choice that is a range or a word rather than a value. */
@@ -431,6 +439,8 @@ export type ListSpec = {
   sub?: string;
   /** Any of these grants reads the list. */
   read: ListGrant[];
+  /** The 403 for a role none of `read` admits, where the list speaks for a module ("Your role cannot view reports"). Default "Your role cannot view <noun>". */
+  refusal?: string;
   /**
    * The list exists only for a company with two or more open sites; with one,
    * every read answers 403 with this sentence ("Transfers need a second site.").
@@ -439,7 +449,8 @@ export type ListSpec = {
   /** These roles see only the rows where `column` is their own user id; `filter` is hidden from them. */
   scopeOwn?: { roles: string[]; column: string; filter?: string };
   search: { placeholder: string; keys: string[] };
-  tabs?: Array<{ key: string; label: string; where: Condition[] }>;
+  /** `empty`: the line drawn while the tab holds nothing at all ("Nothing of yours yet. …"), in place of "No match". */
+  tabs?: Array<{ key: string; label: string; where: Condition[]; empty?: string }>;
   filters: ListFilter[];
   /** The first is the default. */
   sorts: ListSort[];

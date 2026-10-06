@@ -36,15 +36,26 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       "Tills and devices",
       "Payments",
       "Till rules",
+      "Receipts",
       "Fiscal device",
       "Posting to the books",
+      "Staff and PINs",
+      "Approvals",
       "Bin",
     ]);
   });
 
-  it("keeps a one-item module as a mark: Reports", () => {
+  it("opens Reports on Every template, then one item per area (INS-07)", () => {
     const reports = retailRail("SUPERADMIN").areas.find((area) => area.id === "retail-reports");
-    expect(reports?.items.map((item) => item.href)).toEqual(["/reports"]);
+    expect(reports?.items.map((item) => item.href)).toEqual([
+      "/retail/reports",
+      "/retail/reports?area=selling",
+      "/retail/reports?area=stock",
+      "/retail/reports?area=buying",
+      "/retail/reports?area=customers",
+      "/retail/reports?area=money",
+      "/retail/reports?area=floor",
+    ]);
   });
 
   it("gives the cashier no Setup, no Stock and no Insights", () => {
@@ -60,7 +71,10 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       "Tills and devices",
       "Payments",
       "Till rules",
+      "Receipts",
       "Fiscal device",
+      "Staff and PINs",
+      "Approvals",
       "Bin",
     ]);
   });

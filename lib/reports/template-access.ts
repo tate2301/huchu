@@ -1,5 +1,6 @@
 import { isOrgAdminRole } from "@/lib/preferences/nav";
 import type { ReportParam, ReportParams, ReportView } from "@/lib/reports/types";
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 
 /**
  * Who sees, changes and shares a report template.
@@ -19,11 +20,18 @@ export const AUDIENCE_LABELS: Record<TemplateAudience, string> = {
   EVERYONE: "Everyone",
 };
 
+/**
+ * "Managers", as an audience: the owner, managers, shop managers and the
+ * bookkeeper (70-insights-reports 3.3), in both products.
+ */
+export const TEMPLATE_MANAGER_ROLES = ["SUPERADMIN", "MANAGER", "SHOP_MANAGER", "FINANCE_OFFICER"] as const;
+
 /** A template as its reader is told about it. */
 export type ReportTemplateRecord = {
   id: string;
   reportKey: string;
   reportTitle: string;
+  /** The source's area: a Reports area slug for a retail source ("stock"), the catalogue's section otherwise. */
   area: string;
   name: string;
   description: string | null;
@@ -31,26 +39,48 @@ export type ReportTemplateRecord = {
   params: ReportParams;
   audience: TemplateAudience;
   madeBy: string;
+  madeById: string;
   mine: boolean;
   canChange: boolean;
+  createdAt: string;
   updatedAt: string;
+  /** How often it was opened in this workspace, and when last. */
+  opens: number;
+  lastOpenedAt: string | null;
+  /** Its own weekly email; filled once templates send (INS-09). */
+  email: null;
 };
 
 type Person = { id: string; role: string };
-type Owned = { audience: TemplateAudience; createdById: string };
+/** A built-in has no maker. */
+type Owned = { audience: TemplateAudience; createdById: string | null };
 
-/** Listed for this person, and theirs to open. */
+function isTemplateManager(role: string): boolean {
+  return (TEMPLATE_MANAGER_ROLES as readonly string[]).includes(role);
+}
+
+/**
+ * Listed for this person: theirs, or its audience includes their role.
+ * Retail callers also check `retail.reports:view` and a read of the source
+ * (C-35: "Everyone" is everyone who opens Reports).
+ */
 export function canSeeTemplate(template: Owned, person: Person): boolean {
-  if (template.createdById === person.id) return true;
+  if (template.createdById !== null && template.createdById === person.id) return true;
   if (template.audience === "EVERYONE") return true;
-  if (template.audience === "MANAGERS") return isOrgAdminRole(person.role);
+  if (template.audience === "MANAGERS") return isTemplateManager(person.role);
   return false;
 }
 
-/** Rename, re-share, re-save or delete: whoever made it, or a manager once it is shared. */
+/** W-75: rename, re-share, re-save or delete — whoever made it, or the owner once it is shared. */
 export function canChangeTemplate(template: Owned, person: Person): boolean {
+  if (template.createdById === null) return false;
   if (template.createdById === person.id) return true;
-  return template.audience !== "JUST_ME" && isOrgAdminRole(person.role);
+  return person.role === "SUPERADMIN" && template.audience !== "JUST_ME";
+}
+
+/** W-73: saving and sharing a retail template are the owner's and the managers'. */
+export function canSaveTemplates(role: string): boolean {
+  return canRetailRoleDo(role, "retail.reports", "create");
 }
 
 /** Anyone keeps a template for themselves; sharing it is a manager's call. */

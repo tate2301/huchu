@@ -53,7 +53,12 @@ function writeStored(source: string, what: "size" | "cols", value: string | null
   }
 }
 
-export function useListAddress(source: string) {
+/**
+ * `defaults`: the page's own sort and grouping (an area page reads "Name A–Z",
+ * ungrouped), sent to the API while the address names none, so the server
+ * starts where the page does.
+ */
+export function useListAddress(source: string, defaults: { sort?: string; group?: string | null } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -79,8 +84,10 @@ export function useListAddress(source: string) {
     }
     if (!params.has("page")) params.set("page", "1");
     if (storedCols?.length) params.set("hidden", storedCols.join(","));
+    if (!params.has("sort") && defaults.sort) params.set("sort", defaults.sort);
+    if (!params.has("group") && defaults.group !== undefined) params.set("group", defaults.group ?? "none");
     return params;
-  }, [searchParams, storedCols, storedSize]);
+  }, [defaults.group, defaults.sort, searchParams, storedCols, storedSize]);
 
   const write = React.useCallback(
     (patch: ListAddressPatch, defaults: { tab?: string | null; sort?: string; group?: string | null; filters?: Record<string, string> }) => {

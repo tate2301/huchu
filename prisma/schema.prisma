@@ -126,6 +126,7 @@ model Company {
   documentTemplates             DocumentTemplate[]
   reportSettings                ReportSetting[]
   reportTemplates               ReportTemplate[]
+  reportTemplateUses            ReportTemplateUse[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
   idSequences                   IdSequence[]
@@ -1441,6 +1442,7 @@ model User {
   fiscalDevicesRegistered           FiscalisationProviderConfig[]  @relation("FiscalDeviceRegisteredBy")
   sessionHandoffs                   SessionHandoff[]
   reportTemplates                   ReportTemplate[]
+  reportTemplatesOpened             ReportTemplateUse[]            @relation("ReportTemplateUseLastOpenedBy")
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
   retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
@@ -7549,11 +7551,32 @@ model ReportTemplate {
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
 
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdBy User    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  company   Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User                @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  uses      ReportTemplateUse[]
 
   @@index([companyId, reportKey])
   @@index([companyId, createdById])
+}
+
+/// How often a report template is opened in a workspace, built in or saved: the catalogue's
+/// "Last opened" and the edit sheet's "opened 22 times". One row per template per company.
+model ReportTemplateUse {
+  id             String   @id @default(uuid())
+  companyId      String
+  /// "builtin:<slug>" for a built-in template, the ReportTemplate id for a saved one.
+  templateRef    String
+  templateId     String?
+  opens          Int      @default(0)
+  lastOpenedAt   DateTime
+  lastOpenedById String?
+
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template     ReportTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  lastOpenedBy User?           @relation("ReportTemplateUseLastOpenedBy", fields: [lastOpenedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, templateRef])
+  @@index([templateId])
 }
 
 /// Who sees a report template besides whoever made it.

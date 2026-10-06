@@ -383,3 +383,35 @@ export function pageButtons(page: number, pages: number): Array<number | "gap"> 
   out.push(pages);
   return out;
 }
+
+/**
+ * The source's spec as this page draws it: with `rowFilters`, those filters
+ * sit on the toolbar row and every other one inside Filters (an area page puts
+ * "Made by" beside "Seen by"; Every template keeps it inside).
+ */
+export function pageSpec(spec: ListSpecPublic | null, rowFilters?: readonly string[]): ListSpecPublic | null {
+  if (!spec || !rowFilters) return spec;
+  return {
+    ...spec,
+    filters: spec.filters.map((filter) =>
+      filter.type === "parent" ? filter : { ...filter, primary: rowFilters.includes(filter.key) },
+    ),
+  };
+}
+
+/**
+ * The columns the page already says (`impliedBy`): the column the list is
+ * grouped by, or the one a set parent filter narrows to one value. They are
+ * not drawn on every row, nor offered under Columns.
+ */
+export function impliedColumns(
+  spec: Pick<ListSpecPublic, "columns"> | null,
+  query: Pick<ResolvedListQuery, "group" | "filters"> | null,
+): string[] {
+  if (!spec || !query) return [];
+  return spec.columns
+    .filter(({ key, impliedBy }) =>
+      Boolean(impliedBy && ((impliedBy.group && query.group === key) || (impliedBy.parent && query.filters[impliedBy.parent]))),
+    )
+    .map((column) => column.key);
+}

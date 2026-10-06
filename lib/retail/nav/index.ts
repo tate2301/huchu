@@ -14,12 +14,20 @@ import type { RetailNavCondition, RetailNavItem, RetailNavModule } from "./types
 export type { RetailNavCondition, RetailNavItem, RetailNavModule } from "./types";
 
 /**
- * The items whose shop condition does not hold: hidden from everyone. A
- * condition not yet known counts as not holding, so an item never shows and
- * then vanishes.
+ * The items not drawn: those whose shop condition does not hold (hidden from
+ * everyone), and those that wait on a badge this person does not have (a
+ * Reports area with no template for them). Neither yet known counts as not
+ * holding, so an item never shows and then vanishes.
  */
-export function hiddenRetailNavHrefs(conditions: Partial<Record<RetailNavCondition, boolean>> | null): Set<string> {
-  return new Set(RETAIL_NAV_ITEMS.filter((item) => item.when && !conditions?.[item.when]).map((item) => item.href));
+export function hiddenRetailNavHrefs(
+  conditions: Partial<Record<RetailNavCondition, boolean>> | null,
+  badges: Readonly<Record<string, string>> | null = null,
+): Set<string> {
+  return new Set(
+    RETAIL_NAV_ITEMS.filter(
+      (item) => (item.when && !conditions?.[item.when]) || (item.onlyWithBadge && !badges?.[item.href]),
+    ).map((item) => item.href),
+  );
 }
 
 /**

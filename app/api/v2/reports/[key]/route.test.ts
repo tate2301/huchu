@@ -28,7 +28,7 @@ const people: Record<string, string> = {};
 function signIn(role: string) {
   validateSessionMock.mockResolvedValue({
     session: {
-      user: { id: people[role]!, companyId, role, name: role, email: `${role}@reports.test`, enabledFeatures: ["retail.core"] },
+      user: { id: people[role]!, companyId, role, name: role, email: `${role}@reports.test`, enabledFeatures: ["retail.core", "retail.reports"] },
     },
   });
 }

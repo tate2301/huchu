@@ -577,7 +577,7 @@ function blank(value: ReportValue | undefined): boolean {
  * today; blank is still last.
  */
 function orderGroups(groups: ReportGroup[], column: ListColumn | undefined, bySort: boolean): ReportGroup[] {
-  const order = column?.tones && !bySort ? Object.keys(column.tones) : null;
+  const order = bySort ? null : (column?.groupOrder ?? (column?.tones ? Object.keys(column.tones) : null));
   const rank = (group: ReportGroup) => {
     if (blank(group.value)) return Number.MAX_SAFE_INTEGER;
     if (bySort) return 0;

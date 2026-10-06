@@ -180,7 +180,7 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
   if (refused(spec)) return spec;
   // The list's own check first, so a role it refuses is told so in words
   // ("Your role cannot view shifts") rather than that the list does not exist.
-  if (!canReadList(spec, ctx)) return { status: 403, error: `Your role cannot view ${spec.noun}` };
+  if (!canReadList(spec, ctx)) return { status: 403, error: spec.refusal ?? `Your role cannot view ${spec.noun}` };
   if (!canReadReport(declared, { role: session.user.role, enabledFeatures: session.user.enabledFeatures })) {
     return { status: 404, error: "Report not found" };
   }

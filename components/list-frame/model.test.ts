@@ -18,6 +18,8 @@ import {
   filtersOn,
   foldAt,
   gridMinWidth,
+  impliedColumns,
+  pageSpec,
   gridTemplate,
   heldFilters,
   nextColumnSort,
@@ -257,5 +259,36 @@ describe("runEndpoint", () => {
     expect(runEndpoint("/api/v2/retail/bin/delete", [])).toBe("/api/v2/retail/bin/delete");
     expect(runEndpoint("/api/v2/retail/tills/{id}/unpair", [{ id: "t 1" }])).toBe("/api/v2/retail/tills/t%201/unpair");
     expect(runEndpoint("/api/v2/retail/tills/{id}/unpair", [{ id: "a" }, { id: "b" }])).toBeNull();
+  });
+});
+
+describe("a page's own reading of its source (INS-07)", () => {
+  const spec = {
+    columns: [
+      { key: "name", label: "Template", kind: "text", cell: "link", width: "1fr" },
+      { key: "area", label: "Area", kind: "text", cell: "muted", width: "110px", impliedBy: { group: true, parent: "area" } },
+      { key: "seenBy", label: "Seen by", kind: "status", cell: "state", width: "130px" },
+    ],
+    filters: [
+      { key: "area", type: "parent", column: "areaSlug" },
+      { key: "madeBy", label: "Made by", type: "choice", any: "Anyone" },
+      { key: "seenBy", label: "Seen by", type: "choice", any: "Anyone", primary: true },
+    ],
+  } as unknown as ListSpecPublic;
+
+  it("drops the area while grouped by it or narrowed to one, and draws it otherwise", () => {
+    expect(impliedColumns(spec, { group: "area", filters: {} })).toEqual(["area"]);
+    expect(impliedColumns(spec, { group: null, filters: { area: "stock" } })).toEqual(["area"]);
+    expect(impliedColumns(spec, { group: "seenBy", filters: {} })).toEqual([]);
+  });
+
+  it("puts the page's row filters on the toolbar and the rest inside Filters", () => {
+    const area = pageSpec(spec, ["madeBy", "seenBy"])!;
+    expect(area.filters.map((filter) => [filter.key, "primary" in filter ? filter.primary : null])).toEqual([
+      ["area", null],
+      ["madeBy", true],
+      ["seenBy", true],
+    ]);
+    expect(pageSpec(spec)).toBe(spec);
   });
 });

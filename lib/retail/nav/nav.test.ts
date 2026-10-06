@@ -7,11 +7,13 @@ import { getActiveNavHref } from "@/lib/nav-match";
 
 import {
   canRoleOpenRetailPath,
+  hiddenRetailNavHrefs,
   RETAIL_NAV_ITEMS,
   RETAIL_NAV_MODULES,
   retailNavItemForPath,
   roleMeetsRetailRequires,
 } from "./index";
+import { reportsNav } from "./reports";
 import { setupNav } from "./setup";
 
 const q = (search = "") => new URLSearchParams(search);
@@ -178,5 +180,35 @@ describe("who sees what, from the Roles matrix (00-foundations 5.3.4)", () => {
     expect(sees("STOCK_CLERK")).toContain("/retail/buying/requisitions");
     expect(sees("STOCK_CLERK")).not.toContain("/retail/products/categories");
     expect(sees("CASHIER")).toContain("/retail/products/price-lists");
+  });
+});
+
+describe("the Reports module (70-insights-reports 5.9, C-35)", () => {
+  const panel = (role: string) =>
+    reportsNav.items.filter((item) => roleMeetsRetailRequires(role, item.requires)).map((item) => item.label);
+
+  it.each(["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"])("gives the %s Every template and the six areas", (role) => {
+    expect(panel(role)).toEqual(["Every template", "Selling", "Stock", "Buying", "Customers", "Money", "The floor"]);
+  });
+
+  it.each(["CASHIER", "STOCK_CLERK"])("gives the %s no Reports at all", (role) => {
+    expect(panel(role)).toEqual([]);
+    expect(canRoleOpenRetailPath(role, "/retail/reports", q())).toBe(false);
+    expect(canRoleOpenRetailPath(role, "/retail/reports", q("area=stock"))).toBe(false);
+  });
+
+  it("files a run page under Reports, and an area's address under its area", () => {
+    expect(retailNavItemForPath("/retail/reports/stock-on-hand", q())?.label).toBe("Every template");
+    expect(retailNavItemForPath("/retail/reports", q("area=stock"))?.label).toBe("Stock");
+    expect(retailNavItemForPath("/retail/reports", q())?.label).toBe("Every template");
+    expect(canRoleOpenRetailPath("FINANCE_OFFICER", "/retail/reports/stock-on-hand", q())).toBe(true);
+  });
+
+  it("hides an area until its badge counts a template for this person", () => {
+    const hidden = hiddenRetailNavHrefs({ "multi-site": true }, { "/retail/reports": "7", "/retail/reports?area=stock": "3" });
+    expect(hidden.has("/retail/reports")).toBe(false);
+    expect(hidden.has("/retail/reports?area=stock")).toBe(false);
+    expect(hidden.has("/retail/reports?area=buying")).toBe(true);
+    expect(hiddenRetailNavHrefs({ "multi-site": true }).has("/retail/reports?area=selling")).toBe(true);
   });
 });
