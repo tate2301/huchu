@@ -114,9 +114,9 @@ export async function POST(request: NextRequest) {
       contentType: check.type,
     });
 
-    return successResponse({ url: uploaded.url, contentType: check.type });
+    return successResponse({ data: { url: uploaded.url, contentType: check.type } });
   } catch (error) {
-    console.error("[API] POST /api/v2/retail/catalog/image error:", error);
+    console.error("[API] POST /api/v2/retail/products/image error:", error);
     return errorResponse("That image could not be saved");
   }
 }

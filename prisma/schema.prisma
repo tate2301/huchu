@@ -310,6 +310,7 @@ model Company {
   products                      Product[]
   priceLists                    PriceList[]
   productPrices                 ProductPrice[]
+  productPriceChanges           ProductPriceChange[]
   retailRegisters               RetailRegister[]
   retailDevices                 RetailDevice[]
   retailPairingCodes            RetailPairingCode[]
@@ -1408,6 +1409,7 @@ model User {
   crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
+  productPriceChanges               ProductPriceChange[]           @relation("ProductPriceChangeCreatedBy")
   retailShopProfilesUpdated         RetailShopProfile[]            @relation("RetailShopProfileUpdatedBy")
   retailPaymentSettingsUpdated      RetailPaymentSettings[]        @relation("RetailPaymentSettingsUpdatedBy")
   retailPostingSettingsUpdated      RetailPostingSettings[]        @relation("RetailPostingSettingsUpdatedBy")
@@ -4644,6 +4646,7 @@ enum RetailAccountRole {
   STOCK
   BREAKAGE
   DEPOSITS_HELD
+  OPENING_BALANCES
 }
 
 /// The company's account for each role ("Sales and stock" on Posting to the books).
@@ -5908,6 +5911,7 @@ enum AccountingSourceType {
   RETAIL_STOCK_ADJUSTMENT
   RETAIL_STOCK_TRANSFER
   RETAIL_SHIFT_VARIANCE
+  RETAIL_OPENING_STOCK
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
@@ -6531,6 +6535,7 @@ model Vendor {
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   taxCategory         TaxCategory?         @relation(fields: [taxCategoryId], references: [id])
   bills               PurchaseBill[]
+  products            Product[]            @relation("ProductSupplier")
 
   @@index([companyId, isActive])
 }
@@ -13792,15 +13797,6 @@ model Product {
   /// model from S-3 onward, and routing numbers R-1.1 made exact back through a
   /// double would undo R-1.1 by the back door.
   standardPrice      Decimal       @default(0) @db.Decimal(14, 2)
-  /// The "was" price, shown struck through beside the shelf price.
-  ///
-  /// S-4b — a merchandising attribute of the retail profile, alongside `barcode`
-  /// and `ageRestricted`. It lived on `RetailCatalogItem.compareAtPrice`, and the
-  /// pricing screen edits it in the same row as the sell price; when the item
-  /// master moved to `Product` it had to come with it or the column would have
-  /// been deleted rather than migrated. Not on `ProductPrice`: a tenant runs one
-  /// shelf list, and a per-list was-price is generality nothing has asked for.
-  compareAtPrice     Decimal?      @db.Decimal(14, 2)
   costPrice          Decimal?      @db.Decimal(14, 2)
   /// A percentage, not money — hence the narrower scale.
   defaultTaxRate     Decimal       @default(0) @db.Decimal(5, 2)
@@ -13826,6 +13822,10 @@ model Product {
   /// Null on everything that is not a case.
   packOfId           String?
   packSize           Int?
+  /// A case: "Break cases at the till". The till opens one when the singles run out.
+  breakAtTill        Boolean       @default(true)
+  /// "Supplier" on the product form: who it is usually bought from.
+  supplierId         String?
   imageUrl           String?
   notes              String?
   isActive           Boolean       @default(true)
@@ -13842,7 +13842,9 @@ model Product {
   retailCategory RetailCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   packOf         Product?            @relation("ProductPack", fields: [packOfId], references: [id], onDelete: SetNull)
   packs          Product[]           @relation("ProductPack")
+  supplier       Vendor?             @relation("ProductSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   prices         ProductPrice[]
+  priceChanges   ProductPriceChange[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
   retailTransferLines RetailStockTransferLine[]
@@ -13854,6 +13856,7 @@ model Product {
   @@index([companyId, category])
   @@index([categoryId])
   @@index([packOfId])
+  @@index([supplierId])
   /// The till scans on this and expects an answer before the next item.
   @@index([companyId, barcode])
 }
@@ -13885,6 +13888,7 @@ model PriceList {
 
   company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   entries ProductPrice[]
+  changes ProductPriceChange[]
   sites   Site[]         @relation("SitePriceList")
   registers RetailRegister[] @relation("RegisterPriceList")
 
@@ -13913,6 +13917,55 @@ model ProductPrice {
 
   @@unique([priceListId, productId, minQuantity])
   @@index([companyId, productId])
+}
+
+enum RetailPriceChangeSource {
+  /// Put on a list (new product, new list, added to a list).
+  ADDED
+  /// Typed on the worksheet or the record.
+  TYPED
+  /// Change many prices.
+  BULK
+  /// Followed its base list or the cost.
+  FOLLOWED
+  /// Import or the starter catalogue.
+  IMPORT
+  /// Taken off a list.
+  REMOVED
+}
+
+/// One price on one list changing, now or later: the price history, "Was"
+/// and "Changed", and scheduled changes (20-products 3.3).
+model ProductPriceChange {
+  id          String                  @id @default(uuid())
+  companyId   String
+  priceListId String
+  productId   String
+  minQuantity Decimal                 @default(1) @db.Decimal(12, 4)
+  /// Null when the product was put on the list.
+  fromPrice   Decimal?                @db.Decimal(14, 2)
+  /// Null when it was taken off the list.
+  toPrice     Decimal?                @db.Decimal(14, 2)
+  source      RetailPriceChangeSource
+  /// Rows saved together (one save bar, one Change many prices).
+  batchId     String?
+  /// When it takes effect. Equal to createdAt for "Now".
+  effectiveAt DateTime
+  /// Null while scheduled. Set once by applyDuePriceChanges.
+  appliedAt   DateTime?
+  cancelledAt DateTime?
+  createdById String?
+  createdAt   DateTime                @default(now())
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("ProductPriceChangeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, productId, appliedAt])
+  @@index([priceListId, productId, appliedAt])
+  @@index([appliedAt, effectiveAt])
+  @@index([batchId])
 }
 
 enum ProductKind {

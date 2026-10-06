@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { successResponse } from "@/lib/api-response";
+import { wasPrices } from "@/lib/retail/prices/was";
 import { loadShelfListings } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";
@@ -55,7 +56,10 @@ export async function GET(request: NextRequest) {
     take: 120,
   });
 
+  const selling = listings.filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0);
+  // The till strikes through a recent cut: the price before it, from the history.
+  const was = await wasPrices(session.user.companyId, new Map(selling.map((item) => [item.id, item.unitPrice])));
   return successResponse({
-    data: listings.filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0),
+    data: selling.map((item) => ({ ...item, wasPrice: was.get(item.id) ?? null })),
   });
 }

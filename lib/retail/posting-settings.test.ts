@@ -147,6 +147,7 @@ describe("posting a shop's sales to the books", () => {
       STOCK: "1200",
       BREAKAGE: "5410",
       DEPOSITS_HELD: "2240",
+      OPENING_BALANCES: "3100",
     });
     const lines = await prisma.postingRuleLine.findMany({
       where: { rule: { companyId, sourceType: "RETAIL_SALE" }, accountSource: "ROLE_MAPPING" },

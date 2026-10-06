@@ -54,6 +54,12 @@ export type LookupNoun = {
    */
   search(ctx: LookupCtx, q: string, context: Record<string, unknown>): Promise<LookupOption[]>;
   /**
+   * The noun puts its own options in order and keeps those matched on
+   * something other than the label (a product scanned by its barcode, the
+   * exact barcode first); the runner only cuts to the limit.
+   */
+  ranked?: boolean;
+  /**
    * The noun's own create service. Throws `LookupFieldErrors` for a 400.
    * `context` is the field's own (a person added from "Owner approvals go to"
    * is an owner). May say something for the toast (`notice`).

@@ -446,6 +446,8 @@ describe("the chain", () => {
       settingsChanged: "RETAIL_SETTINGS.CHANGED",
       productArchived: "RETAIL_PRODUCT.ARCHIVED",
       productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
+      productCreated: "RETAIL_PRODUCT.CREATED",
+      priceChanged: "RETAIL_PRICE.CHANGED",
       categoryCreated: "RETAIL_CATEGORY.CREATED",
       categoryChanged: "RETAIL_CATEGORY.CHANGED",
       categoryDeleted: "RETAIL_CATEGORY.DELETED",

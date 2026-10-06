@@ -271,7 +271,11 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     }
     const sentence = doneSentence(kind, result, values);
     if (again) {
-      const fresh = initialValues(kind, ctx);
+      // What the load brought (`_` facts) stays, and the fields the kind keeps;
+      // every other field starts again empty.
+      const keep = new Set(kind.again?.keep ?? []);
+      const kept = Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith("_") || keep.has(key)));
+      const fresh = withDerived(kind, { ...initialValues(kind, ctx), ...kept });
       setInitial(fresh);
       setValues(fresh);
       setSavedLine(sentence);
@@ -293,6 +297,15 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     else onClose();
   };
 
+  // A field in a folded section unfolds to show its message.
+  const unfoldFor = (problems: Record<string, string>) => {
+    kind.sections.forEach((section, index) => {
+      if (section.fold && section.fields.some((field) => field.id in problems)) {
+        setUnfolded((current) => ({ ...current, [index]: true }));
+      }
+    });
+  };
+
   const submit = async (again: boolean) => {
     if (saving || readOnly || kind.primaryDisabled?.(values)) return;
     setFooterError(null);
@@ -301,12 +314,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     if (Object.keys(problems).length > 0) {
       setErrors(problems);
       const firstId = Object.keys(problems)[0]!;
-      // A field in a folded section unfolds to show its message.
-      kind.sections.forEach((section, index) => {
-        if (section.fold && section.fields.some((field) => field.id in problems)) {
-          setUnfolded((current) => ({ ...current, [index]: true }));
-        }
-      });
+      unfoldFor(problems);
       requestAnimationFrame(() => focusField(firstId));
       return;
     }
@@ -336,6 +344,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       const failure = submitFailure(answer.status, answer.payload, fieldIds(kind));
       setErrors(failure.fieldErrors);
       setFooterError(failure.footer);
+      unfoldFor(failure.fieldErrors);
       const firstId = Object.keys(failure.fieldErrors)[0];
       if (firstId) requestAnimationFrame(() => focusField(firstId));
     } catch {
@@ -359,6 +368,24 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     toast({ title: typeof done === "function" ? done(values, answer.payload) : done, variant: "success" });
     settle(false);
     onClose();
+  };
+
+  // The danger action: asked first when it has an ask, else sent at once.
+  const startDanger = async () => {
+    if (!kind.danger) return;
+    if (kind.danger.ask(ctx, values)) {
+      setAsking("danger");
+      return;
+    }
+    setSaving(true);
+    setFooterError(null);
+    try {
+      await runDanger();
+    } catch (error) {
+      setFooterError(error instanceof Error ? error.message : "That did not work. Nothing was changed; try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const headLink = !readOnly && !panel ? (kind.headLink?.(ctx, values) ?? null) : null;
@@ -400,6 +427,8 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const again = !readOnly && kind.secondary !== undefined && kind.secondary !== "Cancel";
   const sections = shownSections(kind, values, ctx);
   const danger = !readOnly && kind.danger && (kind.danger.show?.(ctx, values) ?? true) ? kind.danger : null;
+  const dangerLabel = danger ? (typeof danger.label === "function" ? danger.label(values) : danger.label) : "";
+  const dangerAsks = danger ? danger.ask(ctx, values) !== null : false;
   const note = typeof kind.note === "function" ? kind.note(values) : kind.note;
   const primaryLabel = typeof kind.primary === "function" ? kind.primary(values) : kind.primary;
   const guide = typeof kind.guide === "function" ? kind.guide(values) : kind.guide;
@@ -554,9 +583,9 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
             ) : (
             <footer className="cx-sheet__foot">
               {danger ? (
-                <button type="button" className="sf-danger" onClick={() => setAsking("danger")} disabled={saving}>
-                  <Trash aria-hidden="true" />
-                  {danger.label}
+                <button type="button" className="sf-danger" onClick={() => void startDanger()} disabled={saving}>
+                  {dangerAsks ? <Trash aria-hidden="true" /> : null}
+                  {dangerLabel}
                 </button>
               ) : null}
               {footerError ? (

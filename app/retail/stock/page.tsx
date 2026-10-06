@@ -8,7 +8,6 @@ import { Skeleton } from "@corelithzw/react";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { ColumnFigure, ColumnList, ColumnName, ColumnText, StatusDot } from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import type { RetailProduct } from "@/components/retail/product-dialogs";
 import { fetchSites } from "@/lib/api";
 import { fetchJson } from "@/lib/api-client";
 import { formatQuantity } from "@/lib/retail/words";
@@ -20,6 +19,17 @@ const LEVEL_OPTIONS = new Map([
 ]);
 
 const WIDTH = 960;
+
+/** A product on the range, as `GET /api/v2/retail/catalog` lists it (STK-02 replaces this page). */
+type RetailProduct = {
+  id: string;
+  name: string;
+  sku: string;
+  barcode: string | null;
+  category: string | null;
+  inventoryItem: { currentStock: number; unit: string; reorderLevel: number | null } | null;
+  site: { id: string; name: string; code: string } | null;
+};
 
 type Level = "OUT" | "LOW" | "OK";
 

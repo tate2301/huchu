@@ -1,15 +1,20 @@
 import { z } from "zod";
 
 import { categoryDeleteAsk, categoryMergeAsk } from "@/lib/retail/asks/categories";
+import { archiveAsk } from "@/lib/retail/asks/products";
 import type { CategoryView } from "@/lib/retail/categories";
 import { parseMargin, type CategoryVat } from "@/lib/retail/category-words";
+import type { ProductNewContext } from "@/lib/retail/products/context";
+import { BARCODE_MESSAGE, normalizeBarcode } from "@/lib/retail/products/input";
+import type { ProductView } from "@/lib/retail/products/view";
 import { formatCount } from "@/lib/workspace/format";
 import type { FieldSpec, PickedOption, SheetCtx, SheetKind, SheetValues } from "@/lib/workspace/sheet-kind";
 
 /**
- * Products' sheets (20-products 5.26, 5.27; W-19): a new category, a
- * category (change or delete), and the Categories list's bulk sheets — Change
- * VAT, Set target margin, Merge — and its row menu's Delete category.
+ * Products' sheets (20-products 5.2, 5.3, 5.26, 5.27; W-09, W-11, W-19): New
+ * product and Edit a product; a new category, a category (change or delete),
+ * and the Categories list's bulk sheets — Change VAT, Set target margin,
+ * Merge — and its row menu's Delete category.
  */
 
 const VAT_SEG = ["15%", "Zero-rated", "Exempt"];
@@ -304,7 +309,245 @@ const categoryMerge: SheetKind = {
   requires: [["retail.categories", "delete"]],
 };
 
+/* ── New product, Edit a product (5.2, 5.3) ─────────────────────────────── */
+
+const SOLD_AS_SEG = ["Single", "By weight"];
+const SOLD_AS_OF_SEG: Record<string, "SINGLE" | "BY_WEIGHT"> = { Single: "SINGLE", "By weight": "BY_WEIGHT" };
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+const barcodeSchema = z.string().refine((typed) => normalizeBarcode(typed) !== null, BARCODE_MESSAGE);
+const countSchema = (label: string) => z.string().regex(/^\s*\d+(\.\d+)?\s*$/, `${label} is a figure, zero or more.`);
+
+/** What new-context puts in a product sheet: the `_` facts, and At starting at the default site. */
+function contextValues(context: ProductNewContext): SheetValues {
+  const site = context.sites.find((row) => row.isDefault) ?? context.sites[0] ?? null;
+  return {
+    siteId: site ? { id: site.id, label: site.name } : null,
+    _oneSite: context.oneSite,
+    _sites: context.sites.length,
+    _listName: context.listName,
+    _liquor: context.businessType === "LIQUOR",
+    _depositsOn: context.depositsOn,
+    _deposit: context.defaultDeposit,
+  };
+}
+
+/** A category picked: whether its bottles are returnable, as the switch starts. */
+async function followCategory(value: unknown): Promise<SheetValues | null> {
+  const picked = value as PickedOption | null;
+  if (!picked?.id) return null;
+  const view = await readCategory(picked.id);
+  return { returnable: view.returnable };
+}
+
+const productFields = (edit: boolean): FieldSpec[] => [
+  { id: "name", t: "text", l: "Name", p: "What the till and receipts say" },
+  {
+    id: "categoryId",
+    t: "auto",
+    l: "Category",
+    noun: "category",
+    p: "Search categories",
+    h: "Sets VAT and the 18+ check.",
+    follow: (value) => followCategory(value),
+  },
+  {
+    id: "price",
+    t: "money",
+    l: "Price",
+    half: true,
+    h: (values) => `Goes into the ${String(values._listName ?? "Retail")} price list.`,
+    ...(edit ? { disabled: (values: SheetValues) => values._canPrice === false } : {}),
+  },
+];
+
+const moreFields = (edit: boolean): FieldSpec[] => {
+  const fresh = (values: SheetValues) => !edit || values._hasMovements === false;
+  return [
+    { id: "barcode", t: "text", l: "Barcode", half: true, mono: true, p: "Scan it or type it", opt: true, optQuiet: true, schema: barcodeSchema },
+    {
+      id: "cost",
+      t: "money",
+      l: "Cost",
+      half: true,
+      opt: true,
+      optQuiet: true,
+      h: "Shows the margin. Updated by each delivery.",
+      show: (_values, ctx) => ctx.can("retail.catalog", "view-cost"),
+    },
+    { id: "supplierId", t: "auto", l: "Supplier", noun: "supplier", p: "Search suppliers", opt: true, optQuiet: true },
+    {
+      id: "openingStock",
+      t: "text",
+      l: "Opening stock",
+      half: true,
+      mono: true,
+      right: true,
+      p: "0",
+      opt: true,
+      optQuiet: true,
+      schema: countSchema("Opening stock"),
+      show: fresh,
+    },
+    {
+      id: "siteId",
+      t: "auto",
+      l: "At",
+      half: true,
+      noun: "site",
+      opt: true,
+      optQuiet: true,
+      h: (values) => `Asked only because you have ${COUNT_WORDS[Number(values._sites ?? 2)] ?? String(values._sites)} sites.`,
+      show: (values) => values._oneSite === false && fresh(values),
+    },
+    {
+      id: "reorderAt",
+      t: "text",
+      l: "Reorder at",
+      half: true,
+      mono: true,
+      right: true,
+      p: "Leave empty to never ask",
+      opt: true,
+      optQuiet: true,
+      schema: countSchema("Reorder at"),
+    },
+    { id: "soldAs", t: "seg", l: "Sold as", half: true, o: SOLD_AS_SEG, v: "Single" },
+    {
+      id: "returnable",
+      t: "toggle",
+      l: "Returnable bottle",
+      h: (values) => `Charge a US$${String(values._deposit ?? "0.10")} deposit, refunded when the bottle comes back. Liquor store.`,
+      show: (values) => values._liquor === true && values._depositsOn === true,
+    },
+  ];
+};
+
+const pickedId = (value: unknown) => (value as PickedOption | null)?.id ?? null;
+const text = (value: unknown) => String(value ?? "").trim();
+
+/** The body both sheets send: what the API's `productInput` reads. */
+function productBody(values: SheetValues, ctx: SheetCtx, edit: boolean) {
+  const opening = text(values.openingStock);
+  const fresh = !edit || values._hasMovements === false;
+  return {
+    name: text(values.name),
+    categoryId: pickedId(values.categoryId),
+    ...(!edit || ctx.can("retail.prices", "update") ? { price: text(values.price) } : {}),
+    barcode: text(values.barcode) || null,
+    ...(ctx.can("retail.catalog", "view-cost") ? { cost: text(values.cost) || null } : {}),
+    supplierId: pickedId(values.supplierId),
+    ...(fresh && opening ? { openingStock: opening } : {}),
+    ...(fresh && values._oneSite === false && pickedId(values.siteId) ? { siteId: pickedId(values.siteId) } : {}),
+    reorderAt: text(values.reorderAt) || null,
+    soldAs: SOLD_AS_OF_SEG[String(values.soldAs)] ?? "SINGLE",
+    ...(values._liquor === true && values._depositsOn === true ? { returnable: values.returnable === true } : {}),
+  };
+}
+
+const invalidateProducts = [
+  ["list", "retail-products"],
+  ["list", "retail-stock-on-hand"],
+  ["list", "retail-prices"],
+  ["lookup", "product"],
+  ["nav-badges"],
+  ["retail-catalog"],
+  ["retail-product"],
+  ["record-activity"],
+];
+
+const readNewContext = () => readJson<ProductNewContext>("/api/v2/retail/products/new-context");
+
+/** 5.2 — `K.product`: New product, over Products or On hand. */
+const productNew: SheetKind = {
+  title: "New product",
+  sub: (_ctx, values) => `Adds it to Products, On hand and the ${String(values._listName ?? "Retail")} price list`,
+  cur: "US$",
+  sections: [
+    { fields: productFields(false) },
+    { fold: ["More details", "Barcode, cost, supplier, opening stock, reorder"], fields: moreFields(false) },
+  ],
+  note: "Saved means on sale, on every till. The rest can come later.",
+  secondary: "Add, then another",
+  again: { keep: ["categoryId", "siteId", "soldAs"] },
+  primary: "Add product",
+  done: (result) => {
+    const view = result as ProductView;
+    return `${view.name} is on sale at US$${view.price.toFixed(2)} on every till.`;
+  },
+  open: (result) => `/retail/products/${(result as ProductView).id}`,
+  load: async () => contextValues(await readNewContext()),
+  submit: (values, ctx) => ({ method: "POST", url: "/api/v2/retail/products", body: productBody(values, ctx, false) }),
+  invalidate: invalidateProducts,
+  requires: [["retail.catalog", "create"]],
+};
+
+/** What a loaded product puts in the Edit sheet. */
+function productValues(view: ProductView, context: ProductNewContext): SheetValues {
+  return {
+    ...contextValues(context),
+    name: view.name,
+    categoryId: view.category ? { id: view.category.id, label: view.category.path } : null,
+    price: view.price.toFixed(2),
+    // "6001496 00112": grouped as the board prints it; saved without the space.
+    barcode: view.barcode ? `${view.barcode.slice(0, 7)} ${view.barcode.slice(7)}`.trim() : "",
+    cost: view.cost === null ? "" : view.cost.toFixed(2),
+    supplierId: view.supplier ? { id: view.supplier.id, label: view.supplier.name } : null,
+    openingStock: "",
+    reorderAt: view.stock.reorderAt === null ? "" : String(view.stock.reorderAt),
+    soldAs: view.soldAsKind === "BY_WEIGHT" ? "By weight" : "Single",
+    returnable: view.returnable,
+    _deposit: view.depositAmount === null ? context.defaultDeposit : view.depositAmount.toFixed(2),
+    _name: view.name,
+    _code: view.code,
+    _category: view.category?.name ?? "No category",
+    _archived: !view.isActive,
+    _hasMovements: view.hasMovements,
+    _canPrice: view.canEdit.price,
+    _onHand: view.stock.onHand > 0 ? view.stock.onHandLabel : null,
+  };
+}
+
+const productUrl = (ctx: SheetCtx) => `/api/v2/retail/products/${encodeURIComponent(ctx.id ?? "")}`;
+
+/** 5.3 — `K.productedit`: Edit a product, over its record or the Products list. */
+const productEdit: SheetKind = {
+  title: (_ctx, values) => String(values._name ?? "Edit a product"),
+  sub: (_ctx, values) =>
+    values._code === undefined
+      ? "Products"
+      : `${String(values._code)} · ${String(values._category)} · ${values._archived ? "archived" : "on sale"}`,
+  cur: "US$",
+  sections: [{ fields: productFields(true) }, { title: "More details", fields: moreFields(true) }],
+  note: "Changes reach the tills within a minute.",
+  primary: "Save",
+  done: (result) => `${(result as ProductView).name} saved.`,
+  danger: {
+    label: (values) => (values._archived ? "Sell it again" : "Archive"),
+    show: (_ctx, values) => values._code !== undefined,
+    ask: (_ctx, values) =>
+      values._archived
+        ? null
+        : archiveAsk({ name: String(values._name ?? "this product"), onHand: (values._onHand as string | null) ?? null }),
+    request: (ctx, values) => ({
+      method: "POST",
+      url: values._archived ? "/api/v2/retail/products/unarchive" : "/api/v2/retail/products/archive",
+      body: { ids: [ctx.id] },
+    }),
+    done: (values) => `${String(values._name)} ${values._archived ? "is on sale again." : "is off every till."}`,
+  },
+  load: async (ctx) => {
+    const [view, context] = await Promise.all([readJson<ProductView>(productUrl(ctx)), readNewContext()]);
+    return productValues(view, context);
+  },
+  submit: (values, ctx) => ({ method: "PATCH", url: productUrl(ctx), body: productBody(values, ctx, true) }),
+  invalidate: invalidateProducts,
+  requires: [["retail.catalog", "update"]],
+};
+
 export const PRODUCT_SHEETS: Record<string, SheetKind> = {
+  "product-new": productNew,
+  "product-edit": productEdit,
   "category-new": categoryNew,
   "category-edit": categoryEdit,
   "category-delete": categoryDelete,

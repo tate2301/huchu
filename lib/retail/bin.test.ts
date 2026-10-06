@@ -9,7 +9,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { money, quantity } from "@/lib/money";
+import { money } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
 import { deleteCategory } from "./categories";
@@ -23,27 +23,25 @@ import {
   restoreFromBin,
   restoreManyFromBin,
 } from "./bin";
-import { loadShelfListing, upsertShelfListing } from "./shelf-listing";
+import { addTestProduct } from "./products/test-fixtures";
+import { loadShelfListing } from "./shelf-listing";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 let companyId: string;
 let productId: string;
+let productCode: string;
 let promotionId: string;
 let categoryId: string;
 
 beforeAll(async () => {
   companyId = (await prisma.company.create({ data: { name: `Bin ${stamp}`, slug: `bin-${stamp}` }, select: { id: true } })).id;
   const siteId = (await prisma.site.create({ data: { companyId, code: `B-${stamp}`, name: "Borrowdale" }, select: { id: true } })).id;
-  const locationId = (
-    await prisma.stockLocation.create({ data: { siteId, code: `F-${stamp}`, name: "Shop floor" }, select: { id: true } })
-  ).id;
-  const item = await prisma.inventoryItem.create({
-    data: { itemCode: `BIN-${stamp}`, name: "Gin", category: "OTHER", unit: "bottle", siteId, locationId, currentStock: quantity(4) },
-    select: { id: true },
-  });
-  productId = await upsertShelfListing({
-    companyId, productId: null, sku: `GIN-${stamp}`, name: "Gordon's Gin 750ml", inventoryItemId: item.id, unitPrice: 16.4, taxPercent: 15,
-  });
+  await prisma.stockLocation.create({ data: { siteId, code: `F-${stamp}`, name: "Shop floor" }, select: { id: true } });
+  const gin = await addTestProduct(companyId, { name: "Gordon's Gin 750ml", price: "16.40" }, { siteId, onHand: 4 });
+  productId = gin.productId;
+  productCode = gin.code;
+  // This suite reads the bin's own events.
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, eventType: "RETAIL_PRODUCT.CREATED" } });
   promotionId = (
     await prisma.retailPromotion.create({
       data: { companyId, promoCode: `P-${stamp}`, name: "Case of Castle 5% off", type: "PERCENT", value: money(5) },
@@ -100,7 +98,7 @@ describe("the bin", () => {
     expect(entries.map((entry) => entry.kind)).toEqual(["product", "promotion", "category"]);
     expect(entries[0]).toMatchObject({
       name: "Gordon's Gin 750ml",
-      reference: `GIN-${stamp}`,
+      reference: productCode,
       label: "Product",
       binnedBy: "Tafara Nyathi",
       binnedAt: new Date("2026-10-03T12:52:00Z"),
@@ -108,7 +106,8 @@ describe("the bin", () => {
     expect(entries[1]).toMatchObject({ label: "Promotion", reference: `P-${stamp}` });
 
     expect(await loadShelfListing(companyId, productId)).toBeNull();
-    // Its record still reads the shelf's terms: VAT inside the price.
+    // Its prices stay: its record still reads the shelf's terms, VAT inside the price.
+    expect(await prisma.productPrice.count({ where: { productId } })).toBe(1);
     expect(await loadShelfListing(companyId, productId, { includeBinned: true })).toMatchObject({
       unitPrice: 16.4,
       taxInclusive: true,
@@ -140,12 +139,13 @@ describe("the bin", () => {
     ).toEqual({ status: 410, message: "It has been in the bin more than 30 days" });
   });
 
-  it("brings a product back on sale at its price, with its event", async () => {
+  it("brings a product back archived, at its price, with its event", async () => {
     expect(await restoreFromBin(actor(), { kind: "product", id: productId }, new Date("2026-10-04T08:00:00Z"))).toEqual({
       restored: true,
     });
+    // Off every till until someone sells it again; its price rows survived the bin.
     expect(await loadShelfListing(companyId, productId)).toMatchObject({
-      status: "ACTIVE",
+      status: "INACTIVE",
       unitPrice: 16.4,
       priceSource: "PRICE_LIST",
       binnedAt: null,

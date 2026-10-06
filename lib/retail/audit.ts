@@ -122,6 +122,18 @@ export const RETAIL_AUDIT_EVENTS = {
   productArchived: "RETAIL_PRODUCT.ARCHIVED",
   /** A product put back on sale. Carries its name. */
   productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
+  /**
+   * A product added (W-09, PRD-03): New product, the product lookup's quick
+   * add, an import. Carries its code, name, price, category, opening stock and
+   * the site it is kept at.
+   */
+  productCreated: "RETAIL_PRODUCT.CREATED",
+  /**
+   * A price on a list changed (PRD-03; W-14, W-15): typed, many at once, or a
+   * scheduled change coming due. Entity `Product`; carries the list, the price
+   * before and after (money as a string) and how.
+   */
+  priceChanged: "RETAIL_PRICE.CHANGED",
   /** A category added (W-19). Carries its name, VAT and target margin. */
   categoryCreated: "RETAIL_CATEGORY.CREATED",
   /**
@@ -580,6 +592,42 @@ export async function auditRecordPurged(
       entityType: input.entityType,
       entityId: input.entityId,
       payload: { actorRole: null, actorName: null, ...payload },
+    },
+    client,
+  );
+}
+
+/**
+ * A price on a list changed. A scheduled change coming due is written under
+ * whoever scheduled it; with nobody to name, under nobody.
+ */
+export async function auditPriceChanged(
+  client: AuditClient,
+  input: {
+    companyId: string;
+    actor: RetailAuditActor | null;
+    productId: string;
+    payload: { list: string; from: string | null; to: string | null; how: string; effectiveAt?: string };
+  },
+): Promise<void> {
+  if (input.actor) {
+    await writeRetailAuditEvent(client, {
+      actor: input.actor,
+      eventType: RETAIL_AUDIT_EVENTS.priceChanged,
+      entityType: "Product",
+      entityId: input.productId,
+      payload: input.payload,
+    });
+    return;
+  }
+  await writePlatformAuditEvent(
+    {
+      companyId: input.companyId,
+      actorId: null,
+      eventType: RETAIL_AUDIT_EVENTS.priceChanged,
+      entityType: "Product",
+      entityId: input.productId,
+      payload: { actorRole: null, actorName: null, ...input.payload },
     },
     client,
   );

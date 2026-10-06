@@ -57,7 +57,6 @@ import { prisma } from "@/lib/prisma"
 import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { activeRetailPriceList } from "@/lib/retail/shelf-pricing"
-import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 import { tradingDayKey } from "@/lib/retail/z-report"
 import {
   auditCashMoved,
@@ -492,6 +491,15 @@ async function main() {
   type Stocked = { inventoryItemId: string; productId: string; unit: string }
   const stocked = new Map<string, Stocked>()
 
+  // PRD-03: the default list is a flag; every product goes on it and the till prices from it.
+  const shelfList = await prisma.priceList.upsert({
+    where: { companyId_name: { companyId, name: "Shelf prices" } },
+    update: { isDefault: true, isActive: true },
+    create: { companyId, name: "Shelf prices", kind: "RETAIL", taxInclusive: true, isActive: true, isDefault: true },
+    select: { id: true },
+  })
+  const suppliers = await seedSuppliers(companyId)
+
   const borrowdaleLocation =
     (await prisma.stockLocation.findFirst({ where: { siteId: borrowdale.id, code: "SHOP" } })) ??
     (await prisma.stockLocation.create({
@@ -523,32 +531,21 @@ async function main() {
           select: { id: true, unit: true },
         })
 
-    /*
-      Ranged through the one writer, not by hand.
-
-      S-4. This block used to upsert a `RetailCatalogItem` — a second item
-      master the till stopped reading at S-4b, which left this seed building a
-      tenant whose shelves were empty on every surface that matters.
-      `upsertShelfListing` is what the back-office catalogue screen calls, so
-      the demo tenant is now assembled by exactly the path a shopkeeper's own
-      first morning goes through: a `Product`, a "Shelf prices" entry against
-      it, and the site's `InventoryItem` claimed by it.
-    */
-    const productId = await upsertShelfListing({
+    // The product, its price on the default list, and the line claimed by it (PRD-03: written directly).
+    const productId = await seedShelfLine({
       companyId,
-      productId: null,
-      sku: entry.code,
+      listId: shelfList.id,
+      code: entry.code,
       name: entry.name,
-      inventoryItemId: item.id,
-      unitPrice: money(entry.price),
-      taxPercent: money(VAT_PERCENT),
+      itemId: item.id,
+      price: entry.price,
       barcode: `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
       // Zambezi and Bols are archived: off every till, their stock kept.
       isActive: !entry.archived,
       categoryId: categoryIds.get(entry.category) ?? null,
-      costPrice: money(entry.cost),
-      returnable: Boolean(entry.deposit),
-      depositAmount: entry.deposit ? money(entry.deposit) : null,
+      cost: entry.cost,
+      deposit: entry.deposit ?? null,
+      supplierId: suppliers.get(supplierOf(entry)) ?? null,
     })
     // Out of the bin, if a run before this one left it there.
     await prisma.product.updateMany({ where: { id: productId, archivedAt: { not: null } }, data: { archivedAt: null } })
@@ -563,7 +560,7 @@ async function main() {
   for (const [pack, single, size] of PACKS) {
     await prisma.product.update({
       where: { id: stocked.get(pack)!.productId },
-      data: { packOfId: stocked.get(single)!.productId, packSize: size },
+      data: { packOfId: stocked.get(single)!.productId, packSize: size, breakAtTill: true },
     })
   }
   /*
@@ -1268,6 +1265,7 @@ async function main() {
   await seedPins(companyId, passwordHash)
   await seedPeople({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, passwordHash, reset })
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
+  await seedPriceHistory(companyId)
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
   await seedPayments(companyId)
@@ -2490,6 +2488,145 @@ async function seedStockLedger(companyId: string, mainSiteId: string) {
   )
 }
 
+/**
+ * PRD-03: one product on the shelf, written directly — the product (by its
+ * code), its price on the default list, and its stock line claimed by it. VAT
+ * comes from its category, as New product does.
+ */
+async function seedShelfLine(input: {
+  companyId: string
+  listId: string
+  code: string
+  name: string
+  itemId: string
+  price: string
+  barcode?: string
+  isActive: boolean
+  categoryId: string | null
+  cost: string
+  deposit: string | null
+  supplierId: string | null
+}): Promise<string> {
+  const category = input.categoryId
+    ? await prisma.retailCategory.findUnique({ where: { id: input.categoryId }, select: { vatRate: true } })
+    : null
+  const fields = {
+    name: input.name,
+    kind: "GOODS" as const,
+    standardPrice: money(input.price),
+    defaultTaxRate: category?.vatRate ?? money(VAT_PERCENT),
+    isActive: input.isActive,
+    archivedAt: null,
+    categoryId: input.categoryId,
+    costPrice: money(input.cost),
+    returnable: Boolean(input.deposit),
+    depositAmount: input.deposit ? money(input.deposit) : null,
+    supplierId: input.supplierId,
+    ...(input.barcode ? { barcode: input.barcode } : {}),
+  }
+  const product = await prisma.product.upsert({
+    where: { companyId_code: { companyId: input.companyId, code: input.code } },
+    create: { companyId: input.companyId, code: input.code, ...fields },
+    update: fields,
+    select: { id: true },
+  })
+  await prisma.productPrice.upsert({
+    where: { priceListId_productId_minQuantity: { priceListId: input.listId, productId: product.id, minQuantity: new Prisma.Decimal(1) } },
+    create: { companyId: input.companyId, priceListId: input.listId, productId: product.id, minQuantity: new Prisma.Decimal(1), unitPrice: money(input.price) },
+    update: { unitPrice: money(input.price) },
+  })
+  await prisma.inventoryItem.updateMany({
+    where: { id: input.itemId, OR: [{ productId: null }, { productId: product.id }] },
+    data: { productId: product.id },
+  })
+  return product.id
+}
+
+/** PRD-03: the shop's suppliers (buying decision 1: a supplier is a Vendor), by name. */
+const SUPPLIERS = ["Delta Beverages", "Afdis Distillers", "Schweppes Zimbabwe", "Natbrew"] as const
+
+async function seedSuppliers(companyId: string): Promise<Map<string, string>> {
+  const ids = new Map<string, string>()
+  for (const name of SUPPLIERS) {
+    const found =
+      (await prisma.vendor.findFirst({ where: { companyId, name }, select: { id: true } })) ??
+      (await prisma.vendor.create({ data: { companyId, name, isActive: true }, select: { id: true } }))
+    await prisma.vendor.update({ where: { id: found.id }, data: { isActive: true } })
+    ids.set(name, found.id)
+  }
+  console.log(`  ${SUPPLIERS.length} suppliers`)
+  return ids
+}
+
+/** Who a catalogue line is usually bought from: Delta for beer, ciders, Coke, Fanta and ice; Afdis for spirits and wine. */
+function supplierOf(entry: CatalogueEntry): string {
+  if (entry.code.startsWith("CHIBUKU")) return "Natbrew"
+  if (entry.code.startsWith("TONIC")) return "Schweppes Zimbabwe"
+  if (entry.code.startsWith("CHARCOAL")) return ""
+  if (entry.category === "Spirits" || entry.category === "Wine") return "Afdis Distillers"
+  return "Delta Beverages"
+}
+
+/**
+ * PRD-03: the price history on the default list. Every product put on it 1
+ * August at its "was" price; on 3 October at 10:00 Tendai Mhlanga typed nine
+ * of them up to today's. Amarula went on at 16.90 and rose twice in between,
+ * so it has four rows. Deleted and written again per product.
+ */
+const WAS: Record<string, string> = {
+  "AMARULA-750": "17.50",
+  "CASTLE-340": "1.10",
+  "CASTLE-CASE": "25.90",
+  "COKE-500": "0.70",
+  "HUNTERS-330": "1.80",
+  "ICE-2KG": "1.40",
+  "JAMESON-750": "26.50",
+  "NEDERBURG-750": "12.00",
+  "TWOKEYS-750": "9.50",
+}
+
+async function seedPriceHistory(companyId: string) {
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true } })
+  const list = await prisma.priceList.findFirstOrThrow({ where: { companyId, isDefault: true }, select: { id: true } })
+  // Harare is UTC+2: 09:00 on 1 August, 10:00 on 3 October.
+  const added = new Date("2026-08-01T07:00:00Z")
+  const typed = new Date("2026-10-03T08:00:00Z")
+  let rows = 0
+  for (const entry of CATALOGUE) {
+    const product = await prisma.product.findFirst({ where: { companyId, code: entry.code }, select: { id: true } })
+    if (!product) continue
+    await prisma.productPriceChange.deleteMany({ where: { companyId, productId: product.id, priceListId: list.id } })
+    const change = (from: string | null, to: string, source: "ADDED" | "TYPED", at: Date) => ({
+      companyId,
+      priceListId: list.id,
+      productId: product.id,
+      minQuantity: new Prisma.Decimal(1),
+      fromPrice: from === null ? null : money(from),
+      toPrice: money(to),
+      source,
+      effectiveAt: at,
+      appliedAt: at,
+      createdById: source === "TYPED" ? (owner?.id ?? null) : null,
+      createdAt: at,
+    })
+    const was = WAS[entry.code]
+    const history =
+      entry.code === "AMARULA-750"
+        ? [
+            change(null, "16.90", "ADDED", added),
+            change("16.90", "17.25", "TYPED", new Date("2026-08-20T09:00:00Z")),
+            change("17.25", "17.50", "TYPED", new Date("2026-09-01T09:00:00Z")),
+            change("17.50", entry.price, "TYPED", typed),
+          ]
+        : was
+          ? [change(null, was, "ADDED", added), change(was, entry.price, "TYPED", typed)]
+          : [change(null, entry.price, "ADDED", added)]
+    await prisma.productPriceChange.createMany({ data: history })
+    rows += history.length
+  }
+  console.log(`  price history: ${rows} changes on the default list`)
+}
+
 /** Stable pseudo-barcode from the SKU, so a re-run does not renumber the shelf. */
 /**
  * ADM-07: the bin as the BinList board shows it — Nederburg Rosé 750ml, a
@@ -2544,16 +2681,19 @@ async function seedBin(input: { companyId: string; siteId: string; locationId: s
   }
   const current = existing ? await prisma.product.findUniqueOrThrow({ where: { id: existing.id }, select: { archivedAt: true } }) : null
   if (!current?.archivedAt) {
-    const productId = await upsertShelfListing({
+    const list = await prisma.priceList.findFirstOrThrow({ where: { companyId, isDefault: true }, select: { id: true } })
+    const productId = await seedShelfLine({
       companyId,
-      productId: existing?.id ?? null,
-      sku: code,
+      listId: list.id,
+      code,
       name: "Nederburg Rosé 750ml",
-      inventoryItemId: item.id,
-      unitPrice: money("12.60"),
-      taxPercent: money(VAT_PERCENT),
+      itemId: item.id,
+      price: "12.60",
+      isActive: true,
       categoryId: input.wineId,
-      costPrice: money("9.40"),
+      cost: "9.40",
+      deposit: null,
+      supplierId: null,
     })
     await moveToBin(actor, { kind: "product", id: productId }, at)
     const event = await prisma.platformAuditEvent.findFirst({

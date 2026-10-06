@@ -6,7 +6,6 @@ import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
 import { auditRecordBin, auditRecordPurged, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
 import { categoryBinRefusal, restoreCategory } from "@/lib/retail/categories";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
-import { archiveShelfListing, restoreShelfListing } from "@/lib/retail/shelf-listing";
 
 /**
  * The shop's bin: what was removed, and the way back (W-63, 00-foundations 4.6,
@@ -94,13 +93,14 @@ const KINDS: Record<BinKind, BinKindSpec> = {
     binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
     find: (tx, companyId, id) =>
       tx.product.findFirst({ where: { id, companyId }, select: { name: true, archivedAt: true } }),
-    // The till reads the shelf price; the line leaves the till with it.
+    // Off every till and list; its prices stay, so its history does too.
     move: async (tx, companyId, id, at) => {
-      await archiveShelfListing(tx, { companyId, productId: id, at });
+      await tx.product.updateMany({ where: { id, companyId }, data: { archivedAt: at, isActive: false } });
       return null;
     },
+    // Back out of the bin archived: it sells again only when someone says so.
     restore: async (tx, companyId, id) => {
-      await restoreShelfListing(tx, { companyId, productId: id });
+      await tx.product.updateMany({ where: { id, companyId }, data: { archivedAt: null, isActive: false } });
       return null;
     },
     // Its stock lines go with it, unless anything happened on them: a sale,

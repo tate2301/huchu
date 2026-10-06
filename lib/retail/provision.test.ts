@@ -219,7 +219,7 @@ describe("a shop that has just been opened", () => {
     expect(await prisma.chartOfAccount.count({ where: { companyId } })).toBeGreaterThan(0);
   });
 
-  it("ranges the starter lines the way the catalogue screen would", async () => {
+  it("ranges the starter lines the way New product would", async () => {
     expect(result.productsRanged).toBe(6);
 
     const products = await prisma.product.findMany({
@@ -227,14 +227,14 @@ describe("a shop that has just been opened", () => {
       select: { code: true, standardPrice: true, isActive: true },
       orderBy: { code: "asc" },
     });
-    expect(products.map((product) => product.code)).toContain("CASTLE-340");
+    expect(products.map((product) => product.code)).toContain("CASTLE-LAGER-340ML");
     expect(products.every((product) => product.isActive)).toBe(true);
     expect(
-      products.find((product) => product.code === "CASTLE-340")?.standardPrice.toFixed(2),
+      products.find((product) => product.code === "CASTLE-LAGER-340ML")?.standardPrice.toFixed(2),
     ).toBe("1.20");
 
-    // A product, a shelf-list entry against it, and the site's stock row
-    // claimed by it — the three rows `upsertShelfListing` writes.
+    // A product, its price on the default list, and its stock line at the
+    // site — what `createProduct` writes for New product too.
     expect(
       await prisma.inventoryItem.count({
         where: { site: { companyId }, productId: { not: null } },

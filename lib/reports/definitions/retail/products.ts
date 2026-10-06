@@ -146,6 +146,12 @@ const products: ListSpec = {
   rowHref: "/retail/products/{id}",
   rowMenu: [
     {
+      key: "edit",
+      label: "Edit",
+      requires: [["retail.catalog", "update"]],
+      do: { sheet: "product-edit" },
+    },
+    {
       key: "archive",
       label: "Stop selling it",
       requires: [["retail.catalog", "update"]],

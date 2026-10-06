@@ -224,11 +224,18 @@ export type SheetKind = {
   primaryTone?: "danger";
   /** "Cancel" unless the kind says otherwise ("Add, then another" keeps the sheet open). */
   secondary?: string;
+  /**
+   * "Add, then another": the values kept for the next one (Category, At,
+   * Sold as); every other field starts again empty. Without it, all of them do.
+   */
+  again?: { keep: string[] };
   danger?: {
-    label: string;
+    /** Fixed, or from the values ("Archive", or "Sell it again" on an archived product). */
+    label: string | ((values: SheetValues) => string);
     /** Offered only while this holds (the owner's "Delete category"). */
     show?: (ctx: SheetCtx, values: SheetValues) => boolean;
-    ask: (ctx: SheetCtx, values: SheetValues) => Ask;
+    /** Asked before it sends; null sends at once (bringing something back asks nothing). */
+    ask: (ctx: SheetCtx, values: SheetValues) => Ask | null;
     request: (ctx: SheetCtx, values: SheetValues) => SheetRequest;
     done: string | ((values: SheetValues, result: unknown) => string);
   };

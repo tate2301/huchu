@@ -950,9 +950,9 @@ export function PosCheckoutView() {
                             ) : null}
                           </div>
                           <div className="shrink-0 text-right">
-                            {item.compareAtPrice && item.compareAtPrice > item.unitPrice ? (
+                            {item.wasPrice && item.wasPrice > item.unitPrice ? (
                               <div className="font-mono text-[10px] text-[var(--text-muted)] line-through">
-                                {money(item.compareAtPrice)}
+                                {money(item.wasPrice)}
                               </div>
                             ) : null}
                             <div className={cn(

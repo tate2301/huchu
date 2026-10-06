@@ -26,12 +26,12 @@ import { LookupField } from "./lookup-field";
  * `nolabel` fields draw no label above.
  */
 
-/** The existing catalogue image route: `POST` multipart → `{ url }`. */
+/** The product image route: `POST` multipart → `{ url }`. */
 async function uploadPicture(file: File): Promise<string> {
   const form = new FormData();
   form.set("file", file);
-  const answer = await fetchJson<{ url: string }>("/api/v2/retail/catalog/image", { method: "POST", body: form });
-  return answer.url;
+  const answer = await fetchJson<{ data: { url: string } }>("/api/v2/retail/products/image", { method: "POST", body: form });
+  return answer.data.url;
 }
 
 /** The field's options, fixed or worked out from the values. */

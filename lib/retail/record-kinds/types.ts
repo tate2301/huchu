@@ -1,5 +1,6 @@
 import type { BinKind, BinState } from "@/lib/retail/bin";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
+import type { Ask } from "@/lib/workspace/ask";
 
 /**
  * A record kind: what an area spec writes to put a record on RecordFrame
@@ -12,17 +13,31 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
 export type Grant = [RetailResource, RetailAction];
 
 /**
- * What an action does: open a sheet over the record, go to a page, open a
- * file in a new tab (a PDF to print), download one, ask the `bin` confirm, or
- * hand an event to the page (a dialog the page owns).
+ * What an action does: open a sheet over the record (with the record's id
+ * when `id` is set), go to a page, open a file in a new tab (a PDF to print),
+ * download one, ask the `bin` confirm, post to the server (asking first when
+ * it has an ask) and toast its done words, or hand an event to the page (a
+ * dialog the page owns).
  */
 export type RecordDo =
-  | { sheet: string }
+  | { sheet: string; id?: string }
   | { href: string }
   | { open: string }
   | { download: string }
   | { confirm: "bin" }
+  | { post: { url: string; body?: unknown; ask?: Ask; done: string } }
   | { event: string };
+
+/**
+ * A note under the header, drawn like the bin banner: a bold lead, its text,
+ * and an action that posts ("Archived. Not on the till…" with "Sell it again").
+ */
+export type RecordBanner = {
+  lead: string;
+  text: string;
+  /** Drawn for roles holding `requires`. */
+  action?: { label: string; post: string; body: unknown; done: string; requires: Grant };
+};
 
 export type RecordAction = {
   key: string;
@@ -148,6 +163,8 @@ export type RecordKind<R> = {
   /** ⋯ items; "Export as PDF" first. */
   more?: (record: R) => RecordAction[];
   primary?: (record: R) => RecordAction | null;
+  /** A note under the header while the record is in some state (archived); the bin banner wins. */
+  banner?: (record: R) => RecordBanner | null;
   /** Binnable kinds add "Move to the bin" and draw the banner. */
   bin?: { kind: BinKind; deleteRight: Grant; state: (record: R) => BinState | null };
   steps?: (record: R) => RecordStep[];

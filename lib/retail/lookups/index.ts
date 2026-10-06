@@ -2,6 +2,7 @@ import { canRetailSessionDo, retailPermissionDenial } from "@/lib/retail/permiss
 
 import { FLOOR_LOOKUPS } from "./floor";
 import { PEOPLE_LOOKUPS } from "./people";
+import { BUYING_LOOKUPS } from "./buying";
 import { PRODUCT_LOOKUPS } from "./products";
 import { SETUP_LOOKUPS } from "./setup";
 import { STOCK_LOOKUPS } from "./stock";
@@ -13,7 +14,7 @@ import { LookupFieldErrors, type LookupCtx, type LookupNoun, type LookupOption, 
  * line here.
  */
 export const LOOKUP_NOUNS: ReadonlyMap<string, LookupNoun> = new Map(
-  [...FLOOR_LOOKUPS, ...PEOPLE_LOOKUPS, ...PRODUCT_LOOKUPS, ...SETUP_LOOKUPS, ...STOCK_LOOKUPS].map((noun) => [noun.noun, noun]),
+  [...BUYING_LOOKUPS, ...FLOOR_LOOKUPS, ...PEOPLE_LOOKUPS, ...PRODUCT_LOOKUPS, ...SETUP_LOOKUPS, ...STOCK_LOOKUPS].map((noun) => [noun.noun, noun]),
 );
 
 export type { LookupCtx, LookupNoun, LookupOption, QuickField } from "./types";
@@ -70,7 +71,8 @@ export async function searchLookup(
 
   const q = (input.q ?? "").trim();
   const limit = Math.min(50, Math.max(1, input.limit ?? DEFAULT_LOOKUP_LIMIT));
-  const ranked = rankOptions(await noun.search(ctx, q, input.context ?? {}), q);
+  const found = await noun.search(ctx, q, input.context ?? {});
+  const ranked = noun.ranked ? found : rankOptions(found, q);
   return {
     status: 200,
     body: {

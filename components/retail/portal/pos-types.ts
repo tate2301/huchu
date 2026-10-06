@@ -26,7 +26,6 @@ export type CartItem = {
    * price that already has it and show a total the server will not charge.
    */
   taxInclusive?: boolean;
-  compareAtPrice?: number | null;
   lineDiscountAmount?: number;
   /** Alcohol, on a liquor store: the sale needs the customer's ID checked. */
   ageRestricted?: boolean;
@@ -66,7 +65,8 @@ export type PosCatalogItem = {
   name: string;
   category?: string | null;
   unitPrice: number;
-  compareAtPrice: number | null;
+  /** The price before the last cut on the default list, within 60 days; struck through on the till. */
+  wasPrice: number | null;
   taxPercent: number;
   /**
    * S-3 — the shelf-price snapshot the server resolved out of the core price

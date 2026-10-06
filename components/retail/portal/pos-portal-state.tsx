@@ -444,7 +444,6 @@ export function PosPortalProvider({
           unitPrice: item.unitPrice,
           taxPercent: item.taxPercent,
           taxInclusive: item.taxInclusive ?? false,
-          compareAtPrice: item.compareAtPrice,
           lineDiscountAmount: 0,
           ageRestricted: item.ageRestricted ?? false,
           returnable: depositsOn && Boolean(item.returnable),

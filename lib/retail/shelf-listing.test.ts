@@ -1,8 +1,8 @@
 /**
  * A shelf line filed under the shop's own category.
  *
- * The product form writes the category, the cost, and the deposit on an empty
- * through `upsertShelfListing`; the till and the back-office list read them back
+ * New product and Edit a product write the category, the cost, and the deposit
+ * on an empty (`createProduct`, `updateProduct`); the till and the back-office list read them back
  * through `loadShelfListings`. These pin the round trip: the category comes back
  * by name, an age-restricted category makes its products ask for ID, the till's
  * category chip filters by it, and a deposit only survives on a returnable line.
@@ -10,33 +10,31 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { quantity } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
-import { loadSellableProducts, loadShelfListing, loadShelfListings, upsertShelfListing } from "./shelf-listing";
+import { productPatch } from "./products/input";
+import { addTestProduct } from "./products/test-fixtures";
+import { updateProduct } from "./products/update";
+import { loadSellableProducts, loadShelfListing, loadShelfListings } from "./shelf-listing";
 
 let companyId: string;
 let siteId: string;
-let locationId: string;
 let beerId: string;
 let snacksId: string;
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-async function stockLine(index: number) {
-  const item = await prisma.inventoryItem.create({
-    data: {
-      itemCode: `SL-${stamp}-${index}`,
-      name: `Shelf line ${index}`,
-      category: "OTHER",
-      unit: "each",
-      siteId,
-      locationId,
-      currentStock: quantity(24),
-      minStock: quantity(6),
-    },
-    select: { id: true },
-  });
-  return item.id;
+const actor = () => ({ companyId, userId: "00000000-0000-0000-0000-0000000000aa", userName: "Tafara Nyathi", userRole: "MANAGER" });
+
+/** Edit a product the way the Edit sheet does. */
+async function edit(id: string, fields: Record<string, unknown>) {
+  await prisma.$transaction((tx) =>
+    updateProduct(tx, {
+      actor: actor(),
+      id,
+      input: productPatch.parse(fields),
+      limits: { priceChanges: "MANAGERS", belowCostNeedsOwner: true },
+    }),
+  );
 }
 
 beforeAll(async () => {
@@ -50,11 +48,10 @@ beforeAll(async () => {
     select: { id: true },
   });
   siteId = site.id;
-  const location = await prisma.stockLocation.create({
+  await prisma.stockLocation.create({
     data: { siteId, code: `FLOOR-${stamp}`, name: "Shop floor", isActive: true },
     select: { id: true },
   });
-  locationId = location.id;
   const beer = await prisma.retailCategory.create({
     data: { companyId, name: "Beer", ageRestricted: true, returnable: true },
     select: { id: true },
@@ -69,6 +66,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!companyId) return;
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
   await prisma.inventoryItem.deleteMany({ where: { site: { companyId } } });
   await prisma.stockLocation.deleteMany({ where: { site: { companyId } } });
   await prisma.productPrice.deleteMany({ where: { companyId } });
@@ -83,19 +81,13 @@ describe("a shelf line in the shop's own category", () => {
   let castleId: string;
 
   it("comes back with its category, its cost and its deposit", async () => {
-    castleId = await upsertShelfListing({
-      companyId,
-      productId: null,
-      sku: `CASTLE-${stamp}`,
-      name: "Castle Lager 340ml",
-      inventoryItemId: await stockLine(1),
-      unitPrice: 1.2,
-      taxPercent: 15,
-      categoryId: beerId,
-      costPrice: 0.85,
-      returnable: true,
-      depositAmount: 0.1,
-    });
+    castleId = (
+      await addTestProduct(
+        companyId,
+        { name: "Castle Lager 340ml", price: "1.20", categoryId: beerId, cost: "0.85", returnable: true, depositAmount: "0.10" },
+        { siteId, onHand: 24, reorderAt: 6 },
+      )
+    ).productId;
 
     const listing = await loadShelfListing(companyId, castleId);
     expect(listing).toMatchObject({
@@ -121,16 +113,7 @@ describe("a shelf line in the shop's own category", () => {
   });
 
   it("is what the till's category chip finds, and nothing else is", async () => {
-    await upsertShelfListing({
-      companyId,
-      productId: null,
-      sku: `CHIPS-${stamp}`,
-      name: "Simba Chips 125g",
-      inventoryItemId: await stockLine(2),
-      unitPrice: 1,
-      taxPercent: 15,
-      categoryId: snacksId,
-    });
+    await addTestProduct(companyId, { name: "Simba Chips 125g", price: "1.00", categoryId: snacksId }, { siteId, onHand: 24 });
 
     const beer = await loadShelfListings(companyId, { category: "Beer" });
     expect(beer.map((line) => line.name)).toEqual(["Castle Lager 340ml"]);
@@ -139,17 +122,7 @@ describe("a shelf line in the shop's own category", () => {
   });
 
   it("drops the deposit when the line stops being returnable", async () => {
-    await upsertShelfListing({
-      companyId,
-      productId: castleId,
-      sku: `CASTLE-${stamp}`,
-      name: "Castle Lager 340ml",
-      inventoryItemId: (await loadShelfListing(companyId, castleId))!.inventoryItemId,
-      unitPrice: 1.2,
-      taxPercent: 15,
-      returnable: false,
-      depositAmount: 0.1,
-    });
+    await edit(castleId, { returnable: false, depositAmount: "0.10" });
     expect(await loadShelfListing(companyId, castleId)).toMatchObject({
       returnable: false,
       depositAmount: null,
@@ -158,17 +131,8 @@ describe("a shelf line in the shop's own category", () => {
     });
   });
 
-  it("leaves its category when the form sends none", async () => {
-    await upsertShelfListing({
-      companyId,
-      productId: castleId,
-      sku: `CASTLE-${stamp}`,
-      name: "Castle Lager 340ml",
-      inventoryItemId: (await loadShelfListing(companyId, castleId))!.inventoryItemId,
-      unitPrice: 1.2,
-      taxPercent: 15,
-      categoryId: null,
-    });
+  it("leaves its category when the change takes it out of one", async () => {
+    await edit(castleId, { categoryId: null });
     expect(await loadShelfListing(companyId, castleId)).toMatchObject({
       categoryId: null,
       category: null,

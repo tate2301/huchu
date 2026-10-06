@@ -235,6 +235,19 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
     tone: "bad",
   }),
   [RETAIL_AUDIT_EVENTS.settingsChanged]: settingsChangedWords,
+  // "Added at US$2.10, 48 in stock at Harare Main Branch" (PRD-03).
+  [RETAIL_AUDIT_EVENTS.productCreated]: (payload) => {
+    const opening = amount(payload.openingStock);
+    const stock = opening ? `, ${formatCount(opening)} in stock${text(payload.site) ? ` at ${text(payload.site)}` : ""}` : "";
+    return { what: `Added at ${moneyWords(payload.price)}${stock}`, tone: "ok" };
+  },
+  // "Changed the Retail price from US$17.50 to US$18.25"; "Put on the Wholesale list at US$16.90" (PRD-03).
+  [RETAIL_AUDIT_EVENTS.priceChanged]: (payload) => {
+    const list = text(payload.list) ?? "list";
+    if (text(payload.from) === null) return { what: `Put on the ${list} list at ${moneyWords(payload.to)}`, tone: "info" };
+    if (text(payload.to) === null) return { what: `Taken off the ${list} list`, tone: "info" };
+    return { what: `Changed the ${list} price from ${moneyWords(payload.from)} to ${moneyWords(payload.to)}`, tone: "info" };
+  },
   // "Set the ZiG rate to 27.10, from 26.80"; "Updates the ZiG rate by hand" (W-05).
   [RETAIL_AUDIT_EVENTS.zigRateSet]: (payload) => ({
     what:
