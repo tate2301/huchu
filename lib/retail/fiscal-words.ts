@@ -20,7 +20,7 @@ export function whenUnreachableOf(words: string): WhenUnreachable | null {
   return (Object.keys(UNREACHABLE_WORDS) as WhenUnreachable[]).find((key) => UNREACHABLE_WORDS[key] === words) ?? null;
 }
 
-/** How long after a failed FDMS call a shop that stops selling stays stopped, unless FDMS answers sooner. */
+/** How often a shop that stops selling asks FDMS again, from a sale, while its last call went unanswered. */
 export const FISCAL_OFFLINE_WINDOW_MS = 5 * 60 * 1000;
 
 export type ConnectionState = "CONNECTED" | "NOT_CONNECTED" | "UNREACHABLE";
@@ -147,3 +147,5 @@ export const FISCAL_OFFLINE_REFUSAL =
   "ZIMRA cannot be reached, and this shop stops selling until it answers. Try again in a few minutes.";
 
 export const DEVICE_DAY_OPEN_REFUSAL = "Close the fiscal day before changing the device.";
+
+export const DEVICE_RECONNECT_DAY_OPEN_REFUSAL = "Close the fiscal day before connecting the device again.";

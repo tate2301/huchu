@@ -35,7 +35,7 @@ import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "
 import { postedChange } from "@/lib/retail/sale-totals";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
-import { fiscalSaleRefusal } from "@/lib/retail/fiscal-settings";
+import { fiscalSaleRefusal, openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
 import { saleReceipt } from "@/lib/retail/receipt-settings";
 import { approverSchema, approvalFor, replayApproval, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
@@ -971,6 +971,13 @@ export async function POST(request: NextRequest) {
       the sales rung while the network was down. Never fails the sale: a shop
       with no device gets SKIPPED, and a refusal is a row somebody can replay.
     */
+    // A sale that finds no fiscal day open (closed by hand while the tills sell) opens one to be signed in (SET-08).
+    await openFiscalDayIfNone({
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      userName: session.user.name ?? null,
+      userRole: session.user.role ?? null,
+    });
     const fiscal = await fiscaliseAfterPosting({
       companyId: session.user.companyId,
       saleId: sale.id,

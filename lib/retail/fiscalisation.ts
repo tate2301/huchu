@@ -836,8 +836,13 @@ export async function fiscaliseRetailSale(input: {
 
   // A sale that was voided before it was ever drained was never given to ZIMRA
   // and never should be: the reversal that voided it is skipped for the same
-  // reason, and the day's counters stay clean.
-  if (sale.status !== "POSTED") {
+  // reason, and the day's counters stay clean. One already signed holds its
+  // number in the day's chain whatever became of it, so it is sent all the same.
+  const signed = await prisma.fiscalReceipt.findFirst({
+    where: { companyId: input.companyId, retailSaleId: sale.id, receiptGlobalNo: { not: null }, signature: { not: null } },
+    select: { id: true },
+  });
+  if (sale.status !== "POSTED" && !signed) {
     return outcome(sale, {
       fiscalStatus: "SKIPPED",
       fiscalError: `Sale ${sale.saleNo} is ${sale.status} and is not fiscalised`,
@@ -1055,6 +1060,33 @@ export async function fiscaliseAfterPosting(input: {
       error: error instanceof Error ? error.message : "The sale was not fiscalised",
     };
   }
+}
+
+/**
+ * "Keep selling, sign later" (SET-08): send a fiscal day's till receipts
+ * ZIMRA has not taken yet again, oldest first — the same signed bytes, so the
+ * day can close. Stops at the first one ZIMRA does not take: the rest would
+ * meet the same silence, and each waits on its own for the fiscal worker.
+ * Returns how many are still not taken.
+ */
+export async function resendRetailReceipts(input: { companyId: string; fiscalDayId: string }): Promise<number> {
+  const unsent = await prisma.fiscalReceipt.findMany({
+    where: {
+      companyId: input.companyId,
+      fiscalDayId: input.fiscalDayId,
+      retailSaleId: { not: null },
+      status: { in: ["PENDING", "FAILED"] },
+    },
+    orderBy: [{ receiptGlobalNo: "asc" }],
+    select: { retailSaleId: true },
+  });
+  let left = unsent.length;
+  for (const receipt of unsent) {
+    const result = await fiscaliseRetailSale({ companyId: input.companyId, saleId: receipt.retailSaleId! });
+    if (result.fiscalStatus !== "SUCCESS") break;
+    left -= 1;
+  }
+  return left;
 }
 
 /**

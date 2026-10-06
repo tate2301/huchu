@@ -78,7 +78,8 @@ export const fiscalPage: SettingsPage = {
           t: "seg",
           l: "Close the fiscal day",
           o: [DAY_CLOSE_WORDS.WITH_LAST_SHIFT, DAY_CLOSE_WORDS.BY_HAND],
-          h: "Closing sends the Z-report to ZIMRA. A day left open blocks tomorrow’s sales.",
+          // The board's "A day left open blocks tomorrow’s sales" is not what happens: an open day takes them (98-decisions, honest version).
+          h: "Closing sends the Z-report to ZIMRA. A day left open takes tomorrow’s sales too.",
         },
         {
           id: "whenUnreachable",

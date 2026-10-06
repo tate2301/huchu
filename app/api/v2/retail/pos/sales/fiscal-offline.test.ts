@@ -7,9 +7,10 @@ import { hashDeviceKey } from "@/lib/retail/devices";
 
 /**
  * SET-08, W-06: "If ZIMRA cannot be reached · Stop selling". While the shop's
- * fiscal device last failed to reach FDMS within five minutes, a new sale on
- * a paired till is refused with 409 `FISCAL_OFFLINE` and nothing is written;
- * a sale the till rang offline is still taken in. Against the test database,
+ * fiscal device's last call to FDMS went unanswered, a new sale on a paired
+ * till is refused with 409 `FISCAL_OFFLINE` and nothing is written (every five
+ * minutes the sale asks FDMS again first); a sale the till rang offline is
+ * still taken in. Against the test database,
  * with only the sign-in faked.
  */
 
@@ -159,6 +160,17 @@ describe("selling while ZIMRA cannot be reached (SET-08, W-06)", () => {
       code: "FISCAL_OFFLINE",
       error: "ZIMRA cannot be reached, and this shop stops selling until it answers. Try again in a few minutes.",
     });
+    expect(await prisma.retailSale.count({ where: { companyId } })).toBe(0);
+  });
+
+  it("asks ZIMRA again once the last silence is five minutes old, and keeps refusing while it is still away", async () => {
+    const stale = new Date(Date.now() - 6 * 60_000);
+    await prisma.fiscalisationProviderConfig.update({ where: { id: providerId }, data: { lastFailedAt: stale } });
+    const response = await sell(`asked-${stamp}`);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "FISCAL_OFFLINE" });
+    const device = await prisma.fiscalisationProviderConfig.findUniqueOrThrow({ where: { id: providerId } });
+    expect(device.lastFailedAt!.getTime()).toBeGreaterThan(stale.getTime());
     expect(await prisma.retailSale.count({ where: { companyId } })).toBe(0);
   });
 

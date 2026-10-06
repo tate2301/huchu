@@ -27,13 +27,15 @@ import {
   openFiscalDay,
 } from "@/lib/accounting/fiscal-day";
 import { prisma } from "@/lib/prisma";
+import { dayKey } from "@/lib/workspace/format";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
-import { retailFiscalDayTaxLines } from "@/lib/retail/fiscalisation";
+import { fiscaliseRetailSales, resendRetailReceipts, retailFiscalDayTaxLines } from "@/lib/retail/fiscalisation";
 import {
   connectionWords,
   DAY_CLOSE_WORDS,
   dayCloseOf,
   DEVICE_DAY_OPEN_REFUSAL,
+  DEVICE_RECONNECT_DAY_OPEN_REFUSAL,
   FISCAL_OFFLINE_REFUSAL,
   FISCAL_OFFLINE_WINDOW_MS,
   fiscalDayLabel,
@@ -285,6 +287,11 @@ export async function connectFiscalDevice(actor: RetailAuditActor, activationKey
   const device = await shopFiscalDevice(actor.companyId);
   if (!device?.deviceId) throw new FiscalRefused("Save the device ID before connecting.", 400);
   if (!device.serialNumber) throw new FiscalRefused("Save the serial number before connecting.", 400);
+  // Connecting again replaces the device's key and certificate: the open day's receipts are signed under the old
+  // one, and its Z-report must be too.
+  if (device.registeredAt && (await activeDay(device))) {
+    throw new FiscalRefused(DEVICE_RECONNECT_DAY_OPEN_REFUSAL, 409, "FISCAL_DAY_OPEN");
+  }
   const result = await registerFiscalDevice({
     provider: device.apiBaseUrl ? device : { ...device, apiBaseUrl: process.env.ZIMRA_FDMS_API_BASE_URL ?? null },
     activationKey,
@@ -383,6 +390,8 @@ export async function closeShopFiscalDay(
   const key = resolveDeviceSigningKey(device);
   if (!key) throw new FiscalRefused("Connect the device before closing a day.", 409);
 
+  // "Sign later": what the tills signed while ZIMRA was away goes again now, so the report can count it.
+  await resendRetailReceipts({ companyId: actor.companyId, fiscalDayId: day.id });
   const taxLinesByReceiptId = await retailFiscalDayTaxLines({ companyId: actor.companyId, fiscalDayId: day.id });
   try {
     await closeFiscalDay({
@@ -429,7 +438,9 @@ export async function closeShopFiscalDay(
     if (error instanceof FiscalDayHasPendingReceiptsError) {
       const count = error.receipts.length;
       throw new FiscalRefused(
-        `Day ${day.fiscalDayNo} has ${count} ${count === 1 ? "receipt" : "receipts"} ZIMRA has not taken yet. They go again on their own; close the day once they are through.`,
+        `Day ${day.fiscalDayNo} has ${count} ${count === 1 ? "receipt" : "receipts"} ZIMRA has not taken yet. ${
+          count === 1 ? "It was" : "They were"
+        } sent again just now and ZIMRA did not answer. Close the day again once ZIMRA is back.`,
         409,
         error.code,
       );
@@ -475,20 +486,54 @@ export async function closeFiscalDayIfLastShift(actor: RetailAuditActor): Promis
 }
 
 /**
- * The day's first shift opens the shop's fiscal day when none is open, so the
- * tills' sales have a day to be signed in (the counterpart of closing it with
- * the last shift). Never throws: the shift is open either way.
+ * The shop's fiscal day, opened when none is open: by the day's first shift
+ * (the counterpart of closing it with the last shift), and by a sale that
+ * finds none (after "Close day" by hand with tills still selling), so every
+ * sale has a day to be signed in.
+ *
+ * A day still open from an earlier day — its last shift closed while ZIMRA was
+ * away — is closed first when the shop closes its days with the last shift;
+ * if ZIMRA still does not take its report, today's sales go into it.
+ *
+ * Opening a day signs what was sold while none was open (a day's report
+ * waiting on ZIMRA): the till sales since the previous day opened that have no
+ * receipt yet. Never throws: the shift is open and the sale taken either way.
  */
-export async function openFiscalDayIfNone(companyId: string): Promise<{ opened: number | null }> {
+export async function openFiscalDayIfNone(actor: RetailAuditActor, now: Date = new Date()): Promise<{ opened: number | null }> {
+  const { companyId } = actor;
   try {
     const device = await shopFiscalDevice(companyId);
     if (!device?.registeredAt || !device.isActive || !device.deviceId) return { opened: null };
-    if (await activeDay(device)) return { opened: null };
+    const active = await activeDay(device);
+    if (active) {
+      if (dayKey(active.openedAt) === dayKey(now)) return { opened: null };
+      const settings = await loadFiscalSettings(companyId);
+      if (settings.dayClose !== "WITH_LAST_SHIFT") return { opened: null };
+      try {
+        await closeShopFiscalDay(actor, active.id, "LAST_SHIFT");
+      } catch (error) {
+        if (!(error instanceof FiscalRefused)) throw error;
+        return { opened: null };
+      }
+    }
+    const previous = await prisma.fiscalDay.findFirst({
+      where: { companyId, providerConfigId: device.id },
+      orderBy: { fiscalDayNo: "desc" },
+      select: { openedAt: true },
+    });
     const day = await openFiscalDay({ companyId, providerConfigId: device.id });
+    if (previous) {
+      const unsigned = await prisma.retailSale.findMany({
+        where: { companyId, status: "POSTED", postedAt: { gte: previous.openedAt }, fiscalReceipt: null },
+        orderBy: [{ postedAt: "asc" }, { id: "asc" }],
+        select: { id: true },
+      });
+      if (unsigned.length > 0) await fiscaliseRetailSales({ companyId, saleIds: unsigned.map((sale) => sale.id) });
+    }
     return { opened: day.fiscalDayNo };
   } catch (error) {
     if (error instanceof FiscalDayAlreadyOpenError) return { opened: null };
-    console.error("[retail] opening the fiscal day with the first shift failed:", error);
+    console.error("[retail] opening the fiscal day failed:", error);
     return { opened: null };
   }
 }
@@ -507,14 +552,25 @@ export async function tillFiscal(companyId: string) {
 }
 
 /**
- * "If ZIMRA cannot be reached · Stop selling": a new sale is refused while
- * the device's last call to FDMS failed within five minutes and nothing has
- * answered since. Null when the till may sell.
+ * "If ZIMRA cannot be reached · Stop selling": a new sale is refused from the
+ * device's first failed call to FDMS until FDMS answers again. Nothing else
+ * may call FDMS while the tills stand still, so once the last failure is five
+ * minutes old the sale itself asks FDMS how the device stands (GetStatus):
+ * an answer lets it through, silence refuses it and waits another five
+ * minutes. Null when the till may sell.
  */
 export async function fiscalSaleRefusal(companyId: string, now: Date = new Date()): Promise<string | null> {
   const settings = await loadFiscalSettings(companyId);
   if (settings.whenUnreachable !== "STOP_SELLING") return null;
   const device = await shopFiscalDevice(companyId);
   if (!device?.registeredAt || !device.lastFailedAt || !isFdmsUnreachable(device)) return null;
-  return now.getTime() - device.lastFailedAt.getTime() <= FISCAL_OFFLINE_WINDOW_MS ? FISCAL_OFFLINE_REFUSAL : null;
+  if (now.getTime() - device.lastFailedAt.getTime() < FISCAL_OFFLINE_WINDOW_MS) return FISCAL_OFFLINE_REFUSAL;
+  try {
+    await getDeviceStatus({ provider: device });
+  } catch {
+    await recordFdmsContact(device.id, false, now);
+    return FISCAL_OFFLINE_REFUSAL;
+  }
+  await recordFdmsContact(device.id, true, now);
+  return null;
 }

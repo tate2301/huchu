@@ -3,14 +3,17 @@
 .cx-sf-aside ul.cx-fiscal-days { margin: 0; padding: 0; list-style: none; font-size: 12.5px; gap: 0; }
 .cx-sf-aside ul.cx-fiscal-days li {
   display: grid;
-  grid-template-columns: 52px 1fr auto;
+  grid-template-columns: 52px max-content 1fr;
   gap: 8px;
   padding: 8px 0;
   border-bottom: 1px solid var(--line-soft);
   color: var(--ink);
 }
 .cx-sf-aside ul.cx-fiscal-days li::before { content: none; }
-.cx-fiscal-days__label { color: var(--ink-2); }
+.cx-fiscal-days__label { color: var(--ink-2); white-space: nowrap; }
+/* A total in two currencies breaks between them, never inside one. */
+.cx-fiscal-days__total { text-align: right; }
+.cx-fiscal-days__total > span { white-space: nowrap; }
 .cx-fiscal-days__empty { margin: 0; color: var(--muted); font-size: 13px; }
 
 /* "Connection" reads as the board draws it: the state, in the weight of a fact. */

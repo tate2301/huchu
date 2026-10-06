@@ -45,6 +45,7 @@ import {
   voidRetailSaleTransaction,
 } from "../../_services";
 import { fiscaliseRetailSales } from "@/lib/retail/fiscalisation";
+import { openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
 import { requirePosDevice, type PosDevice } from "@/lib/retail/devices";
 import { approverSchema, replayApproval } from "@/lib/retail/manager-pin";
 import { doneOffline, loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
@@ -1063,6 +1064,13 @@ async function drainFiscalisation(
   if (drain.length === 0) return;
 
   try {
+    // The batch needs a fiscal day open to be signed in (SET-08); opening one signs what waited for it.
+    await openFiscalDayIfNone({
+      companyId: ctx.companyId,
+      userId: ctx.userId,
+      userName: ctx.session.user.name ?? null,
+      userRole: ctx.session.user.role ?? null,
+    });
     const outcomes = await fiscaliseRetailSales({
       companyId: ctx.companyId,
       saleIds: drain.map((entry) => entry.saleId),

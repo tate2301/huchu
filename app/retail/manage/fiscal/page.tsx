@@ -93,7 +93,7 @@ function TestReceipt() {
   );
 }
 
-/** "Close day {n}", asked first: the Z-report goes to ZIMRA and the tills wait for tomorrow's day. */
+/** "Close day {n}", asked first: the Z-report goes to ZIMRA, and the next sale opens the next day. */
 function CloseDay({ day }: { day: OpenDay }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -117,13 +117,11 @@ function CloseDay({ day }: { day: OpenDay }) {
   };
   return (
     <>
-      <Button onClick={() => setAsking(true)}>
-        Close day <span className="font-mono">{day.no}</span>
-      </Button>
+      <Button onClick={() => setAsking(true)}>{`Close day ${day.no}`}</Button>
       <ConfirmDialog
         ask={{
           title: `Close day ${day.no}?`,
-          body: "The Z-report goes to ZIMRA and sales wait for tomorrow’s day.",
+          body: `The Z-report goes to ZIMRA, and the next sale opens day ${day.no + 1}.`,
           keep: "Keep it open",
           go: "Close the day",
           fill: "action",
@@ -146,7 +144,14 @@ function FiscalDays({ days }: { days: unknown }) {
         <li key={day.no}>
           <span className="font-mono">{day.no}</span>
           <span className="cx-fiscal-days__label">{day.label}</span>
-          <span className="font-mono">{day.total}</span>
+          <span className="cx-fiscal-days__total font-mono">
+            {day.total.split(" · ").map((part, index) => (
+              <React.Fragment key={part}>
+                {index > 0 ? " · " : null}
+                <span>{part}</span>
+              </React.Fragment>
+            ))}
+          </span>
         </li>
       ))}
     </ul>
