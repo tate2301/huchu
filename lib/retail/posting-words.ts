@@ -115,7 +115,10 @@ export function runParts(counts: RunCounts): string {
 }
 
 /** "Last posted": "2 October, 23:00. 412 sales, 6 deliveries, 1 count." — never: "Not yet." */
-export function lastPostedWords(run: (RunCounts & { at: string | Date; failed: number }) | null, now: Date): string {
+export function lastPostedWords(
+  run: (RunCounts & { at: string | Date; other?: number; failed: number }) | null,
+  now: Date,
+): string {
   if (!run) return "Not yet.";
   const at = new Date(run.at);
   const day = formatDay(at);
@@ -123,7 +126,12 @@ export function lastPostedWords(run: (RunCounts & { at: string | Date; failed: n
   const shown = day.endsWith(` ${year}`) ? day.slice(0, -(year.length + 1)) : day;
   const parts = runParts(run);
   const failed = run.failed ? ` ${count(run.failed, "item", "items")} could not post.` : "";
-  return `${shown}, ${formatTime(at)}. ${parts ? `${parts}.` : "Nothing was waiting."}${failed}`;
+  const what = parts
+    ? `${parts}.`
+    : run.other
+      ? `${count(run.other, "other entry", "other entries")}.`
+      : "Nothing was waiting.";
+  return `${shown}, ${formatTime(at)}. ${what}${failed}`;
 }
 
 /** The toast after "Post now": "Posted 1 sale." */

@@ -1,6 +1,9 @@
+import type { AccountType } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice } from "@/lib/retail/permission-matrix";
 import { AccountAddRefused, accountOption, addPostingAccount, postableAccounts } from "@/lib/retail/posting-settings";
+import { TYPE_WORDS } from "@/lib/retail/posting-words";
 import { PriceListCopyRefusal, copyPriceList } from "@/lib/retail/price-list-copy";
 import { suggestSiteCode } from "@/lib/retail/site-words";
 import { SiteRefusal, createSite, priceListOptions, siteInput } from "@/lib/retail/sites";
@@ -134,8 +137,9 @@ const priceList: LookupNoun = {
 };
 
 /**
- * The tenant's chart on Posting to the books (SET-09): every active ledger
- * account, "{code} {name}" over its type, in code order. Its inline add is
+ * The tenant's chart on Posting to the books (SET-09): the active ledger
+ * accounts of the types the field takes, "{code} {name}" over its type, in
+ * code order. Its inline add is
  * "New account": "Code and name" ("1012 Cash on hand, rand") and "Type".
  */
 const account: LookupNoun = {
@@ -146,9 +150,14 @@ const account: LookupNoun = {
     { key: "codeAndName", label: "Code and name", placeholder: "" },
     { key: "type", label: "Type", placeholder: "Asset, liability, income or expense" },
   ],
-  async search(ctx, q) {
+  async search(ctx, q, context) {
     const needle = q.trim().toLowerCase();
+    // `context.types`: the types the field takes ("Sales": income), so it lists only those.
+    const types = Array.isArray(context.types)
+      ? context.types.filter((type): type is AccountType => typeof type === "string" && type in TYPE_WORDS)
+      : [];
     return (await postableAccounts(ctx.companyId))
+      .filter((row) => types.length === 0 || types.includes(row.type))
       .map(accountOption)
       .filter((option) => !needle || option.label.toLowerCase().includes(needle));
   },

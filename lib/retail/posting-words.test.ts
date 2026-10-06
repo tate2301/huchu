@@ -75,6 +75,12 @@ describe("Last posted", () => {
     expect(lastPostedWords(null, now)).toBe("Not yet.");
   });
 
+  it("names what else posted when no sale, refund, delivery or count did", () => {
+    expect(
+      lastPostedWords({ at: "2026-10-02T23:00:00+02:00", sales: 0, refunds: 0, deliveries: 0, counts: 0, other: 2, failed: 0 }, now),
+    ).toBe("2 October, 23:00. 2 other entries.");
+  });
+
   it("counts refunds, deliveries and counts in the singular and plural", () => {
     expect(runParts({ sales: 2, refunds: 1, deliveries: 1, counts: 2 })).toBe("2 sales, 1 refund, 1 delivery, 2 counts");
   });

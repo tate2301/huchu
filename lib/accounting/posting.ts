@@ -246,6 +246,11 @@ function buildEnvelope(context: PostingContext) {
     sourceType: context.sourceType,
     sourceId: context.sourceId ?? null,
     sourceSubtype: context.sourceSubtype ?? null,
+    // Kept with the event, so one posted later (an end-of-day shop's run,
+    // the drain) posts the way it would have at once: a refund, a void or a
+    // loss the other way round, against the same cost centre.
+    invertDirection: context.invertDirection === true,
+    ...(context.costCenterId ? { costCenterId: context.costCenterId } : {}),
   };
 }
 
@@ -648,18 +653,20 @@ export async function previewPostingFromSource(context: PostingContext) {
  * Post a source's journal entry. A shop that posts at the end of each day
  * (SET-09) has its retail events captured and left PENDING until the day's
  * run; `postNow` is that run (and the drain, which only takes events whose
- * time has come).
+ * time has come). `defaultsReady` is a caller that has already run
+ * `ensureAccountingDefaults` for the company (a posting run, once).
  */
 export async function createJournalEntryFromSource(
   context: PostingContext,
   db: Db = prisma,
-  options: { postNow?: boolean } = {},
+  options: { postNow?: boolean; defaultsReady?: boolean } = {},
 ): Promise<PostingResult> {
   const envelope = buildEnvelope(context);
   const integrationEvent = await createOrRefreshIntegrationEvent(context, envelope);
 
   try {
-    await ensureAccountingDefaults(context.companyId);
+    // A posting run checks the company's defaults once, not once per event.
+    if (!options.defaultsReady) await ensureAccountingDefaults(context.companyId);
 
     if (context.sourceId) {
       const existing = await prisma.journalEntry.findFirst({

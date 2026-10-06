@@ -40,30 +40,52 @@ export default function PostingSettingsPage() {
   );
 }
 
-/** The header's "Post now": every retail event still waiting, to the books now. */
+type RunSlice = { runId: string; done: boolean; posted: number; waiting: number; run: { at: string; text: string; toast: string } };
+
+/**
+ * The header's "Post now": every retail event still waiting, to the books
+ * now. The server posts a few seconds at a time; the button calls again
+ * until nothing is waiting, counting as it goes.
+ */
 function PostNow() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [progress, setProgress] = React.useState<{ posted: number; total: number } | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const post = async () => {
     setBusy(true);
+    let posted = 0;
     try {
-      const { run } = await fetchJson<{ run: { at: string; text: string; toast: string } }>("/api/v2/retail/posting/run", {
-        method: "POST",
-      });
-      toast({ title: run.toast, variant: "success" });
-      await queryClient.invalidateQueries({ queryKey: settingsQueryKey("posting") });
+      let slice: RunSlice | null = null;
+      do {
+        slice = await fetchJson<RunSlice>("/api/v2/retail/posting/run", {
+          method: "POST",
+          body: JSON.stringify(slice ? { runId: slice.runId } : {}),
+        });
+        posted = slice.posted;
+        if (!slice.done) setProgress({ posted: slice.posted, total: slice.posted + slice.waiting });
+      } while (!slice.done);
+      toast({ title: slice.run.toast, variant: "success" });
     } catch (error) {
-      toast({ title: getApiErrorMessage(error, "Nothing was posted. Try again."), variant: "destructive" });
+      const fallback = posted ? `Posted ${posted} so far. The rest did not post. Try again.` : "Nothing was posted. Try again.";
+      toast({ title: posted ? fallback : getApiErrorMessage(error, fallback), variant: "destructive" });
     } finally {
       setBusy(false);
+      setProgress(null);
+      await queryClient.invalidateQueries({ queryKey: settingsQueryKey("posting") });
     }
   };
 
   return (
     <Button busy={busy} onClick={() => void post()}>
-      Post now
+      {progress ? (
+        <>
+          Posting <span className="font-mono">{progress.posted}</span> of <span className="font-mono">{progress.total}</span>
+        </>
+      ) : (
+        "Post now"
+      )}
     </Button>
   );
 }
@@ -83,6 +105,8 @@ function ReadyChecks({ checks }: { checks: unknown }) {
 }
 
 type SetupAnswer = { groups: SetupPreview };
+
+const RATE_PLACEHOLDERS: Record<string, string> = { ZWG: "26.80", ZAR: "18.50" };
 
 /**
  * "Set up the accounts": what the pack would add, grouped, with the ZiG and
@@ -105,17 +129,16 @@ function SetUpDialog({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
   const [preview, setPreview] = React.useState<SetupPreview | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [zwg, setZwg] = React.useState("");
-  const [zar, setZar] = React.useState("");
+  const [rates, setRates] = React.useState<Record<string, string>>({});
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [failure, setFailure] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const send = React.useCallback(
-    (mode: "DRY_RUN" | "APPLY", rates?: { ZWG: string; ZAR: string }) =>
+    (mode: "DRY_RUN" | "APPLY", fxRates?: Record<string, string>) =>
       fetchJson<SetupAnswer>("/api/v2/retail/posting/setup", {
         method: "POST",
-        body: JSON.stringify({ mode, ...(rates ? { fxRates: rates } : {}) }),
+        body: JSON.stringify({ mode, ...(fxRates ? { fxRates } : {}) }),
       }),
     [],
   );
@@ -135,7 +158,11 @@ function SetUpDialog({ onClose }: { onClose: () => void }) {
     setErrors({});
     setFailure(null);
     try {
-      await send("APPLY", { ZWG: zwg.trim(), ZAR: zar.trim() });
+      // Only the rates it asked for: one a shop already has is not typed over.
+      await send(
+        "APPLY",
+        Object.fromEntries((preview?.rates ?? []).map((rate) => [rate.code, (rates[rate.code] ?? "").trim()])),
+      );
       toast({ title: "The accounts are set up.", variant: "success" });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: settingsQueryKey("posting") }),
@@ -191,21 +218,28 @@ function SetUpDialog({ onClose }: { onClose: () => void }) {
                       </ul>
                     </section>
                   ))}
-                <section className="cx-posting-dialog__group">
-                  <h3>Rates</h3>
-                  <div className="cx-posting-dialog__rates">
-                    <Field label="US$1 is, in ZiG" optional error={errors.ZWG}>
-                      {(control) => (
-                        <TextInput {...control} mono right inputMode="decimal" placeholder="26.80" value={zwg} onChange={(event) => setZwg(event.target.value)} />
-                      )}
-                    </Field>
-                    <Field label="US$1 is, in rand" optional error={errors.ZAR}>
-                      {(control) => (
-                        <TextInput {...control} mono right inputMode="decimal" placeholder="18.50" value={zar} onChange={(event) => setZar(event.target.value)} />
-                      )}
-                    </Field>
-                  </div>
-                </section>
+                {preview.rates.length > 0 ? (
+                  <section className="cx-posting-dialog__group">
+                    <h3>Rates</h3>
+                    <div className="cx-posting-dialog__rates">
+                      {preview.rates.map((rate) => (
+                        <Field key={rate.code} label={`US$1 is, in ${rate.label}`} optional error={errors[rate.code]}>
+                          {(control) => (
+                            <TextInput
+                              {...control}
+                              mono
+                              right
+                              inputMode="decimal"
+                              placeholder={RATE_PLACEHOLDERS[rate.code] ?? "1.00"}
+                              value={rates[rate.code] ?? ""}
+                              onChange={(event) => setRates((now) => ({ ...now, [rate.code]: event.target.value }))}
+                            />
+                          )}
+                        </Field>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
               </>
             )}
             {failure ? (

@@ -94,7 +94,8 @@ export async function POST(request: NextRequest) {
             companyId: session.user.companyId,
             sourceType: "RETAIL_STOCK_ADJUSTMENT",
             sourceId: movement.id,
-            sourceSubtype: variance.isNegative() ? "LOSS" : "GAIN",
+            // `COUNT_*`, so a posting run tells a count from other adjustments (SET-09).
+            sourceSubtype: variance.isNegative() ? "COUNT_LOSS" : "COUNT_GAIN",
             siteId: site.id,
             entryDate: new Date(),
             description: `Retail stock adjustment ${movement.reference}`,

@@ -1,7 +1,8 @@
+import type { AccountType } from "@prisma/client";
 import { z } from "zod";
 
 import { TENDER_OPTIONS } from "@/lib/retail/payment-words";
-import { ROLE_OPTIONS, SCHEDULE_WORDS } from "@/lib/retail/posting-words";
+import { ROLE_OPTIONS, ROLE_TYPES, SCHEDULE_WORDS, TENDER_TYPES, VOUCHER_TYPES } from "@/lib/retail/posting-words";
 import type { FieldSpec } from "@/lib/workspace/sheet-kind";
 
 import type { SettingsPage } from "./types";
@@ -22,12 +23,14 @@ const account = z
   })
   .passthrough();
 
-const accountField = (id: string, label: string, show?: FieldSpec["show"]): FieldSpec => ({
+/** An account field lists the accounts of the types it takes (the save checks them again). */
+const accountField = (id: string, label: string, types: AccountType[], show?: FieldSpec["show"]): FieldSpec => ({
   id,
   t: "auto",
   l: label,
   half: true,
   noun: "account",
+  context: { types },
   ...(show ? { show } : {}),
 });
 
@@ -47,14 +50,16 @@ export const postingPage: SettingsPage = {
       title: "Where each tender goes",
       // One field per tender that is on (Payments), in the till's order.
       fields: TENDER_OPTIONS.map((option) =>
-        accountField(option.key, option.label, (values) => listed(values, "tendersOn", option.key)),
+        accountField(option.key, option.label, option.key === "vouchers" ? VOUCHER_TYPES : TENDER_TYPES, (values) =>
+          listed(values, "tendersOn", option.key),
+        ),
       ),
     },
     {
       title: "Sales and stock",
       // VAT only for a shop registered for VAT; deposits only for a liquor store with empties on.
       fields: ROLE_OPTIONS.map((option) =>
-        accountField(option.field, option.label, (values) => listed(values, "rolesShown", option.field)),
+        accountField(option.field, option.label, ROLE_TYPES[option.role], (values) => listed(values, "rolesShown", option.field)),
       ),
     },
     {

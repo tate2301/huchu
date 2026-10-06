@@ -156,11 +156,18 @@ type IntegrationEventRow = Awaited<ReturnType<typeof prisma.accountingIntegratio
  */
 export async function postIntegrationEvent(
   event: IntegrationEventRow,
-  input: { actorRole?: string | null; periodOverrideReason?: string | null } = {},
+  input: { actorRole?: string | null; periodOverrideReason?: string | null; defaultsReady?: boolean } = {},
 ): Promise<"posted" | "skipped" | "failed"> {
   const payload = parsePayload(event.payloadJson);
   const createdById = event.createdById ?? (await resolveFallbackActorId(event.companyId));
-  if (!createdById) return "failed";
+  if (!createdById) {
+    // Marked, so a posting run that passed it does not take it up again.
+    await prisma.accountingIntegrationEvent.update({
+      where: { id: event.id },
+      data: { status: "FAILED", lastError: "Nobody in the company to post as", attemptCount: { increment: 1 } },
+    });
+    return "failed";
+  }
 
   const result = await createJournalEntryFromSource(
     {
@@ -194,7 +201,7 @@ export async function postIntegrationEvent(
     },
     prisma,
     // Its time has come (or someone asked): an end-of-day shop's event is not put off again.
-    { postNow: true },
+    { postNow: true, defaultsReady: input.defaultsReady },
   );
 
   if (result.skipped) return "skipped";
@@ -503,7 +510,8 @@ export async function backfillRetailAccounting(input: {
   const failures: Array<{ key: string; error: string }> = [];
 
   for (const task of ordered) {
-    const result = await createJournalEntryFromSource(task.context);
+    // A backfill posts what it finds now, whatever the shop's posting schedule.
+    const result = await createJournalEntryFromSource(task.context, prisma, { postNow: true });
     if (result.entryId) {
       posted += 1;
     } else if (result.skipped) {

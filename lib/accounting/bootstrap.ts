@@ -430,6 +430,7 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
       existingBankAccounts,
       existingPeriods,
       existingRoleMappings,
+      existingRates,
     ] = await Promise.all([
       prisma.accountingSettings.upsert({
         where: { companyId: input.companyId },
@@ -480,7 +481,13 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
         where: { companyId: input.companyId },
         select: { role: true },
       }),
+      prisma.currencyRate.findMany({
+        where: { companyId: input.companyId, baseCurrency: "USD" },
+        distinct: ["quoteCurrency"],
+        select: { quoteCurrency: true },
+      }),
     ]);
+    const ratedCurrencies = new Set(existingRates.map((rate) => rate.quoteCurrency));
     const mappedRoles = new Set(existingRoleMappings.map((mapping) => mapping.role));
     const missingRoles = (Object.keys(RETAIL_ROLE_ACCOUNT_CODES) as Array<keyof typeof RETAIL_ROLE_ACCOUNT_CODES>).filter(
       (role) => !mappedRoles.has(role),
@@ -524,8 +531,10 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
         .map((mapping) => (mapping.currency ? `${mapping.tenderType}:${mapping.currency}` : mapping.tenderType)),
       missingRoleMappings: missingRoles,
       missingCurrencies: pack.currencies.filter((currency) => !currencyCodeSet.has(currency.code)).map((currency) => currency.code),
+      // A currency with no rate yet, none in the books and none given with this run.
       missingFxQuotes: pack.currencies
         .filter((currency) => !currency.isBase)
+        .filter((currency) => !ratedCurrencies.has(currency.code))
         .filter((currency) => toMoney(input.fxRates?.[currency.code]) <= 0)
         .map((currency) => currency.code),
     };

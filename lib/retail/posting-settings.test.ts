@@ -7,13 +7,19 @@ import { prisma } from "@/lib/prisma";
 import { readSettings, saveSettings } from "@/lib/retail/settings";
 import { SettingsRefused } from "@/lib/retail/settings/types";
 
+import { SETUP_LOOKUPS } from "@/lib/retail/lookups/setup";
+import type { LookupCtx } from "@/lib/retail/lookups/types";
+
 import {
   AccountAddRefused,
   addPostingAccount,
+  continueRetailPosting,
+  kindOf,
   loadPostingState,
   PostingRefused,
   runRetailPosting,
   savePosting,
+  startRetailPosting,
 } from "./posting-settings";
 
 /**
@@ -48,6 +54,49 @@ describe("posting a shop's sales to the books", () => {
       payload: { depositAmount: 0, changeRoundingKept: 0, changeRoundingGiven: 0 },
     };
   };
+
+  /** A refund or a void: a sale the other way round. */
+  const undo = (sourceType: "RETAIL_REFUND" | "RETAIL_VOID"): PostingContext => ({
+    ...sale(),
+    sourceType,
+    sourceSubtype: sourceType === "RETAIL_REFUND" ? "REFUND" : "VOID",
+    description: `Retail ${sourceType === "RETAIL_REFUND" ? "refund" : "void"} S-${saleNo}`,
+    invertDirection: true,
+  });
+
+  /** A count that found 7.10 of stock missing, as the stock count route posts it. */
+  const lossCount = (): PostingContext => {
+    saleNo += 1;
+    return {
+      companyId,
+      sourceType: "RETAIL_STOCK_ADJUSTMENT",
+      sourceId: `count-${saleNo}-${Date.now()}`,
+      sourceSubtype: "COUNT_LOSS",
+      entryDate: new Date(),
+      description: `Retail stock adjustment ADJ-${saleNo}`,
+      createdById: ownerId,
+      amount: 7.1,
+      netAmount: 7.1,
+      taxAmount: 0,
+      grossAmount: 7.1,
+      invertDirection: true,
+      inventory: { lines: [{ itemName: "Castle Lager 340ml", quantity: 1, unitCost: 7.1, totalCost: 7.1 }], totalCost: 7.1 },
+    };
+  };
+
+  /** An entry's lines as "{code} D|C {amount}", sorted, to compare two entries. */
+  const linesOf = async (entryId: string) =>
+    (
+      await prisma.journalLine.findMany({
+        where: { entryId },
+        select: { debit: true, credit: true, account: { select: { code: true } } },
+      })
+    )
+      .map((line) => `${line.account.code} ${line.debit > 0 ? `D ${line.debit}` : `C ${line.credit}`}`)
+      .sort();
+
+  const entryOf = async (sourceId: string | null | undefined) =>
+    (await prisma.journalEntry.findFirstOrThrow({ where: { companyId, sourceId: sourceId! }, select: { id: true } })).id;
 
   const creditTo = async (entryId: string) => {
     const lines = await prisma.journalLine.findMany({
@@ -171,6 +220,124 @@ describe("posting a shop's sales to the books", () => {
     ).toBe(1);
   });
 
+  it("posts a refund, a void and a loss count left for the day's run the same way round as at once", async () => {
+    const make = () => [undo("RETAIL_REFUND"), undo("RETAIL_VOID"), lossCount()];
+
+    await prisma.$transaction((tx) => savePosting(tx, actor(), { schedule: "EVERY_SALE" }));
+    const atOnce = make();
+    for (const context of atOnce) expect((await createJournalEntryFromSource(context)).entryId).toBeTruthy();
+
+    await prisma.$transaction((tx) => savePosting(tx, actor(), { schedule: "END_OF_DAY" }));
+    const later = make();
+    for (const context of later) expect(await createJournalEntryFromSource(context)).toMatchObject({ deferred: true });
+    const run = await runRetailPosting(companyId, "BY_HAND", actor());
+    expect(run).toMatchObject({ sales: 0, refunds: 2, counts: 1, failed: 0 });
+
+    for (const [index, context] of atOnce.entries()) {
+      const want = await linesOf(await entryOf(context.sourceId));
+      expect(await linesOf(await entryOf(later[index]!.sourceId))).toEqual(want);
+    }
+    // The refund takes the cash out and the sales back: the sale the other way round.
+    const refund = await linesOf(await entryOf(later[0]!.sourceId));
+    expect(refund).toContain("1000 C 11.5");
+    expect(refund).toContain("4200 D 10");
+    // The loss count takes the stock off and books the loss.
+    const loss = await linesOf(await entryOf(later[2]!.sourceId));
+    expect(loss).toEqual(["1200 C 7.1", "5410 D 7.1"]);
+   }, 30_000);
+
+  it("posts a run in slices, in the order the sales were captured, and closes a run cut off", async () => {
+    const captured = [sale(), sale(), sale()];
+    for (const context of captured) await createJournalEntryFromSource(context);
+
+    const cutOff = await startRetailPosting(companyId, "BY_HAND", actor());
+    // No time at all: nothing posts, and the run says what is still waiting.
+    const first = await continueRetailPosting(companyId, cutOff, actor(), 0);
+    expect(first).toMatchObject({ done: false, waiting: 3, run: { sales: 0 } });
+
+    // Its calls stop; the next Post now closes it where it stopped and starts again.
+    const runId = await startRetailPosting(companyId, "BY_HAND", actor());
+    expect((await prisma.retailPostingRun.findUniqueOrThrow({ where: { id: cutOff } })).finishedAt).not.toBeNull();
+    const done = await continueRetailPosting(companyId, runId, actor(), 60_000);
+    expect(done).toMatchObject({ done: true, waiting: 0, run: { sales: 3, failed: 0 } });
+    expect(await continueRetailPosting(companyId, runId, actor(), 60_000)).toMatchObject({ done: true });
+
+    const numbers = await Promise.all(
+      captured.map(async (context) =>
+        (await prisma.journalEntry.findFirstOrThrow({ where: { companyId, sourceId: context.sourceId! } })).entryNumber,
+      ),
+    );
+    expect([...numbers].sort()).toEqual(numbers);
+
+    // Two Post nows at once: each event posts once, in one run or the other.
+    const both = [sale(), sale(), sale(), sale()];
+    for (const context of both) await createJournalEntryFromSource(context);
+    const one = await startRetailPosting(companyId, "BY_HAND", actor());
+    const two = await startRetailPosting(companyId, "BY_HAND", actor());
+    const [a, b] = await Promise.all([
+      continueRetailPosting(companyId, one, actor(), null),
+      continueRetailPosting(companyId, two, actor(), null),
+    ]);
+    expect(a!.run.sales + b!.run.sales).toBe(4);
+    expect(a!.run.failed + b!.run.failed).toBe(0);
+    expect(await prisma.journalEntry.count({ where: { companyId, sourceId: { in: both.map((context) => context.sourceId!) } } })).toBe(4);
+
+    // A run that found nothing waiting does not move "Last posted".
+    await runRetailPosting(companyId, "BY_HAND", actor());
+    const state = await loadPostingState(companyId);
+    expect(state.lastRun?.sales).toBeGreaterThan(0);
+    expect(state.lastRun!.at.getTime()).toBeLessThan(Date.now());
+    const empty = await prisma.retailPostingRun.findFirstOrThrow({ where: { companyId }, orderBy: { startedAt: "desc" } });
+    expect(empty).toMatchObject({ salesPosted: 0, otherPosted: 0 });
+    expect(empty.finishedAt!.getTime()).toBeGreaterThan(state.lastRun!.at.getTime());
+   }, 30_000);
+
+  it("refuses a tender that is off and a role the shop does not post", async () => {
+    // InnBucks is off until Payments switches it on.
+    await expect(
+      prisma.$transaction((tx) =>
+        savePosting(tx, actor(), {
+          tenders: [{ key: "innbucks", accountId: accounts.get("1000")!, field: "innbucks", label: "InnBucks" }],
+        }),
+      ),
+    ).rejects.toThrow(new PostingRefused("InnBucks is off. Switch it on in Payments first.", "innbucks"));
+    await expect(
+      prisma.$transaction((tx) =>
+        savePosting(tx, actor(), {
+          roles: [{ role: "DEPOSITS_HELD", accountId: accounts.get("2240")!, field: "deposits", label: "Deposits on empties" }],
+        }),
+      ),
+    ).rejects.toBeInstanceOf(PostingRefused);
+    expect(
+      await prisma.tenderAccountMapping.count({ where: { companyId, tenderType: "INNBUCKS", clearingAccountId: accounts.get("1000")! } }),
+    ).toBe(0);
+  });
+
+  it("asks Set up the accounts only for the rates the shop does not have", async () => {
+    const { setupPreview } = await import("./posting-settings");
+    const before = setupPreview(await runAccountingSeedPack({ companyId, mode: "DRY_RUN" }));
+    expect(before.rates.map((rate) => rate.code).sort()).toEqual(["ZAR", "ZWG"]);
+    await prisma.currencyRate.create({
+      data: { companyId, baseCurrency: "USD", quoteCurrency: "ZWG", rate: 26.8, effectiveDate: new Date() },
+    });
+    const after = setupPreview(await runAccountingSeedPack({ companyId, mode: "DRY_RUN" }));
+    expect(after).toMatchObject({ rates: [{ code: "ZAR", label: "rand" }], nothing: false });
+    await prisma.currencyRate.create({
+      data: { companyId, baseCurrency: "USD", quoteCurrency: "ZAR", rate: 18.5, effectiveDate: new Date() },
+    });
+    expect(setupPreview(await runAccountingSeedPack({ companyId, mode: "DRY_RUN" })).nothing).toBe(true);
+   }, 30_000);
+
+  it("lists only the accounts of the types a field takes", async () => {
+    const lookup = SETUP_LOOKUPS.find((noun) => noun.noun === "account")!;
+    const ctx = { companyId } as unknown as LookupCtx;
+    const sales = await lookup.search(ctx, "", { types: ["INCOME"] });
+    expect(sales.length).toBeGreaterThan(0);
+    expect(sales.every((option) => option.sub === "Income")).toBe(true);
+    const vouchers = await lookup.search(ctx, "", { types: ["ASSET", "LIABILITY"] });
+    expect(new Set(vouchers.map((option) => option.sub))).toEqual(new Set(["Asset", "Liability"]));
+  });
+
   it("adds an account from any account field, once per code", async () => {
     const added = await addPostingAccount(actor(), { codeAndName: "1012 Cash on hand, rand", type: "Asset" });
     expect(added).toMatchObject({ label: "1012 Cash on hand, rand", sub: "Asset" });
@@ -218,9 +385,24 @@ describe("Set up the accounts, as the dialog lists it", () => {
       accounts: ["1001 Till cash, ZiG", "2250 Vouchers issued"],
       vatCodes: ["VAT Standard Rate, 15.5%"],
       tenderAccounts: ["Cash, ZiG", "Vouchers", "Sales"],
-      rates: ["ZiG", "Rand"],
+      rates: [
+        { code: "ZWG", label: "ZiG" },
+        { code: "ZAR", label: "rand" },
+      ],
       nothing: false,
     });
-    expect(setupPreview(result({})).nothing).toBe(true);
+    // Only the rates are missing: there is still something to add.
+    expect(setupPreview(result({}))).toMatchObject({ rates: [{ code: "ZWG" }, { code: "ZAR" }], nothing: false });
+    expect(setupPreview(result({ missingFxQuotes: none })).nothing).toBe(true);
+  });
+});
+
+describe("what a posted event counts as", () => {
+  it("counts a stock count as a count, and other adjustments as something else", () => {
+    expect(kindOf("RETAIL_STOCK_ADJUSTMENT", "COUNT_LOSS")).toBe("counts");
+    expect(kindOf("RETAIL_STOCK_ADJUSTMENT", "COUNT_GAIN")).toBe("counts");
+    expect(kindOf("RETAIL_STOCK_ADJUSTMENT", "LOSS")).toBe("other");
+    expect(kindOf("RETAIL_VOID", "VOID")).toBe("refunds");
+    expect(kindOf("RETAIL_SALE", "SALE")).toBe("sales");
   });
 });
