@@ -18,9 +18,11 @@ const body = z.object({ runId: z.string().uuid().optional() });
  * and the bookkeeper.
  *
  * A run posts in slices of a few seconds, so a night's sales never outlast
- * the request: the first call starts the run, and the page calls again with
- * its `runId` while `done` is false. A run whose calls stop is closed where
- * it stopped by the next one started.
+ * the request: the first call starts the run — or joins the one already
+ * going, as a company has one run at a time — and the page calls again with
+ * its `runId` while `done` is false. `busy` says another slice of the run was
+ * posting, so this call posted nothing: ask again in a moment. A run whose
+ * calls stop is closed where it stopped by the next one started.
  */
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -43,12 +45,14 @@ export async function POST(request: NextRequest) {
     const runId = parsed.data.runId ?? (await startRetailPosting(companyId, "BY_HAND", actor));
     const progress = await continueRetailPosting(companyId, runId, actor, SLICE_MS);
     if (!progress) return errorResponse("That posting run is not this shop's.", 404);
-    const { run, done, waiting } = progress;
+    const { run, done, waiting, busy } = progress;
     const posted = run.sales + run.refunds + run.deliveries + run.counts + run.other;
     return successResponse({
       runId,
       done,
+      busy,
       posted,
+      failed: run.failed,
       waiting,
       run: { at: run.at.toISOString(), text: lastPostedWords(run, new Date()), toast: postedToast(run) },
     });

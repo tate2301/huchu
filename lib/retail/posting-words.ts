@@ -125,18 +125,26 @@ export function lastPostedWords(
   const year = formatDay(now).split(" ").pop()!;
   const shown = day.endsWith(` ${year}`) ? day.slice(0, -(year.length + 1)) : day;
   const parts = runParts(run);
-  const failed = run.failed ? ` ${count(run.failed, "item", "items")} could not post.` : "";
+  const failed = run.failed ? `${count(run.failed, "item", "items")} could not post.` : "";
   const what = parts
     ? `${parts}.`
     : run.other
       ? `${count(run.other, "other entry", "other entries")}.`
-      : "Nothing was waiting.";
-  return `${shown}, ${formatTime(at)}. ${what}${failed}`;
+      : failed
+        ? ""
+        : "Nothing was waiting.";
+  return [`${shown}, ${formatTime(at)}.`, what, failed].filter(Boolean).join(" ");
 }
 
 /** The toast after "Post now": "Posted 1 sale." */
 export function postedToast(counts: RunCounts & { failed: number; other: number }): string {
   const parts = runParts(counts);
-  const posted = parts ? `Posted ${parts}.` : counts.other ? "Posted." : "Nothing was waiting to post.";
-  return counts.failed ? `${posted} ${count(counts.failed, "item", "items")} could not post.` : posted;
+  const failed = counts.failed ? `${count(counts.failed, "item", "items")} could not post.` : "";
+  const posted = parts ? `Posted ${parts}.` : counts.other ? "Posted." : failed ? "" : "Nothing was waiting to post.";
+  return [posted, failed].filter(Boolean).join(" ");
+}
+
+/** "Ready to post", when something could not post: "3 items could not post. Post now tries them again." */
+export function failedWords(failed: number): string {
+  return `${count(failed, "item", "items")} could not post. Post now tries ${failed === 1 ? "it" : "them"} again.`;
 }

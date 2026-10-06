@@ -40,12 +40,24 @@ export default function PostingSettingsPage() {
   );
 }
 
-type RunSlice = { runId: string; done: boolean; posted: number; waiting: number; run: { at: string; text: string; toast: string } };
+type RunSlice = {
+  runId: string;
+  done: boolean;
+  busy: boolean;
+  posted: number;
+  failed: number;
+  waiting: number;
+  run: { at: string; text: string; toast: string };
+};
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * The header's "Post now": every retail event still waiting, to the books
  * now. The server posts a few seconds at a time; the button calls again
- * until nothing is waiting, counting as it goes.
+ * until nothing is waiting, counting as it goes. Pressed while a run is
+ * already going (the 23:00 job, or someone else's Post now), it follows that
+ * run, waiting a moment whenever the other side's slice is posting.
  */
 function PostNow() {
   const queryClient = useQueryClient();
@@ -65,8 +77,10 @@ function PostNow() {
         });
         posted = slice.posted;
         if (!slice.done) setProgress({ posted: slice.posted, total: slice.posted + slice.waiting });
+        if (slice.busy) await pause(1_000);
       } while (!slice.done);
-      toast({ title: slice.run.toast, variant: "success" });
+      // What could not post stays on Ready to post; the toast says so in warning.
+      toast({ title: slice.run.toast, variant: slice.failed ? "warning" : "success" });
     } catch (error) {
       const fallback = posted ? `Posted ${posted} so far. The rest did not post. Try again.` : "Nothing was posted. Try again.";
       toast({ title: posted ? fallback : getApiErrorMessage(error, fallback), variant: "destructive" });
@@ -105,8 +119,6 @@ function ReadyChecks({ checks }: { checks: unknown }) {
 }
 
 type SetupAnswer = { groups: SetupPreview };
-
-const RATE_PLACEHOLDERS: Record<string, string> = { ZWG: "26.80", ZAR: "18.50" };
 
 /**
  * "Set up the accounts": what the pack would add, grouped, with the ZiG and
@@ -230,7 +242,6 @@ function SetUpDialog({ onClose }: { onClose: () => void }) {
                               mono
                               right
                               inputMode="decimal"
-                              placeholder={RATE_PLACEHOLDERS[rate.code] ?? "1.00"}
                               value={rates[rate.code] ?? ""}
                               onChange={(event) => setRates((now) => ({ ...now, [rate.code]: event.target.value }))}
                             />

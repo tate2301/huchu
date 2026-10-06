@@ -85,6 +85,15 @@ Each area spec lists its own open questions. A build unit takes the answer its s
 
 The unit records each choice in its report. If a board draws something with no data behind it (an integration that does not exist, a figure nobody keeps), the unit builds the honest version: it hides the option or rewords the hint. It never fakes a value.
 
+Recorded unit choices:
+
+- **SET-09 account fields list only the types they take.** Sales lists income accounts, Stock asset accounts, a tender asset accounts
+  (vouchers: asset or liability), and so on (`ROLE_TYPES`, `TENDER_TYPES`, `VOUCHER_TYPES` in `lib/retail/posting-words.ts`). The save refuses
+  any other type by field, so the list never offers what the save would refuse. A quick-added account appears in every field of its type,
+  not in every field.
+- **SET-09 posts one run per company at a time.** "Post now" pressed while a run is going joins it; what could not post is tried again by
+  the next run, and "Ready to post" shows a fourth warn line while anything is waiting to be tried again (10-setup §4.9).
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

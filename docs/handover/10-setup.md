@@ -483,7 +483,8 @@ Steps: An account for each tender · Sales, VAT, stock · Post daily. Screen: po
   **(inferred)** → `runAccountingSeedPack` (existing route `POST /api/accounting/setup/seed-pack`, now gated by `retail.posting:update` for retail).
 - Checks (aside "Ready to post"): every tender that is on has a mapping → "Every tender has an account."; the default tax code rate → "VAT is set
   to {rate}%."; costing method of `recordStockMovement` (moving average) → "Stock is valued at average cost." A failing check shows in `warn` with
-  what is missing ("Card has no account." **(inferred)**).
+  what is missing ("Card has no account." **(inferred)**). When retail events could not post, a fourth warn line says so: "{n} items could not
+  post. Post now tries them again."
 
 ### W-67 Plan and billing — Owner — Management › Plan and billing
 
@@ -1479,7 +1480,7 @@ Receipts are signed and wait." **(inferred)**. 409 `FISCAL_DAY_OPEN` when changi
 | GET | `/posting` | `retail.posting:view` | – | `PostingPage` |
 | PUT | `/posting` | `retail.posting:update` | `{ tenders?: {tender, accountId}[], roles?: {role, accountId}[], schedule? }` | `PostingPage` |
 | POST | `/posting/accounts` | `retail.posting:update` | `{ codeAndName: "1012 Cash on hand, rand", type: "ASSET" \| "LIABILITY" \| "INCOME" \| "EXPENSE" }` | `{ data: AccountOption }` 201 |
-| POST | `/posting/run` | `retail.posting:update` | – | `{ run: RunSummary }` |
+| POST | `/posting/run` | `retail.posting:update` | `{ runId?: string }` | `{ runId, done, busy, posted, failed, waiting, run: RunSummary & { toast } }` — one slice (see below) |
 | POST | `/posting/setup` | `retail.posting:update` | `{ mode: "DRY_RUN" \| "APPLY", fxRates?: { ZWG?: string, ZAR?: string } }` | seed-pack preview/result (existing shape) |
 
 ```ts
@@ -1496,6 +1497,14 @@ type PostingPage = {
 type RunSummary = { at: string; text: string /* "2 October, 23:00. 412 sales, 6 deliveries, 1 count." */ };
 ```
 Errors: 400 wrong account type or not postable; 409 duplicate code on quick add.
+
+`/posting/run` posts in slices of about six seconds, so a night's sales never outlast a request. The first call (no `runId`) starts a run or
+joins the one already going: a company has one `RetailPostingRun` at a time (started under a per-company advisory lock), and a run that has
+not counted an event for two minutes (`RetailPostingRun.updatedAt`) was cut off and is closed where it stopped. The page calls again with
+`runId` while `done` is false. One slice posts at a time: it holds the run until `sliceUntil`; a call meanwhile posts nothing and answers
+`busy: true`, and the page asks again a second later. A run takes every retail event `PENDING` or `FAILED` captured before it began, so what
+could not post is tried again by the next Post now or 23:00 run (posting is idempotent per source). The 23:00 job drives the same slices
+(migration `20261006004900_retail_posting_run_slices`).
 
 ### 4.10 Billing (SET-10)
 
@@ -2086,7 +2095,7 @@ Board PNGs: `scratchpad/shots-v32/<Board>.png`.
   in retail sources when END_OF_DAY; removal of `/retail/setup/accounting`, `setup/overview`, `setup-snapshot.ts`, `shop-settings.tsx`, nav entry.
 - Acceptance: page matches `PostingSettings.png` (labels are the tenant's real chart; seeded accounts per §3.7). Change "Sales" to another income
   account → the next sale's journal credits it. END_OF_DAY: a new sale leaves a PENDING event and no journal; "Post now" posts it and "Last posted"
-  reads "{today}, {HH:MM}. 1 sale." Quick-add "1012 Cash on hand, rand" (Asset) appears in every account field. Manager: no nav entry, 403.
+  reads "{today}, {HH:MM}. 1 sale." Quick-add "1012 Cash on hand, rand" (Asset) appears in every account field that takes an asset (98-decisions). Manager: no nav entry, 403.
 
 ### SET-10 · Plan and billing (W-67) · M
 - Depends on: SET-02, SET-03, FND-SETTINGS.

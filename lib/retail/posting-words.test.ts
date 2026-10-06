@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  failedWords,
   lastPostedWords,
   parseQuickAccount,
   postedToast,
@@ -70,7 +71,10 @@ describe("Last posted", () => {
 
   it("says when nothing was waiting, what could not post, and a run from another year", () => {
     expect(lastPostedWords({ at: "2025-12-31T23:00:00+02:00", sales: 0, refunds: 0, deliveries: 0, counts: 0, failed: 2 }, now)).toBe(
-      "31 December 2025, 23:00. Nothing was waiting. 2 items could not post.",
+      "31 December 2025, 23:00. 2 items could not post.",
+    );
+    expect(lastPostedWords({ at: "2025-12-31T23:00:00+02:00", sales: 0, refunds: 0, deliveries: 0, counts: 0, failed: 0 }, now)).toBe(
+      "31 December 2025, 23:00. Nothing was waiting.",
     );
     expect(lastPostedWords(null, now)).toBe("Not yet.");
   });
@@ -91,6 +95,8 @@ describe("the toast after Post now", () => {
     expect(postedToast({ sales: 1, refunds: 0, deliveries: 0, counts: 0, other: 0, failed: 0 })).toBe("Posted 1 sale.");
     expect(postedToast({ sales: 0, refunds: 0, deliveries: 0, counts: 0, other: 0, failed: 0 })).toBe("Nothing was waiting to post.");
     expect(postedToast({ sales: 0, refunds: 0, deliveries: 0, counts: 0, other: 2, failed: 1 })).toBe("Posted. 1 item could not post.");
+    // Only what was tried again, and it still could not post: no "Nothing was waiting".
+    expect(postedToast({ sales: 0, refunds: 0, deliveries: 0, counts: 0, other: 0, failed: 3 })).toBe("3 items could not post.");
   });
 });
 
@@ -99,5 +105,12 @@ describe("the schedule", () => {
     expect(scheduleOf("At the end of each day")).toBe("END_OF_DAY");
     expect(scheduleOf("With every sale")).toBe("EVERY_SALE");
     expect(scheduleOf("Weekly")).toBeNull();
+  });
+});
+
+describe("what could not post, on Ready to post", () => {
+  it("says how many and that Post now tries again", () => {
+    expect(failedWords(1)).toBe("1 item could not post. Post now tries it again.");
+    expect(failedWords(8)).toBe("8 items could not post. Post now tries them again.");
   });
 });

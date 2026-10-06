@@ -11,6 +11,7 @@ import { TENDER_OPTIONS, tenderKeyOf, type TenderKey } from "@/lib/retail/paymen
 import { DEFAULT_POSTING_SCHEDULE, retailPostingSchedule } from "@/lib/retail/posting-schedule";
 import {
   accountLabel,
+  failedWords,
   parseQuickAccount,
   runParts,
   ROLE_OPTIONS,
@@ -88,7 +89,7 @@ async function postingFieldsShown(companyId: string, db: Db = prisma) {
 }
 
 export async function loadPostingState(companyId: string): Promise<PostingState> {
-  const [shown, mappings, roleMappings, schedule, lastRun, settings] = await Promise.all([
+  const [shown, mappings, roleMappings, schedule, lastRun, settings, failed] = await Promise.all([
     postingFieldsShown(companyId),
     prisma.tenderAccountMapping.findMany({
       where: { companyId, siteId: null, registerCode: null, isActive: true },
@@ -119,6 +120,9 @@ export async function loadPostingState(companyId: string): Promise<PostingState>
       where: { companyId },
       select: { defaultTaxCode: { select: { rate: true } } },
     }),
+    prisma.accountingIntegrationEvent.count({
+      where: { companyId, sourceType: { in: RETAIL_SOURCE_TYPES }, sourceId: { not: null }, status: "FAILED" },
+    }),
   ]);
 
   const tenders = TENDER_OPTIONS.map((option) => {
@@ -139,7 +143,7 @@ export async function loadPostingState(companyId: string): Promise<PostingState>
     return { ...option, shown: shown.roleShown(option.role), account: mapping ? accountOption(mapping.account) : null };
   });
 
-  // "Ready to post": the three facts a posting run depends on.
+  // "Ready to post": the three facts a posting run depends on, and anything that could not post.
   const missing = tenders.filter((tender) => tender.on && !tender.account).map((tender) => tender.label);
   const checks = [
     missing.length === 0
@@ -158,6 +162,8 @@ export async function loadPostingState(companyId: string): Promise<PostingState>
         : { ok: false, text: "No VAT rate is set." },
     // `recordStockMovement` keeps a moving average cost on every stock line.
     { ok: true, text: "Stock is valued at average cost." },
+    // What a run could not post waits for the next one: Post now tries it again.
+    ...(failed > 0 ? [{ ok: false, text: failedWords(failed) }] : []),
   ];
 
   return {
@@ -346,10 +352,23 @@ export function kindOf(sourceType: AccountingSourceType | null, sourceSubtype: s
 
 export type RunResult = RunCounts & { id: string; at: Date; other: number; failed: number };
 
-/** One slice of a run: what it has posted so far, and whether anything is still waiting. */
-export type RunProgress = { run: RunResult; done: boolean; waiting: number };
+/**
+ * One slice of a run: what it has posted so far, whether anything is still
+ * waiting, and whether another slice of it was posting (`busy`: ask again in
+ * a moment).
+ */
+export type RunProgress = { run: RunResult; done: boolean; waiting: number; busy: boolean };
 
 const BATCH = 50;
+
+/** A run quiet this long was cut off (its calls stopped): the next Post now closes it and starts again. */
+export const RUN_IDLE_MS = 2 * 60_000;
+
+/** How long past its budget a slice holds the run before another may take it (the slice's process died). */
+const SLICE_GRACE_MS = 60_000;
+
+/** The 23:00 job posts in slices too, so a Post now pressed meanwhile joins it between slices. */
+const WORKER_SLICE_MS = 60_000;
 
 const RUN_COLUMNS = {
   sales: "salesPosted",
@@ -360,17 +379,17 @@ const RUN_COLUMNS = {
 } as const satisfies Record<RunKind, keyof Prisma.RetailPostingRunUpdateInput>;
 
 /**
- * What a run posts: every retail event waiting that was captured before the
- * run began and has not been tried since — so one that fails is passed once,
- * and the next slice of the run starts where the last one stopped.
+ * What a run posts: every retail event waiting, or that could not post
+ * before, captured before the run began and not tried since — so one that
+ * fails again is passed once, and the next slice starts where the last one
+ * stopped. Posting is idempotent per source, so a retry never posts twice.
  */
 function waitingFor(run: { companyId: string; startedAt: Date }) {
   return {
     companyId: run.companyId,
     sourceType: { in: RETAIL_SOURCE_TYPES },
     sourceId: { not: null },
-    // What waits for the run; a failed posting is the integration log's to retry.
-    status: "PENDING" as const,
+    status: { in: ["PENDING" as const, "FAILED" as const] },
     createdAt: { lte: run.startedAt },
     updatedAt: { lte: run.startedAt },
   };
@@ -398,18 +417,31 @@ const runResult = (row: {
 });
 
 /**
- * Start a posting pass (W-65). A run that never finished — its request was
- * cut off — is closed where it stopped: what it posted stands. The 23:00 job
- * passes `SCHEDULE`, "Post now" `BY_HAND` with who pressed it.
+ * Start a posting pass (W-65), or join the one already going: a company has
+ * one run at a time. A Post now pressed while a run is posting — the 23:00
+ * job, or the owner's and the bookkeeper's at once — joins it, so the run
+ * counts everything it posts. A run gone quiet for `RUN_IDLE_MS` was cut off
+ * and is closed where it stopped: what it posted stands. The 23:00 job passes
+ * `SCHEDULE`, "Post now" `BY_HAND` with who pressed it.
  */
 export async function startRetailPosting(
   companyId: string,
   trigger: RetailPostingTrigger,
   actor: RetailAuditActor | null = null,
 ): Promise<string> {
-  const now = new Date();
   return prisma.$transaction(async (tx) => {
-    await tx.retailPostingRun.updateMany({ where: { companyId, finishedAt: null }, data: { finishedAt: now } });
+    // Two starts at once wait for each other here, so the second sees the first's run.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('retail-posting-run'), hashtext(${companyId}::text))`;
+    const now = new Date();
+    const open = await tx.retailPostingRun.findFirst({
+      where: { companyId, finishedAt: null },
+      orderBy: { startedAt: "desc" },
+      select: { id: true, updatedAt: true, sliceUntil: true },
+    });
+    const going =
+      open && (open.updatedAt.getTime() > now.getTime() - RUN_IDLE_MS || (open.sliceUntil && open.sliceUntil > now));
+    if (going) return open.id;
+    await tx.retailPostingRun.updateMany({ where: { companyId, finishedAt: null }, data: { finishedAt: now, sliceUntil: null } });
     const run = await tx.retailPostingRun.create({
       data: { companyId, trigger, startedById: actor?.userId ?? null, startedAt: now },
       select: { id: true },
@@ -419,77 +451,87 @@ export async function startRetailPosting(
 }
 
 /**
- * Post what the run is waiting on, for at most `budgetMs` (none: to the
- * end). Each event is claimed before it posts and counted once it has. When nothing is left the run finishes: "Last posted"
+ * Post what the run is waiting on, for about `budgetMs`. One slice of a run
+ * posts at a time: it takes the run until `sliceUntil`, and a second caller
+ * meanwhile is told `busy` without posting anything. Each event is counted
+ * once it has posted. When nothing is left the run finishes: "Last posted"
  * reads it and `RETAIL_POSTING.RUN` is written.
  */
 export async function continueRetailPosting(
   companyId: string,
   runId: string,
-  actor: RetailAuditActor | null = null,
-  budgetMs: number | null = null,
+  actor: RetailAuditActor | null,
+  budgetMs: number,
 ): Promise<RunProgress | null> {
   const run = await prisma.retailPostingRun.findFirst({ where: { id: runId, companyId } });
   if (!run) return null;
-  if (run.finishedAt) return { run: runResult(run), done: true, waiting: 0 };
+  if (run.finishedAt) return { run: runResult(run), done: true, waiting: 0, busy: false };
 
-  const began = Date.now();
   const where = waitingFor(run);
-  await ensureAccountingDefaults(companyId);
+  const began = Date.now();
+  const taken = await prisma.retailPostingRun.updateMany({
+    where: { id: run.id, finishedAt: null, OR: [{ sliceUntil: null }, { sliceUntil: { lt: new Date(began) } }] },
+    data: { sliceUntil: new Date(began + budgetMs + SLICE_GRACE_MS) },
+  });
+  if (taken.count === 0) {
+    const now = await prisma.retailPostingRun.findUniqueOrThrow({ where: { id: run.id } });
+    const waiting = now.finishedAt ? 0 : await prisma.accountingIntegrationEvent.count({ where });
+    return { run: runResult(now), done: Boolean(now.finishedAt), waiting, busy: !now.finishedAt };
+  }
 
-  let outOfTime = false;
-  while (!outOfTime) {
-    // In the order they were captured, so entry numbers follow the sales.
-    const events = await prisma.accountingIntegrationEvent.findMany({
-      where,
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      take: BATCH,
-    });
-    if (events.length === 0) break;
-    for (const event of events) {
-      if (budgetMs !== null && Date.now() - began > budgetMs) {
-        outOfTime = true;
-        break;
-      }
-      // Claimed first: a second run going at the same time (another Post now) leaves it to this one.
-      const claimed = await prisma.accountingIntegrationEvent.updateMany({
-        where: { id: event.id, status: "PENDING", updatedAt: event.updatedAt },
-        data: { nextRetryAt: event.nextRetryAt },
+  try {
+    await ensureAccountingDefaults(companyId);
+    let outOfTime = false;
+    while (!outOfTime) {
+      // In the order they were captured, so entry numbers follow the sales.
+      const events = await prisma.accountingIntegrationEvent.findMany({
+        where,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: BATCH,
       });
-      if (claimed.count === 0) continue;
-      const outcome = await postIntegrationEvent(event, { actorRole: actor?.userRole ?? null, defaultsReady: true }).catch(
-        async (error: unknown) => {
-          // Marked, so the run passes it once rather than meeting it on every slice.
-          await prisma.accountingIntegrationEvent.update({
-            where: { id: event.id },
-            data: {
-              status: "FAILED",
-              lastError: (error instanceof Error ? error.message : "Posting failed").slice(0, 1000),
-              attemptCount: { increment: 1 },
-            },
-          });
-          return "failed" as const;
-        },
-      );
-      // Counted as it lands, so a slice cut off leaves the run's counts true.
-      const column =
-        outcome === "posted"
-          ? RUN_COLUMNS[kindOf(event.sourceType, event.sourceSubtype)]
-          : outcome === "failed"
-            ? "failed"
-            : null;
-      if (column) await prisma.retailPostingRun.update({ where: { id: run.id }, data: { [column]: { increment: 1 } } });
+      if (events.length === 0) break;
+      for (const event of events) {
+        if (Date.now() - began >= budgetMs) {
+          outOfTime = true;
+          break;
+        }
+        const outcome = await postIntegrationEvent(event, { actorRole: actor?.userRole ?? null, defaultsReady: true }).catch(
+          async (error: unknown) => {
+            // Marked, so the run passes it once rather than meeting it on every slice.
+            await prisma.accountingIntegrationEvent.update({
+              where: { id: event.id },
+              data: {
+                status: "FAILED",
+                lastError: (error instanceof Error ? error.message : "Posting failed").slice(0, 1000),
+                attemptCount: { increment: 1 },
+              },
+            });
+            return "failed" as const;
+          },
+        );
+        // Counted as it lands, so a slice cut off leaves the run's counts true.
+        const column =
+          outcome === "posted"
+            ? RUN_COLUMNS[kindOf(event.sourceType, event.sourceSubtype)]
+            : outcome === "failed"
+              ? "failed"
+              : null;
+        if (column) await prisma.retailPostingRun.update({ where: { id: run.id }, data: { [column]: { increment: 1 } } });
+      }
     }
+  } catch (error) {
+    await prisma.retailPostingRun.update({ where: { id: run.id }, data: { sliceUntil: null } });
+    throw error;
   }
 
   const waiting = await prisma.accountingIntegrationEvent.count({ where });
   if (waiting > 0) {
-    const now = await prisma.retailPostingRun.findUniqueOrThrow({ where: { id: run.id } });
-    return { run: runResult(now), done: false, waiting };
+    const now = await prisma.retailPostingRun.update({ where: { id: run.id }, data: { sliceUntil: null } });
+    return { run: runResult(now), done: false, waiting, busy: false };
   }
 
   const finished = await prisma.$transaction(async (tx) => {
-    const row = await tx.retailPostingRun.update({ where: { id: run.id }, data: { finishedAt: new Date() } });
+    const row = await tx.retailPostingRun.update({ where: { id: run.id }, data: { finishedAt: new Date(), sliceUntil: null } });
     const result = runResult(row);
     const tally = {
       sales: result.sales,
@@ -506,13 +548,16 @@ export async function continueRetailPosting(
     else await writePlatformAuditEvent({ companyId, actorId: null, ...event, payload: { actorName: null, ...payload } }, tx);
     return result;
   });
-  return { run: finished, done: true, waiting: 0 };
+  return { run: finished, done: true, waiting: 0, busy: false };
 }
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * One whole posting pass, start to finish: every retail event waiting —
  * sales, refunds, voids, deliveries, counts, adjustments, transfers and shift
- * cash — posted now, whatever its "not before". The 23:00 job.
+ * cash — posted now, whatever its "not before". The 23:00 job; it joins a
+ * Post now already going, and waits its turn while that one's slice posts.
  */
 export async function runRetailPosting(
   companyId: string,
@@ -520,14 +565,17 @@ export async function runRetailPosting(
   actor: RetailAuditActor | null = null,
 ): Promise<RunResult> {
   const runId = await startRetailPosting(companyId, trigger, actor);
-  const progress = await continueRetailPosting(companyId, runId, actor);
-  return progress!.run;
+  for (;;) {
+    const progress = (await continueRetailPosting(companyId, runId, actor, WORKER_SLICE_MS))!;
+    if (progress.done) return progress.run;
+    if (progress.busy) await pause(1_000);
+  }
 }
 
 /**
  * The 23:00 job (10-setup §4.1): a run for every company that posts at the
  * end of each day — and for one that has since moved to every sale, while
- * events captured before the change still wait.
+ * events captured before the change still wait or could not post.
  */
 export async function runScheduledPosting(): Promise<string> {
   // A company with no settings row posts at the end of each day too.
@@ -537,7 +585,11 @@ export async function runScheduledPosting(): Promise<string> {
       OR: [
         { retailPostingSettings: null },
         { retailPostingSettings: { schedule: "END_OF_DAY" } },
-        { accountingIntegrationEvents: { some: { status: "PENDING", sourceType: { in: RETAIL_SOURCE_TYPES } } } },
+        {
+          accountingIntegrationEvents: {
+            some: { status: { in: ["PENDING", "FAILED"] }, sourceType: { in: RETAIL_SOURCE_TYPES } },
+          },
+        },
       ],
     },
     select: { id: true },

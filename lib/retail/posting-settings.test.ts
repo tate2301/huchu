@@ -17,6 +17,7 @@ import {
   kindOf,
   loadPostingState,
   PostingRefused,
+  RUN_IDLE_MS,
   runRetailPosting,
   savePosting,
   startRetailPosting,
@@ -253,10 +254,15 @@ describe("posting a shop's sales to the books", () => {
     const cutOff = await startRetailPosting(companyId, "BY_HAND", actor());
     // No time at all: nothing posts, and the run says what is still waiting.
     const first = await continueRetailPosting(companyId, cutOff, actor(), 0);
-    expect(first).toMatchObject({ done: false, waiting: 3, run: { sales: 0 } });
+    expect(first).toMatchObject({ done: false, busy: false, waiting: 3, run: { sales: 0 } });
 
-    // Its calls stop; the next Post now closes it where it stopped and starts again.
+    // A Post now while it is still going joins it.
+    expect(await startRetailPosting(companyId, "BY_HAND", actor())).toBe(cutOff);
+
+    // Its calls stop; once it has been quiet two minutes the next Post now closes it where it stopped and starts again.
+    await prisma.retailPostingRun.update({ where: { id: cutOff }, data: { updatedAt: new Date(Date.now() - RUN_IDLE_MS - 1_000) } });
     const runId = await startRetailPosting(companyId, "BY_HAND", actor());
+    expect(runId).not.toBe(cutOff);
     expect((await prisma.retailPostingRun.findUniqueOrThrow({ where: { id: cutOff } })).finishedAt).not.toBeNull();
     const done = await continueRetailPosting(companyId, runId, actor(), 60_000);
     expect(done).toMatchObject({ done: true, waiting: 0, run: { sales: 3, failed: 0 } });
@@ -269,19 +275,6 @@ describe("posting a shop's sales to the books", () => {
     );
     expect([...numbers].sort()).toEqual(numbers);
 
-    // Two Post nows at once: each event posts once, in one run or the other.
-    const both = [sale(), sale(), sale(), sale()];
-    for (const context of both) await createJournalEntryFromSource(context);
-    const one = await startRetailPosting(companyId, "BY_HAND", actor());
-    const two = await startRetailPosting(companyId, "BY_HAND", actor());
-    const [a, b] = await Promise.all([
-      continueRetailPosting(companyId, one, actor(), null),
-      continueRetailPosting(companyId, two, actor(), null),
-    ]);
-    expect(a!.run.sales + b!.run.sales).toBe(4);
-    expect(a!.run.failed + b!.run.failed).toBe(0);
-    expect(await prisma.journalEntry.count({ where: { companyId, sourceId: { in: both.map((context) => context.sourceId!) } } })).toBe(4);
-
     // A run that found nothing waiting does not move "Last posted".
     await runRetailPosting(companyId, "BY_HAND", actor());
     const state = await loadPostingState(companyId);
@@ -290,7 +283,62 @@ describe("posting a shop's sales to the books", () => {
     const empty = await prisma.retailPostingRun.findFirstOrThrow({ where: { companyId }, orderBy: { startedAt: "desc" } });
     expect(empty).toMatchObject({ salesPosted: 0, otherPosted: 0 });
     expect(empty.finishedAt!.getTime()).toBeGreaterThan(state.lastRun!.at.getTime());
-   }, 30_000);
+  }, 30_000);
+
+  it("posts one run at a time when two people press Post now at once", async () => {
+    const counts = Array.from({ length: 40 }, () => lossCount());
+    for (const context of counts) expect(await createJournalEntryFromSource(context)).toMatchObject({ deferred: true });
+
+    /** "Post now" as the page drives it: start or join, then slices of a second until done, waiting while busy. */
+    const pressPostNow = async (delayMs: number) => {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      const runId = await startRetailPosting(companyId, "BY_HAND", actor());
+      for (;;) {
+        const slice = (await continueRetailPosting(companyId, runId, actor(), 1_000))!;
+        if (slice.done) return { runId, run: slice.run };
+        if (slice.busy) await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    };
+    const [owner, bookkeeper] = await Promise.all([pressPostNow(0), pressPostNow(300)]);
+
+    // The bookkeeper joined the owner's run: one run, every count in it, none failed.
+    expect(bookkeeper.runId).toBe(owner.runId);
+    expect(owner.run).toMatchObject({ counts: 40, failed: 0 });
+    const events = await prisma.accountingIntegrationEvent.findMany({
+      where: { companyId, sourceId: { in: counts.map((context) => context.sourceId!) } },
+      select: { status: true },
+    });
+    expect(events.every((event) => event.status === "POSTED")).toBe(true);
+    expect(await prisma.journalEntry.count({ where: { companyId, sourceId: { in: counts.map((context) => context.sourceId!) } } })).toBe(40);
+    const state = await loadPostingState(companyId);
+    expect(state.lastRun).toMatchObject({ counts: 40, failed: 0 });
+
+    // Pressed in the same instant: still one run.
+    const [one, two] = await Promise.all([
+      startRetailPosting(companyId, "BY_HAND", actor()),
+      startRetailPosting(companyId, "SCHEDULE", null),
+    ]);
+    expect(two).toBe(one);
+    expect(await continueRetailPosting(companyId, one, actor(), 10_000)).toMatchObject({ done: true });
+  }, 60_000);
+
+  it("tries what could not post again, and says so under Ready to post until it has", async () => {
+    const stuck = lossCount();
+    expect(await createJournalEntryFromSource(stuck)).toMatchObject({ deferred: true });
+    // As an overlapping run once left it: failed on a transient clash.
+    await prisma.accountingIntegrationEvent.updateMany({
+      where: { companyId, sourceId: stuck.sourceId },
+      data: { status: "FAILED", lastError: "Unique constraint failed on the fields: (`companyId`,`entryNumber`)" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const before = await loadPostingState(companyId);
+    expect(before.checks.at(-1)).toEqual({ ok: false, text: "1 item could not post. Post now tries it again." });
+
+    const run = await runRetailPosting(companyId, "BY_HAND", actor());
+    expect(run).toMatchObject({ counts: 1, failed: 0 });
+    expect(await prisma.journalEntry.count({ where: { companyId, sourceId: stuck.sourceId! } })).toBe(1);
+    expect((await loadPostingState(companyId)).checks).toHaveLength(3);
+  }, 30_000);
 
   it("refuses a tender that is off and a role the shop does not post", async () => {
     // InnBucks is off until Payments switches it on.

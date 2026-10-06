@@ -14,16 +14,24 @@ import { requireRetailSession } from "../../_helpers";
  * bookkeeper.
  */
 
-const rate = z
-  .string()
-  .trim()
-  .refine((value) => value === "" || (Number.isFinite(Number(value)) && Number(value) > 0), "Type the rate, like 26.80.")
-  .optional();
+/** A rate field, optional: blank adds no rate. Its error names its own money. */
+const rate = (money: string) =>
+  z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === "" || (Number.isFinite(Number(value)) && Number(value) > 0),
+      `Type how many ${money} make US$1, as a number.`,
+    )
+    .optional();
 
-const bodySchema = z.object({
-  mode: z.enum(["DRY_RUN", "APPLY"]),
-  fxRates: z.object({ ZWG: rate, ZAR: rate }).optional(),
-});
+const bodySchema = z.object(
+  {
+    mode: z.enum(["DRY_RUN", "APPLY"], { error: "Say whether to list what it would add or to add it." }),
+    fxRates: z.object({ ZWG: rate("ZiG"), ZAR: rate("rand") }).optional(),
+  },
+  { error: "Say whether to list what it would add or to add it." },
+);
 
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -34,10 +42,10 @@ export async function POST(request: NextRequest) {
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return fieldErrorResponse(
-      "Validation failed",
-      Object.fromEntries(body.error.issues.map((issue) => [String(issue.path.at(-1) ?? "mode"), issue.message])),
+    const fieldErrors = Object.fromEntries(
+      body.error.issues.map((issue) => [String(issue.path.at(-1) ?? "mode"), issue.message]),
     );
+    return fieldErrorResponse(Object.values(fieldErrors)[0] ?? "Check the rates.", fieldErrors);
   }
 
   const fxRates = Object.fromEntries(

@@ -4598,6 +4598,10 @@ model RetailPostingRun {
   startedById      String?
   startedAt        DateTime             @default(now())
   finishedAt       DateTime?
+  /// Moves with every event the run counts: a run quiet for two minutes was cut off.
+  updatedAt        DateTime             @default(now()) @updatedAt
+  /// Set while one slice posts, so a second Post now waits rather than posting beside it.
+  sliceUntil       DateTime?
   salesPosted      Int                  @default(0)
   refundsPosted    Int                  @default(0)
   deliveriesPosted Int                  @default(0)

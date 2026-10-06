@@ -47,6 +47,8 @@ import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
 import { runAccountingSeedPack } from "@/lib/accounting/bootstrap"
 import { RETAIL_ROLE_ACCOUNT_CODES } from "@/lib/accounting/defaults"
+import { postIntegrationEvent } from "@/lib/accounting/integration"
+import { RETAIL_SOURCE_TYPES } from "@/lib/retail/posting-settings"
 import { prisma } from "@/lib/prisma"
 import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
@@ -2459,6 +2461,15 @@ async function seedPosting(companyId: string) {
     select: { id: true },
   })
   if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
+
+  // What test runs of earlier builds left unable to post (a sale whose payments did not balance, two runs that
+  // once clashed on an entry number): tried once more, and set aside if it still cannot post, so "Ready to post"
+  // reads as the board has it. The error stays on the event.
+  const stuck = { companyId, sourceType: { in: RETAIL_SOURCE_TYPES }, sourceId: { not: null }, status: "FAILED" as const }
+  for (const event of await prisma.accountingIntegrationEvent.findMany({ where: stuck })) {
+    await postIntegrationEvent(event).catch(() => "failed")
+  }
+  await prisma.accountingIntegrationEvent.updateMany({ where: stuck, data: { status: "IGNORED" } })
 
   await prisma.retailPostingRun.deleteMany({ where: { companyId } })
   const lastNight = harareTime(1, 23, 0)
