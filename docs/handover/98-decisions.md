@@ -76,6 +76,11 @@ For C-42, Farai keeps Borrowdale and also gets Harare Main Branch, so the stale 
    - The sheet is 520 or 760 px wide.
    - Totals sit on `--ground`.
    - Only the selected state comes from G1: solid ink with white text.
+   - "Selected state" means the chosen item only: a selected row, the chosen cell of a segmented control, the current nav item. Everything around it follows the canvas:
+     - A segmented control is the board's row of equal white cells with borders and dividers, not a filled track. Only the chosen cell is solid ink with white text.
+     - A switch that is on uses the board's green. A switch is a setting, not a selection.
+     - A card's border stays light whether its switch is on or off.
+     - These live in the shared `.cx-seg--field` and `.cx-switch-row` classes in `app/themes/workspace.css`, so every settings page follows them together.
 10. **Chart ranges** appear only where the record kind has a range.
 11. **Company › Money**: SET-01 makes it editable. Changing the base currency is refused while sales exist, and the field explains why.
 
