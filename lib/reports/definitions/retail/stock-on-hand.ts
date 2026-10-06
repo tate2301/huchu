@@ -184,6 +184,7 @@ const onHand: ListSpec = {
       ["Count a shelf now and then.", "Differences wait for your approval."],
     ],
     primary: { label: "Add a product", sheet: "product-new", requires: [["retail.catalog", "create"]] },
+    secondary: { label: "Import a spreadsheet", href: "/retail/products/import", requires: [["retail.catalog", "create"]] },
   },
   catalog: false,
 };

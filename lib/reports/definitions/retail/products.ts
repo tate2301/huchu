@@ -184,12 +184,14 @@ const products: ListSpec = {
     { key: "export" },
   ],
   primary: { label: "New product", icon: "plus", requires: [["retail.catalog", "create"]], sheet: "product-new" },
+  exportExtras: [{ label: "Import a spreadsheet", href: "/retail/products/import", requires: [["retail.catalog", "create"]] }],
   card: { title: "name", badge: "flag", figure: "price", meta: "{cardMeta}" },
   empty: {
     icon: "Rows",
     title: "What do you sell?",
     line: "Add a product with a name, a category and a price. It is on every till the moment you save.",
     primary: { label: "Add your first product", sheet: "product-new", requires: [["retail.catalog", "create"]] },
+    secondary: { label: "Import a spreadsheet", href: "/retail/products/import", requires: [["retail.catalog", "create"]] },
   },
   catalog: false,
 };

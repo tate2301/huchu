@@ -50,10 +50,19 @@ export function LoadError({ noun, message, onRetry }: { noun: string; message: s
 }
 
 /** No permission: "Your role cannot view <noun>.", and the way back for a page reached by a link. */
-export function Refusal({ noun, back }: { noun: string; back?: { href: string; label: string } | null }) {
+export function Refusal({
+  noun,
+  sentence,
+  back,
+}: {
+  noun: string;
+  /** The matrix's own refusal for another verb (`retailPermissionDenial`), in place of "Your role cannot view <noun>". */
+  sentence?: string | null;
+  back?: { href: string; label: string } | null;
+}) {
   return (
     <div className="cx-lf-refusal" role="alert">
-      <span className="cx-lf-block__line">Your role cannot view {noun}.</span>
+      <span className="cx-lf-block__line">{sentence ?? `Your role cannot view ${noun}`}.</span>
       {back ? (
         <Button asChild>
           <Link href={back.href}>Back to {back.label}</Link>
