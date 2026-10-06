@@ -137,6 +137,11 @@ export const RETAIL_AUDIT_EVENTS = {
    */
   productCreated: "RETAIL_PRODUCT.CREATED",
   /**
+   * A spreadsheet of products imported (W-08, SET-11). Entity `RetailImport`;
+   * carries how many were added, updated and skipped, and the file's name.
+   */
+  productsImported: "RETAIL_PRODUCTS.IMPORTED",
+  /**
    * A price on a list changed (PRD-03; W-14, W-15): typed, many at once, or a
    * scheduled change coming due. Entity `Product`; carries the list, the price
    * before and after (money as a string) and how.

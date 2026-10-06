@@ -290,6 +290,20 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     const stock = opening ? `, ${formatCount(opening)} in stock${text(payload.site) ? ` at ${text(payload.site)}` : ""}` : "";
     return { what: `Added at ${moneyWords(payload.price)}${stock}`, tone: "ok" };
   },
+  // "Imported 196 products and updated 12 from price-list-oct.xlsx" (W-08).
+  [RETAIL_AUDIT_EVENTS.productsImported]: (payload) => {
+    const created = amount(payload.created) ?? 0;
+    const updated = amount(payload.updated) ?? 0;
+    const products = (n: number) => `${formatCount(n)} ${n === 1 ? "product" : "products"}`;
+    const what =
+      created > 0 && updated > 0
+        ? `Imported ${products(created)} and updated ${formatCount(updated)}`
+        : created > 0
+          ? `Imported ${products(created)}`
+          : `Updated ${products(updated)}`;
+    const file = text(payload.file);
+    return { what: file ? `${what} from ${file}` : what, tone: "ok" };
+  },
   // "Changed the Retail price from US$17.50 to US$18.25"; "Put on the Wholesale list at US$16.90" (PRD-03).
   [RETAIL_AUDIT_EVENTS.priceChanged]: (payload) => {
     const list = text(payload.list) ?? "list";

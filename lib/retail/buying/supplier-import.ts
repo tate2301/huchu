@@ -57,7 +57,8 @@ function paysOf(raw: string): PaysWord | null {
   return PAYS.find((option) => option === word) ?? null;
 }
 
-function cellText(cell: ExcelJS.CellValue): string {
+/** A cell as the text it shows: rich text joined, a formula's result, a date as its day. */
+export function cellText(cell: ExcelJS.CellValue): string {
   if (cell === null || cell === undefined) return "";
   if (typeof cell === "object") {
     if ("text" in cell && typeof cell.text === "string") return cell.text;

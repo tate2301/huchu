@@ -40,6 +40,20 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     });
   });
 
+  it("an import says what it added and updated, from which file (W-08)", () => {
+    expect(
+      activityWords("RETAIL_PRODUCTS.IMPORTED", { created: 196, updated: 12, skipped: 6, file: "price-list-oct.xlsx" }),
+    ).toEqual({ what: "Imported 196 products and updated 12 from price-list-oct.xlsx", tone: "ok" });
+    expect(activityWords("RETAIL_PRODUCTS.IMPORTED", { created: 1, updated: 0, skipped: 0, file: "a.csv" })).toEqual({
+      what: "Imported 1 product from a.csv",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_PRODUCTS.IMPORTED", { created: 0, updated: 3, skipped: 0, file: "a.csv" })).toEqual({
+      what: "Updated 3 products from a.csv",
+      tone: "ok",
+    });
+  });
+
   it("categories: added, changed and deleted with the move (W-19)", () => {
     expect(activityWords("RETAIL_CATEGORY.CREATED", { name: "Mixers" })).toEqual({ what: "Added it", tone: "ok" });
     expect(
