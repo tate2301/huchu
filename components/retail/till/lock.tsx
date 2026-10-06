@@ -3,6 +3,12 @@
 /**
  * The lock: the sale waits under it, the cashier's PIN opens it.
  *
+ * The till's layout reads the PIN status and the lock cookie on the server and
+ * hands them in, so the server's render and the browser's first one agree: a
+ * till with a PIN shows Lock from its first frame, and a locked till reloads
+ * locked. The status query starts from what the layout read, which is newer
+ * than any copy the persisted cache restores, and refetches from there.
+ *
  * The session stays open while locked; the PIN is checked by `pos/pin/unlock`,
  * which grants nothing and counts wrong guesses. Five wrong in a row lock the
  * PIN until a manager sends a new one (ADM-03); the password still opens the
@@ -24,6 +30,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type PropsWithChildren,
 } from "react";
 import { useSession } from "next-auth/react";
@@ -32,31 +39,19 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CheckCircle, Key, UserSwitch } from "@/lib/icons";
-import { TILL_PIN_LOCKED, tillPinDenial } from "@/lib/retail/till-pin";
+import { TILL_LOCK_COOKIE, TILL_PIN_LOCKED, tillPinDenial } from "@/lib/retail/till-pin";
+import type { TillPinStatus } from "@/lib/retail/till-pin-status";
 import { count, firstName, pairedWhen } from "./format";
 import { Avatar, ErrorLine, GateSide, Keypad, KeysPaused, PinDots, useKeypadKeys, type KeypadKey } from "./parts";
 import { useSignOut } from "./sign-out";
 import { useTill } from "./state";
 
-/** Survives a refresh, dies with the tab: a locked till reloaded is still locked. */
-const LOCK_STORAGE_KEY = "retail_pos_till_locked";
-
 /** Five minutes of no touch, key or pointer. */
 export const POS_IDLE_LOCK_MS = 5 * 60 * 1000;
 
-/** `GET pos/pin`: the caller's own till PIN, never the digits. */
-export type TillPinStatus = {
-  hasPin: boolean;
-  /** Sent from People and not yet replaced: they choose their own before the till opens. */
-  mustChange: boolean;
-  /** Five wrong in a row: locked until a manager sends a new one. */
-  locked: boolean;
-  lastUnlockedAt: string | null;
-};
-
 type LockValue = {
   pinConfigured: boolean;
-  pinStatus: TillPinStatus | null;
+  pinStatus: TillPinStatus;
   isLocked: boolean;
   lock: () => void;
   refreshPinStatus: () => void;
@@ -70,34 +65,52 @@ export function useTillLock() {
   return context;
 }
 
-export function TillLockProvider({ children }: PropsWithChildren) {
-  // Read at the first render, not in an effect, so a reload never shows the sale for a frame.
-  const [isLocked, setIsLocked] = useState(
-    () => typeof window !== "undefined" && window.sessionStorage.getItem(LOCK_STORAGE_KEY) === "1",
-  );
+/*
+ * Locked or open lives in a cookie: the layout reads it for the server's
+ * render, and the browser reads it after hydration. Offline the service worker
+ * serves the page as it was last rendered, so the cookie, not that page, says
+ * whether this till is locked now.
+ */
+const lockListeners = new Set<() => void>();
+
+function subscribeToLock(listener: () => void) {
+  lockListeners.add(listener);
+  return () => void lockListeners.delete(listener);
+}
+
+function readLockCookie() {
+  return document.cookie.split("; ").includes(`${TILL_LOCK_COOKIE}=1`);
+}
+
+function writeLockCookie(locked: boolean) {
+  document.cookie = `${TILL_LOCK_COOKIE}=${locked ? "1" : ""}; path=/; SameSite=Lax${locked ? "" : "; max-age=0"}`;
+  for (const listener of lockListeners) listener();
+}
+
+export function TillLockProvider({
+  children,
+  pinStatus: initialPinStatus,
+  locked,
+}: PropsWithChildren<{ pinStatus: TillPinStatus; locked: boolean }>) {
+  const isLocked = useSyncExternalStore(subscribeToLock, readLockCookie, () => locked);
 
   const statusQuery = useQuery({
     queryKey: ["retail-till-pin"],
     queryFn: () => fetchJson<{ data: TillPinStatus }>("/api/v2/retail/pos/pin"),
+    initialData: { data: initialPinStatus },
     staleTime: 30_000,
   });
-  const pinStatus = statusQuery.data?.data ?? null;
-  const pinConfigured = Boolean(pinStatus?.hasPin);
+  const pinStatus = statusQuery.data.data;
+  const pinConfigured = pinStatus.hasPin;
   const { data: session } = useSession();
   // Unlocked with a PIN that was sent: the PIN typed is the current one the change asks for.
   const [sentPin, setSentPin] = useState<string | null>(null);
   // Signed in with a PIN that was sent (the session says so), or unlocked with one: theirs comes first.
   const mustChoose =
-    Boolean(pinStatus?.mustChange) && (sentPin !== null || session?.user?.pinMustChange === true);
+    pinStatus.mustChange && (sentPin !== null || session?.user?.pinMustChange === true);
 
-  const lock = useCallback(() => {
-    window.sessionStorage.setItem(LOCK_STORAGE_KEY, "1");
-    setIsLocked(true);
-  }, []);
-  const unlock = useCallback(() => {
-    window.sessionStorage.removeItem(LOCK_STORAGE_KEY);
-    setIsLocked(false);
-  }, []);
+  const lock = useCallback(() => writeLockCookie(true), []);
+  const unlock = useCallback(() => writeLockCookie(false), []);
 
   useEffect(() => {
     if (!pinConfigured || isLocked) return;
@@ -165,7 +178,7 @@ function LockScreen({ onUnlocked }: { onUnlocked: (mustChange: boolean, typed: s
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   // A PIN already locked when the till locks shows the lockout straight away.
-  const [pinLocked, setPinLocked] = useState(() => Boolean(pinStatus?.locked));
+  const [pinLocked, setPinLocked] = useState(() => pinStatus.locked);
   const name = session?.user?.name ?? "You";
   const tillName = context?.till.name ?? "The till";
   const someoneElse = () => requestSignOut();

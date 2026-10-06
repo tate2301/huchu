@@ -399,14 +399,14 @@ export function SettingsScreen() {
           <header>
             <h2>My PIN</h2>
             <p>
-              {!pinStatus?.hasPin
+              {!pinStatus.hasPin
                 ? NO_PIN_YET
                 : pinStatus.locked
                   ? TILL_PIN_LOCKED
                   : `${pinStatus.lastUnlockedAt ? `Last used on ${dayMonth(pinStatus.lastUnlockedAt)}. ` : ""}Changing it needs the one you have.`}
             </p>
           </header>
-          {pinStatus?.hasPin && !pinStatus.locked ? (
+          {pinStatus.hasPin && !pinStatus.locked ? (
             <div className="body">
               <div>
                 <button type="button" className="btn" onClick={() => setChanging(true)}>

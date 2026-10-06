@@ -46,6 +46,13 @@ export const TILL_PIN_LENGTH = 4;
 /** What the till says while a PIN is locked, wherever it is typed. */
 export const TILL_PIN_LOCKED = "Too many tries. Ask a manager to send you a new PIN.";
 
+/**
+ * A locked till, as the till's layout reads it: a reload is still locked from
+ * its first frame. A session cookie, so it ends with the browser, and set and
+ * cleared by the lock in the browser (`components/retail/till/lock.tsx`).
+ */
+export const TILL_LOCK_COOKIE = "retail_pos_till_locked";
+
 export type TillPinDecision =
   /** Refused without comparing anything, because the PIN is locked. */
   | "LOCKED"

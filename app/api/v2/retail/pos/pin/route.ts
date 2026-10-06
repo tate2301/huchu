@@ -12,8 +12,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { successResponse } from "@/lib/api-response";
-import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { readTillPinStatus } from "@/lib/retail/till-pin-status";
 import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {
@@ -22,18 +22,5 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
 
-  const record = await prisma.retailTillPin.findFirst({
-    where: { userId: session.user.id, companyId: session.user.companyId },
-    // `pinHash` is not in this list on purpose, and must never be.
-    select: { lockedAt: true, mustChange: true, lastUnlockedAt: true },
-  });
-
-  return successResponse({
-    data: {
-      hasPin: Boolean(record),
-      mustChange: record?.mustChange ?? false,
-      locked: Boolean(record?.lockedAt),
-      lastUnlockedAt: record?.lastUnlockedAt?.toISOString() ?? null,
-    },
-  });
+  return successResponse({ data: await readTillPinStatus(session.user.id, session.user.companyId) });
 }
