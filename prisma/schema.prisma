@@ -336,6 +336,7 @@ model Company {
   retailTillPins                RetailTillPin[]
   retailTillRules               RetailTillRules?
   retailReceiptSettings         RetailReceiptSettings?
+  retailFiscalSettings          RetailFiscalSettings?
   retailMessages                RetailMessage[]
 
   @@index([tenantStatus])
@@ -1408,6 +1409,8 @@ model User {
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
   retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
   retailReceiptSettingsUpdated      RetailReceiptSettings[]        @relation("RetailReceiptSettingsUpdatedBy")
+  retailFiscalSettingsUpdated       RetailFiscalSettings[]         @relation("RetailFiscalSettingsUpdatedBy")
+  fiscalDevicesRegistered           FiscalisationProviderConfig[]  @relation("FiscalDeviceRegisteredBy")
   sessionHandoffs                   SessionHandoff[]
   reportTemplates                   ReportTemplate[]
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
@@ -5130,6 +5133,33 @@ model RetailReceiptSettings {
   updatedBy User?   @relation("RetailReceiptSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
+/// SET-08: when the shop's fiscal day closes.
+enum RetailFiscalDayClose {
+  WITH_LAST_SHIFT
+  BY_HAND
+}
+
+/// SET-08: what the tills do while ZIMRA cannot be reached.
+enum RetailFiscalUnreachable {
+  KEEP_SELLING
+  STOP_SELLING
+}
+
+/// Setup › Fiscal device (SET-08, W-06): how the shop's fiscal day closes and
+/// whether the tills stop while ZIMRA does not answer. The device itself is the
+/// company's `ZIMRA_FDMS` `FiscalisationProviderConfig`.
+model RetailFiscalSettings {
+  companyId       String                  @id
+  dayClose        RetailFiscalDayClose    @default(WITH_LAST_SHIFT)
+  whenUnreachable RetailFiscalUnreachable @default(KEEP_SELLING)
+  updatedById     String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailFiscalSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
 enum RetailMessageChannel {
   WHATSAPP
   EMAIL
@@ -7055,11 +7085,19 @@ model FiscalisationProviderConfig {
   webhookSecretRef String?
   metadataJson     String?
   isActive         Boolean  @default(true)
+  /// ZIMRA's serial for the device (SET-08; was only passed through at registration).
+  serialNumber     String?
+  registeredAt     DateTime?
+  registeredById   String?
+  /// Last FDMS call that succeeded / failed. "Stop selling" reads `lastFailedAt`.
+  lastOkAt         DateTime?
+  lastFailedAt     DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  fiscalDays FiscalDay[]
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  registeredBy User?       @relation("FiscalDeviceRegisteredBy", fields: [registeredById], references: [id], onDelete: SetNull)
+  fiscalDays   FiscalDay[]
 
   @@unique([companyId, providerKey])
   @@index([companyId, isActive])

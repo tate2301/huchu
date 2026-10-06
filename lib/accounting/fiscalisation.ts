@@ -21,6 +21,7 @@ import {
   FiscalSigningError,
   buildVerificationQrUrl,
   centsFromMinorUnits,
+  fdmsDeviceId,
   hashReceiptInput,
   signReceipt,
   type Cents,
@@ -28,6 +29,7 @@ import {
   type ReceiptTaxLine,
   type ReceiptType,
 } from "@/lib/accounting/fdms-receipt-signing";
+import { recordFdmsContact } from "@/lib/accounting/fdms-contact";
 
 export type FiscalValidationResult = {
   ok: boolean;
@@ -292,7 +294,7 @@ function buildNativeReceiptWire(input: {
   fiscal: FiscalSigningInput;
 }) {
   return {
-    deviceID: input.deviceId,
+    deviceID: fdmsDeviceId(input.deviceId),
     receiptType: input.receipt.receiptType,
     receiptCurrency: input.receipt.receiptCurrency,
     receiptCounter: input.receipt.receiptCounter,
@@ -621,6 +623,7 @@ export async function issueFiscalDocument(input: {
         : {}),
     });
 
+    await recordFdmsContact(provider.id, true);
     const updated = await markFiscalReceiptResult({
       receiptId: receipt.id,
       status: connectorResult.status,
@@ -643,6 +646,8 @@ export async function issueFiscalDocument(input: {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown FDMS connector error";
+    // No answer at all: what "If ZIMRA cannot be reached" goes by (SET-08).
+    await recordFdmsContact(provider.id, false);
     const updated = await markFiscalReceiptResult({
       receiptId: receipt.id,
       status: "FAILED",

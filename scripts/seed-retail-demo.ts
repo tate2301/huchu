@@ -41,7 +41,11 @@
 
 import "dotenv/config"
 
+import { execFileSync } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { Prisma, WorkspaceProfile, type NotificationType, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
@@ -1266,6 +1270,7 @@ async function main() {
   await seedPayments(companyId)
   await seedPosting(companyId)
   await seedReceipts(companyId)
+  await seedFiscal(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -2579,4 +2584,184 @@ async function seedPosting(companyId: string) {
     },
   })
   console.log(`  posting: tenders and roles over the chart, end of each day, last run ${lastNight.toISOString()}`)
+}
+
+/**
+ * SET-08. Setup › Fiscal device as the FiscalSettings board draws it: device
+ * 0441-2209, serial HC-FD-88120, registered by the owner (Tendai Mhlanga) on
+ * 14 March, answering now; days 210–213 closed on the four evenings before
+ * today with their Z-report totals, and day 214 open since the Front till's
+ * shift opened this morning, its receipts this morning's sales. The rules are
+ * the defaults (with the last shift; keep selling). The device is a demo
+ * device: its key and certificate are made here, and it talks to the FDMS
+ * test connector (`scripts/fake-fdms.mjs`, or `RETAIL_DEMO_FDMS_URL`), never
+ * to ZIMRA. Every run puts the page back the way the board has it.
+ */
+async function seedFiscal(companyId: string) {
+  const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
+  if (!owner) {
+    console.log("  fiscal: no owner, skipped")
+    return
+  }
+  const providerKey = "ZIMRA_FDMS"
+  // Devices a test run retired by typing a new device ID go, with their days and receipts.
+  const retired = await prisma.fiscalisationProviderConfig.findMany({
+    where: { companyId, providerKey: { startsWith: `${providerKey}#` } },
+    select: { id: true },
+  })
+  if (retired.length > 0) {
+    const ids = retired.map((row) => row.id)
+    await prisma.fiscalReceipt.deleteMany({ where: { fiscalDay: { providerConfigId: { in: ids } } } })
+    await prisma.fiscalDay.deleteMany({ where: { providerConfigId: { in: ids } } })
+    await prisma.fiscalisationProviderConfig.deleteMany({ where: { id: { in: ids } } })
+  }
+  const existing = await prisma.fiscalisationProviderConfig.findUnique({
+    where: { companyId_providerKey: { companyId, providerKey } },
+    select: { id: true, certificateRef: true },
+  })
+  const keeps = (() => {
+    try {
+      const bundle = JSON.parse(existing?.certificateRef ?? "") as { cert?: string; key?: string }
+      return Boolean(bundle.cert && bundle.key)
+    } catch {
+      return false
+    }
+  })()
+  const device = {
+    apiBaseUrl: process.env.RETAIL_DEMO_FDMS_URL ?? "http://127.0.0.1:9911",
+    deviceId: "0441-2209",
+    serialNumber: "HC-FD-88120",
+    isActive: true,
+    registeredAt: new Date("2026-03-14T10:20:00+02:00"),
+    registeredById: owner.id,
+    lastOkAt: new Date(),
+    lastFailedAt: null,
+    ...(keeps ? {} : { certificateRef: demoDeviceCertificate() }),
+  }
+  const provider = await prisma.fiscalisationProviderConfig.upsert({
+    where: { companyId_providerKey: { companyId, providerKey } },
+    update: device,
+    create: { companyId, providerKey, ...device },
+  })
+
+  // The board's five days: four closed evenings and today's, open since the Front till's shift.
+  const days = await prisma.fiscalDay.findMany({ where: { providerConfigId: provider.id }, select: { id: true } })
+  await prisma.fiscalReceipt.deleteMany({ where: { fiscalDayId: { in: days.map((day) => day.id) } } })
+  await prisma.fiscalDay.deleteMany({ where: { providerConfigId: provider.id } })
+  const front = await prisma.retailShift.findFirst({
+    where: { companyId, status: "OPEN", registerName: "Front till" },
+    orderBy: { openedAt: "desc" },
+    select: { openedAt: true },
+  })
+  const openedToday = front?.openedAt ?? harareTime(0, 7, 58)
+  const closed: Array<{ no: number; back: number; opens: [number, number]; closes: [number, number]; total: string }> = [
+    { no: 210, back: 4, opens: [7, 55], closes: [22, 1], total: "2977.40" },
+    { no: 211, back: 3, opens: [7, 52], closes: [21, 58], total: "4102.00" },
+    { no: 212, back: 2, opens: [7, 57], closes: [22, 11], total: "3488.75" },
+    { no: 213, back: 1, opens: [7, 54], closes: [22, 4], total: "3912.20" },
+  ]
+  let globalNo = 61_480
+  for (const day of closed) {
+    const cents = BigInt(new Prisma.Decimal(day.total).times(100).toFixed(0))
+    // VAT at 15.5% inside the takings, as the Z-report counts them.
+    const tax = BigInt(new Prisma.Decimal(day.total).times(15.5).dividedBy(115.5).times(100).toFixed(0))
+    const receipts = 180 + day.no - 200
+    globalNo += receipts
+    await prisma.fiscalDay.create({
+      data: {
+        companyId,
+        providerConfigId: provider.id,
+        deviceId: provider.deviceId!,
+        fiscalDayNo: day.no,
+        status: "CLOSED",
+        openedAt: harareTime(day.back, ...day.opens),
+        closedAt: harareTime(day.back, ...day.closes),
+        lastReceiptCounter: receipts,
+        lastReceiptGlobalNo: globalNo,
+        countersJson: JSON.stringify({
+          receiptCount: receipts,
+          lastReceiptCounter: receipts,
+          lastReceiptGlobalNo: globalNo,
+          counters: [
+            { fiscalCounterType: "SaleByTax", fiscalCounterCurrency: "USD", fiscalCounterTaxID: 1, fiscalCounterTaxPercent: "15.50", fiscalCounterValueCents: cents.toString() },
+            { fiscalCounterType: "SaleTaxByTax", fiscalCounterCurrency: "USD", fiscalCounterTaxID: 1, fiscalCounterTaxPercent: "15.50", fiscalCounterValueCents: tax.toString() },
+          ],
+          receiptsWithoutTaxLines: [],
+        }),
+      },
+    })
+  }
+  const today = await prisma.fiscalDay.create({
+    data: {
+      companyId,
+      providerConfigId: provider.id,
+      deviceId: provider.deviceId!,
+      fiscalDayNo: 214,
+      status: "OPENED",
+      openedAt: openedToday,
+      lastReceiptGlobalNo: globalNo,
+    },
+  })
+  // This morning's sales, signed into day 214 and taken by ZIMRA.
+  const sales = await prisma.retailSale.findMany({
+    where: { companyId, status: "POSTED", saleType: "SALE", postedAt: { gte: openedToday }, fiscalReceipt: null },
+    orderBy: [{ postedAt: "asc" }, { id: "asc" }],
+    select: { id: true, saleNo: true, currency: true, postedAt: true },
+  })
+  let counter = 0
+  for (const sale of sales) {
+    counter += 1
+    globalNo += 1
+    await prisma.fiscalReceipt.create({
+      data: {
+        companyId,
+        retailSaleId: sale.id,
+        receiptNumber: sale.saleNo,
+        fiscalNumber: `${provider.deviceId}/214/${counter}`,
+        status: "SUCCESS",
+        issuedAt: sale.postedAt,
+        providerKey,
+        receiptCounter: counter,
+        receiptGlobalNo: globalNo,
+        fiscalDayId: today.id,
+        receiptType: "FISCALINVOICE",
+        receiptCurrency: sale.currency,
+        lastSyncedAt: sale.postedAt,
+      },
+    })
+  }
+  await prisma.fiscalDay.update({
+    where: { id: today.id },
+    data: { lastReceiptCounter: counter, lastReceiptGlobalNo: globalNo },
+  })
+
+  await prisma.retailFiscalSettings.upsert({
+    where: { companyId },
+    update: { dayClose: "WITH_LAST_SHIFT", whenUnreachable: "KEEP_SELLING", updatedById: null },
+    create: { companyId },
+  })
+  await prisma.platformAuditEvent.deleteMany({
+    where: {
+      companyId,
+      entityType: "RetailSettings",
+      entityId: "fiscal",
+      eventType: { in: [RETAIL_AUDIT_EVENTS.settingsChanged, RETAIL_AUDIT_EVENTS.fiscalConnected, RETAIL_AUDIT_EVENTS.fiscalDayClosed] },
+    },
+  })
+  console.log(`  fiscal: device 0441-2209 registered 14 March, days 210–213 closed, day 214 open with ${sales.length} receipt(s)`)
+}
+
+/** A demo device's key and a self-signed certificate for it, in the bundle shape registration writes. */
+function demoDeviceCertificate(): string {
+  const dir = mkdtempSync(join(tmpdir(), "demo-fdms-"))
+  try {
+    execFileSync(
+      "openssl",
+      ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem"), "-days", "730", "-subj", "/CN=HC-FD-88120"],
+      { stdio: "ignore" },
+    )
+    return JSON.stringify({ cert: readFileSync(join(dir, "cert.pem"), "utf8"), key: readFileSync(join(dir, "key.pem"), "utf8") })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }

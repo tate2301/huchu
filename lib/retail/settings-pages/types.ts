@@ -29,7 +29,16 @@ export type SettingsAsideSection = {
   slot?: string;
 };
 
-export type SettingsAction = { fields: string[]; endpoint: string; can: [RetailResource, RetailAction] };
+export type SettingsAction = {
+  fields: string[];
+  endpoint: string;
+  can: [RetailResource, RetailAction];
+  /**
+   * Sent after the settings `PATCH` instead of before it: the action needs
+   * what the page saves (Connect needs the device ID saved).
+   */
+  after?: boolean;
+};
 
 /** Who last changed the page and when; `what` names a change of the page's own kind ("rate"). */
 export type SettingsLastChanged = { by: string; at: string; what?: string };

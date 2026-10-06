@@ -1056,3 +1056,49 @@ export async function fiscaliseAfterPosting(input: {
     };
   }
 }
+
+/**
+ * A fiscal day's till receipts as the Z-report counts them: each receipt's
+ * tax lines, rebuilt from its sale the way it was signed (SET-08 "Close
+ * day"). The signer does not keep a receipt's per-tax breakdown, and a day
+ * closed without it reports its sales as receipts without tax lines. A sale
+ * whose lines no longer resolve to a taxID is left out and lands there.
+ */
+export async function retailFiscalDayTaxLines(input: {
+  companyId: string;
+  fiscalDayId: string;
+}): Promise<Record<string, Array<{ taxId: number; taxPercent: string | null; salesAmountCents: bigint; taxAmountCents: bigint }>>> {
+  const receipts = await prisma.fiscalReceipt.findMany({
+    where: { companyId: input.companyId, fiscalDayId: input.fiscalDayId, retailSaleId: { not: null } },
+    select: { id: true, retailSaleId: true },
+  });
+  const lines: Awaited<ReturnType<typeof retailFiscalDayTaxLines>> = {};
+  for (const receipt of receipts) {
+    const sale = (await prisma.retailSale.findFirst({
+      where: { id: receipt.retailSaleId!, companyId: input.companyId },
+      include: SALE_INCLUDE,
+    })) as LoadedSale | null;
+    if (!sale) continue;
+    const receiptDate = sale.postedAt ?? sale.createdAt;
+    try {
+      const resolver = await loadRetailTaxResolver({ companyId: input.companyId, asOf: receiptDate });
+      const bundle = buildRetailSaleSigningInput({
+        sale: { ...sale, receiptDate },
+        lines: await resolveLineRates(input.companyId, sale),
+        resolver,
+      });
+      lines[receipt.id] = bundle.taxLines.map((line) => ({
+        taxId: line.taxId,
+        taxPercent: line.taxPercent,
+        salesAmountCents: line.salesAmountCents,
+        taxAmountCents: line.taxAmountCents,
+      }));
+    } catch (error) {
+      if (error instanceof RetailFiscalMappingError || error instanceof FiscalMappingError || error instanceof FiscalSigningError) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  return lines;
+}

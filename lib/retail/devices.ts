@@ -1,3 +1,4 @@
+import { tillFiscal } from "@/lib/retail/fiscal-settings";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import type { Prisma } from "@prisma/client";
@@ -486,6 +487,8 @@ export type TillContext = {
   rules: TillRulesForTill;
   /** What its receipts say (SET-07): the shop's top and bottom lines, numbers and copies. */
   receipt: ReceiptWire;
+  /** The shop's fiscal device (SET-08): its ID once registered, the open day, and whether the till stops while ZIMRA is away. */
+  fiscal: { deviceId: string | null; dayNo: number | null; whenUnreachable: "KEEP_SELLING" | "STOP_SELLING" };
   /** Who can approve with their PIN at this till: active staff with a till PIN who hold the approve right. */
   approvers: Array<{ userId: string; name: string }>;
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
@@ -494,7 +497,7 @@ export type TillContext = {
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
-  const [places, defaultList, shop, tillRules, payments, pins, receipt] = await Promise.all([
+  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal] = await Promise.all([
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
@@ -511,6 +514,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
       select: { user: { select: { id: true, name: true, role: true } } },
     }),
     receiptWire(device.companyId, register.site.id),
+    tillFiscal(device.companyId),
   ]);
   const pairedBy = device.pairedBy.name ?? "";
   return {
@@ -536,6 +540,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     zig: payments.zig,
     rules: tillRulesForTill(tillRules),
     receipt,
+    fiscal,
     approvers: pins
       .filter((pin) => canRetailRoleDo(pin.user.role, "retail.sell", "approve"))
       .map((pin) => ({ userId: pin.user.id, name: pin.user.name ?? "" }))

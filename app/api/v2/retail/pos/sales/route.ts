@@ -35,6 +35,7 @@ import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "
 import { postedChange } from "@/lib/retail/sale-totals";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
+import { fiscalSaleRefusal } from "@/lib/retail/fiscal-settings";
 import { saleReceipt } from "@/lib/retail/receipt-settings";
 import { approverSchema, approvalFor, replayApproval, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
@@ -430,6 +431,12 @@ export async function POST(request: NextRequest) {
     const input = saleSchema.parse(body);
     const unpaired = unpairedSaleGate(device, input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null);
     if (unpaired.response) return unpaired.response;
+    // "If ZIMRA cannot be reached · Stop selling" (SET-08): a new sale waits for ZIMRA. A sale rung
+    // offline already happened and is taken in either way.
+    if (!input.offlineCreatedAt) {
+      const offline = await fiscalSaleRefusal(session.user.companyId);
+      if (offline) return NextResponse.json({ error: offline, code: "FISCAL_OFFLINE" }, { status: 409 });
+    }
     const shift = await prisma.retailShift.findFirst({
       where: {
         id: input.shiftId,

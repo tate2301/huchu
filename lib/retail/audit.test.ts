@@ -467,6 +467,8 @@ describe("the chain", () => {
       postingRun: "RETAIL_POSTING.RUN",
       postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",
       drawerOpened: "RETAIL_DRAWER.OPENED",
+      fiscalConnected: "RETAIL_FISCAL.CONNECTED",
+      fiscalDayClosed: "RETAIL_FISCAL.DAY_CLOSED",
     });
   });
 });

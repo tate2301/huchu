@@ -1,4 +1,5 @@
 import { companyPage } from "./company";
+import { fiscalPage } from "./fiscal";
 import { paymentsPage } from "./payments";
 import { postingPage } from "./posting";
 import { receiptsPage } from "./receipts";
@@ -20,6 +21,7 @@ export type {
  */
 export const SETTINGS_PAGES: Record<string, SettingsPage> = {
   company: companyPage,
+  fiscal: fiscalPage,
   payments: paymentsPage,
   posting: postingPage,
   receipts: receiptsPage,

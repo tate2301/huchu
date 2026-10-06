@@ -173,6 +173,10 @@ export const RETAIL_AUDIT_EVENTS = {
   postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",
   /** The drawer opened without a sale (SET-06). Entity `RetailRegister`; carries the till, the shift and who approved it. */
   drawerOpened: "RETAIL_DRAWER.OPENED",
+  /** The fiscal device registered with ZIMRA from Setup › Fiscal device (SET-08). Entity `RetailSettings`, id `fiscal`; carries the device and serial, never the key. */
+  fiscalConnected: "RETAIL_FISCAL.CONNECTED",
+  /** A fiscal day closed and its Z-report taken by ZIMRA (SET-08): by hand, or with the last shift. Entity `RetailSettings`, id `fiscal`; carries the day, its total and how. */
+  fiscalDayClosed: "RETAIL_FISCAL.DAY_CLOSED",
 } as const;
 
 export type RetailAuditEvent =

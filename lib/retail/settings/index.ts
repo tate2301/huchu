@@ -12,6 +12,7 @@ import {
 } from "@/lib/retail/settings-pages";
 
 import { companySettings } from "./company";
+import { fiscalSettings } from "./fiscal";
 import { paymentsSettings } from "./payments";
 import { postingSettings } from "./posting";
 import { receiptsSettings } from "./receipts";
@@ -26,6 +27,7 @@ import type { SettingsStore } from "./types";
 
 const STORES: Record<string, SettingsStore> = {
   company: companySettings,
+  fiscal: fiscalSettings,
   payments: paymentsSettings,
   posting: postingSettings,
   receipts: receiptsSettings,

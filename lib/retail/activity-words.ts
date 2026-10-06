@@ -249,6 +249,18 @@ const WORDS: Record<string, (payload: Payload, eventType: string) => ActivityWor
     what: `Added the account ${text(payload.label) ?? ""}`.trim(),
     tone: "ok",
   }),
+  // "Connected the fiscal device 0441-2209 to ZIMRA" (SET-08).
+  [RETAIL_AUDIT_EVENTS.fiscalConnected]: (payload) => ({
+    what: `Connected the fiscal device${text(payload.deviceId) ? ` ${text(payload.deviceId)}` : ""} to ZIMRA`,
+    tone: "ok",
+  }),
+  // "Closed fiscal day 214, US$1,284.50"; "… with the last shift" (SET-08).
+  [RETAIL_AUDIT_EVENTS.fiscalDayClosed]: (payload) => ({
+    what: `Closed fiscal day ${text(payload.dayNo) ?? ""}${text(payload.total) ? `, ${text(payload.total)}` : ""}${
+      payload.how === "LAST_SHIFT" ? ", with the last shift" : ""
+    }`,
+    tone: "info",
+  }),
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,
     tone: "info",

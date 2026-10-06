@@ -58,6 +58,9 @@ import { SaveBar } from "./save-bar";
 
 const controlId = (fieldId: string) => `cx-set-${fieldId}`;
 
+/** The form's id, for a header button that saves it (`form=`). */
+const formId = (pageKey: string) => `cx-sf-form-${pageKey}`;
+
 const noSubscription = () => () => {};
 
 function focusField(fieldId: string) {
@@ -119,6 +122,7 @@ function ReadField({ field, value, values }: { field: FieldSpec; value: unknown;
             id={control.id}
             mono={field.mono || field.t === "money"}
             right={field.t === "money"}
+            tone={field.t === "read" ? (typeof field.tone === "function" ? field.tone(values) : field.tone) : undefined}
             className={cn(field.t === "area" && "cx-read--area")}
           >
             {shown ?? <span className="cx-sf-empty">—</span>}
@@ -142,9 +146,16 @@ function leaveAsk(count: number, title: string): Ask {
 type FrameExtras = {
   /**
    * The page's own header buttons, before Activity ("Post now"); or drawn from
-   * the values as the form has them now, once loaded ("Print a test receipt").
+   * the values as the form has them now, once loaded ("Print a test receipt"),
+   * with the form's id (a button with `form` and `type="submit"` saves it, as
+   * "Connect" does), the unsaved changes and whether a save is under way.
    */
-  actions?: React.ReactNode | ((values: Record<string, unknown>) => React.ReactNode);
+  actions?:
+    | React.ReactNode
+    | ((
+        values: Record<string, unknown>,
+        form: { formId: string; changes: Record<string, unknown>; saving: boolean },
+      ) => React.ReactNode);
   /**
    * What the page draws live in its aside sections' slots, from the values as
    * the form has them now — saved, with what the person has typed over them
@@ -267,15 +278,17 @@ function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: Setti
     setSaving(true);
     setBarError(null);
     const parts = splitChanges(page, changes);
-    // The action's fields first: a page rule may need them (ZiG cash on needs a rate).
-    const sends = [
-      ...(page.action && Object.keys(parts.action).length > 0
+    // The action's fields first: a page rule may need them (ZiG cash on needs a rate);
+    // or last, when the action needs what the page saves (Connect needs the device ID).
+    const actionSend =
+      page.action && Object.keys(parts.action).length > 0
         ? [{ url: page.action.endpoint, method: "POST", changes: parts.action }]
-        : []),
-      ...(Object.keys(parts.settings).length > 0
+        : [];
+    const settingsSend =
+      Object.keys(parts.settings).length > 0
         ? [{ url: `/api/v2/retail/settings/${encodeURIComponent(pageKey)}`, method: "PATCH", changes: parts.settings }]
-        : []),
-    ];
+        : [];
+    const sends = page.action?.after ? [...settingsSend, ...actionSend] : [...actionSend, ...settingsSend];
     try {
       for (const send of sends) {
         const response = await fetch(send.url, {
@@ -322,7 +335,11 @@ function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: Setti
   const canReadActivity = canRetailRoleDo(role, "retail.activity", "view");
   const chrome = (
     <PageChrome title={page.title}>
-      {typeof actions === "function" ? (hydrated && query.data ? actions(values) : null) : actions}
+      {typeof actions === "function"
+        ? hydrated && query.data
+          ? actions(values, { formId: formId(pageKey), changes, saving })
+          : null
+        : actions}
       {canReadActivity ? <Button onClick={() => setActivityOpen(true)}>Activity</Button> : null}
     </PageChrome>
   );
@@ -411,6 +428,7 @@ function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: Setti
           <div className="cx-sf-main">
             <div className="cx-sf-scroll">
               <form
+                id={formId(pageKey)}
                 className="cx-sf-form"
                 aria-label={page.title}
                 onSubmit={(event) => {

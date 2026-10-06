@@ -1,3 +1,4 @@
+import { closeFiscalDayIfLastShift, openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
 import {
   Prisma,
   type RetailCashMovementReason,
@@ -397,6 +398,9 @@ export async function openRetailShiftTransaction(input: {
               journalEntryId: null,
             } satisfies RetailAccountingResult);
 
+      // The day's first shift opens the shop's fiscal day when none is open (SET-08), so its sales are signed.
+      await openFiscalDayIfNone(input.actor.companyId);
+
       return { shift, accounting };
     } catch (error) {
       if (
@@ -536,6 +540,14 @@ export async function closeRetailShiftTransaction(input: {
           accountingCode: null,
           journalEntryId: null,
         } satisfies RetailAccountingResult);
+
+  // "Close the fiscal day · With the last shift" (SET-08): the shop's last open shift closing closes its day.
+  await closeFiscalDayIfLastShift({
+    companyId: input.actor.companyId,
+    userId: input.actor.userId,
+    userName: input.actor.userName ?? null,
+    userRole: input.actor.userRole ?? null,
+  });
 
   return { shift: updated, accounting };
 }
