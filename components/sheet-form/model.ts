@@ -171,8 +171,8 @@ export function submitFailure(status: number, payload: unknown, fieldIds: readon
 }
 
 /** "SH-00243 open on the back till for Kuda Banda." */
-export function doneSentence(kind: SheetKind, result: unknown, values: SheetValues = {}): string {
-  return typeof kind.done === "function" ? kind.done(result, values) : kind.done;
+export function doneSentence(kind: SheetKind, result: unknown, values: SheetValues = {}, payload: unknown = result): string {
+  return typeof kind.done === "function" ? kind.done(result, values, payload) : kind.done;
 }
 
 /** A money string as an amount ("1,284.6" → 1284.6), or 0. */

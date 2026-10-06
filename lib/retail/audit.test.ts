@@ -435,6 +435,8 @@ describe("the chain", () => {
       cashMoved: "RETAIL_CASH.MOVED",
       goodsReceived: "RETAIL_GOODS.RECEIVED",
       movementsReversed: "RETAIL_STOCK.MOVEMENTS_REVERSED",
+      stockAdjusted: "RETAIL_STOCK.ADJUSTED",
+      caseBroken: "RETAIL_STOCK.CASE_BROKEN",
       orderClosed: "RETAIL_PURCHASE_ORDER.CLOSED",
       orderReopened: "RETAIL_PURCHASE_ORDER.REOPENED",
       shopProfileChanged: "RETAIL_SHOP.PROFILE_CHANGED",

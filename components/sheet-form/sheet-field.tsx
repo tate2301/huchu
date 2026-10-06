@@ -26,11 +26,11 @@ import { LookupField } from "./lookup-field";
  * `nolabel` fields draw no label above.
  */
 
-/** The product image route: `POST` multipart → `{ url }`. */
-async function uploadPicture(file: File): Promise<string> {
+/** A picture to the field's upload route (the product image route by default): `POST` multipart → `{ url }`. */
+async function uploadPicture(file: File, url = "/api/v2/retail/products/image"): Promise<string> {
   const form = new FormData();
   form.set("file", file);
-  const answer = await fetchJson<{ data: { url: string } }>("/api/v2/retail/products/image", { method: "POST", body: form });
+  const answer = await fetchJson<{ data: { url: string } }>(url, { method: "POST", body: form });
   return answer.data.url;
 }
 
@@ -248,7 +248,7 @@ export function SheetField({
                 prompt={field.prompt ?? field.p ?? "Add a photo"}
                 value={typeof value === "string" ? value : null}
                 onValueChange={onChange}
-                upload={uploadPicture}
+                upload={(file) => uploadPicture(file, field.upload)}
               />
             );
           case "lines":
@@ -296,6 +296,8 @@ export function SheetField({
                 mono={field.mono}
                 right={field.right}
                 placeholder={field.p}
+                maxLength={field.max}
+                {...(field.masked ? { type: "password", inputMode: "numeric" as const, autoComplete: "off" } : {})}
                 value={typeof value === "string" ? value : ""}
                 onChange={(event) => onChange(field.upper ? event.target.value.toUpperCase() : event.target.value)}
               />

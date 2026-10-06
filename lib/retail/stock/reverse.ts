@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { formatCount } from "@/lib/workspace/format";
 
-import { skipReason, type Skipped } from "./reverse-words";
+import { POSTED_REASONS as POSTED, skipReason, type Skipped } from "./reverse-words";
 
 export { POSTED_REASONS, REVERSIBLE_REASONS } from "./reverse-words";
 
@@ -208,4 +208,59 @@ export async function reverseMovements(input: { actor: RetailAuditActor; ids: st
   });
 
   return { reversed, skipped };
+}
+
+/**
+ * What the adjustment put on the books: its journal's debits. An adjustment
+ * whose posting has not landed is valued as it would have been, at the
+ * line's cost.
+ */
+async function postedValue(movement: ReversedMovement, companyId: string): Promise<number> {
+  const entry = await prisma.journalEntry.findFirst({
+    where: { companyId, sourceType: "RETAIL_STOCK_ADJUSTMENT", sourceId: movement.id },
+    select: { lines: { select: { debit: true } } },
+  });
+  const posted = entry ? entry.lines.reduce((sum, line) => sum + line.debit, 0) : null;
+  return Math.round((posted ?? Math.abs(movement.change) * movement.unitCost) * 100) / 100;
+}
+
+/**
+ * The books follow an adjustment put back: the opposite of what it posted,
+ * found by the original movement's id (STK-04 posts each adjustment under
+ * it). Null when there is nothing to post. The caller hands it to
+ * `postRetailJournal` after the commit.
+ */
+export async function reversalJournal(movement: ReversedMovement, actor: { companyId: string; userId: string; role: string | null }) {
+  if (!POSTED.has(movement.reason)) return null;
+  const value = await postedValue(movement, actor.companyId);
+  if (value <= 0) return null;
+  const loss = movement.change < 0;
+  return {
+    companyId: actor.companyId,
+    sourceType: "RETAIL_STOCK_ADJUSTMENT" as const,
+    sourceId: movement.reversalId,
+    sourceSubtype: loss ? "LOSS" : "GAIN",
+    siteId: movement.siteId,
+    entryDate: new Date(),
+    description: `Reversed stock adjustment ${movement.reference ?? ""}`.trim(),
+    createdById: actor.userId,
+    actorRole: actor.role,
+    amount: value,
+    netAmount: value,
+    taxAmount: 0,
+    grossAmount: value,
+    invertDirection: loss,
+    inventory: {
+      lines: [
+        {
+          inventoryItemId: movement.itemId,
+          itemName: movement.itemName,
+          quantity: Math.abs(movement.change),
+          unitCost: Math.round((value / Math.abs(movement.change)) * 100) / 100,
+          totalCost: value,
+        },
+      ],
+      totalCost: value,
+    },
+  };
 }

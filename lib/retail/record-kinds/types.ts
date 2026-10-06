@@ -14,13 +14,13 @@ export type Grant = [RetailResource, RetailAction];
 
 /**
  * What an action does: open a sheet over the record (with the record's id
- * when `id` is set), go to a page, open a file in a new tab (a PDF to print),
+ * when `id` is set, and any `params` the sheet reads), go to a page, open a file in a new tab (a PDF to print),
  * download one, ask the `bin` confirm, post to the server (asking first when
  * it has an ask) and toast its done words, or hand an event to the page (a
  * dialog the page owns).
  */
 export type RecordDo =
-  | { sheet: string; id?: string }
+  | { sheet: string; id?: string; params?: Record<string, string> }
   | { href: string }
   | { open: string }
   | { download: string }

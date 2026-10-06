@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse } from "@/lib/api-response";
+import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { readRecordActivity, recordActivityType } from "@/lib/retail/record-activity";
 import { requireRetailSession } from "../../../../_helpers";
@@ -37,5 +38,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const companyId = session.user.companyId;
   if (!(await spec.exists(companyId, path.data.id))) return errorResponse("Record not found", 404);
 
-  return successResponse(await readRecordActivity(companyId, path.data.type, path.data.id, spec, query.data));
+  const seeCost = canRetailSessionDo(session, "retail.catalog", "view-cost");
+  return successResponse(await readRecordActivity(companyId, path.data.type, path.data.id, spec, { ...query.data, seeCost }));
 }

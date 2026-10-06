@@ -110,6 +110,7 @@ export function RecordFrame<R>({
         const params = new URLSearchParams(searchParams.toString());
         params.set("sheet", target.sheet);
         if (target.id) params.set("id", target.id);
+        for (const [key, value] of Object.entries(target.params ?? {})) params.set(key, value);
         router.push(`${pathname}?${params.toString()}`);
       } else if ("open" in target) window.open(target.open, "_blank", "noopener");
       else if ("download" in target) window.location.assign(target.download);

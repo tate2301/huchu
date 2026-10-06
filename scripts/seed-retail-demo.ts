@@ -67,6 +67,9 @@ import {
   writeRetailAuditEvent,
 } from "@/lib/retail/audit"
 import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services"
+import { postRetailJournal } from "@/app/api/v2/retail/_helpers"
+import { adjustmentJournal, adjustStock, type AdjustWhy } from "@/lib/retail/stock/adjustments"
+import { breakCase } from "@/lib/retail/stock/cases"
 import { hashInviteToken, INVITE_DAYS } from "@/lib/retail/people/invite"
 
 function readArg(name: string): string | undefined {
@@ -1265,6 +1268,7 @@ async function main() {
   await seedPins(companyId, passwordHash)
   await seedPeople({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, passwordHash, reset })
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
+  await seedAdjustments({ companyId, mainSiteId: site.id, reset })
   await seedPriceHistory(companyId)
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
@@ -2304,6 +2308,105 @@ type LedgerRow = {
   change: Prisma.Decimal
   balanceAfter: Prisma.Decimal | null
   create?: Omit<Prisma.StockMovementCreateManyInput, "balanceAfter" | "referenceId">
+}
+
+/**
+ * STK-04. The hand adjustments and the case break the boards show, written
+ * through the services so each is what Adjust stock and Break a case write:
+ * BRK-0012 (Farai Moyo on his open shift, one Castle case into 24 singles),
+ * ADJ-0030 (Amarula, own use, Tafara Nyathi) and ADJ-0031 (Two Keys, broken,
+ * Rudo Moyo, US$7.10 — under the limit). Each is written once, by its
+ * reference; the line is raised first by what it takes, so on hand still
+ * lands on the catalogue's figure (the ledger's opening absorbs the rest).
+ * `--reset` takes away the adjustments and breaks acceptance runs added.
+ */
+async function seedAdjustments(input: { companyId: string; mainSiteId: string; reset: boolean }) {
+  const { companyId, mainSiteId } = input
+  const handMade: Prisma.StockMovementWhereInput = {
+    item: { site: { companyId } },
+    reason: { in: ["BROKEN", "OWN_USE", "FOUND", "CORRECTION", "CASE_BROKEN"] },
+  }
+  // The seeded documents, by reference and reason: an acceptance run's count may hold the same number.
+  const seeded: Prisma.StockMovementWhereInput[] = [
+    { reference: "BRK-0012", reason: "CASE_BROKEN" },
+    { reference: "ADJ-0030", reason: "OWN_USE" },
+    { reference: "ADJ-0031", reason: "BROKEN" },
+  ]
+  if (input.reset) {
+    const strays = await prisma.stockMovement.findMany({
+      where: { ...handMade, OR: [{ reference: null }, { NOT: { OR: seeded } }] },
+      select: { id: true },
+    })
+    const ids = strays.map((row) => row.id)
+    await prisma.stockMovement.deleteMany({ where: { reversesId: { in: ids } } })
+    await prisma.stockMovement.deleteMany({ where: { id: { in: ids } } })
+    if (ids.length > 0) console.log(`  reset: cleared ${ids.length} hand adjustment(s) and case break leg(s) from earlier runs`)
+  }
+
+  const user = (email: string) => prisma.user.findFirstOrThrow({ where: { companyId, email }, select: { id: true, name: true, role: true } })
+  const actorOf = (person: { id: string; name: string; role: string }) => ({ companyId, userId: person.id, userName: person.name, userRole: person.role })
+  const lineOf = (code: string) =>
+    prisma.inventoryItem.findFirstOrThrow({ where: { siteId: mainSiteId, itemCode: code }, select: { id: true, productId: true, currentStock: true } })
+  const exists = (reference: string) =>
+    prisma.stockMovement.count({ where: { ...handMade, OR: seeded.filter((doc) => doc.reference === reference) } }).then((count) => count > 0)
+  /** The next number the service takes is this one, unless the shop is already past it. */
+  const numberFrom = async (entity: "RETAIL_STOCK_ADJUSTMENT" | "RETAIL_CASE_BREAK", reference: string) => {
+    const wanted = Number(reference.split("-")[1]) - 1
+    const where = { companyId_entityKey_scopeKey: { companyId, entityKey: entity, scopeKey: "GLOBAL" } }
+    const row = await prisma.idSequence.findUnique({ where, select: { lastNumber: true } })
+    if (row && row.lastNumber > wanted && !input.reset) return false
+    await prisma.idSequence.upsert({ where, create: { companyId, entityKey: entity, scopeKey: "GLOBAL", lastNumber: wanted }, update: { lastNumber: wanted } })
+    return true
+  }
+  /** The document's movements and audit event at the time the board gives it. */
+  const dateIt = async (reference: string, at: Date, eventType: string) => {
+    await prisma.stockMovement.updateMany({ where: { ...handMade, OR: seeded.filter((doc) => doc.reference === reference) }, data: { createdAt: at } })
+    const event = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, eventType, payloadJson: { contains: `"reference":"${reference}"` } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    })
+    if (event) await prisma.platformAuditEvent.update({ where: { id: event.id }, data: { createdAt: at } })
+  }
+
+  // BRK-0012: Farai at the till, his singles run out, so the till opens a case.
+  if (!(await exists("BRK-0012")) && (await numberFrom("RETAIL_CASE_BREAK", "BRK-0012"))) {
+    const farai = await user("farai.till@bottlestore.test")
+    const [pack, single] = await Promise.all([lineOf("CASTLE-CASE"), lineOf("CASTLE-340")])
+    const singles = single.currentStock
+    await prisma.inventoryItem.update({ where: { id: pack.id }, data: { currentStock: pack.currentStock.plus(1) } })
+    await prisma.inventoryItem.update({ where: { id: single.id }, data: { currentStock: ZERO } })
+    await breakCase({ actor: actorOf(farai), caseProductId: pack.productId!, siteId: mainSiteId, cases: 1 })
+    await prisma.inventoryItem.update({ where: { id: single.id }, data: { currentStock: singles } })
+    await dateIt("BRK-0012", harareTime(6, 18, 2), RETAIL_AUDIT_EVENTS.caseBroken)
+  }
+
+  const adjustments: Array<{ reference: string; code: string; email: string; why: AdjustWhy; note: string; at: Date }> = [
+    { reference: "ADJ-0030", code: "AMARULA-750", email: "tafara.manager@bottlestore.test", why: "OWN_USE", note: "Taken for the owner’s function", at: harareTime(5, 10, 15) },
+    { reference: "ADJ-0031", code: "TWOKEYS-750", email: "rudo.stock@bottlestore.test", why: "BROKEN", note: "Dropped while restocking the shelf.", at: harareTime(4, 15, 40) },
+  ]
+  for (const entry of adjustments) {
+    if (await exists(entry.reference)) continue
+    if (!(await numberFrom("RETAIL_STOCK_ADJUSTMENT", entry.reference))) {
+      console.log(`  ${entry.reference} skipped: the shop is past that number (run with --reset)`)
+      continue
+    }
+    const person = await user(entry.email)
+    const line = await lineOf(entry.code)
+    await prisma.inventoryItem.update({ where: { id: line.id }, data: { currentStock: line.currentStock.plus(1) } })
+    const actor = actorOf(person)
+    const result = await adjustStock({ actor, productId: line.productId!, siteId: mainSiteId, why: entry.why, n: "1", note: entry.note })
+    await dateIt(entry.reference, entry.at, RETAIL_AUDIT_EVENTS.stockAdjusted)
+    const journal = adjustmentJournal(result, actor)
+    if (journal) await postRetailJournal({ ...journal, entryDate: entry.at })
+  }
+  // After a reset the shop numbers on from the seeded documents: the next adjustment is ADJ-0032.
+  if (input.reset) {
+    for (const [entity, last] of [["RETAIL_CASE_BREAK", 12], ["RETAIL_STOCK_ADJUSTMENT", 31]] as const) {
+      await prisma.idSequence.updateMany({ where: { companyId, entityKey: entity, scopeKey: "GLOBAL" }, data: { lastNumber: last } })
+    }
+  }
+  console.log("  adjustments: BRK-0012, ADJ-0030, ADJ-0031")
 }
 
 /**

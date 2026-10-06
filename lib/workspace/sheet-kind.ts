@@ -81,6 +81,12 @@ export type FieldSpec = {
   right?: boolean;
   /** `text`: upper case as typed (a short code). */
   upper?: boolean;
+  /** `text`: typed digits hidden, a number pad on a phone (a manager's PIN). */
+  masked?: boolean;
+  /** `text`: at most this many characters. */
+  max?: number;
+  /** `photo`: the upload route (`POST` multipart → `{ data: { url } }`); the product image route when absent. */
+  upload?: string;
   /** `read`: the value in that tone, always or as the values say ("Paired" ok, "Not paired yet" warn). */
   tone?: "ok" | "warn" | ((values: SheetValues) => "ok" | "warn" | undefined);
   /** `read`: a QR code of this payload beside the value, drawn in the browser (a pairing code for a Kora). */
@@ -203,7 +209,8 @@ export type SheetKind = {
   sections: SheetSection[];
   cur: SheetCurrency;
   note: string | ((values: SheetValues) => string);
-  done: string | ((result: unknown, values: SheetValues) => string);
+  /** The toast: fixed, or from the answer's `data` (`result`), the values, and the whole answer (`{ data, message }`). */
+  done: string | ((result: unknown, values: SheetValues, payload: unknown) => string);
   /** Where the toast's action goes for a created record. */
   open?: (result: unknown) => string | null;
   /** The toast action's words. Default "Open". */
@@ -260,6 +267,11 @@ export type SheetKind = {
   cancel?: (ctx: SheetCtx, values: SheetValues) => SheetRequest | null;
   /** The secondary as a way on instead of Cancel ("Pair another device"), while this gives one. */
   secondaryLink?: (ctx: SheetCtx, values: SheetValues) => { label: string; href: string } | null;
+  /**
+   * A refusal's answer merged into the values, so the sheet can show what it
+   * asks for: a 409 `needsApprover` reveals the manager's approval section.
+   */
+  onRefused?: (payload: unknown, values: SheetValues) => SheetValues | null;
   /** Null: nothing to send; the primary is done at once (a code that paired on its own). */
   submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest | null;
   /** React Query keys to refetch after a save. */

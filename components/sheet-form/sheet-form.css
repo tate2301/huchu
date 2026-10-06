@@ -50,6 +50,8 @@
 .sf-cell { grid-column: span 2; min-width: 0; }
 .sf-cell--half { grid-column: span 1; }
 @media (max-width: 719px) { .sf-cell--half { grid-column: span 2; } }
+/* Cards stack to one column on a phone. */
+@media (max-width: 519px) { .cx-sheet .cx-options { grid-template-columns: minmax(0, 1fr); } }
 
 /* Footer: the note, or the saved line, or what went wrong. It grows when a line wraps. */
 .sf-sheet .cx-sheet__foot { height: auto; min-height: 68px; padding-top: 10px; padding-bottom: 10px; }
