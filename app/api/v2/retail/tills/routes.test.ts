@@ -77,6 +77,12 @@ describe("what the routes check before writing", () => {
     const purpose = await issue(request(`/${id}/pairing-code`, "POST", { purpose: "STEAL" }), params(id));
     expect(purpose.status).toBe(400);
 
+    const garbled = await create(
+      new NextRequest(url(""), { method: "POST", body: "{oops", headers: { "Content-Type": "application/json" } }),
+    );
+    expect(garbled.status).toBe(400);
+    expect(await garbled.json()).toMatchObject({ error: "That request could not be read. Nothing was changed." });
+
     const long = await message(request("/messages", "POST", { tillIds: [id], body: "x".repeat(281) }));
     expect(long.status).toBe(400);
     expect(await long.json()).toMatchObject({ fieldErrors: { body: "Keep the message to 280 characters." } });

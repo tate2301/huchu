@@ -20,6 +20,7 @@ import {
   nameTakenSentence,
   pairedWords,
   lastSeenWords,
+  shiftSinceWords,
   suggestTillName,
   tillState,
   tillSub,
@@ -27,7 +28,7 @@ import {
   type DeviceKind,
   type TillState,
 } from "@/lib/retail/till-words";
-import { DEFAULT_TIME_ZONE, formatTime } from "@/lib/workspace/format";
+import { DEFAULT_TIME_ZONE } from "@/lib/workspace/format";
 
 /**
  * Tills and the devices that run them (10-setup W-04, W-76, 4.3).
@@ -89,7 +90,7 @@ export type TillDetail = TillRow & {
   hasDrawer: boolean;
   hasScale: boolean;
   current: DeviceSummary | null;
-  /** `since` is the time it opened, "07:55". */
+  /** `since` is when it opened: "07:55" today, "Yesterday, 23:03", "3 October, 23:03". */
   openShift: { id: string; cashier: string; openedAt: string; since: string } | null;
   /** The shop's active price lists, for "Sells from price list". */
   priceLists: Array<{ id: string; name: string }>;
@@ -296,7 +297,7 @@ export async function getTill(companyId: string, id: string, now: Date = new Dat
     hasScale: till.hasScale,
     current,
     openShift: shift
-      ? { id: shift.id, cashier: shift.cashierName, openedAt: shift.openedAt.toISOString(), since: formatTime(shift.openedAt, DEFAULT_TIME_ZONE) }
+      ? { id: shift.id, cashier: shift.cashierName, openedAt: shift.openedAt.toISOString(), since: shiftSinceWords(shift.openedAt, now, DEFAULT_TIME_ZONE) }
       : null,
     priceLists,
     sub: tillSub(till.site.name, current ? row.device : null, { state: row.state, label: row.stateLabel }),

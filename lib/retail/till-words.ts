@@ -109,6 +109,14 @@ export function lastSaleWords(at: Date, now: Date = new Date(), timeZone = DEFAU
   return `${dayWords(at, now, timeZone)}, ${time}`;
 }
 
+/** An open shift's start: "07:55" today; "Yesterday, 23:03"; "3 October, 23:03" (a stale shift says its day). */
+export function shiftSinceWords(at: Date, now: Date = new Date(), timeZone = DEFAULT_TIME_ZONE): string {
+  const time = formatTime(at, timeZone);
+  if (isToday(at, now, timeZone)) return time;
+  if (isYesterday(at, now, timeZone)) return `Yesterday, ${time}`;
+  return `${dayWords(at, now, timeZone)}, ${time}`;
+}
+
 /**
  * Last seen: "Now, version 4.12.0" under two minutes; "11:38, version 4.12.0"
  * today; "Yesterday, 21:55"; "2 October, 14:05". The version only when known.

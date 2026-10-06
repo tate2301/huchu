@@ -8,6 +8,7 @@ import {
   offlineFor,
   pairedWords,
   planLimitSentence,
+  shiftSinceWords,
   siteHint,
   suggestTillName,
   tillState,
@@ -72,6 +73,12 @@ describe("tills in words", () => {
     expect(lastSeenWords(ago(4), "4.12.0", now)).toBe("11:38, version 4.12.0");
     expect(lastSeenWords(new Date("2026-10-04T19:55:00Z"), null, now)).toBe("Yesterday, 21:55");
     expect(pairedWords(new Date("2026-08-02T07:20:00Z"), "Tafara Nyathi")).toBe("2 August 2026 by Tafara Nyathi");
+  });
+
+  it("says the day an open shift began when it is not today's", () => {
+    expect(shiftSinceWords(new Date("2026-10-05T05:55:00Z"), now)).toBe("07:55");
+    expect(shiftSinceWords(new Date("2026-10-04T21:03:00Z"), now)).toBe("Yesterday, 23:03");
+    expect(shiftSinceWords(new Date("2026-10-03T21:03:00Z"), now)).toBe("3 October, 23:03");
   });
 
   it("shows the code as the sheet draws it", () => {

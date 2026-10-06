@@ -29,7 +29,17 @@ export async function parseTillBody<T extends z.ZodType>(
   request: Request,
   schema: T,
 ): Promise<{ data: z.infer<T> } | { response: NextResponse }> {
-  const body = await request.json().catch(() => null);
+  // No body at all is "nothing given" (Pair a till opens with an empty POST);
+  // a body that is not JSON is refused, never read as empty.
+  const text = await request.text().catch(() => "");
+  let body: unknown = {};
+  if (text.trim()) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return { response: errorResponse("That request could not be read. Nothing was changed.", 400) };
+    }
+  }
   const parsed = schema.safeParse(body ?? {});
   if (parsed.success) return { data: parsed.data };
   const fieldErrors = tillFieldErrors(parsed.error);
