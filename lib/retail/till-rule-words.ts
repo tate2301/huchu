@@ -80,19 +80,13 @@ export function offlineHoursProblem(text: string): string | null {
   return null;
 }
 
-/** A reason list as typed: trimmed, no blanks, no repeats (case-blind). */
+/** A reason list as typed: trimmed, no blanks. Repeats are refused by `reasonsProblem`, not dropped. */
 export function cleanReasons(reasons: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const reason of reasons) {
-    const text = reason.trim().replace(/\s+/g, " ");
-    const key = text.toLowerCase();
-    if (!text || seen.has(key)) continue;
-    seen.add(key);
-    out.push(text);
-  }
-  return out;
+  return reasons.map((reason) => reason.trim().replace(/\s+/g, " ")).filter(Boolean);
 }
+
+/** A list's reasons are unique case-blind: a second "changed mind" is refused, not dropped without a word. */
+export const REASON_REPEATED = "That reason is already on the list.";
 
 export function reasonsProblem(reasons: string[]): string | null {
   if (reasons.length === 0) return "Keep at least one reason.";
@@ -100,6 +94,7 @@ export function reasonsProblem(reasons: string[]): string | null {
   if (reasons.some((reason) => reason.length > REASON_MAX_LENGTH)) {
     return `Keep each reason to ${REASON_MAX_LENGTH} characters.`;
   }
+  if (new Set(reasons.map((reason) => reason.toLowerCase())).size !== reasons.length) return REASON_REPEATED;
   return null;
 }
 
@@ -141,6 +136,13 @@ export function offlineReversalReview(kind: "refund" | "void", reason: string): 
 
 /** The review line on a refund or void sent in late whose reason was taken off the list since. */
 export const REASON_UNLISTED_REVIEW = "Reason no longer on the list.";
+
+/**
+ * The review line on a refund or void sent in late that the till dated before
+ * the sale it reverses or before its shift opened: that date cannot be true,
+ * so it goes in at the time it arrived.
+ */
+export const REPLAY_MISDATED_REVIEW = "Dated before its sale or its shift; entered when it arrived.";
 
 /** The review line on a card, EcoCash or InnBucks refund sent in late without its reference. */
 export const OFFLINE_REFUND_NO_REFERENCE_REVIEW = "Refunded offline without a reference.";

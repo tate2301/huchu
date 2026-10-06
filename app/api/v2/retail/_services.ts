@@ -31,6 +31,7 @@ import {
   checkTillRule,
   loadTillRules,
   offlineReview,
+  replayedAt,
   reversalReason,
   tenderRuleProblem,
   type TillRuleDecision,
@@ -1146,13 +1147,47 @@ export async function createRetailSaleTransaction(input: {
   throw new Error("Unable to generate sale number");
 }
 
+
+/**
+ * Holds the sale a refund or void reverses for the rest of the transaction
+ * (`SELECT ... FOR UPDATE`). Two reversals of one sale at the same moment then
+ * run one after the other: the second reads what the first wrote, so a sale
+ * cannot be handed back twice, or in pieces under the refund PIN limit.
+ */
+async function lockSourceSale(tx: Prisma.TransactionClient, saleId: string): Promise<void> {
+  await tx.$queryRaw`SELECT "id" FROM "RetailSale" WHERE "id" = ${saleId} FOR UPDATE`;
+}
+
+/** The sentence a till shows when its refund or void lost a race with another change to the same rows. */
+const REVERSAL_TRY_AGAIN = "Someone else was changing this sale at the same moment. Try again.";
+
+/**
+ * A refund's or void's transaction. A deadlock or a serialization failure
+ * (Postgres 40P01, 40001; Prisma P2034) changed nothing, so the till is told
+ * to try again in plain words instead of being shown the database's message.
+ */
+async function reversalTransaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  try {
+    return await prisma.$transaction(work);
+  } catch (error) {
+    if (lostRace(error)) throw new Error(REVERSAL_TRY_AGAIN);
+    throw error;
+  }
+}
+
+function lostRace(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return true;
+  const message = error instanceof Error ? error.message : "";
+  return /deadlock detected|could not serialize access|40P01|40001/.test(message);
+}
+
 /**
  * The manager a refund or void needs (SET-06): at the counter, the approval or
  * a 409; sent in late from an offline till, the approval if it carries one
  * that checks out, else the act goes in with a review line.
  */
 async function reversalApproval(
-  input: { actor: RetailActorContext; approver?: ApproverInput | null; replay?: boolean },
+  input: { actor: RetailActorContext; approver?: ApproverInput | null; offlineAt?: Date | null },
   rule: { decision: TillRuleDecision; kind: "refund" | "void" },
 ): Promise<{ approvedBy: Approval | null; review: string | null }> {
   const asked = {
@@ -1161,7 +1196,7 @@ async function reversalApproval(
     decision: rule.decision,
     approver: input.approver,
   };
-  if (input.replay) {
+  if (input.offlineAt) {
     return replayApproval({ ...asked, review: (reason) => offlineReversalReview(rule.kind, reason) });
   }
   return { approvedBy: await approvalFor(asked), review: null };
@@ -1176,7 +1211,6 @@ export async function refundRetailSaleTransaction(input: {
   payments: RetailPaymentInput[];
   notes?: string | null;
   periodOverrideReason?: string | null;
-  postedAt?: Date;
   /** The device it is done on (SET-04); the till is the shift's. */
   deviceId?: string | null;
   /**
@@ -1187,10 +1221,13 @@ export async function refundRetailSaleTransaction(input: {
    */
   approver?: ApproverInput | null;
   /**
-   * Done offline and sent in late (`pos/sync`): the money has left the
-   * drawer, so a missing approval marks it for review instead of refusing it.
+   * Done offline and sent in late (`pos/sync`): when the till says it was
+   * done. The money has left the drawer, so a missing approval, an unlisted
+   * reason or a missing reference marks it for review instead of refusing it.
+   * The date is the till's word: it is kept only when it falls after the sale
+   * and the shift's opening (`replayedAt`).
    */
-  replay?: boolean;
+  offlineAt?: Date | null;
 }) {
   /*
     SET-06. The reason is one of the shop's refund reasons; the refund's value
@@ -1199,7 +1236,8 @@ export async function refundRetailSaleTransaction(input: {
     their own approval.
   */
   const tillRules = await loadTillRules(input.actor.companyId);
-  const { reason, review: reasonReview } = reversalReason(tillRules, "refund", input.reason, input.replay ?? false);
+  const replay = Boolean(input.offlineAt);
+  const { reason, review: reasonReview } = reversalReason(tillRules, "refund", input.reason, replay);
 
   const [sourceSale, shift] = await Promise.all([
     prisma.retailSale.findFirst({
@@ -1261,16 +1299,23 @@ export async function refundRetailSaleTransaction(input: {
   );
   // Sent in late, the money has already gone back on the card or wallet: it
   // goes in for a manager to look at rather than being refused for good.
-  if (referenceProblem && !input.replay) {
+  if (referenceProblem && !replay) {
     throw new Error(referenceProblem);
   }
   const referenceReview = referenceProblem ? OFFLINE_REFUND_NO_REFERENCE_REVIEW : null;
+  const arrived = new Date();
+  const when = input.offlineAt
+    ? replayedAt(input.offlineAt, { saleAt: sourceSale.postedAt ?? sourceSale.createdAt, shiftOpenedAt: shift.openedAt }, arrived)
+    : { at: arrived, review: null };
   const negativePayments = refundPayments.map((payment) => ({
     ...payment,
     amount: -payment.amount,
   }));
 
-  const refund = await prisma.$transaction(async (tx) => {
+  const refund = await reversalTransaction(async (tx) => {
+    // One reversal of a sale at a time: the earlier refunds below are read
+    // after any running one has committed, so they are judged together.
+    await lockSourceSale(tx, input.saleId);
     const currentSourceSale = await tx.retailSale.findFirst({
       where: { id: input.saleId, companyId: input.actor.companyId },
       include: { lines: true },
@@ -1433,10 +1478,10 @@ export async function refundRetailSaleTransaction(input: {
         exchangeRate: currentSourceSale.exchangeRate,
         baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
         overrideReason: reason,
-        reviewReason: [approvalReview, reasonReview, referenceReview].filter(Boolean).join(" ") || null,
+        reviewReason: [approvalReview, reasonReview, referenceReview, when.review].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
-        postedAt: input.postedAt ?? new Date(),
+        postedAt: when.at,
         tenderSummary: negativePayments,
         lines: {
           create: requestedLines.map((line) => ({
@@ -1570,16 +1615,15 @@ export async function voidRetailSaleTransaction(input: {
   reason: string;
   notes?: string | null;
   periodOverrideReason?: string | null;
-  postedAt?: Date;
   /** The device it is done on (SET-04). */
   deviceId?: string | null;
   /** A manager approving this with their till PIN, when the till rules ask for one. See the refund above. */
   approver?: ApproverInput | null;
-  /** Done offline and sent in late. See the refund above. */
-  replay?: boolean;
+  /** Done offline and sent in late: when the till says it was done. See the refund above. */
+  offlineAt?: Date | null;
 }) {
   const tillRules = await loadTillRules(input.actor.companyId);
-  const { reason, review: reasonReview } = reversalReason(tillRules, "void", input.reason, input.replay ?? false);
+  const { reason, review: reasonReview } = reversalReason(tillRules, "void", input.reason, Boolean(input.offlineAt));
 
   const [sourceSale, shift] = await Promise.all([
     prisma.retailSale.findFirst({
@@ -1609,15 +1653,20 @@ export async function voidRetailSaleTransaction(input: {
     throw new Error("Void shift site does not match sale site");
   }
 
-  // "Voids need a manager PIN": always, after 5 minutes from the sale, or never.
+  // "Voids need a manager PIN": always, after 5 minutes from the sale, or
+  // never. Judged at the moment the void reaches the server, a replayed one
+  // too: the till's own date for it is its word, not the server's clock, so
+  // a void dated back into the five free minutes is no way round the PIN.
+  // One the rule asks about at arrival, sent without a PIN, goes in for review.
+  const saleAt = sourceSale.postedAt ?? sourceSale.createdAt;
+  const arrived = new Date();
   const { approvedBy, review: approvalReview } = await reversalApproval(input, {
-    decision: checkTillRule(tillRules, {
-      act: "void",
-      saleAt: sourceSale.postedAt ?? sourceSale.createdAt,
-      at: input.postedAt ?? new Date(),
-    }),
+    decision: checkTillRule(tillRules, { act: "void", saleAt, at: arrived }),
     kind: "void",
   });
+  const when = input.offlineAt
+    ? replayedAt(input.offlineAt, { saleAt, shiftOpenedAt: shift.openedAt }, arrived)
+    : { at: arrived, review: null };
 
   const voidNo = await reserveIdentifier(prisma, {
     companyId: input.actor.companyId,
@@ -1625,7 +1674,10 @@ export async function voidRetailSaleTransaction(input: {
     siteId: sourceSale.siteId,
   });
 
-  const reversal = await prisma.$transaction(async (tx) => {
+  const reversal = await reversalTransaction(async (tx) => {
+    // One reversal of a sale at a time, so a void and a refund of the same
+    // sale cannot both read "nothing reversed yet".
+    await lockSourceSale(tx, input.saleId);
     const currentSourceSale = await tx.retailSale.findFirst({
       where: { id: input.saleId, companyId: input.actor.companyId },
       include: { lines: true, payments: true },
@@ -1704,10 +1756,10 @@ export async function voidRetailSaleTransaction(input: {
         ),
         promotionCode: currentSourceSale.promotionCode,
         overrideReason: reason,
-        reviewReason: [approvalReview, reasonReview].filter(Boolean).join(" ") || null,
+        reviewReason: [approvalReview, reasonReview, when.review].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
-        postedAt: input.postedAt ?? new Date(),
+        postedAt: when.at,
         tenderSummary: reversedPayments.map((payment) => ({
           ...payment,
           amount: toNumberOrZero(payment.amount),

@@ -212,3 +212,36 @@ describe("a sale refunded in pieces (SET-06, W-64)", () => {
     expect(JSON.parse(event.payloadJson!)).toMatchObject({ approvedById: managerId, approvedByName: "Tafara Nyathi" });
   });
 });
+
+describe("refunds of one sale sent at the same moment (SET-06, W-64)", () => {
+  it("are judged one after the other: one goes through, the rest ask for a manager", async () => {
+    const response = await SELL(
+      new NextRequest("http://pos.test.localtest.me/api/v2/retail/pos/sales", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          clientRef: `race-castles-${stamp}`,
+          shiftId,
+          items: [{ productId, quantity: 8 }],
+          payments: [{ tenderType: "CASH", currency: "USD", amount: 31.2 }],
+        }),
+      }),
+    );
+    expect(response.status).toBe(201);
+    const sold = await prisma.retailSale.findFirstOrThrow({
+      where: { companyId, clientRef: `race-castles-${stamp}` },
+      include: { lines: true },
+    });
+
+    // Three halves of US$15.60 at once, none with a PIN: any two are over US$20.00.
+    const responses = await Promise.all([1, 2, 3].map(() => refund(sold.id, sold.lines[0]!.id)));
+    const answers = await Promise.all(
+      responses.map(async (answer) => ({ status: answer.status, body: (await answer.json()) as { error?: string } })),
+    );
+    expect(answers.map((answer) => answer.status).sort()).toEqual([201, 409, 409]);
+    for (const answer of answers.filter((entry) => entry.status === 409)) {
+      expect(answer.body.error).toBe("Refunds over US$20.00 need a manager PIN.");
+    }
+    expect(await prisma.retailSale.count({ where: { companyId, sourceSaleId: sold.id } })).toBe(1);
+  });
+});

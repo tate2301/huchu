@@ -721,9 +721,9 @@ async function processVoidSale(
       return { clientOperationId: op.clientOperationId, status: "failed", error: "Open shift not found" };
     }
 
-    // Lenient (kept for review) only when it was really done offline; else the counter's rules.
+    // Lenient (kept for review) only when it was really done offline; else the
+    // counter's rules. The PIN rule is judged at arrival either way.
     const voidedAt = new Date(payload.voidedAt);
-    const offline = doneOffline(voidedAt, new Date());
 
     const { sale, accounting } = await voidRetailSaleTransaction({
       actor: {
@@ -737,10 +737,9 @@ async function processVoidSale(
       shiftId: resolvedShiftId,
       reason: payload.reason,
       approver: replayedApprover(payload.approver),
-      replay: offline,
+      offlineAt: doneOffline(voidedAt, new Date()) ? voidedAt : null,
       notes: payload.notes ?? null,
       periodOverrideReason: payload.periodOverrideReason ?? null,
-      postedAt: offline ? voidedAt : new Date(),
       deviceId: ctx.device.id,
     });
 
@@ -827,7 +826,6 @@ async function processRefundSale(
 
     // Lenient (kept for review) only when it was really done offline; else the counter's rules.
     const refundedAt = payload.refundedAt ? new Date(payload.refundedAt) : null;
-    const offline = doneOffline(refundedAt, new Date());
 
     const { sale, accounting } = await refundRetailSaleTransaction({
       actor: {
@@ -841,7 +839,7 @@ async function processRefundSale(
       shiftId: resolvedShiftId,
       reason: payload.reason,
       approver: replayedApprover(payload.approver),
-      replay: offline,
+      offlineAt: refundedAt && doneOffline(refundedAt, new Date()) ? refundedAt : null,
       lines: requestedLines,
       payments:
         payload.payments && payload.payments.length > 0
@@ -855,7 +853,6 @@ async function processRefundSale(
             ],
       notes: payload.notes ?? payload.reason,
       periodOverrideReason: payload.periodOverrideReason ?? null,
-      postedAt: offline && refundedAt ? refundedAt : undefined,
       deviceId: ctx.device.id,
     });
 

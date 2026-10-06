@@ -76,9 +76,6 @@ For C-42, Farai keeps Borrowdale and also gets Harare Main Branch, so the stale 
    - The sheet is 520 or 760 px wide.
    - Totals sit on `--ground`.
    - Only the selected state comes from G1: solid ink with white text.
-     It covers the chosen segment (filled ink, not the boards' light grey), an on switch (ink, not the boards' green)
-     and the ink outline of an on switch card. Settings and sheet boards that draw these the canvas way
-     (TillRules, PaymentsSettings) are matched with the G1 selected state; that is not a deviation to fix.
 10. **Chart ranges** appear only where the record kind has a range.
 11. **Company › Money**: SET-01 makes it editable. Changing the base currency is refused while sales exist, and the field explains why.
 
@@ -94,12 +91,6 @@ Recorded unit choices:
   (vouchers: asset or liability), and so on (`ROLE_TYPES`, `TENDER_TYPES`, `VOUCHER_TYPES` in `lib/retail/posting-words.ts`). The save refuses
   any other type by field, so the list never offers what the save would refuse. A quick-added account appears in every field of its type,
   not in every field.
-- **SET-06 judges a sale's refunds together.** "Manager PIN for refunds over" compares what earlier refunds of the
-  same sale gave back plus this one, so a sale cannot be handed back in pieces under the limit. A refund, void or
-  discount keeps the listed reason alone in `overrideReason`; the approving manager is in the audit event
-  (`approvedById`, `approvedByName`), so Insights › Losses groups by reason. A refund or void sent through `pos/sync`
-  goes in for review instead of being refused only when it says when it was done and that is over a minute before it
-  arrives; otherwise the counter's rules apply. The PIN lock message names no duration, since ADM-03 owns the lock rule.
 - **SET-09 posts one run per company at a time.** "Post now" pressed while a run is going joins it; what could not post is tried again by
   the next run, and "Ready to post" shows a fourth warn line while anything is waiting to be tried again (10-setup §4.9).
 

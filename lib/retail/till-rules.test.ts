@@ -15,6 +15,7 @@ import {
   listedReason,
   loadTillRules,
   offlineReview,
+  replayedAt,
   reversalReason,
   saleDiscountRule,
   tenderRuleProblem,
@@ -209,6 +210,24 @@ describe("reasons, tenders and offline sales", () => {
   });
 });
 
+describe("when a refund or void sent in late goes in", () => {
+  const arrived = new Date("2026-10-06T12:00:00Z");
+  const bounds = { saleAt: new Date("2026-10-06T09:00:00Z"), shiftOpenedAt: new Date("2026-10-06T08:00:00Z") };
+
+  it("keeps the till's date when it falls after the sale and the shift's opening", () => {
+    const claimed = new Date("2026-10-06T11:00:00Z");
+    expect(replayedAt(claimed, bounds, arrived)).toEqual({ at: claimed, review: null });
+  });
+
+  it("enters one dated before its sale, or before its shift opened, when it arrived, for review", () => {
+    const review = "Dated before its sale or its shift; entered when it arrived.";
+    expect(replayedAt(new Date("2026-10-06T08:30:00Z"), bounds, arrived)).toEqual({ at: arrived, review });
+    expect(
+      replayedAt(new Date("2026-10-06T07:30:00Z"), { ...bounds, saleAt: new Date("2026-10-06T07:00:00Z") }, arrived),
+    ).toEqual({ at: arrived, review });
+  });
+});
+
 describe("the Till rules page's rules", () => {
   it("reads what is typed the way the page writes it", () => {
     expect(
@@ -216,7 +235,7 @@ describe("the Till rules page's rules", () => {
         refundPinOver: "25",
         maxCashierDiscountPercent: "12.5",
         offlineHours: "48h",
-        refundReasons: [" Damaged ", "damaged", "Wrong size"],
+        refundReasons: [" Damaged ", "Wrong   size"],
         voidPin: "After 5 minutes",
       }),
     ).toEqual({
@@ -272,6 +291,13 @@ describe("the Till rules page's rules", () => {
     ).toEqual({
       ok: true,
       values: { refundPinOver: "100000.00", cashDropPromptOver: "1000000.00", offlineHours: "72 hours" },
+    });
+  });
+
+  it("refuses a reason already on the list, case-blind, instead of dropping it", () => {
+    expect(checkSettingsChanges(tillRulesPage, { voidReasons: ["A", "a"] })).toEqual({
+      ok: false,
+      fieldErrors: { voidReasons: "That reason is already on the list." },
     });
   });
 

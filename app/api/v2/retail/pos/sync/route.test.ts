@@ -540,3 +540,94 @@ describe("a refund or void through the queue that was not done offline (SET-06)"
     expect(await prisma.retailSale.count({ where: { companyId, sourceSaleId: sold.serverId } })).toBe(0);
   });
 });
+
+describe("a void through the queue and the five free minutes (SET-06, W-64)", () => {
+  const MINUTE = 60 * 1000;
+  /** A void sent through the queue, dated by the till. */
+  function voidAt(id: string, saleId: string, voidedAt: Date) {
+    return {
+      clientOperationId: id,
+      operation: "void-sale",
+      offlineCreatedAt: voidedAt.toISOString(),
+      payload: { saleId, shiftId, reason: "Customer left", voidedAt: voidedAt.toISOString() },
+    };
+  }
+
+  beforeAll(async () => {
+    await prisma.retailTillRules.upsert({
+      where: { companyId },
+      update: { voidPin: "AFTER_5_MINUTES" },
+      create: { companyId, voidPin: "AFTER_5_MINUTES" },
+    });
+  });
+
+  it("takes one done offline inside the five minutes clean", async () => {
+    const soldAt = new Date(Date.now() - 3 * MINUTE);
+    const sold = (await sync([sale("void-quick-sale", { tenderType: "CASH", currency: "USD", amount: 3.9 }, soldAt)])).get("void-quick-sale")!;
+    const voidedAt = new Date(Date.now() - 2 * MINUTE);
+    const voided = (await sync([voidAt("void-quick", sold.serverId!, voidedAt)])).get("void-quick")!;
+    expect(voided).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: voided.serverId! } });
+    expect(stored.reviewReason).toBeNull();
+    expect(stored.postedAt?.toISOString()).toBe(voidedAt.toISOString());
+  });
+
+  it("judges the rule when the void arrives, not when the till dates it", async () => {
+    // Sold 30 minutes ago; the till says it was voided a minute later. The
+    // counter would ask for a PIN now, so it goes in for a manager to look at.
+    const sold = (
+      await sync([sale("void-backdated-sale", { tenderType: "CASH", currency: "USD", amount: 3.9 }, new Date(Date.now() - 30 * MINUTE))])
+    ).get("void-backdated-sale")!;
+    const voided = (await sync([voidAt("void-backdated", sold.serverId!, new Date(Date.now() - 29 * MINUTE))])).get("void-backdated")!;
+    expect(voided).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: voided.serverId! } });
+    expect(stored.reviewReason).toBe(
+      "Voided offline without the manager PIN it needed. Voids after 5 minutes need a manager PIN.",
+    );
+  });
+
+  it("enters a void dated before its sale when it arrives, marked for review", async () => {
+    const sold = (
+      await sync([sale("void-before-sale-sale", { tenderType: "CASH", currency: "USD", amount: 3.9 }, new Date(Date.now() - 3 * HOUR))])
+    ).get("void-before-sale-sale")!;
+    const arriving = Date.now();
+    const voided = (await sync([voidAt("void-before-sale", sold.serverId!, new Date(Date.now() - 5 * HOUR))])).get("void-before-sale")!;
+    expect(voided).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: voided.serverId! } });
+    expect(stored.reviewReason).toBe(
+      "Voided offline without the manager PIN it needed. Voids after 5 minutes need a manager PIN. " +
+        "Dated before its sale or its shift; entered when it arrived.",
+    );
+    expect(stored.postedAt!.getTime()).toBeGreaterThanOrEqual(arriving);
+  });
+
+  it("enters a refund dated before its sale when it arrives, marked for review", async () => {
+    const sold = (
+      await sync([sale("refund-before-sale-sale", { tenderType: "CASH", currency: "USD", amount: 3.9 }, new Date(Date.now() - 2 * HOUR))])
+    ).get("refund-before-sale-sale")!;
+    const arriving = Date.now();
+    const refundedAt = new Date(Date.now() - 3 * HOUR).toISOString();
+    const refunded = (
+      await sync([
+        {
+          clientOperationId: "refund-before-sale",
+          operation: "refund-sale",
+          offlineCreatedAt: refundedAt,
+          payload: {
+            saleId: sold.serverId,
+            shiftId,
+            reason: "Damaged",
+            items: [{ productId, name: "Castle Lager 340ml", quantity: 1, unitPrice: 3.9, refundAmount: 3.9 }],
+            refundTotal: 3.9,
+            payments: [{ tenderType: "CASH", amount: 3.9 }],
+            refundedAt,
+          },
+        },
+      ])
+    ).get("refund-before-sale")!;
+    expect(refunded).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: refunded.serverId! } });
+    expect(stored.reviewReason).toBe("Dated before its sale or its shift; entered when it arrived.");
+    expect(stored.postedAt!.getTime()).toBeGreaterThanOrEqual(arriving);
+  });
+});
