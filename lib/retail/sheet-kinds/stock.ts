@@ -1,4 +1,8 @@
+import { z } from "zod";
+
 import type { LookupOption } from "@/lib/retail/lookups/types";
+import type { ReorderLine } from "@/lib/retail/stock/level-changes";
+import { KEEP_DAYS, parseKeepDays, reorderLineSub, suggestReorderLevel } from "@/lib/retail/stock/reorder";
 import type { ChangedTransfer, ReceivedTransfer } from "@/lib/retail/stock/transfer-changes";
 import type { TransferView } from "@/lib/retail/stock/transfer-record";
 import type { SentTransfer } from "@/lib/retail/stock/transfers";
@@ -15,8 +19,9 @@ import {
 import type { PickedOption, SheetKind, SheetLine, SheetValues } from "@/lib/workspace/sheet-kind";
 
 /**
- * Stock's sheets (30-stock 5.13, 5.15, 5.16): Move stock, over Transfers;
- * Receive a transfer and Change the lines, over the transfer (or the list).
+ * Stock's sheets (30-stock 5.3, 5.13, 5.15, 5.16): Change reorder levels, over
+ * On hand; Move stock, over Transfers; Receive a transfer and Change the
+ * lines, over the transfer (or the list).
  */
 
 async function readJson<T>(url: string): Promise<T> {
@@ -376,7 +381,190 @@ const transferLines: SheetKind = {
   requires: [["retail.transfers", "update"]],
 };
 
+
+/* ── Change reorder levels ──────────────────────────────────────────────── */
+
+const FROM_SALES = "From what sells";
+const ONE_FOR_ALL = "One number for all";
+const WHOLE_CASES = "Whole cases";
+
+/** What each line's suggestion is worked out from, by stock line id. */
+type ReorderFacts = Record<string, Pick<ReorderLine, "perDay" | "leadDays" | "caseSize">>;
+
+const factsOf = (values: SheetValues) => (values._facts as ReorderFacts | undefined) ?? {};
+const levelsOf = (values: SheetValues) => (Array.isArray(values.levels) ? (values.levels as SheetLine[]) : []);
+const whole = (typed: unknown) => (typeof typed === "string" && /^\s*\d+\s*$/.test(typed) ? String(Number(typed)) : null);
+
+async function readReorder(lineIds: string[]): Promise<ReorderLine[]> {
+  const params = new URLSearchParams({ lineIds: lineIds.join(",") });
+  return readJson<ReorderLine[]>(`/api/v2/retail/stock/reorder?${params.toString()}`);
+}
+
+/** The level the settings give one line: worked out from what it sells, or the one number typed. */
+export function suggestedLevel(values: SheetValues, facts: ReorderFacts[string] | undefined): string | null {
+  if (values.set === ONE_FOR_ALL) return whole(values.oneLevel);
+  const keepDays = parseKeepDays(values.keep);
+  if (!facts || keepDays === null) return null;
+  return String(
+    suggestReorderLevel({
+      perDay: facts.perDay,
+      keepDays,
+      leadDays: facts.leadDays,
+      caseSize: facts.caseSize,
+      round: values.round === WHOLE_CASES ? "CASES" : "SINGLES",
+    }),
+  );
+}
+
+/** Every line the person has not typed in follows the settings; a typed one stays as typed. */
+export function recomputeLevels(values: SheetValues): SheetValues {
+  const facts = factsOf(values);
+  return {
+    levels: levelsOf(values).map((line) => {
+      if (line.touched) return line;
+      const level = suggestedLevel(values, facts[line.productId]);
+      return level === null ? line : { ...line, quantity: level };
+    }),
+  };
+}
+
+/** A stock line as a line of the sheet: "Sells 2 a day · now 12", its cost for someone who may see it. */
+const asLevelLine = (line: ReorderLine): SheetLine => ({
+  productId: line.lineId,
+  name: line.product,
+  sub: reorderLineSub(line.perDay, line.reorderAt),
+  quantity: line.reorderAt === null ? "" : String(line.reorderAt),
+  cost: (line.unitCost ?? 0).toFixed(2),
+  of: line.productId,
+});
+
+const followSettings = async (_value: unknown, values: SheetValues) => recomputeLevels(values);
+
+const productsWord = (n: number) => `${n} ${n === 1 ? "product" : "products"}`;
+
+/**
+ * Change reorder levels (`K.reorder`, board Reorder; W-21): the ticked lines
+ * of On hand (`?ids=`), each level worked out from what the line sells at its
+ * site — enough for "Keep enough for" days plus the supplier's lead time,
+ * rounded up to whole cases — or one number for all. A level typed by hand
+ * stays as typed when the settings change.
+ */
+const reorderLevels: SheetKind = {
+  title: "Change reorder levels",
+  sub: (_ctx, values) => `${productsWord(Number(values._ticked ?? 0))} ticked`,
+  wide: true,
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        { id: "set", t: "seg", l: "Set", o: [FROM_SALES, ONE_FOR_ALL], v: FROM_SALES, follow: followSettings },
+        {
+          id: "keep",
+          t: "text",
+          l: "Keep enough for",
+          v: `${KEEP_DAYS} days`,
+          mono: true,
+          half: true,
+          h: "Plus the supplier’s lead time.",
+          show: (values) => values.set !== ONE_FOR_ALL,
+          schema: z.string().refine((typed) => parseKeepDays(typed) !== null, { error: "Keep enough for 1 to 120 days." }),
+          follow: followSettings,
+        },
+        {
+          id: "round",
+          t: "seg",
+          l: "Round up to",
+          o: ["Singles", WHOLE_CASES],
+          v: WHOLE_CASES,
+          half: true,
+          show: (values) => values.set !== ONE_FOR_ALL,
+          follow: followSettings,
+        },
+        {
+          id: "oneLevel",
+          t: "text",
+          l: "Reorder at",
+          mono: true,
+          half: true,
+          h: "Every ticked product gets this level.",
+          show: (values) => values.set === ONE_FOR_ALL,
+          schema: z.string().regex(/^\s*\d+\s*$/, { error: "Reorder at is a number, 0 or more." }),
+          follow: followSettings,
+        },
+      ],
+    },
+    {
+      title: "Levels",
+      fields: [
+        {
+          id: "levels",
+          t: "lines",
+          l: "Levels",
+          noun: "stock-line",
+          ql: "Reorder at",
+          cl: "Cost",
+          needed: "Add a product to change its level.",
+          context: (_ctx, values) => ({ siteId: values._siteId ?? "" }),
+          // A product added here: its sales, lead time and case, then its suggested level.
+          follow: async (value, values) => {
+            const lines = Array.isArray(value) ? (value as SheetLine[]) : [];
+            const facts = factsOf(values);
+            const fresh = lines.filter((line) => !facts[line.productId]).map((line) => line.productId);
+            if (fresh.length === 0) return null;
+            const read = await readReorder(fresh);
+            const byId = new Map(read.map((line) => [line.lineId, line]));
+            const next: SheetValues = {
+              ...values,
+              _facts: { ...facts, ...Object.fromEntries(read.map((line) => [line.lineId, line])) },
+              levels: lines.map((line) => {
+                const found = byId.get(line.productId);
+                return found ? { ...asLevelLine(found), touched: false } : line;
+              }),
+            };
+            return { _facts: next._facts, ...recomputeLevels(next) };
+          },
+        },
+      ],
+    },
+  ],
+  note: "Low stock and suggested orders use these.",
+  done: (_result, values) => `Reorder levels saved for ${productsWord(levelsOf(values).length)}.`,
+  primary: "Save",
+  load: async (ctx) => {
+    const ids = (ctx.params.get("ids") ?? ctx.id ?? "").split(",").filter(Boolean);
+    const lines = ids.length > 0 ? await readReorder(ids) : [];
+    const loaded: SheetValues = {
+      set: FROM_SALES,
+      keep: `${KEEP_DAYS} days`,
+      round: WHOLE_CASES,
+      oneLevel: "",
+      levels: lines.map(asLevelLine),
+      _facts: Object.fromEntries(lines.map((line) => [line.lineId, line])),
+      _ticked: lines.length,
+      _siteId: lines[0]?.siteId ?? null,
+    };
+    return { ...loaded, ...recomputeLevels(loaded) };
+  },
+  submit: (values) => ({
+    method: "PUT",
+    url: "/api/v2/retail/stock/reorder",
+    body: {
+      levels: levelsOf(values).map((line) => ({ lineId: line.productId, reorderAt: line.quantity.trim() === "" ? null : line.quantity.trim() })),
+    },
+  }),
+  invalidate: [
+    ["list", "retail-stock-on-hand"],
+    ["nav-badges"],
+    ["list", "retail-products"],
+    ["retail-product"],
+    ["record-activity"],
+    ["lookup", "stock-line"],
+  ],
+  requires: [["retail.stock", "update"]],
+};
+
 export const STOCK_SHEETS: Record<string, SheetKind> = {
+  "reorder-levels": reorderLevels,
   "transfer-new": transferNew,
   "transfer-receive": transferReceive,
   "transfer-lines": transferLines,

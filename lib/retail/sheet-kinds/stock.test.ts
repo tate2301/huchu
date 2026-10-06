@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { checkValues, doneSentence, lineErrorsOf, submitFailure, fieldIds } from "@/components/sheet-form/model";
 import type { SheetCtx, SheetValues } from "@/lib/workspace/sheet-kind";
 
-import { siteHoldingMost, STOCK_SHEETS } from "./stock";
+import { recomputeLevels, siteHoldingMost, STOCK_SHEETS } from "./stock";
 
 const kind = STOCK_SHEETS["transfer-new"]!;
 const ctx: SheetCtx = {
@@ -135,5 +135,68 @@ describe("Change the lines (30-stock 5.16)", () => {
       url: "/api/v2/retail/stock/transfers/t-8/lines",
       body: { lines: [{ lineId: "line-j", quantity: "4" }] },
     });
+  });
+});
+
+describe("Change reorder levels (30-stock 5.3, W-21)", () => {
+  const reorder = STOCK_SHEETS["reorder-levels"]!;
+  const facts = {
+    "line-jw": { perDay: 2, leadDays: 2, caseSize: null },
+    "line-am": { perDay: 2, leadDays: 2, caseSize: null },
+    "line-ca": { perDay: 30, leadDays: 2, caseSize: 24 },
+  };
+  const line = (productId: string, quantity: string, touched = false) => ({ productId, name: productId, sub: null, quantity, cost: "1.00", touched });
+  const values = (more: SheetValues): SheetValues => ({
+    set: "From what sells",
+    keep: "14 days",
+    round: "Whole cases",
+    oneLevel: "",
+    _facts: facts,
+    levels: [line("line-jw", "12"), line("line-am", "40", true), line("line-ca", "96")],
+    ...more,
+  });
+  const levels = (out: SheetValues) => (out.levels as Array<{ productId: string; quantity: string }>).map((row) => [row.productId, row.quantity]);
+
+  it("is the board's wide sheet, for those who may change stock levels", () => {
+    expect(reorder.wide).toBe(true);
+    expect(reorder.requires).toEqual([["retail.stock", "update"]]);
+    expect(typeof reorder.sub === "function" ? reorder.sub(ctx, { _ticked: 4 }) : reorder.sub).toBe("4 products ticked");
+    expect(typeof reorder.sub === "function" ? reorder.sub(ctx, { _ticked: 1 }) : reorder.sub).toBe("1 product ticked");
+  });
+
+  it("works each line out from what sells, leaving a level typed by hand alone", () => {
+    expect(levels(recomputeLevels(values({})))).toEqual([
+      ["line-jw", "32"],
+      ["line-am", "40"],
+      ["line-ca", "480"],
+    ]);
+    expect(levels(recomputeLevels(values({ round: "Singles", keep: "13" })))).toEqual([
+      ["line-jw", "30"],
+      ["line-am", "40"],
+      ["line-ca", "450"],
+    ]);
+  });
+
+  it("gives every untyped line the one number, and waits while Keep enough for is not a number of days", () => {
+    expect(levels(recomputeLevels(values({ set: "One number for all", oneLevel: "24" })))).toEqual([
+      ["line-jw", "24"],
+      ["line-am", "40"],
+      ["line-ca", "24"],
+    ]);
+    expect(levels(recomputeLevels(values({ keep: "a while" })))).toEqual([
+      ["line-jw", "12"],
+      ["line-am", "40"],
+      ["line-ca", "96"],
+    ]);
+  });
+
+  it("sends each line's level, a blank one as not set, and says how many were saved", () => {
+    const sent = reorder.submit(values({ levels: [line("line-jw", "32"), line("line-am", " ")] }), ctx);
+    expect(sent).toEqual({
+      method: "PUT",
+      url: "/api/v2/retail/stock/reorder",
+      body: { levels: [{ lineId: "line-jw", reorderAt: "32" }, { lineId: "line-am", reorderAt: null }] },
+    });
+    expect(doneSentence(reorder, { saved: 2 }, values({}))).toBe("Reorder levels saved for 3 products.");
   });
 });

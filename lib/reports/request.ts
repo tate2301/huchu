@@ -141,13 +141,15 @@ type OpenList = {
 function needsSites(spec: ListSpec): boolean {
   return (
     spec.columns.some((column) => column.requires === "multi-site") ||
-    spec.filters.some((filter) => filter.type === "choice" && filter.requires === "multi-site")
+    spec.filters.some((filter) => filter.type === "choice" && filter.requires === "multi-site") ||
+    [...(spec.rowMenu ?? []), ...(spec.bulk ?? [])].some((action) => "sites" in action && action.sites === "multi-site")
   );
 }
 
 /**
- * The source as this company has it: with one open site, no Site column or
- * filter (5.21 "a shop with one site never sees the word"), values and all.
+ * The source as this company has it: with one open site, no Site column,
+ * filter or site-to-site action (5.21 "a shop with one site never sees the
+ * word"), values and all.
  */
 async function forSites(spec: ListSpec, companyId: string): Promise<ListSpec | ListRefusal> {
   if (!needsSites(spec) && !spec.multiSiteOnly) return spec;
@@ -159,6 +161,8 @@ async function forSites(spec: ListSpec, companyId: string): Promise<ListSpec | L
     columns: spec.columns.filter((column) => column.requires !== "multi-site"),
     filters: spec.filters.filter((filter) => filter.type !== "choice" || filter.requires !== "multi-site"),
     groups: spec.groups?.filter((key) => spec.columns.find((column) => column.key === key)?.requires !== "multi-site"),
+    rowMenu: spec.rowMenu?.filter((action) => action.sites !== "multi-site"),
+    bulk: spec.bulk?.filter((action) => !("sites" in action) || action.sites !== "multi-site"),
   };
 }
 

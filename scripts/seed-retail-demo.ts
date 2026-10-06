@@ -93,9 +93,12 @@ function readArg(name: string): string | undefined {
  * Cover bar and the Low stock tab read as the ProductsList board does.
  * `stock` is the on hand the ledger lands on, `min` is "Reorder at" and
  * `reorder` is "Reorder". Low stock is exactly Amarula (6 days of cover),
- * Castle Lager 340ml, Jameson and Johnnie Walker. `weight` is how often the
- * line sold before the window, so older history has the same shape.
- * Bohlinger's sits at Borrowdale; Zambezi and Bols are no longer sold.
+ * Castle Lager 340ml, Jameson and Johnnie Walker; Jaggermeister is out, its
+ * 30 days' sales all before it ran out `soldOutDays` ago (STK-02's StockList
+ * board). `weight` is how often the line sold before the window, so older
+ * history has the same shape. Bohlinger's sits at Borrowdale; Zambezi and
+ * Bols are no longer sold. The sales are at the line's own site, so On hand's
+ * cover reads these figures line by line.
  */
 type CatalogueEntry = {
   code: string
@@ -112,25 +115,28 @@ type CatalogueEntry = {
   deposit?: string
   archived?: boolean
   site?: "BORROWDALE"
+  /** Sold out this many days ago: every unit of `sold30` sold before then. */
+  soldOutDays?: number
 }
 const CATALOGUE: CatalogueEntry[] = [
-  { code: "AMARULA-750", name: "Amarula Cream 750ml", unit: "bottle", price: "18.25", cost: "13.03", stock: 13, sold30: 64, min: 12, reorder: 24, weight: 64, category: "Spirits" },
+  { code: "AMARULA-750", name: "Amarula Cream 750ml", unit: "bottle", price: "18.25", cost: "13.03", stock: 13, sold30: 63, min: 12, reorder: 24, weight: 64, category: "Spirits" },
   { code: "BERNINI-275", name: "Bernini Blush 275ml", unit: "bottle", price: "1.75", cost: "1.20", stock: 48, sold30: 40, min: 24, reorder: 48, weight: 40, category: "Ciders and coolers" },
   { code: "BOHLINGER-330", name: "Bohlinger’s 330ml", unit: "bottle", price: "1.55", cost: "1.08", stock: 96, sold30: 70, min: 36, reorder: 48, weight: 70, category: "Beer", site: "BORROWDALE" },
-  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.86", stock: 26, sold30: 88, min: 96, reorder: 96, weight: 88, category: "Beer", deposit: "0.10" },
+  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.86", stock: 26, sold30: 90, min: 96, reorder: 96, weight: 88, category: "Beer", deposit: "0.10" },
   { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.10", stock: 22, sold30: 55, min: 8, reorder: 10, weight: 55, category: "Beer" },
   { code: "CHARCOAL-4KG", name: "Charcoal 4kg", unit: "bag", price: "3.90", cost: "2.40", stock: 11, sold30: 20, min: 6, reorder: 12, weight: 20, category: "Snacks" },
-  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.82", stock: 210, sold30: 350, min: 60, reorder: 120, weight: 350, category: "Beer" },
+  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.82", stock: 210, sold30: 102, min: 60, reorder: 120, weight: 350, category: "Beer" },
   { code: "CHIBUKU-12", name: "Chibuku crate of 12", unit: "crate", price: "12.50", cost: "9.84", stock: 17, sold30: 21, min: 4, reorder: 6, weight: 21, category: "Beer" },
   { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.52", stock: 180, sold30: 216, min: 48, reorder: 96, weight: 216, category: "Soft drinks" },
   // STK-07: sent to Borrowdale on TRF-0008, 48 left at Harare Main Branch.
   { code: "FANTA-500", name: "Fanta Orange 500ml", unit: "bottle", price: "1.00", cost: "0.76", stock: 48, sold30: 30, min: 24, reorder: 48, weight: 30, category: "Soft drinks" },
   { code: "COKE-6PK", name: "Coke 500ml six-pack", unit: "pack", price: "4.20", cost: "3.12", stock: 30, sold30: 36, min: 6, reorder: 12, weight: 36, category: "Soft drinks" },
-  { code: "GORDONS-750", name: "Gordon’s Gin 750ml", unit: "bottle", price: "16.40", cost: "12.40", stock: 18, sold30: 67, min: 6, reorder: 12, weight: 67, category: "Spirits" },
+  { code: "GORDONS-750", name: "Gordon’s Gin 750ml", unit: "bottle", price: "16.40", cost: "12.40", stock: 18, sold30: 68, min: 6, reorder: 12, weight: 67, category: "Spirits" },
   { code: "HUNTERS-330", name: "Hunter’s Gold 330ml", unit: "bottle", price: "1.85", cost: "1.31", stock: 60, sold30: 50, min: 24, reorder: 48, weight: 50, category: "Ciders and coolers" },
   { code: "ICE-2KG", name: "Ice 2kg bag", unit: "bag", price: "1.50", cost: "1.00", stock: 40, sold30: 86, min: 20, reorder: 40, weight: 86, category: "Ice and mixers" },
-  { code: "JAMESON-750", name: "Jameson Irish Whiskey 750ml", unit: "bottle", price: "27.90", cost: "22.15", stock: 9, sold30: 121, min: 12, reorder: 12, weight: 121, category: "Spirits" },
-  { code: "BLKLABEL-750", name: "Johnnie Walker Black 750ml", unit: "bottle", price: "42.00", cost: "33.60", stock: 6, sold30: 58, min: 12, reorder: 12, weight: 58, category: "Spirits" },
+  { code: "JAGER-750", name: "Jaggermeister 750ml", unit: "bottle", price: "32.00", cost: "24.00", stock: 0, sold30: 18, min: 6, reorder: 12, weight: 18, category: "Spirits", soldOutDays: 6 },
+  { code: "JAMESON-750", name: "Jameson Irish Whiskey 750ml", unit: "bottle", price: "27.90", cost: "22.15", stock: 9, sold30: 90, min: 12, reorder: 12, weight: 121, category: "Spirits" },
+  { code: "BLKLABEL-750", name: "Johnnie Walker Black 750ml", unit: "bottle", price: "42.00", cost: "33.60", stock: 6, sold30: 60, min: 12, reorder: 12, weight: 58, category: "Spirits" },
   { code: "NEDERBURG-750", name: "Nederburg Cabernet 750ml", unit: "bottle", price: "12.60", cost: "9.40", stock: 24, sold30: 20, min: 8, reorder: 12, weight: 20, category: "Wine" },
   { code: "SAVANNA-330", name: "Savanna Dry 330ml", unit: "bottle", price: "1.85", cost: "1.38", stock: 72, sold30: 45, min: 24, reorder: 48, weight: 45, category: "Ciders and coolers" },
   { code: "TONIC-200", name: "Schweppes Tonic 200ml", unit: "can", price: "0.60", cost: "0.38", stock: 96, sold30: 40, min: 24, reorder: 48, weight: 40, category: "Ice and mixers" },
@@ -570,7 +576,8 @@ async function main() {
   /*
     The range is exactly the catalogue. Anything else ranged on this tenant —
     a product a test run added by hand — goes to the bin with --reset, so the
-    tabs read Selling 19 · Low stock 4 · Archived 2 · All 21.
+    tabs read Selling 20 · Low stock 5 (the four low, and Jaggermeister out) ·
+    Archived 2 · All 22.
   */
   if (reset) {
     const strays = await prisma.product.updateMany({
@@ -584,7 +591,7 @@ async function main() {
     })
     if (strays.count) console.log(`  ${strays.count} product(s) not in the catalogue moved to the bin`)
   }
-  console.log(`  ${CATALOGUE.length} lines on the shelf (4 low, 2 archived, Bohlinger’s at Borrowdale)`)
+  console.log(`  ${CATALOGUE.length} lines on the shelf (4 low, 1 out, 2 archived, Bohlinger’s at Borrowdale)`)
 
   // ── Customers ────────────────────────────────────────────────────────────
   for (const name of CUSTOMERS) {
@@ -784,7 +791,20 @@ async function main() {
     })
   })
   let windowSalesLeft = salePlans.flat().filter((postedAt) => postedAt.getTime() >= windowCounts).length
-  const quota = new WindowQuota(CATALOGUE)
+  const quota = new WindowQuota(CATALOGUE.filter((entry) => !entry.soldOutDays))
+  /*
+    STK-02. A line that sold out (Jaggermeister, six days ago) sells its
+    30 days' units only in the window's sales before then, from a quota of
+    its own; the newest sale is later still, so it never takes one.
+  */
+  const soldOut = CATALOGUE.filter((entry) => entry.soldOutDays)
+  const soldOutBy = now.getTime() - Math.max(0, ...soldOut.map((entry) => entry.soldOutDays!)) * DAY_MS
+  const soldOutQuota = new WindowQuota(soldOut)
+  const soldOutCodes = new Set(soldOut.map((entry) => entry.code))
+  let soldOutSalesLeft = salePlans
+    .flat()
+    .filter((postedAt) => postedAt.getTime() >= windowCounts && postedAt.getTime() < soldOutBy).length
+  const giveBack = (code: string, units: number) => (soldOutCodes.has(code) ? soldOutQuota : quota).giveBack(code, units)
   /*
     SET-07. The shop's newest sale is the one Setup › Receipts previews, so it
     is the board's: six Castle Lager 340ml with their deposit and a bag of
@@ -831,7 +851,7 @@ async function main() {
         const picks = isPreviewSale
           ? PREVIEW_PICKS
           : inWindow
-          ? quota.take(windowSalesLeft--)
+          ? [...quota.take(windowSalesLeft--), ...(postedAt.getTime() < soldOutBy ? soldOutQuota.take(soldOutSalesLeft--) : [])]
           : Array.from({ length: between(1, 2) }, () => {
               const product = pickProduct()
               return { code: product.code, units: product.weight >= 200 ? between(1, 3) : 1 }
@@ -967,7 +987,7 @@ async function main() {
           const refundId = randomUUID()
           const refundedAt = new Date(refundAt)
           const source = lines[0]!
-          if (refundAt >= windowCounts) quota.giveBack(codeOfProduct.get(source.productId as string)!, Number(source.quantity))
+          if (refundAt >= windowCounts) giveBack(codeOfProduct.get(source.productId as string)!, Number(source.quantity))
           saleRows.push({
             id: refundId,
             companyId,
@@ -1069,7 +1089,7 @@ async function main() {
           // A voided sale in the window sold nothing: its units go back.
           if ((candidate.postedAt as Date).getTime() >= windowCounts) {
             for (const line of lineRows.filter((row) => row.saleId === candidate.id)) {
-              quota.giveBack(codeOfProduct.get(line.productId as string)!, Number(line.quantity))
+              giveBack(codeOfProduct.get(line.productId as string)!, Number(line.quantity))
             }
           }
         }
@@ -1102,7 +1122,9 @@ async function main() {
     }
   }
 
-  if (quota.left > 0) console.warn(`  ${quota.left} unit(s) of the 30-day quotas were not sold: run again`)
+  if (quota.left + soldOutQuota.left > 0) {
+    console.warn(`  ${quota.left + soldOutQuota.left} unit(s) of the 30-day quotas were not sold: run again`)
+  }
 
   // Bulk, in batches — thousands of nested creates would be thousands of round
   // trips to a pooled endpoint.
@@ -2777,6 +2799,10 @@ async function seedSuppliers(input: { companyId: string; mainSiteId: string; sof
     const found = await prisma.vendor.findFirst({ where: { companyId, code: row.code }, select: { id: true, name: true } })
     if (found) {
       if (found.name !== row.supplier.name) console.log(`  ${row.code} is ${found.name} here, not ${row.supplier.name} (run with --reset)`)
+      // A supplier kept for its bills keeps the seed's lead time too: Change reorder levels reads it (STK-02).
+      if (input.reset && row.supplier.leadTime !== undefined && row.supplier.leadTime !== null) {
+        await prisma.vendor.update({ where: { id: found.id }, data: { leadTimeDays: Number(row.supplier.leadTime) } })
+      }
       ids.set(row.code, found.id)
       continue
     }

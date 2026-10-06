@@ -99,7 +99,9 @@ export function LinesField({
               value={line.quantity}
               onChange={(event) =>
                 onValueChange(
-                  value.map((row) => (row.productId === line.productId ? { ...row, quantity: event.target.value } : row)),
+                  value.map((row) =>
+                    row.productId === line.productId ? { ...row, quantity: event.target.value, touched: true } : row,
+                  ),
                 )
               }
             />

@@ -42,6 +42,8 @@ export type SheetLine = {
   cost: string;
   /** The record the picked option is of (a stock line's product). */
   of?: string | null;
+  /** The person typed this line's figure: values worked out for the sheet leave it alone. */
+  touched?: boolean;
 };
 
 export type SheetValues = Record<string, unknown>;

@@ -338,6 +338,8 @@ export type ListAction = {
   when?: Condition[];
   /** Bulk: only on these tabs ("Sell them again" on Archived). */
   tabs?: string[];
+  /** Dropped while the company has one open site ("Move to another site"). */
+  sites?: "multi-site";
   do:
     | { sheet: string }
     /**

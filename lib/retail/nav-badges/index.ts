@@ -1,4 +1,5 @@
 import { FLOOR_NAV_BADGES } from "./floor";
+import { STOCK_NAV_BADGES } from "./stock";
 import type { NavBadgeContext, NavBadgeProvider } from "./types";
 
 export type { NavBadgeContext, NavBadgeProvider } from "./types";
@@ -9,7 +10,7 @@ export type { NavBadgeContext, NavBadgeProvider } from "./types";
  * Each area keeps its providers in its own file here and adds one line to this
  * list; nothing else in the shell changes when a badge arrives.
  */
-export const NAV_BADGE_PROVIDERS: readonly NavBadgeProvider[] = [...FLOOR_NAV_BADGES];
+export const NAV_BADGE_PROVIDERS: readonly NavBadgeProvider[] = [...FLOOR_NAV_BADGES, ...STOCK_NAV_BADGES];
 
 /**
  * The badges for one caller, keyed by nav href. A count of 0 leaves the item

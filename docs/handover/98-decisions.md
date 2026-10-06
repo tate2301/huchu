@@ -147,6 +147,12 @@ Recorded unit choices:
 - **STK-04 Reverse posts back what the adjustment posted.** The opposite is the original's journal; while that waits for
   the day's run, the amount its accounting event holds; else the value its `RETAIL_STOCK.ADJUSTED` event recorded. Never
   the line's cost at the time of the reversal.
+- **STK-02 reads what a line sold off its own ledger.** On hand, its tabs, the "5 low" badge and Change reorder
+  levels take a line's net sold (sales less refunds and voids, 30 days) from its `StockMovement` rows, the same read
+  as STK-04's stock lines (`netSoldByLine` in `lib/retail/stock/on-hand.ts`), so it is always that site's figure.
+- **STK-02 moves a line to another place whole.** A `placeId` on the line's PATCH writes a `PLACE_MOVE` transfer of
+  the whole line (on hand is held per site, not per place, so `recordStockMovement` refuses a part or a zero
+  quantity); a line with nothing on hand just changes place.
 - **STK-04 seeds BRK-0012 as Tafara Nyathi on the Castle case's record.** The packet's "Farai Moyo on his open shift" is
   not true on 30 Sep (his open shift began on 4 Oct), and the till's rule needs no singles left. The seed's break is the
   record's: cases 23 → 22, singles 2 → 26.

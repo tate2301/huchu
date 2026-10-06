@@ -5,18 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { coverDays } from "@/lib/retail/products/figures";
 import { COVER_WINDOW_DAYS, stockLevel, type StockLevel } from "@/lib/retail/stock/levels";
+import { coverWindowStart, netSoldByLine } from "@/lib/retail/stock/on-hand";
 
 /**
- * A stock line's levels (PRD-03; STK-02 adds its PATCH route on this): when
- * to reorder ("Reorder at", `minStock`) and how many ("Reorder",
- * `reorderQty`). Undefined leaves a level alone; null clears it.
+ * A stock line's levels (PRD-03, STK-02): when to reorder ("Reorder at",
+ * `minStock`), how many ("Reorder", `reorderQty`) and where on the shelf it
+ * lives. Undefined leaves a value alone; null clears it.
  */
 export async function setStockLineLevels(
   tx: Prisma.TransactionClient,
   lineId: string,
-  levels: { reorderAt?: Prisma.Decimal.Value | null; reorderQty?: Prisma.Decimal.Value | null },
+  levels: { reorderAt?: Prisma.Decimal.Value | null; reorderQty?: Prisma.Decimal.Value | null; shelf?: string | null },
 ): Promise<void> {
   const data: Prisma.InventoryItemUpdateInput = {
+    ...(levels.shelf === undefined ? {} : { shelf: levels.shelf }),
     ...(levels.reorderAt === undefined
       ? {}
       : { minStock: levels.reorderAt === null ? null : new Prisma.Decimal(levels.reorderAt) }),
@@ -47,9 +49,6 @@ export type StockLineView = {
   /** The case products of this single, with their line at this site. */
   cases: Array<{ productId: string; name: string; packSize: number; lineId: string | null; onHand: number }>;
 };
-
-/** Sales less refunds and voids: what leaves a line by the till. */
-const SOLD_REASONS = ["SALE", "REFUND", "VOID"] as const;
 
 /**
  * Stock lines as the adjust sheet, On hand and the product record read them
@@ -99,13 +98,10 @@ export async function readStockLines(
   });
   if (lines.length === 0) return [];
 
-  const since = new Date(Date.now() - COVER_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const sold = await prisma.stockMovement.groupBy({
-    by: ["itemId"],
-    where: { itemId: { in: lines.map((line) => line.id) }, reason: { in: [...SOLD_REASONS] }, createdAt: { gte: since } },
-    _sum: { change: true },
-  });
-  const soldBy = new Map(sold.map((row) => [row.itemId, Math.max(0, -toNumberOrZero(row._sum.change ?? 0))]));
+  const soldBy = await netSoldByLine(
+    lines.map((line) => line.id),
+    coverWindowStart(),
+  );
   const seeCost = canRetailRoleDo(role, "retail.catalog", "view-cost");
 
   return lines.map((line): StockLineView => {
