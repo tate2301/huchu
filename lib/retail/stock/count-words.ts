@@ -91,10 +91,18 @@ export function countLinkText(input: { by: string; name: string; scope: CountSco
   return `${input.by} asked you to count ${countPhrase(input.name, input.scope)} at ${input.site}: ${input.link}`;
 }
 
-/** 409 when some lines are in an open count: "3 products are already being counted in CNT-0021. Finish that count first." */
-export function alreadyCountingWords(products: number, countNo: string): string {
-  const head = products === 1 ? "1 product is" : `${formatCount(products)} products are`;
-  return `${head} already being counted in ${countNo}. Finish that count first.`;
+/**
+ * 409 when some lines are in open counts, each count with its own number:
+ * "3 products are already being counted in CNT-0021. Finish that count first."
+ * "9 products are already being counted in CNT-0020 and 14 in CNT-0021. Finish those counts first."
+ */
+export function alreadyCountingWords(busy: Array<{ countNo: string; products: number }>): string {
+  const [first, ...rest] = busy;
+  if (!first) return "";
+  const head = first.products === 1 ? "1 product is" : `${formatCount(first.products)} products are`;
+  const parts = [`${head} already being counted in ${first.countNo}`, ...rest.map((count) => `${formatCount(count.products)} in ${count.countNo}`)];
+  const listed = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return `${listed}. ${rest.length === 0 ? "Finish that count first." : "Finish those counts first."}`;
 }
 
 /** 409 on "Done, send for review" with lines left: "Count every line first: 35 to go." */

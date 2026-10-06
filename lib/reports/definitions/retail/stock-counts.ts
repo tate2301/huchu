@@ -100,6 +100,7 @@ const counts: ListSpec = {
       currency: "USD",
       cell: "money",
       total: "sum",
+      empty: "dash",
       requires: "view-cost",
       width: "130px",
       align: "end",

@@ -721,4 +721,29 @@ describe("a product being counted, at the till (STK-05, W-22)", () => {
     await prisma.retailStockCount.update({ where: { id: countId }, data: { keepSelling: false, status: "TO_APPROVE" } });
     expect((await atCounter("counted-sent")).status).toBe(201);
   });
+
+  it("takes turns with a count starting at the same moment: the sale waits and then sees it", async () => {
+    await prisma.retailStockCount.update({ where: { id: countId }, data: { keepSelling: true, status: "COUNTING" } });
+    let sale: Promise<Awaited<ReturnType<typeof atCounter>>> | null = null;
+    await prisma.$transaction(
+      async (tx) => {
+        // What startCount holds while it takes its lines.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`retail-stock-count:${companyId}`}))`;
+        sale = atCounter("counted-race");
+        // The sale has reached its check and waits on the count's lock.
+        for (let tries = 0; tries < 100; tries += 1) {
+          const [{ waiting }] = await prisma.$queryRaw<Array<{ waiting: number }>>`
+            SELECT count(*)::int AS waiting FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+          if (waiting > 0) break;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        await tx.retailStockCount.update({ where: { id: countId }, data: { keepSelling: false } });
+      },
+      { timeout: 15_000 },
+    );
+    expect(await sale!).toMatchObject({
+      status: 409,
+      body: { error: "Castle Lager 340ml is being counted. It sells again when the count is sent." },
+    });
+  });
 });

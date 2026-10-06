@@ -6,7 +6,7 @@ import { fillTemplate } from "@/lib/reports/actions";
 import type { ListColumn, ReportRow } from "@/lib/reports/types";
 import { formatDuration, formatWhen } from "@/lib/workspace/format";
 
-import { cellText, dayText, diffTone, durationState, isBlank, toneOf } from "./model";
+import { cellText, dayText, diffTone, durationState, isBlank, noValue, toneOf } from "./model";
 
 /**
  * The cell resolver (00-foundations 5.4.7, Cells board): one component that
@@ -46,7 +46,7 @@ export function ListCell({
     );
   }
 
-  if (isBlank(value)) return column.empty === "blank" ? null : <span className="cx-lf-none">—</span>;
+  if (isBlank(value)) return column.empty === "blank" ? null : <span className="cx-lf-none">{noValue(column)}</span>;
   const text = cellText(column, row);
 
   switch (column.cell) {

@@ -12,6 +12,9 @@ import { money, quantity } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { fetchListPage } from "@/lib/reports/request";
 
+import { cellText } from "@/components/list-frame/model";
+import { STOCK_COUNT_REPORTS } from "@/lib/reports/definitions/retail/stock-counts";
+
 import { STOCK_COUNT_LOADERS } from "./stock-counts";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -146,6 +149,10 @@ describe("the Counts list", () => {
     expect(by("CNT-0020").when).toMatch(/^Today, \d\d:\d\d$/);
     expect(by("CNT-0021")).toMatchObject({ state: "Counting", tone: "info", lines: "1 of 3", differ: null, difference: null });
     expect(by("CNT-0021").when).toMatch(/^Started \d\d:\d\d$/);
+    // While counting, Difference reads the board's faint en dash, not the frame's em dash.
+    const difference = STOCK_COUNT_REPORTS[0]!.list!.columns.find((column) => column.key === "difference")!;
+    expect(cellText(difference, by("CNT-0021"))).toBe("–");
+    expect(cellText(difference, by("CNT-0020"))).toBe("−US$41.20");
     expect(by("CNT-0019")).toMatchObject({ state: "Approved", tone: "hollow", lines: "1", differ: 1, difference: -1.72, when: "2 Oct 2025, 09:12" });
   });
 

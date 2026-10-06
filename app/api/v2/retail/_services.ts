@@ -927,15 +927,6 @@ export async function createRetailSaleTransaction(input: {
     }
   }
 
-  // A count that does not keep selling holds its products back until it is
-  // sent (W-22). A replay is not asked: the money was already taken.
-  if (!input.replay) {
-    await refuseWhileCounted(
-      input.actor.companyId,
-      input.lines.map((line) => line.inventoryItemId),
-    );
-  }
-
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const saleNo =
       providedCode ??
@@ -962,6 +953,16 @@ export async function createRetailSaleTransaction(input: {
 
     try {
       const { fiscal, ...sale } = await prisma.$transaction(async (tx) => {
+        // A count that does not keep selling holds its products back until it
+        // is sent (W-22), checked in this transaction so a count starting now
+        // and this sale take turns. A replay is not asked: the money was already taken.
+        if (!input.replay) {
+          await refuseWhileCounted(
+            tx,
+            input.actor.companyId,
+            input.lines.map((line) => line.inventoryItemId),
+          );
+        }
         const created = await tx.retailSale.create({
           data: {
             companyId: input.actor.companyId,

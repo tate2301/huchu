@@ -96,6 +96,7 @@ describe("cells (5.4.7)", () => {
     expect(cellText(column("variance"), row({ variance: 0 }))).toBe("US$0.00");
     expect(cellText(column("sales"), row({ sales: 8412 }))).toBe("8,412");
     expect(cellText(column("variance"), row({ variance: null }))).toBe("—");
+    expect(cellText({ ...column("variance"), empty: "dash" }, row({ variance: null }))).toBe("–");
   });
 
   it("prints a percentage column as a percentage, one place (22.4%)", () => {

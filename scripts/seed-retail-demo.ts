@@ -2500,7 +2500,8 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
   await prisma.notification.deleteMany({
     where: { companyId, type: { in: ["RETAIL_COUNT_ASSIGNED", "RETAIL_COUNT_SUBMITTED"] as NotificationType[] } },
   })
-  await prisma.retailMessage.deleteMany({ where: { companyId, template: "count-link" } })
+  // Every message that links to a count: the counter's count-link and the approver's approval-ask.
+  await prisma.retailMessage.deleteMany({ where: { companyId, body: { contains: "/retail/stock/counts/" } } })
 
   // Where things are kept at the main branch.
   const placeOf = async (code: string) =>

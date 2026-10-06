@@ -59,6 +59,9 @@ export class BeingCounted extends Error {
 }
 
 export const NOT_FOUND = "That count is not this shop’s.";
+
+/** The advisory lock a count start holds and a till sale shares: one key per shop. */
+const countLockKey = (companyId: string) => `retail-stock-count:${companyId}`;
 export const NOT_YOURS = "This count is not yours to count.";
 export const CLOSED = "This count is closed.";
 const OPEN_STATUSES: RetailStockCountStatus[] = ["COUNTING", "TO_APPROVE"];
@@ -305,7 +308,8 @@ export async function startCount(actor: CountActor, input: CountStartInput, requ
   }
 
   const started = await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`retail-stock-count:${companyId}`}))`;
+    // Exclusive: a till sale takes this key shared to check its lines, so a start and a sale take turns.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${countLockKey(companyId)}))`;
     const lines = await resolveCountLines(tx, { companyId, siteId: site.id, ...input });
     if (lines.length === 0) {
       const field = SCOPE_FIELD[input.scope];
@@ -316,7 +320,12 @@ export async function startCount(actor: CountActor, input: CountStartInput, requ
       select: { count: { select: { countNo: true } } },
       orderBy: { count: { countNo: "asc" } },
     });
-    if (busy.length > 0) throw new CountRefusal(409, alreadyCountingWords(busy.length, busy[0]!.count.countNo));
+    if (busy.length > 0) {
+      const byCount = new Map<string, number>();
+      for (const line of busy) byCount.set(line.count.countNo, (byCount.get(line.count.countNo) ?? 0) + 1);
+      const counts = [...byCount].map(([countNo, products]) => ({ countNo, products }));
+      throw new CountRefusal(409, alreadyCountingWords(counts));
+    }
 
     const categories =
       input.scope === "CATEGORIES"
@@ -411,8 +420,8 @@ function mayRead(actor: CountActor, grants: CountGrants, count: CountHead) {
 }
 
 /** Whether `expected` is kept from this reader: the counter of a blind count, while it is theirs to count. */
-const hidesExpected = (actor: CountActor, grants: CountGrants, count: CountHead) =>
-  count.blind && count.counterId === actor.userId && !grants.approve;
+const hidesExpected = (actor: CountActor, count: CountHead) =>
+  count.blind && count.counterId === actor.userId && count.status === "COUNTING";
 
 export type CountView = {
   id: string;
@@ -640,7 +649,7 @@ export async function loadCountLines(
   else if (tab === "differ") where.difference = { not: 0 };
   else if (tab === "match") where.difference = 0;
   const rows = await prisma.retailStockCountLine.findMany({ where, orderBy: [{ sortKey: "asc" }, { id: "asc" }], select: LINE_SELECT });
-  const showExpected = !hidesExpected(actor, grants, head);
+  const showExpected = !hidesExpected(actor, head);
   return {
     lines: rows.map((row) => asCountLine(row, showExpected, grants.seeCost && showExpected)),
     progress: await progressOf(prisma, id),
@@ -698,7 +707,7 @@ export async function saveCountLine(
       select: LINE_SELECT,
     });
     if (!status.firstCountedAt) await tx.retailStockCount.update({ where: { id: countId }, data: { firstCountedAt: now } });
-    const showExpected = !hidesExpected(actor, grants, head);
+    const showExpected = !hidesExpected(actor, head);
     return { line: asCountLine(saved, showExpected, grants.seeCost && showExpected), progress: await progressOf(tx, countId) };
   });
 }
@@ -789,10 +798,15 @@ export async function remindCounter(actor: CountActor, id: string, requestUrl: s
  * selling (W-22 step 2): the first such line answers 409 "Castle Lager 340ml
  * is being counted. It sells again when the count is sent." Replays are not
  * asked: the money was already taken.
+ *
+ * Runs inside the sale's transaction under the count lock, shared: sales do
+ * not wait for each other, but a count starting at the same moment does, so
+ * either the count sees the sale's stock gone or the sale sees the count.
  */
-export async function refuseWhileCounted(companyId: string, inventoryItemIds: string[]): Promise<void> {
+export async function refuseWhileCounted(tx: Prisma.TransactionClient, companyId: string, inventoryItemIds: string[]): Promise<void> {
   if (inventoryItemIds.length === 0) return;
-  const held = await prisma.retailStockCountLine.findFirst({
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock_shared(hashtext(${countLockKey(companyId)}))`;
+  const held = await tx.retailStockCountLine.findFirst({
     where: {
       companyId,
       inventoryItemId: { in: inventoryItemIds },

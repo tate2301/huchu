@@ -115,6 +115,11 @@ describe("a count on the counter's phone", () => {
     expect(lines.map((line) => line.product)).toEqual(["Gordon’s Gin 750ml", "Jameson Irish Whiskey 750ml"]);
     for (const line of lines) expect(line).not.toHaveProperty("expected");
     expect((await loadCountLines(manager(), MANAGER, countId)).lines[0]).toMatchObject({ expected: 22 });
+    // A counter who may approve counts is still the counter: nothing expected while it is theirs to count.
+    for (const line of (await loadCountLines(counter(), MANAGER, countId)).lines) {
+      expect(line).not.toHaveProperty("expected");
+      expect(line).not.toHaveProperty("unitCost");
+    }
   });
 
   it("refuses anyone else without a grant", async () => {
@@ -161,8 +166,13 @@ describe("a count on the counter's phone", () => {
   it("goes for review only with every line counted", async () => {
     expect(await refusal(submitCount(counter(), CASHIER, countId))).toMatchObject({ status: 409, message: "Count every line first: 1 to go." });
     const line = await lineOf(jameson);
-    await saveCountLine(counter(), CASHIER, countId, line.id, "9");
+    // A counter who may approve counts saves blind like anyone else.
+    const saved = await saveCountLine(counter(), MANAGER, countId, line.id, "9");
+    expect(saved.line).not.toHaveProperty("expected");
+    expect(saved.line).not.toHaveProperty("difference");
     expect(await submitCount(counter(), CASHIER, countId)).toEqual({ status: "TO_APPROVE" });
+    // Sent for review, an approver reads what was expected, the counter among them.
+    expect((await loadCountLines(counter(), MANAGER, countId)).lines[0]).toMatchObject({ expected: 22 });
     const count = await prisma.retailStockCount.findUniqueOrThrow({ where: { id: countId } });
     expect(count.status).toBe("TO_APPROVE");
     expect(count.submittedAt).not.toBeNull();

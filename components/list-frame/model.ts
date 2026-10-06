@@ -139,9 +139,12 @@ export function dayText(column: Pick<ListColumn, "dayFormat">, value: string, no
   return formatDay(value);
 }
 
+/** What a cell with no value reads: "—", or "–" where the column's board draws that. */
+export const noValue = (column: ListColumn) => (column.empty === "dash" ? "–" : "—");
+
 export function cellText(column: ListColumn, row: ReportRow): string {
   const value = row[column.key];
-  if (isBlank(value)) return "—";
+  if (isBlank(value)) return noValue(column);
   const currency = column.currency ?? "USD";
   switch (column.cell) {
     case "money":

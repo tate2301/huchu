@@ -64,6 +64,8 @@ export function CountPhone({ countId }: { countId: string }) {
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
   const inputs = React.useRef(new Map<string, HTMLInputElement>());
+  // The figure each line has on its way to the server.
+  const inFlight = React.useRef(new Map<string, string>());
 
   // Lines in the server's order; each save writes its answer into the same
   // list, so a line saved stays where it is while the counter works down the shelf.
@@ -92,22 +94,29 @@ export function CountPhone({ countId }: { countId: string }) {
   };
 
   const save = async (line: CountLine, moveOn: boolean) => {
+    // Enter saves and moves the focus on, and the blur that follows runs a
+    // handler from the render before the save: read the line as the cache
+    // holds it now, and never send a figure that is already on its way.
+    const cached = () => queryClient.getQueryData<LinesPage>(linesKey(countId))?.lines ?? lines ?? [];
+    const now = cached().find((row) => row.id === line.id) ?? line;
     const state = states[line.id];
-    const typed = (state?.typed ?? line.counted ?? "").trim();
-    if (typed === "" || (typed === line.counted && state?.status !== "failed")) {
+    const typed = (state?.typed ?? now.counted ?? "").trim();
+    const settled = typed === now.counted && state?.status !== "failed";
+    if (typed === "" || settled || inFlight.current.get(line.id) === typed) {
       if (moveOn) {
-        const next = nextUncounted(line.id, lines ?? []);
+        const next = nextUncounted(line.id, cached());
         if (next) focusLine(next.id);
       }
       return;
     }
+    inFlight.current.set(line.id, typed);
     setStates((all) => ({ ...all, [line.id]: { typed, status: "saving" } }));
     try {
       const answer = await fetchJson<Saved>(`/api/v2/retail/stock/counts/${countId}/lines/${line.id}`, {
         method: "PUT",
         body: JSON.stringify({ counted: typed }),
       });
-      const updated = (lines ?? []).map((row) => (row.id === line.id ? answer.line : row));
+      const updated = cached().map((row) => (row.id === line.id ? answer.line : row));
       queryClient.setQueryData<LinesPage>(linesKey(countId), { lines: updated, progress: answer.progress });
       setStates((all) => ({ ...all, [line.id]: { typed: answer.line.counted ?? typed, status: "idle" } }));
       setRefusal(null);
@@ -124,6 +133,8 @@ export function CountPhone({ countId }: { countId: string }) {
             : "Not saved. Tap to try again.";
       setStates((all) => ({ ...all, [line.id]: { typed, status: "failed", error: message } }));
       if (error instanceof ApiError && error.status === 409) void view.refetch();
+    } finally {
+      if (inFlight.current.get(line.id) === typed) inFlight.current.delete(line.id);
     }
   };
 

@@ -196,4 +196,12 @@ describe("starting a count", () => {
     expect(await prisma.notification.count({ where: { companyId, entityId: started.id } })).toBe(0);
     expect((await prisma.retailStockCount.findUniqueOrThrow({ where: { id: started.id } })).name).toBe("Back store");
   });
+
+  it("names every open count that holds a line, each with its own number", async () => {
+    const refused = await refusal(
+      startCount(actor(), input({ scope: "PRODUCTS", categoryIds: undefined, lineIds: [line.gin!, line.jameson!, line.castle!] })),
+    );
+    expect(refused.status).toBe(409);
+    expect(refused.message).toBe("2 products are already being counted in CNT-0001 and 1 in CNT-0002. Finish those counts first.");
+  });
 });

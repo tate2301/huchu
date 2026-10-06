@@ -273,8 +273,11 @@ export type ListColumn = ReportColumn & {
   toneKey?: string;
   /** action: the key of the row menu action the cell does; drawn only when the row's menu offers it. */
   action?: string;
-  /** No value draws nothing rather than "—", where the board leaves the cell blank (a till's Last sale before its first). */
-  empty?: "blank";
+  /**
+   * No value draws "—" in `--faint`, except: `blank` draws nothing, where the board leaves the cell blank (a till's
+   * Last sale before its first); `dash` draws "–", where the board does (a count's Difference while it is counting).
+   */
+  empty?: "blank" | "dash";
   /**
    * `view-cost`: dropped, values and all, for roles that may not see cost.
    * `multi-site`: dropped while the company has one open site.
