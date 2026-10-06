@@ -14,12 +14,17 @@ const ctx: CheckContext = {
   ]),
 };
 
-const row = (rowNo: number, fields: Partial<{ name: string; category: string; price: string; barcode: string }>) => ({
+type Fields = Partial<{ name: string; category: string; price: string; barcode: string; cost: string; openingStock: string; packSize: string }>;
+
+const row = (rowNo: number, fields: Fields) => ({
   rowNo,
   name: fields.name ?? null,
   category: fields.category ?? null,
   price: fields.price ?? null,
   barcode: fields.barcode ?? null,
+  cost: fields.cost ?? null,
+  openingStock: fields.openingStock ?? null,
+  packSize: fields.packSize ?? null,
 });
 
 const first = (fields: Parameters<typeof row>[1]) => {
@@ -67,6 +72,38 @@ describe("checkRows", () => {
     );
     expect(checked[0]!.problems).toEqual([]);
     expect(problemView(checked[1]!.problems, checked[1]!.args)?.text).toBe("Same barcode as row 4");
+  });
+
+  it("flags a cost, opening stock or pack size the commit would refuse, with what was typed", () => {
+    expect(first({ name: "H", price: "2.10", cost: "abc" })).toBe("Cost “abc” is not a figure");
+    expect(first({ name: "H", price: "2.10", cost: "1,20" })).toBe("Cost “1,20” is not a figure");
+    expect(first({ name: "I", price: "2.10", cost: "1", openingStock: "-5" })).toBe("Opening stock “-5” is not a whole number");
+    expect(first({ name: "I", price: "2.10", openingStock: "2.5" })).toBe("Opening stock “2.5” is not a whole number");
+    expect(first({ name: "Castle case", price: "26.00", packSize: "a dozen" })).toBe("Pack size “a dozen” is not a whole number");
+    expect(problemView(checkRows([row(2, { name: "H", price: "2.10", cost: "x" })], ctx)[0]!.problems, {})?.field).toBeNull();
+    expect(first({ name: "Fine", price: "2.10", cost: "1.20", openingStock: "48", packSize: "24" })).toBeNull();
+  });
+
+  it("reads opening stock and pack size only for a new product, and cost for both", () => {
+    // Coca-Cola 2l is in Products: its row updates it, and stock and pack size are not read.
+    expect(first({ name: "Coca-Cola 2l", price: "2.50", openingStock: "-5", packSize: "x" })).toBeNull();
+    expect(first({ name: "Coca-Cola 2l", price: "2.50", cost: "abc" })).toBe("Cost “abc” is not a figure");
+  });
+
+  it("names the first row with the same new name, any case, and leaves that row alone", () => {
+    const checked = checkRows([row(13, { name: "Same", price: "2.10" }), row(14, { name: "same ", price: "2.20" })], ctx);
+    expect(checked[0]!.problems).toEqual([]);
+    expect(problemView(checked[1]!.problems, checked[1]!.args)).toMatchObject({ field: "name", text: "Same name as row 13" });
+  });
+
+  it("names the first row for the same product, by barcode or by name", () => {
+    const checked = checkRows(
+      [row(5, { name: "Coke big", price: "2.50", barcode: "5449000000996" }), row(9, { name: "coca-cola 2l", price: "2.60" })],
+      ctx,
+    );
+    expect(checked[0]).toMatchObject({ problems: [], action: "UPDATE", matchedProductId: "coke" });
+    expect(checked[1]).toMatchObject({ action: "UPDATE", matchedProductId: "coke" });
+    expect(problemView(checked[1]!.problems, checked[1]!.args)?.text).toBe("Same product as row 5");
   });
 
   it("an accepted look-alike updates it", () => {

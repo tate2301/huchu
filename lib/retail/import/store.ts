@@ -10,8 +10,10 @@ import type { ParsedRow } from "./parse";
 import { ImportRefusal } from "./refusal";
 import { categoryKey, checkRows, type CheckContext, type Checked } from "./validate";
 import {
+  CANNOT_DISCARD,
   NOT_CHECKING,
   NOT_FOUND,
+  PART_IN,
   problemView,
   type ImportCounts,
   type ImportPage,
@@ -84,25 +86,27 @@ export function rowView(row: StoredRow): ImportRow {
     problem: problemView(row.problems, args),
     action: row.action,
     matchedName: args.matchedName ?? null,
+    done: args.done ?? null,
+    note: args.note ?? null,
   };
 }
 
-export function countsOf(rows: Array<{ problems: RetailImportProblem[]; action: string | null }>): ImportCounts {
-  const counts: ImportCounts = { fix: 0, new: 0, update: 0, all: rows.length };
-  for (const row of rows) {
-    if (row.problems.length > 0) counts.fix += 1;
-    else if (row.action === "UPDATE") counts.update += 1;
-    else counts.new += 1;
-  }
+type Tabbed = { problems: RetailImportProblem[]; action: string | null; problemArgs: Prisma.JsonValue | null };
+
+/** The tab a row is in: done once the commit has dealt with it, else by its problems and action. */
+function tabOf(row: Tabbed): Exclude<ImportTab, "all"> {
+  if (argsOf(row).done) return "done";
+  if (row.problems.length > 0) return "fix";
+  return row.action === "UPDATE" ? "update" : "new";
+}
+
+export function countsOf(rows: Tabbed[]): ImportCounts {
+  const counts: ImportCounts = { fix: 0, new: 0, update: 0, done: 0, all: rows.length };
+  for (const row of rows) counts[tabOf(row)] += 1;
   return counts;
 }
 
-const inTab = (tab: ImportTab) => (row: { problems: RetailImportProblem[]; action: string | null }) => {
-  if (tab === "all") return true;
-  if (tab === "fix") return row.problems.length > 0;
-  if (row.problems.length > 0) return false;
-  return tab === "update" ? row.action === "UPDATE" : row.action !== "UPDATE";
-};
+const inTab = (tab: ImportTab) => (row: Tabbed) => tab === "all" || tabOf(row) === tab;
 
 /** Make an import from a parsed file: every row stored as typed, checked and matched. */
 export async function createImport(actor: RetailAuditActor, fileName: string, parsed: ParsedRow[]): Promise<{ id: string }> {
@@ -144,9 +148,18 @@ export async function lockImport(tx: Tx, companyId: string, id: string, needChec
     where: { id },
     select: { id: true, fileName: true, rowCount: true, status: true, siteId: true },
   });
-  if (needChecking && found.status !== "CHECKING") throw new ImportRefusal(409, NOT_CHECKING);
+  if (needChecking && found.status !== "CHECKING") throw new ImportRefusal(409, found.status === "IMPORTING" ? PART_IN : NOT_CHECKING);
   return found;
 }
+
+/** What the commit wrote on a row: kept by every check after it. */
+const commitArgs = (args: ImportRowArgs): ImportRowArgs => {
+  const kept: ImportRowArgs = {};
+  if (args.done) kept.done = args.done;
+  if (args.productId) kept.productId = args.productId;
+  if (args.note) kept.note = args.note;
+  return kept;
+};
 
 const same = (stored: StoredRow, check: Checked) =>
   stored.action === check.action &&
@@ -167,7 +180,7 @@ export async function recheck(tx: Tx, companyId: string, importId: string): Prom
   );
   const changed = new Set<string>();
   const next = rows.map((row, index) => {
-    const check = checked[index]!;
+    const check = { ...checked[index]!, args: { ...checked[index]!.args, ...commitArgs(argsOf(row)) } };
     if (same(row, check)) return row;
     changed.add(row.id);
     return { ...row, action: check.action, matchedProductId: check.matchedProductId, problems: check.problems, problemArgs: check.args as Prisma.JsonValue };
@@ -233,11 +246,16 @@ export async function editRow(
   );
 }
 
-/** "Start again": the import is thrown away and its rows go. One already imported stays. */
+/**
+ * "Start again": the import is thrown away and its rows go. One already
+ * imported, or part in, stays: its rows are the record of where its products
+ * came from.
+ */
 export async function discardImport(companyId: string, importId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const found = await lockImport(tx, companyId, importId, false);
     if (found.status === "IMPORTED") throw new ImportRefusal(409, "This import is already in Products.");
+    if (found.status === "IMPORTING") throw new ImportRefusal(409, CANNOT_DISCARD);
     await tx.retailImportRow.deleteMany({ where: { importId } });
     await tx.retailImport.update({ where: { id: importId }, data: { status: "DISCARDED" } });
   });

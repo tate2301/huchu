@@ -4,7 +4,7 @@ import { CategoryRefusal, createCategory } from "@/lib/retail/categories";
 
 import { ImportRefusal } from "./refusal";
 import { argsOf, countsOf, lockImport, recheck, rowView } from "./store";
-import type { ImportCounts, ImportFix, ImportRow } from "./words";
+import { NOT_CHECKING, PART_IN, type ImportCounts, type ImportFix, type ImportRow } from "./words";
 
 /**
  * The fix buttons on a flagged row (SET-11, 10-setup W-08 5).
@@ -28,7 +28,7 @@ export async function applyFix(
     select: { id: true, category: true, problems: true, matchedProductId: true, problemArgs: true, import: { select: { status: true } } },
   });
   if (!row) throw new ImportRefusal(404, "That row is not in this import.");
-  if (row.import.status !== "CHECKING") throw new ImportRefusal(409, "This import is not waiting to be checked.");
+  if (row.import.status !== "CHECKING") throw new ImportRefusal(409, row.import.status === "IMPORTING" ? PART_IN : NOT_CHECKING);
 
   if (input.fix === "CREATE_CATEGORY") {
     if (!row.problems.includes("NEW_CATEGORY") || !row.category?.trim()) {

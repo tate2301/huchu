@@ -106,7 +106,7 @@ describe("an import from upload to Products", () => {
     const { id } = (await created.json()).data;
 
     const page = (await (await read(json(`/${id}?tab=fix`, "GET"), params({ id }))).json()).data;
-    expect(page.counts).toEqual({ fix: 2, new: 1, update: 0, all: 3 });
+    expect(page.counts).toEqual({ fix: 2, new: 1, update: 0, done: 0, all: 3 });
     expect(page.rows.map((row: { rowNo: number; problem: { text: string } }) => [row.rowNo, row.problem.text])).toEqual([
       [2, "Category “Ciders” is new"],
       [3, "Price has a comma"],
@@ -114,14 +114,14 @@ describe("an import from upload to Products", () => {
 
     const fixed = await fix(json(`/${id}/fix`, "POST", { rowId: page.rows[0].id, fix: "CREATE_CATEGORY" }), params({ id }));
     expect(fixed.status).toBe(200);
-    expect((await fixed.json()).data.counts).toEqual({ fix: 1, new: 2, update: 0, all: 3 });
+    expect((await fixed.json()).data.counts).toEqual({ fix: 1, new: 2, update: 0, done: 0, all: 3 });
 
     const typed = await edit(json(`/${id}/rows/${page.rows[1].id}`, "PATCH", { price: "12.60" }), params({ id, rowId: page.rows[1].id }));
     expect((await typed.json()).data).toMatchObject({ row: { rowNo: 3, problem: null }, counts: { fix: 0, new: 3 } });
 
     const done = await commit(json(`/${id}/commit`, "POST"), params({ id }));
     expect(done.status).toBe(200);
-    expect((await done.json()).data).toEqual({ created: 3, updated: 0, skipped: 0 });
+    expect((await done.json()).data).toEqual({ created: 3, updated: 0, skipped: 0, refused: 0, left: 0 });
 
     const twice = await commit(json(`/${id}/commit`, "POST"), params({ id }));
     expect(twice.status).toBe(409);

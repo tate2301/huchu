@@ -1,14 +1,19 @@
 import type { RetailImportAction, RetailImportProblem } from "@prisma/client";
 
-import { barcodeKey, matchRow, type CatalogIndex } from "./match";
+import { productInput } from "@/lib/retail/products/input";
+
+import { barcodeKey, matchRow, nameKey, type CatalogIndex } from "./match";
 import { PROBLEM_ORDER, type ImportRowArgs } from "./words";
 
 /**
  * What stands between an import row and Products (SET-11, 10-setup W-08 4):
  * every problem a row has, in the order they are shown, and what the row
  * will do once they are fixed. Pure: the shop's categories and products come
- * in as `ctx`, and the whole file is checked at once, since a barcode
- * repeated in the file is a problem only of the rows after the first.
+ * in as `ctx`, and the whole file is checked at once, since a barcode, a new
+ * product's name or a product to update repeated in the file is a problem
+ * only of the rows after the first. Everything the commit would refuse in a
+ * row is flagged here, so no row counted under New or Will update is skipped
+ * without a word.
  */
 
 export type CheckedFields = {
@@ -17,6 +22,9 @@ export type CheckedFields = {
   category: string | null;
   price: string | null;
   barcode: string | null;
+  cost?: string | null;
+  packSize?: string | null;
+  openingStock?: string | null;
 };
 
 export type CheckContext = {
@@ -59,6 +67,14 @@ function cellProblems(row: CheckedFields, ctx: CheckContext): RetailImportProble
   return problems;
 }
 
+/** A cost the commit takes: blank, or money as New product reads it. */
+const costOk = (cost: string | null | undefined) => !cost?.trim() || productInput.shape.cost.safeParse(cost).success;
+/** Opening stock the commit takes: blank, or a whole count New product reads. */
+const stockOk = (stock: string | null | undefined) =>
+  !stock?.trim() || (/^\d+$/.test(stock.trim()) && productInput.shape.openingStock.safeParse(stock).success);
+/** A pack size: blank, or a whole number (2 or more makes the row a case). */
+const packOk = (size: string | null | undefined) => !size?.trim() || /^\d+$/.test(size.trim());
+
 /** A barcode good enough to match and to count as repeated: 8–14 digits once spaces go. */
 export function goodBarcode(barcode: string | null): string | null {
   if (!barcode?.trim()) return null;
@@ -75,10 +91,16 @@ export function checkRows(
   ctx: CheckContext,
 ): Checked[] {
   const firstWith = new Map<string, number>();
+  const firstNamed = new Map<string, number>();
+  const firstFor = new Map<string, number>();
   return rows.map((row) => {
     const problems = cellProblems(row, ctx);
     const args: ImportRowArgs = {};
     if (problems.includes("NEW_CATEGORY")) args.category = row.category!.trim();
+    if (!costOk(row.cost)) {
+      problems.push("COST_NOT_NUMBER");
+      args.cost = row.cost!.trim();
+    }
 
     const barcode = goodBarcode(row.barcode);
     if (barcode) {
@@ -101,6 +123,36 @@ export function checkRows(
         if (match.kind === "LOOKS_LIKE") args.acceptedMatchId = match.product.id;
       } else {
         problems.push("LOOKS_LIKE");
+      }
+    }
+
+    if (action === "UPDATE" && matchedProductId) {
+      // Two rows for one product: the second would overwrite the first's price.
+      const first = firstFor.get(matchedProductId);
+      if (first === undefined) firstFor.set(matchedProductId, row.rowNo);
+      else {
+        problems.push("SAME_PRODUCT_IN_FILE");
+        args.sameProductAsRow = first;
+      }
+    } else {
+      // Opening stock and pack size are read only for a new product.
+      if (!stockOk(row.openingStock)) {
+        problems.push("STOCK_NOT_NUMBER");
+        args.openingStock = row.openingStock!.trim();
+      }
+      if (!packOk(row.packSize)) {
+        problems.push("PACK_NOT_NUMBER");
+        args.packSize = row.packSize!.trim();
+      }
+      // Two new products cannot share a name: the second would be refused.
+      const key = match.kind === "NEW" && row.name?.trim() ? nameKey(row.name) : null;
+      if (key) {
+        const first = firstNamed.get(key);
+        if (first === undefined) firstNamed.set(key, row.rowNo);
+        else {
+          problems.push("SAME_NAME_IN_FILE");
+          args.sameNameAsRow = first;
+        }
       }
     }
 

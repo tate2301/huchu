@@ -19,9 +19,11 @@ import { Tabs } from "@/components/workspace/tabs";
 import { CheckCircleSolid, Circle, Download, Loader2 } from "@/lib/icons";
 import {
   COLUMNS_READ,
+  doneText,
   HOW_MATCHED,
   importedToast,
   importLabel,
+  type CommitStep,
   type ImportCounts,
   type ImportField,
   type ImportFix,
@@ -36,12 +38,15 @@ import { cn } from "@/lib/utils";
  * Import products (W-08, SET-11; board `Import.png`): Template → Upload →
  * Check → Import. The Check step is a worksheet: every flagged cell is an
  * input that saves on blur and the row is checked again; a fixed row stays
- * where it is until the tab changes. `?id=` keeps the import across a reload;
- * `?from=setup` returns to the setup's tills step once it is in.
+ * where it is until the tab changes. Import puts the rows in a batch of 200
+ * per call, with the count so far in the steps band; an import left part in
+ * reads only, and "Finish the import" puts in the rest. `?id=` keeps the
+ * import across a reload; `?from=setup` returns to the setup's tills step
+ * once it is in.
  */
 
 const API = "/api/v2/retail/products/import";
-const TAB_LABEL: Record<ImportTab, string> = { fix: "Need a fix", new: "New", update: "Will update", all: "All" };
+const TAB_LABEL: Record<ImportTab, string> = { fix: "Need a fix", new: "New", update: "Will update", done: "Done", all: "All" };
 const FIELDS: Array<{ key: ImportField; label: string; mono?: boolean; end?: boolean; placeholder?: string }> = [
   { key: "name", label: "Name" },
   { key: "category", label: "Category" },
@@ -95,15 +100,25 @@ function ImportFlow() {
 
 /* ── Steps band ─────────────────────────────────────────────────────────── */
 
-function Steps({ current, file }: { current: "template" | "check"; file?: { name: string; rows: number } }) {
-  const done = (label: React.ReactNode) => (
-    <li className="cx-im-step cx-im-step--done">
+type StepsAt =
+  | { at: "template" }
+  | { at: "check"; file: { name: string; rows: number } | null }
+  | { at: "import"; file: { name: string; rows: number } | null; progress: string }
+  | { at: "imported"; file: { name: string; rows: number } | null; progress: string };
+
+/**
+ * Template → Uploaded → Check → Import. Under 720px only the current step
+ * shows, with "Step n of 4" before it.
+ */
+function Steps(props: StepsAt) {
+  const done = (label: React.ReactNode, current = false) => (
+    <li className={cn("cx-im-step cx-im-step--done", current && "is-current")}>
       <CheckCircleSolid className="cx-im-step__mark" style={{ color: "var(--ok)" }} aria-hidden="true" />
       {label}
     </li>
   );
-  const now = (n: number, label: string) => (
-    <li className="cx-im-step cx-im-step--now" aria-current="step">
+  const now = (n: number, label: React.ReactNode) => (
+    <li className="cx-im-step cx-im-step--now is-current" aria-current="step">
       <span className="cx-im-step__num">{n}</span>
       {label}
     </li>
@@ -115,31 +130,41 @@ function Steps({ current, file }: { current: "template" | "check"; file?: { name
       {label}
     </li>
   );
+  const file = "file" in props && props.file ? props.file : null;
+  const uploaded = (
+    <span>
+      Uploaded <span className="cx-im-mono">{file ? `${file.name}, ${file.rows} rows` : "…"}</span>
+    </span>
+  );
+  const n = props.at === "template" ? 1 : props.at === "check" ? 3 : 4;
   return (
     <ol className="cx-im-steps" aria-label="Steps">
-      {current === "template" ? (
+      <li className="cx-im-steps__count" aria-hidden="true">
+        Step {n} of 4
+      </li>
+      {props.at === "template" ? (
         <>
           {now(1, "Template")}
           {sep}
           {later("Upload")}
           {sep}
           {later("Check")}
+          {sep}
+          {later("Import")}
         </>
       ) : (
         <>
           {done("Template")}
           {sep}
-          {done(
-            <span>
-              Uploaded <span className="cx-im-mono">{file?.name}, {file?.rows} rows</span>
-            </span>,
-          )}
+          {done(uploaded)}
           {sep}
-          {now(3, "Check")}
+          {props.at === "check" ? now(3, "Check") : done("Check")}
+          {sep}
+          {props.at === "check" ? later("Import") : null}
+          {props.at === "import" ? now(4, <span className="cx-im-mono">{props.progress}</span>) : null}
+          {props.at === "imported" ? done(<span className="cx-im-mono">{props.progress}</span>, true) : null}
         </>
       )}
-      {sep}
-      {later("Import")}
     </ol>
   );
 }
@@ -164,7 +189,7 @@ function TemplateStep({ onUploaded }: { onUploaded: (id: string) => void }) {
   return (
     <div className="cx-im">
       <PageChrome title="Import products" backHref="/retail/products" backLabel="Products" />
-      <Steps current="template" />
+      <Steps at="template" />
       <div className="cx-im-body">
         <div className="cx-im-main cx-im-start">
           <section className="cx-im-block">
@@ -228,24 +253,21 @@ function TemplateStep({ onUploaded }: { onUploaded: (id: string) => void }) {
             ) : null}
           </section>
         </div>
-        <SettingsAside
-          sections={[
-            { title: "How rows are matched", text: HOW_MATCHED },
-            { title: "Columns read", text: COLUMNS_READ },
-          ]}
-        />
+        <SettingsAside sections={[{ title: "How rows are matched", text: HOW_MATCHED }]} />
       </div>
     </div>
   );
 }
 
-/* ── Check ─────────────────────────────────────────────────────────────── */
+/* ── Check and Import ─────────────────────────────────────────────────── */
 
 function CheckStep({ id, from, onRestart }: { id: string; from: string | null; onRestart: () => void }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [tab, setTab] = React.useState<ImportTab>("fix");
+  const [progress, setProgress] = React.useState<{ total: number; left: number } | null>(null);
   const key = pageKey(id, tab);
+  const nextHref = from === "setup" ? "/retail/setup/tills" : "/retail/products";
   const page = useQuery({
     queryKey: key,
     queryFn: async () => answer<ImportPageData>(await fetch(`${API}/${id}?tab=${tab}`)),
@@ -301,25 +323,42 @@ function CheckStep({ id, from, onRestart }: { id: string; from: string | null; o
     },
     onError: (error) => toast({ title: error.message, variant: "destructive" }),
   });
+  // One call per batch of 200, until none are left; the steps band counts them in.
   const commit = useMutation({
-    mutationFn: async () =>
-      answer<{ created: number; updated: number; skipped: number }>(await fetch(`${API}/${id}/commit`, { method: "POST" })),
+    mutationFn: async (total: number) => {
+      setProgress({ total, left: total });
+      for (;;) {
+        const step = await answer<CommitStep>(await fetch(`${API}/${id}/commit`, { method: "POST" }));
+        setProgress({ total, left: step.left });
+        if (step.left === 0) return step;
+      }
+    },
     onSuccess: (result) => {
       toast({ title: importedToast(result), variant: "success" });
       for (const queryKey of [["list", "retail-products"], ["list", "retail-stock-on-hand"], ["lookup", "category"], ["lookup", "product"]]) {
         void queryClient.invalidateQueries({ queryKey });
       }
+      if (result.refused > 0) {
+        // Rows the shop's rules refused at the last moment: shown with their reasons before leaving.
+        setTab("done");
+        void queryClient.invalidateQueries({ queryKey: ["retail-import", id] });
+        return;
+      }
       queryClient.removeQueries({ queryKey: ["retail-import", id] });
-      router.push(from === "setup" ? "/retail/setup/tills" : "/retail/products");
+      router.push(nextHref);
     },
-    onError: (error) => toast({ title: error.message, variant: "destructive" }),
+    onError: (error) => {
+      toast({ title: error.message, variant: "destructive" });
+      void queryClient.invalidateQueries({ queryKey: ["retail-import", id] });
+    },
+    onSettled: () => setProgress(null),
   });
 
   const data = page.data;
-  // An import already in Products, or thrown away, starts again from the template.
+  // An import thrown away (here or elsewhere) starts again from the template.
   React.useEffect(() => {
-    if (data && data.status !== "CHECKING" && !commit.isPending && !commit.isSuccess) onRestart();
-  }, [commit.isPending, commit.isSuccess, data, onRestart]);
+    if (data?.status === "DISCARDED") onRestart();
+  }, [data, onRestart]);
   React.useEffect(() => {
     if (page.error?.message === "Import not found") onRestart();
   }, [onRestart, page.error]);
@@ -327,22 +366,50 @@ function CheckStep({ id, from, onRestart }: { id: string; from: string | null; o
   const counts = data?.counts;
   const ok = counts ? counts.new + counts.update : 0;
   const busy = edit.isPending || fix.isPending;
+  const status = data?.status ?? "CHECKING";
+  const editable = status === "CHECKING" && !commit.isPending;
+  const file = data ? { name: data.fileName, rows: data.rowCount } : null;
+  const tabs: ImportTab[] = counts && counts.done > 0 ? ["fix", "new", "update", "done", "all"] : ["fix", "new", "update", "all"];
+
+  const steps: StepsAt = progress
+    ? { at: "import", file, progress: `Importing ${(progress.total - progress.left).toLocaleString("en-US")} of ${progress.total.toLocaleString("en-US")}` }
+    : status === "IMPORTING"
+      ? { at: "import", file, progress: `Import, ${counts?.done ?? 0} done and ${ok} to go` }
+      : status === "IMPORTED"
+        ? { at: "imported", file, progress: "Imported" }
+        : { at: "check", file };
 
   return (
     <div className="cx-im">
       <PageChrome title="Import products" backHref="/retail/products" backLabel="Products">
-        <Button onClick={() => restart.mutate()} busy={restart.isPending} disabled={commit.isPending}>
-          Start again
-        </Button>
-        <Button variant="primary" onClick={() => commit.mutate()} busy={commit.isPending} disabled={!counts || ok === 0 || busy || restart.isPending}>
-          {counts ? importLabel(counts) : "Import"}
-        </Button>
+        {status === "CHECKING" ? (
+          <Button onClick={() => restart.mutate()} busy={restart.isPending} disabled={commit.isPending}>
+            Start again
+          </Button>
+        ) : null}
+        {status === "IMPORTED" ? (
+          <>
+            <Button onClick={onRestart}>Import another file</Button>
+            <Button variant="primary" onClick={() => router.push(nextHref)}>
+              {from === "setup" ? "Go on to tills" : "Go to Products"}
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="primary"
+            onClick={() => commit.mutate(ok)}
+            busy={commit.isPending}
+            disabled={!counts || ok === 0 || busy || restart.isPending}
+          >
+            {status === "IMPORTING" ? "Finish the import" : counts ? importLabel(counts) : "Import"}
+          </Button>
+        )}
       </PageChrome>
-      <Steps current="check" file={data ? { name: data.fileName, rows: data.rowCount } : undefined} />
+      <Steps {...steps} />
       <div className="cx-im-body">
         <div className="cx-im-main">
           <Tabs
-            items={(["fix", "new", "update", "all"] as const).map((value) => ({
+            items={tabs.map((value) => ({
               value,
               label: TAB_LABEL[value],
               count: counts ? counts[value] : undefined,
@@ -358,6 +425,7 @@ function CheckStep({ id, from, onRestart }: { id: string; from: string | null; o
               <RowsTable
                 rows={data?.rows ?? null}
                 tab={tab}
+                editable={editable}
                 onEdit={(rowId, field, value) => edit.mutate({ rowId, field, value })}
                 onFix={(rowId, kind) => fix.mutate({ rowId, fix: kind })}
                 fixing={fix.isPending ? fix.variables?.rowId ?? null : null}
@@ -367,21 +435,31 @@ function CheckStep({ id, from, onRestart }: { id: string; from: string | null; o
         </div>
         <SettingsAside
           sections={[
-            { title: "When you import", slot: "numbers" },
+            { title: status === "CHECKING" ? "When you import" : "This import", slot: "numbers" },
             { title: "How rows are matched", text: HOW_MATCHED },
             { title: "Columns read", text: COLUMNS_READ },
           ]}
           slots={{
             numbers: counts ? (
               <div className="cx-im-numbers">
+                {counts.done > 0 ? (
+                  <p>
+                    <b>{counts.done}</b> rows done: in Products, or skipped with the reason under Done.
+                  </p>
+                ) : null}
+                {status === "IMPORTED" ? null : (
+                  <>
+                    <p>
+                      <b>{counts.new}</b> new products, on sale at once at {data?.siteName}.
+                    </p>
+                    <p>
+                      <b>{counts.update}</b> products already here get the new price. The old one is kept in their history.
+                    </p>
+                  </>
+                )}
                 <p>
-                  <b>{counts.new}</b> new products, on sale at once at {data?.siteName}.
-                </p>
-                <p>
-                  <b>{counts.update}</b> products already here get the new price. The old one is kept in their history.
-                </p>
-                <p>
-                  <b>{counts.fix}</b> rows still need a fix. Skip them, or fix them here.
+                  <b>{counts.fix}</b>{" "}
+                  {status === "CHECKING" ? "rows still need a fix. Skip them, or fix them here." : "rows that needed a fix are skipped."}
                 </p>
               </div>
             ) : null,
@@ -396,18 +474,21 @@ const EMPTY: Record<ImportTab, string> = {
   fix: "Nothing needs a fix.",
   new: "No new products in this file.",
   update: "No row updates a product already here.",
+  done: "No row is in yet.",
   all: "This file has no rows.",
 };
 
 function RowsTable({
   rows,
   tab,
+  editable,
   onEdit,
   onFix,
   fixing,
 }: {
   rows: ImportRow[] | null;
   tab: ImportTab;
+  editable: boolean;
   onEdit: (rowId: string, field: ImportField, value: string) => void;
   onFix: (rowId: string, fix: ImportFix) => void;
   fixing: string | null;
@@ -438,7 +519,7 @@ function RowsTable({
           <span className="cx-lf-block__line">{EMPTY[tab]}</span>
         </div>
       ) : (
-        rows.map((row) => <RowLine key={row.id} row={row} onEdit={onEdit} onFix={onFix} fixing={fixing === row.id} />)
+        rows.map((row) => <RowLine key={row.id} row={row} editable={editable} onEdit={onEdit} onFix={onFix} fixing={fixing === row.id} />)
       )}
     </div>
   );
@@ -446,11 +527,13 @@ function RowsTable({
 
 function RowLine({
   row,
+  editable,
   onEdit,
   onFix,
   fixing,
 }: {
   row: ImportRow;
+  editable: boolean;
   onEdit: (rowId: string, field: ImportField, value: string) => void;
   onFix: (rowId: string, fix: ImportFix) => void;
   fixing: boolean;
@@ -472,6 +555,7 @@ function RowLine({
               className={cn("cx-im-input", field.mono && "cx-im-mono", field.end && "is-end", bad && "is-bad")}
               defaultValue={row[field.key]}
               placeholder={field.placeholder}
+              readOnly={!editable}
               aria-label={`Row ${row.rowNo} ${field.label.toLowerCase()}`}
               aria-invalid={bad || undefined}
               inputMode={field.key === "price" ? "decimal" : field.key === "barcode" ? "numeric" : undefined}
@@ -480,17 +564,19 @@ function RowLine({
               }}
               onBlur={(event) => {
                 const value = event.currentTarget.value;
-                if (value.trim() !== row[field.key].trim()) onEdit(row.id, field.key, value);
+                if (editable && value.trim() !== row[field.key].trim()) onEdit(row.id, field.key, value);
               }}
             />
           </label>
         );
       })}
       <div role="cell" className="cx-im-what">
-        {problem ? (
+        {row.done ? (
+          <span className={row.done === "SKIPPED" ? "cx-im-problem" : "cx-im-muted"}>{doneText(row.done, row.matchedName, row.note)}</span>
+        ) : problem ? (
           <>
             <span className="cx-im-problem">{problem.text}</span>
-            {problem.fix ? (
+            {problem.fix && editable ? (
               <Button className="cx-im-fix" busy={fixing} onClick={() => onFix(row.id, problem.fix!)}>
                 {problem.fixLabel}
               </Button>

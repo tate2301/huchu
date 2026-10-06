@@ -38,7 +38,7 @@ afterAll(async () => {
 describe("the Check step", () => {
   it("starts with four rows to fix", async () => {
     const page = await loadImportPage(shop.companyId, importId, "fix");
-    expect(page?.counts).toEqual({ fix: 4, new: 0, update: 0, all: 4 });
+    expect(page?.counts).toEqual({ fix: 4, new: 0, update: 0, done: 0, all: 4 });
     expect(page?.siteName).toBe("Harare Main Branch");
   });
 
@@ -46,7 +46,7 @@ describe("the Check step", () => {
     const { rows, counts } = await applyFix(shop.manager(), importId, { rowId: ids[14]!, fix: "CREATE_CATEGORY" });
     expect(rows.map((row) => row.rowNo).sort()).toEqual([14, 20]);
     expect(rows.every((row) => row.problem === null && row.action === "NEW")).toBe(true);
-    expect(counts).toEqual({ fix: 2, new: 2, update: 0, all: 4 });
+    expect(counts).toEqual({ fix: 2, new: 2, update: 0, done: 0, all: 4 });
     const ciders = await prisma.retailCategory.findFirstOrThrow({ where: { companyId: shop.companyId, name: "Ciders" } });
     expect(ciders.ageRestricted).toBe(false);
     const event = await prisma.platformAuditEvent.findFirst({ where: { companyId: shop.companyId, eventType: "RETAIL_CATEGORY.CREATED", entityId: ciders.id } });
@@ -56,7 +56,7 @@ describe("the Check step", () => {
   it("Update that one turns the look-alike into an update of it", async () => {
     const { rows, counts } = await applyFix(shop.manager(), importId, { rowId: ids[58]!, fix: "UPDATE_MATCH" });
     expect(rows).toEqual([expect.objectContaining({ rowNo: 58, problem: null, action: "UPDATE", matchedName: "Coca-Cola 2l" })]);
-    expect(counts).toEqual({ fix: 1, new: 2, update: 1, all: 4 });
+    expect(counts).toEqual({ fix: 1, new: 2, update: 1, done: 0, all: 4 });
   });
 
   it("a fix that does not fit the row is refused", async () => {
@@ -66,7 +66,7 @@ describe("the Check step", () => {
   it("typing the price again clears the comma", async () => {
     const { row, counts } = await editRow(shop.companyId, importId, ids[77]!, { price: " 12.60 " });
     expect(row).toMatchObject({ rowNo: 77, price: "12.60", problem: null, action: "NEW" });
-    expect(counts).toEqual({ fix: 0, new: 3, update: 1, all: 4 });
+    expect(counts).toEqual({ fix: 0, new: 3, update: 1, done: 0, all: 4 });
   });
 
   it("Start again throws it away and its rows go", async () => {

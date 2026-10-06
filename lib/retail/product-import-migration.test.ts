@@ -38,7 +38,7 @@ async function indexDef(table: string, name: string) {
 
 describe("product imports, as stored", () => {
   it("names an import's states, what a row does and every problem a row can have", async () => {
-    expect(await enumLabels("RetailImportStatus")).toEqual(["CHECKING", "IMPORTED", "DISCARDED"]);
+    expect(await enumLabels("RetailImportStatus")).toEqual(["CHECKING", "IMPORTING", "IMPORTED", "DISCARDED"]);
     expect(await enumLabels("RetailImportAction")).toEqual(["NEW", "UPDATE"]);
     expect(await enumLabels("RetailImportProblem")).toEqual([
       "NO_NAME",
@@ -51,6 +51,12 @@ describe("product imports, as stored", () => {
       "BARCODE_LETTERS",
       "DUPLICATE_IN_FILE",
       "LOOKS_LIKE",
+      // 20261006150000_retail_product_import_progress
+      "COST_NOT_NUMBER",
+      "STOCK_NOT_NUMBER",
+      "PACK_NOT_NUMBER",
+      "SAME_NAME_IN_FILE",
+      "SAME_PRODUCT_IN_FILE",
     ]);
   });
 

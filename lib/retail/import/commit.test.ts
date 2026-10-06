@@ -16,7 +16,7 @@ import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/produc
 
 import { commitImport } from "./commit";
 import { ImportRefusal } from "./refusal";
-import { importRows } from "./test-fixtures";
+import { commitAll, importRows } from "./test-fixtures";
 
 let shop: TestShop;
 let cokeId: string;
@@ -43,7 +43,7 @@ const productNamed = (name: string) =>
 
 describe("commitImport", () => {
   let importId: string;
-  let result: Awaited<ReturnType<typeof commitImport>>;
+  let result: Awaited<ReturnType<typeof commitAll>>;
 
   beforeAll(async () => {
     importId = await importRows(shop.owner(), "price-list-oct.xlsx", [
@@ -53,12 +53,12 @@ describe("commitImport", () => {
       { rowNo: 5, name: "Hunters Gold", category: "Ciders and coolers" },
       { rowNo: 6, name: "Ice 5kg bag", price: "3.00", openingStock: "10" },
     ]);
-    result = await commitImport(shop.owner(), importId, postRetailJournal);
+    result = await commitAll(shop.owner(), importId, postRetailJournal);
     await runRetailPosting(shop.companyId, "BY_HAND", shop.owner());
   }, 120_000);
 
   it("counts what it added, updated and skipped, and says so in Activity", async () => {
-    expect(result).toEqual({ created: 3, updated: 1, skipped: 1 });
+    expect(result).toEqual({ created: 3, updated: 1, skipped: 1, refused: 0, left: 0, calls: 1 });
     const stored = await prisma.retailImport.findUniqueOrThrow({ where: { id: importId } });
     expect(stored).toMatchObject({ status: "IMPORTED", createdCount: 3, updatedCount: 1, skippedCount: 1, importedById: shop.ownerId });
     const event = await prisma.platformAuditEvent.findFirst({ where: { companyId: shop.companyId, eventType: "RETAIL_PRODUCTS.IMPORTED", entityId: importId } });
@@ -136,7 +136,7 @@ describe("commitImport, row by row", () => {
     await prisma.retailImportRow.update({ where: { id: row4.id }, data: { problemArgs: { done: "NEW" } } });
 
     const result = await commitImport(shop.manager(), importId, postRetailJournal);
-    expect(result).toEqual({ created: 2, updated: 0, skipped: 1 });
+    expect(result).toEqual({ created: 2, updated: 0, skipped: 1, refused: 1, left: 0 });
     expect((await productNamed("Castle Lager 340ml"))!.standardPrice?.toFixed(2)).toBe("1.20");
     expect(await productNamed("Bols Brandy 50ml")).not.toBeNull();
     expect(await productNamed("Already done")).toBeNull();

@@ -21,10 +21,10 @@ import { prisma } from "@/lib/prisma";
 import { runRetailPosting } from "@/lib/retail/posting-settings";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
-import { commitImport } from "./commit";
 import { applyFix } from "./fix";
 import { parseSheet, type ParsedRow } from "./parse";
 import { createImport, editRow, loadImportPage } from "./store";
+import { commitAll } from "./test-fixtures";
 import { importLabel, importedToast } from "./words";
 
 const FILE = "price-list-oct.xlsx";
@@ -67,7 +67,7 @@ describe("the demo file, as the board draws it", () => {
     expect(rows).toHaveLength(214);
     importId = (await createImport(shop.owner(), FILE, rows)).id;
     const page = (await loadImportPage(shop.companyId, importId, "fix"))!;
-    expect(page.counts).toEqual({ fix: 6, new: 196, update: 12, all: 214 });
+    expect(page.counts).toEqual({ fix: 6, new: 196, update: 12, done: 0, all: 214 });
     expect(importLabel(page.counts)).toBe("Import 208, skip 6");
     expect(page.rows.map((row) => [row.rowNo, row.problem?.field, row.problem?.text, row.problem?.fixLabel ?? null])).toEqual([
       [14, "category", "Category “Ciders” is new", "Create the category"],
@@ -91,8 +91,9 @@ describe("the demo file, as the board draws it", () => {
 
   it("imports what the New and Will update tabs held, with history and balanced books", async () => {
     const before = (await loadImportPage(shop.companyId, importId, "update"))!;
-    const result = await commitImport(shop.owner(), importId, postRetailJournal);
-    expect(result).toEqual({ created: before.counts.new, updated: before.counts.update, skipped: 3 });
+    const result = await commitAll(shop.owner(), importId, postRetailJournal);
+    // 211 rows: a batch of 200, then the other 11.
+    expect(result).toEqual({ created: before.counts.new, updated: before.counts.update, skipped: 3, refused: 0, left: 0, calls: 2 });
     expect(importedToast(result)).toBe("211 products imported. 3 rows skipped.");
 
     // Updated: the new price, the old one in its history.

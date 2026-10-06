@@ -14730,9 +14730,11 @@ model RetailStockCountLine {
 }
 
 /// A spreadsheet of products being imported (SET-11, W-08): checked row by
-/// row, fixed in place, then imported in one go.
+/// row, fixed in place, then imported a batch of 200 rows per call.
 enum RetailImportStatus {
   CHECKING
+  /// Some rows are in Products; the rest go in on the next commit call.
+  IMPORTING
   IMPORTED
   DISCARDED
 }
@@ -14755,6 +14757,11 @@ enum RetailImportProblem {
   BARCODE_LETTERS
   DUPLICATE_IN_FILE
   LOOKS_LIKE
+  COST_NOT_NUMBER
+  STOCK_NOT_NUMBER
+  PACK_NOT_NUMBER
+  SAME_NAME_IN_FILE
+  SAME_PRODUCT_IN_FILE
 }
 
 model RetailImport {

@@ -128,11 +128,16 @@ export function normalizeRetailPostingPayments(input: {
   return normalized.filter((payment) => payment.amount > 0);
 }
 
+/**
+ * Post a retail journal. `defaultsReady`: the caller has run
+ * `ensureAccountingDefaults` for the company already, once for many journals
+ * (an import's opening stock), so each post does not check them again.
+ */
 export async function postRetailJournal(
   input: Parameters<typeof createJournalEntryFromSource>[0],
-  options: { throwOnFail?: boolean } = {},
+  options: { throwOnFail?: boolean; defaultsReady?: boolean } = {},
 ) {
-  const result = await createJournalEntryFromSource(input);
+  const result = await createJournalEntryFromSource(input, prisma, { defaultsReady: options.defaultsReady });
   if (result.entryId || result.skipped) {
     return {
       accountingStatus: "POSTED",

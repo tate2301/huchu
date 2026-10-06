@@ -178,6 +178,20 @@ Recorded unit choices:
   delivery goes (PO-00001 and GRN-00001 are written again) with the movements, journals and Activity they
   wrote, and so do the products' edit lines in Activity (the seed's own, Amarula's price, is written again).
   The demo tenant's audit chain is trimmed for this, as the transfers and adjustments seeds already do.
+- **SET-11 imports a batch of 200 rows per call.** `POST /products/import/[id]/commit` puts in the next 200 ready rows and
+  answers `{ created, updated, skipped, refused, left }`; the page calls again until `left` is 0 and counts the rows in on the
+  steps band, so no request runs longer than one batch (a 5,000-row file is 25 calls). The first batch makes the import
+  `IMPORTING` (a fourth status): its rows can no longer change, Start again is refused (409), done rows count under a Done
+  tab rather than New, and "Finish the import" puts in the rest. A call that fails says how many rows are in; the last
+  batch makes it `IMPORTED` with its counts and `RETAIL_PRODUCTS.IMPORTED` in the same transaction.
+- **SET-11's Check step flags everything the commit would skip.** Besides the spec's ten problems: a cost that is not a
+  figure, opening stock or a pack size that is not a whole number (new rows only; these columns are not drawn, so the
+  sentence quotes what was typed: fix it in the file, or skip the row), a new product's name repeated in the file ("Same
+  name as row {n}") and a second row for a product another row already updates ("Same product as row {n}"). What the
+  shop's rules still refuse at the commit (a manager's price below cost) is listed under Done with its reason, and the
+  page stays on the import so it can be read.
+- **SET-11's refusal page reads the matrix's sentence**, "Your role cannot create products", the same as the API's 403
+  (00-foundations' "Your role cannot <verb> <noun>"), not the packet's inferred "Your role cannot add catalogue items".
 - **STK-04 seeds BRK-0012 as Tafara Nyathi on the Castle case's record.** The packet's "Farai Moyo on his open shift" is
   not true on 30 Sep (his open shift began on 4 Oct), and the till's rule needs no singles left. The seed's break is the
   record's: cases 23 → 22, singles 2 → 26.
