@@ -42,6 +42,7 @@ import {
   Package,
   Payments,
   Plus,
+  Printer,
   QrCode,
   ReceiptLong,
   RefreshCcw,
@@ -305,7 +306,7 @@ export function PosCheckoutView() {
     offlineStop,
     pendingOfflineSales, syncOfflineSales, syncOfflineSalesPending,
     requiredReferenceTenders, minReferenceLength,
-    lastCompletedSale, dismissCompletedSale,
+    lastCompletedSale, dismissCompletedSale, printLastReceipt,
     needsIdCheck, checkId,
     till,
   } = usePosPortalState();
@@ -2076,6 +2077,18 @@ export function PosCheckoutView() {
           </div>
 
           <DialogFooter className="px-5 pb-5 gap-2">
+            {lastCompletedSale?.receipt ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={printLastReceipt}
+                className="flex-1 h-11 text-sm font-semibold"
+                data-testid="pos-print-receipt"
+              >
+                <Printer className="h-4 w-4" />
+                {till?.till.hasPrinter ? "Print again" : "Print receipt"}
+              </Button>
+            ) : null}
             <Button variant="outline" size="sm" onClick={dismissCompletedSale} className="flex-1 h-11 text-sm font-semibold">
               Next sale
             </Button>

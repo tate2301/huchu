@@ -34,6 +34,7 @@ import {
 import { ShiftElsewhere, createRetailSaleTransaction, postedChange, stampSalePayments } from "../../_services";
 import { requirePosDevice, unpairedSaleGate } from "@/lib/retail/devices";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
+import { saleReceipt } from "@/lib/retail/receipt-settings";
 import { approverSchema, approvalFor, replayApproval, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
 import { offlineDiscountReview } from "@/lib/retail/till-rule-words";
@@ -935,6 +936,10 @@ export async function POST(request: NextRequest) {
       notes: normalizedNotes || null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       idCheckedAt: input.idChecked && ageRestricted.length > 0 ? soldAt : null,
+      receiptTo: {
+        phone: capturedCustomer?.phone ?? customerPhone,
+        email: capturedCustomer?.email ?? customerEmail,
+      },
     });
 
     const customerNetSpend =
@@ -962,6 +967,8 @@ export async function POST(request: NextRequest) {
       companyId: session.user.companyId,
       saleId: sale.id,
     });
+    // The receipt the till prints (SET-07): the settings in force and the fiscal line just signed.
+    const receipt = await saleReceipt(session.user.companyId, sale.id);
 
     return successResponse({
       id: sale.id,
@@ -992,6 +999,7 @@ export async function POST(request: NextRequest) {
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,
       fiscal,
+      receipt,
       customerPhone: capturedCustomer?.phone ?? customerPhone,
       customerEmail: capturedCustomer?.email ?? customerEmail,
       loyalty:

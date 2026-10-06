@@ -49,6 +49,8 @@ import type {
 import { getPaymentSummary } from "./pos-utils";
 // Type-only, like `TillFiscalStatus` above.
 import type { TillContext } from "@/lib/retail/devices";
+import type { ReceiptDoc } from "@/lib/retail/receipt-words";
+import { printReceipt } from "@/components/retail/receipt-print";
 import { markPairedTill } from "@/lib/retail/till-presence";
 import { offlineStopSentence, offlineWindowClosed } from "@/lib/retail/till-on-device";
 import { usePosDeviceWatch } from "./pos-device-watch";
@@ -74,6 +76,8 @@ type CompletedSale = {
   } | null;
   /** The sale's place on the ZIMRA chain, decided the moment it was posted. */
   fiscal?: TillFiscalStatus | null;
+  /** Its receipt as Setup › Receipts says to print it (SET-07), and how many copies. */
+  receipt?: { doc: ReceiptDoc; copies: 1 | 2 } | null;
 };
 
 type CustomerLookupResult = {
@@ -166,6 +170,8 @@ type PosPortalStateValue = {
   minReferenceLength: number;
   lastCompletedSale: CompletedSale | null;
   dismissCompletedSale: () => void;
+  /** Print the last sale's receipt (again): its copies, through the print dialog, then mark it printed. */
+  printLastReceipt: () => void;
   /** The basket has alcohol in it and nobody has looked at the customer's ID yet. */
   needsIdCheck: boolean;
   /** Ask the cashier to check ID. Resolves true when they have. */
@@ -607,6 +613,13 @@ export function PosPortalProvider({
     });
   }, [currentShift?.id, currentShiftQuery.isLoading, isPosHost]);
 
+  /** The sale's receipt through the print dialog, then `printedAt` on the sale (onboarding's test sale reads it). */
+  const printSaleReceipt = async (sale: CompletedSale) => {
+    if (!sale.receipt) return;
+    await printReceipt(sale.receipt.doc, sale.receipt.copies);
+    await fetchJson(`/api/v2/retail/pos/sales/${encodeURIComponent(sale.id)}/printed`, { method: "POST" }).catch(() => null);
+  };
+
   const saleMutation = useMutation({
     mutationFn: (payload: PosSaleQueuePayload) =>
       fetchJson<CompletedSale>("/api/v2/retail/pos/sales", {
@@ -615,6 +628,8 @@ export function PosPortalProvider({
       }),
     onSuccess: (data) => {
       setLastCompletedSale(data);
+      // A till with a receipt printer prints every sale's receipt as it is rung (SET-07).
+      if (till?.till.hasPrinter && data.receipt) void printSaleReceipt(data);
       clearCart();
       queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
       queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
@@ -816,6 +831,9 @@ export function PosPortalProvider({
     minReferenceLength: till?.rules.minReferenceLength ?? 4,
     lastCompletedSale,
     dismissCompletedSale: () => setLastCompletedSale(null),
+    printLastReceipt: () => {
+      if (lastCompletedSale?.receipt) void printSaleReceipt(lastCompletedSale);
+    },
   };
 
   return (

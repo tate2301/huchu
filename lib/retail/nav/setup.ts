@@ -1,4 +1,4 @@
-import { DeviceMobile, ListChecks, Money, Rows, Stamp, Storefront, Trash, Wrench } from "@/lib/icons";
+import { DeviceMobile, ListChecks, Money, Receipt, Rows, Stamp, Storefront, Trash, Wrench } from "@/lib/icons";
 
 import type { RetailNavModule } from "./types";
 
@@ -37,6 +37,8 @@ export const setupNav: RetailNavModule = {
       label: "Till rules",
       requires: [["retail.till-rules", "view"]],
     },
+    // SET-07: what every till receipt says, with a live preview.
+    { href: "/retail/manage/receipts", icon: Receipt, label: "Receipts", requires: [["retail.receipts", "view"]] },
     { href: "/retail/manage/fiscal", icon: Stamp, label: "Fiscal device", requires: [["retail.fiscal", "view"]] },
     {
       href: "/retail/manage/posting",

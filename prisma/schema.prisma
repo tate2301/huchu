@@ -335,6 +335,8 @@ model Company {
   retailZReports                RetailZReport[]
   retailTillPins                RetailTillPin[]
   retailTillRules               RetailTillRules?
+  retailReceiptSettings         RetailReceiptSettings?
+  retailMessages                RetailMessage[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -1405,6 +1407,7 @@ model User {
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
   retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
+  retailReceiptSettingsUpdated      RetailReceiptSettings[]        @relation("RetailReceiptSettingsUpdatedBy")
   sessionHandoffs                   SessionHandoff[]
   reportTemplates                   ReportTemplate[]
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
@@ -5099,6 +5102,89 @@ model RetailTillRules {
   updatedBy User?   @relation("RetailTillRulesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
+enum RetailReceiptSendBy {
+  NOTHING
+  WHATSAPP
+  EMAIL
+}
+
+/// Receipts (SET-07, board ReceiptSettings, W-07): what every till receipt
+/// says above and below the sale, and whether it also goes to the customer.
+/// One row per company; no row reads as the defaults.
+model RetailReceiptSettings {
+  companyId         String              @id
+  /// "Top of the receipt". Null = trading name (upper case) and the site's address.
+  header            String?
+  /// "Bottom of the receipt".
+  footer            String?
+  showVatNumber     Boolean             @default(true)
+  showLicenceNumber Boolean             @default(true)
+  printLogo         Boolean             @default(false)
+  copies            Int                 @default(1)
+  alsoSendBy        RetailReceiptSendBy @default(NOTHING)
+  updatedById       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailReceiptSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum RetailMessageChannel {
+  WHATSAPP
+  EMAIL
+}
+
+enum RetailMessageStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+/// What a message carries besides its text (C-02): a picture or a document.
+enum RetailMessageMediaKind {
+  IMAGE
+  DOCUMENT
+}
+
+/// The outbox for messages the shop sends (SET-07): receipts now; staff PINs
+/// (logged with the PIN redacted), orders, offers and pictures later. Written
+/// in the transaction of what it is about, sent by the worker's drain every
+/// five minutes (C-03), never from a request.
+model RetailMessage {
+  id           String                  @id @default(uuid())
+  companyId    String
+  channel      RetailMessageChannel
+  /// E.164 for WhatsApp ("+263772123456"), an address for email.
+  to           String
+  /// "receipt" | "staff-pin" | …
+  template     String
+  body         String
+  saleId       String?
+  /// One attachment (C-02): its address, the name the recipient sees, and what it is.
+  mediaUrl     String?
+  mediaName    String?
+  mediaKind    RetailMessageMediaKind?
+  /// Not before this; null sends with the next drain (C-03).
+  scheduledFor DateTime?
+  status       RetailMessageStatus     @default(QUEUED)
+  attempts     Int                     @default(0)
+  lastError    String?
+  /// The provider's id for the message (Meta's `wamid`), which its status callbacks name.
+  externalId   String?
+  sentAt       DateTime?
+  createdById  String?
+  createdAt    DateTime                @default(now())
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sale    RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, createdAt])
+  @@index([status, scheduledFor])
+  @@index([saleId])
+  @@index([externalId])
+}
+
 /// S-7.5 — the four digits that unlock a till that is already signed in.
 ///
 /// Not a credential. `app/portal/pos/login` and a password are the only way into
@@ -5387,6 +5473,7 @@ model RetailSale {
   lines         RetailSaleLine[]
   payments      RetailSalePayment[]
   fiscalReceipt FiscalReceipt?      @relation("RetailSaleFiscalReceipt")
+  messages      RetailMessage[]
 
   company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site       Site         @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)

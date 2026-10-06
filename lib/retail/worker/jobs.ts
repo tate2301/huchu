@@ -1,4 +1,5 @@
 import { purgeExpiredBin } from "@/lib/retail/bin";
+import { drainOutbox, drainWords } from "@/lib/retail/messages/drain";
 import { POSTING_RUN_AT } from "@/lib/retail/posting-schedule";
 import { runScheduledPosting } from "@/lib/retail/posting-settings";
 import { applyRbzRate } from "@/lib/retail/rbz-rate";
@@ -33,5 +34,11 @@ export const RETAIL_JOBS: RetailJob[] = [
     name: "posting-run",
     when: { dailyAt: POSTING_RUN_AT },
     run: () => runScheduledPosting(),
+  },
+  {
+    // Receipts and every other queued message, to WhatsApp and email (SET-07, C-03); nothing while a channel is not set up.
+    name: "message-outbox",
+    when: { everyMinutes: 5 },
+    run: async (now) => drainWords(await drainOutbox(now)),
   },
 ];

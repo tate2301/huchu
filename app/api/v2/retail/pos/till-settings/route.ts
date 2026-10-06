@@ -10,7 +10,7 @@
  * ── Why this endpoint reads and does not write ─────────────────────────────
  *
  * The settings the demo shows already exist, in one place: `RetailTillRules`
- * (SET-06), `CompanyBranding`, `Site` and `RetailRegister`. They are
+ * (SET-06), `RetailReceiptSettings` (SET-07), `Site` and `RetailRegister`. They are
  * edited under `/retail/manage/**` through PUT handlers gated on
  * `requireRetailManager`. This composes those for the till and shapes them for a
  * cashier; it does not accept a write, and there is no second store.
@@ -66,6 +66,7 @@ import { prisma } from "@/lib/prisma";
 import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { requirePosDevice } from "@/lib/retail/devices";
 import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
+import { receiptWire } from "@/lib/retail/receipt-settings";
 import { loadTillRules, tillRulesForTill } from "@/lib/retail/till-rules";
 import { summariseShelfTax, summariseTillCapabilities } from "@/lib/retail/till-settings";
 import { requireRetailSession } from "../../_helpers";
@@ -93,22 +94,11 @@ export async function GET(request: NextRequest) {
   try {
     const companyId = session.user.companyId;
 
-    const [tillRules, baseCurrency, branding, shift] = await Promise.all([
+    const [tillRules, baseCurrency, receipt, shift] = await Promise.all([
       loadTillRules(companyId),
       resolveBaseCurrency(companyId),
-      prisma.companyBranding.findUnique({
-        where: { companyId },
-        select: {
-          displayName: true,
-          tradingName: true,
-          legalName: true,
-          vatNumber: true,
-          registrationNumber: true,
-          phone: true,
-          physicalAddress: true,
-          defaultFooterText: true,
-        },
-      }),
+      // What this till's receipts say (SET-07), at its site.
+      receiptWire(companyId, device.register.site.id),
       // The caller's shift on this till.
       prisma.retailShift.findFirst({
         where: { companyId, cashierId: session.user.id, registerId: device.registerId, status: "OPEN" },
@@ -203,15 +193,7 @@ export async function GET(request: NextRequest) {
           ...tillRulesForTill(tillRules),
           needsApproval: !canRetailSessionDo(session, "retail.sell", "approve"),
         },
-        receipt: {
-          displayName: branding?.displayName ?? branding?.tradingName ?? company?.name ?? null,
-          legalName: branding?.legalName ?? null,
-          vatNumber: branding?.vatNumber ?? null,
-          registrationNumber: branding?.registrationNumber ?? null,
-          phone: branding?.phone ?? null,
-          physicalAddress: branding?.physicalAddress ?? null,
-          footerText: branding?.defaultFooterText ?? null,
-        },
+        receipt,
         /**
          * What the person at this till may do, off the same matrix the API
          * gates on — so the screen cannot drift from the enforcement.

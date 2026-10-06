@@ -35,6 +35,7 @@ import {
   Storefront,
   X,
 } from "@/lib/icons";
+import { SEND_BY_WORDS, type ReceiptWire } from "@/lib/retail/receipt-words";
 import type { TillCapability } from "@/lib/retail/till-settings";
 import type { TillRulesForTill } from "@/lib/retail/till-rules";
 import { hoursWords, percentWords, voidPinSentence } from "@/lib/retail/till-rule-words";
@@ -74,15 +75,8 @@ type TillSettings = {
     };
   };
   rules: TillRulesForTill & { needsApproval: boolean };
-  receipt: {
-    displayName: string | null;
-    legalName: string | null;
-    vatNumber: string | null;
-    registrationNumber: string | null;
-    phone: string | null;
-    physicalAddress: string | null;
-    footerText: string | null;
-  };
+  /** What this till's receipts say (SET-07, Setup › Receipts). */
+  receipt: ReceiptWire;
   capabilities: TillCapability[];
   canEdit: boolean;
 };
@@ -361,13 +355,14 @@ export function PosTillSettingsView() {
             actions={<Receipt className="h-5 w-5 text-[var(--text-muted)]" />}
           />
 
-          <Row label="Header name" value={receipt.displayName} />
-          <Row label="Registered as" value={receipt.legalName} />
-          <Row label="VAT number" value={receipt.vatNumber} />
-          <Row label="Company number" value={receipt.registrationNumber} />
-          <Row label="Phone" value={receipt.phone} />
-          <Row label="Address" value={receipt.physicalAddress} />
-          <Row label="Footer" value={receipt.footerText} />
+          <Row label="Top of the receipt" value={receipt.header.split("\n").join(" · ") || null} />
+          <Row label="Bottom of the receipt" value={receipt.footer.split("\n").join(" · ") || null} />
+          <Row label="VAT number" value={receipt.showVatNumber ? receipt.vatNumber : "Not printed"} />
+          {receipt.liquor ? (
+            <Row label="Liquor licence" value={receipt.showLicenceNumber ? receipt.licenceNumber : "Not printed"} />
+          ) : null}
+          <Row label="Copies" value={String(receipt.copies)} />
+          <Row label="Also send by" value={SEND_BY_WORDS[receipt.alsoSendBy]} />
 
         </PosPanel>
       </div>

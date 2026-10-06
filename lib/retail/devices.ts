@@ -27,6 +27,8 @@ import { PAIRING_TTL_MS, PairingRefusal, checkTillRoom, hashCode } from "@/lib/r
 import { tillPayments, type TillTender } from "@/lib/retail/payment-settings";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { receiptWire } from "@/lib/retail/receipt-settings";
+import type { ReceiptWire } from "@/lib/retail/receipt-words";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import type { ShopProfile } from "@/lib/retail/shop-profile-rules";
 import { loadTillRules, tillRulesForTill, type TillRulesForTill } from "@/lib/retail/till-rules";
@@ -482,6 +484,8 @@ export type TillContext = {
   zig: { rate: string; setAt: string; rounding: string } | null;
   /** The till rules (SET-06): the till asks first, the server checks them again. */
   rules: TillRulesForTill;
+  /** What its receipts say (SET-07): the shop's top and bottom lines, numbers and copies. */
+  receipt: ReceiptWire;
   /** Who can approve with their PIN at this till: active staff with a till PIN who hold the approve right. */
   approvers: Array<{ userId: string; name: string }>;
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
@@ -490,7 +494,7 @@ export type TillContext = {
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
-  const [places, defaultList, shop, tillRules, payments, pins] = await Promise.all([
+  const [places, defaultList, shop, tillRules, payments, pins, receipt] = await Promise.all([
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
@@ -506,6 +510,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
       where: { companyId: device.companyId, user: { isActive: true, companyId: device.companyId } },
       select: { user: { select: { id: true, name: true, role: true } } },
     }),
+    receiptWire(device.companyId, register.site.id),
   ]);
   const pairedBy = device.pairedBy.name ?? "";
   return {
@@ -530,6 +535,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     tenders: payments.tenders,
     zig: payments.zig,
     rules: tillRulesForTill(tillRules),
+    receipt,
     approvers: pins
       .filter((pin) => canRetailRoleDo(pin.user.role, "retail.sell", "approve"))
       .map((pin) => ({ userId: pin.user.id, name: pin.user.name ?? "" }))

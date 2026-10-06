@@ -46,6 +46,7 @@ import {
   type PaymentSettings,
 } from "@/lib/retail/payment-settings";
 import { splitChange } from "@/lib/retail/payment-words";
+import { queueSaleReceipt, type ReceiptRecipient } from "@/lib/retail/receipt-settings";
 import {
   buildRetailZReportFigures,
   parseTradingDay,
@@ -857,6 +858,11 @@ export async function createRetailSaleTransaction(input: {
   soldAt?: Date;
   /** Rung offline and sent in now (`pos/sync`, or `pos/sales` with `offlineCreatedAt`). */
   replay?: boolean;
+  /**
+   * The customer's phone and email, for the copy of the receipt the shop also
+   * sends by WhatsApp or email (SET-07): queued in the outbox with the sale.
+   */
+  receiptTo?: ReceiptRecipient | null;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -1091,6 +1097,14 @@ export async function createRetailSaleTransaction(input: {
           lineCount: input.lines.length,
           overrideReason: created.overrideReason,
           approvedBy: input.approvedBy ?? null,
+        });
+
+        // The customer's copy, in the outbox with the sale: never sent for a sale that did not commit.
+        await queueSaleReceipt(tx, {
+          companyId: input.actor.companyId,
+          saleId: created.id,
+          to: input.receiptTo ?? null,
+          createdById: input.actor.userId,
         });
 
         return created;

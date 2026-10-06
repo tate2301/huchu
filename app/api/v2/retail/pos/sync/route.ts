@@ -614,12 +614,15 @@ async function processCreateSale(
     });
 
     let customerName: string | null = null;
+    // Where the customer's copy of the receipt goes, when the shop also sends one (SET-07).
+    let receiptTo = { phone: payload.customerPhone?.trim() || null, email: payload.customerEmail?.trim() || null };
     if (resolvedCustomerId) {
       const customer = await prisma.customer.findFirst({
         where: { id: resolvedCustomerId, companyId: ctx.companyId },
-        select: { name: true },
+        select: { name: true, phone: true, email: true },
       });
       customerName = customer?.name ?? payload.customerName ?? null;
+      receiptTo = { phone: receiptTo.phone ?? customer?.phone ?? null, email: receiptTo.email ?? customer?.email ?? null };
     } else {
       customerName = payload.customerName ?? null;
     }
@@ -664,6 +667,7 @@ async function processCreateSale(
       // Every sync operation was rung offline: a tender turned off since is let in for a manager to look at.
       replay: true,
       idCheckedAt: payload.idChecked && ageRestricted.length > 0 ? soldAt : null,
+      receiptTo,
     });
 
     ctx.resolvedIds.set(op.clientOperationId, sale.id);

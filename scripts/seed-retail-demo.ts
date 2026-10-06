@@ -251,6 +251,18 @@ class WindowQuota {
       ;[this.chunks[index], this.chunks[other]] = [this.chunks[other]!, this.chunks[index]!]
     }
   }
+  /** Take units of one product out of the window before the others are dealt (a sale whose lines are fixed). */
+  reserve(code: string, units: number) {
+    let left = units
+    for (let index = this.chunks.length - 1; index >= 0 && left > 0; index -= 1) {
+      const chunk = this.chunks[index]!
+      if (chunk.code !== code) continue
+      const used = Math.min(chunk.units, left)
+      chunk.units -= used
+      left -= used
+      if (chunk.units === 0) this.chunks.splice(index, 1)
+    }
+  }
   /** Put units back (a refund or a void in the window). */
   giveBack(code: string, units: number) {
     if (units > 0) this.chunks.push({ code, units })
@@ -766,6 +778,24 @@ async function main() {
   })
   let windowSalesLeft = salePlans.flat().filter((postedAt) => postedAt.getTime() >= windowCounts).length
   const quota = new WindowQuota(CATALOGUE)
+  /*
+    SET-07. The shop's newest sale is the one Setup › Receipts previews, so it
+    is the board's: six Castle Lager 340ml with their deposit and a bag of
+    ice, paid by EcoCash (9.30). Its units come out of the window's quotas
+    first, so every product's 30-day count still lands exactly.
+  */
+  const newestSale = salePlans
+    .flatMap((plan, slotIndex) => plan.map((postedAt) => ({ slotIndex, at: postedAt.getTime() })))
+    .reduce<{ slotIndex: number; at: number } | null>((best, next) => (!best || next.at > best.at ? next : best), null)
+  const PREVIEW_PICKS = [
+    { code: "CASTLE-340", units: 6 },
+    { code: "ICE-2KG", units: 1 },
+  ]
+  if (newestSale && newestSale.at >= windowCounts) {
+    for (const pickLine of PREVIEW_PICKS) quota.reserve(pickLine.code, pickLine.units)
+    windowSalesLeft -= 1
+  }
+  let previewSaleId: string | null = null
   const byCode = new Map(CATALOGUE.map((entry) => [entry.code, entry]))
   const codeOfProduct = new Map([...stocked].map(([code, line]) => [line.productId, code]))
 
@@ -787,9 +817,13 @@ async function main() {
         saleSeq += 1
         const saleId = randomUUID()
         const inWindow = postedAt.getTime() >= windowCounts
+        const isPreviewSale = newestSale?.slotIndex === slotIndex && newestSale.at === postedAt.getTime()
+        if (isPreviewSale) previewSaleId = saleId
 
         // In the window, this sale's share of the quotas; before it, a weighted pick.
-        const picks = inWindow
+        const picks = isPreviewSale
+          ? PREVIEW_PICKS
+          : inWindow
           ? quota.take(windowSalesLeft--)
           : Array.from({ length: between(1, 2) }, () => {
               const product = pickProduct()
@@ -815,7 +849,10 @@ async function main() {
           const grossAmount = multiplyMoney(quantity, product.price)
           const netAmount = netOfInclusiveTax(grossAmount, VAT_PERCENT)
           const taxAmount = grossAmount.minus(netAmount)
+          // The preview sale carries its bottles' deposit, as the till charges it.
+          const lineDeposit = isPreviewSale && product.deposit ? multiplyMoney(quantity, product.deposit) : money(0)
           lines.push({
+            depositAmount: lineDeposit,
             id: randomUUID(),
             companyId,
             saleId,
@@ -850,14 +887,17 @@ async function main() {
         // About one sale in twelve is settled in ZWG. The sale is still priced in
         // USD — that is how a bottle store quotes — so the rate and the base
         // amount are what make the drawer reconcile.
-        const inZwg = Math.random() < 0.08
+        const saleDeposit = sumMoney(lines.map((line) => money((line.depositAmount ?? 0) as Prisma.Decimal)))
+        const inZwg = !isPreviewSale && Math.random() < 0.08
         const currency = inZwg ? "ZWG" : "USD"
         const exchangeRate = inZwg ? rate(ZWG_RATE) : rate("1")
         const baseAmount = inZwg ? money(totalAmount.div(rate(ZWG_RATE))) : totalAmount
         if (inZwg) zwgSales += 1
 
         const roll = Math.random()
-        const tender: RetailTenderType = inZwg
+        const tender: RetailTenderType = isPreviewSale
+          ? "ECOCASH"
+          : inZwg
           ? "CASH"
           : roll < 0.5
             ? "CASH"
@@ -867,7 +907,7 @@ async function main() {
                 ? "CARD"
                 : "TRANSFER"
 
-        const named = Math.random() < 0.22
+        const named = !isPreviewSale && Math.random() < 0.22
         saleRows.push({
           id: saleId,
           companyId,
@@ -884,7 +924,8 @@ async function main() {
           discountAmount: money(0),
           taxAmount,
           totalAmount,
-          tenderedAmount: totalAmount,
+          depositAmount: saleDeposit,
+          tenderedAmount: totalAmount.plus(saleDeposit),
           changeAmount: money(0),
           currency,
           exchangeRate,
@@ -899,10 +940,11 @@ async function main() {
           companyId,
           saleId,
           tenderType: tender,
-          amount: totalAmount,
+          // What the customer paid: the goods and the deposit on their bottles.
+          amount: totalAmount.plus(saleDeposit),
           currency,
           exchangeRate,
-          baseAmount,
+          baseAmount: baseAmount.plus(saleDeposit),
           reference: tender === "ECOCASH" ? `EC${between(100000, 999999)}` : null,
           createdAt: postedAt,
         })
@@ -1009,6 +1051,7 @@ async function main() {
               row.shiftId === shiftId &&
               row.saleType === "SALE" &&
               row.status === "POSTED" &&
+              row.id !== previewSaleId &&
               !saleRows.some((other) => other.sourceSaleId === row.id),
           )
 
@@ -1222,6 +1265,7 @@ async function main() {
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
   await seedPayments(companyId)
   await seedPosting(companyId)
+  await seedReceipts(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -2391,6 +2435,56 @@ async function seedPayments(companyId: string) {
  * 1 count. Every run puts the page back the way the board has it: runs, saves
  * and accounts that test runs left are cleared first.
  */
+/**
+ * SET-07. Setup › Receipts as the ReceiptSettings board draws it: the shop's
+ * name and street on top, the deposit and age lines at the bottom, the VAT
+ * and licence numbers on, no logo, one copy, also sent on WhatsApp — saved
+ * by the owner (Tendai Mhlanga) on 12 September, which the save bar reads.
+ */
+async function seedReceipts(companyId: string) {
+  const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
+  if (!owner) {
+    console.log("  receipts: no owner, skipped")
+    return
+  }
+  const settings = {
+    header: "HARARE BOTTLE STORE\n14 Samora Machel Ave",
+    footer: "Bring the bottles back for your deposit.\nNot for sale to persons under 18.",
+    showVatNumber: true,
+    showLicenceNumber: true,
+    printLogo: false,
+    copies: 1,
+    alsoSendBy: "WHATSAPP" as const,
+    updatedById: owner.id,
+  }
+  await prisma.retailReceiptSettings.upsert({ where: { companyId }, update: settings, create: { companyId, ...settings } })
+  const changedAt = new Date("2026-09-12T11:20:00+02:00")
+  await prisma.$executeRaw`UPDATE "RetailReceiptSettings" SET "updatedAt" = ${changedAt} WHERE "companyId" = ${companyId}`
+  await prisma.platformAuditEvent.deleteMany({
+    where: { companyId, entityType: "RetailSettings", entityId: "receipts", eventType: RETAIL_AUDIT_EVENTS.settingsChanged },
+  })
+  await writeRetailAuditEvent(prisma, {
+    actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+    eventType: RETAIL_AUDIT_EVENTS.settingsChanged,
+    entityType: "RetailSettings",
+    entityId: "receipts",
+    payload: {
+      page: "receipts",
+      changes: [
+        { field: "footer", label: "Bottom of the receipt", from: "", to: settings.footer },
+        { field: "alsoSendBy", label: "Also send by", from: "Nothing", to: "WhatsApp" },
+      ],
+    },
+  })
+  const saved = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.settingsChanged, entityId: "receipts" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  })
+  if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
+  console.log("  receipts: the board's top and bottom, WhatsApp on, last changed by the owner on 12 September")
+}
+
 async function seedPosting(companyId: string) {
   const owner = await prisma.user.findFirst({ where: { companyId, role: "SUPERADMIN" }, select: { id: true, name: true } })
   if (!owner) {

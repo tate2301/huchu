@@ -1,6 +1,7 @@
 import { companyPage } from "./company";
 import { paymentsPage } from "./payments";
 import { postingPage } from "./posting";
+import { receiptsPage } from "./receipts";
 import { tillRulesPage } from "./till-rules";
 import type { SettingsPage } from "./types";
 
@@ -21,6 +22,7 @@ export const SETTINGS_PAGES: Record<string, SettingsPage> = {
   company: companyPage,
   payments: paymentsPage,
   posting: postingPage,
+  receipts: receiptsPage,
   "till-rules": tillRulesPage,
 };
 

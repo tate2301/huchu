@@ -140,9 +140,16 @@ function leaveAsk(count: number, title: string): Ask {
 }
 
 type FrameExtras = {
-  /** The page's own header buttons, before Activity ("Post now"). */
-  actions?: React.ReactNode;
-  /** What the page draws live in its aside sections' slots, from the loaded values. */
+  /**
+   * The page's own header buttons, before Activity ("Post now"); or drawn from
+   * the values as the form has them now, once loaded ("Print a test receipt").
+   */
+  actions?: React.ReactNode | ((values: Record<string, unknown>) => React.ReactNode);
+  /**
+   * What the page draws live in its aside sections' slots, from the values as
+   * the form has them now — saved, with what the person has typed over them
+   * (the receipt preview follows the form as they type).
+   */
   slots?: (values: Record<string, unknown>) => Record<string, React.ReactNode>;
 };
 
@@ -315,7 +322,7 @@ function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: Setti
   const canReadActivity = canRetailRoleDo(role, "retail.activity", "view");
   const chrome = (
     <PageChrome title={page.title}>
-      {actions}
+      {typeof actions === "function" ? (hydrated && query.data ? actions(values) : null) : actions}
       {canReadActivity ? <Button onClick={() => setActivityOpen(true)}>Activity</Button> : null}
     </PageChrome>
   );
@@ -390,7 +397,7 @@ function Frame({ pageKey, page, actions, slots }: { pageKey: string; page: Setti
     ));
   }
 
-  const asideSlots = slots && hydrated && query.data ? slots(saved) : undefined;
+  const asideSlots = slots && hydrated && query.data ? slots(values) : undefined;
 
   const line = query.data
     ? cleanLine({ page, canEdit, lastChanged: query.data.lastChanged, savedAt, now })
