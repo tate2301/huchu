@@ -1,10 +1,7 @@
-import { PosHelpView } from "@/components/retail/portal/pos-help-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { HelpScreen } from "@/components/retail/till/person";
+import { requireTillDevice } from "../../device-page";
 
-export default async function PosPortalHelpPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/help">
-      <PosHelpView />
-    </PosPortalAuthGuard>
-  );
+export default async function TillHelpPage() {
+  await requireTillDevice();
+  return <HelpScreen />;
 }

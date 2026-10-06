@@ -77,6 +77,9 @@ type Before = {
   categoryId: string | null;
   returnable: boolean;
   depositAmount: number | null;
+  /** The product's own ID check; null follows its category. */
+  ownAgeRestricted: boolean | null;
+  maxDiscountPercent: number | null;
   status: string;
   imageUrl: string | null;
 };
@@ -101,6 +104,12 @@ export const PRODUCT_FIELDS: Record<string, FieldWords> = {
   categoryId: { label: "Category", kind: "text", value: (p) => p.category },
   returnable: { label: "Returnable", kind: "text", value: (p) => (p.returnable ? "Yes" : "No") },
   depositAmount: { label: "Deposit", kind: "money", value: (p) => money(p.depositAmount) },
+  ageRestricted: {
+    label: "ID check",
+    kind: "text",
+    value: (p) => (p.ownAgeRestricted === null ? "As category" : p.ownAgeRestricted ? "Yes" : "No"),
+  },
+  maxDiscountPercent: { label: "Most off", kind: "percent", value: (p) => plain(p.maxDiscountPercent) },
   status: { label: "On sale", kind: "text", value: (p) => (p.status === "ACTIVE" ? "Yes" : "No") },
   imageUrl: { label: "Photo", kind: "text", value: (p) => (p.imageUrl ? "A photo" : null) },
 };
@@ -137,6 +146,8 @@ export function productBefore(record: ProductRecord): Before {
     categoryId: record.categoryId,
     returnable: record.returnable,
     depositAmount: record.depositAmount,
+    ownAgeRestricted: record.ownAgeRestricted,
+    maxDiscountPercent: record.maxDiscountPercent,
     status: record.status,
     imageUrl: record.imageUrl,
   };

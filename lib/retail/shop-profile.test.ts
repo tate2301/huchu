@@ -5,8 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { CATEGORY_SEEDS } from "./categories";
 import {
   DEFAULT_SHOP_PROFILE,
-  isWithinLicenceHours,
-  licenceWindowLabel,
   liquorSaleRefusal,
   loadShopProfile,
   saveShopProfile,
@@ -15,12 +13,9 @@ import {
   type ShopProfilePatch,
 } from "./shop-profile";
 
-const HOURS = {
-  weekdayOpensAt: "08:00",
-  weekdayClosesAt: "22:00",
-  sundayOpensAt: "10:00",
-  sundayClosesAt: "18:00",
-};
+/** Every day 08:00 to 22:00 but Sunday, which sells none. */
+const HOURS = [1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, alcoholFrom: 8 * 60, alcoholUntil: 22 * 60 }));
+const SUNDAY_SHUT = [...HOURS, { weekday: 0, alcoholFrom: 0, alcoholUntil: 0 }];
 
 /** A moment in Harare, which is UTC+2 all year. */
 function harare(isoLocal: string) {
@@ -44,35 +39,10 @@ describe("shop features", () => {
   });
 });
 
-describe("licence hours", () => {
-  it("reads the clock in Harare, not on the server", () => {
-    // 21:30 UTC on a Monday is 23:30 in Harare: outside 08:00–22:00.
+describe("the shop's clock", () => {
+  it("reads Harare's time, not the server's", () => {
+    // 21:30 UTC on a Monday is 23:30 in Harare.
     expect(shopClock(new Date("2026-10-05T21:30:00Z"))).toEqual({ weekday: "Mon", minutes: 23 * 60 + 30 });
-    expect(isWithinLicenceHours(HOURS, new Date("2026-10-05T21:30:00Z"))).toBe(false);
-  });
-
-  it("sells from the minute it opens until the minute before it closes", () => {
-    expect(isWithinLicenceHours(HOURS, harare("2026-10-05T07:59:00"))).toBe(false);
-    expect(isWithinLicenceHours(HOURS, harare("2026-10-05T08:00:00"))).toBe(true);
-    expect(isWithinLicenceHours(HOURS, harare("2026-10-05T21:59:00"))).toBe(true);
-    expect(isWithinLicenceHours(HOURS, harare("2026-10-05T22:00:00"))).toBe(false);
-  });
-
-  it("uses Sunday's own window on a Sunday", () => {
-    expect(isWithinLicenceHours(HOURS, harare("2026-10-04T09:30:00"))).toBe(false);
-    expect(isWithinLicenceHours(HOURS, harare("2026-10-04T12:00:00"))).toBe(true);
-    expect(isWithinLicenceHours(HOURS, harare("2026-10-04T18:30:00"))).toBe(false);
-  });
-
-  it("runs a window that closes after midnight into the next morning", () => {
-    const late = { ...HOURS, weekdayOpensAt: "10:00", weekdayClosesAt: "01:00" };
-    expect(isWithinLicenceHours(late, harare("2026-10-06T00:30:00"))).toBe(true);
-    expect(isWithinLicenceHours(late, harare("2026-10-06T01:30:00"))).toBe(false);
-    expect(isWithinLicenceHours(late, harare("2026-10-06T23:00:00"))).toBe(true);
-  });
-
-  it("treats a window that opens and closes at once as closed", () => {
-    expect(isWithinLicenceHours({ ...HOURS, sundayOpensAt: "00:00", sundayClosesAt: "00:00" }, harare("2026-10-04T12:00:00"))).toBe(false);
   });
 });
 
@@ -80,38 +50,45 @@ describe("a liquor sale at the till", () => {
   const liquor = { ...DEFAULT_SHOP_PROFILE, businessType: "LIQUOR" as const };
   const monday8pm = harare("2026-10-05T20:00:00");
   const monday11pm = harare("2026-10-05T23:00:00");
+  const sale = { profile: liquor, hours: HOURS, idChecked: true };
 
   it("goes through when nothing in the basket is age-restricted, at any hour", () => {
-    expect(liquorSaleRefusal({ profile: liquor, ageRestricted: [], idChecked: false, at: monday11pm })).toBeNull();
+    expect(liquorSaleRefusal({ ...sale, ageRestricted: [], idChecked: false, at: monday11pm })).toBeNull();
   });
 
   it("asks for the ID check before alcohol, inside licence hours", () => {
     expect(
-      liquorSaleRefusal({ profile: liquor, ageRestricted: ["Castle Lager 340ml"], idChecked: false, at: monday8pm }),
+      liquorSaleRefusal({ ...sale, ageRestricted: ["Castle Lager 340ml"], idChecked: false, at: monday8pm }),
     ).toBe("Check the customer's ID before selling Castle Lager 340ml.");
-    expect(
-      liquorSaleRefusal({ profile: liquor, ageRestricted: ["Castle Lager 340ml"], idChecked: true, at: monday8pm }),
-    ).toBeNull();
+    expect(liquorSaleRefusal({ ...sale, ageRestricted: ["Castle Lager 340ml"], at: monday8pm })).toBeNull();
   });
 
-  it("refuses alcohol outside licence hours, ID or not, and says when it may", () => {
-    expect(
-      liquorSaleRefusal({ profile: liquor, ageRestricted: ["Gin", "Beer"], idChecked: true, at: monday11pm }),
-    ).toBe("Alcohol can't be sold now. The licence allows 8am to 10pm.");
+  it("refuses alcohol outside the site's hours, ID or not, and says when it sells again", () => {
+    expect(liquorSaleRefusal({ ...sale, ageRestricted: ["Gin", "Beer"], at: monday11pm })).toBe(
+      "Alcohol can't be sold now. The licence stopped it at 22:00. It sells again from 08:00.",
+    );
   });
 
-  it("says a Sunday closed all day plainly", () => {
-    const shut = { ...liquor, sundayOpensAt: "00:00", sundayClosesAt: "00:00" };
-    expect(licenceWindowLabel(shut, harare("2026-10-04T12:00:00"))).toBe("not at all on a Sunday");
+  it("says a day the licence sells none plainly", () => {
+    const sundayNoon = harare("2026-10-04T12:00:00");
+    expect(liquorSaleRefusal({ ...sale, hours: SUNDAY_SHUT, ageRestricted: ["Gin"], at: sundayNoon })).toBe(
+      "Gin can't be sold today under the licence. It sells again from 08:00.",
+    );
+  });
+
+  it("sells all day on a weekday the site keeps no hours for", () => {
+    const sundayNoon = harare("2026-10-04T12:00:00");
+    expect(liquorSaleRefusal({ ...sale, ageRestricted: ["Gin"], at: sundayNoon })).toBeNull();
+    expect(liquorSaleRefusal({ ...sale, hours: [], ageRestricted: ["Gin"], at: monday11pm })).toBeNull();
   });
 
   it("follows each switch, and is off for general retail", () => {
     const noHours = { ...liquor, licenceHours: false };
-    expect(liquorSaleRefusal({ profile: noHours, ageRestricted: ["Gin"], idChecked: true, at: monday11pm })).toBeNull();
+    expect(liquorSaleRefusal({ ...sale, profile: noHours, ageRestricted: ["Gin"], at: monday11pm })).toBeNull();
     const noCheck = { ...liquor, ageCheck: false };
-    expect(liquorSaleRefusal({ profile: noCheck, ageRestricted: ["Gin"], idChecked: false, at: monday8pm })).toBeNull();
+    expect(liquorSaleRefusal({ ...sale, profile: noCheck, ageRestricted: ["Gin"], idChecked: false, at: monday8pm })).toBeNull();
     const general = { ...liquor, businessType: "GENERAL" as const };
-    expect(liquorSaleRefusal({ profile: general, ageRestricted: ["Gin"], idChecked: false, at: monday11pm })).toBeNull();
+    expect(liquorSaleRefusal({ ...sale, profile: general, ageRestricted: ["Gin"], idChecked: false, at: monday11pm })).toBeNull();
   });
 });
 
@@ -125,10 +102,6 @@ describe("saving the profile", () => {
     licenceHours: true,
     emptiesAndDeposits: false,
     casesAndSingles: true,
-    weekdayOpensAt: "08:00",
-    weekdayClosesAt: "22:00",
-    sundayOpensAt: "10:00",
-    sundayClosesAt: "18:00",
     licenceNumber: "HRE/BL/2024/0711",
     licenceExpiresOn: "2026-12-31",
     whatsapp: "+263 77 412 0098",

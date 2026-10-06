@@ -75,10 +75,12 @@ const GUARD_MARKERS = [
   /** The same, measured with the session's role key (support sessions included). */
   "canRetailSessionDo",
   /**
-   * SET-04: a till's own routes (`devices/me`, `people`, `heartbeat`), where
-   * the caller is a device, not a person. Its key — the POS host's httpOnly
-   * cookie — is the credential, and it must be a paired device of the shop
-   * whose POS host this is. Nothing a person could change is behind it.
+   * SET-04: a till's own routes (`devices/me`, `people`, `heartbeat`,
+   * `first-pin`, `forget`), where the caller is a device, not a person. Its
+   * key — the POS host's httpOnly cookie — is the credential, and it must be a
+   * paired device of the shop whose POS host this is. Nothing a person could
+   * change is behind it: `first-pin` also takes the person's own password,
+   * and `forget` only clears a key this guard has already refused.
    */
   "requireHostDevice",
   /**

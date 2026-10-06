@@ -6,6 +6,7 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { approverSchema, tillRuleResponse } from "@/lib/retail/manager-pin";
+import { doneOffline } from "@/lib/retail/till-rules";
 import { requireRetailSession } from "../../../../_helpers";
 import { refundRetailSaleTransaction } from "../../../../_services";
 
@@ -34,6 +35,12 @@ const refundSchema = z.object({
    * server answers 409 `needsApprover` and the till opens its PIN dialog.
    */
   approver: approverSchema.optional().nullable(),
+  /**
+   * When the till refunded it, set only by the offline queue. Done offline
+   * (more than a minute before it arrives), it is judged leniently: what the
+   * rules would refuse now goes in, marked for a manager to look at.
+   */
+  refundedAt: z.string().datetime().optional(),
 });
 
 export async function POST(
@@ -75,6 +82,7 @@ export async function POST(
       shiftId: input.shiftId,
       reason: input.reason,
       approver: input.approver ?? null,
+      offlineAt: input.refundedAt && doneOffline(new Date(input.refundedAt), new Date()) ? new Date(input.refundedAt) : null,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       lines: input.lines,

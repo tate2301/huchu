@@ -21,7 +21,7 @@
  * The stamp is the point. Today a cached price is a number with no provenance,
  * so a sale replayed after a price change cannot be told from a sale replayed
  * before one. `pricedAt` and `priceListId` make that difference visible, which
- * is what lets `pos/sync` stop trusting whatever the device sends.
+ * is what lets `pos/sales` stop trusting whatever a replaying device sends.
  *
  * ## Which list
  *
@@ -63,7 +63,7 @@ export type ShelfPrice = {
   /**
    * When the row this price came off was last written.
    *
-   * `pos/sync` compares it against the moment a replayed sale was rung up: a
+   * `pos/sales` compares it against the moment a replayed sale was rung up: a
    * price changed *after* the sale cannot have applied to it, which is how a
    * legitimately stale device is told apart from a tampered one.
    */

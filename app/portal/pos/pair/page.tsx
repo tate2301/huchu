@@ -1,11 +1,18 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { PairScreen } from "@/components/retail/device/pair-screen";
+import { PairDoor } from "@/components/retail/till/door";
+import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
+import { isLiveTill } from "@/lib/retail/devices";
 import { deviceForPage } from "../device-page";
 
-/** POS host `/pair` (10-setup 5.5, TillPairing panel 1). A device that is a till already goes to its till. */
+/**
+ * POS host `/pair`: a device that is not a till types a manager's code. A
+ * till already goes to its till; one whose till was closed pairs again.
+ */
 export default async function PairPage() {
-  const { device, base, kora } = await deviceForPage();
-  if (device && !device.unpairedAt) redirect(base || "/");
-  return <PairScreen home={base || "/"} kora={kora} />;
+  const [{ device, base, kora }, headersList] = await Promise.all([deviceForPage(), headers()]);
+  if (isLiveTill(device)) redirect(base || "/");
+  const host = (getHostHeaderFromRequestHeaders(headersList) ?? "").split(":")[0] || "This device";
+  return <PairDoor base={base} host={host} kora={kora} />;
 }

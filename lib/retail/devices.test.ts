@@ -7,12 +7,14 @@ import { prisma } from "@/lib/prisma";
 import {
   PAIR_SHOP_MAX_WRONG,
   PairRefusal,
+  checkTillPasswordSignIn,
   checkTillPinSignIn,
   hashDeviceKey,
   pairDevice,
   refuseShiftElsewhere,
   requirePosDevice,
   salesSentAfterUnpairing,
+  setFirstTillPin,
   tillPeople,
   unpairedSaleGate,
   type PosDevice,
@@ -77,7 +79,13 @@ beforeAll(async () => {
   companyId = (await prisma.company.create({ data: { name: `Devices ${stamp}`, slug: `devices-${stamp}` }, select: { id: true } })).id;
   ownerId = (
     await prisma.user.create({
-      data: { companyId, name: "Tendai Mhlanga", role: "SUPERADMIN", email: `owner-${stamp}@devices.test`, password: "x" },
+      data: {
+        companyId,
+        name: "Tendai Mhlanga",
+        role: "SUPERADMIN",
+        email: `owner-${stamp}@devices.test`,
+        password: await bcrypt.hash("owner password", 4),
+      },
       select: { id: true },
     })
   ).id;
@@ -98,7 +106,7 @@ beforeAll(async () => {
     ["clerk", "Tendai Sibanda", "STOCK_CLERK", true],
   ] as const) {
     const user = await prisma.user.create({
-      data: { companyId, name, role, email: `${key}-${stamp}@devices.test`, password: "x" },
+      data: { companyId, name, role, email: `${key}-${stamp}@devices.test`, password: await bcrypt.hash(`${key} password`, 4) },
       select: { id: true },
     });
     people[key] = user.id;
@@ -272,8 +280,11 @@ describe("every POS request names its device (W-04 step 8)", () => {
     expect(Date.now() - seen.lastSeenAt!.getTime()).toBeLessThan(60 * 1000);
   });
 
-  it("offers the people with a PIN who may sell, whoever is on the till first", async () => {
-    expect((await tillPeople(device)).map((person) => person.label)).toEqual(["Kuda B.", "Chipo D.", "Farai M."]);
+  it("offers everyone who may open a shift, managers and people with no PIN yet included, whoever is on the till first", async () => {
+    const before = await tillPeople(device);
+    expect(before.map((person) => person.label)).toEqual(["Kuda B.", "Chipo D.", "Tendai M.", "Farai M.", "Rudo M."]);
+    expect(before.map((person) => person.hasPin)).toEqual([true, true, false, true, false]);
+    expect(before.every((person) => !person.pinLocked && person.lockedUntil === null && person.openShift === null)).toBe(true);
     await prisma.retailShift.create({
       data: {
         companyId,
@@ -286,13 +297,37 @@ describe("every POS request names its device (W-04 step 8)", () => {
         cashierName: "Chipo Dube",
       },
     });
+    const lockedUntil = new Date(Date.now() + 10 * 60 * 1000);
+    await prisma.retailTillPin.update({ where: { userId: people.farai! }, data: { failedAttempts: 5, lockedUntil } });
+    const side = await till("Side till");
+    await prisma.retailShift.create({
+      data: {
+        companyId,
+        siteId,
+        shiftNo: `SH-K-${stamp}`,
+        registerCode: "SIDE",
+        registerName: "Side till",
+        registerId: side.id,
+        cashierId: people.kuda!,
+        cashierName: "Kuda Banda",
+      },
+    });
+
     const offered = await tillPeople(device);
-    expect(offered.map((person) => person.label)).toEqual(["Chipo D.", "Kuda B.", "Farai M."]);
+    expect(offered.map((person) => person.label)).toEqual(["Chipo D.", "Kuda B.", "Tendai M.", "Farai M.", "Rudo M."]);
     expect(offered.map((person) => person.outcome)).toEqual([
       "Chipo’s PIN carries on their shift on Test till.",
-      "Kuda’s PIN opens their shift on Test till.",
+      "Kuda’s shift is open on Side till. Close it there first.",
+      "Tendai’s PIN opens their shift on Test till.",
       "Farai’s PIN opens their shift on Test till.",
+      "Rudo’s PIN opens their shift on Test till.",
     ]);
+    expect(offered[0]!.openShift).toEqual({ shiftNo: `SH-${stamp}`, here: true, till: "Test till" });
+    expect(offered[1]!.openShift).toEqual({ shiftNo: `SH-K-${stamp}`, here: false, till: "Side till" });
+    expect(offered[3]).toMatchObject({ pinLocked: true, lockedUntil: lockedUntil.toISOString() });
+
+    await prisma.retailShift.deleteMany({ where: { registerId: side.id } });
+    await prisma.retailTillPin.update({ where: { userId: people.farai! }, data: { failedAttempts: 0, lockedUntil: null } });
   });
 
   it("signs a person in with their PIN at the device, with the till PIN's lockout", async () => {
@@ -308,6 +343,51 @@ describe("every POS request names its device (W-04 step 8)", () => {
       ok: false,
       reason: "NOT_ON_THIS_TILL",
     });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.nopin!, verify: verify("2580") })).toEqual({ ok: false, reason: "NO_PIN" });
+  });
+
+  it("takes the account password instead of a PIN, leaving the PIN's count alone", async () => {
+    const verify = (password: string) => (hash: string) => bcrypt.compare(password, hash);
+    await prisma.retailTillPin.update({ where: { userId: people.kuda! }, data: { failedAttempts: 5, lockedUntil: new Date(Date.now() + 60_000) } });
+    expect(await checkTillPasswordSignIn({ deviceKey: key, userId: people.kuda!, verify: verify("kuda password") })).toMatchObject({ ok: true });
+    expect(await checkTillPasswordSignIn({ deviceKey: key, userId: people.nopin!, verify: verify("nopin password") })).toMatchObject({ ok: true });
+    expect(await checkTillPasswordSignIn({ deviceKey: key, userId: people.kuda!, verify: verify("wrong") })).toEqual({
+      ok: false,
+      reason: "WRONG_PASSWORD",
+    });
+    expect(await checkTillPasswordSignIn({ deviceKey: key, userId: people.clerk!, verify: verify("clerk password") })).toEqual({
+      ok: false,
+      reason: "NOT_ON_THIS_TILL",
+    });
+    expect(await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: people.kuda! } })).toMatchObject({ failedAttempts: 5 });
+    await prisma.retailTillPin.update({ where: { userId: people.kuda! }, data: { failedAttempts: 0, lockedUntil: null } });
+  });
+
+  it("sets a first PIN on the till for someone it offers, after their password", async () => {
+    const first = (userId: string, password: string, pin = "4826") => setFirstTillPin(device, { userId, password, pin });
+    expect(await first(people.nopin!, "nopin password", "1234")).toMatchObject({ ok: false, status: 400 });
+    expect(await first(people.nopin!, "wrong")).toEqual({ ok: false, status: 403, error: "That password is not right." });
+    // Someone the till does not offer gets the same answer as a wrong password.
+    expect(await first(people.clerk!, "clerk password")).toEqual({ ok: false, status: 403, error: "That password is not right." });
+    expect(await first(people.chipo!, "chipo password")).toMatchObject({ ok: false, status: 409 });
+
+    expect(await first(people.nopin!, "nopin password")).toEqual({ ok: true });
+    const verify = (hash: string) => bcrypt.compare("4826", hash);
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.nopin!, verify })).toMatchObject({ ok: true });
+    expect(await first(people.nopin!, "nopin password", "5937")).toMatchObject({ ok: false, status: 409 });
+  });
+
+  it("treats a paired device on a closed till as no till, and lets it pair again", async () => {
+    await prisma.retailRegister.update({ where: { id: device.registerId }, data: { isActive: false } });
+    const refused = await requirePosDevice(request(key), { user: { companyId } });
+    expect(refused.response?.status).toBe(409);
+    expect(await refused.response?.json()).toMatchObject({ code: "NOT_A_TILL" });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.chipo!, verify: async () => true })).toEqual({
+      ok: false,
+      reason: "NOT_A_TILL",
+    });
+    await prisma.retailRegister.update({ where: { id: device.registerId }, data: { isActive: true } });
+    expect((await requirePosDevice(request(key), { user: { companyId } })).response).toBeNull();
   });
 
   it("acts only on its own till's shifts", async () => {

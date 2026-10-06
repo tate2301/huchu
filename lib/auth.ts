@@ -21,9 +21,10 @@ import { verifyEmailCode } from "@/lib/auth-core/email-code";
 import { consumeSessionHandoff } from "@/lib/auth-core/session-handoff";
 import { resolveSignInScope } from "@/lib/auth-core/sign-in-scope";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
-import { checkTillPinSignIn } from "@/lib/retail/devices";
+import { checkTillPasswordSignIn, checkTillPinSignIn } from "@/lib/retail/devices";
 import { DEVICE_COOKIE } from "@/lib/retail/device-words";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
+import { trustedClientAddress } from "@/lib/platform/client-address";
 import {
   validateAuthConfiguration,
   getAuthRuntimeConfig,
@@ -237,14 +238,20 @@ function readHeaderValue(
   return rawValue;
 }
 
+/**
+ * The caller's address as our own edge saw it (`trustedClientAddress`), so a
+ * client cannot step around the sign-in rate limit by sending its own
+ * `x-forwarded-for`.
+ */
 function getClientAddressFromHeaders(
   headers: Headers | Record<string, string | string[] | undefined> | undefined,
 ): string {
-  const forwardedFor = readHeaderValue(headers, "x-forwarded-for")
-    ?.split(",")[0]
-    ?.trim();
-  const realIp = readHeaderValue(headers, "x-real-ip")?.trim();
-  return forwardedFor || realIp || "unknown";
+  const picked = new Headers();
+  for (const name of ["x-forwarded-for", "x-real-ip"]) {
+    const value = readHeaderValue(headers, name);
+    if (value) picked.set(name, value);
+  }
+  return trustedClientAddress(picked);
 }
 
 function isAdminRoutePath(pathname: string): boolean {
@@ -695,25 +702,31 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       // A PIN at a paired till (10-setup W-04 step 7, "Who is selling?"). The
       // device key in the POS host's httpOnly cookie says which till; the
-      // four digits say who, with the till PIN's lockout. Only on the POS
-      // host, and the session it makes is good there only (`proxy.ts`,
-      // `resolveAccessContext`).
+      // four digits say who, with the till PIN's lockout. The account
+      // password instead is the way round a locked PIN, or a first day with
+      // none. Only on the POS host, and the session it makes is good there
+      // only (`proxy.ts`, `resolveAccessContext`). Every try counts against
+      // the sign-in rate limit.
       id: "till-pin",
       name: "till-pin",
       credentials: {
         userId: { label: "Who", type: "text" },
         pin: { label: "PIN", type: "password" },
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials, req) {
         assertStrategyEnabled("till-pin");
 
-        const userId = credentials?.userId?.trim();
-        const pin = credentials?.pin?.trim();
-        if (!userId || !pin) throw new Error("WRONG_PIN");
-
-        const account = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-        if (!account) throw new Error("NOT_ON_THIS_TILL");
-        const ctx = buildSignInContext(account.email, "till-pin", req?.headers);
+        const userId = credentials?.userId?.trim() ?? "";
+        const pin = credentials?.pin?.trim() ?? "";
+        const password = credentials?.password ?? "";
+        const account = userId
+          ? await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
+          : null;
+        const ctx = buildSignInContext(account?.email ?? `till-pin:${userId || "nobody"}`, "till-pin", req?.headers);
+        await enforceSignInRateLimit(ctx);
+        if (!userId || (!pin && !password)) return failSignIn(ctx, password ? "WRONG_PASSWORD" : "WRONG_PIN");
+        if (!account) return failSignIn(ctx, "NOT_ON_THIS_TILL");
         if (getPlatformHostContext(ctx.hostHeader).portalCanonicalPrefix !== "pos") {
           return failSignIn(ctx, "NOT_A_TILL");
         }
@@ -721,15 +734,23 @@ export const authOptions: NextAuthOptions = {
         const user = await findSignInUser(account.email, scopedCompanyId);
         if (!user || user.id !== userId) return failSignIn(ctx, "NOT_ON_THIS_TILL");
 
-        const checked = await checkTillPinSignIn({
-          deviceKey: readRequestCookie(req?.headers, DEVICE_COOKIE),
-          userId: user.id,
-          verify: (pinHash) => bcrypt.compare(pin, pinHash),
-        });
+        const deviceKey = readRequestCookie(req?.headers, DEVICE_COOKIE);
+        const checked = password
+          ? await checkTillPasswordSignIn({
+              deviceKey,
+              userId: user.id,
+              verify: (passwordHash) => bcrypt.compare(password, passwordHash),
+            })
+          : await checkTillPinSignIn({
+              deviceKey,
+              userId: user.id,
+              verify: (pinHash) => bcrypt.compare(pin, pinHash),
+            });
         if (!checked.ok) {
+          const triesLeft = "triesLeft" in checked ? checked.triesLeft : undefined;
           return failSignIn(ctx, checked.reason, {
             companyId: user.companyId,
-            message: checked.reason === "WRONG_PIN" ? `WRONG_PIN:${checked.triesLeft ?? 0}` : checked.reason,
+            message: checked.reason === "WRONG_PIN" ? `WRONG_PIN:${triesLeft ?? 0}` : checked.reason,
           });
         }
         if (checked.device.companyId !== user.companyId) return failSignIn(ctx, "NOT_A_TILL");

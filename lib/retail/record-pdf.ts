@@ -109,6 +109,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         ...(product.costPrice === null ? [] : ([["Cost", formatMoney(product.costPrice)]] as Array<[string, string]>)),
         ["VAT", `${product.taxPercent}%${product.taxInclusive ? " included" : ""}`],
         ...product.priceLists.map((list): [string, string] => [list.name, formatMoney(list.unitPrice, list.currency)]),
+        ["Most off", product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`],
       ]);
       const stock = product.inventoryItem;
       const stockRows = rows([

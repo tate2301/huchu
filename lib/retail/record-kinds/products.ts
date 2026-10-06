@@ -42,6 +42,22 @@ function soldAs(product: ProductRecord): string {
   return "Single";
 }
 
+/** The ID check row: the product's own answer, or its category's when it has none. */
+function idCheckWords(product: ProductRecord): string {
+  if (product.ownAgeRestricted !== null) return product.ownAgeRestricted ? "Yes, 18 and over" : "No";
+  const answer = product.categoryAgeRestricted ? "yes, 18 and over" : "no";
+  return product.category ? `As ${product.category}: ${answer}` : "No";
+}
+
+/** "Yes" ("Yes, 18 and over", "18+"), "No", or nothing to follow the category. */
+function parseIdCheck(text: string): boolean | null {
+  const answer = text.trim().toLowerCase();
+  if (!answer) return null;
+  if (answer === "y" || answer.startsWith("yes") || answer.startsWith("18")) return true;
+  if (answer === "n" || answer.startsWith("no")) return false;
+  throw new Error("Write Yes or No, or clear it to follow the category.");
+}
+
 async function uploadPhoto(productId: string, file: File): Promise<string> {
   const body = new FormData();
   body.append("file", file);
@@ -152,6 +168,24 @@ export const productKind: RecordKind<ProductRecord> = {
             },
           },
           {
+            key: "most-off",
+            label: "Most off",
+            value: product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`,
+            mono: product.maxDiscountPercent !== null,
+            muted: product.maxDiscountPercent === null,
+            edit: {
+              field: "maxDiscountPercent",
+              type: "number",
+              initial: product.maxDiscountPercent === null ? "" : String(product.maxDiscountPercent),
+              parse: (text) => {
+                const percent = figure(text, { optional: true });
+                if (percent !== null && percent > 100) throw new Error("Write a percentage up to 100, or clear it for no limit.");
+                return percent;
+              },
+              requires: UPDATE,
+            },
+          },
+          {
             key: "price-lists",
             label: "Price lists",
             value: product.priceLists.length
@@ -243,7 +277,19 @@ export const productKind: RecordKind<ProductRecord> = {
               requires: UPDATE,
             },
           },
-          { key: "id-check", label: "ID check", value: product.ageRestricted ? "Yes, 18 and over" : "No" },
+          {
+            key: "id-check",
+            label: "ID check",
+            value: idCheckWords(product),
+            muted: product.ownAgeRestricted === null,
+            edit: {
+              field: "ageRestricted",
+              type: "text",
+              initial: product.ownAgeRestricted === null ? "" : product.ownAgeRestricted ? "Yes" : "No",
+              parse: parseIdCheck,
+              requires: UPDATE,
+            },
+          },
           product.returnable
             ? {
                 key: "deposit",

@@ -186,6 +186,8 @@ export async function PATCH(
       ...(input.depositAmount !== undefined || input.returnable === false
         ? { depositAmount: input.returnable === false ? null : (input.depositAmount ?? null) }
         : {}),
+      ...(input.ageRestricted !== undefined ? { ownAgeRestricted: input.ageRestricted } : {}),
+      ...(input.maxDiscountPercent !== undefined ? { maxDiscountPercent: input.maxDiscountPercent } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
       ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
     };

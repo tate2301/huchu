@@ -197,6 +197,7 @@ const SITE_FIELD_WORDS: Record<string, string> = {
   address: "Address",
   openingHours: "Open",
   priceList: "Price list",
+  licenceHours: "Licence hours",
 };
 
 /** "Added Cold room, removed Back store and moved 3 stock lines", "Made it the default site", "Changed Phone". */

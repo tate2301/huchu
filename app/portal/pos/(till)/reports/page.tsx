@@ -1,10 +1,7 @@
-import { PosReportsView } from "@/components/retail/portal/pos-reports-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { ReportsScreen } from "@/components/retail/till/reports";
+import { requireTillDevice } from "../../device-page";
 
-export default async function PosPortalReportsPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/reports">
-      <PosReportsView />
-    </PosPortalAuthGuard>
-  );
+export default async function TillReportsPage() {
+  await requireTillDevice();
+  return <ReportsScreen />;
 }

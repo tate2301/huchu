@@ -5,7 +5,8 @@ import { findLiveRetailCategory } from "@/lib/retail/categories";
 
 /**
  * The fields a product carries beyond what the till prints — its category,
- * what the shop pays, when to reorder, and the deposit on its empty.
+ * what the shop pays, when to reorder, the deposit on its empty, its own 18+
+ * answer and the most a seller may take off it.
  *
  * Shared by `POST /catalog` and `PATCH /catalog/[id]` so the one product form
  * sends the same shape whether it is adding or editing.
@@ -24,6 +25,10 @@ export const productDetailFields = {
   packOfId: z.string().uuid().nullable().optional(),
   /** How many singles are in the case. */
   packSize: z.number().int().min(2).max(1_000).nullable().optional(),
+  /** The product's own ID check, over its category's: true or false. Null follows the category. */
+  ageRestricted: z.boolean().nullable().optional(),
+  /** The most any discount may take off it, as a percentage, a manager's included. Null: no ceiling. */
+  maxDiscountPercent: z.number().min(0).max(100).nullable().optional(),
 };
 
 type ProductDetails = z.infer<z.ZodObject<typeof productDetailFields>>;
@@ -35,6 +40,8 @@ export function productDetailWrites(input: ProductDetails) {
     ...(input.costPrice === undefined ? {} : { costPrice: input.costPrice }),
     ...(input.returnable === undefined ? {} : { returnable: input.returnable }),
     ...(input.depositAmount === undefined ? {} : { depositAmount: input.depositAmount }),
+    ...(input.ageRestricted === undefined ? {} : { ageRestricted: input.ageRestricted }),
+    ...(input.maxDiscountPercent === undefined ? {} : { maxDiscountPercent: input.maxDiscountPercent }),
     // A case and its size travel together: no single, no size.
     ...(input.packOfId === undefined
       ? {}
@@ -68,4 +75,15 @@ export async function productDetailsProblem(
     if (single.packOfId) return "That product is itself a case; choose the single";
   }
   return null;
+}
+
+/**
+ * Whether the till checks ID for a product: its own answer when it has one,
+ * else its category's. Alcohol-free beer filed under Beer says no for itself.
+ */
+export function ageRestrictedFor(product: {
+  ageRestricted: boolean | null;
+  retailCategory?: { ageRestricted: boolean } | null;
+}): boolean {
+  return product.ageRestricted ?? product.retailCategory?.ageRestricted ?? false;
 }

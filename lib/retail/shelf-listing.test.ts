@@ -109,15 +109,34 @@ describe("a shelf line in the shop's own category", () => {
     expect(product.costPrice?.toFixed(2)).toBe("0.85");
   });
 
-  it("asks for ID because its category does, though the product does not", async () => {
+  it("asks for ID because its category does, while the product follows it", async () => {
     const product = await prisma.product.findUniqueOrThrow({ where: { id: castleId } });
-    expect(product.ageRestricted).toBe(false);
-    expect((await loadShelfListing(companyId, castleId))?.ageRestricted).toBe(true);
+    expect(product.ageRestricted).toBeNull();
+    expect(await loadShelfListing(companyId, castleId)).toMatchObject({
+      ageRestricted: true,
+      ownAgeRestricted: null,
+      categoryAgeRestricted: true,
+    });
   });
 
   it("asks for ID at the till too, where the sale is checked", async () => {
     const { products } = await loadSellableProducts({ companyId, siteId, productIds: [castleId] });
     expect(products.get(castleId)?.ageRestricted).toBe(true);
+  });
+
+  it("lets the product's own no beat its 18+ category, and carries its discount ceiling", async () => {
+    await prisma.product.update({ where: { id: castleId }, data: { ageRestricted: false, maxDiscountPercent: 5 } });
+    try {
+      expect(await loadShelfListing(companyId, castleId)).toMatchObject({
+        ageRestricted: false,
+        ownAgeRestricted: false,
+        maxDiscountPercent: 5,
+      });
+      const { products } = await loadSellableProducts({ companyId, siteId, productIds: [castleId] });
+      expect(products.get(castleId)?.ageRestricted).toBe(false);
+    } finally {
+      await prisma.product.update({ where: { id: castleId }, data: { ageRestricted: null, maxDiscountPercent: null } });
+    }
   });
 
   it("is what the till's category chip finds, and nothing else is", async () => {

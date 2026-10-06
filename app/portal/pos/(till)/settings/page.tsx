@@ -1,10 +1,7 @@
-import { PosTillSettingsView } from "@/components/retail/portal/pos-till-settings-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { SettingsScreen } from "@/components/retail/till/person";
+import { requireTillDevice } from "../../device-page";
 
-export default async function PosPortalTillSettingsPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/settings">
-      <PosTillSettingsView />
-    </PosPortalAuthGuard>
-  );
+export default async function TillSettingsPage() {
+  await requireTillDevice();
+  return <SettingsScreen />;
 }

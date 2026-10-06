@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { successResponse } from "@/lib/api-response";
 import { loadShelfListings } from "@/lib/retail/shelf-listing";
+import { requirePosDevice, shopSiteId } from "@/lib/retail/devices";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";
+import { loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { requireRetailSession } from "../../_helpers";
+import { tillCaseLinks, type CaseLinks } from "../_cases";
 
 /**
  * The till's shelf.
@@ -17,9 +20,15 @@ import { requireRetailSession } from "../../_helpers";
  *
  * `id` is a `Product.id` now, where it used to be a `RetailCatalogItem.id`. That
  * is the identity the cart, the sale line and the sync payload all carry.
+ *
+ * The shelf is the one at the branch this till stands in. Price check also
+ * reads it on a device that is not a till yet (W-04 step 5), which gets the
+ * shop's default branch instead. On a shop that sells
+ * cases and singles, each line also says which case can be opened for it
+ * (`openableCase`) and, for a case, which single it holds (`caseOf`).
  */
 /**
- * R-3.1. The till sends three filters and nothing else.
+ * R-3.1. The till sends two filters and nothing else; the device fixes the site.
  *
  * No `limit`: the 120 below is the offline snapshot's size, decided here rather
  * than by the caller, because the till caches whatever comes back and a cashier
@@ -28,7 +37,6 @@ import { requireRetailSession } from "../../_helpers";
  */
 const tillCatalogQuery = z.object({
   search: z.string().trim().max(200).optional(),
-  siteId: z.string().uuid().optional(),
   category: z.string().trim().max(120).optional(),
 });
 
@@ -47,15 +55,33 @@ export async function GET(request: NextRequest) {
   const query = parseRetailQuery(request, tillCatalogQuery);
   if (query.response) return query.response;
 
-  const listings = await loadShelfListings(session.user.companyId, {
-    siteId: query.data.siteId ?? null,
-    search: query.data.search || null,
-    category: query.data.category || null,
-    activeOnly: true,
-    take: 120,
-  });
+  const companyId = session.user.companyId;
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  const siteId = device ? device.register.site.id : await shopSiteId(companyId);
+  if (!siteId) return deviceResponse as NextResponse;
+  const [listings, profile] = await Promise.all([
+    loadShelfListings(companyId, {
+      siteId,
+      search: query.data.search || null,
+      category: query.data.category || null,
+      activeOnly: true,
+      take: 120,
+    }),
+    loadShopProfile(companyId),
+  ]);
+  const links: CaseLinks = shopFeatures(profile).casesAndSingles
+    ? await tillCaseLinks(companyId, siteId, listings.map((item) => item.productId))
+    : new Map();
 
+  const shelf = listings.map((item) => ({
+    ...item,
+    openableCase: links.get(item.productId)?.openableCase ?? null,
+    caseOf: links.get(item.productId)?.caseOf ?? null,
+  }));
   return successResponse({
-    data: listings.filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0),
+    // A single with an empty shelf still shows while a case can be opened for it.
+    data: shelf.filter(
+      (item) => (item.inventoryItem?.currentStock ?? 0) > 0 || (item.openableCase?.casesOnHand ?? 0) > 0,
+    ),
   });
 }

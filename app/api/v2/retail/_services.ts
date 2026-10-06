@@ -820,7 +820,7 @@ export async function createRetailSaleTransaction(input: {
    * the one in force then. Defaults to `postedAt`, then now.
    */
   soldAt?: Date;
-  /** Rung offline and sent in now (`pos/sync`, or `pos/sales` with `offlineCreatedAt`). */
+  /** Rung offline and sent in now (`pos/sales` with `offlineCreatedAt`). */
   replay?: boolean;
   /**
    * The customer's phone and email, for the copy of the receipt the shop also
@@ -892,7 +892,7 @@ export async function createRetailSaleTransaction(input: {
    * Checked before doing any work rather than only in the `P2002` handler
    * below. The exception path is the backstop for a genuine race; this is the
    * ordinary case — the till posted, the response was lost, the sale was queued
-   * and `pos/sync` is now replaying it minutes later. Letting that reach the
+   * and the offline queue is now replaying it minutes later. Letting that reach the
    * insert would allocate a second receipt number and post a second set of
    * journal lines before the constraint threw them away.
    */
@@ -1199,7 +1199,7 @@ export async function refundRetailSaleTransaction(input: {
    */
   approver?: ApproverInput | null;
   /**
-   * Done offline and sent in late (`pos/sync`): when the till says it was
+   * Done offline and sent in late (`refundedAt` on the refund route): when the till says it was
    * done. The money has left the drawer, so a missing approval, an unlisted
    * reason or a missing reference marks it for review instead of refusing it.
    * The date is the till's word: it is kept only when it falls after the sale

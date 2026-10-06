@@ -1,14 +1,16 @@
 import { z } from "zod";
 
 import { closeSiteAsk } from "@/lib/retail/asks/sites";
+import { LICENCE_WEEK, parseWindow, windowText, type LicenceWindow } from "@/lib/retail/licence-hours";
+import type { SiteLicence } from "@/lib/retail/site-licence-hours";
 import { moveFromWords, siteNewNote, sitesLeft, suggestSiteCode, zimbabwePhone, type PlanRoom } from "@/lib/retail/site-words";
 import type { SiteDetail, SiteNewContext } from "@/lib/retail/sites";
 import type { FieldSpec, PickedOption, SheetCtx, SheetKind, SheetValues } from "@/lib/workspace/sheet-kind";
 
 /**
  * Setup's sheets (10-setup 5.4; W-03, W-66): Add a site, a site (its places,
- * the default, close it), and the Sites row menu's Make default and Close
- * this site. Each saves through `/api/v2/retail/sites*`.
+ * the default, close it), and the Sites row menu's Make default, Licence hours
+ * and Close this site. Each saves through `/api/v2/retail/sites*`.
  */
 
 const invalidateSites = [["list", "retail-sites"], ["lookup", "site"], ["lookup", "price-list"]];
@@ -307,9 +309,75 @@ const siteClose: SheetKind = {
   requires: [["retail.sites", "delete"]],
 };
 
+/* ── A site's licence hours (row menu) ─────────────────────────────────────── */
+
+/** How a weekday sells 18+ products: no row, a window, or an empty window. */
+const DAY = { all: "All day", between: "Between", none: "Not at all" } as const;
+const windowSchema = z.string().refine((value) => parseWindow(value) !== null, "Write two different times, like 08:00 to 22:00.");
+
+function licenceValues(licence: SiteLicence): SheetValues {
+  const values: SheetValues = {
+    _name: licence.name,
+    _closed: licence.closed,
+    _enforced: licence.enforced,
+  };
+  for (const [weekday] of LICENCE_WEEK) {
+    const day = licence.days.find((entry) => entry.weekday === weekday);
+    values[`mode${weekday}`] = !day ? DAY.all : day.alcoholFrom === day.alcoholUntil ? DAY.none : DAY.between;
+    values[`hours${weekday}`] = day && day.alcoholFrom !== day.alcoholUntil ? windowText(day.alcoholFrom, day.alcoholUntil) : "08:00 to 22:00";
+  }
+  return values;
+}
+
+function licenceDays(values: SheetValues): LicenceWindow[] {
+  return LICENCE_WEEK.flatMap(([weekday]): LicenceWindow[] => {
+    const mode = values[`mode${weekday}`];
+    if (mode === DAY.none) return [{ weekday, alcoholFrom: 0, alcoholUntil: 0 }];
+    const window = mode === DAY.between ? parseWindow(text(values[`hours${weekday}`])) : null;
+    return window ? [{ weekday, ...window }] : [];
+  });
+}
+
+const siteLicence: SheetKind = {
+  title: "Licence hours",
+  sub: (_ctx, values) => String(values._name ?? "Setup › Sites"),
+  cur: "US$",
+  guide: (values) =>
+    values._enforced === false
+      ? "The till does not stop 18+ products by the clock now. Switch licence hours on under Company for these to count."
+      : "The till stops 18+ products outside these hours, and nobody overrides it. Bread and airtime still sell.",
+  sections: [
+    {
+      title: "When 18+ products sell",
+      fields: LICENCE_WEEK.flatMap(([weekday, name]): FieldSpec[] => [
+        { id: `mode${weekday}`, t: "seg", l: name, half: true, o: [DAY.all, DAY.between, DAY.none], v: DAY.all },
+        {
+          id: `hours${weekday}`,
+          t: "text",
+          l: `${name} hours`,
+          half: true,
+          mono: true,
+          h: "Like 08:00 to 22:00.",
+          schema: windowSchema,
+          show: (values) => values[`mode${weekday}`] === DAY.between,
+        },
+      ]),
+    },
+  ],
+  note: "An end before the start runs past midnight: 10:00 to 02:00 sells until 02:00 the next morning.",
+  primary: "Save licence hours",
+  done: (_result, values) => `${String(values._name ?? "The site")}'s licence hours saved.`,
+  readOnly: (ctx, values) => !ctx.can("retail.sites", "update") || values._closed === true,
+  load: async (ctx) => licenceValues(await readJson<SiteLicence>(siteUrl(ctx, "/licence-hours"))),
+  submit: (values, ctx) => ({ method: "PUT", url: siteUrl(ctx, "/licence-hours"), body: { days: licenceDays(values) } }),
+  invalidate: invalidateSites,
+  requires: [["retail.sites", "view"]],
+};
+
 export const SETUP_SHEETS: Record<string, SheetKind> = {
   "site-new": siteNew,
   site: siteEdit,
   "site-default": siteDefault,
+  "site-licence": siteLicence,
   "site-close": siteClose,
 };

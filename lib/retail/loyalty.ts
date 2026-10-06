@@ -1,20 +1,6 @@
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-
-export const LOYALTY_REDEEM_POINTS_PER_USD = 100;
-export const LOYALTY_MAX_REDEEM_SHARE = 0.2;
-
-export function getLoyaltyTier(points: number) {
-  if (points >= 2_000) return "GOLD";
-  if (points >= 500) return "SILVER";
-  return "BRONZE";
-}
-
-export function parseLoyaltyRedeemPoints(notes: string | null | undefined) {
-  const text = notes ?? "";
-  const match = text.match(/LOYALTY_REDEEM:(\d+)/);
-  return match ? Number(match[1]) : 0;
-}
+import { getLoyaltyTier, parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty-rules";
 
 export async function getCustomerLoyaltyBalance(input: {
   companyId: string;

@@ -1,28 +1,30 @@
 import { redirect } from "next/navigation";
 
-import { WhoIsSelling } from "@/components/retail/device/who-is-selling";
+import { TillGate } from "@/components/retail/till/gate";
 import { getCurrentAuthSession } from "@/lib/auth-core/guards";
-import { tillContext } from "@/lib/retail/devices";
+import { isLiveTill } from "@/lib/retail/devices";
 import { deviceForPage } from "../device-page";
 
 /**
- * "Who is selling?" (10-setup 5.5, TillPairing panel 3): the POS host's `/`
- * when the device is paired and nobody is signed in. The proxy sends a
- * signed-out `/` here.
+ * "Who is selling?": the POS host's `/` when the device is a till and nobody
+ * is signed in (the proxy rewrites a signed-out `/` here).
  */
 export default async function WhoIsSellingPage() {
   const { device, base } = await deviceForPage();
-  if (!device) redirect(`${base}/pair`);
-  if (device.unpairedAt) redirect(`${base}/unpaired`);
-  const session = await getCurrentAuthSession();
+  if (device?.unpairedAt) redirect(`${base}/unpaired`);
+  if (!isLiveTill(device)) redirect(`${base}/pair`);
   // Somebody is signed in already: the till is theirs.
+  const session = await getCurrentAuthSession();
   if (session?.user) redirect(base || "/");
-  const context = await tillContext(device);
   return (
-    <WhoIsSelling
+    <TillGate
       base={base}
-      eyebrow={`${context.till.name} · ${context.site.name}`}
-      footnote={context.device.paired}
+      till={{
+        name: device.register.name,
+        site: device.register.site.name,
+        pairedAt: device.pairedAt.toISOString(),
+        pairedBy: device.pairedBy.name ?? "a manager",
+      }}
     />
   );
 }

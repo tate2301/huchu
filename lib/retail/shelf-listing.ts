@@ -40,6 +40,7 @@ import { Prisma } from "@prisma/client";
 
 import { money, moneyOrNull, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { ageRestrictedFor } from "@/lib/retail/product-details";
 import {
   resolveShelfPrices,
   SHELF_PRICE_LIST_NAME,
@@ -65,9 +66,15 @@ export type ShelfListing = {
   imageUrl: string | null;
   /**
    * A liquor licence is not optional. Carried so the counter can be told to ask.
-   * True when the product asks for it or its category does.
+   * The product's own answer, else its category's (`ageRestrictedFor`).
    */
   ageRestricted: boolean;
+  /** The product's own answer: null follows its category. */
+  ownAgeRestricted: boolean | null;
+  /** Whether its category asks for ID. */
+  categoryAgeRestricted: boolean;
+  /** The most any discount may take off this product, in percent; null for no limit. */
+  maxDiscountPercent: number | null;
   /** An empty that comes back for money, and what it is worth. */
   returnable: boolean;
   depositAmount: number | null;
@@ -113,6 +120,7 @@ const listingSelect = {
   barcode: true,
   imageUrl: true,
   ageRestricted: true,
+  maxDiscountPercent: true,
   returnable: true,
   depositAmount: true,
   categoryId: true,
@@ -263,7 +271,10 @@ export async function loadShelfListings(
       barcode: product.barcode,
       description: product.description,
       imageUrl: product.imageUrl,
-      ageRestricted: product.ageRestricted || Boolean(product.retailCategory?.ageRestricted),
+      ageRestricted: ageRestrictedFor(product),
+      ownAgeRestricted: product.ageRestricted,
+      categoryAgeRestricted: product.retailCategory?.ageRestricted ?? false,
+      maxDiscountPercent: product.maxDiscountPercent === null ? null : toNumberOrZero(product.maxDiscountPercent),
       returnable: product.returnable,
       depositAmount: product.depositAmount === null ? null : toNumberOrZero(product.depositAmount),
       packOf: product.packOf,
@@ -374,8 +385,8 @@ export async function loadSellableProducts(input: {
       name: row.product.name,
       standardPrice: row.product.standardPrice,
       defaultTaxRate: row.product.defaultTaxRate,
-      // The same rule as the shelf: the product, or its category, asks for ID.
-      ageRestricted: row.product.ageRestricted || Boolean(row.product.retailCategory?.ageRestricted),
+      // The same rule as the shelf: the product's own answer, else its category's.
+      ageRestricted: ageRestrictedFor(row.product),
       returnable: row.product.returnable,
       depositAmount: row.product.depositAmount === null ? null : toNumberOrZero(row.product.depositAmount),
       siteId: row.siteId,
@@ -453,6 +464,10 @@ export async function upsertShelfListing(input: {
   /** A case's single and size. `undefined` leaves them alone; null makes it a single. */
   packOfId?: string | null;
   packSize?: number | null;
+  /** Whether it asks for ID. `undefined` leaves it alone; null follows the category. */
+  ageRestricted?: boolean | null;
+  /** The most any discount may take off, in percent. `undefined` leaves it alone; null is no limit. */
+  maxDiscountPercent?: number | null;
 },
 /** Run inside this transaction, so a caller can write its audit events with it. */
 client?: Prisma.TransactionClient,
@@ -501,6 +516,8 @@ client?: Prisma.TransactionClient,
       ...(costPrice === undefined ? {} : { costPrice }),
       ...(input.returnable === undefined ? {} : { returnable: input.returnable }),
       ...(depositAmount === undefined ? {} : { depositAmount }),
+      ...(input.ageRestricted === undefined ? {} : { ageRestricted: input.ageRestricted }),
+      ...(input.maxDiscountPercent === undefined ? {} : { maxDiscountPercent: input.maxDiscountPercent }),
       ...(input.packOfId === undefined
         ? {}
         : {
@@ -534,6 +551,8 @@ client?: Prisma.TransactionClient,
             costPrice: costPrice ?? null,
             returnable: input.returnable ?? false,
             depositAmount: depositAmount ?? null,
+            ageRestricted: input.ageRestricted ?? null,
+            maxDiscountPercent: input.maxDiscountPercent ?? null,
             packOfId: input.packOfId ?? null,
             packSize: input.packOfId ? (input.packSize ?? null) : null,
           },

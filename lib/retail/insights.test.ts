@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { insightWindow, profitOf, relativeChange, salesHeat, salesTable, salesTotals, tradingHours, weekdaysIn } from "./insights";
+import { insightWindow, profitOf, relativeChange, heatHours, salesHeat, salesTable, salesTotals, weekdaysIn } from "./insights";
 
 const d = (value: number) => new Prisma.Decimal(value);
 const line = (quantity: number, lineTotal: number, taxAmount: number, costTotal: number) => ({
@@ -75,16 +75,9 @@ describe("the figures Insights is built from", () => {
 });
 
 describe("Sales: when do we sell", () => {
-  const hours = { weekdayOpensAt: "08:00", weekdayClosesAt: "22:00", sundayOpensAt: "10:00", sundayClosesAt: "18:00" };
-
-  it("draws the trading hours, earliest opening to latest closing, and shuts what is closed", () => {
-    const trading = tradingHours(hours);
-    expect(trading.hours).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
-    expect(trading.isOpen("Fri", 21)).toBe(true);
-    expect(trading.isOpen("Sun", 9)).toBe(false);
-    expect(trading.isOpen("Sun", 10)).toBe(true);
-    expect(trading.isOpen("Sun", 17)).toBe(true);
-    expect(trading.isOpen("Sun", 18)).toBe(false);
+  it("draws the hours from the earliest sale to the latest, and an ordinary day when nothing sold", () => {
+    expect(heatHours([14, 9, 11])).toEqual([9, 10, 11, 12, 13, 14]);
+    expect(heatHours([])).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
   });
 
   it("counts each weekday the window touches by the shop's calendar", () => {
@@ -95,29 +88,26 @@ describe("Sales: when do we sell", () => {
     expect(counts.get("Mon")).toBe(4);
   });
 
-  it("averages a cell over the days of that weekday, and leaves a shut hour empty", () => {
+  it("averages a cell over the days of that weekday", () => {
     const from = new Date("2026-09-19T22:00:00Z"); // Sunday 20 September, 00:00 in Harare
     const to = new Date("2026-10-03T22:00:00Z"); // two whole weeks
     const sale = (iso: string, total: number) => ({ postedAt: new Date(iso), createdAt: new Date(iso), totalAmount: d(total) });
     const chart = salesHeat(
       [sale("2026-10-02T16:10:00Z", 30), sale("2026-09-25T16:40:00Z", 10), sale("2026-09-27T12:05:00Z", 8)],
       { from, to, period: "7d" },
-      hours,
     );
     expect(chart.rows).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
-    expect(chart.columns[0]).toBe("08");
-    expect(chart.columns.at(-1)).toBe("21");
+    // 14:05, 18:40 and 18:10 in Harare.
+    expect(chart.columns).toEqual(["14", "15", "16", "17", "18"]);
     // Two Fridays at 18:00 took 40: 20 a day.
     expect(chart.values[4][chart.columns.indexOf("18")]).toBe(20);
     // Sunday 14:00 took 8 over two Sundays.
     expect(chart.values[6][chart.columns.indexOf("14")]).toBe(4);
-    expect(chart.values[6][chart.columns.indexOf("08")]).toBeNull();
-    expect(chart.values[6][chart.columns.indexOf("20")]).toBeNull();
     expect(chart.values[0][0]).toBe(0);
   });
 
   it("draws one row for today", () => {
-    const chart = salesHeat([], { from: new Date("2026-10-02T22:00:00Z"), to: new Date("2026-10-03T12:42:00Z"), period: "today" }, hours);
+    const chart = salesHeat([], { from: new Date("2026-10-02T22:00:00Z"), to: new Date("2026-10-03T12:42:00Z"), period: "today" });
     expect(chart.rows).toEqual(["Sat"]);
   });
 });

@@ -1,42 +1,47 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
-import { PosPortalProvider } from "@/components/retail/portal/pos-portal-state";
-import { PosPortalLayoutFrame } from "@/components/retail/portal/pos-portal-layout-frame";
-import { PosTillLockProvider } from "@/components/retail/portal/pos-lock-screen";
-import { PosCashDropPrompt } from "@/components/retail/portal/pos-cash-drop-prompt";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
-import { resolveWorkspaceIdentityForHost } from "@/lib/platform/workspace-identity";
-import { deviceForPage, isPairedTill } from "../device-page";
+import { redirect } from "next/navigation";
 
-export default async function PosPortalLayout({ children }: { children: ReactNode }) {
-  const headersList = await headers();
-  const hostHeader = getHostHeaderFromRequestHeaders(headersList);
-  const portalRouting = getPortalRequestRouting(hostHeader, "/portal/pos");
-  const [workspace, { device }] = await Promise.all([resolveWorkspaceIdentityForHost(hostHeader), deviceForPage()]);
+import { TillLockProvider } from "@/components/retail/till/lock";
+import { TillShell } from "@/components/retail/till/shell";
+import { TillSignOutProvider } from "@/components/retail/till/sign-out";
+import { TillStateProvider } from "@/components/retail/till/state";
+import { requirePageAuth } from "@/lib/auth-core/guards";
+import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
+import { isLiveTill } from "@/lib/retail/devices";
+import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { deviceForPage } from "../device-page";
+
+/**
+ * The signed-in till. Someone signed out is at the door before this mounts:
+ * the proxy shows "Who is selling?" for a signed-out `/`, and `/pair` to a
+ * device with no key.
+ *
+ * Only price check opens on a device that is not a till; the other pages send
+ * such a device to `/pair` or `/unpaired`. There the provider leaves the
+ * device alone: no till context, no heartbeat, no device watch.
+ */
+export default async function TillLayout({ children }: { children: ReactNode }) {
+  const hostHeader = getHostHeaderFromRequestHeaders(await headers());
+  const routing = getPortalRequestRouting(hostHeader, "/portal/pos");
+  const session = await requirePageAuth({
+    pathname: "/portal/pos",
+    callbackUrl: routing.callbackPath,
+    loginPath: routing.loginPath,
+  });
+  if (!canAccessPosPortal(session.user.role)) {
+    redirect("/access-blocked");
+  }
+  const { device } = await deviceForPage();
 
   return (
-    /*
-      Only price check opens on a device that is not a till (the page guards
-      send everything else to /pair). There the provider leaves the device
-      alone: no till context, no shift, no heartbeat, no watch.
-    */
-    <PosPortalProvider isPosHost={portalRouting.isPortalHost} paired={isPairedTill(device)}>
-      {/*
-        S-7.5. The lock wraps the whole till, not a single screen: a cashier
-        stepping away leaves whichever view they were on, and the basket has to
-        be covered wherever they left it. The provider renders the PIN screen
-        over its children when locked, so mounting it here is the whole wiring.
-      */}
-      <PosTillLockProvider>
-        {/* SET-06: the till rules' cash drop prompt, asked only while the till is unlocked. */}
-        <PosCashDropPrompt />
-        <PosPortalLayoutFrame
-          workspaceName={workspace.workspaceName}
-          workspaceInitial={workspace.initial}
-        >
-          {children}
-        </PosPortalLayoutFrame>
-      </PosTillLockProvider>
-    </PosPortalProvider>
+    <TillStateProvider isPosHost={routing.isPortalHost} paired={isLiveTill(device)}>
+      <TillSignOutProvider>
+        {/* The lock covers every screen: a cashier steps away from wherever they were. */}
+        <TillLockProvider>
+          <TillShell>{children}</TillShell>
+        </TillLockProvider>
+      </TillSignOutProvider>
+    </TillStateProvider>
   );
 }

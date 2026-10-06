@@ -17,6 +17,8 @@ const before = {
   categoryId: "c1",
   returnable: false,
   depositAmount: null,
+  ownAgeRestricted: null as boolean | null,
+  maxDiscountPercent: null as number | null,
   status: "ACTIVE",
   imageUrl: null,
 };
@@ -38,6 +40,15 @@ describe("what an edit changed (W-62)", () => {
     ).toEqual([
       { field: "categoryId", label: "Category", kind: "text", from: "Spirits", to: "Liqueur" },
       { field: "barcode", label: "Barcode", kind: "text", from: null, to: "6001232 35259" },
+    ]);
+  });
+
+  it("writes the ID check as the product's own answer, and the discount ceiling as a percentage", () => {
+    expect(
+      productChanges(["ageRestricted", "maxDiscountPercent"], before, { ...before, ownAgeRestricted: false, maxDiscountPercent: 5 }),
+    ).toEqual([
+      { field: "ageRestricted", label: "ID check", kind: "text", from: "As category", to: "No" },
+      { field: "maxDiscountPercent", label: "Most off", kind: "percent", from: null, to: "5" },
     ]);
   });
 
