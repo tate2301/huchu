@@ -328,6 +328,7 @@ model Company {
   retailPurchaseOrderLines      RetailPurchaseOrderLine[]
   retailStockTransfers          RetailStockTransfer[]
   retailStockCounts             RetailStockCount[]
+  retailImports                 RetailImport[]
   retailGoodsReceipts           RetailGoodsReceipt[]
   retailGoodsReceiptLines       RetailGoodsReceiptLine[]
   retailShifts                  RetailShift[]
@@ -1160,6 +1161,7 @@ model Site {
   retailTransfersOut    RetailStockTransfer[]  @relation("RetailStockTransferFrom")
   retailTransfersIn     RetailStockTransfer[]  @relation("RetailStockTransferTo")
   retailStockCounts     RetailStockCount[]
+  retailImports         RetailImport[]
   userAccess            UserSiteAccess[]
 
   @@unique([companyId, code])
@@ -14725,4 +14727,80 @@ model RetailStockCountLine {
 
   @@unique([countId, inventoryItemId])
   @@index([companyId, inventoryItemId])
+}
+
+/// A spreadsheet of products being imported (SET-11, W-08): checked row by
+/// row, fixed in place, then imported in one go.
+enum RetailImportStatus {
+  CHECKING
+  IMPORTED
+  DISCARDED
+}
+
+/// What an import row does: adds a product, or updates the one it matched.
+enum RetailImportAction {
+  NEW
+  UPDATE
+}
+
+/// Why a row cannot be imported yet. The first is the one shown.
+enum RetailImportProblem {
+  NO_NAME
+  NO_PRICE
+  PRICE_COMMA
+  PRICE_NOT_NUMBER
+  NEW_CATEGORY
+  BARCODE_SHORT
+  BARCODE_LONG
+  BARCODE_LETTERS
+  DUPLICATE_IN_FILE
+  LOOKS_LIKE
+}
+
+model RetailImport {
+  id           String             @id @default(uuid())
+  companyId    String
+  fileName     String
+  rowCount     Int
+  status       RetailImportStatus @default(CHECKING)
+  /// The default site at upload: where new products go on sale.
+  siteId       String
+  createdById  String
+  createdAt    DateTime           @default(now())
+  importedAt   DateTime?
+  importedById String?
+  createdCount Int?
+  updatedCount Int?
+  skippedCount Int?
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site    Site              @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  rows    RetailImportRow[]
+
+  @@index([companyId, status, createdAt])
+}
+
+model RetailImportRow {
+  id               String                @id @default(uuid())
+  importId         String
+  /// The spreadsheet's own row number (header is row 1).
+  rowNo            Int
+  name             String?
+  category         String?
+  /// As typed, so "12,60" stays visible until fixed.
+  price            String?
+  barcode          String?
+  cost             String?
+  supplier         String?
+  packSize         String?
+  openingStock     String?
+  action           RetailImportAction?
+  matchedProductId String?
+  problems         RetailImportProblem[] @default([])
+  /// Names a problem sentence needs: { category, matchedName, duplicateOfRow }; `done` once committed.
+  problemArgs      Json?
+
+  import RetailImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@unique([importId, rowNo])
 }
