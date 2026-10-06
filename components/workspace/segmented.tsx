@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 /**
  * Segmented — G1 `cx-seg`: a `--tray` track with the chosen item in solid ink.
  *
- * Exactly one item is pressed. `block` fills the width (sheets, settings) and
- * takes the 14px field type; the inline form is for periods and chart ranges.
+ * One item is pressed, or none when `value` is null (a period toolbar while a
+ * range of days is chosen instead). `block` fills the width (sheets, settings)
+ * and takes the 14px field type; the inline form is for periods and chart ranges.
  */
 export type SegmentedItem<V extends string = string> = {
   value: V;
@@ -21,7 +22,7 @@ export type SegmentedProps<V extends string = string> = Omit<
   "onChange" | "defaultValue"
 > & {
   items: ReadonlyArray<SegmentedItem<V>>;
-  value: V;
+  value: V | null;
   onValueChange?: (value: V) => void;
   block?: boolean;
   disabled?: boolean;

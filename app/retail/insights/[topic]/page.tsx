@@ -17,7 +17,8 @@ import type { DashTone, SeriesColor } from "@/components/dashboard-frame/types";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { Button } from "@/components/workspace/button";
 import { formatChange, formatFigure } from "@/components/retail/insights/format";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { INSIGHT_RANGE_PRESETS } from "@/lib/retail/insight-range";
 import type { Cell, Insight, InsightPeriod, InsightTable, InsightTopic, Tone } from "@/lib/retail/insights";
 import { formatRetailDate } from "@/lib/retail/words";
 
@@ -177,8 +178,8 @@ function AsideLoading() {
  * DashboardFrame's insight variant: the period and site in the toolbar, the
  * headline the server wrote from the figures, four figures against the period
  * before, the chart that answers the question, the tables behind it under
- * tabs, and beside them where to go to do something about it. The period,
- * site and tab live in the address.
+ * tabs, and beside them where to go to do something about it. The period
+ * (or the `from`/`to` days chosen instead), site and tab live in the address.
  */
 export default function RetailInsightPage() {
   const params = useParams<{ topic: string }>();
@@ -188,25 +189,37 @@ export default function RetailInsightPage() {
   const topic = (params?.topic ?? "sales") as InsightTopic;
   const requested = searchParams.get("period");
   const period = PERIODS.find((entry) => entry.value === requested)?.value ?? "30d";
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+  // Either end alone still goes to the server, which says it cannot read it.
+  const ranged = from !== null || to !== null;
   const siteId = searchParams.get("siteId") ?? "all";
   const title = TITLES[topic] ?? "Insights";
 
-  const setParam = (key: string, value: string | null) => {
+  const setParams = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams.toString());
-    if (value === null) next.delete(key);
-    else next.set(key, value);
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
     const query = next.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
+  const setParam = (key: string, value: string | null) => setParams({ [key]: value });
+  const backTo30Days = () => setParams({ from: null, to: null, period: "30d" });
 
   const query = useQuery({
-    queryKey: ["retail-insight", topic, period, siteId],
-    queryFn: () =>
-      fetchJson<{ data: Insight }>(
-        `/api/v2/retail/insights/${topic}?${new URLSearchParams({ period, siteId }).toString()}`,
-      ),
+    queryKey: ["retail-insight", topic, period, from, to, siteId],
+    queryFn: () => {
+      const search = new URLSearchParams(ranged ? { siteId } : { period, siteId });
+      if (from !== null) search.set("from", from);
+      if (to !== null) search.set("to", to);
+      return fetchJson<{ data: Insight }>(`/api/v2/retail/insights/${topic}?${search.toString()}`);
+    },
     placeholderData: (previous) => previous,
   });
+  // A range the server refused: retrying cannot help, going back can.
+  const refused = query.error instanceof ApiError && query.error.status === 400;
   const insight = query.data?.data;
   const tables = insight?.tables.map(tableView) ?? [];
   const tab = searchParams.get("tab") ?? tables[0]?.id ?? "";
@@ -215,8 +228,14 @@ export default function RetailInsightPage() {
     <PeriodToolbar
       ground
       periods={PERIODS}
-      period={period}
-      onPeriodChange={(value) => setParam("period", value)}
+      period={ranged ? null : period}
+      onPeriodChange={(value) => setParams({ period: value, from: null, to: null })}
+      range={{
+        value: from && to ? { from, to } : null,
+        onChange: (range) => setParams({ from: range.from, to: range.to, period: null }),
+        onClear: backTo30Days,
+        presets: INSIGHT_RANGE_PRESETS,
+      }}
       site={
         insight?.site
           ? { ...insight.site, onChange: (value: string) => setParam("siteId", value === "all" ? null : value) }
@@ -248,9 +267,15 @@ export default function RetailInsightPage() {
         ) : query.isError || !insight ? (
           <Alert tone="danger" title="This insight would not load">
             <p>{getApiErrorMessage(query.error)}</p>
-            <Button className="mt-2" onClick={() => void query.refetch()}>
-              Try again
-            </Button>
+            {refused ? (
+              <Button className="mt-2" onClick={backTo30Days}>
+                Back to 30 days
+              </Button>
+            ) : (
+              <Button className="mt-2" onClick={() => void query.refetch()}>
+                Try again
+              </Button>
+            )}
           </Alert>
         ) : (
           <>

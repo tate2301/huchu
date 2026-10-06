@@ -12,6 +12,7 @@ import {
   salesHeadline,
   stockHeadline,
 } from "@/lib/retail/insight-headline";
+import { startOfDayIn } from "@/lib/reports/list-query";
 import { SHOP_TIME_ZONE, shopClock } from "@/lib/retail/shop-profile-rules";
 import { COVER_AIM, daysOfCover } from "@/lib/retail/stock/levels";
 import {
@@ -22,6 +23,8 @@ import {
   type MovementForStock,
   type SaleForRate,
 } from "@/lib/retail/stockouts";
+import { addDays, dayKey, dayRangeWords, daysBetween, todayIn } from "@/lib/workspace/format";
+import type { InsightRange } from "@/lib/retail/insight-range";
 
 /**
  * Insights — the questions an owner asks of the shop, each answered on its
@@ -42,6 +45,10 @@ export type InsightTopic = (typeof INSIGHT_TOPICS)[number];
 /** The toolbar's periods, each compared with the same span before it. */
 export const INSIGHT_PERIODS = ["today", "7d", "30d", "month"] as const;
 export type InsightPeriod = (typeof INSIGHT_PERIODS)[number];
+
+/** A preset period or a range of days the owner chose. */
+export type InsightInput = InsightPeriod | InsightRange;
+
 
 export type Format = "money" | "count" | "percent" | "days" | "ratio";
 export type Tone = "good" | "bad" | "warn";
@@ -86,7 +93,9 @@ export type InsightSite = { value: string; label: string; options: Array<{ value
 
 export type Insight = {
   topic: InsightTopic;
-  period: InsightPeriod;
+  period: InsightPeriod | "range";
+  /** The days chosen, for a range; null for a preset period. */
+  range: InsightRange | null;
   /** "Compared with the 30 days before". */
   compareWords: string;
   /** The site chip, on the pages that answer for one site; null without one. */
@@ -117,7 +126,11 @@ const DAY = 86_400_000;
  * 1st up to the same day and time.
  */
 export type InsightWindow = {
-  period: InsightPeriod;
+  period: InsightPeriod | "range";
+  /** The Harare days the window covers, for presets too. */
+  range: InsightRange;
+  /** Today, or a range of one day: the heat grid draws that weekday alone. */
+  singleDay: boolean;
   from: Date;
   to: Date;
   before: Date;
@@ -163,7 +176,48 @@ function shopMidnights(at: Date, timeZone = SHOP_TIME_ZONE) {
   };
 }
 
-export function insightWindow(period: InsightPeriod, now = new Date()): InsightWindow {
+/** The window for a preset period, or for a range of days (its `to` cut to today). */
+export function insightWindow(input: InsightInput, now = new Date()): InsightWindow {
+  if (typeof input === "object") return rangeWindow(input, now);
+  const window = presetWindow(input, now);
+  return {
+    ...window,
+    range: { from: dayKey(window.from, SHOP_TIME_ZONE), to: dayKey(window.to, SHOP_TIME_ZONE) },
+    singleDay: input === "today",
+  };
+}
+
+function rangeWindow(input: InsightRange, now: Date): InsightWindow {
+  const today = todayIn(SHOP_TIME_ZONE, now);
+  const range = { from: input.from, to: input.to > today ? today : input.to };
+  const n = daysBetween(range.from, range.to);
+  const from = startOfDayIn(range.from, SHOP_TIME_ZONE);
+  const end = startOfDayIn(addDays(range.to, 1), SHOP_TIME_ZONE).getTime() - 1;
+  const to = new Date(Math.min(end, now.getTime()));
+  const span = to.getTime() - from.getTime();
+  const before = new Date(from.getTime() - n * DAY);
+  const words = dayRangeWords(range, today);
+  const one = n === 1;
+  return {
+    period: "range",
+    range,
+    singleDay: one,
+    from,
+    to,
+    before,
+    beforeTo: new Date(before.getTime() + span),
+    days: Math.max(span, 3_600_000) / DAY,
+    words,
+    short: one ? words : `${n} days`,
+    within: one ? `on ${words}` : `from ${words}`,
+    over: one ? `on ${words}` : `from ${words}`,
+    beforeWords: one ? "the day before" : `the ${n} days before`,
+    beforeNote: one ? "on the day before" : `on the ${n} days before`,
+    compareWords: one ? "Compared with the day before" : `Compared with the ${n} days before`,
+  };
+}
+
+function presetWindow(period: InsightPeriod, now: Date): Omit<InsightWindow, "range" | "singleDay"> {
   const to = now;
   const midnights = shopMidnights(now);
   if (period === "today") {
@@ -380,10 +434,10 @@ export function weekdaysIn(from: Date, to: Date) {
  */
 export function salesHeat(
   sales: ReadonlyArray<Pick<LoadedSale, "postedAt" | "createdAt" | "totalAmount">>,
-  window: Pick<InsightWindow, "from" | "to" | "period">,
+  window: Pick<InsightWindow, "from" | "to" | "singleDay">,
 ): Extract<InsightChart, { kind: "heat" }> {
   const counts = weekdaysIn(window.from, window.to);
-  const rows = window.period === "today" ? [shopClock(window.to).weekday] : WEEKDAYS;
+  const rows = window.singleDay ? [shopClock(window.to).weekday] : WEEKDAYS;
   const sums = new Map<string, number>();
   const saleHours = new Set<number>();
   for (const sale of sales) {
@@ -556,7 +610,7 @@ async function salesInsight(companyId: string, window: InsightWindow, siteId: st
       { label: "Items a basket", value: itemsNow, format: "ratio", change: absolute(itemsNow - itemsBefore, "ratio") },
     ],
     question: "When do we sell?",
-    unit: window.period === "today" ? "Takings by hour, today" : `Takings by day and hour, ${window.words}, average a day`,
+    unit: window.singleDay ? `Takings by hour, ${window.words}` : `Takings by day and hour, ${window.words}, average a day`,
     chart,
     tables: [
       salesTable({
@@ -1522,7 +1576,7 @@ async function moneyInsight(companyId: string, window: InsightWindow): Promise<I
     in: inTotal,
     out: outTotal,
     waiting,
-    heaviestWeek: window.period === "today" ? null : (heaviest?.label ?? null),
+    heaviestWeek: window.singleDay || window.days < 7 ? null : (heaviest?.label ?? null),
     onOrder: onOrderValue,
   });
 
@@ -1593,7 +1647,7 @@ async function moneyInsight(companyId: string, window: InsightWindow): Promise<I
 }
 
 /** What a topic works out; the window's words and the time are added once, in `loadInsight`. */
-type InsightBody = Omit<Insight, "compareWords" | "updatedAt" | "site" | "emptyChart"> & {
+type InsightBody = Omit<Insight, "compareWords" | "updatedAt" | "site" | "emptyChart" | "range"> & {
   site?: InsightSite | null;
   emptyChart?: string | null;
 };
@@ -1615,16 +1669,17 @@ const BUILDERS: Record<InsightTopic, (companyId: string, window: InsightWindow, 
 export async function loadInsight(
   companyId: string,
   topic: InsightTopic,
-  period: InsightPeriod,
+  input: InsightInput,
   siteId: string | null = null,
   now = new Date(),
 ): Promise<Insight> {
-  const window = insightWindow(period, now);
+  const window = insightWindow(input, now);
   const body = await BUILDERS[topic](companyId, window, siteId);
   return {
     ...body,
     site: body.site ?? null,
     emptyChart: body.emptyChart ?? null,
+    range: window.period === "range" ? window.range : null,
     compareWords: window.compareWords,
     updatedAt: now.toISOString(),
   };

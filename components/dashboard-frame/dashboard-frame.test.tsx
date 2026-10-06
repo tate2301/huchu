@@ -14,6 +14,7 @@ import { InsightAside } from "./insight-aside";
 import { InsightTabs } from "./insight-table";
 import { KpiStrip, KpiTile } from "./kpi-tile";
 import { Panel } from "./panel";
+import { Segmented } from "@/components/workspace/segmented";
 import { PeriodToolbar } from "./period-toolbar";
 import { QuestionPanel } from "./question-panel";
 import { RankList } from "./rank-list";
@@ -299,6 +300,73 @@ describe("the insight variant, in the InsightsSales board's shapes", () => {
     expect(html).toMatch(/cx-filter__label">Site<\/span><span class="cx-filter__value">All sites/);
     expect(html).toContain("Compared with the 30 days before");
     expect(html).toContain("Updated 14:42");
+  });
+
+  const PERIODS = [
+    { value: "today", label: "Today" },
+    { value: "7d", label: "7 days" },
+    { value: "30d", label: "30 days" },
+    { value: "month", label: "This month" },
+  ] as const;
+
+  it("offers Choose dates after the periods when no days are chosen", () => {
+    const html = renderToStaticMarkup(
+      <PeriodToolbar
+        periods={PERIODS}
+        period="30d"
+        onPeriodChange={() => {}}
+        range={{ value: null, onChange: () => {}, onClear: () => {}, presets: [] }}
+      />,
+    );
+    expect(html).toMatch(/aria-pressed="true">30 days</);
+    expect(html).toMatch(/This month<\/button><\/div><button[^>]*class="cx-btn"[^>]*>.*Choose dates<\/button>/);
+    expect(html).not.toContain("cx-filter-wrap");
+  });
+
+  it("draws the chosen days as a clearable chip and presses no period", () => {
+    const onClear = vi.fn();
+    const onPeriodChange = vi.fn();
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    const view = mount(
+      <PeriodToolbar
+        periods={PERIODS}
+        period={null}
+        onPeriodChange={onPeriodChange}
+        range={{ value: { from: "2026-10-01", to: "2026-10-03" }, onChange: () => {}, onClear, presets: [] }}
+      />,
+    );
+    expect(view.host.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
+    expect(view.host.textContent).not.toContain("Choose dates");
+    const chip = view.host.querySelector(".cx-filter-wrap .cx-filter")!;
+    expect(chip.textContent).toBe("1 to 3 October");
+    expect(chip.querySelector(".cx-filter__label")).toBeNull();
+    // The × is its own button beside the chip, never inside it.
+    expect(chip.querySelector("button")).toBeNull();
+    const clear = view.host.querySelector<HTMLButtonElement>('button[aria-label="Clear the dates"]')!;
+    act(() => clear.click());
+    expect(onClear).toHaveBeenCalledTimes(1);
+    act(() => (view.host.querySelector('[aria-label="Period"] button') as HTMLButtonElement).click());
+    expect(onPeriodChange).toHaveBeenCalledWith("today");
+    view.unmount();
+  });
+
+  it("presses nothing in a Segmented with no value, and any item answers", () => {
+    const onValueChange = vi.fn();
+    const view = mount(<Segmented items={PERIODS} value={null} onValueChange={onValueChange} />);
+    expect(view.host.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
+    expect(view.host.querySelectorAll('[aria-pressed="false"]')).toHaveLength(4);
+    act(() => (view.host.querySelectorAll("button")[2] as HTMLButtonElement).click());
+    expect(onValueChange).toHaveBeenCalledWith("30d");
+    view.unmount();
   });
 
   it("writes the overview's live line in the shop's time", () => {

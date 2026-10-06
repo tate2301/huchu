@@ -15,7 +15,9 @@ export const FEW_SALES = 10;
 
 /** The window's words a headline needs. */
 export type HeadlineWords = {
-  period: InsightPeriod;
+  period: InsightPeriod | "range";
+  /** Today or a one-day range: no weekday before the busiest hour, no "in" before the day before. */
+  singleDay: boolean;
   /** "in the last 30 days", "today", "this month". */
   over: string;
   /** "the 30 days before", "the day before", "the month before". */
@@ -80,7 +82,7 @@ function noneOver(words: HeadlineWords) {
 
 /** "in the 30 days before", but "the day before". */
 function inBefore(words: HeadlineWords) {
-  return words.period === "today" ? words.beforeWords : `in ${words.beforeWords}`;
+  return words.singleDay ? words.beforeWords : `in ${words.beforeWords}`;
 }
 
 /** The second sentence when too little sold to say more. */
@@ -123,7 +125,7 @@ export function salesHeadline(input: {
     };
   }
   const busiest = input.busiest
-    ? `${words.period === "today" ? "" : `${input.busiest.day} `}${input.busiest.hour}:00 is the busiest hour`
+    ? `${words.singleDay ? "" : `${input.busiest.day} `}${input.busiest.hour}:00 is the busiest hour`
     : null;
   return {
     fact: `${headlineMoney(input.takings)} taken ${words.over}${where}${allAt}.`,

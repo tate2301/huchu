@@ -219,7 +219,7 @@ const shifts: ListSpec = {
       key: "compare",
       label: "Compare cashiers",
       more: true,
-      requires: [["retail.reports", "view"]],
+      requires: [["retail.insights", "view"]],
       do: { href: "/retail/insights/sales?tab=cashier&from={min:openedAt}&to={max:openedAt}" },
     },
   ],

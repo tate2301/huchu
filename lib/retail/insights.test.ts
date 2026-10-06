@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
+import { INSIGHT_RANGE_PRESETS, insightRangeRefusal } from "./insight-range";
 import { insightWindow, profitOf, relativeChange, heatHours, salesHeat, salesTable, salesTotals, weekdaysIn } from "./insights";
 
 const d = (value: number) => new Prisma.Decimal(value);
@@ -94,7 +95,7 @@ describe("Sales: when do we sell", () => {
     const sale = (iso: string, total: number) => ({ postedAt: new Date(iso), createdAt: new Date(iso), totalAmount: d(total) });
     const chart = salesHeat(
       [sale("2026-10-02T16:10:00Z", 30), sale("2026-09-25T16:40:00Z", 10), sale("2026-09-27T12:05:00Z", 8)],
-      { from, to, period: "7d" },
+      { from, to, singleDay: false },
     );
     expect(chart.rows).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
     // 14:05, 18:40 and 18:10 in Harare.
@@ -107,7 +108,7 @@ describe("Sales: when do we sell", () => {
   });
 
   it("draws one row for today", () => {
-    const chart = salesHeat([], { from: new Date("2026-10-02T22:00:00Z"), to: new Date("2026-10-03T12:42:00Z"), period: "today" });
+    const chart = salesHeat([], { from: new Date("2026-10-02T22:00:00Z"), to: new Date("2026-10-03T12:42:00Z"), singleDay: true });
     expect(chart.rows).toEqual(["Sat"]);
   });
 });
@@ -161,5 +162,81 @@ describe("Sales: the tables", () => {
     });
     expect(empty.total).toBeNull();
     expect(empty.empty).toBe("No sales in these dates.");
+  });
+});
+
+describe("a range of days chosen", () => {
+  // Tuesday 6 October 2026, 10:00 in Harare.
+  const now = new Date("2026-10-06T08:00:00Z");
+
+  it("reads whole Harare days and compares them with as many days before", () => {
+    const window = insightWindow({ from: "2026-10-01", to: "2026-10-03" }, now);
+    expect(window.period).toBe("range");
+    expect(window.range).toEqual({ from: "2026-10-01", to: "2026-10-03" });
+    expect(window.singleDay).toBe(false);
+    expect(window.from.toISOString()).toBe("2026-09-30T22:00:00.000Z");
+    expect(window.to.toISOString()).toBe("2026-10-03T21:59:59.999Z");
+    expect(window.before.toISOString()).toBe("2026-09-27T22:00:00.000Z");
+    expect(window.beforeTo.toISOString()).toBe("2026-09-30T21:59:59.999Z");
+    expect(window.words).toBe("1 to 3 October");
+    expect(window.short).toBe("3 days");
+    expect(window.within).toBe("from 1 to 3 October");
+    expect(window.beforeWords).toBe("the 3 days before");
+    expect(window.beforeNote).toBe("on the 3 days before");
+    expect(window.compareWords).toBe("Compared with the 3 days before");
+  });
+
+  it("stops a range that ends today at now, and the days before are as long", () => {
+    const window = insightWindow({ from: "2026-10-04", to: "2026-10-06" }, now);
+    expect(window.to).toEqual(now);
+    expect(window.beforeTo.getTime() - window.before.getTime()).toBe(window.to.getTime() - window.from.getTime());
+    expect(window.before.toISOString()).toBe("2026-09-30T22:00:00.000Z");
+  });
+
+  it("cuts a last day after today to today", () => {
+    const window = insightWindow({ from: "2026-10-04", to: "2026-10-09" }, now);
+    expect(window.range).toEqual({ from: "2026-10-04", to: "2026-10-06" });
+    expect(window.to).toEqual(now);
+  });
+
+  it("reads one day as that day", () => {
+    const window = insightWindow({ from: "2026-10-03", to: "2026-10-03" }, now);
+    expect(window.singleDay).toBe(true);
+    expect(window.words).toBe("3 October");
+    expect(window.short).toBe("3 October");
+    expect(window.within).toBe("on 3 October");
+    expect(window.compareWords).toBe("Compared with the day before");
+    expect(window.before.toISOString()).toBe("2026-10-01T22:00:00.000Z");
+  });
+
+  it("writes both years when the range is not all this year", () => {
+    expect(insightWindow({ from: "2025-12-28", to: "2026-01-03" }, now).words).toBe("28 December 2025 to 3 January 2026");
+  });
+
+  it("gives the preset periods the days they cover", () => {
+    expect(insightWindow("30d", now).range).toEqual({ from: "2026-09-06", to: "2026-10-06" });
+    expect(insightWindow("today", now)).toMatchObject({ period: "today", singleDay: true, range: { from: "2026-10-06", to: "2026-10-06" } });
+    expect(insightWindow("month", now)).toMatchObject({ singleDay: false, range: { from: "2026-10-01", to: "2026-10-06" } });
+  });
+
+  it("refuses a range it cannot read", () => {
+    expect(insightRangeRefusal({ from: "2026-10-05", to: "2026-10-01" }, now)).toBe("That period could not be read");
+    expect(insightRangeRefusal({ from: "2026-02-30", to: "2026-03-01" }, now)).toBe("That period could not be read");
+    expect(insightRangeRefusal({ from: "1 Oct", to: "2026-10-03" }, now)).toBe("That period could not be read");
+    expect(insightRangeRefusal({ from: "2025-09-01", to: "2026-10-03" }, now)).toBe("Choose dates no more than a year apart");
+    expect(insightRangeRefusal({ from: "2026-10-07", to: "2026-10-08" }, now)).toBe("Choose dates up to today");
+    expect(insightRangeRefusal({ from: "2025-10-06", to: "2026-10-06" }, now)).toBeNull();
+  });
+
+  it("offers yesterday, last week, last month and this year", () => {
+    const ranges = Object.fromEntries(INSIGHT_RANGE_PRESETS.map((preset) => [preset.label, preset.range("2026-10-06")]));
+    expect(ranges).toEqual({
+      Yesterday: { from: "2026-10-05", to: "2026-10-05" },
+      "Last week": { from: "2026-09-28", to: "2026-10-04" },
+      "Last month": { from: "2026-09-01", to: "2026-09-30" },
+      "This year": { from: "2026-01-01", to: "2026-10-06" },
+    });
+    // On a Sunday, last week is still the one before this Monday.
+    expect(INSIGHT_RANGE_PRESETS[1]!.range("2026-10-11")).toEqual({ from: "2026-09-28", to: "2026-10-04" });
   });
 });
