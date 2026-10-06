@@ -32,8 +32,10 @@
  * endpoint echoes a PIN back, not even to the person who set it; a forgotten PIN
  * is replaced, not recovered.
  *
- * This module is pure so the lockout rule can be tested without a database;
- * `till-pin-attempt.ts` reads and writes the counter around it.
+ * The lockout itself is `checkTillPin` (`till-pin-attempt.ts`): each try
+ * claims its place in the counter in one statement before bcrypt runs, so
+ * tries sent at once cannot overwrite each other's count. There is no
+ * time-out; a locked PIN stays locked until somebody sends a new one.
  */
 
 /** Five guesses. Enough for a wet finger on a tablet, not enough to search. */
@@ -44,13 +46,6 @@ export const TILL_PIN_LENGTH = 4;
 /** What the till says while a PIN is locked, wherever it is typed. */
 export const TILL_PIN_LOCKED = "Too many tries. Ask a manager to send you a new PIN.";
 
-/** What the database holds between attempts. */
-export type TillPinAttemptState = {
-  failedAttempts: number;
-  /** When the fifth wrong PIN locked it. Set until somebody sends a new one. */
-  lockedAt: Date | null;
-};
-
 export type TillPinDecision =
   /** Refused without comparing anything, because the PIN is locked. */
   | "LOCKED"
@@ -60,81 +55,6 @@ export type TillPinDecision =
   | "REJECTED"
   /** The digits did not match and that was the last attempt. */
   | "REJECTED_NOW_LOCKED";
-
-export type TillPinAttemptOutcome = {
-  decision: TillPinDecision;
-  /** The state to persist. Identical to the input when the decision is `LOCKED`. */
-  next: TillPinAttemptState;
-  /** How many wrong guesses are left before the lock. Zero while locked. */
-  attemptsRemaining: number;
-};
-
-/**
- * Whether the PIN is refused outright.
- *
- * Asked **before** a hash is compared: a locked PIN must not do the bcrypt
- * work, both to keep a lock cheap under a script and so the response time
- * cannot distinguish a wrong PIN from a locked one.
- */
-export function isTillPinLocked(state: TillPinAttemptState): boolean {
-  return state.lockedAt !== null;
-}
-
-/**
- * The whole lockout rule, in one place.
- *
- * `verified` is `null` when the caller has not compared the hash yet — the lock
- * check is the first thing that happens and it short-circuits everything else.
- *
- * There is no time-out. A locked PIN stays locked until somebody sends a new
- * one (`issueTillPin` clears `lockedAt` and the counter); the password sign-in
- * stays on the lock screen for people who have one.
- */
-export function evaluateTillPinAttempt(input: {
-  state: TillPinAttemptState;
-  verified: boolean | null;
-  now: Date;
-}): TillPinAttemptOutcome {
-  const { state, verified, now } = input;
-
-  if (isTillPinLocked(state)) {
-    return { decision: "LOCKED", next: state, attemptsRemaining: 0 };
-  }
-
-  const baseAttempts = Math.max(0, state.failedAttempts);
-
-  if (verified === null) {
-    return {
-      decision: "REJECTED",
-      next: { failedAttempts: baseAttempts, lockedAt: null },
-      attemptsRemaining: Math.max(0, TILL_PIN_MAX_ATTEMPTS - baseAttempts),
-    };
-  }
-
-  if (verified) {
-    return {
-      decision: "ACCEPTED",
-      next: { failedAttempts: 0, lockedAt: null },
-      attemptsRemaining: TILL_PIN_MAX_ATTEMPTS,
-    };
-  }
-
-  const failedAttempts = baseAttempts + 1;
-
-  if (failedAttempts >= TILL_PIN_MAX_ATTEMPTS) {
-    return {
-      decision: "REJECTED_NOW_LOCKED",
-      next: { failedAttempts, lockedAt: now },
-      attemptsRemaining: 0,
-    };
-  }
-
-  return {
-    decision: "REJECTED",
-    next: { failedAttempts, lockedAt: null },
-    attemptsRemaining: TILL_PIN_MAX_ATTEMPTS - failedAttempts,
-  };
-}
 
 /**
  * Whether four digits are too obvious to be worth the five attempts.

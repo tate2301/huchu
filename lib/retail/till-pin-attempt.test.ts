@@ -20,7 +20,7 @@ let otherManagerId: string;
 let cashierId: string;
 let mainId: string;
 
-const place = { registerName: "Back till" };
+let place: { registerId: string };
 const typed = (pin: string) => checkTillPin({ companyId, userId: cashierId, pin, place, opens: true });
 
 beforeAll(async () => {
@@ -45,6 +45,11 @@ beforeAll(async () => {
   mainManagerId = await user("Tafara Nyathi", "MANAGER", mainId);
   otherManagerId = await user("Rufaro Ndlovu", "MANAGER", otherId);
   cashierId = await user("Farai Moyo", "CASHIER", mainId);
+  const till = await prisma.retailRegister.create({
+    data: { companyId, siteId: mainId, code: `BT${stamp.slice(-4)}`, name: "Back till" },
+    select: { id: true },
+  });
+  place = { registerId: till.id };
 });
 
 beforeEach(async () => {
@@ -59,6 +64,7 @@ afterAll(async () => {
   await prisma.notification.deleteMany({ where: { companyId } });
   await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
   await prisma.retailTillPin.deleteMany({ where: { companyId } });
+  await prisma.retailRegister.deleteMany({ where: { companyId } });
   await prisma.userSiteAccess.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
@@ -88,6 +94,7 @@ describe("five wrong PINs", () => {
     for (let attempt = 0; attempt < 6; attempt += 1) await typed("1111");
     const events = await prisma.platformAuditEvent.findMany({ where: { companyId, entityId: cashierId, eventType: "RETAIL_PIN.LOCKED" } });
     expect(events.length).toBeGreaterThanOrEqual(1);
+    expect(JSON.parse(events[0]!.payloadJson ?? "{}")).toMatchObject({ registerName: "Back till", source: "TILL" });
     const latest = await prisma.notification.findFirstOrThrow({
       where: { companyId, type: "RETAIL_PIN_LOCKED" },
       orderBy: { createdAt: "desc" },
@@ -97,6 +104,41 @@ describe("five wrong PINs", () => {
     expect(latest.summary).toMatch(/^Five wrong tries at Back till, \d{2}:\d{2}\. Send a new PIN from People\.$/);
     expect(latest.recipients.map((row) => row.userId).sort()).toEqual([ownerId, mainManagerId].sort());
     expect(latest.recipients.map((row) => row.userId)).not.toContain(otherManagerId);
+  });
+
+  it("sent all at once still add up: at most five are compared, then it is locked, with one event", async () => {
+    const lockEvents = () => prisma.platformAuditEvent.count({ where: { companyId, entityId: cashierId, eventType: "RETAIL_PIN.LOCKED" } });
+    const eventsBefore = await lockEvents();
+    const compare = vi.spyOn(bcrypt, "compare");
+    const answers = await Promise.all(Array.from({ length: 30 }, () => typed("1111")));
+    const compared = compare.mock.calls.length;
+    compare.mockRestore();
+
+    expect(compared).toBeLessThanOrEqual(5);
+    expect(answers.filter((answer) => answer.decision === "REJECTED_NOW_LOCKED")).toHaveLength(1);
+    expect(answers.filter((answer) => answer.decision === "LOCKED")).toHaveLength(30 - compared);
+    const row = await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: cashierId } });
+    expect(row.failedAttempts).toBe(5);
+    expect(row.lockedAt).toBeInstanceOf(Date);
+    expect(await lockEvents()).toBe(eventsBefore + 1);
+  });
+
+  it("are cleared by a right PIN before the fifth", async () => {
+    for (let attempt = 0; attempt < 4; attempt += 1) await typed("1111");
+    expect(await typed("6024")).toMatchObject({ decision: "ACCEPTED" });
+    const row = await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: cashierId } });
+    expect(row).toMatchObject({ failedAttempts: 0, lockedAt: null });
+    expect(row.lastUnlockedAt).toBeInstanceOf(Date);
+    expect(await typed("1111")).toMatchObject({ decision: "REJECTED", attemptsRemaining: 4 });
+  });
+
+  it("typed in the admin are sourced ADMIN, with no till in the words", async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) await checkTillPin({ companyId, userId: cashierId, pin: "1111", place: {}, opens: false });
+    const event = await prisma.platformAuditEvent.findFirstOrThrow({
+      where: { companyId, entityId: cashierId, eventType: "RETAIL_PIN.LOCKED" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(JSON.parse(event.payloadJson ?? "{}")).toMatchObject({ registerName: null, source: "ADMIN" });
   });
 
   it("are forgotten when somebody sends a new PIN", async () => {

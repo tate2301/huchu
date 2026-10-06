@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { emitRetailNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
-import { TILL_PIN_LOCKED, evaluateTillPinAttempt, tillPinDenial, type TillPinDecision } from "@/lib/retail/till-pin";
+import { TILL_PIN_LOCKED, TILL_PIN_MAX_ATTEMPTS, tillPinDenial, type TillPinDecision } from "@/lib/retail/till-pin";
 import { DEFAULT_TIME_ZONE, formatTime } from "@/lib/workspace/format";
 
 /**
@@ -19,14 +19,20 @@ import { DEFAULT_TIME_ZONE, formatTime } from "@/lib/workspace/format";
  * the person's sites — and it stays locked until somebody sends a new one.
  *
  * The counter is written with the shared client, never a caller's
- * transaction: a wrong PIN that rolls an act back must still count.
+ * transaction: a wrong PIN that rolls an act back must still count. Each try
+ * claims its place in the count before bcrypt runs (one conditional UPDATE),
+ * so tries sent in parallel add up instead of overwriting each other.
  */
 
 /** The same cost factor issued PINs are hashed at (`lib/retail/people/pins.ts`). */
 const PIN_HASH_ROUNDS = 10;
 
-/** Where the PIN was typed: a till (with its name), or the admin. */
-export type PinPlace = { registerName: string | null };
+/**
+ * Where the PIN was typed: at a till — its register, or the paired device that
+ * names it — or, with neither, in the admin. The till's name is read only when
+ * the PIN locks, for the event and the notification.
+ */
+export type PinPlace = { registerId?: string | null; deviceId?: string | null };
 
 export type TillPinCheck =
   | { decision: "NO_PIN" }
@@ -44,35 +50,42 @@ export async function checkTillPin(input: {
   const now = input.now ?? new Date();
   const record = await prisma.retailTillPin.findFirst({
     where: { companyId: input.companyId, userId: input.userId },
-    select: { id: true, pinHash: true, failedAttempts: true, lockedAt: true, mustChange: true },
+    select: { id: true, pinHash: true, mustChange: true },
   });
   if (!record) return { decision: "NO_PIN" };
 
-  const state = { failedAttempts: record.failedAttempts, lockedAt: record.lockedAt };
-  if (evaluateTillPinAttempt({ state, verified: null, now }).decision === "LOCKED") {
-    return { decision: "LOCKED", attemptsRemaining: 0, mustChange: record.mustChange };
-  }
+  // Claim one of the five tries before comparing, in one statement: the
+  // counter goes up only while the PIN is unlocked with tries left, so tries
+  // sent at once each take their own and no more than five are ever compared.
+  const claimed = await prisma.$queryRaw<{ failedAttempts: number }[]>`
+    UPDATE "RetailTillPin"
+       SET "failedAttempts" = "failedAttempts" + 1
+     WHERE "id" = ${record.id} AND "lockedAt" IS NULL AND "failedAttempts" < ${TILL_PIN_MAX_ATTEMPTS}
+     RETURNING "failedAttempts"`;
+  const attempt = claimed[0]?.failedAttempts;
+  // Locked, or the last tries are being compared right now: refused without comparing.
+  if (attempt === undefined) return { decision: "LOCKED", attemptsRemaining: 0, mustChange: record.mustChange };
 
-  const outcome = evaluateTillPinAttempt({ state, verified: await bcrypt.compare(input.pin, record.pinHash), now });
-  if (outcome.decision === "REJECTED_NOW_LOCKED") {
-    // Only the attempt that finds it unlocked locks it, so two at once write one event.
-    const locked = await prisma.retailTillPin.updateMany({
-      where: { id: record.id, lockedAt: null },
-      data: { failedAttempts: outcome.next.failedAttempts, lockedAt: now },
+  if (await bcrypt.compare(input.pin, record.pinHash)) {
+    await prisma.retailTillPin.update({
+      where: { id: record.id },
+      data: { failedAttempts: 0, ...(input.opens ? { lastUnlockedAt: now } : {}) },
+      select: { id: true },
     });
-    if (locked.count > 0) await announceLock({ companyId: input.companyId, userId: input.userId, place: input.place, at: now });
-    return { decision: "REJECTED_NOW_LOCKED", attemptsRemaining: 0, mustChange: record.mustChange };
+    return { decision: "ACCEPTED", attemptsRemaining: TILL_PIN_MAX_ATTEMPTS, mustChange: record.mustChange };
   }
 
-  await prisma.retailTillPin.update({
-    where: { id: record.id },
-    data: {
-      failedAttempts: outcome.next.failedAttempts,
-      ...(outcome.decision === "ACCEPTED" && input.opens ? { lastUnlockedAt: now } : {}),
-    },
-    select: { id: true },
+  if (attempt < TILL_PIN_MAX_ATTEMPTS) {
+    return { decision: "REJECTED", attemptsRemaining: TILL_PIN_MAX_ATTEMPTS - attempt, mustChange: record.mustChange };
+  }
+
+  // The fifth wrong try. Only the attempt that finds it unlocked locks it, so it writes one event.
+  const locked = await prisma.retailTillPin.updateMany({
+    where: { id: record.id, lockedAt: null },
+    data: { failedAttempts: TILL_PIN_MAX_ATTEMPTS, lockedAt: now },
   });
-  return { decision: outcome.decision, attemptsRemaining: outcome.attemptsRemaining, mustChange: record.mustChange };
+  if (locked.count > 0) await announceLock({ companyId: input.companyId, userId: input.userId, place: input.place, at: now });
+  return { decision: "REJECTED_NOW_LOCKED", attemptsRemaining: 0, mustChange: record.mustChange };
 }
 
 /** "Farai Moyo’s PIN is locked" / "Five wrong tries at Back till, 08:12. Send a new PIN from People." */
@@ -111,14 +124,15 @@ async function announceLock(input: { companyId: string; userId: string; place: P
   });
   if (!person) return;
   const name = person.name ?? "";
+  const registerName = await tillNameOf(input.companyId, input.place);
   await writeRetailAuditEvent(prisma, {
     actor: { companyId: input.companyId, userId: person.id, userName: name, userRole: person.role },
     eventType: RETAIL_AUDIT_EVENTS.pinLocked,
     entityType: "User",
     entityId: person.id,
-    payload: { registerName: input.place.registerName, source: input.place.registerName ? "TILL" : "ADMIN" },
+    payload: { registerName, source: input.place.registerId || input.place.deviceId ? "TILL" : "ADMIN" },
   });
-  const words = pinLockedWords({ name, registerName: input.place.registerName, at: input.at });
+  const words = pinLockedWords({ name, registerName, at: input.at });
   await emitRetailNotification({
     companyId: input.companyId,
     recipientIds: await lockRecipients(input.companyId, {
@@ -135,11 +149,20 @@ async function announceLock(input: { companyId: string; userId: string; place: P
   });
 }
 
-/** The name of the till a `till-pin` session was opened at, for the lock's words. */
-export async function registerNameOf(companyId: string, registerId: string | null | undefined): Promise<string | null> {
-  if (!registerId) return null;
-  const till = await prisma.retailRegister.findFirst({ where: { id: registerId, companyId }, select: { name: true } });
-  return till?.name ?? null;
+/** The name of the till a PIN was typed at, from its register or its paired device. */
+async function tillNameOf(companyId: string, place: PinPlace): Promise<string | null> {
+  if (place.registerId) {
+    const till = await prisma.retailRegister.findFirst({ where: { id: place.registerId, companyId }, select: { name: true } });
+    return till?.name ?? null;
+  }
+  if (place.deviceId) {
+    const device = await prisma.retailDevice.findFirst({
+      where: { id: place.deviceId, companyId },
+      select: { register: { select: { name: true } } },
+    });
+    return device?.register.name ?? null;
+  }
+  return null;
 }
 
 /* ── Choosing your own PIN (POST /api/v2/retail/pos/pin/change) ───────────── */

@@ -33,7 +33,7 @@ import type { ReceiptWire } from "@/lib/retail/receipt-words";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import type { ShopProfile } from "@/lib/retail/shop-profile-rules";
 import { loadTillRules, tillRulesForTill, type TillRulesForTill } from "@/lib/retail/till-rules";
-import { checkTillPin } from "@/lib/retail/till-pin-attempt";
+import { checkTillPin, type PinPlace } from "@/lib/retail/till-pin-attempt";
 import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
 
 /**
@@ -97,6 +97,20 @@ export async function findDeviceByKey(key: string | null | undefined): Promise<P
 /** The device behind a request's cookie. */
 export function deviceOfRequest(request: NextRequest): Promise<PosDevice | null> {
   return findDeviceByKey(request.cookies.get(DEVICE_COOKIE)?.value);
+}
+
+/**
+ * Where a PIN typed on this host is typed, for the lock's words (ADM-03): the
+ * till a `till-pin` session was opened at, else the shop's device paired on
+ * this host (a password session at the till), else nowhere (the admin).
+ */
+export async function pinPlaceOf(
+  request: NextRequest,
+  session: { user: { companyId: string; registerId?: string | null } },
+): Promise<PinPlace> {
+  if (session.user.registerId) return { registerId: session.user.registerId };
+  const device = await deviceOfRequest(request);
+  return device && device.companyId === session.user.companyId ? { registerId: device.registerId } : {};
 }
 
 /** What a 401 DEVICE_UNPAIRED carries, and what /unpaired shows. */
@@ -679,7 +693,7 @@ export async function checkTillPinSignIn(
     companyId: device.companyId,
     userId: input.userId,
     pin: input.pin,
-    place: { registerName: device.register.name },
+    place: { registerId: device.registerId },
     opens: true,
     now,
   });

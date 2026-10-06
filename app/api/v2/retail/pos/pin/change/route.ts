@@ -12,7 +12,8 @@ import { z } from "zod";
 
 import { errorResponse, fieldErrorResponse, successResponse } from "@/lib/api-response";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { TillPinRefused, chooseTillPin, registerNameOf } from "@/lib/retail/till-pin-attempt";
+import { pinPlaceOf } from "@/lib/retail/devices";
+import { TillPinRefused, chooseTillPin } from "@/lib/retail/till-pin-attempt";
 import { requireRetailSession } from "../../../_helpers";
 
 const changeSchema = z.object({
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       currentPin: parsed.data.currentPin,
       newPin: parsed.data.newPin,
       openedByIssuedPin: session.user.pinMustChange === true,
-      place: { registerName: await registerNameOf(session.user.companyId, session.user.registerId) },
+      place: await pinPlaceOf(request, session),
     });
     return successResponse({ data: result });
   } catch (error) {

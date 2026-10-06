@@ -38,7 +38,7 @@ import { markActivityFailed } from "@/lib/activity/context";
 import { prisma } from "@/lib/prisma";
 import { canRetailRoleDo, type RetailAction, type RetailResource } from "@/lib/retail/permission-matrix";
 import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
-import { checkTillPin } from "@/lib/retail/till-pin-attempt";
+import { checkTillPin, type PinPlace } from "@/lib/retail/till-pin-attempt";
 import { TillRuleRefused, type TillRuleDecision } from "@/lib/retail/till-rules";
 
 export const approverSchema = z.object({
@@ -83,8 +83,8 @@ export async function verifyManagerPin(input: {
   companyId: string;
   approver: ApproverInput;
   can?: [RetailResource, RetailAction];
-  /** The till it was typed at, for the lock's event and notification; null in the admin. */
-  registerName?: string | null;
+  /** The till it was typed at, for the lock's event and notification; none in the admin. */
+  place?: PinPlace;
   now?: Date;
 }): Promise<Approval> {
   const [resource, action] = input.can ?? ["retail.sell", "approve"];
@@ -101,7 +101,7 @@ export async function verifyManagerPin(input: {
     companyId: input.companyId,
     userId: approver.id,
     pin: input.approver.pin,
-    place: { registerName: input.registerName ?? null },
+    place: input.place ?? {},
     opens: false,
     now: input.now,
   });
@@ -123,12 +123,14 @@ export async function approvalFor(input: {
   decision: TillRuleDecision;
   approver?: ApproverInput | null;
   can?: [RetailResource, RetailAction];
+  /** The till the approver typed their PIN at. */
+  place?: PinPlace;
 }): Promise<Approval | null> {
   const [resource, action] = input.can ?? ["retail.sell", "approve"];
   if (!input.decision.needsApprover) return null;
   if (input.actorRole && canRetailRoleDo(input.actorRole, resource, action)) return null;
   if (!input.approver) throw new ApprovalNeeded(input.decision.reason);
-  return verifyManagerPin({ companyId: input.companyId, approver: input.approver, can: input.can });
+  return verifyManagerPin({ companyId: input.companyId, approver: input.approver, can: input.can, place: input.place });
 }
 
 /**
@@ -144,6 +146,8 @@ export async function replayApproval(input: {
   actorRole: string | null | undefined;
   decision: TillRuleDecision;
   approver?: ApproverInput | null;
+  /** The till the queue came from. */
+  place?: PinPlace;
   /** The review line, from the reason the rules asked. */
   review: (reason: string) => string;
 }): Promise<{ approvedBy: Approval | null; review: string | null }> {
