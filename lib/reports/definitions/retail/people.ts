@@ -158,7 +158,6 @@ const people: ListSpec = {
     line: "Invite the people who work in the shop. Each gets a WhatsApp link and, if they use a till, a PIN.",
     primary: { label: "Invite someone", sheet: "person-new", requires: [["retail.people", "create"]] },
   },
-  catalog: false,
 };
 
 const peopleSource: ReportDefinition = {

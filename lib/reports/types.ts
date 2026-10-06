@@ -151,6 +151,8 @@ export type ReportDefinition = ReportMeta & {
   summary?: string;
   /** A working list: paged on the server, drawn by ListFrame (5.4). */
   list?: ListSpec;
+  /** The same rows as Reports reads them (`face=report`, 70-insights-reports decision 5). */
+  report?: ReportFace;
 };
 
 /** How a report's rows are fetched. Server-only: it queries the database. */
@@ -195,6 +197,8 @@ export type ReportView = {
   groupBy: string | null;
   /** Which total each column's footer shows. Absent means none. */
   totals: Record<string, Aggregate>;
+  /** "One row for each": the rollup keys a report face is rolled up by. */
+  rows?: string[];
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -288,7 +292,18 @@ export type ListColumn = ReportColumn & {
 /** A choice. `where` narrows the rows itself, for a choice that is a range or a word rather than a value. */
 export type ListOption = ReportOption & { where?: Condition[] };
 
-export const PERIOD_PRESETS = ["today", "yesterday", "7d", "30d", "this-month", "last-month", "this-year", "any"] as const;
+export const PERIOD_PRESETS = [
+  "today",
+  "yesterday",
+  "this-week",
+  "last-weekend",
+  "7d",
+  "30d",
+  "this-month",
+  "last-month",
+  "this-year",
+  "any",
+] as const;
 export type PeriodPreset = (typeof PERIOD_PRESETS)[number];
 
 export type ListFilter =
@@ -454,8 +469,6 @@ export type ListSpec = {
   edit?: { column: string; endpoint: string; changedLabel: string; note: string; save: string };
   /** Links under Export's formats, after a separator: other ways in ("Import a spreadsheet"). */
   exportExtras?: Array<{ label: string; href: string; requires: ListGrant[] }>;
-  /** Listed in the Reports catalogue. Default false. */
-  catalog?: boolean;
   /** Refetched this often while open, for rows whose state changes on its own (a till going offline). */
   refreshSeconds?: number;
 };
@@ -471,6 +484,27 @@ export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "e
   exportExtras?: Array<{ label: string; href: string }>;
 };
 
+/** The six places a Reports template belongs (`lib/reports/areas.ts`). */
+export type ReportArea = "selling" | "stock" | "buying" | "customers" | "money" | "floor";
+
+/**
+ * A source as Reports reads it (70-insights-reports 5.14): a second list spec
+ * over the same loader, with the board's columns, filters and sorts, and the
+ * "One row for each" choices. `startsFrom` is the source's "Starts from" card
+ * on the New template sheet; the inherited `card` stays the phone card.
+ */
+export type ReportFace = ListSpec & {
+  area: ReportArea;
+  startsFrom?: { title: string; sub: string };
+  /** "One row for each". The first is the unrolled row ("Sale"), key `none`; the rest are column keys. */
+  rollups: Array<{ key: string; label: string }>;
+  /** The count column that exists only rolled up ("Payments"): how many source rows each rolled row holds. */
+  rollupOnly?: string;
+};
+
+/** Which spec of a source a list request reads. */
+export type ListFace = "list" | "report";
+
 /** A list request as the address carries it. */
 export type ListQuery = {
   tab?: string;
@@ -483,6 +517,14 @@ export type ListQuery = {
   filters: Record<string, string>;
   /** Hidden column keys. */
   hidden?: string[];
+  /** `report`: the source's report face. Default `list`. */
+  face?: ListFace;
+  /** A Reports template whose query lies under this one. */
+  template?: string;
+  /** "One row for each": rollup keys of the report face. */
+  rows?: string[];
+  /** Visible columns, in order. */
+  cols?: string[];
 };
 
 export const LIST_PAGE_SIZES = [25, 50, 100] as const;
@@ -496,10 +538,18 @@ export type ResolvedListQuery = {
   sort: string;
   group: string | null;
   page: number;
-  size: ListPageSize;
+  /** One of `LIST_PAGE_SIZES` from an address; an export asks a database-paged source for `REPORT_ROW_LIMIT`. */
+  size: number;
   /** Every declared filter's value (`any` when off); parents only when given. */
   filters: Record<string, string>;
   hidden: string[];
+  face: ListFace;
+  /** The template the query was laid over, when it was. */
+  template: string | null;
+  /** Rolled up by these keys; empty when not. */
+  rows: string[];
+  /** The visible columns in drawing order, when the address chose them; the rest are hidden. */
+  cols: string[] | null;
 };
 
 export type ListGroup = {
@@ -533,7 +583,7 @@ export type ListPageResponse = ListPageResult & {
   /** The record a parent filter with `all` scopes the list to: the header sub, and the filter `all` clears. */
   parent: { key: string; label: string; all: string } | null;
   query: ResolvedListQuery;
-  size: ListPageSize;
+  size: number;
 };
 
 /** "Select all" fetches at most this many ids. */

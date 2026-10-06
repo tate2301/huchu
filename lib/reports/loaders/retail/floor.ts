@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { num, result, TAKE } from "@/lib/reports/loaders/shared";
+import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import type { ReportContext, ReportLoader, ReportOption, ReportRow } from "@/lib/reports/types";
 import { DEFAULT_TIME_ZONE, dayKey, formatDuration, formatShortDay, formatTime } from "@/lib/workspace/format";
 
@@ -24,17 +25,39 @@ export const STALE_SHIFT_MINUTES = 12 * 60;
  */
 async function shiftFigures(companyId: string) {
   const scope = { companyId, shiftId: { not: null } };
-  const [takings, settled] = await Promise.all([
+  const [takings, settled, refunds, voided, drawer] = await Promise.all([
     prisma.retailSale.groupBy({ by: ["shiftId"], where: scope, _sum: { baseAmount: true } }),
     prisma.retailSale.groupBy({
       by: ["shiftId"],
       where: { ...scope, saleType: "SALE", status: "POSTED" },
       _count: { _all: true },
     }),
+    // Reports' face: refunds rung on the shift, and the sales voided on it (a
+    // void leaves its sale VOIDED, so the sale is the one figure to count).
+    prisma.retailSale.groupBy({
+      by: ["shiftId"],
+      where: { ...scope, saleType: "REFUND", status: "POSTED" },
+      _sum: { baseAmount: true },
+    }),
+    prisma.retailSale.groupBy({
+      by: ["shiftId"],
+      where: { ...scope, saleType: "SALE", status: { not: "POSTED" } },
+      _sum: { baseAmount: true },
+    }),
+    // The drawer opened with no sale, on the shift that was open at the till.
+    prisma.$queryRaw<Array<{ shiftId: string | null; opens: number }>>`
+      SELECT ("payloadJson"::jsonb ->> 'shiftId') AS "shiftId", count(*)::int AS opens
+      FROM "PlatformAuditEvent"
+      WHERE "companyId" = ${companyId} AND "eventType" = ${RETAIL_AUDIT_EVENTS.drawerOpened}
+      GROUP BY 1`,
   ]);
+  const size = (value: Parameters<typeof num>[0]) => Math.round(Math.abs(num(value) ?? 0) * 100) / 100;
   return {
     takings: new Map(takings.map((entry) => [entry.shiftId!, num(entry._sum.baseAmount) ?? 0])),
     sales: new Map(settled.map((entry) => [entry.shiftId!, entry._count._all])),
+    refunds: new Map(refunds.map((entry) => [entry.shiftId!, size(entry._sum.baseAmount)])),
+    voids: new Map(voided.map((entry) => [entry.shiftId!, size(entry._sum.baseAmount)])),
+    noSaleOpens: new Map(drawer.filter((entry) => entry.shiftId).map((entry) => [entry.shiftId!, entry.opens])),
   };
 }
 
@@ -69,6 +92,10 @@ async function loadShifts(ctx: ReportContext) {
         closedAt: true,
         countedCash: true,
         variance: true,
+        openingFloat: true,
+        expectedCash: true,
+        siteId: true,
+        site: { select: { name: true } },
       },
       orderBy: [{ openedAt: "desc" }, { id: "desc" }],
       take: TAKE,
@@ -102,6 +129,16 @@ async function loadShifts(ctx: ReportContext) {
         varianceSize: state === "Not counted" || variance === null ? null : Math.abs(variance),
         // The phone card's last words: how long it has run ("live" while it is
         // still a shift, not a drawer left open from another day), or the day it ran.
+        // Reports' face (70-insights-reports 5.14).
+        siteId: shift.siteId,
+        site: shift.site.name,
+        float: num(shift.openingFloat) ?? 0,
+        expected: running ? null : num(shift.expectedCash),
+        counted: num(shift.countedCash),
+        refunds: figures.refunds.get(shift.id) ?? 0,
+        voids: figures.voids.get(shift.id) ?? 0,
+        noSaleOpens: figures.noSaleOpens.get(shift.id) ?? 0,
+        shifts: 1,
         cardWhen: running
           ? `${formatDuration(durationMinutes)}${durationMinutes <= STALE_SHIFT_MINUTES ? " live" : ""}`
           : formatShortDay(shift.openedAt, timeZone),
@@ -125,7 +162,13 @@ async function shiftOptions(ctx: ReportContext): Promise<Record<string, ReportOp
       orderBy: [{ cashierId: "asc" }, { openedAt: "desc" }],
     }),
   ]);
+  const sites = await prisma.site.findMany({
+    where: { companyId: ctx.companyId, isActive: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
   return {
+    site: sites.map((site) => ({ value: site.id, label: site.name })),
     till: registers.map((register) => ({ value: register.code, label: register.name })),
     cashier: cashiers
       .map((cashier) => ({ value: cashier.cashierId, label: cashier.cashierName }))

@@ -106,7 +106,6 @@ const sites: ListSpec = {
     line: "A site is one shop: its places, its tills and the price list they sell from.",
     primary: { label: "Add a site", sheet: "site-new", requires: [["retail.sites", "create"]] },
   },
-  catalog: false,
 };
 
 const sitesSource: ReportDefinition = {

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { result } from "@/lib/reports/loaders/shared";
+import { num, result } from "@/lib/reports/loaders/shared";
 import type { ReportContext, ReportLoader, ReportOption, ReportRow } from "@/lib/reports/types";
 import { coverFill, coverLabel, onHandLabel, unitWord } from "@/lib/retail/products/figures";
 import { STOCK_LEVEL_LABEL } from "@/lib/retail/stock/levels";
@@ -29,10 +29,23 @@ export function onHandCardMeta(code: string | null, reorderAt: number | null, co
   return [code, reorderAt === null ? null : `reorder at ${reorderAt}`, cover].filter((part): part is string => Boolean(part)).join(" · ");
 }
 
+/** Each product's shelf price on the default list: the single-unit price, the one the till rings. */
+async function shelfPrices(companyId: string): Promise<Map<string, number>> {
+  const entries = await prisma.productPrice.findMany({
+    where: { companyId, priceList: { isDefault: true } },
+    select: { productId: true, unitPrice: true, minQuantity: true },
+    orderBy: [{ priceList: { createdAt: "asc" } }, { minQuantity: "asc" }],
+  });
+  const prices = new Map<string, number>();
+  for (const entry of entries) if (!prices.has(entry.productId)) prices.set(entry.productId, num(entry.unitPrice) ?? 0);
+  return prices;
+}
+
 async function loadStockOnHand(ctx: ReportContext) {
-  const [lines, categories] = await Promise.all([
+  const [lines, categories, prices] = await Promise.all([
     loadOnHand(ctx.companyId),
     prisma.retailCategory.findMany({ where: { companyId: ctx.companyId }, select: { id: true, name: true } }),
+    shelfPrices(ctx.companyId),
   ]);
   const categoryName = new Map(categories.map((category) => [category.id, category.name]));
 
@@ -65,6 +78,10 @@ async function loadStockOnHand(ctx: ReportContext) {
         coverPct: out || line.coverDays === null ? null : coverFill(line.coverDays),
         coverRank: coverRank(level, line.coverDays),
         value: round2(line.onHand * (line.unitCost ?? 0)),
+        unitCost: line.unitCost,
+        price: prices.get(line.productId) ?? null,
+        valueAtPrice: round2(line.onHand * (prices.get(line.productId) ?? 0)),
+        products: 1,
         state: line.archived ? "Archived" : "Selling",
         cardMeta: onHandCardMeta(line.code, line.reorderAt, cover),
       };

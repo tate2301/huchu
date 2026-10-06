@@ -27,9 +27,8 @@ export function reportCatalog(
   disabled: ReadonlySet<string> = new Set(),
 ): CatalogArea[] {
   const readable = sources.filter(
-    // A working list is a page of its own, not a report, unless it says otherwise.
-    (source) =>
-      !disabled.has(source.key) && (!source.list || source.list.catalog === true) && canReadReport(source, access),
+    // A working list is a page of its own and a report face is Reports': neither is in this catalogue.
+    (source) => !disabled.has(source.key) && !source.list && !source.report && canReadReport(source, access),
   );
   const forProfile = (source: ReportDefinition) => (profile ? source.profiles.includes(profile) : false);
 

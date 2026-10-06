@@ -1,4 +1,4 @@
-import type { ListSpec, ReportDefinition } from "@/lib/reports/types";
+import type { ListColumn, ListSpec, ReportDefinition, ReportFace } from "@/lib/reports/types";
 
 /**
  * The floor's lists (00-foundations 5.5; 50-floor adds sales).
@@ -246,7 +246,88 @@ const shifts: ListSpec = {
       ],
     },
   },
-  catalog: false,
+};
+
+const money = (key: string, label: string, extra: Partial<ListColumn> = {}): ListColumn => ({
+  key,
+  label,
+  kind: "money",
+  currency: "USD",
+  cell: "money",
+  total: "sum",
+  width: "120px",
+  align: "end",
+  priority: 1,
+  ...extra,
+});
+
+/**
+ * Shifts as Reports reads them (70-insights-reports 5.14): each shift counted
+ * against what the drawer should hold, with its float, refunds, voids and the
+ * times the drawer opened with no sale. The same rows and read as the list.
+ */
+const report: ReportFace = {
+  area: "floor",
+  startsFrom: { title: "Till shifts", sub: "Each shift, counted against expected" },
+  noun: "shifts",
+  read: shifts.read,
+  scopeOwn: shifts.scopeOwn,
+  search: shifts.search,
+  filters: [
+    { key: "opened", label: "Period", type: "period", any: "Any time", column: "openedAt", primary: true, default: "30d" },
+    {
+      key: "site",
+      label: "Shop",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      optionsFromLoader: true,
+      column: "siteId",
+      requires: "multi-site",
+    },
+    { key: "till", label: "Till", type: "choice", any: "Any", optionsFromLoader: true, column: "tillCode", primary: true },
+    { key: "cashier", label: "Cashier", type: "choice", any: "Anyone", optionsFromLoader: true, column: "cashierId", primary: true },
+    shifts.filters.find((filter) => filter.key === "state")!,
+  ],
+  sorts: [shifts.sorts[0]!, shifts.sorts[3]!],
+  groups: ["till", "cashier", "state", "openedAt"],
+  columns: [
+    { key: "shiftNo", label: "Shift", kind: "code", cell: "ref", width: "110px", align: "start", priority: 1 },
+    { key: "till", label: "Till", kind: "text", cell: "muted", width: "120px", align: "start", priority: 2 },
+    { key: "cashier", label: "Cashier", kind: "text", cell: "text", width: "140px", align: "start", priority: 1 },
+    {
+      key: "openedAt",
+      label: "Opened",
+      kind: "date",
+      cell: "date",
+      timeKey: "openedTime",
+      sortable: true,
+      width: "160px",
+      align: "start",
+      priority: 2,
+    },
+    { ...shifts.columns.find((column) => column.key === "state")!, width: "120px" },
+    money("float", "Float", { width: "110px" }),
+    money("takings", "Takings", { sortable: true }),
+    money("expected", "Expected"),
+    money("counted", "Counted"),
+    money("variance", "Short or over", { cell: "diff", diff: "variance", width: "130px" }),
+    money("refunds", "Refunds", { hidden: true }),
+    money("voids", "Voids", { hidden: true }),
+    { key: "noSaleOpens", label: "No-sale opens", kind: "number", cell: "num", total: "sum", hidden: true, width: "110px", align: "end", priority: 3 },
+    { key: "shifts", label: "Shifts", kind: "number", cell: "num", total: "sum", width: "90px", align: "end", priority: 1 },
+  ],
+  rowHref: "/retail/shifts/{id}",
+  bulk: [{ key: "export" }],
+  card: shifts.card,
+  empty: { icon: "CashRegister", title: "No shifts", line: "No till was opened in this period." },
+  rollups: [
+    { key: "none", label: "Shift" },
+    { key: "cashier", label: "Cashier" },
+    { key: "till", label: "Till" },
+    { key: "openedAt", label: "Day" },
+  ],
+  rollupOnly: "shifts",
 };
 
 const shiftsSource: ReportDefinition = {
@@ -259,6 +340,7 @@ const shiftsSource: ReportDefinition = {
   columns: shifts.columns,
   defaults: { sort: shifts.sorts[0]!.rules.filter((rule) => rule.column === "openedAt") },
   list: shifts,
+  report,
 };
 
 export const FLOOR_REPORTS: ReportDefinition[] = [shiftsSource];

@@ -193,7 +193,6 @@ const products: ListSpec = {
     primary: { label: "Add your first product", sheet: "product-new", requires: [["retail.catalog", "create"]] },
     secondary: { label: "Import a spreadsheet", href: "/retail/products/import", requires: [["retail.catalog", "create"]] },
   },
-  catalog: false,
 };
 
 const productsSource: ReportDefinition = {

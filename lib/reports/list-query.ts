@@ -12,12 +12,12 @@ import {
   type ListIdsResponse,
   type ListOption,
   type ListPageResult,
-  type ListPageSize,
   type ListQuery,
   type ListSpec,
   type ListSpecPublic,
   type ListSummary,
   type PeriodPreset,
+  type ReportFace,
   type ReportColumn,
   type ReportColumnKind,
   type ReportParams,
@@ -27,6 +27,7 @@ import {
   type ResolvedListQuery,
   type SortRule,
 } from "@/lib/reports/types";
+import { rolledFace, rollUp, rollupKeys } from "@/lib/reports/rollup";
 import { applyView, filterRows, type AppliedView, type ReportGroup } from "@/lib/reports/view";
 import { dayKey } from "@/lib/workspace/format";
 
@@ -59,14 +60,35 @@ export type ListContext = {
    Reading the address
    ────────────────────────────────────────────────────────────────────────── */
 
-const RESERVED = new Set(["page", "size", "tab", "q", "sort", "group", "cols", "idsOnly", "pick", "preview", "template", "v"]);
+const RESERVED = new Set([
+  "page",
+  "size",
+  "tab",
+  "q",
+  "sort",
+  "group",
+  "hidden",
+  "cols",
+  "face",
+  "template",
+  "rows",
+  "idsOnly",
+  "pick",
+  "preview",
+  "v",
+]);
+
+const keyList = (value: string | null) => (value === null ? undefined : value.split(",").filter(Boolean));
 
 export function parseListQuery(search: URLSearchParams): ListQuery {
   const filters: Record<string, string> = {};
   for (const [key, value] of search) {
     if (!RESERVED.has(key) && !(key in filters)) filters[key] = value;
   }
-  const cols = search.get("cols");
+  const hidden = keyList(search.get("hidden"));
+  const cols = keyList(search.get("cols"));
+  const rows = keyList(search.get("rows"));
+  const face = search.get("face");
   return {
     ...(search.has("tab") ? { tab: search.get("tab")! } : {}),
     ...(search.has("q") ? { q: search.get("q")! } : {}),
@@ -75,7 +97,11 @@ export function parseListQuery(search: URLSearchParams): ListQuery {
     page: Number(search.get("page") ?? 1),
     size: Number(search.get("size") ?? 50),
     filters,
-    ...(cols !== null ? { hidden: cols.split(",").filter(Boolean) } : {}),
+    ...(hidden ? { hidden } : {}),
+    ...(face === "report" || face === "list" ? { face } : {}),
+    ...(search.get("template") ? { template: search.get("template")! } : {}),
+    ...(rows ? { rows } : {}),
+    ...(cols ? { cols } : {}),
   };
 }
 
@@ -90,6 +116,21 @@ function addDays(day: string, days: number): string {
   const [year, month, date] = day.split("-").map(Number);
   return new Date(Date.UTC(year!, month! - 1, date!) + days * DAY_MS).toISOString().slice(0, 10);
 }
+
+/** 0 for Sunday … 6 for Saturday. */
+function weekday(day: string): number {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, date!)).getUTCDay();
+}
+
+/** The most recent weekend that has ended: its Friday and its Sunday. */
+function lastWeekend(today: string): { friday: string; sunday: string } {
+  const sunday = addDays(today, -(weekday(today) || 7));
+  return { friday: addDays(sunday, -2), sunday };
+}
+
+/** When the weekend starts on its Friday: the till's evening trade, not the morning's. */
+const WEEKEND_STARTS_AT = { hour: 17 };
 
 function validDay(day: string): boolean {
   return ISO_DAY.test(day) && addDays(day, 0) === day;
@@ -123,6 +164,13 @@ export function periodRange(
       return { from: today, to: today };
     case "yesterday":
       return { from: addDays(today, -1), to: addDays(today, -1) };
+    case "this-week":
+      // Monday is the first day of the week.
+      return { from: addDays(today, -((weekday(today) + 6) % 7)), to: today };
+    case "last-weekend": {
+      const { friday, sunday } = lastWeekend(today);
+      return { from: friday, to: sunday };
+    }
     case "7d":
       return { from: addDays(today, -6), to: today };
     case "30d":
@@ -162,7 +210,11 @@ export function startOfDayIn(day: string, timeZone: string): Date {
   return new Date(midnightUtc - offset(first));
 }
 
-/** A period as instants for a database query: `gte` the first day's start, `lt` the day after the last. */
+/**
+ * A period as instants for a database query: `gte` the first day's start, `lt`
+ * the day after the last. "Last weekend" is the one with a time edge: it starts
+ * at 17:00 on its Friday.
+ */
 export function periodInstants(
   value: string,
   now: Date,
@@ -170,6 +222,13 @@ export function periodInstants(
 ): { gte?: Date; lt?: Date } | undefined {
   const range = periodRange(value, now, timeZone);
   if (!range) return undefined;
+  if (value === "last-weekend" && range.from) {
+    const friday = startOfDayIn(range.from, timeZone);
+    return {
+      gte: new Date(friday.getTime() + WEEKEND_STARTS_AT.hour * 3_600_000),
+      lt: startOfDayIn(addDays(range.to!, 1), timeZone),
+    };
+  }
   return {
     ...(range.from ? { gte: startOfDayIn(range.from, timeZone) } : {}),
     ...(range.to ? { lt: startOfDayIn(addDays(range.to, 1), timeZone) } : {}),
@@ -214,9 +273,37 @@ function sameRules(a: SortRule[], b: SortRule[]): boolean {
   return a.length === b.length && a.every((rule, index) => rule.column === b[index]!.column && rule.dir === b[index]!.dir);
 }
 
+function isFace(spec: ListSpec): spec is ReportFace {
+  return "rollups" in spec;
+}
+
+/** The source's columns in the shape asked for: rolled up by `rows`, or as they are (a face's count column only rolled up). */
+function shapeOf(spec: ListSpec, rows: string[]): ListSpec {
+  if (!isFace(spec)) return spec;
+  if (rows.length) return rolledFace(spec, rows);
+  return { ...spec, columns: spec.columns.filter((column) => column.key !== spec.rollupOnly) };
+}
+
+/**
+ * The spec a resolved query is drawn and run with: the face rolled up when it
+ * is, and the columns in the order `cols` put them in (the rest after them,
+ * hidden). `report.list.columns` describe this shape.
+ */
+export function listShape(spec: ListSpec, resolved: ResolvedListQuery): ListSpec {
+  const shape = shapeOf(spec, resolved.rows);
+  if (!resolved.cols) return shape;
+  const at = new Map(resolved.cols.map((key, index) => [key, index]));
+  const order = (key: string) => at.get(key) ?? Number.MAX_SAFE_INTEGER;
+  return { ...shape, columns: [...shape.columns].sort((a, b) => order(a.key) - order(b.key)) };
+}
+
 /**
  * Every value checked against the source and every gap filled. What the source
  * does not declare is ignored; a value it does not offer is its default.
+ *
+ * On a report face, `rows` holds only when every key is one of its rollups,
+ * and `cols` keeps the columns it names that the shape has, in its order, with
+ * the first column always among them.
  */
 export function resolveListQuery(
   spec: ListSpec,
@@ -224,25 +311,27 @@ export function resolveListQuery(
   loadedOptions: Record<string, ListOption[]>,
   ctx: Pick<ListContext, "role" | "seeCost">,
 ): ResolvedListQuery {
-  const columns = listColumnsFor(spec, ctx.seeCost);
+  const rows = isFace(spec) ? rollupKeys(spec, query.rows) : [];
+  const shape = shapeOf(spec, rows);
+  const columns = listColumnsFor(shape, ctx.seeCost);
   const scope = scopedFor(spec, ctx.role);
 
   const tab = spec.tabs?.length
     ? (spec.tabs.find((candidate) => candidate.key === query.tab) ?? spec.tabs[0]!).key
     : null;
 
-  const defaultSort = spec.sorts[0]?.key ?? "";
+  const defaultSort = shape.sorts[0]?.key ?? "";
   let sort = defaultSort;
   if (query.sort) {
-    const rules = sortRules(spec, query.sort, columns);
+    const rules = sortRules(shape, query.sort, columns);
     if (rules) {
       // A column sort that equals a named one is that named one.
-      sort = spec.sorts.find((candidate) => sameRules(candidate.rules, rules))?.key ?? query.sort;
+      sort = shape.sorts.find((candidate) => sameRules(candidate.rules, rules))?.key ?? query.sort;
     }
   }
 
-  const groupable = (spec.groups ?? []).filter((key) => columns.some((column) => column.key === key));
-  const defaultGroup = spec.defaultGroup && groupable.includes(spec.defaultGroup) ? spec.defaultGroup : null;
+  const groupable = (shape.groups ?? []).filter((key) => columns.some((column) => column.key === key));
+  const defaultGroup = shape.defaultGroup && groupable.includes(shape.defaultGroup) ? shape.defaultGroup : null;
   const group =
     query.group === "none" ? null : query.group && groupable.includes(query.group) ? query.group : defaultGroup;
 
@@ -267,15 +356,39 @@ export function resolveListQuery(
     filters[filter.key] = given && offered ? given : fallback;
   }
 
+  // The first column says what the row is: it is never hidden.
+  const first = columns[0]?.key;
   const hideable = new Set(columns.slice(1).map((column) => column.key));
-  const hidden = query.hidden
-    ? [...new Set(query.hidden.filter((key) => hideable.has(key)))]
-    : columns.filter((column) => column.hidden && hideable.has(column.key)).map((column) => column.key);
+  let cols: string[] | null = null;
+  let hidden: string[];
+  if (query.cols) {
+    const known = new Set(columns.map((column) => column.key));
+    const named = [...new Set(query.cols.filter((key) => known.has(key)))];
+    cols = first && !named.includes(first) ? [first, ...named] : named;
+    hidden = columns.filter((column) => !cols!.includes(column.key)).map((column) => column.key);
+  } else {
+    hidden = query.hidden
+      ? [...new Set(query.hidden.filter((key) => hideable.has(key)))]
+      : columns.filter((column) => column.hidden && hideable.has(column.key)).map((column) => column.key);
+  }
 
   const page = Number.isInteger(query.page) && query.page >= 1 ? query.page : 1;
-  const size = (LIST_PAGE_SIZES as readonly number[]).includes(query.size) ? (query.size as ListPageSize) : 50;
+  const size = (LIST_PAGE_SIZES as readonly number[]).includes(query.size) ? query.size : 50;
 
-  return { tab, q: (query.q ?? "").trim().slice(0, 200), sort, group, page, size, filters, hidden };
+  return {
+    tab,
+    q: (query.q ?? "").trim().slice(0, 200),
+    sort,
+    group,
+    page,
+    size,
+    filters,
+    hidden,
+    face: query.face === "report" ? "report" : "list",
+    template: query.template ?? null,
+    rows,
+    cols,
+  };
 }
 
 /** What a loader is handed: every filter that is on, by key. Parent filters included. */
@@ -550,6 +663,61 @@ export function runList(
     },
     view,
   };
+}
+
+/**
+ * A source's rows for one caller, in the shape asked for. Unrolled, this is
+ * `runList` over the shape. Rolled up, the face narrows first (the caller's
+ * scope, a parent, the tab, the filters, the search), the narrowed rows roll
+ * up, and the rolled rows are sorted, grouped, totalled and paged; the tab
+ * counts and "nothing at all" stay the face's.
+ */
+export function runSource(
+  spec: ListSpec,
+  rows: ReportRow[],
+  resolved: ResolvedListQuery,
+  ctx: ListContext,
+  options: { loaded?: Record<string, ListOption[]>; truncated?: boolean; rowIds?: ReadonlySet<string> } = {},
+): ListRun {
+  const shape = listShape(spec, resolved);
+  if (!resolved.rows.length || !isFace(spec)) return runList(shape, rows, resolved, ctx, options);
+  const narrowed = runList(
+    spec,
+    rows,
+    { ...resolved, group: null, sort: spec.sorts[0]?.key ?? "", page: 1, hidden: [], cols: null, rows: [] },
+    ctx,
+    { loaded: options.loaded, truncated: options.truncated },
+  );
+  const rolled = rollUp(narrowed.ordered, spec, resolved.rows, listColumnsFor(spec, ctx.seeCost), {
+    template: resolved.template,
+    filters: resolved.filters,
+  });
+  const run = runRolled(shape, rolled, resolved, ctx, options.rowIds);
+  return {
+    ...run,
+    result: { ...run.result, tabs: narrowed.result.tabs, everEmpty: narrowed.result.everEmpty, truncated: narrowed.result.truncated },
+  };
+}
+
+/**
+ * Rolled-up rows sorted, grouped, totalled and paged in the rolled shape. They
+ * were narrowed before they rolled up, so no filter, tab, search or scope
+ * applies again; database-paged sources hand their `GROUP BY` rows here too.
+ */
+export function runRolled(
+  shape: ListSpec,
+  rolled: ReportRow[],
+  resolved: ResolvedListQuery,
+  ctx: ListContext,
+  rowIds?: ReadonlySet<string>,
+): ListRun {
+  return runList(
+    { ...shape, scopeOwn: undefined, tabs: undefined, filters: [] },
+    rolled,
+    { ...resolved, tab: null, q: "", filters: {} },
+    ctx,
+    { rowIds },
+  );
 }
 
 /**

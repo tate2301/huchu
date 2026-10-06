@@ -148,7 +148,6 @@ const categories: ListSpec = {
     line: "Categories set VAT, the 18+ check and the margin you aim for. A liquor store starts with seven.",
     primary: { label: "New category", sheet: "category-new", requires: [["retail.categories", "create"]] },
   },
-  catalog: false,
 };
 
 const categoriesSource: ReportDefinition = {

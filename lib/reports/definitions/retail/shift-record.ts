@@ -36,7 +36,6 @@ const sales: ListSpec = {
   rowHref: "/retail/sales/{id}",
   card: { title: "saleNo", figure: "total", meta: "{paidWith}" },
   empty: { icon: "Receipt", title: "No sales on this shift yet", line: "Sales rung on this till while the shift is open show here." },
-  catalog: false,
 };
 
 const cash: ListSpec = {
@@ -56,7 +55,6 @@ const cash: ListSpec = {
   rowHref: "/retail/shifts/{shiftId}",
   card: { title: "what", figure: "amount", meta: "{by}" },
   empty: { icon: "Coins", title: "No cash in or out", line: "Drops to the safe, top-ups and payouts on this shift show here." },
-  catalog: false,
 };
 
 const tenders: ListSpec = {
@@ -75,7 +73,6 @@ const tenders: ListSpec = {
   rowHref: "/retail/shifts/{shiftId}",
   card: { title: "paidWith", figure: "amount", meta: "{share}" },
   empty: { icon: "Coins", title: "Nobody has paid yet", line: "Each way people paid on this shift, once a sale is rung." },
-  catalog: false,
 };
 
 function source(key: string, title: string, list: ListSpec): ReportDefinition {

@@ -2,34 +2,39 @@ import { canReadReport } from "@/lib/reports/access";
 import { reportMeta } from "@/lib/reports/catalog";
 import {
   canReadList,
+  engineColumns,
   listColumnsFor,
-  ownRows,
   listIds,
+  listQueryToView,
+  listShape,
   loaderParams,
   publicListSpec,
   resolveListQuery,
-  runList,
+  runSource,
   type ListContext,
   type ListRun,
 } from "@/lib/reports/list-query";
 import { resolveParams } from "@/lib/reports/params";
 import { getReport } from "@/lib/reports/server";
 import { readReportSetting } from "@/lib/reports/settings";
+import { layTemplate, templateQueryFor } from "@/lib/reports/template-query";
+import { visibleColumns } from "@/lib/reports/view";
 import { prisma } from "@/lib/prisma";
-import type {
-  ListIdsResponse,
-  ListOption,
-  ListPageResponse,
-  ListPageResult,
-  ListQuery,
-  ListSpec,
-  ReportContext,
-  ReportDefinition,
-  ReportLoadResult,
-  ReportMeta,
-  ReportParam,
-  ReportParams,
-  ResolvedListQuery,
+import {
+  REPORT_ROW_LIMIT,
+  type ListIdsResponse,
+  type ListOption,
+  type ListPageResponse,
+  type ListPageResult,
+  type ListQuery,
+  type ListSpec,
+  type ReportContext,
+  type ReportDefinition,
+  type ReportLoadResult,
+  type ReportMeta,
+  type ReportParam,
+  type ReportParams,
+  type ResolvedListQuery,
 } from "@/lib/reports/types";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { canRetailSessionDo, canSeeRetailCostPrice, retailRoleKey } from "@/lib/retail/permissions";
@@ -59,7 +64,8 @@ export async function fetchReport(
   { preview = false }: { preview?: boolean } = {},
 ): Promise<ReportFetch | null> {
   const report = getReport(key);
-  if (!report) return null;
+  // A working list or a report face is read in list mode only (`?page=`).
+  if (!report || report.definition.list || report.definition.report) return null;
   const { definition, loader } = report;
   if (!canReadReport(definition, { role: session.user.role, enabledFeatures: session.user.enabledFeatures })) {
     return null;
@@ -77,26 +83,7 @@ export async function fetchReport(
   const params = resolveParams(declared, given);
   const loaded = await loader.load(ctx, params);
   const meta = reportMeta(definition, session.user.role, declared, saved);
-  if (!definition.list) return { ...loaded, params, definition, meta };
-
-  // A working list read as a report keeps the list's rules: its read check,
-  // a cashier's own rows only, and no cost for roles that may not see it.
-  const list = listContext(session);
-  if (!canReadList(definition.list, list)) return null;
-  const columns = listColumnsFor(definition.list, list.seeCost);
-  const kept = new Set(columns.map((column) => column.key));
-  const cost = definition.list.columns.filter((column) => !kept.has(column.key)).map((column) => column.key);
-  return {
-    rows: ownRows(definition.list, loaded.rows, list).map((row) => {
-      const copy = { ...row };
-      for (const key of cost) delete copy[key];
-      return copy;
-    }),
-    truncated: loaded.truncated,
-    params,
-    definition,
-    meta: { ...meta, columns: meta.columns.filter((column) => kept.has(column.key)) },
-  };
+  return { ...loaded, params, definition, meta };
 }
 
 /** The params a request carries: everything in its query string but the view. */
@@ -127,7 +114,10 @@ export function listContext(session: AuthenticatedSession, now = new Date()): Li
 export type ListRefusal = { status: 403 | 404; error: string };
 
 type OpenList = {
+  /** `list` is the spec in the shape asked for: rolled up, its columns in the order asked for. */
   definition: ReportDefinition & { list: ListSpec };
+  /** The source's list or report face, as this company has it, before it is shaped. */
+  spec: ListSpec;
   meta: ReportMeta;
   ctx: ListContext;
   loaded: Record<string, ListOption[]>;
@@ -151,7 +141,7 @@ function needsSites(spec: ListSpec): boolean {
  * filter or site-to-site action (5.21 "a shop with one site never sees the
  * word"), values and all.
  */
-async function forSites(spec: ListSpec, companyId: string): Promise<ListSpec | ListRefusal> {
+async function forSites<T extends ListSpec>(spec: T, companyId: string): Promise<T | ListRefusal> {
   if (!needsSites(spec) && !spec.multiSiteOnly) return spec;
   const sites = await prisma.site.count({ where: { companyId, isActive: true } });
   if (sites >= 2) return spec;
@@ -168,17 +158,30 @@ async function forSites(spec: ListSpec, companyId: string): Promise<ListSpec | L
 
 async function openList(session: AuthenticatedSession, key: string, query: ListQuery): Promise<OpenList | ListRefusal> {
   const report = getReport(key);
-  if (!report?.definition.list) return { status: 404, error: "Report not found" };
+  if (!report) return { status: 404, error: "Report not found" };
   const { definition: declared, loader } = report;
+  const ctx = listContext(session);
+
+  // A template lies under the address; it is Reports', so it reads the report face.
+  let asked = query;
+  if (query.template) {
+    const template = templateQueryFor(query.template, session);
+    if (!template || template.source !== key || !declared.report || !canReadList(declared.report, ctx)) {
+      return { status: 404, error: "Template not found" };
+    }
+    asked = layTemplate(template.query, query, declared.report);
+  }
+
+  const face = asked.face === "report" ? "report" : "list";
+  const facing = face === "report" ? declared.report : declared.list;
+  if (!facing) return { status: 404, error: "Report not found" };
   const reportCtx = contextFor(session);
-  const spec = await forSites(declared.list!, reportCtx.companyId);
+  const spec = await forSites<ListSpec>(facing, reportCtx.companyId);
   if (refused(spec)) return spec;
-  const definition = spec === declared.list ? declared : { ...declared, columns: spec.columns, list: spec };
   // The list's own check first, so a role it refuses is told so in words
   // ("Your role cannot view shifts") rather than that the list does not exist.
-  const ctx = listContext(session);
   if (!canReadList(spec, ctx)) return { status: 403, error: `Your role cannot view ${spec.noun}` };
-  if (!canReadReport(definition, { role: session.user.role, enabledFeatures: session.user.enabledFeatures })) {
+  if (!canReadReport(declared, { role: session.user.role, enabledFeatures: session.user.enabledFeatures })) {
     return { status: 404, error: "Report not found" };
   }
 
@@ -186,15 +189,20 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
   if (saved && !saved.enabled) return { status: 404, error: "Report not found" };
 
   const loaded: Record<string, ListOption[]> = loader.options ? await loader.options(reportCtx) : {};
-  const resolved = resolveListQuery(spec, query, loaded, ctx);
+  const resolved = resolveListQuery(spec, asked, loaded, ctx);
+  const shape = listShape(spec, resolved);
+  const definition = { ...declared, columns: shape.columns, list: shape };
+  // A database-paged loader pages its source's own spec: the list, or the face of a report-only source.
+  const paged = loader.page && (face === "list" || !declared.list) ? loader.page : null;
   return {
-    definition: definition as OpenList["definition"],
+    definition,
+    spec,
     meta: reportMeta(definition, session.user.role, definition.params, saved),
     ctx,
     loaded,
     resolved,
     rows: () => loader.load(reportCtx, loaderParams(resolved)),
-    page: loader.page ? (resolved) => loader.page!(reportCtx, resolved) : null,
+    page: paged ? (resolved) => paged(reportCtx, resolved) : null,
     parentLabel: loader.parentLabel ? (filters) => loader.parentLabel!(reportCtx, filters) : null,
   };
 }
@@ -206,7 +214,7 @@ function refused<T extends object>(opened: T | ListRefusal): opened is ListRefus
 /** Every filtered row, narrowed and ordered the way the page is. */
 async function runOpened(opened: OpenList, rowIds?: ReadonlySet<string>): Promise<ListRun> {
   const loaded = await opened.rows();
-  return runList(opened.definition.list, loaded.rows, opened.resolved, opened.ctx, {
+  return runSource(opened.spec, loaded.rows, opened.resolved, opened.ctx, {
     loaded: opened.loaded,
     truncated: loaded.truncated,
     rowIds,
@@ -259,7 +267,11 @@ export async function fetchListIds(
 export type ListExport = ListRun &
   Pick<OpenList, "definition" | "meta" | "resolved" | "ctx" | "loaded">;
 
-/** A list's filtered rows, ordered and grouped as on screen, for a file. */
+/**
+ * A list's filtered rows, ordered and grouped as on screen, for a file. It
+ * takes the page's path: a database-paged source is asked for every row at
+ * once (at most `REPORT_ROW_LIMIT`). A selection is a few rows, read in memory.
+ */
 export async function fetchListExport(
   session: AuthenticatedSession,
   key: string,
@@ -268,7 +280,10 @@ export async function fetchListExport(
 ): Promise<ListExport | ListRefusal> {
   const opened = await openList(session, key, query);
   if (refused(opened)) return opened;
-  const run = await runOpened(opened, rowIds ? new Set(rowIds) : undefined);
+  const run =
+    opened.page && !rowIds
+      ? await pagedRun(opened, opened.page)
+      : await runOpened(opened, rowIds ? new Set(rowIds) : undefined);
   return {
     ...run,
     definition: opened.definition,
@@ -276,5 +291,27 @@ export async function fetchListExport(
     resolved: opened.resolved,
     ctx: opened.ctx,
     loaded: opened.loaded,
+  };
+}
+
+/** Every row of a database-paged source as one page, made into the run an export prints. */
+async function pagedRun(opened: OpenList, page: NonNullable<OpenList["page"]>): Promise<ListRun> {
+  const result = await page({ ...opened.resolved, page: 1, size: REPORT_ROW_LIMIT });
+  const shape = opened.definition.list;
+  const columns = engineColumns(shape, result.rows, opened.loaded);
+  const view = listQueryToView(shape, opened.resolved, columns, opened.ctx, opened.loaded);
+  // The rows come grouped, each group's rows together in drawing order.
+  let at = 0;
+  const groups =
+    result.groups?.map((group) => {
+      const rows = result.rows.slice(at, at + group.count);
+      at += group.count;
+      return { value: group.value, rows, totals: group.totals };
+    }) ?? null;
+  return {
+    result,
+    ordered: result.rows,
+    applied: { columns: visibleColumns(view, columns), rows: result.rows, groups, totals: result.totals },
+    view,
   };
 }

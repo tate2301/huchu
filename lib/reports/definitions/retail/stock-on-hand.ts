@@ -1,4 +1,4 @@
-import type { ListGrant, ListSpec, ReportDefinition } from "@/lib/reports/types";
+import type { ListColumn, ListGrant, ListSpec, ReportDefinition, ReportFace } from "@/lib/reports/types";
 import { COVER_WARN_PCT } from "@/lib/retail/products/figures";
 import { STOCK_LEVEL_LABEL, STOCK_LEVEL_TONE } from "@/lib/retail/stock/levels";
 
@@ -186,7 +186,122 @@ const onHand: ListSpec = {
     primary: { label: "Add a product", sheet: "product-new", requires: [["retail.catalog", "create"]] },
     secondary: { label: "Import a spreadsheet", href: "/retail/products/import", requires: [["retail.catalog", "create"]] },
   },
-  catalog: false,
+};
+
+const money = (key: string, label: string, extra: Partial<ListColumn> = {}): ListColumn => ({
+  key,
+  label,
+  kind: "money",
+  currency: "USD",
+  cell: "money",
+  total: "sum",
+  sortable: true,
+  width: "140px",
+  align: "end",
+  priority: 1,
+  ...extra,
+});
+
+/**
+ * Stock on hand as Reports reads it (70-insights-reports 5.14): each product at
+ * each shop, at cost and at the default price list's price, with no period.
+ */
+const report: ReportFace = {
+  area: "stock",
+  startsFrom: { title: "Stock on hand", sub: "Each product at each shop" },
+  noun: "stock lines",
+  read: VIEW,
+  search: { placeholder: "Product, code or barcode", keys: ["product", "code", "barcode"] },
+  filters: [
+    {
+      key: "site",
+      label: "Shop",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      optionsFromLoader: true,
+      column: "siteId",
+      requires: "multi-site",
+    },
+    { key: "category", label: "Category", type: "choice", any: "Any", primary: true, optionsFromLoader: true, column: "categoryId" },
+    {
+      key: "level",
+      label: "Level",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      options: [
+        { value: "out", label: STOCK_LEVEL_LABEL.OUT, where: level("OUT") },
+        { value: "low", label: STOCK_LEVEL_LABEL.LOW, where: level("LOW") },
+        { value: "toomuch", label: STOCK_LEVEL_LABEL.TOO_MUCH, where: level("TOO_MUCH") },
+        { value: "fine", label: "In stock", where: level("FINE") },
+      ],
+    },
+  ],
+  sorts: [
+    {
+      key: "most-value",
+      label: "Most value first",
+      rules: [
+        { column: "value", dir: "desc" },
+        { column: "product", dir: "asc" },
+      ],
+    },
+    { key: "name", label: "Name A–Z", rules: [{ column: "product", dir: "asc" }] },
+    {
+      key: "least-cover",
+      label: "Least cover first",
+      rules: [
+        { column: "coverRank", dir: "asc" },
+        { column: "product", dir: "asc" },
+      ],
+    },
+  ],
+  groups: ["site", "category", "level"],
+  columns: [
+    {
+      key: "product",
+      label: "Product",
+      kind: "text",
+      cell: "link",
+      href: "/retail/products/{productId}",
+      width: "minmax(180px,1.4fr)",
+      align: "start",
+      priority: 1,
+    },
+    { key: "code", label: "Code", kind: "code", cell: "mono", hidden: true, width: "130px", align: "start", priority: 2 },
+    { key: "category", label: "Category", kind: "text", cell: "muted", width: "140px", align: "start", priority: 2 },
+    { key: "site", label: "Shop", kind: "text", cell: "text", requires: "multi-site", width: "160px", align: "start", priority: 2 },
+    { key: "onHand", label: "On hand", kind: "number", cell: "num", total: "sum", sortable: true, width: "100px", align: "end", priority: 1 },
+    { key: "reorderAt", label: "Reorder at", kind: "number", cell: "num", hidden: true, width: "100px", align: "end", priority: 3 },
+    money("unitCost", "Unit cost", { total: undefined, hidden: true, requires: "view-cost", width: "110px", priority: 3 }),
+    money("value", "Value at cost", { requires: "view-cost" }),
+    money("price", "Price", { total: undefined, hidden: true, width: "110px", priority: 3 }),
+    money("valueAtPrice", "Value at price"),
+    {
+      key: "level",
+      label: "Level",
+      kind: "status",
+      cell: "state",
+      hidden: true,
+      tones: onHand.columns.find((column) => column.key === "level")!.tones,
+      width: "110px",
+      align: "start",
+      priority: 2,
+    },
+    { key: "products", label: "Products", kind: "number", cell: "num", total: "sum", width: "100px", align: "end", priority: 1 },
+  ],
+  rowHref: "/retail/products/{productId}",
+  bulk: [{ key: "export" }],
+  card: { title: "product", badge: "level", figure: "onHandLabel", meta: "{site}", figure2: "valueAtPrice" },
+  empty: { icon: "Stack", title: "Nothing on the shelf", line: "Products show here once they have stock at a shop." },
+  rollups: [
+    { key: "none", label: "Product at a shop" },
+    { key: "product", label: "Product" },
+    { key: "category", label: "Category" },
+    { key: "site", label: "Shop" },
+  ],
+  rollupOnly: "products",
 };
 
 const onHandSource: ReportDefinition = {
@@ -200,6 +315,7 @@ const onHandSource: ReportDefinition = {
   // The report view sorts by drawn columns; the list's own "Least cover first" ranks by a row field.
   defaults: { sort: onHand.sorts[1]!.rules },
   list: onHand,
+  report,
 };
 
 export const STOCK_ON_HAND_REPORTS: ReportDefinition[] = [onHandSource];

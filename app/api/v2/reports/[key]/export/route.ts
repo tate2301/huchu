@@ -27,6 +27,11 @@ const listQuerySchema = z.object({
   size: z.number().int().default(50),
   filters: z.record(z.string().max(64), z.string().max(100)).default({}),
   hidden: z.array(z.string().max(64)).max(80).optional(),
+  /** Reports: the face, the template under the query, "One row for each" and the columns in order. */
+  face: z.enum(["list", "report"]).optional(),
+  template: z.string().max(100).optional(),
+  rows: z.array(z.string().max(64)).max(8).optional(),
+  cols: z.array(z.string().max(64)).max(80).optional(),
 });
 
 const bodySchema = z

@@ -11,7 +11,8 @@ import { STOCK_TRANSFER_REPORTS } from "@/lib/reports/definitions/retail/stock-t
 import { STOCK_COUNT_REPORTS } from "@/lib/reports/definitions/retail/stock-counts";
 import { SITE_REPORTS } from "@/lib/reports/definitions/retail/sites";
 import { TILL_REPORTS } from "@/lib/reports/definitions/retail/tills";
+import { REPORT_ONLY_REPORTS } from "@/lib/reports/definitions/retail/reports";
 import type { ReportDefinition } from "@/lib/reports/types";
 
 /** Retail's report sources, one file per area so area units add a line here and nothing else. */
-export const RETAIL_REPORTS: ReportDefinition[] = [...FLOOR_REPORTS, ...SHIFT_RECORD_REPORTS, ...PRODUCT_REPORTS, ...STOCK_ON_HAND_REPORTS, ...STOCK_MOVEMENT_REPORTS, ...STOCK_TRANSFER_REPORTS, ...STOCK_COUNT_REPORTS, ...CATEGORY_REPORTS, ...BIN_REPORTS, ...SITE_REPORTS, ...TILL_REPORTS, ...PEOPLE_REPORTS, ...BUYING_REPORTS];
+export const RETAIL_REPORTS: ReportDefinition[] = [...FLOOR_REPORTS, ...SHIFT_RECORD_REPORTS, ...PRODUCT_REPORTS, ...STOCK_ON_HAND_REPORTS, ...STOCK_MOVEMENT_REPORTS, ...STOCK_TRANSFER_REPORTS, ...STOCK_COUNT_REPORTS, ...CATEGORY_REPORTS, ...BIN_REPORTS, ...SITE_REPORTS, ...TILL_REPORTS, ...PEOPLE_REPORTS, ...BUYING_REPORTS, ...REPORT_ONLY_REPORTS];

@@ -13,7 +13,10 @@ import { LIST_PAGE_SIZES } from "@/lib/reports/types";
  * sheet's `sheet` and `id`) are left as they are.
  *
  * Rows per page and hidden columns also live in this browser per list
- * (`huchu.list.<key>.size`, `huchu.list.<key>.cols`); the address wins.
+ * (`huchu.list.<key>.size`, `huchu.list.<key>.cols`, sent as `hidden`); the
+ * address wins. A Reports run page's own keys — `face`, `template`, `rows`
+ * and `cols` (the visible columns in order) — pass through to the API as the
+ * address has them.
  */
 
 /** Parameters that belong to something else on the page, not to the list. */
@@ -75,7 +78,7 @@ export function useListAddress(source: string) {
       params.set("size", storedSize);
     }
     if (!params.has("page")) params.set("page", "1");
-    if (storedCols?.length) params.set("cols", storedCols.join(","));
+    if (storedCols?.length) params.set("hidden", storedCols.join(","));
     return params;
   }, [searchParams, storedCols, storedSize]);
 

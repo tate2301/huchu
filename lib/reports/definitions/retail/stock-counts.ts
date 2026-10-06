@@ -142,7 +142,6 @@ const counts: ListSpec = {
     ],
     primary: { label: "Start a count", sheet: "count-new", requires: CREATE },
   },
-  catalog: false,
 };
 
 const countsSource: ReportDefinition = {

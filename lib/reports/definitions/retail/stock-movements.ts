@@ -1,4 +1,4 @@
-import type { ListSpec, ReportDefinition } from "@/lib/reports/types";
+import type { ListColumn, ListSpec, ReportDefinition, ReportFace } from "@/lib/reports/types";
 import { MOVEMENT_KINDS } from "@/lib/retail/stock/movement-words";
 
 /**
@@ -160,7 +160,111 @@ const movements: ListSpec = {
     title: "No movements yet",
     line: "Every sale, delivery, count and transfer shows here with what it left on the shelf.",
   },
-  catalog: false,
+};
+
+const atCost = (key: string, label: string, hidden: boolean): ListColumn => ({
+  key,
+  label,
+  kind: "money",
+  currency: "USD",
+  cell: "money",
+  total: "sum",
+  requires: "view-cost",
+  hidden,
+  width: "130px",
+  align: "end",
+  priority: 1,
+});
+
+/**
+ * Movements as Reports reads them (70-insights-reports 5.14): what happened in
+ * the stock's words, and what it was worth at today's unit cost; a count's
+ * shortfall and surplus apart, so "Count differences" can roll them up by count.
+ */
+const report: ReportFace = {
+  area: "stock",
+  startsFrom: { title: "Stock movements", sub: "Each receipt, sale, count and transfer" },
+  noun: "movements",
+  read: MOVE,
+  search: { placeholder: "Product or reference", keys: ["product", "code", "reference"] },
+  filters: [
+    { key: "when", label: "Period", type: "period", any: "Any time", column: "day", primary: true, default: "30d" },
+    {
+      key: "site",
+      label: "Shop",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      optionsFromLoader: true,
+      column: "siteId",
+      requires: "multi-site",
+    },
+    {
+      key: "kind",
+      label: "What happened",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      options: MOVEMENT_KINDS.map((kind) => ({ value: kind.id.toLowerCase(), label: kind.label })),
+    },
+    { key: "product", type: "parent", column: "productId" },
+  ],
+  sorts: [
+    {
+      key: "newest",
+      label: "Newest first",
+      rules: [
+        { column: "when", dir: "desc" },
+        { column: "id", dir: "desc" },
+      ],
+    },
+    { key: "biggest-value", label: "Biggest value first", rules: [{ column: "valueSize", dir: "desc" }] },
+  ],
+  groups: ["product", "kind", "site", "day"],
+  columns: [
+    { key: "when", label: "When", kind: "date", cell: "when", sortable: true, width: "130px", align: "start", priority: 1 },
+    {
+      key: "product",
+      label: "Product",
+      kind: "text",
+      cell: "link",
+      href: "/retail/products/{productId}",
+      width: "minmax(180px,1.3fr)",
+      align: "start",
+      priority: 1,
+    },
+    { key: "kind", label: "What happened", kind: "text", cell: "text", width: "170px", align: "start", priority: 1 },
+    {
+      key: "reference",
+      label: "Reference",
+      kind: "code",
+      cell: "ref",
+      href: ["/retail/sales/{saleId}"],
+      width: "120px",
+      align: "start",
+      priority: 1,
+    },
+    { key: "by", label: "By", kind: "text", cell: "muted", hidden: true, width: "120px", align: "start", priority: 3 },
+    { key: "change", label: "Change", kind: "number", cell: "num", sign: "gain", total: "sum", width: "90px", align: "end", priority: 1 },
+    atCost("value", "Value at cost", false),
+    atCost("short", "Short at cost", true),
+    atCost("over", "Over at cost", true),
+    { key: "site", label: "Shop", kind: "text", cell: "muted", requires: "multi-site", hidden: true, width: "140px", align: "start", priority: 3 },
+    { key: "day", label: "Day", kind: "date", cell: "date", hidden: true, width: "140px", align: "start", priority: 2 },
+    { key: "movements", label: "Movements", kind: "number", cell: "num", total: "sum", width: "110px", align: "end", priority: 1 },
+  ],
+  rowHref: "/retail/products/{productId}",
+  bulk: [{ key: "export" }],
+  card: { title: "product", figure: "change", meta: "{whenText} · {kind} · {reference}", figure2: "value" },
+  empty: { icon: "Clock", title: "No movements", line: "Nothing came in or went out in this period." },
+  rollups: [
+    { key: "none", label: "Movement" },
+    { key: "product", label: "Product" },
+    { key: "kind", label: "What happened" },
+    { key: "reference", label: "Reference" },
+    { key: "day", label: "Day" },
+  ],
+  rollupOnly: "movements",
 };
 
 const movementsSource: ReportDefinition = {
@@ -174,6 +278,7 @@ const movementsSource: ReportDefinition = {
   // The report view sorts by its columns; the id tie-break is the list's own.
   defaults: { sort: movements.sorts[0]!.rules.slice(0, 1) },
   list: movements,
+  report,
 };
 
 export const STOCK_MOVEMENT_REPORTS: ReportDefinition[] = [movementsSource];

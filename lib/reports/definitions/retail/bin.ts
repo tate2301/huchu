@@ -99,7 +99,6 @@ const bin: ListSpec = {
     title: "The bin is empty",
     line: "Anything moved to the bin waits here for 30 days.",
   },
-  catalog: false,
 };
 
 const binSource: ReportDefinition = {

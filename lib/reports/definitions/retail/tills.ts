@@ -120,7 +120,6 @@ const tills: ListSpec = {
     line: "A till is where money is taken. Pair a CounterMini, a Kora handheld or a browser to it with a six-digit code.",
     primary: { label: "Pair a till", sheet: "till-new", requires: [["retail.tills", "create"]] },
   },
-  catalog: false,
   refreshSeconds: 30,
 };
 

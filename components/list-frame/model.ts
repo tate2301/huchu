@@ -311,6 +311,8 @@ export function nextColumnSort(spec: Pick<ListSpecPublic, "sorts">, sort: string
 export const PERIOD_LABELS: Record<string, string> = {
   today: "Today",
   yesterday: "Yesterday",
+  "this-week": "This week",
+  "last-weekend": "Last weekend",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   "this-month": "This month",

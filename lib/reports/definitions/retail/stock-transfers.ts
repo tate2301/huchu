@@ -131,7 +131,6 @@ const transfers: ListSpec = {
     line: "Send stock to another site and it shows here until they receive it.",
     primary: { label: "Move stock", sheet: "transfer-new", requires: CREATE },
   },
-  catalog: false,
 };
 
 const transfersSource: ReportDefinition = {
@@ -190,7 +189,6 @@ const lines: ListSpec = {
   rowHref: "/retail/products/{productId}",
   card: { title: "product", figure: "sent", meta: "{receivedWords}" },
   empty: { icon: "ArrowsLeftRight", title: "Nothing on this transfer", line: "Change the lines to add what goes." },
-  catalog: false,
 };
 
 const linesSource: ReportDefinition = {

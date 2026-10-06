@@ -145,7 +145,6 @@ const suppliers: ListSpec = {
     primary: { label: "Add your first supplier", sheet: "supplier-new", requires: CREATE },
     secondary: { label: "Import a spreadsheet", href: "/retail/buying/suppliers?sheet=supplier-import", requires: CREATE },
   },
-  catalog: false,
 };
 
 const suppliersSource: ReportDefinition = {
@@ -214,7 +213,6 @@ const contacts: ListSpec = {
   ],
   card: { title: "name", badge: "sends", figure: "phone", meta: "{role}" },
   empty: { icon: "Users", title: "Nobody at this supplier yet", line: "Add a contact to say who gets orders and who gets statements." },
-  catalog: false,
 };
 
 const contactsSource: ReportDefinition = {

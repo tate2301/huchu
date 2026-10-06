@@ -14,9 +14,13 @@ import { readTemplate } from "@/lib/reports/templates";
  * query as resolved; `idsOnly=1` returns every matching id instead (at most
  * 5,000) for "Select all", and `pick=a,b` adds those columns' values beside
  * them. Refused with 403 "Your role cannot view <noun>" when the list's own
- * check says no.
+ * check says no. `face=report` reads the source's report face (404 "Report
+ * not found" without one), `template=<ref>` lays a Reports template under the
+ * address (404 "Template not found" when it is not the caller's to open or
+ * reads another source), `rows=` rolls it up and `cols=` orders its columns.
  *
- * **Report mode** (no `page`): a report's rows, narrowed by its params. The
+ * **Report mode** (no `page`): a report's rows, narrowed by its params, for
+ * sources with no list and no report face; the others answer 404. The
  * view is applied by whoever reads them. Opened as a template (`?template=`),
  * the template's kept params sit under whatever the URL says, and its view is
  * the one the report starts from.

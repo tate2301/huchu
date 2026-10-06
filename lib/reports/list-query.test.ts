@@ -110,6 +110,32 @@ describe("periods", () => {
     expect(periodRange("any", NOW, HARARE)).toBeNull();
     expect(periodRange("2026-08-01..2026-08-31", NOW, HARARE)).toEqual({ from: "2026-08-01", to: "2026-08-31" });
   });
+
+  it("starts last weekend at 17:00 on its Friday and ends it at the end of its Sunday, once it has ended", () => {
+    // Saturday 3 October, 14:42: this weekend has not ended, so the one before.
+    const saturday = new Date("2026-10-03T12:42:00Z");
+    expect(periodRange("last-weekend", saturday, HARARE)).toEqual({ from: "2026-09-25", to: "2026-09-27" });
+    const before = periodInstants("last-weekend", saturday, HARARE)!;
+    expect(before.gte!.toISOString()).toBe("2026-09-25T15:00:00.000Z");
+    // Up to 23:59:59 on Sunday 27 September in Harare.
+    expect(before.lt!.toISOString()).toBe("2026-09-27T22:00:00.000Z");
+
+    // Monday 5 October: the weekend just gone.
+    const monday = new Date("2026-10-05T07:00:00Z");
+    const just = periodInstants("last-weekend", monday, HARARE)!;
+    expect(just.gte!.toISOString()).toBe("2026-10-02T15:00:00.000Z");
+    expect(just.lt!.toISOString()).toBe("2026-10-04T22:00:00.000Z");
+    // On the Sunday itself it is still the one before.
+    expect(periodRange("last-weekend", new Date("2026-10-04T20:00:00Z"), HARARE)).toEqual({ from: "2026-09-25", to: "2026-09-27" });
+  });
+
+  it("runs this week from Monday 00:00 to now", () => {
+    expect(periodRange("this-week", NOW, HARARE)).toEqual({ from: "2026-09-28", to: "2026-10-03" });
+    expect(periodInstants("this-week", NOW, HARARE)!.gte!.toISOString()).toBe("2026-09-27T22:00:00.000Z");
+    // A Monday is its own week's first day; a Sunday its last.
+    expect(periodRange("this-week", new Date("2026-10-05T07:00:00Z"), HARARE)).toEqual({ from: "2026-10-05", to: "2026-10-05" });
+    expect(periodRange("this-week", new Date("2026-10-04T07:00:00Z"), HARARE)).toEqual({ from: "2026-09-28", to: "2026-10-04" });
+  });
 });
 
 describe("resolving a query", () => {
@@ -153,8 +179,29 @@ describe("resolving a query", () => {
     expect(resolveListQuery(SHIFTS, query({ sort: "cashier:asc" }), LOADED, OWNER).sort).toBe("newest");
   });
 
+  it("reads a report's address: face, template, rows and the columns in order", () => {
+    const parsed = parseListQuery(new URLSearchParams("page=1&face=report&template=takings-by-payment&rows=day,till&cols=till,day,taken"));
+    expect(parsed).toMatchObject({ face: "report", template: "takings-by-payment", rows: ["day", "till"], cols: ["till", "day", "taken"], filters: {} });
+  });
+
+  it("keeps the order cols gives and never hides the first column", () => {
+    const resolved = resolveListQuery(SHIFTS, query({ cols: ["takings", "cashier", "nope", "takings"] }), LOADED, OWNER);
+    // Shift is the first column: it is put back, and the unknown key is dropped.
+    expect(resolved.cols).toEqual(["shiftNo", "takings", "cashier"]);
+    expect(resolved.hidden).toEqual(["till", "state", "openedAt", "durationMinutes", "sales", "variance"]);
+    const ordered = resolveListQuery(SHIFTS, query({ cols: ["takings", "shiftNo"] }), LOADED, OWNER);
+    expect(ordered.cols).toEqual(["takings", "shiftNo"]);
+  });
+
+  it("rolls up only by a face's own keys, and never a list", () => {
+    const face = FLOOR_REPORTS.find((report) => report.key === "retail-shifts")!.report!;
+    expect(resolveListQuery(face, query({ face: "report", rows: ["till"] }), LOADED, OWNER).rows).toEqual(["till"]);
+    expect(resolveListQuery(face, query({ face: "report", rows: ["till", "variance"] }), LOADED, OWNER).rows).toEqual([]);
+    expect(resolveListQuery(SHIFTS, query({ rows: ["till"] }), LOADED, OWNER).rows).toEqual([]);
+  });
+
   it("reads the address", () => {
-    const parsed = parseListQuery(new URLSearchParams("page=3&size=25&till=TILL-2&opened=any&sort=most-taken&group=state&q=chipo&cols=till"));
+    const parsed = parseListQuery(new URLSearchParams("page=3&size=25&till=TILL-2&opened=any&sort=most-taken&group=state&q=chipo&hidden=till"));
     expect(parsed).toEqual({
       page: 3,
       size: 25,
