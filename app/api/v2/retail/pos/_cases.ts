@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
  * Cases and singles at the till.
  *
  * A case is its own product holding a single (`Product.packOfId`, `packSize`;
- * see `lib/retail/cases.ts`). The till's shelf says, for a single, which case
+ * see `lib/retail/stock/cases.ts`). The till's shelf says, for a single, which case
  * can be opened for it and how many of those are in this branch; and, for a
  * case, which single it holds. When a sale needs more singles than the shelf
  * has, the till offers to open enough cases where the line is: only a case

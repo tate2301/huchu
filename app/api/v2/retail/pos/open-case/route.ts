@@ -14,7 +14,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { breakCase, CaseBreakRefused } from "@/lib/retail/cases";
+import { breakCase, CaseBreakRefused } from "@/lib/retail/stock/cases";
 import { requirePosDevice } from "@/lib/retail/devices";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
@@ -67,6 +67,13 @@ export async function POST(request: NextRequest) {
   }
 
   const singlesOnHand = toNumberOrZero(single.currentStock);
+  if (singlesOnHand >= wanted) {
+    return errorResponse("There are enough singles on the shelf already.", 409);
+  }
+  // A case breaks at the till only once its singles have run out (STK-04): the loose ones sell first.
+  if (singlesOnHand >= 1) {
+    return errorResponse(`Sell the ${singlesOnHand} loose on the shelf first. A case opens once they run out.`, 409);
+  }
   const plan = caseOpening({
     wanted,
     singlesOnHand,
@@ -74,18 +81,17 @@ export async function POST(request: NextRequest) {
     unitsPerCase,
   });
   if (!plan) {
-    return errorResponse(
-      singlesOnHand >= wanted
-        ? "There are enough singles on the shelf already."
-        : `Not enough ${pack.name} in stock to cover it.`,
-      409,
-    );
+    return errorResponse(`Not enough ${pack.name} in stock to cover it.`, 409);
   }
 
   try {
     const opened = await breakCase({
-      companyId,
-      userId: session.user.id,
+      actor: {
+        companyId,
+        userId: session.user.id,
+        userName: session.user.name ?? null,
+        userRole: session.user.role ?? null,
+      },
       caseProductId: pack.id,
       siteId: site.id,
       cases: plan.casesToOpen,
@@ -94,12 +100,12 @@ export async function POST(request: NextRequest) {
       data: {
         casesOpened: opened.cases,
         singlesAdded: opened.singles,
-        singlesOnHand: opened.singleStock,
+        singlesOnHand: opened.singleOnHand,
         caseName: pack.name,
       },
     });
   } catch (error) {
-    if (error instanceof CaseBreakRefused) return errorResponse(error.message, 409);
+    if (error instanceof CaseBreakRefused) return errorResponse(error.message, error.status);
     throw error;
   }
 }

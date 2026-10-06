@@ -435,19 +435,27 @@ function CaseBanner({ item, onDismiss }: { item: CartItem; onDismiss: () => void
   return (
     <div className="banner is-in-list wrap">
       <Package className="ic" />
-      <span>
-        {loose ? `Only ${qty(loose)} singles of ${name} left` : `No singles of ${name} left`}, {count(caseInfo.casesOnHand, "case")}. Open{" "}
-        {cases === 1 ? "one" : cases} for these {qty(item.quantity)}?
-      </span>
+      {/* A case breaks at the till only once its singles have run out: the loose ones sell first. */}
+      {loose ? (
+        <span>
+          Only {qty(loose)} singles of {name} left. Sell those first; a case opens once they run out.
+        </span>
+      ) : (
+        <span>
+          No singles of {name} left, {count(caseInfo.casesOnHand, "case")}. Open {cases === 1 ? "one" : cases} for these {qty(item.quantity)}?
+        </span>
+      )}
       <div className="end">
         <button type="button" className="btn" onClick={onDismiss}>
           <X className="ic" />
-          Not now
+          {loose ? "Got it" : "Not now"}
         </button>
-        <button type="button" className="btn btn-ink" disabled={open.isPending} aria-busy={open.isPending || undefined} onClick={() => open.mutate()}>
-          <Check className="ic" />
-          Open {count(cases, "case")}
-        </button>
+        {loose ? null : (
+          <button type="button" className="btn btn-ink" disabled={open.isPending} aria-busy={open.isPending || undefined} onClick={() => open.mutate()}>
+            <Check className="ic" />
+            Open {count(cases, "case")}
+          </button>
+        )}
       </div>
     </div>
   );

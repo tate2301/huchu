@@ -108,6 +108,10 @@ beforeAll(async () => {
   siteId = (await prisma.site.create({ data: { companyId, name: "Borrowdale", code: "BDL" }, select: { id: true } })).id;
   locationId = (await prisma.stockLocation.create({ data: { siteId, code: "FLOOR", name: "Shop floor" }, select: { id: true } })).id;
   const till = await prisma.retailRegister.create({ data: { companyId, siteId, code: "FRONT", name: "Front till" }, select: { id: true } });
+  // A case breaks at the till only for a cashier on an open shift there.
+  await prisma.retailShift.create({
+    data: { companyId, shiftNo: "SH-1", registerCode: "FRONT", registerName: "Front till", registerId: till.id, siteId, cashierId, cashierName: "Chipo Dube" },
+  });
   await prisma.retailDevice.create({
     data: { companyId, registerId: till.id, kind: "BROWSER", label: "Windows PC", keyHash: hashDeviceKey(key), pairedById: ownerId },
   });
@@ -131,6 +135,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!companyId) return;
   await prisma.stockMovement.deleteMany({ where: { item: { site: { companyId } } } });
+  await prisma.retailShift.deleteMany({ where: { companyId } });
   await prisma.inventoryItem.deleteMany({ where: { site: { companyId } } });
   await prisma.stockLocation.deleteMany({ where: { site: { companyId } } });
   await prisma.product.updateMany({ where: { companyId }, data: { packOfId: null, packSize: null } });
@@ -161,28 +166,15 @@ describe("the till's shelf on a shop with cases and singles", () => {
 });
 
 describe("opening a case where the line is", () => {
-  it("opens the cases a sale of singles needs, as CASE_BROKEN movements", async () => {
-    // 30 Castles wanted, 6 on the shelf: one case of 24 covers it.
-    expect(await openCase(castleId, 30)).toMatchObject({
-      status: 200,
-      body: { data: { casesOpened: 1, singlesAdded: 24, singlesOnHand: 30, caseName: "Castle Lager case of 24" } },
-    });
-    const movements = await prisma.stockMovement.findMany({
-      where: { item: { productId: { in: [castleId, castleCaseId] } } },
-      select: { movementType: true, reason: true, quantity: true, item: { select: { productId: true } } },
-    });
-    expect(movements.map((movement) => [movement.item.productId, movement.movementType, movement.reason, Number(movement.quantity)]).sort()).toEqual(
-      [
-        [castleCaseId, "ISSUE", "CASE_BROKEN", 1],
-        [castleId, "RECEIPT", "CASE_BROKEN", 24],
-      ].sort(),
-    );
-  });
-
-  it("opens nothing when the shelf already covers it, or the cases cannot", async () => {
-    expect(await openCase(castleId, 10)).toMatchObject({
+  it("opens nothing when the shelf covers it, the loose ones are not sold yet, or the cases cannot", async () => {
+    expect(await openCase(castleId, 6)).toMatchObject({
       status: 409,
       body: { error: "There are enough singles on the shelf already." },
+    });
+    // 30 Castles wanted, 6 still loose: those sell first (STK-04).
+    expect(await openCase(castleId, 30)).toMatchObject({
+      status: 409,
+      body: { error: "Sell the 6 loose on the shelf first. A case opens once they run out." },
     });
     expect(await openCase(lionId, 30)).toMatchObject({
       status: 409,
@@ -202,11 +194,29 @@ describe("opening a case where the line is", () => {
     }
   });
 
+  it("opens the cases a sale of singles needs once the loose ones have run out, as CASE_BROKEN movements", async () => {
+    // 12 Lions wanted, none loose: the one case of 12 covers it.
+    expect(await openCase(lionId, 12)).toMatchObject({
+      status: 200,
+      body: { data: { casesOpened: 1, singlesAdded: 12, singlesOnHand: 12, caseName: "Lion Lager case of 12" } },
+    });
+    const movements = await prisma.stockMovement.findMany({
+      where: { item: { productId: { in: [lionId, lionCaseId] } } },
+      select: { movementType: true, reason: true, quantity: true, item: { select: { productId: true } } },
+    });
+    expect(movements.map((movement) => [movement.item.productId, movement.movementType, movement.reason, Number(movement.quantity)]).sort()).toEqual(
+      [
+        [lionCaseId, "ISSUE", "CASE_BROKEN", 1],
+        [lionId, "RECEIPT", "CASE_BROKEN", 12],
+      ].sort(),
+    );
+  });
+
   it("is off, on the shelf and at the line, when the shop does not sell cases and singles", async () => {
     await prisma.retailShopProfile.update({ where: { companyId }, data: { casesAndSingles: false } });
     const lines = await shelf();
     expect(lines.get(castleId)).toMatchObject({ openableCase: null, caseOf: null });
-    expect(lines.has(lionId)).toBe(false);
+    expect(lines.get(lionId)).toMatchObject({ openableCase: null, caseOf: null });
     expect(await openCase(lionId, 12)).toMatchObject({
       status: 409,
       body: { error: "This shop does not sell cases and singles." },
