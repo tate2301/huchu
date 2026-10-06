@@ -23,7 +23,7 @@ import { printSlip, slipLines, type SlipSale } from "./offline-slip";
 import { ErrorLine, Keypad, Segmented, typeAmount, useKeypadKeys, useReturnFocus, useWindowKeys, type KeypadKey } from "./parts";
 import { paymentSummary } from "./sale-rules";
 import { useTill } from "./state";
-import type { PaymentRow, TenderType, TillTender } from "./types";
+import type { PaymentRow, TenderType, TillContext, TillTender } from "./types";
 
 /** Tenders without a reference to read off a slip or a message: one row in the sale column, chosen in the tray. */
 const OTHER_TENDERS = new Set<string>(["TRANSFER", "ON_ACCOUNT", "VOUCHER"]);
@@ -33,6 +33,40 @@ const REFERENCE_FROM: Partial<Record<string, string>> = {
   ECOCASH: "reference from their message",
   INNBUCKS: "reference from their message",
 };
+/**
+ * What the cashier tells the customer to pay by EcoCash, the way this shop
+ * takes it: its merchant code, its EcoCash number, or the terminal at the
+ * counter. Null while the shop has not said, and the tray keeps its general
+ * sentence.
+ */
+function ecocashHow(ecocash: TillContext["ecocash"], amount: string, who: string) {
+  if (ecocash?.method === "MERCHANT_CODE" && ecocash.merchantCode) {
+    return {
+      say: `Pay merchant ${ecocash.merchantCode}`,
+      as: ecocash.name ? `Shows as ${ecocash.name}, for ${amount}` : `For ${amount}`,
+      after: "The reference is on the message they get once it goes through.",
+      terminal: false,
+    };
+  }
+  if (ecocash?.method === "PHONE_NUMBER" && ecocash.phone) {
+    return {
+      say: `Send ${amount} to ${ecocash.phone}`,
+      as: ecocash.name ? `Shows as ${ecocash.name}` : null,
+      after: `Ask ${who} to show the message that says ${amount} was sent.`,
+      terminal: false,
+    };
+  }
+  if (ecocash?.method === "TERMINAL") {
+    return {
+      say: `Key ${amount} on the terminal`,
+      as: "They pay on it with EcoCash",
+      after: "The reference is on the slip the terminal prints.",
+      terminal: true,
+    };
+  }
+  return null;
+}
+
 /** Brands keep their capitals in a sentence. */
 const BRANDS = new Set(["EcoCash", "InnBucks"]);
 /** Before the till's context lands: cash. */
@@ -66,7 +100,11 @@ function orList(labels: string[]) {
  * The ways the sale column offers, in the shop's order (`context.tenders`).
  * Cash ZiG only while there is a rate to take it at.
  */
-export function payWays(tenders: readonly TillTender[], zigRate: { rate: string } | null): PayWay[] {
+export function payWays(
+  tenders: readonly TillTender[],
+  zigRate: { rate: string } | null,
+  ecocash: TillContext["ecocash"] = null,
+): PayWay[] {
   const usable = tenders.filter((choice) => !isZigCash(choice) || zigRate);
   const list = usable.length ? usable : [CASH_ONLY];
   const twoCash = list.some(isZigCash);
@@ -85,7 +123,12 @@ export function payWays(tenders: readonly TillTender[], zigRate: { rate: string 
       key: tenderKey(choice),
       // One kind of cash is just cash.
       label: choice.tender === "CASH" && !twoCash ? "Cash" : choice.label,
-      meta: isZigCash(choice) && zigRate ? `ZiG ${formatZigRate(zigRate.rate)} to US$1` : (REFERENCE_FROM[choice.tender] ?? null),
+      meta:
+        isZigCash(choice) && zigRate
+          ? `ZiG ${formatZigRate(zigRate.rate)} to US$1`
+          : choice.tender === "ECOCASH" && ecocash?.method === "TERMINAL"
+            ? "on the terminal"
+            : (REFERENCE_FROM[choice.tender] ?? null),
       choices: [choice],
     });
   }
@@ -602,10 +645,19 @@ export function PayTray({
     label = `Take ${inSentence(choice.label)}`;
     const who = selectedCustomer ? firstName(selectedCustomer.name) : "the customer";
     const wallet = tenderType === "ECOCASH" || tenderType === "INNBUCKS";
+    // How this shop takes EcoCash, when it has said so: what the cashier tells the customer.
+    const how = tenderType === "ECOCASH" ? ecocashHow(context?.ecocash ?? null, usd(amountDue), who) : null;
     const refOk = !refProblem;
     body = (
       <>
         {way.choices.length > 1 ? <WhichTender way={way} value={tenderKey(choice)} onChange={setChoiceKey} /> : null}
+        {how ? (
+          <div className="pay-how">
+            <span className="label">Tell {who}</span>
+            <span className="say">{how.say}</span>
+            {how.as ? <span className="as">{how.as}</span> : null}
+          </div>
+        ) : null}
         <div className="field">
           <label htmlFor={refId}>
             Reference{needsRef ? null : <span className="opt"> optional</span>}
@@ -618,7 +670,7 @@ export function PayTray({
             autoCapitalize="characters"
             spellCheck={false}
             value={reference}
-            placeholder={wallet ? "From their confirmation message" : tenderType === "CARD" ? "From the card slip" : ""}
+            placeholder={how?.terminal ? "From the terminal slip" : wallet ? "From their confirmation message" : tenderType === "CARD" ? "From the card slip" : ""}
             aria-invalid={(triedTake && !refOk) || undefined}
             aria-describedby={refOk ? undefined : `${refId}e`}
             onChange={(event) => setReference(event.target.value)}
@@ -634,7 +686,9 @@ export function PayTray({
             )
           ) : null}
         </div>
-        {wallet ? (
+        {how ? (
+          how.after ? <p className="note">{how.after}</p> : null
+        ) : wallet ? (
           <p className="note">
             Ask {who} to show the message that says {usd(amountDue)} was sent to {context?.site.name ?? "this shop"}.
           </p>

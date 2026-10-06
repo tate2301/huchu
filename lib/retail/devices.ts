@@ -586,6 +586,18 @@ export type TillContext = {
   tenders: TillTender[];
   /** Today's ZiG rate and how ZiG change rounds, while the shop takes ZiG cash and has a rate. */
   zig: { rate: string; setAt: string; rounding: string } | null;
+  /**
+   * How customers pay by EcoCash, so the till can tell them: the shop's
+   * merchant code, the number to send money to, or the terminal at the counter
+   * (nothing to say but the amount). `name` is "Shows customers as". Null when
+   * the shop does not take EcoCash.
+   */
+  ecocash: {
+    method: "MERCHANT_CODE" | "PHONE_NUMBER" | "TERMINAL";
+    merchantCode: string | null;
+    phone: string | null;
+    name: string | null;
+  } | null;
   /** The till rules (SET-06): the till asks first, the server checks them again. */
   rules: TillRulesForTill;
   /** What its receipts say (SET-07): the shop's top and bottom lines, numbers and copies. */
@@ -655,6 +667,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     licenceHours: shopFeatures(shop).licenceHours ? licenceHours : [],
     tenders: payments.tenders,
     zig: payments.zig,
+    ecocash: payments.ecocash,
     rules: tillRulesForTill(tillRules),
     receipt,
     fiscal,

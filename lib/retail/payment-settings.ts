@@ -1,4 +1,4 @@
-import { Prisma, type RetailRateSource } from "@prisma/client";
+import { Prisma, type RetailEcocashMethod, type RetailRateSource } from "@prisma/client";
 
 import { rate as toRate, resolveExchangeRate, UnknownExchangeRateError } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
@@ -9,13 +9,14 @@ import {
   TENDER_OPTIONS,
   tenderKeyOf,
   type TenderKey,
+  type TillEcocash,
   type TillTender,
   type ZigRoundingStep,
 } from "@/lib/retail/payment-words";
 
 /**
  * Payments (SET-05, W-05): which tenders a shop takes, the ZiG rate and how
- * ZiG change rounds, and its EcoCash merchant — read by the Payments page,
+ * ZiG change rounds, and how it takes EcoCash — read by the Payments page,
  * the till (`devices/me`) and the server when it takes a payment.
  *
  * The ZiG rate is history, not a setting: each new rate is a `CurrencyRate`
@@ -29,7 +30,9 @@ export type PaymentSettings = {
   tenders: Record<TenderKey, boolean>;
   zigRateSource: RetailRateSource;
   zigChangeRounding: ZigRoundingStep;
+  ecocashMethod: RetailEcocashMethod;
   ecocashMerchantCode: string | null;
+  ecocashPhone: string | null;
   ecocashDisplayName: string | null;
   updatedById: string | null;
   updatedAt: Date | null;
@@ -61,7 +64,9 @@ const DEFAULTS: PaymentSettings = {
   },
   zigRateSource: "MANUAL",
   zigChangeRounding: "1",
+  ecocashMethod: "MERCHANT_CODE",
   ecocashMerchantCode: null,
+  ecocashPhone: null,
   ecocashDisplayName: null,
   updatedById: null,
   updatedAt: null,
@@ -77,7 +82,9 @@ export async function loadPaymentSettings(companyId: string, db: Db = prisma): P
     tenders,
     zigRateSource: row.zigRateSource,
     zigChangeRounding: roundingStep(row.zigChangeRounding.toString()) ?? "1",
+    ecocashMethod: row.ecocashMethod,
     ecocashMerchantCode: row.ecocashMerchantCode,
+    ecocashPhone: row.ecocashPhone,
     ecocashDisplayName: row.ecocashDisplayName,
     updatedById: row.updatedById,
     updatedAt: row.updatedAt,
@@ -88,7 +95,9 @@ export type PaymentSettingsPatch = Partial<{
   tenders: Partial<Record<TenderKey, boolean>>;
   zigRateSource: RetailRateSource;
   zigChangeRounding: ZigRoundingStep;
+  ecocashMethod: RetailEcocashMethod;
   ecocashMerchantCode: string | null;
+  ecocashPhone: string | null;
   ecocashDisplayName: string | null;
 }>;
 
@@ -100,7 +109,9 @@ export async function savePaymentSettings(tx: Db, actor: RetailAuditActor, patch
   }
   if (patch.zigRateSource) data.zigRateSource = patch.zigRateSource;
   if (patch.zigChangeRounding) data.zigChangeRounding = new Prisma.Decimal(patch.zigChangeRounding);
+  if (patch.ecocashMethod) data.ecocashMethod = patch.ecocashMethod;
   if (patch.ecocashMerchantCode !== undefined) data.ecocashMerchantCode = patch.ecocashMerchantCode;
+  if (patch.ecocashPhone !== undefined) data.ecocashPhone = patch.ecocashPhone;
   if (patch.ecocashDisplayName !== undefined) data.ecocashDisplayName = patch.ecocashDisplayName;
   await tx.retailPaymentSettings.upsert({
     where: { companyId: actor.companyId },
@@ -221,7 +232,7 @@ export async function changeZigRate(
 
 /* ── At the till ──────────────────────────────────────────────────────────── */
 
-export type { TillTender };
+export type { TillEcocash, TillTender };
 
 /**
  * A sale on account names the account and who is buying (CUS-10); until the
@@ -236,10 +247,14 @@ export function tillTenders(settings: PaymentSettings): TillTender[] {
   );
 }
 
-/** What the till carries about payments: the tenders on, and today's rate while it takes ZiG. */
+/**
+ * What the till carries about payments: the tenders on, today's rate while it
+ * takes ZiG, and how customers pay by EcoCash while it takes EcoCash.
+ */
 export async function tillPayments(companyId: string): Promise<{
   tenders: TillTender[];
   zig: { rate: string; setAt: string; rounding: string } | null;
+  ecocash: TillEcocash | null;
 }> {
   const [settings, zig] = await Promise.all([loadPaymentSettings(companyId), latestZigRate(companyId)]);
   return {
@@ -248,6 +263,14 @@ export async function tillPayments(companyId: string): Promise<{
       settings.tenders.cashZig && zig
         ? { rate: zig.rate, setAt: zig.setAt.toISOString(), rounding: settings.zigChangeRounding }
         : null,
+    ecocash: settings.tenders.ecocash
+      ? {
+          method: settings.ecocashMethod,
+          merchantCode: settings.ecocashMerchantCode,
+          phone: settings.ecocashPhone,
+          name: settings.ecocashDisplayName,
+        }
+      : null,
   };
 }
 

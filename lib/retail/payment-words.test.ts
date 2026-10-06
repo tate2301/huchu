@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ECOCASH_METHOD_LABELS,
+  ECOCASH_METHOD_WORDS,
+  ecocashMethodOf,
   formatZigRate,
   merchantCodeProblem,
+  phoneProblem,
   rateChangedLine,
   rateSetHint,
   roundingStep,
@@ -94,6 +98,23 @@ describe("payments in words", () => {
     expect(merchantCodeProblem("")).toBeNull();
     expect(merchantCodeProblem("09-21")).toBe("Use digits and spaces only.");
     expect(merchantCodeProblem("1".repeat(21))).toBe("Keep it to 20 characters.");
+  });
+
+  it("checks the shop's EcoCash number loosely", () => {
+    expect(phoneProblem("")).toBeNull();
+    expect(phoneProblem("0771 234 567")).toBeNull();
+    expect(phoneProblem(" +263 77 123 4567 ")).toBeNull();
+    expect(phoneProblem("077-123-4567")).toBe("Use digits and spaces, and + at the start.");
+    expect(phoneProblem("0771 + 234")).toBe("Use digits and spaces, and + at the start.");
+    expect(phoneProblem("0771 234")).toBe("A phone number has 9 to 15 digits.");
+    expect(phoneProblem("1".repeat(16))).toBe("A phone number has 9 to 15 digits.");
+  });
+
+  it("names the ways a shop takes EcoCash, in the field's order", () => {
+    expect(Object.values(ECOCASH_METHOD_WORDS)).toEqual([...ECOCASH_METHOD_LABELS]);
+    expect(ECOCASH_METHOD_LABELS).toEqual(["Merchant code", "Phone number", "Terminal"]);
+    expect(ecocashMethodOf("Phone number")).toBe("PHONE_NUMBER");
+    expect(ecocashMethodOf("Till")).toBeNull();
   });
 
   it("gives change in dollars, then ZiG for what is under US$1, rounded to the step", () => {

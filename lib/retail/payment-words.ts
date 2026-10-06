@@ -145,6 +145,45 @@ export function merchantCodeProblem(text: string): string | null {
   return null;
 }
 
+/** "0771 234 567", "+263 77 123 4567": the shop's EcoCash number, loosely — digits, spaces, a leading +. */
+export function phoneProblem(text: string): string | null {
+  const value = text.trim();
+  if (value === "") return null;
+  if (!/^\+?[0-9 ]+$/.test(value)) return "Use digits and spaces, and + at the start.";
+  const digits = value.replace(/\D/g, "").length;
+  if (digits < 9 || digits > 15) return "A phone number has 9 to 15 digits.";
+  return null;
+}
+
+/** "Customers pay by": how a shop takes EcoCash (`RetailEcocashMethod`). */
+export type EcocashMethod = "MERCHANT_CODE" | "PHONE_NUMBER" | "TERMINAL";
+
+/** The stored way and its words on the Payments page, in the segmented field's order. */
+export const ECOCASH_METHOD_WORDS: Record<EcocashMethod, string> = {
+  MERCHANT_CODE: "Merchant code",
+  PHONE_NUMBER: "Phone number",
+  TERMINAL: "Terminal",
+};
+
+export const ECOCASH_METHOD_LABELS = ["Merchant code", "Phone number", "Terminal"] as const;
+
+export function ecocashMethodOf(label: string): EcocashMethod | null {
+  const found = (Object.entries(ECOCASH_METHOD_WORDS) as Array<[EcocashMethod, string]>).find(([, words]) => words === label);
+  return found ? found[0] : null;
+}
+
+/**
+ * How the till tells a customer to pay by EcoCash (`devices/me`): the shop's
+ * merchant code, the number to send money to, or the terminal at the counter
+ * (nothing to say but the amount). `name` is what EcoCash shows the customer.
+ */
+export type TillEcocash = {
+  method: EcocashMethod;
+  merchantCode: string | null;
+  phone: string | null;
+  name: string | null;
+};
+
 /** Change as it is handed back: whole US dollars, the ZiG notes, and what they are worth in US dollars. */
 export type ChangeSplit = { usd: number; zig: number; value: number };
 

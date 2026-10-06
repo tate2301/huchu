@@ -6,7 +6,14 @@ import {
   savePaymentSettings,
   type PaymentSettingsPatch,
 } from "@/lib/retail/payment-settings";
-import { RATE_BY_HAND, RATE_RBZ_DAILY, ZIG_ROUNDING, type TenderKey } from "@/lib/retail/payment-words";
+import {
+  ECOCASH_METHOD_WORDS,
+  ecocashMethodOf,
+  RATE_BY_HAND,
+  RATE_RBZ_DAILY,
+  ZIG_ROUNDING,
+  type TenderKey,
+} from "@/lib/retail/payment-words";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { rbzRateAvailable } from "@/lib/retail/rbz-rate";
@@ -34,8 +41,15 @@ export function paymentsPatch(changes: Record<string, unknown>): PaymentSettings
   if (typeof changes.zigRounding === "string") {
     patch.zigChangeRounding = ZIG_ROUNDING.find((option) => option.label === changes.zigRounding)?.step;
   }
+  if (typeof changes.ecocashMethod === "string") {
+    const method = ecocashMethodOf(changes.ecocashMethod);
+    if (method) patch.ecocashMethod = method;
+  }
   if (typeof changes.ecocashMerchantCode === "string") {
     patch.ecocashMerchantCode = changes.ecocashMerchantCode.trim() || null;
+  }
+  if (typeof changes.ecocashPhone === "string") {
+    patch.ecocashPhone = changes.ecocashPhone.trim() || null;
   }
   if (typeof changes.ecocashDisplayName === "string") {
     patch.ecocashDisplayName = changes.ecocashDisplayName.trim().toUpperCase() || null;
@@ -51,7 +65,9 @@ export const paymentsSettings: SettingsStore = {
       zigRate: zig?.rate ?? "",
       zigSource: SOURCE_WORDS[settings.zigRateSource],
       zigRounding: ZIG_ROUNDING.find((option) => option.step === settings.zigChangeRounding)?.label ?? "Nearest 1",
+      ecocashMethod: ECOCASH_METHOD_WORDS[settings.ecocashMethod],
       ecocashMerchantCode: settings.ecocashMerchantCode ?? "",
+      ecocashPhone: settings.ecocashPhone ?? "",
       ecocashDisplayName: settings.ecocashDisplayName ?? "",
       zigSetAt: zig?.setAt.toISOString() ?? null,
       zigSetBy: zig?.setBy ?? null,

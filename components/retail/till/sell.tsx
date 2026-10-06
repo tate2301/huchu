@@ -204,7 +204,8 @@ function Workbench() {
     zig,
   } = till;
   const searchRef = React.useRef<HTMLInputElement>(null);
-  const ways = React.useMemo(() => payWays(tenders, zig), [tenders, zig]);
+  const ecocash = till.context?.ecocash ?? null;
+  const ways = React.useMemo(() => payWays(tenders, zig, ecocash), [tenders, zig, ecocash]);
   const [wayKey, setWayKey] = React.useState<string | null>(null);
   const way = ways.find((entry) => entry.key === wayKey) ?? ways[0];
   const [trayOpen, setTrayOpen] = React.useState(false);

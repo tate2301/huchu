@@ -4626,7 +4626,11 @@ model RetailPaymentSettings {
   zigRateSource       RetailRateSource @default(MANUAL)
   /// "Round ZiG change to": 0.50, 1 or 5.
   zigChangeRounding   Decimal          @default(1) @db.Decimal(6, 2)
+  /// "Customers pay by": what the till tells the customer to pay EcoCash to.
+  ecocashMethod       RetailEcocashMethod @default(MERCHANT_CODE)
   ecocashMerchantCode String?
+  /// "EcoCash number": the shop's phone number, when customers send money to it.
+  ecocashPhone        String?
   /// "Shows customers as".
   ecocashDisplayName  String?
   updatedById         String?
@@ -4635,6 +4639,13 @@ model RetailPaymentSettings {
 
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   updatedBy User?   @relation("RetailPaymentSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// How a shop takes EcoCash: its merchant code, money sent to its phone number, or a terminal at the counter.
+enum RetailEcocashMethod {
+  MERCHANT_CODE
+  PHONE_NUMBER
+  TERMINAL
 }
 
 /// Setup › Posting to the books (SET-09): when retail sales and stock reach the ledger.

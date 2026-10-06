@@ -12,7 +12,8 @@ import { hashDeviceKey } from "@/lib/retail/devices";
  * a sale, refund or void, named on it; the empties brought back, on their
  * supplier's ledger and on the Paid screen, and taken off again by a void;
  * the shop's name for a deposit value on the shelf; who signs the cash-up off
- * and the next shift's number on the till's context; and the non-cash takings
+ * and the next shift's number on the till's context, and how customers pay
+ * by EcoCash; and the non-cash takings
  * tender by tender on the open shift. Against the test database, on a paired
  * till at the shop's POS host, with only the sign-in faked.
  */
@@ -154,6 +155,7 @@ afterAll(async () => {
   await prisma.retailTillPin.deleteMany({ where: { companyId } });
   await prisma.userSiteAccess.deleteMany({ where: { companyId } });
   await prisma.retailShopProfile.deleteMany({ where: { companyId } });
+  await prisma.retailPaymentSettings.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
   await prisma.product.deleteMany({ where: { companyId } });
   await prisma.vendor.deleteMany({ where: { companyId } });
@@ -311,7 +313,7 @@ describe("the till's context", () => {
   const context = async () => {
     const me = await ME(request("devices/me")).then(read);
     expect(me.status).toBe(200);
-    return me.body.data as { nextShiftNo: string; signOff: { name: string } | null };
+    return me.body.data as { nextShiftNo: string; signOff: { name: string } | null; ecocash: unknown };
   };
 
   it("forecasts the next shift's number without taking it", async () => {
@@ -335,5 +337,24 @@ describe("the till's context", () => {
     });
     await prisma.userSiteAccess.create({ data: { companyId, userId: here.id, siteId } });
     expect((await context()).signOff).toEqual({ name: "Rudo Chari" });
+  });
+
+  it("says how customers pay by EcoCash, and nothing while the shop does not take it", async () => {
+    // No Payments row yet: EcoCash is on, by merchant code, with nothing typed.
+    expect((await context()).ecocash).toEqual({ method: "MERCHANT_CODE", merchantCode: null, phone: null, name: null });
+
+    await prisma.retailPaymentSettings.create({
+      data: { companyId, ecocashMethod: "PHONE_NUMBER", ecocashPhone: "0771 234 567", ecocashDisplayName: "HARARE BOTTLE" },
+    });
+    expect((await context()).ecocash).toEqual({
+      method: "PHONE_NUMBER",
+      merchantCode: null,
+      phone: "0771 234 567",
+      name: "HARARE BOTTLE",
+    });
+
+    await prisma.retailPaymentSettings.update({ where: { companyId }, data: { takeEcocash: false } });
+    expect((await context()).ecocash).toBeNull();
+    await prisma.retailPaymentSettings.delete({ where: { companyId } });
   });
 });
