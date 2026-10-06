@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { MoreHorizontal, Pencil } from "@/lib/icons";
 import { periodParams, type CustomBlock, type CustomReport } from "@/lib/reports/custom/document";
@@ -36,6 +37,7 @@ import { useCustomData, useReportSources } from "./use-custom-data";
 /** Drawing widths: a block beside another, and one across the page. */
 const HALF = 520;
 const FULL = 1080;
+const PHONE = 360;
 
 /** Two half blocks side by side; anything else on a row of its own. */
 function pageRows(blocks: readonly CustomBlock[]): CustomBlock[][] {
@@ -58,6 +60,8 @@ export function CustomReportScreen({ id }: { id: string }) {
   const search = useSearchParams();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  // Charts are drawn at the width they are read at, so a phone gets phone-sized labels.
+  const isPhone = useIsMobile();
 
   const report = useQuery({
     queryKey: ["reports", "custom", id],
@@ -164,7 +168,8 @@ export function CustomReportScreen({ id }: { id: string }) {
     </PageChrome>
   );
 
-  if (report.isLoading || sources.isLoading) {
+  // On the server React Query has not started, so no data and no error is still loading.
+  if (report.isLoading || sources.isLoading || (!report.data && !report.isError) || (!sources.data && !sources.isError)) {
     return (
       <>
         {chrome}
@@ -255,13 +260,13 @@ export function CustomReportScreen({ id }: { id: string }) {
                 <div key={row[0]!.id} className="grid gap-8 md:grid-cols-2">
                   {row.map((block) => (
                     <div key={block.id} className="min-w-0">
-                      {draw(block, HALF)}
+                      {draw(block, isPhone ? PHONE : HALF)}
                     </div>
                   ))}
                 </div>
               ) : (
                 <div key={row[0]!.id} className="min-w-0">
-                  {draw(row[0]!, FULL)}
+                  {draw(row[0]!, isPhone ? PHONE : FULL)}
                 </div>
               ),
             )}

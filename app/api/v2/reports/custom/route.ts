@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { reportMeta } from "@/lib/reports/catalog";
+import { reportCatalog, reportMeta } from "@/lib/reports/catalog";
 import { customReportInputSchema, documentFromReport, starterDocument } from "@/lib/reports/custom/document";
 import { readableSources, readerOf } from "@/lib/reports/custom/sources";
 import { createCustomReport, listCustomReports } from "@/lib/reports/custom/store";
@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
       const saved = await readReportSetting(session.user.companyId, fromReport);
       const meta = reportMeta(definition, session.user.role, definition.params, saved);
       const report = await createCustomReport(reader, {
-        title: title ?? definition.title,
+        // Its own name, so it is not mistaken for the report it was built from.
+        title: title ?? `${definition.title} (copy)`,
         description: null,
         shared: false,
         document: documentFromReport(meta),
@@ -57,11 +58,19 @@ export async function POST(request: NextRequest) {
       return successResponse({ report }, 201);
     }
 
+    const catalog = reportCatalog(
+      sources,
+      { role: session.user.role, enabledFeatures: session.user.enabledFeatures },
+      session.user.workspaceProfile,
+    );
+    const firstKey = catalog[0]?.reports[0]?.key;
+    const firstSource = sources.find((source) => source.key === firstKey);
     const report = await createCustomReport(reader, {
       title: title ?? "Untitled report",
       description: null,
       shared: false,
-      document: starterDocument(sources[0] ?? null),
+      // The first report the catalogue would show this workspace, not the first one defined.
+      document: starterDocument(firstSource ?? null),
     });
     return successResponse({ report }, 201);
   } catch (error) {

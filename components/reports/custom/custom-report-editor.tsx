@@ -130,7 +130,9 @@ function redisplay(kind: BlockKind, display: BlockDisplay, columns: ReportColumn
   const form = kind as "bars" | "trend";
   const { by } = chartColumns(columns, form);
   const keep = display.type === "chart" && by.some((column) => column.key === display.by) ? display.by : null;
-  const measure = display.type === "chart" ? display.measure : undefined;
+  const kept = display.type === "chart" ? display.measure : undefined;
+  const figure = chartColumns(columns, form).measures[0];
+  const measure = kept ?? (figure ? { column: figure.key, fn: "sum" as const } : undefined);
   return {
     type: "chart",
     form,
@@ -333,8 +335,10 @@ function SourceList({ sources, onCopy }: { sources: readonly ReportSource[]; onC
                     {open === source.key ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}
                   </button>
                   <button type="button" className={styles.sourceButton} onClick={() => onCopy(source.key)} title={`Copy ${source.key}`}>
-                    <span className="min-w-0 flex-1 truncate">{source.title}</span>
-                    <span className="font-mono text-[11px] text-[var(--text-subtle)]">{source.key}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{source.title}</span>
+                      <span className="block truncate font-mono text-[11px] text-[var(--text-muted)]">{source.key}</span>
+                    </span>
                   </button>
                 </div>
                 {open === source.key ? (
@@ -396,7 +400,13 @@ export function CustomReportEditor({ id }: { id: string }) {
   const data = useCustomData(blocks, sources.data?.sources, params);
 
   const parsed = current ? customReportInputSchema.safeParse(current) : null;
-  const problems = parsed && !parsed.success ? [...new Set(parsed.error.issues.map((issue) => issue.message))] : [];
+  const problems = [
+    ...(parsed && !parsed.success ? parsed.error.issues.map((issue) => issue.message) : []),
+    ...blocks.flatMap((block) => {
+      const check = block.type === "query" ? data.checks.get(block.id) : undefined;
+      return block.type === "query" && check && !check.ok ? [`@${block.name}: ${check.problem.message}`] : [];
+    }),
+  ].filter((problem, index, all) => all.indexOf(problem) === index);
 
   const save = async () => {
     if (!current || !parsed?.success) return;
@@ -464,7 +474,8 @@ export function CustomReportEditor({ id }: { id: string }) {
     </PageChrome>
   );
 
-  if (report.isLoading || sources.isLoading) {
+  // On the server React Query has not started, so no data and no error is still loading.
+  if (report.isLoading || sources.isLoading || (!report.data && !report.isError) || (!sources.data && !sources.isError)) {
     return (
       <>
         {chrome}
@@ -579,7 +590,7 @@ export function CustomReportEditor({ id }: { id: string }) {
           </label>
         ) : null}
         <span className="ml-auto font-mono text-[11px]">
-          {params.from || params.to ? `${params.from || "…"} – ${params.to || "…"}` : "Any time"} · $from and $to in a query
+          {params.from && params.to ? `${params.from} – ${params.to}` : params.from ? `${params.from} onwards` : params.to ? `Up to ${params.to}` : "Any time"} · $from and $to in a query
         </span>
       </div>
     </div>
@@ -674,7 +685,7 @@ export function CustomReportEditor({ id }: { id: string }) {
                     </div>
                     {result?.ok ? (
                       <p className="mt-2 font-mono text-[11px] text-[var(--text-muted)]">
-                        {result.rows.length.toLocaleString("en-US")} rows · {result.columns.length} columns
+                        {result.rows.length.toLocaleString("en-US")} {result.rows.length === 1 ? "row" : "rows"} · {result.columns.length} {result.columns.length === 1 ? "column" : "columns"}
                         {block.half ? " · half width, beside the next half block" : ""}
                       </p>
                     ) : null}

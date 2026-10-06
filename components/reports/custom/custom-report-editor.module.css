@@ -7,8 +7,8 @@
   .frame {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    height: calc(100dvh - var(--stack-top, 0px) - 96px);
-    margin: -16px -24px 0;
+    height: calc(100dvh - var(--stack-top, 0px) - 49px);
+    margin: -16px -16px 0;
     border-top: 1px solid var(--border);
     background: var(--surface);
   }

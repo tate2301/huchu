@@ -128,7 +128,10 @@ function Table({ block, meta, rows }: { block: QueryBlock; meta: ReportMeta; row
       {rows.length === 0 ? (
         <p className="text-[13px] text-[var(--text-muted)]">No rows in these dates.</p>
       ) : (
-        <ReportTable applied={applied} view={view} onViewChange={setView} selectedIds={selected} onSelect={setSelected} rowActions={null} />
+        // A wide result scrolls inside its block; the page never scrolls sideways.
+        <div className="min-w-0 overflow-x-auto">
+          <ReportTable applied={applied} view={view} onViewChange={setView} selectedIds={selected} onSelect={setSelected} rowActions={null} />
+        </div>
       )}
     </section>
   );
