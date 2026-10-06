@@ -29,6 +29,11 @@ export const REFERENCE_TENDERS = ["CARD", "ECOCASH", "INNBUCKS"] as const;
 export const MIN_REFERENCE_LENGTH = 4;
 
 export const REASON_MAX_LENGTH = 40;
+/** The longest a till may keep selling offline (W-64: 1–72 hours). */
+export const OFFLINE_HOURS_MAX = 72;
+/** The highest refund PIN limit and cash-drop prompt the page takes (W-64). */
+export const REFUND_PIN_OVER_MAX = 100_000;
+export const CASH_DROP_PROMPT_MAX = 1_000_000;
 export const REASONS_MAX = 12;
 
 /** "10%". */
@@ -70,7 +75,7 @@ export function offlineHoursProblem(text: string): string | null {
   const value = parseHours(text);
   if (value === null) return "Type a number of hours, like 24 hours.";
   if (value < 1) return "Allow at least 1 hour.";
-  if (value > 168) return "Keep it to a week, 168 hours.";
+  if (value > OFFLINE_HOURS_MAX) return `Keep it to ${OFFLINE_HOURS_MAX} hours or less.`;
   return null;
 }
 
@@ -134,6 +139,12 @@ export function offlineTooLongSentence(hours: number): string {
 export function offlineReversalReview(kind: "refund" | "void", reason: string): string {
   return `${kind === "refund" ? "Refunded" : "Voided"} offline without the manager PIN it needed. ${reason}`;
 }
+
+/** The review line on a refund or void sent in late whose reason was taken off the list since. */
+export const REASON_UNLISTED_REVIEW = "Reason no longer on the list.";
+
+/** The review line on a card, EcoCash or InnBucks refund sent in late without its reference. */
+export const OFFLINE_REFUND_NO_REFERENCE_REVIEW = "Refunded offline without a reference.";
 
 /** The review line on an offline sale whose discount or price needed a manager the till could not ask. */
 export function offlineDiscountReview(reason: string, limitPercent: string | number): string {

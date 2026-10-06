@@ -50,6 +50,7 @@ import { getPaymentSummary } from "./pos-utils";
 // Type-only, like `TillFiscalStatus` above.
 import type { TillContext } from "@/lib/retail/devices";
 import { markPairedTill } from "@/lib/retail/till-presence";
+import { offlineStopSentence, offlineWindowClosed } from "@/lib/retail/till-on-device";
 import { usePosDeviceWatch } from "./pos-device-watch";
 
 type CompletedSale = {
@@ -153,6 +154,8 @@ type PosPortalStateValue = {
   postSale: () => void;
   postSalePending: boolean;
   checkoutBaseBlockers: string[];
+  /** Why the till may not sell offline any longer (the till rules' offline window), or null. */
+  offlineStop: string | null;
   pendingOfflineSales: number;
   queuedOfflineSales: PosQueuedSale[];
   retryOfflineSale: (id: string) => void;
@@ -204,7 +207,7 @@ export function PosPortalProvider({
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { syncNow, tenantKey } = useOfflineRuntime();
+  const { syncNow, tenantKey, lastOnlineAt, isOffline } = useOfflineRuntime();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -227,6 +230,12 @@ export function PosPortalProvider({
   const [offlineCustomerResults, setOfflineCustomerResults] = useState<CustomerLookupResult[]>([]);
   /** The cashier has checked this customer's ID. One check covers the basket. */
   const [idChecked, setIdChecked] = useState(false);
+  /** The clock the offline window is read against, a minute at a time. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // A device that stops being a till goes to /unpaired at its next request,
   // sending what it held offline first (W-76). A device that is not a till
@@ -465,6 +474,22 @@ export function PosPortalProvider({
     setPendingOfflineSales(queue.length);
   }, [tenantKey]);
 
+  /*
+    SET-06, W-64. "Keep selling offline for up to": past the window (the
+    server's last answer, or the oldest sale still held, older than the
+    rule), a sale no longer goes into the offline queue. The server only
+    marks a late sale for review; stopping the till is the device's job.
+  */
+  const oldestQueuedAt = queuedOfflineSales.reduce<string | null>(
+    (oldest, operation) => (!oldest || operation.createdAt < oldest ? operation.createdAt : oldest),
+    null,
+  );
+  const offlineStop = (at: number) =>
+    till && offlineWindowClosed({ offlineHours: till.rules.offlineHours, lastOnlineAt, oldestQueuedAt, now: at })
+      ? offlineStopSentence(till.rules.offlineHours)
+      : null;
+  const offlineBlocker = isOffline ? offlineStop(now) : null;
+
   const buildSalePayload = (): PosSaleQueuePayload | null => {
     // The site is the shift's, which the server takes from the till.
     if (!currentShift?.id) return null;
@@ -610,6 +635,13 @@ export function PosPortalProvider({
           (typeof navigator !== "undefined" && !navigator.onLine) ||
           usesOfflineCustomer)
       ) {
+        // Past the till rules' offline window the sale is not kept: the
+        // basket stays, to charge once the till is back online.
+        const stop = offlineStop(Date.now());
+        if (stop) {
+          toast({ title: "That sale was not saved", description: stop, variant: "destructive" });
+          return;
+        }
         void queueOfflineRetailSale({
           tenantKey,
           payload,
@@ -756,7 +788,9 @@ export function PosPortalProvider({
     checkoutBaseBlockers: [
       ...(currentShift ? [] : ["Open a shift first"]),
       ...(cart.length > 0 ? [] : ["Add a product first"]),
+      ...(offlineBlocker ? [offlineBlocker] : []),
     ],
+    offlineStop: offlineBlocker,
     needsIdCheck,
     checkId: () => checkId(),
     pendingOfflineSales,

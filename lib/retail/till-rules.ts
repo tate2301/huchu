@@ -11,6 +11,7 @@ import {
   ONE_TENDER_SENTENCE,
   PRICE_UP_SENTENCE,
   REASON_NOT_LISTED,
+  REASON_UNLISTED_REVIEW,
   REFERENCE_TENDERS,
   referenceSentence,
   refundPinSentence,
@@ -178,30 +179,41 @@ export type DiscountedLine = {
 
 /**
  * The discount rule for a sale, decided once for the counter (`pos/sales`)
- * and for the offline queue (`pos/sync`): what the cashier took off — the
- * order's discount (less points redeemed), the lines' discounts and any price
- * cut below the shelf — as a share of the basket at the shelf, against the
- * largest a cashier gives; a price above the shelf always asks. A replay
- * whose prices the replay review has explained (`pricesExplained`) is judged
- * on its discounts alone.
+ * and for the offline queue (`pos/sync`). W-64: "any line or sale discount
+ * above the cashier's largest → manager PIN". So each line is judged on its
+ * own — its discount plus any price cut below the shelf, as a share of that
+ * line at the shelf — and so is the sale as a whole: the order's discount
+ * (less points redeemed) with every line's, as a share of the basket at the
+ * shelf. A big basket cannot hide one item given away. A price above the
+ * shelf always asks. A replay whose prices the replay review has explained
+ * (`pricesExplained`) is judged on its discounts alone.
  */
 export function saleDiscountRule(
   rules: TillRules,
   input: { lines: DiscountedLine[]; orderDiscount: number; pricesExplained: boolean },
 ): TillRuleDecision {
+  if (!input.pricesExplained && input.lines.some((line) => line.unitPrice - line.shelfUnitPrice > 0.009)) {
+    return checkTillRule(rules, { act: "discount", percent: 0, priceUp: true });
+  }
   let shelfValue = new Prisma.Decimal(0);
   let given = new Prisma.Decimal(Math.max(input.orderDiscount, 0));
   for (const line of input.lines) {
-    shelfValue = shelfValue.plus(new Prisma.Decimal(line.shelfUnitPrice).times(line.quantity));
-    given = given.plus(Math.max(line.lineDiscount, 0));
+    const lineShelf = new Prisma.Decimal(line.shelfUnitPrice).times(line.quantity);
+    let lineGiven = new Prisma.Decimal(Math.max(line.lineDiscount, 0));
     if (!input.pricesExplained) {
-      given = given.plus(new Prisma.Decimal(Math.max(line.shelfUnitPrice - line.unitPrice, 0)).times(line.quantity));
+      lineGiven = lineGiven.plus(new Prisma.Decimal(Math.max(line.shelfUnitPrice - line.unitPrice, 0)).times(line.quantity));
     }
+    const lineRule = checkTillRule(rules, {
+      act: "discount",
+      percent: discountPercent(lineGiven.toDecimalPlaces(2), lineShelf.toDecimalPlaces(2)),
+    });
+    if (lineRule.needsApprover) return lineRule;
+    shelfValue = shelfValue.plus(lineShelf);
+    given = given.plus(lineGiven);
   }
   return checkTillRule(rules, {
     act: "discount",
     percent: discountPercent(given.toDecimalPlaces(2), shelfValue.toDecimalPlaces(2)),
-    priceUp: !input.pricesExplained && input.lines.some((line) => line.unitPrice - line.shelfUnitPrice > 0.009),
   });
 }
 
@@ -224,6 +236,27 @@ export function listedReason(rules: TillRules, kind: "refund" | "void", reason: 
   const listed = list.find((entry) => entry.toLowerCase() === reason.trim().toLowerCase());
   if (!listed) throw new TillRuleRefused(REASON_NOT_LISTED, "reason");
   return listed;
+}
+
+/**
+ * The reason a refund or void keeps. At the counter it must be listed
+ * (`listedReason`). Sent in late from an offline till (`replay`), the act has
+ * happened, so a reason taken off the list since goes in as typed, with a
+ * review line for a manager.
+ */
+export function reversalReason(
+  rules: TillRules,
+  kind: "refund" | "void",
+  reason: string,
+  replay: boolean,
+): { reason: string; review: string | null } {
+  if (!replay) return { reason: listedReason(rules, kind, reason), review: null };
+  try {
+    return { reason: listedReason(rules, kind, reason), review: null };
+  } catch (error) {
+    if (!(error instanceof TillRuleRefused)) throw error;
+    return { reason: reason.trim() || "No reason given", review: REASON_UNLISTED_REVIEW };
+  }
 }
 
 /* ── Tenders ──────────────────────────────────────────────────────────────── */

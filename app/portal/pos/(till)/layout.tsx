@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { PosPortalProvider } from "@/components/retail/portal/pos-portal-state";
 import { PosPortalLayoutFrame } from "@/components/retail/portal/pos-portal-layout-frame";
 import { PosTillLockProvider } from "@/components/retail/portal/pos-lock-screen";
+import { PosCashDropPrompt } from "@/components/retail/portal/pos-cash-drop-prompt";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
 import { resolveWorkspaceIdentityForHost } from "@/lib/platform/workspace-identity";
 import { deviceForPage, isPairedTill } from "../device-page";
@@ -27,6 +28,8 @@ export default async function PosPortalLayout({ children }: { children: ReactNod
         over its children when locked, so mounting it here is the whole wiring.
       */}
       <PosTillLockProvider>
+        {/* SET-06: the till rules' cash drop prompt, asked only while the till is unlocked. */}
+        <PosCashDropPrompt />
         <PosPortalLayoutFrame
           workspaceName={workspace.workspaceName}
           workspaceInitial={workspace.initial}

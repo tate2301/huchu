@@ -302,6 +302,7 @@ export function PosCheckoutView() {
     removeFromCart, clearCart,
     postSale, postSalePending,
     checkoutBaseBlockers,
+    offlineStop,
     pendingOfflineSales, syncOfflineSales, syncOfflineSalesPending,
     requiredReferenceTenders, minReferenceLength,
     lastCompletedSale, dismissCompletedSale,
@@ -528,6 +529,10 @@ export function PosCheckoutView() {
     // the cashier charges again once it is done.
     if (needsIdCheck) {
       void checkId();
+      return;
+    }
+    if (offlineStop) {
+      toast({ title: "Not selling offline", description: offlineStop, variant: "destructive" });
       return;
     }
     if (blockers.length) return;
@@ -1437,7 +1442,11 @@ export function PosCheckoutView() {
 
           {/* Validation + Charge button — fixed at bottom */}
           <div className="shrink-0 border-t border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-3">
-
+            {offlineStop ? (
+              <p role="alert" className="mb-2 text-xs font-medium text-[var(--status-error-text)]">
+                {offlineStop}
+              </p>
+            ) : null}
             <button
               type="button"
               data-testid="pos-charge"

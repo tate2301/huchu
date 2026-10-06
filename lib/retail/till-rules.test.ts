@@ -14,6 +14,7 @@ import {
   listedReason,
   loadTillRules,
   offlineReview,
+  reversalReason,
   saleDiscountRule,
   tenderRuleProblem,
   TillRuleRefused,
@@ -89,6 +90,33 @@ describe("when the till rules ask for a manager", () => {
     ).toEqual({ needsApprover: true, reason: "A price above the shelf price needs a manager PIN." });
   });
 
+  it("judges each line on its own, so a big basket cannot hide one item given away", () => {
+    const sixPack = { quantity: 2, unitPrice: 9.5, shelfUnitPrice: 9.5, lineDiscount: 0 };
+    const tonic = { quantity: 1, unitPrice: 1.2, shelfUnitPrice: 1.2, lineDiscount: 1.2 };
+    // US$1.20 off a US$20.20 basket is 5.9%, but that one line is 100% off.
+    expect(saleDiscountRule(rules(), { lines: [sixPack, tonic], orderDiscount: 0, pricesExplained: false })).toEqual({
+      needsApprover: true,
+      reason: "Discounts over 10% need a manager PIN.",
+    });
+    // The same from the offline queue, whose prices the replay review explained.
+    expect(saleDiscountRule(rules(), { lines: [sixPack, tonic], orderDiscount: 0, pricesExplained: true })).toEqual({
+      needsApprover: true,
+      reason: "Discounts over 10% need a manager PIN.",
+    });
+    // A price cut to nothing on one line is the same give-away.
+    expect(
+      saleDiscountRule(rules(), {
+        lines: [sixPack, { ...tonic, unitPrice: 0, lineDiscount: 0 }],
+        orderDiscount: 0,
+        pricesExplained: false,
+      }),
+    ).toEqual({ needsApprover: true, reason: "Discounts over 10% need a manager PIN." });
+    // Within the ceiling on the line, and on the sale.
+    expect(
+      saleDiscountRule(rules(), { lines: [sixPack, { ...tonic, lineDiscount: 0.12 }], orderDiscount: 0, pricesExplained: false }),
+    ).toEqual({ needsApprover: false });
+  });
+
   it("says the refund limit in the shop's base currency", () => {
     expect(checkTillRule(rules({ currency: "ZiG", refundPinOver: new Prisma.Decimal(500) }), { act: "refund", amount: 501 })).toEqual({
       needsApprover: true,
@@ -111,6 +139,15 @@ describe("reasons, tenders and offline sales", () => {
     expect(listedReason(rules(), "void", "Test sale")).toBe("Test sale");
     expect(() => listedReason(rules(), "refund", "Felt like it")).toThrow(TillRuleRefused);
     expect(() => listedReason(rules(), "void", "Damaged")).toThrow("Pick a reason from the list.");
+  });
+
+  it("takes a reason taken off the list since from a replay, marked for review", () => {
+    expect(reversalReason(rules(), "refund", "changed mind", false)).toEqual({ reason: "Changed mind", review: null });
+    expect(() => reversalReason(rules(), "void", "Felt like it", false)).toThrow(TillRuleRefused);
+    expect(reversalReason(rules(), "void", " Felt like it ", true)).toEqual({
+      reason: "Felt like it",
+      review: "Reason no longer on the list.",
+    });
   });
 
   it("refuses a second tender while split payments are off", () => {
@@ -191,6 +228,29 @@ describe("the Till rules page's rules", () => {
         offlineHours: "Allow at least 1 hour.",
         voidPin: "Choose always, after 5 minutes or never.",
       },
+    });
+  });
+
+  it("keeps the limits inside W-64's ranges", () => {
+    expect(
+      checkSettingsChanges(tillRulesPage, {
+        refundPinOver: "100000.01",
+        cashDropPromptOver: "1000000.01",
+        offlineHours: "73 hours",
+      }),
+    ).toEqual({
+      ok: false,
+      fieldErrors: {
+        refundPinOver: "Keep it to 100,000 or less.",
+        cashDropPromptOver: "Keep it to 1,000,000 or less.",
+        offlineHours: "Keep it to 72 hours or less.",
+      },
+    });
+    expect(
+      checkSettingsChanges(tillRulesPage, { refundPinOver: "100000", cashDropPromptOver: "1,000,000", offlineHours: "72" }),
+    ).toEqual({
+      ok: true,
+      values: { refundPinOver: "100000.00", cashDropPromptOver: "1000000.00", offlineHours: "72 hours" },
     });
   });
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  CASH_DROP_PROMPT_MAX,
   cleanReasons,
   discountProblem,
   hoursWords,
@@ -9,6 +10,7 @@ import {
   parsePercent,
   percentWords,
   reasonsProblem,
+  REFUND_PIN_OVER_MAX,
   VOID_PIN_LABELS,
 } from "@/lib/retail/till-rule-words";
 
@@ -26,12 +28,17 @@ import type { SettingsPage } from "./types";
 
 const onOff = z.boolean({ message: "Turn it on or off." });
 
-function moneyRule(label: string) {
+/** An amount from 0 to `max`, two decimals at most, written back as "20.00". */
+function moneyRule(label: string, max: number) {
   return z
     .string({ message: `Type ${label}.` })
     .transform((value) => value.trim().replace(/,/g, ""))
     .superRefine((value, ctx) => {
-      if (!/^\d{1,9}(\.\d{1,2})?$/.test(value)) ctx.addIssue({ code: "custom", message: "Type an amount, like 20.00." });
+      if (!/^\d{1,9}(\.\d{1,2})?$/.test(value)) {
+        ctx.addIssue({ code: "custom", message: "Type an amount, like 20.00." });
+      } else if (Number(value) > max) {
+        ctx.addIssue({ code: "custom", message: `Keep it to ${max.toLocaleString("en-US")} or less.` });
+      }
     })
     .transform((value) => Number(value).toFixed(2));
 }
@@ -140,7 +147,7 @@ export const tillRulesPage: SettingsPage = {
     { title: "Who can change this", text: "Owners and managers." },
   ],
   schema: z.object({
-    refundPinOver: moneyRule("the refund limit"),
+    refundPinOver: moneyRule("the refund limit", REFUND_PIN_OVER_MAX),
     voidPin: z.enum(VOID_PIN_LABELS, { message: "Choose always, after 5 minutes or never." }),
     refundReasons: reasonsRule(),
     voidReasons: reasonsRule(),
@@ -148,7 +155,7 @@ export const tillRulesPage: SettingsPage = {
     referenceRequired: onOff,
     maxCashierDiscountPercent: textRule(discountProblem, (text) => percentWords(parsePercent(text)!)),
     drawerOpenWithoutSale: onOff,
-    cashDropPromptOver: moneyRule("the cash drop amount"),
+    cashDropPromptOver: moneyRule("the cash drop amount", CASH_DROP_PROMPT_MAX),
     offlineHours: textRule(offlineHoursProblem, (text) => hoursWords(parseHours(text)!)),
   }),
 };

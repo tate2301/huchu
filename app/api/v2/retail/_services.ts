@@ -29,13 +29,13 @@ import { reversalSubtotal } from "@/lib/retail/sale-totals";
 import { depositBack } from "@/lib/retail/deposits";
 import {
   checkTillRule,
-  listedReason,
   loadTillRules,
   offlineReview,
+  reversalReason,
   tenderRuleProblem,
   type TillRuleDecision,
 } from "@/lib/retail/till-rules";
-import { offlineReversalReview } from "@/lib/retail/till-rule-words";
+import { OFFLINE_REFUND_NO_REFERENCE_REVIEW, offlineReversalReview } from "@/lib/retail/till-rule-words";
 import { approvalFor, replayApproval, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
 import {
   checkSaleTenders,
@@ -1198,7 +1198,7 @@ export async function refundRetailSaleTransaction(input: {
     their own approval.
   */
   const tillRules = await loadTillRules(input.actor.companyId);
-  const reason = listedReason(tillRules, "refund", input.reason);
+  const { reason, review: reasonReview } = reversalReason(tillRules, "refund", input.reason, input.replay ?? false);
 
   const [sourceSale, shift] = await Promise.all([
     prisma.retailSale.findFirst({
@@ -1258,9 +1258,12 @@ export async function refundRetailSaleTransaction(input: {
     { splitTender: true, referenceRequired: tillRules.referenceRequired },
     refundPayments,
   );
-  if (referenceProblem) {
+  // Sent in late, the money has already gone back on the card or wallet: it
+  // goes in for a manager to look at rather than being refused for good.
+  if (referenceProblem && !input.replay) {
     throw new Error(referenceProblem);
   }
+  const referenceReview = referenceProblem ? OFFLINE_REFUND_NO_REFERENCE_REVIEW : null;
   const negativePayments = refundPayments.map((payment) => ({
     ...payment,
     amount: -payment.amount,
@@ -1421,7 +1424,7 @@ export async function refundRetailSaleTransaction(input: {
         exchangeRate: currentSourceSale.exchangeRate,
         baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
         overrideReason: withApprover(reason, approvedBy),
-        reviewReason: approvalReview,
+        reviewReason: [approvalReview, reasonReview, referenceReview].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
         postedAt: input.postedAt ?? new Date(),
@@ -1566,7 +1569,7 @@ export async function voidRetailSaleTransaction(input: {
   replay?: boolean;
 }) {
   const tillRules = await loadTillRules(input.actor.companyId);
-  const reason = listedReason(tillRules, "void", input.reason);
+  const { reason, review: reasonReview } = reversalReason(tillRules, "void", input.reason, input.replay ?? false);
 
   const [sourceSale, shift] = await Promise.all([
     prisma.retailSale.findFirst({
@@ -1691,7 +1694,7 @@ export async function voidRetailSaleTransaction(input: {
         ),
         promotionCode: currentSourceSale.promotionCode,
         overrideReason: withApprover(reason, approvedBy),
-        reviewReason: approvalReview,
+        reviewReason: [approvalReview, reasonReview].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
         postedAt: input.postedAt ?? new Date(),

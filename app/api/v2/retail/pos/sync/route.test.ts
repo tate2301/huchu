@@ -22,6 +22,7 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 }));
 
 import { POST } from "./route";
+import { POST as SELL } from "../sales/route";
 import { voidRetailSaleTransaction } from "../../_services";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -31,6 +32,7 @@ let companyId = "";
 let cashierId = "";
 let shiftId = "";
 let productId = "";
+let tonicId = "";
 
 beforeAll(async () => {
   companyId = (await prisma.company.create({ data: { name: `Sync ${stamp}`, slug: `sync-${stamp}` }, select: { id: true } })).id;
@@ -90,6 +92,25 @@ beforeAll(async () => {
       currentStock: 50,
       unitCost: 2,
       productId,
+    },
+  });
+  tonicId = (
+    await prisma.product.create({
+      data: { companyId, code: `TONIC-${stamp}`, name: "Schweppes Tonic 200ml", standardPrice: 1.2 },
+      select: { id: true },
+    })
+  ).id;
+  await prisma.inventoryItem.create({
+    data: {
+      itemCode: `TONIC-${stamp}`,
+      name: "Schweppes Tonic 200ml",
+      category: "BEVERAGES",
+      unit: "pieces",
+      siteId: site.id,
+      locationId: location.id,
+      currentStock: 20,
+      unitCost: 0.6,
+      productId: tonicId,
     },
   });
   // The shop's rate, set an hour ago: 26.80 ZiG to the dollar.
@@ -367,5 +388,95 @@ describe("the till rules on a sale and a void sent in from the offline queue (SE
     expect(stored.reviewReason).toBe(
       "Voided offline without the manager PIN it needed. Voids need a manager PIN.",
     );
+  });
+});
+
+describe("the discount ceiling, line by line (SET-06, W-64)", () => {
+  /** Five Castles at US$3.90 and a tonic at US$1.20 given away: 5.8% off the basket, 100% off one line. */
+  const items = () => [
+    { productId, quantity: 5 },
+    { productId: tonicId, quantity: 1, discountAmount: 1.2 },
+  ];
+
+  it("asks for a manager at the counter, however big the rest of the basket", async () => {
+    const response = await SELL(
+      new NextRequest("http://pos.test.localtest.me/api/v2/retail/pos/sales", {
+        method: "POST",
+        headers: { cookie: `${DEVICE_COOKIE}=${key}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          clientRef: `free-line-${stamp}`,
+          shiftId,
+          items: items(),
+          overrideReason: "Regular customer",
+          payments: [{ tenderType: "CASH", currency: "USD", amount: 19.5 }],
+        }),
+      }),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      needsApprover: true,
+      reason: "Discounts over 10% need a manager PIN.",
+    });
+    expect(await prisma.retailSale.count({ where: { companyId, clientRef: `free-line-${stamp}` } })).toBe(0);
+  });
+
+  it("takes it from the offline queue, marked for a manager", async () => {
+    const base = sale("free-line-offline", { tenderType: "CASH", currency: "USD", amount: 19.5 });
+    const result = (await sync([{ ...base, payload: { ...base.payload, items: items() } }])).get("free-line-offline")!;
+    expect(result).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: result.serverId! } });
+    expect(stored.reviewReason).toBe("Discount over 10% given while offline.");
+  });
+});
+
+describe("a refund or void sent in late that the rules would refuse now (SET-06)", () => {
+  it("takes a card refund without its reference, marked for review", async () => {
+    const sold = (
+      await sync([sale("card-sale", { tenderType: "CARD", currency: "USD", amount: 3.9, reference: "SLIP-4410" })])
+    ).get("card-sale")!;
+    expect(sold).toMatchObject({ status: "synced" });
+    const refunded = (
+      await sync([
+        {
+          clientOperationId: "card-refund-offline",
+          operation: "refund-sale",
+          offlineCreatedAt: new Date().toISOString(),
+          payload: {
+            saleId: sold.serverId,
+            shiftId,
+            reason: "Damaged",
+            items: [{ productId, name: "Castle Lager 340ml", quantity: 1, unitPrice: 3.9, refundAmount: 3.9 }],
+            refundTotal: 3.9,
+            payments: [{ tenderType: "CARD", amount: 3.9 }],
+            refundedAt: new Date().toISOString(),
+          },
+        },
+      ])
+    ).get("card-refund-offline")!;
+    expect(refunded).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: refunded.serverId! } });
+    expect(stored.reviewReason).toBe("Refunded offline without a reference.");
+  });
+
+  it("takes a void whose reason was taken off the list since, marked for review", async () => {
+    await prisma.retailTillRules.upsert({
+      where: { companyId },
+      update: { voidPin: "NEVER" },
+      create: { companyId, voidPin: "NEVER" },
+    });
+    const sold = (await sync([sale("void-unlisted", { tenderType: "CASH", currency: "USD", amount: 3.9 })])).get("void-unlisted")!;
+    const voided = (
+      await sync([
+        {
+          clientOperationId: "void-unlisted-offline",
+          operation: "void-sale",
+          offlineCreatedAt: new Date().toISOString(),
+          payload: { saleId: sold.serverId, shiftId, reason: "Price check", voidedAt: new Date().toISOString() },
+        },
+      ])
+    ).get("void-unlisted-offline")!;
+    expect(voided).toMatchObject({ status: "synced" });
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: voided.serverId! } });
+    expect([stored.overrideReason, stored.reviewReason]).toEqual(["Price check", "Reason no longer on the list."]);
   });
 });
