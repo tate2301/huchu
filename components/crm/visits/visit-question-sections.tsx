@@ -13,51 +13,32 @@
  * loses everything.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Stack } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus } from "@/lib/icons";
+import { formatMoney } from "@/components/crm/money/money";
+import { FieldInput } from "@/components/forms/field-input";
+import {
+  answerValue,
+  fieldFromQuestion,
+  quoteLinesOf,
+  type QuestionRow,
+  type StoredAnswer,
+} from "@/lib/crm/site-visits/fields";
+import { DISPLAY_FIELD_TYPES, isShown, type FieldDefinition } from "@/lib/forms/fields";
+import { draftQuote, draftSubtotal, type DraftedLine } from "@/lib/forms/quote";
 
-type QuestionType =
-  | "SHORT_TEXT"
-  | "LONG_TEXT"
-  | "NUMBER"
-  | "BOOLEAN"
-  | "SINGLE_SELECT"
-  | "MULTI_SELECT"
-  | "DATE"
-  | "DIMENSION"
-  | "PHOTO_EVIDENCE";
+type Question = QuestionRow & { id: string; needsReview: boolean };
 
-type Question = {
-  id: string;
-  key: string;
-  label: string;
-  helpText: string | null;
-  type: QuestionType;
-  options: Array<{ value: string; label: string }> | null;
-  unit: string | null;
-  isRequired: boolean;
-  needsReview: boolean;
-};
-
-type Answer = {
+type Answer = StoredAnswer & {
   questionKey: string;
-  valueText: string | null;
-  valueNumber: number | null;
-  valueBool: boolean | null;
-  valueOptions: string[];
-  valueDate: string | null;
-  valueJson: { widthM?: number | null; heightM?: number | null } | null;
   notes: string | null;
   notApplicable: boolean;
 };
@@ -67,7 +48,7 @@ type Section = {
   name: string;
   kind: "PRODUCT" | "EVIDENCE" | "CLOSEOUT";
   answers: Answer[];
-  questionSet: { questions: Question[] } | null;
+  questionSet: { questions: Question[]; quoteLines: unknown } | null;
 };
 
 type SetSummary = {
@@ -89,14 +70,14 @@ type Draft = Record<string, unknown>;
 function draftFromAnswers(section: Section): Draft {
   const draft: Draft = {};
   for (const answer of section.answers) {
-    if (answer.valueJson) draft[answer.questionKey] = answer.valueJson;
-    else if (answer.valueOptions.length > 0) draft[answer.questionKey] = answer.valueOptions;
-    else if (answer.valueBool !== null) draft[answer.questionKey] = answer.valueBool;
-    else if (answer.valueNumber !== null) draft[answer.questionKey] = answer.valueNumber;
-    else if (answer.valueDate) draft[answer.questionKey] = answer.valueDate.slice(0, 10);
-    else if (answer.valueText !== null) draft[answer.questionKey] = answer.valueText;
+    const value = answerValue(answer);
+    if (value !== undefined) draft[answer.questionKey] = value;
   }
   return draft;
+}
+
+function blank(value: unknown): boolean {
+  return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
 }
 
 export function VisitQuestionSections({ appointmentId }: { appointmentId: string }) {
@@ -186,7 +167,15 @@ function QuestionSection({
     Object.fromEntries(section.answers.map((a) => [a.questionKey, a.notApplicable])),
   );
 
-  const questions = section.questionSet?.questions ?? [];
+  const fields = useMemo(() => (section.questionSet?.questions ?? []).map(fieldFromQuestion), [section.questionSet]);
+  const quoteLines = useMemo(() => quoteLinesOf(section.questionSet?.quoteLines), [section.questionSet]);
+  // What is asked depends on what has been answered: damp found, the primer question appears.
+  const given = useMemo(
+    () => Object.fromEntries(Object.entries(draft).filter(([key]) => !notApplicable[key])),
+    [draft, notApplicable],
+  );
+  const asked = fields.filter((field) => !DISPLAY_FIELD_TYPES.includes(field.type) && isShown(field, fields, given));
+  const drafted = useMemo(() => draftQuote(quoteLines, fields, given), [fields, given, quoteLines]);
 
   const save = useMutation({
     mutationFn: () =>
@@ -195,11 +184,14 @@ function QuestionSection({
         {
           method: "PUT",
           body: JSON.stringify({
-            answers: questions.map((question) => ({
-              questionKey: question.key,
-              value: draft[question.key] ?? null,
-              notApplicable: notApplicable[question.key] ?? false,
-            })),
+            answers: fields
+              .filter((field) => !DISPLAY_FIELD_TYPES.includes(field.type))
+              .map((field) => ({
+                questionKey: field.key,
+                // A question not asked with these answers keeps nothing.
+                value: isShown(field, fields, given) ? (draft[field.key] ?? null) : null,
+                notApplicable: notApplicable[field.key] ?? false,
+              })),
           }),
         },
       ),
@@ -211,35 +203,36 @@ function QuestionSection({
       toast({ title: "Could not save", description: getApiErrorMessage(error) }),
   });
 
-  const answered = questions.filter(
-    (question) =>
-      notApplicable[question.key] ||
-      (draft[question.key] !== undefined && draft[question.key] !== null && draft[question.key] !== ""),
-  ).length;
+  const answered = asked.filter((field) => notApplicable[field.key] || !blank(draft[field.key])).length;
 
   return (
     <section className="space-y-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3">
       <header className="flex items-baseline justify-between gap-3">
         <h4 className="text-base font-semibold text-[var(--text-strong)]">{section.name}</h4>
         <span className="text-sm text-[var(--text-muted)]">
-          {answered} of {questions.length}
+          {answered} of {asked.length}
         </span>
       </header>
 
-      <Stack gap="sm">
-        {questions.map((question) => (
-          <QuestionField
-            key={question.key}
-            question={question}
-            value={draft[question.key]}
-            notApplicable={notApplicable[question.key] ?? false}
-            onChange={(value) => setDraft((current) => ({ ...current, [question.key]: value }))}
-            onNotApplicable={(value) =>
-              setNotApplicable((current) => ({ ...current, [question.key]: value }))
-            }
-          />
-        ))}
+      <Stack gap="md">
+        {fields.map((field) =>
+          isShown(field, fields, given) ? (
+            <QuestionField
+              key={field.key}
+              field={field}
+              idPrefix={`q-${section.id}`}
+              value={draft[field.key]}
+              notApplicable={notApplicable[field.key] ?? false}
+              onChange={(value) => setDraft((current) => ({ ...current, [field.key]: value }))}
+              onNotApplicable={(value) =>
+                setNotApplicable((current) => ({ ...current, [field.key]: value }))
+              }
+            />
+          ) : null,
+        )}
       </Stack>
+
+      {quoteLines.length > 0 ? <DraftedQuote drafted={drafted} /> : null}
 
       <Button type="button" size="sm" disabled={save.isPending} onClick={() => save.mutate()}>
         {save.isPending ? "Saving…" : `Save ${section.name}`}
@@ -248,32 +241,59 @@ function QuestionSection({
   );
 }
 
+/** What these answers put on the quote, as they are given. */
+function DraftedQuote({ drafted }: { drafted: DraftedLine[] }) {
+  return (
+    <div className="space-y-1.5 rounded-[var(--radius-sm)] bg-[var(--canvas)] p-3 text-sm">
+      <p className="font-semibold text-[var(--text-strong)]">The quote so far</p>
+      {drafted.length === 0 ? (
+        <p className="text-[var(--text-muted)]">Measure the site and the quote is drafted here.</p>
+      ) : (
+        <>
+          {drafted.map((line) => (
+            <div key={line.lineId} className="flex items-baseline justify-between gap-3">
+              <span>
+                {line.description}
+                <span className="block text-sm text-[var(--text-muted)]">{line.source}</span>
+              </span>
+              <span className="font-mono tabular-nums whitespace-nowrap">{formatMoney(line.amount)}</span>
+            </div>
+          ))}
+          <div className="flex items-baseline justify-between gap-3 border-t border-[var(--border)] pt-1.5 font-semibold text-[var(--text-strong)]">
+            <span>Before tax</span>
+            <span className="font-mono tabular-nums">{formatMoney(draftSubtotal(drafted))}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function QuestionField({
-  question,
+  field,
+  idPrefix,
   value,
   notApplicable,
   onChange,
   onNotApplicable,
 }: {
-  question: Question;
+  field: FieldDefinition;
+  idPrefix: string;
   value: unknown;
   notApplicable: boolean;
   onChange: (value: unknown) => void;
   onNotApplicable: (value: boolean) => void;
 }) {
-  const id = `q-${question.key}`;
+  // A heading or a note is read, not answered.
+  if (DISPLAY_FIELD_TYPES.includes(field.type)) return <FieldInput field={field} />;
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-sm font-normal">
-        {question.label}
-        {question.isRequired ? <span aria-hidden> *</span> : null}
-      </Label>
-      {question.helpText ? (
-        <p className="text-sm text-[var(--text-muted)]">{question.helpText}</p>
-      ) : null}
-
-      {notApplicable ? null : <QuestionInput id={id} question={question} value={value} onChange={onChange} />}
+      {notApplicable ? (
+        <p className="text-[15px] font-semibold text-[var(--text-muted)] line-through">{field.label}</p>
+      ) : (
+        <FieldInput field={field} value={value} onChange={onChange} idPrefix={idPrefix} uploadUrl="/api/v2/crm/uploads" />
+      )}
 
       {/* Not every question applies to every site, and a rep who cannot say so
           leaves it blank — which reads as "not asked" rather than "asked, and
@@ -287,147 +307,4 @@ function QuestionField({
       </label>
     </div>
   );
-}
-
-function QuestionInput({
-  id,
-  question,
-  value,
-  onChange,
-}: {
-  id: string;
-  question: Question;
-  value: unknown;
-  onChange: (value: unknown) => void;
-}) {
-  switch (question.type) {
-    case "BOOLEAN":
-    case "PHOTO_EVIDENCE":
-      return (
-        <label className="flex cursor-pointer items-center gap-2.5 text-sm">
-          <Checkbox
-            checked={value === true}
-            onCheckedChange={(checked) => onChange(checked === true)}
-          />
-          <span>{question.type === "PHOTO_EVIDENCE" ? "Captured" : "Yes"}</span>
-        </label>
-      );
-
-    case "LONG_TEXT":
-      return (
-        <Textarea
-          id={id}
-          rows={3}
-          value={typeof value === "string" ? value : ""}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      );
-
-    case "NUMBER":
-      return (
-        <div className="flex items-center gap-2">
-          <Input
-            id={id}
-            type="number"
-            inputMode="decimal"
-            value={value === null || value === undefined ? "" : String(value)}
-            onChange={(event) => onChange(event.target.value)}
-          />
-          {question.unit ? (
-            <span className="text-sm text-[var(--text-muted)]">{question.unit}</span>
-          ) : null}
-        </div>
-      );
-
-    case "DATE":
-      return (
-        <Input
-          id={id}
-          type="date"
-          value={typeof value === "string" ? value : ""}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      );
-
-    case "DIMENSION": {
-      const dimension = (value ?? {}) as { widthM?: number | null; heightM?: number | null };
-      return (
-        <div className="flex items-center gap-2">
-          <Input
-            id={id}
-            type="number"
-            inputMode="decimal"
-            placeholder="Width"
-            value={dimension.widthM ?? ""}
-            onChange={(event) =>
-              onChange({ ...dimension, widthM: Number(event.target.value) || null })
-            }
-          />
-          <span aria-hidden className="text-[var(--text-muted)]">×</span>
-          <Input
-            type="number"
-            inputMode="decimal"
-            placeholder="Height"
-            aria-label={`${question.label} height`}
-            value={dimension.heightM ?? ""}
-            onChange={(event) =>
-              onChange({ ...dimension, heightM: Number(event.target.value) || null })
-            }
-          />
-          <span className="text-sm text-[var(--text-muted)]">m</span>
-        </div>
-      );
-    }
-
-    case "SINGLE_SELECT":
-      return (
-        <div className="flex flex-wrap gap-2">
-          {(question.options ?? []).map((option) => (
-            <Button
-              key={option.value}
-              type="button"
-              size="sm"
-              variant={value === option.value ? "default" : "outline"}
-              onClick={() => onChange(value === option.value ? null : option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      );
-
-    case "MULTI_SELECT": {
-      const selected = Array.isArray(value) ? (value as string[]) : [];
-      return (
-        <div className="flex flex-wrap gap-2">
-          {(question.options ?? []).map((option) => (
-            <Button
-              key={option.value}
-              type="button"
-              size="sm"
-              variant={selected.includes(option.value) ? "default" : "outline"}
-              onClick={() =>
-                onChange(
-                  selected.includes(option.value)
-                    ? selected.filter((entry) => entry !== option.value)
-                    : [...selected, option.value],
-                )
-              }
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      );
-    }
-
-    default:
-      return (
-        <Input
-          id={id}
-          value={typeof value === "string" ? value : ""}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      );
-  }
 }

@@ -11332,6 +11332,18 @@ enum CrmQuestionType {
   DIMENSION
   /// The answer is the photograph.
   PHOTO_EVIDENCE
+  /// The builder's measuring kinds (see `lib/forms/fields.ts`). The figure
+  /// a quote line reads goes in `valueNumber`; the measurements in `valueJson`.
+  LENGTH
+  AREA
+  AREAS
+  COUNT
+  READING
+  RUN
+  SIGNATURE
+  /// On the page to organise it; never answered.
+  SECTION
+  NOTE
 }
 
 /// A named set of questions a rep works through on site.
@@ -11354,6 +11366,8 @@ model CrmQuestionSet {
   isActive  Boolean            @default(true)
   /// Which template seeded this, for provenance. Null once hand-built.
   sourceTemplateKey String?
+  /// The quote these answers draft: `QuoteLine[]` from `lib/forms/quote.ts`.
+  quoteLines        Json?
   archivedAt  DateTime?
   createdById String?
   createdAt   DateTime         @default(now())
@@ -11384,6 +11398,9 @@ model CrmQuestion {
   options       Json?
   /// "mm", "m2", "m" — shown beside a NUMBER input.
   unit          String?
+  /// The rest of the question as the builder makes it: bounds, an area's
+  /// shape, the warning range, and the answer that shows it (`showWhen`).
+  settings      Json?
   isRequired    Boolean         @default(false)
   /// The bank says to photograph this one.
   requiresPhoto Boolean         @default(false)

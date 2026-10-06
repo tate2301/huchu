@@ -286,6 +286,48 @@
     min-width: 0;
   }
 
+  /* In a row the column is sized by its content, so a figure is given its
+     own width rather than a share of nothing. */
+  .areaRow .measure {
+    flex: none;
+    width: 6.5rem;
+  }
+
+  .areas {
+    container-type: inline-size;
+  }
+
+  /* On a phone the name takes the first line, the measurements the second. */
+  @container (max-width: 34rem) {
+    .areaRow {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "name remove"
+        "dims figure";
+      row-gap: 8px;
+    }
+
+    .areaRow > .areaName {
+      grid-area: name;
+    }
+
+    .areaRow > .area {
+      grid-area: dims;
+    }
+
+    .areaRow > .areaFigure {
+      grid-area: figure;
+    }
+
+    .areaRow > .areaRemove {
+      grid-area: remove;
+    }
+
+    .areaRow .measure {
+      width: 5.75rem;
+    }
+  }
+
   .areaFigure {
     text-align: right;
     font-family: var(--font-mono);

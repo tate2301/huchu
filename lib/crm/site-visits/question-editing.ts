@@ -24,21 +24,13 @@
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
+import { fieldFromQuestion, QUESTION_TYPES, questionSettingsSchema, type QuestionType } from "@/lib/crm/site-visits/fields";
+import { fieldProblems } from "@/lib/forms/fields";
+import { quoteLineProblems, quoteLinesSchema } from "@/lib/forms/quote";
+
 type Tx = Prisma.TransactionClient;
 
-export const QUESTION_TYPES = [
-  "SHORT_TEXT",
-  "LONG_TEXT",
-  "NUMBER",
-  "BOOLEAN",
-  "SINGLE_SELECT",
-  "MULTI_SELECT",
-  "DATE",
-  "DIMENSION",
-  "PHOTO_EVIDENCE",
-] as const;
-
-export type QuestionType = (typeof QUESTION_TYPES)[number];
+export { QUESTION_TYPES, type QuestionType } from "@/lib/crm/site-visits/fields";
 
 /** What each type is called on the editing screen. */
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
@@ -51,6 +43,15 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   DATE: "Date",
   DIMENSION: "Width × height",
   PHOTO_EVIDENCE: "Photograph",
+  LENGTH: "Length",
+  AREA: "Area",
+  AREAS: "Areas",
+  COUNT: "Count",
+  READING: "Reading",
+  RUN: "Run of metres",
+  SIGNATURE: "Signature",
+  SECTION: "Section",
+  NOTE: "Note",
 };
 
 /** Types that render a list of buttons, and are broken without one. */
@@ -87,6 +88,8 @@ export const questionDraftSchema = z
     unit: z.string().trim().max(20).nullable().optional(),
     isRequired: z.boolean().default(false),
     requiresPhoto: z.boolean().default(false),
+    /** What the builder says about it beyond the columns: bounds, shape, warning, when it is asked. */
+    settings: questionSettingsSchema.nullable().optional(),
   })
   .superRefine((question, ctx) => {
     if (needsChoices(question.type) && (question.options?.length ?? 0) === 0) {
@@ -115,6 +118,8 @@ export const questionSetDraftSchema = z.object({
   isActive: z.boolean().optional(),
   /** The whole list, in the order it should be asked. */
   questions: z.array(questionDraftSchema).max(300),
+  /** The quote these answers draft. Absent leaves it as it is. */
+  quoteLines: quoteLinesSchema.optional(),
 });
 
 export const createQuestionSetSchema = z.object({
@@ -140,6 +145,21 @@ function assertUniqueKeys(questions: QuestionDraft[]): void {
       `Two questions in this section both use the key "${duplicate}". Keys have to be unique — they are what answers are stored against.`,
     );
   }
+}
+
+/**
+ * A rule that points at a question not on the form, or a quote line that
+ * counts something that is not measured, is refused rather than saved to
+ * hide the question for good or quote nothing.
+ */
+function assertConsistent(draft: z.infer<typeof questionSetDraftSchema>): void {
+  const fields = draft.questions.map((question) =>
+    fieldFromQuestion({ ...question, helpText: question.helpText ?? null, unit: question.unit ?? null }),
+  );
+  const ruleProblems = fieldProblems(fields).filter((problem) => problem.includes("shown by"));
+  const lineProblems = draft.quoteLines ? quoteLineProblems(draft.quoteLines, fields) : [];
+  const problem = ruleProblems[0] ?? lineProblems[0];
+  if (problem) throw new QuestionEditError(problem);
 }
 
 /**
@@ -169,6 +189,7 @@ export async function saveQuestionSet(
   if (!set) throw new QuestionEditError("That section no longer exists.");
 
   assertUniqueKeys(draft.questions);
+  assertConsistent(draft);
 
   const existing = new Map(set.questions.map((question) => [question.id, question]));
 
@@ -194,6 +215,7 @@ export async function saveQuestionSet(
       ...(draft.kind === undefined ? {} : { kind: draft.kind }),
       ...(draft.productId === undefined ? {} : { productId: draft.productId }),
       ...(draft.isActive === undefined ? {} : { isActive: draft.isActive }),
+      ...(draft.quoteLines === undefined ? {} : { quoteLines: draft.quoteLines as Prisma.InputJsonValue }),
       // Once a human has edited it, it is theirs rather than the template's.
       sourceTemplateKey: null,
     },
@@ -225,6 +247,11 @@ export async function saveQuestionSet(
       unit: question.unit ?? null,
       isRequired: question.isRequired,
       requiresPhoto: question.requiresPhoto,
+      // Absent means "not said": the settings screen edits only the columns,
+      // and saving there must not wipe what the builder set.
+      ...(question.settings === undefined
+        ? {}
+        : { settings: question.settings ? (question.settings as Prisma.InputJsonValue) : Prisma.DbNull }),
       position,
       // A human has looked at it; that is exactly what the flag was asking for.
       needsReview: false,

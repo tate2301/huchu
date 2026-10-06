@@ -194,6 +194,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/crm/reps", featureKey: "crm.core" },
   { scope: "page", prefix: "/crm/work-orders", featureKey: "crm.core" },
   { scope: "page", prefix: "/crm/workflows", featureKey: "crm.settings" },
+  { scope: "page", prefix: "/crm/build", featureKey: "crm.settings" },
   { scope: "page", prefix: "/crm/settings", featureKey: "crm.settings" },
   { scope: "page", prefix: "/crm", featureKey: "crm.core" },
 
