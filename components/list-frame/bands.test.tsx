@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { getReportDefinition } from "@/lib/reports/registry";
 import type { ReportRow } from "@/lib/reports/types";
 
+import { ListCards } from "./list-cards";
 import { ListCell } from "./list-cell";
 import { ListPager } from "./list-pager";
 import { NoMatch, Refusal } from "./list-states";
@@ -161,11 +162,48 @@ describe("ListPager (Paging board)", () => {
   });
 });
 
+describe("ListCards grouped (phone)", () => {
+  const spec = { ...list, card: { title: "shiftNo", meta: "{state}" }, rowHref: "/retail/shifts/{id}", rowMenu: [] } as never;
+  const cards = (groups: Array<{ value: string; label: string; count: number }> | null, groupKey: string | null) =>
+    renderToStaticMarkup(
+      <ListCards
+        spec={spec}
+        rows={[row({ id: "a", shiftNo: "SH-1", state: "Open" }), row({ id: "b", shiftNo: "SH-2", state: "Open" }), row({ id: "c", shiftNo: "SH-3", state: "Closed" })]}
+        groups={groups as never}
+        groupKey={groupKey}
+        ticked={() => false}
+        selecting={false}
+        onTick={() => {}}
+        onAction={() => {}}
+        scrollRef={() => {}}
+        onScroll={() => {}}
+      />,
+    );
+
+  it("draws a heading with its count at the start of each group, between the cards", () => {
+    const html = cards(
+      [
+        { value: "Open", label: "Open", count: 2 },
+        { value: "Closed", label: "Closed", count: 1 },
+      ],
+      "state",
+    );
+    expect(html.match(/cx-lf-cards__head/g)).toHaveLength(2);
+    expect(html.indexOf(">Open</span>")).toBeLessThan(html.indexOf("SH-1"));
+    expect(html.indexOf("SH-2")).toBeLessThan(html.indexOf(">Closed</span>"));
+    expect(html.indexOf(">Closed</span>")).toBeLessThan(html.indexOf("SH-3"));
+  });
+
+  it("draws none when the list is not grouped", () => {
+    expect(cards(null, null)).not.toContain("cx-lf-cards__head");
+  });
+});
+
 describe("states (5.4.11)", () => {
   it("says no row matches, with a way out", () => {
     const html = renderToStaticMarkup(<NoMatch noun="shifts" onClear={() => {}} />);
     expect(html).toContain("No shifts match these filters.");
-    expect(html).toContain("Clear filters");
+    expect(html).toContain("Clear the filters");
   });
 
   it("refuses a role in words", () => {

@@ -11,12 +11,11 @@ import type {
   ListGroup,
   ListSpecPublic,
   ReportRow,
-  ReportValue,
 } from "@/lib/reports/types";
 
 import { GroupHeading } from "./group-heading";
 import { ListCell, cellTitle } from "./list-cell";
-import { alignOf, cellPadding, isBlank, rowMatches, sortOf } from "./model";
+import { alignOf, cellPadding, groupValue, isBlank, rowMatches, sortOf } from "./model";
 
 /**
  * The table (00-foundations 5.4.6): a column head pinned to the top of the
@@ -65,11 +64,6 @@ function rowName(spec: ListSpecPublic, row: ReportRow): string {
   const first = spec.columns[0];
   return first ? String(row[first.key] ?? row.id) : row.id;
 }
-
-const groupValue = (row: ReportRow, key: string): string => {
-  const value: ReportValue | undefined = row[key];
-  return isBlank(value) ? "" : String(value);
-};
 
 /** An `action` cell: the word that does one of the row's menu actions, when the row's menu has it. */
 function RowActionCell({

@@ -114,6 +114,12 @@ export function isBlank(value: ReportValue | undefined): boolean {
 }
 
 /** A shift longer than this is a drawer left open from another day (5.4.7 duration). */
+/** The value a row is grouped by; a blank one is the group with no value. */
+export const groupValue = (row: ReportRow, key: string): string => {
+  const value: ReportValue | undefined = row[key];
+  return isBlank(value) ? "" : String(value);
+};
+
 export const STALE_MINUTES = 12 * 60;
 
 export type DurationState = "running" | "stale" | "done";

@@ -1,4 +1,3 @@
-import { isOrgAdminRole } from "@/lib/preferences/nav";
 import type { ReportParam, ReportParams, ReportView } from "@/lib/reports/types";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 
@@ -83,9 +82,9 @@ export function canSaveTemplates(role: string): boolean {
   return canRetailRoleDo(role, "retail.reports", "create");
 }
 
-/** Anyone keeps a template for themselves; sharing it is a manager's call. */
+/** Anyone keeps a template for themselves; sharing it follows saving: the owner and the managers (retail.reports:create). */
 export function canShareWith(audience: TemplateAudience, role: string): boolean {
-  return audience === "JUST_ME" || isOrgAdminRole(role);
+  return audience === "JUST_ME" || canSaveTemplates(role);
 }
 
 /**

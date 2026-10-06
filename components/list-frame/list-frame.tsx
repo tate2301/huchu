@@ -698,6 +698,8 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
           <ListCards
             spec={spec}
             rows={rows}
+            groups={data?.groups ?? null}
+            groupKey={groupKey}
             ticked={ticked}
             selecting={tickCount > 0}
             onTick={(row) => setTicks([row], !ticked(row.id))}

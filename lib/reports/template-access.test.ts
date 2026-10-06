@@ -69,11 +69,14 @@ describe("who saves retail templates (W-73)", () => {
   });
 });
 
-describe("who shares a generic template", () => {
-  it("lets anyone keep one for themselves and only managers share", () => {
+describe("who shares a template", () => {
+  it("lets anyone keep one for themselves and the owner and the managers share", () => {
     expect(canShareWith("JUST_ME", "CASHIER")).toBe(true);
     expect(canShareWith("MANAGERS", "CASHIER")).toBe(false);
+    expect(canShareWith("MANAGERS", "FINANCE_OFFICER")).toBe(false);
     expect(canShareWith("EVERYONE", "MANAGER")).toBe(true);
+    expect(canShareWith("EVERYONE", "SHOP_MANAGER")).toBe(true);
+    expect(canShareWith("EVERYONE", "SUPERADMIN")).toBe(true);
   });
 });
 

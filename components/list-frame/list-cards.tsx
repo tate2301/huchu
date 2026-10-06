@@ -7,11 +7,13 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { StateBadge } from "@/components/workspace/state-badge";
 import { CaretLeft, Check, ChevronLeftIcon, ChevronRight, ChevronUpIcon, Search, X } from "@/lib/icons";
 import { fillTemplate } from "@/lib/reports/actions";
-import { PERIOD_PRESETS, type ListAction, type ListColumn, type ListSpecPublic, type ReportRow, type ReportValue, type ResolvedListQuery } from "@/lib/reports/types";
+import { PERIOD_PRESETS, type ListAction, type ListColumn, type ListGroup, type ListSpecPublic, type ReportRow, type ReportValue, type ResolvedListQuery } from "@/lib/reports/types";
 import { formatCount } from "@/lib/workspace/format";
 
+import { CountPill } from "@/components/workspace/count-pill";
+
 import { PeriodPicker } from "./filters-popover";
-import { PERIOD_LABELS, cellText, countWords, diffTone, drawnFilters, filterValueLabel, isBlank, rowMatches, sortLabel, toneOf, totalText, type DrawnFilter } from "./model";
+import { PERIOD_LABELS, cellText, countWords, diffTone, drawnFilters, filterValueLabel, groupValue, isBlank, rowMatches, sortLabel, toneOf, totalText, type DrawnFilter } from "./model";
 
 /**
  * A list on a phone (00-foundations 5.4.12, Mobile board): a 52px toolbar of
@@ -57,6 +59,8 @@ const LONG_PRESS_MS = 500;
 export function ListCards({
   spec,
   rows,
+  groups,
+  groupKey,
   ticked,
   selecting,
   onTick,
@@ -66,6 +70,9 @@ export function ListCards({
 }: {
   spec: ListSpecPublic;
   rows: ReportRow[];
+  /** The page's groups and the column they group by: a heading with the count opens each run of cards. */
+  groups: ListGroup[] | null;
+  groupKey: string | null;
   ticked: (id: string) => boolean;
   /** While anything is ticked, a tap ticks rather than opens. */
   selecting: boolean;
@@ -83,6 +90,8 @@ export function ListCards({
   const figureColumn = column(spec.card.figure);
   const figure2Column = column(spec.card.figure2);
 
+  const groupByValue = new Map((groups ?? []).map((group) => [group.value ?? "", group]));
+
   const start = (row: ReportRow) => {
     press.current.fired = false;
     press.current.timer = window.setTimeout(() => {
@@ -97,7 +106,22 @@ export function ListCards({
 
   return (
     <div className="cx-lf-cards" ref={scrollRef} onScroll={onScroll}>
-      {rows.map((row) => {
+      {rows.map((row, index) => {
+        let heading: React.ReactNode = null;
+        if (groupKey && groups) {
+          const value = groupValue(row, groupKey);
+          if (index === 0 || value !== groupValue(rows[index - 1]!, groupKey)) {
+            const group = groupByValue.get(value);
+            if (group) {
+              heading = (
+                <div key={`group-${value}`} className="cx-lf-cards__head">
+                  <span>{group.label}</span>
+                  <CountPill aria-label={`${formatCount(group.count)} in ${group.label}`}>{formatCount(group.count)}</CountPill>
+                </div>
+              );
+            }
+          }
+        }
         // A row with nothing to open for this viewer is a card, not a link.
         const href = fillTemplate(spec.rowHref, row);
         const badge = badgeColumn ? row[badgeColumn.key] : null;
@@ -168,7 +192,7 @@ export function ListCards({
             ) : null}
           </>
         );
-        return href ? (
+        const card = href ? (
           <Link key={row.id} href={href} {...cardProps}>
             {body}
           </Link>
@@ -177,6 +201,7 @@ export function ListCards({
             {body}
           </div>
         );
+        return heading ? [heading, card] : card;
       })}
     </div>
   );

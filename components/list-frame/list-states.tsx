@@ -44,7 +44,7 @@ export function NoMatch({ noun, line, onClear }: { noun: string; line?: string |
   return (
     <div className="cx-lf-block" role="status">
       <span className="cx-lf-block__line">No {noun} match these filters.</span>
-      <Button onClick={onClear}>Clear filters</Button>
+      <Button onClick={onClear}>Clear the filters</Button>
     </div>
   );
 }
