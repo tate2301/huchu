@@ -459,6 +459,9 @@ export async function backfillRetailAccounting(input: {
           netAmount: toNumberOrZero(openingFloat.abs()),
           taxAmount: 0,
           grossAmount: toNumberOrZero(openingFloat.abs()),
+          // The rule debits each drawer by its part (FLR-03). A backfill posts the
+          // dollar float; a ZiG float's rate was stamped at opening and posted then.
+          payload: { usd: toNumberOrZero(openingFloat.abs()), zig: 0 },
           actorRole: input.actorRole ?? undefined,
           periodOverrideReason: input.periodOverrideReason ?? undefined,
         },

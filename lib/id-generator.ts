@@ -89,7 +89,7 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
   RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
   // "SH-00243", the number the floor, the boards and the seeded history use.
-  RETAIL_SHIFT: { prefix: "SH", requiresSiteId: true, padWidth: 5 },
+  RETAIL_SHIFT: { prefix: "SH", requiresSiteId: false, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
   // "SALE-31866", "RFD-0044", "VOID-0012" (FLR-01): one line of numbers per
   // company, whichever site rang them. Rows numbered before keep theirs.
@@ -404,9 +404,9 @@ async function findEntityMaxExistingCode(
       return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
     }
     case "RETAIL_SHIFT": {
-      if (!siteId) return 0;
+      // Company-wide (FLR-03): a per-site counter collides between Harare and Borrowdale.
       const records = await db.retailShift.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { shiftNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.shiftNo), prefix);

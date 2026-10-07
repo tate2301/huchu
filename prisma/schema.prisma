@@ -1432,6 +1432,7 @@ model User {
   retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
   retailHeldCartsReleased           RetailHeldCart[]               @relation("RetailHeldCartReleasedBy")
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
+  retailCashMovementsApproved       RetailCashMovement[]           @relation("RetailCashMovementApprovedBy")
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
   retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
@@ -3200,6 +3201,7 @@ enum NotificationEntityType {
   RETAIL_PRICE_APPROVAL
   RETAIL_PERSON
   RETAIL_SETTINGS
+  RETAIL_SHIFT
 }
 
 enum HrIncidentCategory {
@@ -5099,6 +5101,10 @@ model RetailShift {
   cashierId    String
   cashierName  String
   openingFloat Decimal @default(0) @db.Decimal(14, 2)
+  /// The ZiG counted into the drawer at opening; expectedCash includes it at the day's rate (FLR-03).
+  openingFloatZig Decimal @default(0) @db.Decimal(14, 2)
+  /// "Float left for tomorrow", written by the close; read by the next opening's default (FLR-03).
+  floatLeft    Decimal? @db.Decimal(14, 2)
   status       RetailShiftStatus @default(OPEN)
   openedAt     DateTime  @default(now())
   closedAt     DateTime?
@@ -5182,11 +5188,15 @@ model RetailCashMovement {
   /// Denormalised for the same reason `RetailSale.cashierName` is: the user row can
   /// go, and a reprinted safe log still has to name who carried the money.
   recordedByName String?
+  /// The manager who approved it with their PIN, or the person who recorded it when they hold the right (FLR-03).
+  approvedById   String?
+  approvedByName String?
   createdAt      DateTime @default(now())
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   recordedBy User?       @relation("RetailCashMovementRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvedBy User?       @relation("RetailCashMovementApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([companyId, shiftId, createdAt])
   @@index([companyId, type])
@@ -5982,6 +5992,8 @@ enum AccountingSourceType {
   RETAIL_STOCK_TRANSFER
   RETAIL_SHIFT_VARIANCE
   RETAIL_OPENING_STOCK
+  RETAIL_CASH_MOVEMENT
+  RETAIL_PETTY_CASH
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE

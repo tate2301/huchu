@@ -207,6 +207,7 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "4200", name: "Other Income", type: "INCOME", category: "Other Income", systemManaged: true },
   { code: "5000", name: "Cost of Goods Sold", type: "EXPENSE", category: "COGS", systemManaged: true },
   { code: "5100", name: "Consumables Expense", type: "EXPENSE", category: "Operations", systemManaged: true },
+  { code: "5110", name: "Petty cash", type: "EXPENSE", category: "Operations", systemManaged: true },
   { code: "5200", name: "Wages Expense", type: "EXPENSE", category: "Payroll", systemManaged: true },
   { code: "5300", name: "Maintenance Expense", type: "EXPENSE", category: "Maintenance", systemManaged: true },
   { code: "5400", name: "Inventory Adjustments", type: "EXPENSE", category: "Inventory", systemManaged: true },
@@ -1044,8 +1045,39 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     ruleMode: "GUIDED",
     isFallback: true,
     lines: [
-      { accountCode: "1000", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / till cash", sortOrder: 10 },
+      // The float in each currency's drawer at its base value (FLR-03): the
+      // payload's `usd` and `zig` always sum to the amount, and a zero line is skipped.
+      { accountCode: "1000", direction: "DEBIT", basis: "TAX", valuePath: "usd", memoTemplate: "{description} / till cash", sortOrder: 10 },
+      { accountCode: "1001", direction: "DEBIT", basis: "TAX", valuePath: "zig", memoTemplate: "{description} / till cash, ZiG", sortOrder: 15 },
       { accountCode: "1005", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / cash vault", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail cash movement",
+    sourceType: "RETAIL_CASH_MOVEMENT",
+    description: "Cash dropped from a till to the safe; a float top-up posts it the other way.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountCode: "1005", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / cash vault", sortOrder: 10 },
+      { accountCode: "1000", direction: "CREDIT", basis: "TAX", valuePath: "usd", memoTemplate: "{description} / till cash", sortOrder: 20 },
+      { accountCode: "1001", direction: "CREDIT", basis: "TAX", valuePath: "zig", memoTemplate: "{description} / till cash, ZiG", sortOrder: 30 },
+    ],
+  },
+  {
+    name: "Retail petty cash",
+    sourceType: "RETAIL_PETTY_CASH",
+    description: "A small spend paid out of a till drawer.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountCode: "5110", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / petty cash", sortOrder: 10 },
+      { accountCode: "1000", direction: "CREDIT", basis: "TAX", valuePath: "usd", memoTemplate: "{description} / till cash", sortOrder: 20 },
+      { accountCode: "1001", direction: "CREDIT", basis: "TAX", valuePath: "zig", memoTemplate: "{description} / till cash, ZiG", sortOrder: 30 },
     ],
   },
   {

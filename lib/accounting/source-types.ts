@@ -29,6 +29,8 @@ export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType
   { value: "RETAIL_STOCK_TRANSFER", label: "Retail Stock Transfer" },
   { value: "RETAIL_SHIFT_VARIANCE", label: "Retail Shift Variance" },
   { value: "RETAIL_OPENING_STOCK", label: "Retail opening stock" },
+  { value: "RETAIL_CASH_MOVEMENT", label: "Retail cash to or from the safe" },
+  { value: "RETAIL_PETTY_CASH", label: "Retail petty cash" },
   { value: "GOLD_SHIFT_ALLOCATION_COMPANY", label: "Gold Shift — Company Share (Mdara)" },
   { value: "GOLD_SHIFT_ALLOCATION_WORKER", label: "Gold Shift — Worker Share (Boys)" },
   { value: "GOLD_SHIFT_EXPENSE", label: "Gold Shift Expense" },
