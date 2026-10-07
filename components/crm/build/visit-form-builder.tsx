@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@corelithzw/react";
@@ -14,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fieldFromQuestion, questionFromField, quoteLinesOf, SITE_VISIT_FIELD_TYPES, type QuestionRow } from "@/lib/crm/site-visits/fields";
-import { ClipboardText } from "@/lib/icons";
+import { ChartLine, ClipboardText } from "@/lib/icons";
 import { DISPLAY_FIELD_TYPES, type FieldDefinition } from "@/lib/forms/fields";
 import type { QuoteLine } from "@/lib/forms/quote";
 
@@ -156,6 +157,12 @@ export function VisitFormBuilder({ id }: { id: string }) {
     <>
       <PageChrome title={draft.name || "Untitled site visit form"} icon={ClipboardText} backHref="/crm/build" backLabel="Build">
         <span className="text-sm text-[var(--text-muted)]">{save.isPending ? "Saving…" : dirty ? "Not saved yet" : "Saved"}</span>
+        <Button asChild type="button" variant="outline" size="sm">
+          <Link href={`/crm/build/visits/${id}/insights`}>
+            <ChartLine aria-hidden className="mr-1 h-4 w-4" />
+            Insights
+          </Link>
+        </Button>
         {data.canEdit ? (
           <Button type="button" size="sm" disabled={!dirty || save.isPending} onClick={() => save.mutate(draft)}>
             Save

@@ -212,7 +212,7 @@ export function BuildHome() {
             <div className={styles.list}>
               {forms.data.data.length === 0 ? <p className={styles.empty}>No enquiry forms yet.</p> : null}
               {forms.data.data.map((form) => (
-                <Link key={form.id} href={`/crm/forms/${form.id}`} className={styles.item}>
+                <Link key={form.id} href={`/crm/build/enquiries/${form.id}`} className={styles.item}>
                   <Globe aria-hidden />
                   <span className={styles.itemName}>{form.name}</span>
                   <span className={styles.itemWhere}>{plural(form.fields?.length ?? 0, "question")} · becomes a lead</span>

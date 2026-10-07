@@ -1,6 +1,10 @@
 import type { CrmDocumentType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { answerValue, fieldFromQuestion } from "@/lib/crm/site-visits/fields";
+import { draftSectionQuote } from "@/lib/crm/site-visits/visit-quote";
+import { DISPLAY_FIELD_TYPES, formatAnswer, measureOf } from "@/lib/forms/fields";
+import { draftSubtotal } from "@/lib/forms/quote";
 import { dateRange } from "@/lib/reports/params";
 import { day, label, num, personName, result, TAKE } from "@/lib/reports/loaders/shared";
 import type {
@@ -409,7 +413,109 @@ async function loadSpend(ctx: ReportContext, params: ReportParams): Promise<Repo
   );
 }
 
+/** An answer that says something: a value, or that the question does not apply. */
+function answered(answer: { notApplicable: boolean; valueText: string | null; valueNumber: number | null; valueBool: boolean | null; valueOptions: string[]; valueDate: Date | null; valueJson: unknown }) {
+  return (
+    answer.notApplicable ||
+    answer.valueText !== null ||
+    answer.valueNumber !== null ||
+    answer.valueBool !== null ||
+    answer.valueDate !== null ||
+    answer.valueOptions.length > 0 ||
+    (answer.valueJson !== null && answer.valueJson !== undefined)
+  );
+}
+
+/** The square metres an answer measured: an area, areas, or an old width × height. */
+function areaOf(answer: { questionType: string; valueNumber: number | null; valueJson: unknown }): number {
+  if (answer.questionType === "AREA" || answer.questionType === "AREAS") return answer.valueNumber ?? 0;
+  if (answer.questionType === "DIMENSION") {
+    const size = (answer.valueJson ?? {}) as { widthM?: number | null; heightM?: number | null };
+    return (size.widthM ?? 0) * (size.heightM ?? 0);
+  }
+  return 0;
+}
+
+const visitSelect = {
+  appointmentNo: true,
+  scheduledStart: true,
+  client: { select: { name: true } },
+  lead: { select: { contactName: true, title: true } },
+  deal: { select: { status: true, value: true } },
+  assignedTo: { select: { name: true, email: true } },
+} as const;
+
+async function loadVisitForms(ctx: ReportContext, params: ReportParams): Promise<ReportLoadResult> {
+  const found = await prisma.crmSiteVisitSection.findMany({
+    where: { companyId: ctx.companyId, appointment: { scheduledStart: dateRange(params) } },
+    include: {
+      answers: true,
+      questionSet: { include: { questions: { where: { archivedAt: null }, orderBy: { position: "asc" } } } },
+      appointment: { select: visitSelect },
+    },
+    orderBy: { createdAt: "desc" },
+    take: TAKE,
+  });
+  return result(
+    found.map((section) => {
+      const visit = section.appointment;
+      const asked = (section.questionSet?.questions ?? []).filter((question) => !DISPLAY_FIELD_TYPES.includes(fieldFromQuestion(question).type)).length;
+      const measured = section.answers.reduce((sum, answer) => sum + (answer.notApplicable ? 0 : areaOf(answer)), 0);
+      return {
+        id: section.id,
+        visitNo: visit.appointmentNo,
+        visited: day(visit.scheduledStart),
+        form: section.name,
+        rep: personName(visit.assignedTo),
+        customer: visit.client?.name ?? visit.lead?.contactName ?? visit.lead?.title ?? null,
+        answered: section.answers.filter(answered).length,
+        asked,
+        measured: Math.round(measured * 100) / 100,
+        drafted: draftSubtotal(draftSectionQuote(section)),
+        outcome: visit.deal ? label(visit.deal.status) : null,
+        dealValue: num(visit.deal?.value),
+      };
+    }),
+  );
+}
+
+async function loadVisitAnswers(ctx: ReportContext, params: ReportParams): Promise<ReportLoadResult> {
+  const found = await prisma.crmSiteVisitAnswer.findMany({
+    where: { companyId: ctx.companyId, section: { appointment: { scheduledStart: dateRange(params) } } },
+    include: {
+      question: true,
+      section: { select: { name: true, appointment: { select: visitSelect } } },
+    },
+    orderBy: [{ answeredAt: "desc" }, { position: "asc" }],
+    take: TAKE,
+  });
+  return result(
+    found.map((answer) => {
+      const visit = answer.section.appointment;
+      // The live question when it is still there; the snapshot taken at capture when not.
+      const field = fieldFromQuestion(
+        answer.question ?? { key: answer.questionKey, label: answer.questionLabel, helpText: null, type: answer.questionType, unit: null, isRequired: false },
+      );
+      const value = answerValue(answer);
+      return {
+        id: answer.id,
+        visitNo: visit.appointmentNo,
+        visited: day(visit.scheduledStart),
+        form: answer.section.name,
+        question: answer.questionLabel,
+        questionKey: answer.questionKey,
+        answer: answer.notApplicable ? "Not applicable" : formatAnswer(field, value) || null,
+        figure: answer.notApplicable ? null : (measureOf(field, value) ?? answer.valueNumber),
+        rep: personName(visit.assignedTo),
+        notApplicable: answer.notApplicable ? "Yes" : "No",
+      };
+    }),
+  );
+}
+
 export const CRM_LOADERS: Record<string, ReportLoader> = {
+  "crm-visit-forms": { load: loadVisitForms },
+  "crm-visit-answers": { load: loadVisitAnswers },
   "crm-leads": { load: loadLeads },
   "crm-deals": { load: loadDeals },
   "crm-site-visits": { load: loadSiteVisits },

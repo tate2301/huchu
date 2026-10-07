@@ -14,6 +14,42 @@ breakdown, drawn by the same components a report's own page uses.
 | `/reports/custom/<id>` | The report, read |
 | `/reports/custom/<id>/edit` | The block editor |
 
+## Steps, or SQL
+
+A query block opens as **steps** when its query can be said as steps: *from* a
+table, *keep* the rows that match, *total* them (count, sum, average, lowest,
+highest), *by* something (a date by week, month or year), *sort*, and how
+many to show. Each pick rewrites the SQL, which is shown under the steps.
+Switch to **SQL** to take it further by hand.
+
+The SQL is the only thing stored. `lib/reports/sql/steps.ts` writes it from
+steps, and reads SQL back as steps when it has their shape — one table, `and`ed
+comparisons, named totals, a grouping that matches the columns. A query that
+says more (a join, a subquery, a `case`) is not shown as steps; it stays SQL,
+as it was written. Values a person types are written as quoted literals, never
+spliced in, and the guard below checks what steps write like anything else.
+
+## What the forms collect
+
+Two sources read what site-visit forms collected, so a report can follow the
+tape measure to the signed quote:
+
+| Table | One row per |
+| --- | --- |
+| `crm_visit_forms` | Form filled in on a visit: what it measured (`measured`, m²), the quote its answers drafted (`drafted`) and the deal's outcome |
+| `crm_visit_answers` | Answer given on site, as it reads (`answer`) and its figure where it measured something (`figure`) |
+
+```sql
+-- Square metres measured and quoted, by month
+select cast(date_trunc('month', visited) as date) as month,
+  sum(measured) as measured,
+  sum(drafted) as quoted,
+  count(*) filter (where outcome = 'Won') as won
+from crm_visit_forms
+group by 1
+order by 1
+```
+
 ## Writing a query
 
 Every report you can open is a table. Its name is the report's key written the
@@ -161,6 +197,7 @@ CustomBlockResult                         the result drawn as a report of its ow
 | `lib/reports/sql/worker.ts`, `client.ts` | The worker the database lives in, and the page's side of it |
 | `lib/reports/sql/columns.ts` | Typing a result's columns |
 | `lib/reports/sql/completion.ts` | What the editor suggests |
+| `lib/reports/sql/steps.ts` | Steps written as SQL, and SQL read back as steps |
 | `lib/reports/custom/run.ts` | A page's blocks, checked and run together |
 | `lib/reports/custom/document.ts`, `store.ts` | The stored document, and who can do what |
-| `components/reports/custom/*` | Editor, viewer, block renderer, code editor |
+| `components/reports/custom/*` | Editor, viewer, block renderer, code editor, steps |

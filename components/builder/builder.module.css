@@ -217,6 +217,14 @@
     color: var(--text-muted);
   }
 
+  .before {
+    display: grid;
+    gap: 18px;
+    margin-bottom: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px dashed var(--border);
+  }
+
   .blocks {
     display: grid;
     gap: 6px;

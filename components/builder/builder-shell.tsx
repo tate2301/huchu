@@ -68,6 +68,8 @@ export type BuilderShellProps = {
   onQuoteLinesChange?: (lines: QuoteLine[]) => void;
   /** The inspector when nothing is selected: the form's own settings. */
   formSettings: ReactNode;
+  /** Drawn above the questions on the canvas: what every submission asks regardless. */
+  before?: ReactNode;
   currency?: string;
 };
 
@@ -88,6 +90,7 @@ export function BuilderShell({
   quoteLines,
   onQuoteLinesChange,
   formSettings,
+  before,
   currency = "USD",
 }: BuilderShellProps) {
   const [selection, setSelection] = useState<Selection>(null);
@@ -290,6 +293,12 @@ export function BuilderShell({
               <h2 className={styles.sheetTitle}>{name}</h2>
             )}
             {meta ? <p className={styles.sheetMeta}>{meta}</p> : null}
+
+            {before ? (
+              <div className={styles.before} inert>
+                {before}
+              </div>
+            ) : null}
 
             {fields.length === 0 ? (
               <p className={styles.emptyCanvas}>Add a question from the left. A measurement here can draft the quote.</p>

@@ -32,6 +32,8 @@ import { resolveParams } from "@/lib/reports/params";
 import type { BlockCheck, BlockResult } from "@/lib/reports/custom/run";
 import type { SqlProblem } from "@/lib/reports/sql/guard";
 import { blockTable, sqlName, type SqlTable } from "@/lib/reports/sql/schema";
+import { stepsFromSql } from "@/lib/reports/sql/steps";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { AGGREGATES, type Aggregate, type ReportColumn } from "@/lib/reports/types";
 import { AGGREGATE_LABELS } from "@/lib/reports/view";
 
@@ -39,6 +41,8 @@ import arranger from "../report-arranger.module.css";
 import { chartColumns, CustomBlockResult } from "./custom-block";
 import styles from "./custom-report-editor.module.css";
 import { QueryEditor } from "./query-editor";
+import { QuerySteps } from "./query-steps";
+import stepStyles from "./query-steps.module.css";
 import { useCustomData, useReportSources, type ReportSource } from "./use-custom-data";
 
 /**
@@ -385,8 +389,56 @@ function inputOf(report: CustomReport): CustomReportInput {
   return { title: report.title, description: report.description ?? null, shared: report.shared, document: report.document };
 }
 
+type QueryView = "steps" | "sql";
+
+/**
+ * A query, as steps or as SQL. Steps by default when the query can be said
+ * as steps; SQL when it was written by hand in a way steps cannot say.
+ */
+function QueryMode({
+  block,
+  tables,
+  mode,
+  onMode,
+  onChange,
+  problem,
+}: {
+  block: Extract<CustomBlock, { type: "query" }>;
+  tables: SqlTable[];
+  mode: QueryView | undefined;
+  onMode: (mode: QueryView) => void;
+  onChange: (query: string) => void;
+  problem: SqlProblem | null;
+}) {
+  const fits = useMemo(() => stepsFromSql(block.query, tables) !== null, [block.query, tables]);
+  const view = mode ?? (fits ? "steps" : "sql");
+  return (
+    <div>
+      <div className={stepStyles.modeBar}>
+        <SegmentedControl
+          ariaLabel="Write the query as"
+          size="sm"
+          value={view}
+          onValueChange={onMode}
+          options={[
+            { value: "steps", label: "Steps" },
+            { value: "sql", label: "SQL" },
+          ]}
+        />
+        <span className={stepStyles.modeNote}>{view === "steps" ? "Pick, and the SQL is written for you" : "Postgres SQL, checked as you type"}</span>
+      </div>
+      {view === "steps" ? (
+        <QuerySteps sql={block.query} tables={tables} onChange={onChange} />
+      ) : (
+        <QueryEditor value={block.query} onChange={onChange} tables={tables} problem={problem} label={`Query for @${block.name}`} />
+      )}
+    </div>
+  );
+}
+
 export function CustomReportEditor({ id }: { id: string }) {
   const { toast } = useToast();
+  const [modes, setModes] = useState<Record<string, QueryView>>({});
   const router = useRouter();
   const queryClient = useQueryClient();
   const queryKey = ["reports", "custom", id];
@@ -674,12 +726,13 @@ export function CustomReportEditor({ id }: { id: string }) {
                     />
                   </label>
                 </div>
-                <QueryEditor
-                  value={block.query}
-                  onChange={(query) => update({ ...block, query })}
+                <QueryMode
+                  block={block}
                   tables={tablesFor(block)}
+                  mode={modes[block.id]}
+                  onMode={(mode) => setModes((current) => ({ ...current, [block.id]: mode }))}
+                  onChange={(query) => update({ ...block, query })}
                   problem={problem}
-                  label={`Query for @${block.name}`}
                 />
                 {problem ? null : (
                   <div className={styles.preview}>
