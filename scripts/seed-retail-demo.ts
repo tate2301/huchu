@@ -48,10 +48,11 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Prisma, WorkspaceProfile, type NotificationType, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
-import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
+import { money, multiplyMoney, quantity, rate, sumMoney, toNumberOrZero, ZERO } from "@/lib/money"
 import { ensureAccountingDefaults, runAccountingSeedPack } from "@/lib/accounting/bootstrap"
 import { RETAIL_ROLE_ACCOUNT_CODES } from "@/lib/accounting/defaults"
 import { postIntegrationEvent } from "@/lib/accounting/integration"
+import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { RETAIL_SOURCE_TYPES } from "@/lib/retail/posting-settings"
 import { prisma } from "@/lib/prisma"
 import { builtInTemplate, type TemplateQuery } from "@/lib/reports/definitions/retail/templates"
@@ -69,6 +70,7 @@ import {
   auditCashMoved,
   auditRecordEdited,
   auditSalePosted,
+  auditAmount,
   auditShiftOpened,
   RETAIL_AUDIT_EVENTS,
   writeRetailAuditEvent,
@@ -955,11 +957,17 @@ async function main() {
   ]
   const shortThisWeek = (named.length === 3 ? named : [...named, ...fallback.filter((slot) => !named.includes(slot))].slice(0, 3)).sort(byOpening)
   const SHORT_THIS_WEEK: Array<[string, string]> = [["Chipo Dube", "-7.15"], ["Farai Moyo", "-8.14"], ["Chipo Dube", "-0.50"]]
+  // What each cashier said at the close: a difference over US$1.00 needs it, and the week's three all have one.
+  const SHORT_NOTES = ["Counted twice, still short.", "Busy afternoon, change given in a hurry.", "Not sure where it went. Counted twice."]
+  const OVER_NOTES = ["A customer left without the change.", "Counted twice, still over.", "Change not taken at the counter."]
+  const closeNotes = new Map<Slot, string>()
+  const WEEK_NOTES = ["Counted twice, still short. Not sure where it went.", "Short after the evening rush. Checking the EcoCash slips.", "Fifty cents out, change in coins."]
   shortThisWeek.forEach((slot, index) => {
     const [who, amount] = SHORT_THIS_WEEK[index]!
     slot.cashier = staffNamed(who)
     uncounted.delete(slot)
     differences.set(slot, money(amount))
+    closeNotes.set(slot, WEEK_NOTES[index]!)
   })
   const pinnedExpected = new Map<Slot, Prisma.Decimal>()
   const recovered = frontOn(daysSinceMonday() + 5)
@@ -975,6 +983,7 @@ async function main() {
     }
     differences.set(recovered, money("-20.00"))
     pinnedExpected.set(recovered, money("432.50"))
+    closeNotes.set(recovered, "A US$20 went out as change for a US$10.")
   }
 
   /*
@@ -1011,6 +1020,22 @@ async function main() {
   salePlans[frontSlot]!.push(
     ...([[11, 0], [11, 4], [11, 8], [11, 20], [11, 27], [11, 33], [11, 46], [11, 56]] as Array<[number, number]>).map(floorAt),
   )
+  /*
+    FLR-05: the recovered drawer's morning took a function's order in cash —
+    fourteen cases of Castle Lager and five bags of ice, US$378.50 — so its
+    float stays US$100.00 and a drop to the safe brings what should be in the
+    drawer to the US$432.50 the SignOff board reads. Its units come out of the
+    window's quotas first, like the preview sale's, and it is never refunded
+    or voided.
+  */
+  const FUNCTION_PICKS = [
+    { code: "CASTLE-CASE", units: 14 },
+    { code: "ICE-2KG", units: 5 },
+  ]
+  const recoveredIndex = recovered && pinnedExpected.has(recovered) ? slots.indexOf(recovered) : -1
+  const functionOrderAt = recoveredIndex >= 0 ? new Date(recovered!.openedAt.getTime() + 2 * HOUR_MS + 10 * 60 * 1000) : null
+  if (functionOrderAt) salePlans[recoveredIndex]!.push(functionOrderAt)
+  const isFunctionOrder = (slotIndex: number, postedAt: Date) => slotIndex === recoveredIndex && postedAt.getTime() === functionOrderAt?.getTime()
   let windowSalesLeft = salePlans.flat().filter((postedAt) => postedAt.getTime() >= windowCounts).length
   const quota = new WindowQuota(CATALOGUE.filter((entry) => !entry.soldOutDays))
   /*
@@ -1043,6 +1068,11 @@ async function main() {
     for (const pickLine of PREVIEW_PICKS) quota.reserve(pickLine.code, pickLine.units)
     windowSalesLeft -= 1
   }
+  if (functionOrderAt && functionOrderAt.getTime() >= windowCounts) {
+    for (const pickLine of FUNCTION_PICKS) quota.reserve(pickLine.code, pickLine.units)
+    windowSalesLeft -= 1
+    if (functionOrderAt.getTime() < soldOutBy) soldOutSalesLeft -= 1
+  }
   /*
     FLR-01: refunds are numbered RFD-0001 upwards and the boards' RFD-0044
     (this morning's) is the newest, so the history holds exactly 43, on
@@ -1052,6 +1082,7 @@ async function main() {
     slots[slotIndex]!.open
       ? []
       : plan
+          .filter((postedAt) => !isFunctionOrder(slotIndex, postedAt))
           .map((postedAt) => postedAt.getTime())
           .filter((at) => !(at + 20 * 60 * 1000 >= windowOpens && at + 20 * 60 * 1000 < windowCounts))
           .map((at) => `${slotIndex}|${at}`),
@@ -1121,6 +1152,7 @@ async function main() {
     for (const line of floor.lines) quota.reserve(line.code, line.units)
   }
   let previewSaleId: string | null = null
+  let functionOrderSaleId: string | null = null
   const byCode = new Map(CATALOGUE.map((entry) => [entry.code, entry]))
   const codeOfProduct = new Map([...stocked].map(([code, line]) => [line.productId, code]))
 
@@ -1134,7 +1166,7 @@ async function main() {
 
       const shiftId = randomUUID()
       const shiftNo = `SH-${String(slotIndex + 1).padStart(5, "0")}`
-      let openingFloat = money(slot.float)
+      const openingFloat = money(slot.float)
 
       let cashTaken = money(0)
 
@@ -1144,10 +1176,14 @@ async function main() {
         const inWindow = postedAt.getTime() >= windowCounts
         const isPreviewSale = newestSale?.slotIndex === slotIndex && newestSale.at === postedAt.getTime()
         if (isPreviewSale) previewSaleId = saleId
+        const functionOrder = isFunctionOrder(slotIndex, postedAt)
+        if (functionOrder) functionOrderSaleId = saleId
 
         // In the window, this sale's share of the quotas; before it, a weighted pick.
         const picks = isPreviewSale
           ? PREVIEW_PICKS
+          : functionOrder
+          ? FUNCTION_PICKS
           : inWindow
           ? [...quota.take(windowSalesLeft--), ...(postedAt.getTime() < soldOutBy ? soldOutQuota.take(soldOutSalesLeft--) : [])]
           : Array.from({ length: between(1, 2) }, () => {
@@ -1213,7 +1249,7 @@ async function main() {
         // USD — that is how a bottle store quotes — so the rate and the base
         // amount are what make the drawer reconcile.
         const saleDeposit = sumMoney(lines.map((line) => money((line.depositAmount ?? 0) as Prisma.Decimal)))
-        const inZwg = !isPreviewSale && Math.random() < 0.08
+        const inZwg = !isPreviewSale && !functionOrder && Math.random() < 0.08
         const currency = inZwg ? "ZWG" : "USD"
         const exchangeRate = inZwg ? rate(ZWG_RATE) : rate("1")
         const baseAmount = inZwg ? money(totalAmount.div(rate(ZWG_RATE))) : totalAmount
@@ -1222,7 +1258,7 @@ async function main() {
         const roll = Math.random()
         const tender: RetailTenderType = isPreviewSale
           ? "ECOCASH"
-          : inZwg
+          : inZwg || functionOrder
           ? "CASH"
           : roll < 0.5
             ? "CASH"
@@ -1378,6 +1414,7 @@ async function main() {
               row.saleType === "SALE" &&
               row.status === "POSTED" &&
               row.id !== previewSaleId &&
+              row.id !== functionOrderSaleId &&
               !saleRows.some((other) => other.sourceSaleId === row.id),
           )
 
@@ -1399,11 +1436,11 @@ async function main() {
       */
       let dropped = money(0)
       const inDrawer = openingFloat.plus(cashTaken).minus(20)
-      // FLR-05: a drawer whose expected cash the SignOff board fixes takes its float, or a drop, to make it so.
+      // FLR-05: a drawer whose expected cash the SignOff board fixes (its function order took enough) drops the rest.
       const pinned = pinnedExpected.get(slot)
       if (pinned && closedAt) {
-        if (cashTaken.lessThanOrEqualTo(pinned.minus(50))) openingFloat = pinned.minus(cashTaken)
-        else dropped = openingFloat.plus(cashTaken).minus(pinned)
+        dropped = Prisma.Decimal.max(0, openingFloat.plus(cashTaken).minus(pinned))
+        if (!openingFloat.plus(cashTaken).minus(dropped).equals(pinned)) console.warn(`  ${shiftNo} took too little cash to hold US$${pinned.toFixed(2)}`)
       } else if (closedAt && dropApprover && Math.random() < 0.25 && inDrawer.greaterThanOrEqualTo(100)) {
         dropped = money(String(Math.min(between(100, 300), Math.floor(inDrawer.toNumber()))))
       }
@@ -1445,6 +1482,9 @@ async function main() {
         expectedCash,
         countedCash: wasCounted ? expectedCash.plus(varianceAmount) : null,
         variance: wasCounted ? varianceAmount : null,
+        closeNote: !wasCounted
+          ? null
+          : (closeNotes.get(slot) ?? (varianceAmount.abs().greaterThan(1) ? pick(varianceAmount.isNegative() ? SHORT_NOTES : OVER_NOTES) : null)),
         status: closedAt ? "CLOSED" : "OPEN",
         // The float each close left for the next opening's default (FLR-03; packet 54 counts it).
         floatLeft: closedAt ? money("100.00") : null,
@@ -1815,6 +1855,7 @@ async function main() {
   await seedApprovals(companyId)
   await seedShiftFloor(companyId)
   await seedShiftCounts(companyId)
+  await seedShiftVariances(companyId)
   await seedSignOffs(companyId)
   await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
   await seedReportTemplates(companyId)
@@ -1923,18 +1964,72 @@ async function seedShiftCounts(companyId: string) {
   console.log(`  shift counts: ${rows.length - uncounted} closed drawers counted by note, ${uncounted} closed without a count`)
 }
 
+/** A seeded journal posted as that night's run posted it, whatever the shop's posting schedule. */
+async function postSeededJournal(context: Parameters<typeof createJournalEntryFromSource>[0]) {
+  const result = await createJournalEntryFromSource(context, prisma, { postNow: true })
+  if (!result.entryId && !result.skipped) throw new Error(`${context.description}: ${result.error ?? "not posted"}`)
+}
+
+/**
+ * FLR-05 `seedShiftVariances()`: every counted difference in the history as
+ * the close books it (RETAIL_SHIFT_VARIANCE, FLR-04): a short drawer debits
+ * Cash over short (5420), an over one credits it, dated at the close. The
+ * history's other journals (its opens, sales and closes) are not seeded, so
+ * 5420 reads exactly the drawers' differences and a recovery nets its own
+ * back to nothing.
+ */
+async function seedShiftVariances(companyId: string) {
+  const shiftIds = (await prisma.retailShift.findMany({ where: { companyId }, select: { id: true } })).map((shift) => shift.id)
+  await prisma.journalEntry.deleteMany({ where: { companyId, sourceType: "RETAIL_SHIFT_VARIANCE", sourceId: { notIn: shiftIds } } })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId, sourceType: "RETAIL_SHIFT_VARIANCE", sourceId: { notIn: shiftIds } } })
+  const booked = new Set(
+    (await prisma.journalEntry.findMany({ where: { companyId, sourceType: "RETAIL_SHIFT_VARIANCE" }, select: { sourceId: true } })).map((entry) => entry.sourceId),
+  )
+  const differences = await prisma.retailShift.findMany({
+    where: { companyId, status: "CLOSED", closedAt: { not: null }, variance: { not: 0 } },
+    orderBy: { closedAt: "asc" },
+    select: { id: true, shiftNo: true, siteId: true, registerCode: true, cashierId: true, closedAt: true, variance: true },
+  })
+  let posted = 0
+  for (const shift of differences.filter((row) => !booked.has(row.id))) {
+    const variance = money(shift.variance!)
+    const amount = toNumberOrZero(variance.abs())
+    await postSeededJournal({
+      companyId,
+      sourceType: "RETAIL_SHIFT_VARIANCE",
+      sourceId: shift.id,
+      sourceSubtype: variance.isNegative() ? "SHORT" : "OVER",
+      siteId: shift.siteId,
+      registerCode: shift.registerCode,
+      entryDate: shift.closedAt!,
+      createdById: shift.cashierId,
+      description: `Retail shift variance ${shift.shiftNo}`,
+      amount,
+      netAmount: amount,
+      grossAmount: amount,
+      taxAmount: 0,
+      invertDirection: variance.isNegative(),
+    })
+    posted += 1
+  }
+  console.log(`  shift variances: ${posted} posted to cash over short; ${differences.length} counted differences in all`)
+}
+
 /**
  * FLR-05 `seedSignOffs()`: who signed off the drawers that closed out. Last
  * week's Wednesday's Front till drawer, Chipo Dube's US$20.00 short, Tafara
  * Nyathi recovered the next morning with her agreement noted, and its
  * recovery journal is posted (Dr 1150 Staff owe the shop, Cr 5420). Every
  * other difference before this week, and every drawer closed without a
- * count, Tafara accepted the morning after. This week's three short drawers
- * wait. A sign-off already made (an acceptance walk without --reset) stays.
+ * count, Tafara accepted the morning after. Each sign-off has its approval
+ * and its line on the shift's Activity ("Signed off: US$20.00 to recover",
+ * "Signed off: accepted −US$3.40"), dated when he made it. This week's three
+ * short drawers wait. A sign-off already made (an acceptance walk without
+ * --reset) stays.
  */
 async function seedSignOffs(companyId: string) {
   await ensureAccountingDefaults(companyId)
-  const tafara = await prisma.user.findFirst({ where: { companyId, email: "tafara.manager@bottlestore.test" }, select: { id: true } })
+  const tafara = await prisma.user.findFirst({ where: { companyId, email: "tafara.manager@bottlestore.test" }, select: { id: true, name: true, role: true } })
   if (!tafara) return
   const weekStarts = harareTime(daysSinceMonday(), 0, 0)
   const lastWednesday = dayKey(harareTime(daysSinceMonday() + 5, 12, 0))
@@ -1946,6 +2041,23 @@ async function seedSignOffs(companyId: string) {
   await prisma.journalEntry.deleteMany({ where: orphans })
   await prisma.accountingIntegrationEvent.deleteMany({ where: orphans })
   await prisma.approvalAction.deleteMany({ where: { companyId, entityType: "RETAIL_SHIFT", entityId: { notIn: shiftIds } } })
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, eventType: RETAIL_AUDIT_EVENTS.shiftSignedOff, entityId: { notIn: shiftIds } } })
+
+  // The sign-off's line on the shift's Activity, dated when Tafara made it.
+  const signedOff = async (shift: { id: string; shiftNo: string; variance: Prisma.Decimal | null }, outcome: "ACCEPT" | "RECOVER", at: Date, note: string | null) => {
+    await writeRetailAuditEvent(prisma, {
+      actor: { companyId, userId: tafara.id, userName: tafara.name, userRole: tafara.role },
+      eventType: RETAIL_AUDIT_EVENTS.shiftSignedOff,
+      entityType: "RetailShift",
+      entityId: shift.id,
+      reason: note,
+      payload: { shiftNo: shift.shiftNo, outcome, amount: auditAmount(shift.variance), note },
+    })
+    await prisma.platformAuditEvent.updateMany({
+      where: { companyId, eventType: RETAIL_AUDIT_EVENTS.shiftSignedOff, entityId: shift.id },
+      data: { createdAt: at },
+    })
+  }
 
   const waiting = await prisma.retailShift.findMany({
     where: { companyId, status: "CLOSED", signOffOutcome: null, OR: [{ countedCash: null }, { variance: null }, { variance: { not: 0 } }] },
@@ -1966,6 +2078,7 @@ async function seedSignOffs(companyId: string) {
     await prisma.approvalAction.create({
       data: { companyId, entityType: "RETAIL_SHIFT", entityId: shift.id, action: "APPROVE", actedById: tafara.id, fromStatus: "CLOSED", toStatus: "SIGNED_OFF", createdAt: at },
     })
+    await signedOff(shift, "ACCEPT", at, null)
   }
 
   if (recovered?.closedAt) {
@@ -1978,7 +2091,9 @@ async function seedSignOffs(companyId: string) {
     await prisma.approvalAction.create({
       data: { companyId, entityType: "RETAIL_SHIFT", entityId: recovered.id, action: "APPROVE", actedById: tafara.id, fromStatus: "CLOSED", toStatus: "SIGNED_OFF", note, createdAt: at },
     })
-    await postRetailJournal({
+    await signedOff(recovered, "RECOVER", at, note)
+    // After its variance journal (seedShiftVariances), so 5420 nets the drawer back to nothing.
+    await postSeededJournal({
       companyId,
       sourceType: "RETAIL_SHIFT_RECOVERY",
       sourceId: recovered.id,
@@ -1992,11 +2107,6 @@ async function seedSignOffs(companyId: string) {
       grossAmount: 20,
       taxAmount: 0,
     })
-    // Posted with that night's run, long before this one.
-    const waitingEvent = await prisma.accountingIntegrationEvent.findFirst({
-      where: { companyId, sourceType: "RETAIL_SHIFT_RECOVERY", sourceId: recovered.id, status: "PENDING" },
-    })
-    if (waitingEvent) await postIntegrationEvent(waitingEvent)
   }
 
   const open = await prisma.retailShift.findMany({
