@@ -79,6 +79,8 @@ export type RecordChart = {
   bars: Array<{ label: string; tick?: string; value: number; text: string }>;
   /** A y-axis tick: "US$20". */
   tick?: (value: number) => string;
+  /** The one bar drawn dark (a sale's own hour); absent, the last. */
+  mark?: number | null;
   footer?: { text: string; link?: { label: string; href: string } };
 };
 
@@ -94,6 +96,8 @@ export type SourceTab<R> = {
   parent: string;
   /** Drawn only for roles holding this (the source refuses everyone else). */
   requires?: Grant;
+  /** Drawn only while the record has something here (a sale's Refunds once it has one). */
+  when?: (record: R) => boolean;
   /** The link to everything, filtered to this record. */
   allLink?: { label: string; href: (record: R) => string };
   /**

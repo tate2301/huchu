@@ -412,6 +412,16 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   [RETAIL_AUDIT_EVENTS.salePosted]: (payload, type) => saleWords(type, payload),
   [RETAIL_AUDIT_EVENTS.saleRefunded]: (payload, type) => saleWords(type, payload),
   [RETAIL_AUDIT_EVENTS.saleVoided]: (payload, type) => saleWords(type, payload),
+  // FLR-01: "Printed a copy of the receipt", "Sent the receipt on WhatsApp to ••• 3388", "Looked at: <reason>".
+  [RETAIL_AUDIT_EVENTS.saleReprinted]: () => ({ what: "Printed a copy of the receipt", tone: "hollow" }),
+  [RETAIL_AUDIT_EVENTS.saleSent]: (payload) => ({
+    what: `Sent the receipt on WhatsApp${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,
+    tone: "hollow",
+  }),
+  [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
+    what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",
+    tone: "ok",
+  }),
   [RETAIL_AUDIT_EVENTS.goodsReceived]: goodsReceivedWords,
   [RETAIL_AUDIT_EVENTS.orderClosed]: orderClosedWords,
   [RETAIL_AUDIT_EVENTS.orderReopened]: () => ({ what: "Reopened", tone: "hollow" }),

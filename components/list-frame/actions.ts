@@ -1,6 +1,7 @@
 "use client";
 
 import type { ListAction, ReportRow } from "@/lib/reports/types";
+import { fillTemplate } from "@/lib/reports/actions";
 
 import { bulkHref } from "./model";
 
@@ -88,6 +89,13 @@ export async function runAction(
     const href = bulkHref(template, rows);
     if (!href) return { kind: "done", toast: { title: "There is nothing to open for these rows.", variant: "warning" } };
     return { kind: "navigate", href };
+  }
+
+  if ("open" in how && !("download" in how)) {
+    const href = rows[0] ? fillTemplate(how.open, rows[0]) : null;
+    if (!href) return { kind: "done", toast: { title: "There is nothing to open for this row.", variant: "warning" } };
+    window.open(href, "_blank", "noopener");
+    return { kind: "done" };
   }
 
   if ("copy" in how) {

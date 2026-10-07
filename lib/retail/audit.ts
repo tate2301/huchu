@@ -238,6 +238,12 @@ export const RETAIL_AUDIT_EVENTS = {
   supplierResumed: "RETAIL_SUPPLIER.RESUMED",
   /** A message to a supplier queued on WhatsApp. Entity `Vendor`; carries the number it goes to. */
   suppliersMessaged: "RETAIL_SUPPLIER.MESSAGED",
+  /** A copy of a sale's receipt printed from the back office (FLR-01). Entity `RetailSale`; carries `copy: true`. */
+  saleReprinted: "RETAIL_SALE.REPRINTED",
+  /** A sale's receipt queued on WhatsApp (FLR-01). Entity `RetailSale`; carries the number as shown ("••• 3388"). */
+  saleSent: "RETAIL_SALE.SENT",
+  /** A flagged sale looked at by a manager (W-44). Entity `RetailSale`; carries why it was flagged. */
+  saleReviewed: "RETAIL_SALE.REVIEWED",
 } as const;
 
 export type RetailAuditEvent =

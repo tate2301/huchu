@@ -16,7 +16,7 @@ import {
   StatusBadge,
 } from "@/components/management/ui";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { retailMoney } from "@/components/retail/sale-detail";
+import { retailMoney } from "@/components/retail/money";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";

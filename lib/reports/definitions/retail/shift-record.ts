@@ -33,7 +33,7 @@ const sales: ListSpec = {
     { key: "paidWith", label: "Paid with", kind: "text", cell: "dot", tones: SALE_TONES, width: "minmax(0,1fr)", align: "start" },
     { key: "total", label: "Total", kind: "money", currency: "USD", cell: "money", total: "sum", width: "120px", align: "end" },
   ],
-  rowHref: "/retail/sales/{id}",
+  rowHref: "/retail/sales/{saleId}",
   card: { title: "saleNo", figure: "total", meta: "{paidWith}" },
   empty: { icon: "Receipt", title: "No sales on this shift yet", line: "Sales rung on this till while the shift is open show here." },
 };

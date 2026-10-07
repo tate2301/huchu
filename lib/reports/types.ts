@@ -44,6 +44,8 @@ export type ReportColumn = {
    * is over the whole set ("24.6%" margin across categories), not a mean of rows.
    */
   ratio?: { num: string; den: string };
+  /** The total sums this row key instead of the cell's own (a voided sale shows its total, which no longer counts). */
+  totalOf?: string;
 };
 
 /** Something the rows are narrowed by before they are fetched. */
@@ -273,6 +275,8 @@ export type ListColumn = ReportColumn & {
   /**
    * state and dot: the row key holding the tone, when the words vary row to row ("Count, two broken").
    * text and date: the words take that tone's ink when the key is set ("2 Nov 2026" in `--warn` in its last days).
+   * money: the figure takes that ink (a voided sale's total in `--ink-3`). link: a row with no record to open
+   * draws its words in that ink ("Walk-in" in `--faint`), or plain.
    */
   toneKey?: string;
   /** action: the key of the row menu action the cell does; drawn only when the row's menu offers it. */
@@ -329,6 +333,8 @@ export type ListFilter =
       /** On the toolbar row; otherwise inside Filters. */
       primary?: boolean;
       default?: string;
+      /** The default is worked out for the caller: `default-site`, the site their floor pages open on. */
+      defaultFrom?: "default-site";
       /** Not offered while the company has fewer options than this (Site, with one site). */
       hideBelow?: number;
       /** Dropped while the company has one open site. */
@@ -375,6 +381,8 @@ export type ListAction = {
      * `{min:key}` and `{max:key}` are the smallest and largest of that column.
      */
     | { href: RowTemplate }
+    /** A row's file, opened in a new tab to print (a sale's receipt). */
+    | { open: RowTemplate }
     | { confirm: ConfirmSpec; endpoint: string }
     /**
      * POSTs `{ ids }` to the endpoint, asking first when the named entry of

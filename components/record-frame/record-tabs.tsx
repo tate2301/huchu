@@ -66,7 +66,7 @@ export function RecordTabs<R>({
   type: string;
   canReadActivity: boolean;
 }) {
-  const shown = tabs.filter((tab) => isSource(tab) || canReadActivity);
+  const shown = tabs.filter((tab) => (isSource(tab) ? !tab.when || tab.when(record) : canReadActivity));
   const [selected, setSelected] = React.useState(shown[0]?.key ?? "");
   const [activityPage, setActivityPage] = React.useState(1);
   const panelId = React.useId();
@@ -243,9 +243,16 @@ function SourceTable<R>({ tab, record, result }: { tab: SourceTab<R>; record: R;
         </span>
         <span className="cx-rf-tablefoot__spacer" />
         {allLink ? (
-          <Link href={allLink.href} className="cx-rf-link">
-            {allLink.label}
-          </Link>
+          // A file (a sale's receipt) opens in a new tab to print; a page opens here.
+          allLink.href.startsWith("/api/") ? (
+            <a href={allLink.href} target="_blank" rel="noopener" className="cx-rf-link">
+              {allLink.label}
+            </a>
+          ) : (
+            <Link href={allLink.href} className="cx-rf-link">
+              {allLink.label}
+            </Link>
+          )
         ) : null}
       </div>
     </>

@@ -38,6 +38,7 @@ import {
 } from "@/lib/reports/types";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { canRetailSessionDo, canSeeRetailCostPrice, retailRoleKey } from "@/lib/retail/permissions";
+import { defaultSiteFor } from "@/lib/retail/floor/default-site";
 import { DEFAULT_TIME_ZONE } from "@/lib/workspace/format";
 
 /**
@@ -161,6 +162,10 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
   if (!report) return { status: 404, error: "Report not found" };
   const { definition: declared, loader } = report;
   const ctx = listContext(session);
+  const facingSpec = query.face === "report" ? declared.report : declared.list;
+  if (facingSpec?.filters.some((filter) => filter.type === "choice" && filter.defaultFrom === "default-site")) {
+    ctx.defaultSite = await defaultSiteFor(contextFor(session).companyId, session.user.id);
+  }
 
   // A template lies under the address; it is Reports', so it reads the report face.
   let asked = query;

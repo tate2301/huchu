@@ -57,6 +57,7 @@ export function ChartPanel({
           tick={chart.tick}
           evenX
           steps={2}
+          mark={chart.mark}
         />
       )}
       {chart.footer ? (

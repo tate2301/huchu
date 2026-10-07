@@ -65,6 +65,11 @@ export function ListCell({
           </>
         );
       }
+      // A link whose record is not there (a name typed at the till, a walk-in) is words in the row's tone.
+      if (!href && column.toneKey) {
+        const tone = row[column.toneKey];
+        return isBlank(tone) ? <>{text}</> : <span style={{ color: `var(--${String(tone)})` }}>{text}</span>;
+      }
       return href ? (
         <Link href={href} className={className}>
           {text}
@@ -89,8 +94,15 @@ export function ListCell({
       const gain = column.sign === "gain" && Number(value) > 0;
       return <span className={`cx-lf-numcell${gain ? " cx-lf-numcell--gain" : ""}`}>{text}</span>;
     }
-    case "money":
-      return <span className="cx-lf-moneycell">{text}</span>;
+    case "money": {
+      // A figure that no longer counts (a voided sale's total) in its row's tone.
+      const tone = column.toneKey ? row[column.toneKey] : null;
+      return (
+        <span className="cx-lf-moneycell" style={isBlank(tone) ? undefined : { color: `var(--${String(tone)})` }}>
+          {text}
+        </span>
+      );
+    }
     case "zero":
       return <span className="cx-lf-zerocell">{text}</span>;
     case "owed":

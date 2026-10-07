@@ -343,4 +343,166 @@ const shiftsSource: ReportDefinition = {
   report,
 };
 
-export const FLOOR_REPORTS: ReportDefinition[] = [shiftsSource];
+/** "Paid with": each way of paying, matched against the row's ways ("|Cash|EcoCash|"). Lay-by joins with FLR-06. */
+const PAID_WITH: Array<[value: string, label: string]> = [
+  ["cash", "Cash"],
+  ["zig", "ZiG"],
+  ["ecocash", "EcoCash"],
+  ["card", "Card"],
+  ["transfer", "Bank transfer"],
+  ["innbucks", "InnBucks"],
+  ["on-account", "On account"],
+  ["voucher", "Voucher"],
+];
+
+const SELL_OR_CASH: ListSpec["read"] = [
+  ["retail.sell", "view"],
+  ["retail.cash-control", "view"],
+];
+
+/**
+ * Sales (50-floor, SalesList board): every sale and refund the tills rang,
+ * newest first. VOID documents never list; a voided sale shows its total in
+ * `--ink-3` and the totals leave it out (its money came back). Sales pass
+ * 5,000, so the loader pages in the database.
+ */
+const sales: ListSpec = {
+  noun: "sales",
+  read: SELL_OR_CASH,
+  scopeOwn: { roles: ["CASHIER", "POS_CASHIER"], column: "cashierId", filter: "cashier" },
+  search: { placeholder: "Sale, receipt, customer or product", keys: ["saleNo", "receiptNo", "customer", "itemNames"] },
+  tabs: [
+    { key: "today", label: "Today", where: [{ column: "today", op: "is", value: ["yes"] }] },
+    { key: "refunds", label: "Refunds", where: [{ column: "saleType", op: "is", value: ["REFUND"] }] },
+    { key: "voids", label: "Voids", where: [{ column: "voided", op: "is", value: ["yes"] }] },
+    { key: "all", label: "All", where: [] },
+  ],
+  filters: [
+    { key: "till", label: "Till", type: "choice", any: "Any", optionsFromLoader: true, column: "tillId", primary: true },
+    { key: "cashier", label: "Cashier", type: "choice", any: "Anyone", optionsFromLoader: true, column: "cashierId", primary: true },
+    { key: "when", label: "When", type: "period", any: "Any time", column: "day" },
+    {
+      key: "paidWith",
+      label: "Paid with",
+      type: "choice",
+      any: "Any",
+      options: PAID_WITH.map(([value, label]) => ({ value, label, where: [{ column: "ways", op: "contains", value: `|${label}|` }] })),
+    },
+    {
+      key: "site",
+      label: "Site",
+      type: "choice",
+      any: "All sites",
+      optionsFromLoader: true,
+      column: "siteId",
+      requires: "multi-site",
+      defaultFrom: "default-site",
+    },
+    {
+      key: "flagged",
+      label: "Flagged",
+      type: "choice",
+      any: "Any",
+      options: [{ value: "only", label: "Only flagged", where: [{ column: "flagged", op: "is", value: ["yes"] }] }],
+    },
+    { key: "shift", type: "parent", column: "shiftId" },
+  ],
+  sorts: [
+    { key: "newest", label: "Newest first", rules: [{ column: "postedAt", dir: "desc" }] },
+    { key: "oldest", label: "Oldest first", rules: [{ column: "postedAt", dir: "asc" }] },
+    { key: "biggest", label: "Biggest first", rules: [{ column: "size", dir: "desc" }] },
+  ],
+  groups: ["till", "cashier", "paidWith", "state"],
+  columns: [
+    { key: "saleNo", label: "Sale", kind: "code", cell: "ref", width: "120px", align: "start", priority: 1 },
+    { key: "when", label: "When", kind: "text", cell: "mono", width: "110px", align: "start", priority: 1 },
+    { key: "till", label: "Till", kind: "text", cell: "text", width: "130px", align: "start", priority: 2 },
+    { key: "cashier", label: "Cashier", kind: "text", cell: "muted", width: "140px", align: "start", priority: 2 },
+    {
+      key: "customer",
+      label: "Customer",
+      kind: "text",
+      cell: "link",
+      href: "/retail/customers/{customerId}",
+      toneKey: "customerTone",
+      width: "minmax(150px,1fr)",
+      align: "start",
+      priority: 1,
+    },
+    { key: "items", label: "Items", kind: "number", cell: "num", total: "sum", width: "70px", align: "end", priority: 3 },
+    { key: "paidWith", label: "Paid with", kind: "text", cell: "text", width: "120px", align: "start", priority: 3 },
+    {
+      key: "total",
+      label: "Total",
+      kind: "money",
+      currency: "USD",
+      cell: "money",
+      total: "sum",
+      totalOf: "counted",
+      toneKey: "totalTone",
+      width: "120px",
+      align: "end",
+      priority: 1,
+    },
+    {
+      key: "state",
+      label: "State",
+      kind: "status",
+      cell: "state",
+      width: "130px",
+      align: "start",
+      priority: 1,
+      tones: { Sold: "hollow", Refund: "warn", Voided: "bad", Refunded: "hollow", "Part refunded": "hollow", "To look at": "warn" },
+    },
+  ],
+  rowHref: "/retail/sales/{id}",
+  rowMenu: [
+    { key: "open", label: "Open", requires: SELL_OR_CASH, do: { href: "/retail/sales/{id}" } },
+    {
+      key: "reprint",
+      label: "Reprint the receipt",
+      requires: SELL_OR_CASH,
+      do: { open: "/api/v2/retail/sales/{id}/receipt?format=pdf" },
+    },
+    {
+      key: "send",
+      label: "Send on WhatsApp",
+      requires: SELL_OR_CASH,
+      when: [{ column: "customerPhone", op: "notEmpty" }],
+      do: { run: "send-receipt", endpoint: "/api/v2/retail/sales/{id}/send" },
+    },
+    {
+      key: "send-to",
+      label: "Send on WhatsApp",
+      requires: SELL_OR_CASH,
+      when: [{ column: "customerPhone", op: "empty" }],
+      do: { sheet: "sale-send" },
+    },
+  ],
+  bulk: [
+    {
+      key: "send-receipts",
+      label: "Send receipts",
+      requires: [["retail.sell", "view"]],
+      do: { run: "send-receipts", endpoint: "/api/v2/retail/sales/send" },
+    },
+    { key: "export" },
+  ],
+  card: { title: "saleNo", badge: "state", figure: "total", meta: "{when} · {till} · {cashier}", figure2: "paidWith" },
+  empty: { icon: "Receipt", title: "No sales yet", line: "Sales appear here as the tills ring them up." },
+};
+
+const salesSource: ReportDefinition = {
+  key: "retail-sales",
+  title: "Sales",
+  area: "The floor",
+  href: "/retail/sales",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: sales.columns,
+  // The list's own sorts order it (newest first); no column holds the instant itself.
+  defaults: {},
+  list: sales,
+};
+
+export const FLOOR_REPORTS: ReportDefinition[] = [shiftsSource, salesSource];
