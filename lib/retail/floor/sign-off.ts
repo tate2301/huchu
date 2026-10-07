@@ -117,7 +117,9 @@ export async function signOffShift(actor: ShiftSession, shiftId: string, input: 
     });
   });
 
-  // The close booked the shortage to 5420; recovering it moves it to what the cashier owes.
+  // The close booked the shortage to 5420; recovering it moves it to what the cashier owes. Posted after the
+  // commit like the close's journals: a posting lost here is found by backfillRetailAccounting (a RECOVER shift
+  // with no recovery journal).
   if (recoverAmount) {
     const value = toNumberOrZero(recoverAmount);
     const closed = await prisma.retailShift.findUniqueOrThrow({ where: { id: shift.id }, select: { siteId: true, registerCode: true } });
@@ -163,7 +165,8 @@ export async function answerSignOff(input: { session: ShiftSession; shiftId: str
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const field = issue?.path[0] === "note" ? "note" : "do";
-    const message = field === "note" ? "Keep it to 500 characters." : "Choose what happens to it.";
+    // A note too long reads the schema's own sentence; a note that is not text says so.
+    const message = field === "do" ? "Choose what happens to it." : issue?.code === "too_big" ? issue.message : "Write the note as text.";
     return fieldErrorResponse(message, { [field]: message });
   }
   try {

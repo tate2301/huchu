@@ -301,8 +301,12 @@ export type ListColumn = ReportColumn & {
   impliedBy?: { group?: boolean; parent?: string };
 };
 
-/** A choice. `where` narrows the rows itself, for a choice that is a range or a word rather than a value. */
-export type ListOption = ReportOption & { where?: Condition[] };
+/**
+ * A choice. `where` narrows the rows itself, for a choice that is a range or a word rather than a value.
+ * `anyTime`: chosen, the list's period filters start from their "any" rather than their default, for a
+ * choice that is about rows however old they are (Shifts › State › Needs sign-off).
+ */
+export type ListOption = ReportOption & { where?: Condition[]; anyTime?: boolean };
 
 export const PERIOD_PRESETS = [
   "today",
@@ -356,6 +360,14 @@ export type ListFilter =
    * are as its header sub (the loader's `parentLabel`) and `all` clears it.
    */
   | { key: string; type: "parent"; column: string; all?: string };
+
+/** A period filter's default while `chosen` holds: `any` under a chosen `anyTime` option, else its own. */
+export function periodDefault(filters: ListFilter[], period: Extract<ListFilter, { type: "period" }>, chosen: Record<string, string>): string {
+  const anyTime = filters.some(
+    (filter) => filter.type === "choice" && filter.options?.some((option) => option.anyTime && chosen[filter.key] === option.value),
+  );
+  return anyTime ? "any" : (period.default ?? "any");
+}
 
 export type ConfirmSpec = { title: string; body: string; confirm: string; tone?: "bad" };
 

@@ -167,9 +167,10 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
       tab: spec?.tabs?.[0]?.key ?? null,
       sort: defaultSort ?? spec?.sorts[0]?.key,
       group: defaultGroup !== undefined ? defaultGroup : (spec?.defaultGroup ?? null),
-      filters: spec ? defaultFilters(spec) : {},
+      // Against the choices made, so a period picked under "Needs sign-off" stays on the address.
+      filters: spec ? defaultFilters(spec, resolved?.filters) : {},
     }),
-    [defaultGroup, defaultSort, spec],
+    [defaultGroup, defaultSort, resolved?.filters, spec],
   );
   const write = React.useCallback(
     (patch: Parameters<typeof address.write>[0]) => address.write(patch, defaults),

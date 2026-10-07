@@ -41,8 +41,9 @@ const shifts: ListSpec = {
         { value: "over", label: "Over", where: [{ column: "state", op: "is", value: ["Over"] }] },
         { value: "not-counted", label: "Not counted", where: [{ column: "state", op: "is", value: ["Not counted"] }] },
         { value: "balanced", label: "Balanced", where: [{ column: "state", op: "is", value: ["Balanced"] }] },
-        // FLR-05: a boolean row value reads "Yes" to the filter engine.
-        { value: "needs-sign-off", label: "Needs sign-off", where: [{ column: "needsSignOff", op: "is", value: ["Yes"] }] },
+        // FLR-05: a boolean row value reads "Yes" to the filter engine. A drawer waits however long ago it
+        // opened, so Opened starts from Any time.
+        { value: "needs-sign-off", label: "Needs sign-off", where: [{ column: "needsSignOff", op: "is", value: ["Yes"] }], anyTime: true },
       ],
     },
     { key: "opened", label: "Opened", type: "period", any: "Any time", column: "openedAt", default: "30d" },

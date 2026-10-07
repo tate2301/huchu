@@ -1,4 +1,5 @@
 import { fillTemplate } from "@/lib/reports/actions";
+import { periodDefault } from "@/lib/reports/types";
 import type {
   CellKind,
   Condition,
@@ -366,9 +367,17 @@ export function countWords(count: number, noun: string): string {
   return `1 ${one}`;
 }
 
-/** The filter values a source starts from. */
-export function defaultFilters(spec: Pick<ListSpecPublic, "filters">): Record<string, string> {
-  return Object.fromEntries(drawnFilters(spec).map((filter) => [filter.key, filter.default ?? "any"]));
+/**
+ * The filter values a source starts from, given the choices made (`chosen`):
+ * a chosen `anyTime` option starts the periods from "any".
+ */
+export function defaultFilters(spec: Pick<ListSpecPublic, "filters">, chosen: Record<string, string> = {}): Record<string, string> {
+  return Object.fromEntries(
+    drawnFilters(spec).map((filter) => [
+      filter.key,
+      filter.type === "period" ? periodDefault(spec.filters, filter, chosen) : (filter.default ?? "any"),
+    ]),
+  );
 }
 
 /** Clear shows when a filter is off its default or the search has text. */

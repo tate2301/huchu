@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runAccountingSeedPack } from "@/lib/accounting/bootstrap";
+import { recoveryBackfillTask } from "@/lib/accounting/integration";
+import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
 import { activityWords } from "@/lib/retail/activity-words";
@@ -62,7 +64,7 @@ async function record(id: string) {
 }
 
 /** A drawer closed some days ago: counted against expected (null: closed without a count). */
-async function closedDrawer(cashier: string, expected: string, counted: string | null, status: "OPEN" | "CLOSED" = "CLOSED") {
+async function closedDrawer(cashier: string, expected: string, counted: string | null, status: "OPEN" | "CLOSED" = "CLOSED", openedHoursAgo = 30) {
   seq += 1;
   return prisma.retailShift.create({
     data: {
@@ -77,10 +79,10 @@ async function closedDrawer(cashier: string, expected: string, counted: string |
       openingFloat: "100.00",
       expectedCash: expected,
       status,
-      openedAt: new Date(Date.now() - 30 * 3600_000),
+      openedAt: new Date(Date.now() - openedHoursAgo * 3600_000),
       ...(status === "CLOSED"
         ? {
-            closedAt: new Date(Date.now() - 22 * 3600_000),
+            closedAt: new Date(Date.now() - (openedHoursAgo - 8) * 3600_000),
             closedById: people[cashier]!.id,
             countedCash: counted,
             countedUsd: counted,
@@ -168,6 +170,7 @@ describe("what a sign-off checks", () => {
     expect(await signOff(short.id, { outcome: "RECOVER", note: " " })).toMatchObject({ status: 400, body: { fieldErrors: { note: "Note how Chipo agreed." } } });
     expect(await signOff(short.id, { outcome: "LOOK_INTO" })).toMatchObject({ status: 400, body: { fieldErrors: { note: "Say what you are looking into." } } });
     expect(await signOff(short.id, { outcome: "ACCEPT", note: "x".repeat(501) })).toMatchObject({ status: 400, body: { fieldErrors: { note: "Keep it to 500 characters." } } });
+    expect(await signOff(short.id, { outcome: "ACCEPT", note: 42 })).toMatchObject({ status: 400, body: { fieldErrors: { note: "Write the note as text." } } });
     expect(await prisma.retailShift.findUniqueOrThrow({ where: { id: short.id } })).toMatchObject({ signOffOutcome: null });
   });
 
@@ -229,6 +232,30 @@ describe("recovering a short drawer", () => {
   });
 });
 
+describe("a recovery whose journal was lost", () => {
+  it("is what the retail backfill posts: Dr 1150 / Cr 5420 for what the cashier owes", async () => {
+    // As if the process died between the sign-off's commit and its journal.
+    const shift = await closedDrawer("chipo", "60.00", "48.50");
+    const stored = await prisma.retailShift.update({
+      where: { id: shift.id },
+      data: { signOffOutcome: "RECOVER", signedOffAt: new Date(), signedOffById: people.manager!.id, signOffNote: "Agreed with Chipo", recoverAmount: "11.50" },
+    });
+    const task = recoveryBackfillTask(stored, { companyId: shop.companyId, actorId: people.owner!.id });
+    expect(task).toMatchObject({ key: `RETAIL_SHIFT_RECOVERY:${shift.id}`, context: { amount: 11.5, createdById: people.manager!.id, entryDate: stored.signedOffAt } });
+    expect(await createJournalEntryFromSource(task!.context, prisma, { postNow: true })).toMatchObject({ entryId: expect.any(String) });
+    expect(await journal(shift.id)).toEqual([
+      [
+        { code: "1150", debit: 11.5, credit: 0 },
+        { code: "5420", debit: 0, credit: 11.5 },
+      ],
+    ]);
+
+    // An accepted drawer, or one still being looked into, owes nothing.
+    expect(recoveryBackfillTask({ ...stored, signOffOutcome: "ACCEPT", recoverAmount: null }, { companyId: shop.companyId, actorId: people.owner!.id })).toBeNull();
+    expect(recoveryBackfillTask({ ...stored, signOffOutcome: "LOOK_INTO", recoverAmount: null }, { companyId: shop.companyId, actorId: people.owner!.id })).toBeNull();
+  });
+});
+
 describe("look into it, then decide", () => {
   it("keeps the drawer waiting until a later accept, which happens once", async () => {
     as("manager");
@@ -263,8 +290,11 @@ describe("look into it, then decide", () => {
 });
 
 describe("the Shifts list", () => {
-  it("lists exactly the drawers that need a sign-off under State › Needs sign-off", async () => {
+  it("lists exactly the drawers that need a sign-off under State › Needs sign-off, however long ago they opened", async () => {
     as("manager");
+    // Looked into 40 days ago and still waiting: past the list's default Opened (30 days).
+    const old = await closedDrawer("chipo", "80.00", "71.00", "CLOSED", 40 * 24);
+    expect(await signOff(old.id, { outcome: "LOOK_INTO", note: "Waiting on the bank statement" })).toMatchObject({ status: 200 });
     const response = await listGet(new NextRequest("http://hurudza.test/api/v2/reports/retail-shifts?page=1&size=200&state=needs-sign-off"), {
       params: Promise.resolve({ key: "retail-shifts" }),
     });
@@ -275,7 +305,17 @@ describe("the Shifts list", () => {
       .filter((shift) => shift.status === "CLOSED" && (shift.signOffOutcome === null || shift.signOffOutcome === "LOOK_INTO"))
       .filter((shift) => shift.countedCash === null || shift.variance === null || !shift.variance.isZero())
       .map((shift) => shift.id);
-    expect(waiting.length).toBeGreaterThan(0);
+    expect(waiting).toContain(old.id);
     expect([...listed].sort()).toEqual(waiting.sort());
+    expect(body.data?.query?.filters?.opened ?? body.query?.filters?.opened).toBe("any");
+
+    // A period picked with it still narrows.
+    const narrowed = await listGet(new NextRequest("http://hurudza.test/api/v2/reports/retail-shifts?page=1&size=200&state=needs-sign-off&opened=30d"), {
+      params: Promise.resolve({ key: "retail-shifts" }),
+    });
+    const narrowedBody = await narrowed.json();
+    const narrowedIds = ((narrowedBody.data?.rows ?? narrowedBody.rows) as Array<{ id: string }>).map((row) => row.id);
+    expect(narrowedIds).not.toContain(old.id);
+    expect(narrowedIds.length).toBe(waiting.length - 1);
   });
 });

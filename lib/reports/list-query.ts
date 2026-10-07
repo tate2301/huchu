@@ -2,6 +2,7 @@ import {
   LIST_IDS_CAP,
   LIST_PAGE_SIZES,
   PERIOD_PRESETS,
+  periodDefault,
   type Condition,
   type EmptyGuidePublic,
   type EmptyGuideSpec,
@@ -354,11 +355,8 @@ export function resolveListQuery(
       if (given && given.length <= 100) filters[filter.key] = given;
       continue;
     }
-    if (filter.type === "period") {
-      const fallback = filter.default ?? "any";
-      filters[filter.key] = given && isPeriodValue(given) ? given : fallback;
-      continue;
-    }
+    // After the choices: a chosen `anyTime` option moves a period's default to "any".
+    if (filter.type === "period") continue;
     const fallback = choiceDefault(filter, ctx);
     if (scope?.filter === filter.key) {
       filters[filter.key] = "any";
@@ -366,6 +364,11 @@ export function resolveListQuery(
     }
     const offered = given === "any" || choiceOptions(filter, loadedOptions).some((option) => option.value === given);
     filters[filter.key] = given && offered ? given : fallback;
+  }
+  for (const filter of spec.filters) {
+    if (filter.type !== "period") continue;
+    const given = query.filters[filter.key]?.trim() ?? "";
+    filters[filter.key] = given && isPeriodValue(given) ? given : periodDefault(spec.filters, filter, filters);
   }
 
   // The first column says what the row is: it is never hidden.

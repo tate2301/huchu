@@ -173,6 +173,11 @@ describe("the toolbar's words", () => {
     expect(nextColumnSort(spec, "newest", column("openedAt"))).toBe("openedAt:asc");
   });
 
+  it("starts Opened from Any time while Needs sign-off is chosen", () => {
+    expect(defaultFilters(spec, { state: "needs-sign-off" }).opened).toBe("any");
+    expect(defaultFilters(spec, { state: "short" }).opened).toBe("30d");
+  });
+
   it("counts the filters that are on, the primaries once they fold", () => {
     const filters = { ...defaultFilters(spec), till: "TILL-2" };
     expect(defaultFilters(spec).opened).toBe("30d");

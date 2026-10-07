@@ -472,7 +472,10 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
               const first = bodyRef.current?.querySelector<HTMLElement>(
                 "input:not([disabled]), textarea:not([disabled]), button:not([disabled])",
               );
-              first?.focus();
+              // A sheet that opens on a choice of cards waits for it: the sheet takes the focus, so no card
+              // reads as chosen before anyone chose (SignOff.png). Tab reaches the cards next.
+              if (first?.matches(".cx-option")) bodyRef.current?.closest<HTMLElement>(".sf-sheet")?.focus();
+              else first?.focus();
             }}
             onEscapeKeyDown={(event) => {
               // Esc closes an open list or the quick-add panel first.

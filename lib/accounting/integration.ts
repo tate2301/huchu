@@ -256,6 +256,45 @@ type BackfillTask = {
   context: Parameters<typeof createJournalEntryFromSource>[0];
 };
 
+/**
+ * The recovery journal a RECOVER sign-off owes (FLR-05: Dr 1150 Staff owe the
+ * shop, Cr 5420), as the backfill posts it when the sign-off committed and the
+ * journal after it was lost; null for any other shift.
+ */
+export function recoveryBackfillTask(
+  shift: Pick<
+    Prisma.RetailShiftGetPayload<object>,
+    "id" | "shiftNo" | "siteId" | "registerCode" | "openedAt" | "closedAt" | "signOffOutcome" | "signedOffAt" | "signedOffById" | "recoverAmount"
+  >,
+  input: { companyId: string; actorId: string; actorRole?: string | null; periodOverrideReason?: string | null },
+): BackfillTask | null {
+  const recover = money(shift.recoverAmount ?? 0);
+  if (shift.signOffOutcome !== "RECOVER" || !isPositive(recover)) return null;
+  const entryDate = shift.signedOffAt ?? shift.closedAt ?? shift.openedAt;
+  const amount = toNumberOrZero(recover);
+  return {
+    key: `RETAIL_SHIFT_RECOVERY:${shift.id}`,
+    label: `RETAIL_SHIFT_RECOVERY ${shift.shiftNo}`,
+    entryDate,
+    context: {
+      companyId: input.companyId,
+      sourceType: "RETAIL_SHIFT_RECOVERY",
+      sourceId: shift.id,
+      siteId: shift.siteId,
+      registerCode: shift.registerCode,
+      entryDate,
+      description: `Retail shift recovery ${shift.shiftNo}`,
+      createdById: shift.signedOffById ?? input.actorId,
+      amount,
+      netAmount: amount,
+      taxAmount: 0,
+      grossAmount: amount,
+      actorRole: input.actorRole ?? undefined,
+      periodOverrideReason: input.periodOverrideReason ?? undefined,
+    },
+  };
+}
+
 export async function backfillRetailAccounting(input: {
   companyId: string;
   actorId?: string | null;
@@ -299,6 +338,7 @@ export async function backfillRetailAccounting(input: {
             "RETAIL_VOID",
             "RETAIL_GOODS_RECEIPT",
             "RETAIL_SHIFT_VARIANCE",
+            "RETAIL_SHIFT_RECOVERY",
           ],
         },
       },
@@ -492,6 +532,10 @@ export async function backfillRetailAccounting(input: {
         },
       });
     }
+
+    // A shortage recovered from the cashier (FLR-05) whose journal was lost after the sign-off committed.
+    const recovery = recoveryBackfillTask(shift, { ...input, actorId });
+    if (recovery && !journalKeySet.has(recovery.key)) tasks.push(recovery);
   }
 
   const ordered = tasks.sort((a, b) => a.entryDate.getTime() - b.entryDate.getTime()).slice(0, limit);

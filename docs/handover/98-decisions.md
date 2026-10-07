@@ -227,6 +227,28 @@ Recorded unit choices:
   plus the seeded difference, and the sales are priced to the cent, so 314 of the 317 counted drawers hold cents. Notes
   cannot make cents, so their count lines carry the whole dollars and a closed shift's read-only page shows "Comes to"
   short of Counted by those cents. The seed is not bent to whole dollars: that would turn the Balanced history Short.
+- **FLR-05 departs from packet 57 in five places.**
+  - **The Recover card reads "Owed to the shop by Chipo, with their agreement noted."** The packet has "her". A person
+    record holds no pronoun, so the sheet names the cashier by first name and says "their" for anyone.
+  - **The State option "Needs sign-off" matches `needsSignOff` against "Yes", not "true".** The filter engine reads a
+    boolean row value as "Yes". The option also carries `anyTime`: chosen, the list's Opened starts from "Any time"
+    rather than the last 30 days, so a drawer looked into 40 days ago is still listed. A period picked with it still
+    narrows.
+  - **Every link to the sheet carries the shift's id twice: `/retail/shifts/<id>?sheet=sign-off&id=<id>`.** The sheet
+    host loads a sheet's record from `id` on the address. The drawer-difference notification and the Shifts row menu
+    link this way, and packets 62 (Overview › Needs action) and 59 (End of day › "Sign off") must link the same way.
+  - **This week's three short drawers fall on the week's first closed drawers once Wednesday to Friday have not
+    happened.** On a Wednesday run they are Monday's and Tuesday's. The amounts and cashiers are the packet's.
+  - **A recovery journal lost after the sign-off commits is found by the retail backfill.** The journal posts after the
+    commit, as the close's do. `backfillRetailAccounting` posts `RETAIL_SHIFT_RECOVERY` for a RECOVER shift that
+    has none.
+- **FLR-05's seeded history books every counted difference to cash over short.** The seed writes the history's
+  shifts and sales as rows, not through the close. It posts each counted difference's `RETAIL_SHIFT_VARIANCE` journal
+  at its close, so 5420 holds the drawers' differences and SH-00307's recovery nets its US$20.00 back to nothing. The
+  history's opens, sales and closes are not posted. SH-00307's float stays US$100.00. A function's order paid in cash
+  (14 cases of Castle Lager and 5 bags of ice, US$378.50, its units taken out of the 30-day quotas) and a drop to the
+  safe bring its expected cash to the board's US$432.50. Every seeded difference over US$1.00 has a close note, and
+  every seeded sign-off has its `RETAIL_SHIFT.SIGNED_OFF` line on the shift's Activity.
 - **A list's Export stops at 5,000 rows and says so.** The file holds the engine's first 5,000 rows in the list's order
   with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the
   filters for the rest."
