@@ -1093,6 +1093,21 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
       { accountCode: "5420", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / cash over short", sortOrder: 20 },
     ],
   },
+  {
+    name: "Retail shift close",
+    sourceType: "RETAIL_SHIFT_CLOSE",
+    description: "The cash a closed drawer sends to the safe: what was counted less the float left for tomorrow.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      // FLR-04: the payload's `usd` and `zig` sum to the amount; every ZiG note leaves 1001.
+      { accountCode: "1005", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / cash vault", sortOrder: 10 },
+      { accountCode: "1000", direction: "CREDIT", basis: "TAX", valuePath: "usd", memoTemplate: "{description} / till cash", sortOrder: 20 },
+      { accountCode: "1001", direction: "CREDIT", basis: "TAX", valuePath: "zig", memoTemplate: "{description} / till cash, ZiG", sortOrder: 30 },
+    ],
+  },
 ];
 
 /**

@@ -1429,6 +1429,7 @@ model User {
   retailGoodsReceiptsReceived       RetailGoodsReceipt[]           @relation("RetailGoodsReceiptReceivedBy")
   retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
+  retailShiftsClosed                RetailShift[]                  @relation("RetailShiftClosedBy")
   retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
   retailHeldCartsReleased           RetailHeldCart[]               @relation("RetailHeldCartReleasedBy")
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
@@ -3167,6 +3168,8 @@ enum NotificationType {
   RETAIL_SUPPORT
   /// A message to staff from People (ADM-02); the floor's "Message the cashier" sends it too.
   RETAIL_STAFF_MESSAGE
+  /// A drawer closed out (short or over) or without a count, for a manager to sign off (FLR-04).
+  RETAIL_SHIFT_DIFFERENCE
 }
 
 enum NotificationSeverity {
@@ -5114,12 +5117,25 @@ model RetailShift {
   countedCash  Decimal? @db.Decimal(14, 2)
   variance     Decimal? @db.Decimal(14, 2)
   notes        String?
+  /// Who closed it (FLR-04): the cashier, or a manager closing someone else's drawer.
+  closedById   String?
+  /// The count by note (FLR-04): US$ notes, ZiG notes, and the ZiG per US$1 that added them; countedCash is the sum in US$.
+  countedUsd   Decimal? @db.Decimal(14, 2)
+  countedZig   Decimal? @db.Decimal(14, 2)
+  countRate    Decimal? @db.Decimal(12, 4)
+  /// `{ USD: [{ denomination: "20", count: 2 }], ZWG: [...] }`, the rows typed.
+  countLines   Json?
+  /// "What happened" at the close, or why it was closed without a count.
+  closeNote    String?
+  /// Counted cash less the float left in the drawer: what went to the safe.
+  toSafe       Decimal? @db.Decimal(14, 2)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cashier   User    @relation("RetailShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  closedBy  User?   @relation("RetailShiftClosedBy", fields: [closedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   register  RetailRegister @relation(fields: [registerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   device    RetailDevice?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   heldCarts     RetailHeldCart[]
@@ -5996,6 +6012,7 @@ enum AccountingSourceType {
   RETAIL_OPENING_STOCK
   RETAIL_CASH_MOVEMENT
   RETAIL_PETTY_CASH
+  RETAIL_SHIFT_CLOSE
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
