@@ -18,7 +18,6 @@ import {
   requireRetailPermission,
 } from "@/lib/retail/permissions";
 import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
-import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
@@ -27,7 +26,7 @@ import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/s
 import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { cashierFilterFor } from "@/lib/retail/own-rows";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
-import { applyBundles } from "@/lib/retail/pricing/engine";
+import { priceSale } from "@/lib/retail/pricing/sale";
 import { loadBundleSnapshot } from "@/lib/retail/pricing/snapshot";
 import { tillCasesFor, type TillCase } from "@/lib/retail/stock/cases";
 import {
@@ -666,41 +665,56 @@ export async function POST(request: NextRequest) {
     }
 
     /*
-      PRD-08. Bundles, after the lists: a fixed set the till rang as one sells
-      at its price, shared over its components pro rata to their own prices
-      in whole cents; buy-more deals apply on their own, priced highest
-      first. A line part in a deal and part not comes back as two lines. The
-      saving is the line's `bundleDiscount`, apart from any discount the
-      cashier gave, so the till rules judge only the cashier's.
+      PRD-08. What the sale comes to, by the very sum the till runs
+      (`priceSale`): a fixed set the till rang as one sells at its price,
+      shared over its components pro rata to their own prices in whole cents;
+      buy-more deals apply on their own, priced highest first. A line part in
+      a deal and part not comes back as pieces, the cashier's own discount
+      shared over them by quantity. The saving is each piece's
+      `bundleDiscount`, apart from the cashier's, so the till rules judge only
+      the cashier's; a promotion takes nothing off a bundled unit.
     */
-    const bundled = applyBundles(
-      (await loadBundleSnapshot(session.user.companyId, site.id)).bundles,
-      preNormalizedLines.map((line, index) => ({
+    const priced = priceSale({
+      lines: preNormalizedLines.map((line, index) => ({
         key: line.lineKey,
         productId: line.listing.productId,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
+        taxPercent: line.shelf.taxPercent,
+        // The list says whether the shelf price already contains the VAT. On a
+        // Zimbabwean shelf it does, so the ex-VAT line and the tax are carved
+        // out of $1.20 rather than added to it.
+        taxInclusive: line.shelf.taxInclusive,
+        lineDiscount: line.baseDiscountAmount,
         bundleId: input.items[index]!.bundleId ?? null,
         bundleRef: input.items[index]!.bundleRef ?? null,
       })),
-      { at: soldAt, siteId: site.id },
-    );
-    if ("error" in bundled) {
-      return errorResponse(bundled.error, 400);
+      bundles: (await loadBundleSnapshot(session.user.companyId, site.id)).bundles,
+      at: soldAt,
+      siteId: site.id,
+      orderDiscountAmount: input.discountAmount ?? 0,
+      promotion: promotion
+        ? {
+            id: promotion.id,
+            type: promotion.type,
+            value: toNumberOrZero(promotion.value),
+          }
+        : null,
+    });
+    if ("error" in priced) {
+      return errorResponse(priced.error, 400);
     }
     const saleLines = preNormalizedLines.flatMap((line, index) => {
-      const pieces = bundled.pieces.filter((piece) => piece.key === line.lineKey);
+      const pieces = priced.pieces.filter((piece) => piece.lineKey === line.lineKey);
       let emptiesLeft = input.items[index]!.emptiesBack ?? 0;
-      return pieces.map((piece, at) => {
+      return pieces.map((piece) => {
         const emptiesBack = Math.min(emptiesLeft, Math.floor(piece.quantity));
         emptiesLeft -= emptiesBack;
         return {
           ...line,
-          lineKey: pieces.length > 1 ? `${line.lineKey}:${at}` : line.lineKey,
+          lineKey: piece.key,
           quantity: piece.quantity,
-          // The cashier's own discount stays with the first piece.
-          baseDiscountAmount: at === 0 ? line.baseDiscountAmount : 0,
-          bundleDiscount: piece.discount,
+          baseDiscountAmount: piece.lineDiscount,
           bundleId: piece.bundleId,
           bundleGroup: piece.group,
           emptiesBack: emptiesBack || undefined,
@@ -713,7 +727,8 @@ export async function POST(request: NextRequest) {
       of it may come off the shelf, managers included. Refused at the counter;
       a replay already took the money, so it goes in for a manager to look at.
     */
-    const ceilingRefusal = await discountCeilingRefusal(session.user.companyId, saleLines);
+    // Judged per line as the cashier rang it, before a deal split it.
+    const ceilingRefusal = await discountCeilingRefusal(session.user.companyId, preNormalizedLines);
     if (ceilingRefusal && !input.offlineCreatedAt) {
       return errorResponse(ceilingRefusal, 400);
     }
@@ -888,28 +903,7 @@ export async function POST(request: NextRequest) {
         .join(" | ");
     }
 
-    const checkout = calculateRetailCheckout({
-      lines: saleLines.map((line) => ({
-        id: line.lineKey,
-        quantity: line.quantity,
-        unitPrice: line.unitPrice,
-        taxPercent: line.shelf.taxPercent,
-        // The list says whether the shelf price already contains the VAT. On a
-        // Zimbabwean shelf it does, so the ex-VAT line and the tax are carved
-        // out of $1.20 rather than added to it.
-        taxInclusive: line.shelf.taxInclusive,
-        // The cashier's discount and the bundle's saving, both off the shelf price.
-        lineDiscountAmount: round(line.baseDiscountAmount + line.bundleDiscount),
-      })),
-      orderDiscountAmount: input.discountAmount ?? 0,
-      promotion: promotion
-        ? {
-            id: promotion.id,
-            type: promotion.type,
-            value: toNumberOrZero(promotion.value),
-          }
-        : null,
-    });
+    const checkout = priced.checkout;
     const normalizedLineMap = new Map(checkout.lines.map((line) => [line.id, line]));
     const normalizedLines = saleLines.map((line) => {
       const calculated = normalizedLineMap.get(line.lineKey);

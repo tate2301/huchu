@@ -6,7 +6,7 @@ import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
 import { fetchListPage } from "@/lib/reports/request";
 import type { ListPageResponse } from "@/lib/reports/types";
-import { createBundle, setBundlesPaused, stopBundle } from "@/lib/retail/bundles/service";
+import { createBundle, loadBundleView, setBundlesPaused, stopBundle } from "@/lib/retail/bundles/service";
 import { createPack } from "@/lib/retail/products/packs";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
@@ -193,5 +193,13 @@ describe("a bundle's tabs", () => {
     const tab = await rows("retail-bundle-sales", { bundle: ids.braai! });
     expect(tab.total).toBe(3);
     expect(tab.rows.find((row) => row.saleNo === "S-2")).toMatchObject({ price: 11, saved: 1.6 });
+  });
+
+  it("reads its figures off the last 60 days, and counts every sale of it for the Sales tab", async () => {
+    // One more, long ago: in the Sales tab's count, outside every 30-day figure.
+    await sold("S-5", 100, ids.braai!, [["castle", 6, 6.28], ["ice", 1, 1.3], ["charcoal", 1, 3.42]]);
+    const view = await loadBundleView(shop.companyId, ids.braai!, "OWNER");
+    expect(view).toMatchObject({ sold30: 3, soldPrev30: 1, tabCounts: { sales: 4 } });
+    expect((await rows("retail-bundle-sales", { bundle: ids.braai! })).total).toBe(4);
   });
 });

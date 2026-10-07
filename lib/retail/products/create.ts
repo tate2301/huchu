@@ -44,7 +44,7 @@ export async function lockProductNames(tx: Tx, companyId: string): Promise<void>
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:product-name`}))`;
 }
 
-/** Refuses a name or barcode another live product already has. */
+/** Refuses a name another live product has, or a barcode a live product or bundle has. */
 export async function checkProductUnique(
   tx: Tx,
   companyId: string,
@@ -60,8 +60,13 @@ export async function checkProductUnique(
     if (named) throw new ProductRefusal(400, `There is already a product called ${named.name}.`, "name");
   }
   if (input.barcode) {
-    const scanned = await tx.product.findFirst({ where: { ...others, barcode: input.barcode }, select: { name: true } });
-    if (scanned) throw new ProductRefusal(400, `${scanned.name} already has this barcode.`, "barcode");
+    // A bundle's barcode too (PRD-08): one scan finds one thing.
+    const [scanned, bundle] = await Promise.all([
+      tx.product.findFirst({ where: { ...others, barcode: input.barcode }, select: { name: true } }),
+      tx.retailBundle.findFirst({ where: { companyId, archivedAt: null, barcode: input.barcode }, select: { name: true } }),
+    ]);
+    const taken = scanned?.name ?? bundle?.name;
+    if (taken) throw new ProductRefusal(400, `${taken} already has this barcode.`, "barcode");
   }
 }
 

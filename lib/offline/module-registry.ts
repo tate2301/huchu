@@ -187,6 +187,15 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
     featureKey: "retail.promotions",
     fetcher: async () => fetchJson("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
   },
+  {
+    key: "retail-pos-pricing",
+    // The price snapshot's live bundles and buy-more deals: offline, the till
+    // prices a sale by the same sum `pos/sales` runs (PRD-08).
+    enabled: onPairedTill,
+    queryKey: ["retail-pos-pricing"],
+    featureKey: "retail.pos",
+    fetcher: async () => fetchJson("/api/v2/retail/pos/pricing"),
+  },
   /*
     No till rules preload: they reach the till through `devices/me`
     (`components/retail/till/state.tsx`, SET-06), and that query is persisted with the

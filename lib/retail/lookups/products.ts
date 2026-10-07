@@ -232,7 +232,7 @@ const pack: LookupNoun = {
     if (!typed) throw new LookupFieldErrors({ single: "Name the single." });
     if (!Number.isInteger(size) || size < 2 || size > 1000) throw new LookupFieldErrors({ size: "A case holds 2 to 1,000." });
     const singles = await prisma.product.findMany({
-      where: { companyId: ctx.companyId, archivedAt: null, packOfId: null, name: { contains: typed, mode: "insensitive" } },
+      where: { companyId: ctx.companyId, archivedAt: null, isActive: true, packOfId: null, name: { contains: typed, mode: "insensitive" } },
       orderBy: { name: "asc" },
       take: 5,
       select: { id: true, name: true },

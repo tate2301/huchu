@@ -275,7 +275,19 @@ const KINDS: Record<BinKind, BinKindSpec> = {
       await tx.retailBundle.update({ where: { id }, data: { archivedAt: at } });
       return null;
     },
-    restore: async (tx, _companyId, id) => {
+    // Its barcode is free while it is in the bin, so a product or bundle made
+    // since may hold it; then it stays in the bin until one is changed.
+    restore: async (tx, companyId, id) => {
+      const bundle = await tx.retailBundle.findFirst({ where: { id, companyId }, select: { barcode: true } });
+      if (!bundle) return null;
+      if (bundle.barcode) {
+        const [product, other] = await Promise.all([
+          tx.product.findFirst({ where: { companyId, archivedAt: null, barcode: bundle.barcode }, select: { name: true } }),
+          tx.retailBundle.findFirst({ where: { companyId, archivedAt: null, barcode: bundle.barcode, id: { not: id } }, select: { name: true } }),
+        ]);
+        const taken = product?.name ?? other?.name;
+        if (taken) return `${taken} already has this barcode. Change one of the barcodes first.`;
+      }
       await tx.retailBundle.update({ where: { id }, data: { archivedAt: null } });
       return null;
     },

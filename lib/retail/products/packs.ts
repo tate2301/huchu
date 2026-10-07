@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import type { RetailAuditActor } from "@/lib/retail/audit";
 import { getApprovalLimits } from "@/lib/retail/approvals/limits";
 import { centsOf, PRICE_FIGURE_MESSAGE } from "@/lib/retail/prices/figure";
+import { shopFeatures } from "@/lib/retail/shop-profile-rules";
 import { formatMoney } from "@/lib/workspace/format";
 
 import { createProduct, ProductRefusal } from "./create";
@@ -43,7 +44,13 @@ export async function createPack(
   const cents = centsOf(input.price);
   if (cents === null) throw new ProductRefusal(400, PRICE_FIGURE_MESSAGE, "price");
   if (cents <= 0) throw new ProductRefusal(400, "The case needs a price.", "price");
-  const deposit = input.crateDeposit?.trim() ? centsOf(input.crateDeposit) : 0;
+  const profile = await prisma.retailShopProfile.findUnique({
+    where: { companyId },
+    select: { defaultSiteId: true, businessType: true, ageCheck: true, licenceHours: true, emptiesAndDeposits: true, casesAndSingles: true },
+  });
+  // A crate deposit only where the shop charges deposits (a liquor store with empties and deposits on).
+  const depositsOn = profile ? shopFeatures(profile).emptiesAndDeposits : false;
+  const deposit = depositsOn && input.crateDeposit?.trim() ? centsOf(input.crateDeposit) : 0;
   if (deposit === null) throw new ProductRefusal(400, PRICE_FIGURE_MESSAGE, "crateDeposit");
   const barcode = input.barcode?.trim() ? normalizeBarcode(input.barcode.trim()) : null;
   if (input.barcode?.trim() && !barcode) throw new ProductRefusal(400, BARCODE_MESSAGE, "barcode");
@@ -58,25 +65,28 @@ export async function createPack(
       defaultTaxRate: true,
       ageRestricted: true,
       packOfId: true,
+      isActive: true,
       inventoryItems: { orderBy: { createdAt: "asc" }, select: { siteId: true } },
     },
   });
   if (!single) throw new ProductRefusal(400, "Pick one of this shop's products.", "single");
   if (single.packOfId) throw new ProductRefusal(400, `${single.name} is a case. Choose the single.`, "single");
-  const already = await prisma.product.findFirst({
-    where: { companyId, packOfId: single.id, packSize: input.size, archivedAt: null },
-    select: { id: true },
-  });
-  if (already) throw new ProductRefusal(409, `${single.name} already has a case of ${input.size}.`);
+  if (!single.isActive) throw new ProductRefusal(400, `${single.name} is not on sale. Put it on sale first.`, "single");
 
   const name = input.name?.trim() || caseName(single.name, input.size);
   const price = (cents / 100).toFixed(2);
   const sites = [...new Set(single.inventoryItems.map((line) => line.siteId))];
-  const profile = await prisma.retailShopProfile.findUnique({ where: { companyId }, select: { defaultSiteId: true } });
   const main = sites.includes(profile?.defaultSiteId ?? "") ? profile!.defaultSiteId! : (sites[0] ?? null);
   const limits = await getApprovalLimits(companyId);
 
   const created = await prisma.$transaction(async (tx) => {
+    // One case of a size per single: two "Add the case" at once take turns on the single's row.
+    await tx.$queryRaw`SELECT "id" FROM "Product" WHERE "id" = ${single.id} FOR UPDATE`;
+    const already = await tx.product.findFirst({
+      where: { companyId, packOfId: single.id, packSize: input.size, archivedAt: null },
+      select: { id: true },
+    });
+    if (already) throw new ProductRefusal(409, `${single.name} already has a case of ${input.size}.`);
     const made = await createProduct(tx, {
       actor,
       input: {

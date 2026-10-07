@@ -3,7 +3,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
+import { binKind } from "@/lib/retail/bin";
 import { loadBundleSnapshot } from "@/lib/retail/pricing/snapshot";
+import { checkProductUnique, ProductRefusal } from "@/lib/retail/products/create";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
 /**
@@ -12,7 +14,9 @@ import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/produc
  * nothing and a barcode another product has are refused under their field;
  * a cashier and a bookkeeper may read but not make one, a stock clerk not
  * even read; pause takes it off the tills' snapshot and Put on sale brings
- * it back; Stop selling it is for good and a change after it is refused.
+ * it back; Stop selling it is for good and a change after it is refused. A
+ * product may not take a live bundle's barcode, and a binned bundle whose
+ * barcode was taken meanwhile stays in the bin.
  */
 
 let shop: TestShop;
@@ -37,6 +41,7 @@ const { POST: pause } = await import("./pause/route");
 const { POST: resume } = await import("./resume/route");
 const { POST: duplicate } = await import("./duplicate/route");
 const { POST: packs } = await import("../packs/route");
+
 
 const request = (path: string, method: string, body?: unknown) =>
   new NextRequest(`http://shop.test/api/v2/retail${path}`, {
@@ -161,5 +166,26 @@ describe("changing, pausing and stopping it", () => {
       body: { error: "It was stopped. Duplicate it to sell it again." },
     });
     expect((await loadBundleSnapshot(shop.companyId, shop.mainId)).bundles.some((bundle) => bundle.id === ids.braai)).toBe(false);
+  });
+
+});
+
+describe("one barcode, one thing", () => {
+  it("refuses a product a live bundle's barcode", async () => {
+    const refused = await prisma.$transaction((tx) => checkProductUnique(tx, shop.companyId, { barcode: "6001234500044" })).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(ProductRefusal);
+    expect(refused).toMatchObject({ field: "barcode", message: "Braai pack already has this barcode." });
+  });
+
+  it("keeps a binned bundle in the bin while a product made since has its barcode", async () => {
+    const made = await json(await create(request("/bundles", "POST", { ...braai(), name: "Fire pack", barcode: "6001234500051" })));
+    const id = made.body.data!.id;
+    const bundle = binKind("bundle");
+    await prisma.$transaction((tx) => bundle.move(tx, shop.companyId, id, new Date()));
+    await addTestProduct(shop.companyId, { name: "Firelighters", price: "2.00", barcode: "6001234500051" }, { siteId: shop.mainId });
+    expect(await prisma.$transaction((tx) => bundle.restore(tx, shop.companyId, id))).toBe(
+      "Firelighters already has this barcode. Change one of the barcodes first.",
+    );
+    expect((await prisma.retailBundle.findUniqueOrThrow({ where: { id } })).archivedAt).not.toBeNull();
   });
 });

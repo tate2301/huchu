@@ -41,7 +41,6 @@ import { useHasFeature } from "@/hooks/use-entitlement";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { removeOfflineOperation, resetOfflineOperationToQueued } from "@/lib/offline/outbox";
 import type { OfflineOutboxOperation } from "@/lib/offline/types";
-import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { depositsDue, emptiesCounted } from "@/lib/retail/deposits";
 import { alcoholVerdict, type AlcoholVerdict } from "@/lib/retail/licence-hours";
 import { LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
@@ -53,7 +52,8 @@ import {
 } from "@/lib/retail/offline-runtime";
 import { splitChange } from "@/lib/retail/payment-words";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
-import { priceAtQuantity } from "@/lib/retail/pricing/engine";
+import { priceAtQuantity, type PricingSnapshot } from "@/lib/retail/pricing/engine";
+import { priceSale } from "@/lib/retail/pricing/sale";
 import type { PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { shopFeatures } from "@/lib/retail/shop-profile-rules";
@@ -376,22 +376,41 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     () => (promotionsQuery.data?.data ?? []).find((promotion) => promotion.id === selectedPromotionId) ?? null,
     [promotionsQuery.data?.data, selectedPromotionId],
   );
-  const checkout = useMemo(
-    () =>
-      calculateRetailCheckout({
-        lines: sellingLines.map((item) => ({
-          id: item.catalogItemId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          taxPercent: item.taxPercent,
-          taxInclusive: item.taxInclusive,
-          lineDiscountAmount: item.lineDiscountAmount,
-        })),
-        orderDiscountAmount: Number(orderDiscountAmount || "0"),
-        promotion: activePromotion ? { id: activePromotion.id, type: activePromotion.type, value: activePromotion.value } : null,
-      }),
-    [activePromotion, sellingLines, orderDiscountAmount],
-  );
+  /*
+    PRD-08. The sale is priced by the sum `pos/sales` runs (`priceSale`) over
+    the price snapshot's live bundles: a buy-more deal comes off here as it
+    will on the server, online and offline (the snapshot is kept with the
+    till's cache), so the total shown, charged and printed is the one stored.
+  */
+  const pricingQuery = useQuery({
+    queryKey: ["retail-pos-pricing"],
+    queryFn: () => fetchJson<PricingSnapshot>("/api/v2/retail/pos/pricing"),
+    enabled: Boolean(shiftHere),
+  });
+  const bundles = pricingQuery.data?.bundles;
+  const priced = useMemo(() => {
+    const sale = priceSale({
+      lines: sellingLines.map((item) => ({
+        key: item.catalogItemId,
+        productId: item.catalogItemId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxPercent: item.taxPercent,
+        taxInclusive: item.taxInclusive,
+        lineDiscount: item.lineDiscountAmount,
+      })),
+      bundles: bundles ?? [],
+      at: now,
+      siteId,
+      orderDiscountAmount: Number(orderDiscountAmount || "0"),
+      promotion: activePromotion ? { id: activePromotion.id, type: activePromotion.type, value: activePromotion.value } : null,
+    });
+    // The till rings no fixed set yet (FLR-10), so a bundle refusal cannot arise here.
+    if ("error" in sale) throw new Error(sale.error);
+    return sale;
+  }, [activePromotion, bundles, now, orderDiscountAmount, sellingLines, siteId]);
+  const checkout = priced.checkout;
+  const bundleSaving = priced.bundleSaving;
   // Deposits sit outside the goods total; the customer pays both. Net of the empties each line took back.
   const depositTotal = useMemo(() => depositsDue(sellingLines), [sellingLines]);
   const emptiesBackCount = sellingLines.reduce((sum, item) => sum + emptiesCounted(item), 0);
@@ -755,6 +774,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     depositTotal,
     emptiesBackCount,
     lineDiscountTotal,
+    bundleSaving,
     amountDue,
 
     /* How it is paid */

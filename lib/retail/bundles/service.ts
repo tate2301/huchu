@@ -115,13 +115,13 @@ const DAY = 24 * 60 * 60 * 1000;
 type SaleLineRow = { bundleId: string | null; bundleRef: string | null; productId: string | null; quantity: number; lineTotal: number; costTotal: number; at: Date };
 
 /** Lines sold under these bundles (posted sales), since a moment. */
-async function bundleLines(companyId: string, bundleIds: string[], since: Date | null): Promise<SaleLineRow[]> {
+async function bundleLines(companyId: string, bundleIds: string[], since: Date): Promise<SaleLineRow[]> {
   if (bundleIds.length === 0) return [];
   const rows = await prisma.retailSaleLine.findMany({
     where: {
       companyId,
       bundleId: { in: bundleIds },
-      sale: { status: "POSTED", saleType: "SALE", ...(since ? { postedAt: { gte: since } } : {}) },
+      sale: { status: "POSTED", saleType: "SALE", postedAt: { gte: since } },
     },
     select: {
       bundleId: true,
@@ -142,6 +142,21 @@ async function bundleLines(companyId: string, bundleIds: string[], since: Date |
     costTotal: toNumberOrZero(row.costTotal),
     at: row.sale.postedAt ?? row.sale.createdAt,
   }));
+}
+
+/** How many times each was sold together (the Sales tab's rows), counted in the database. */
+async function bundleSaleCounts(companyId: string, bundleIds: string[]): Promise<Map<string, number>> {
+  if (bundleIds.length === 0) return new Map();
+  const rows = await prisma.$queryRaw<Array<{ bundleId: string; sales: number }>>`
+    SELECT l."bundleId", COUNT(DISTINCT COALESCE(l."bundleRef", l."saleId"))::int AS "sales"
+    FROM "RetailSaleLine" l
+    JOIN "RetailSale" s ON s."id" = l."saleId"
+    WHERE l."companyId" = ${companyId}
+      AND l."bundleId" IN (${Prisma.join(bundleIds)})
+      AND s."status" = 'POSTED'
+      AND s."saleType" = 'SALE'
+    GROUP BY l."bundleId"`;
+  return new Map(rows.map((row) => [row.bundleId, row.sales]));
 }
 
 type Sold = { ref: string; bundles: number; at: Date; takings: number; cost: number };
@@ -203,6 +218,7 @@ export type BundleFigures = {
   sold30: number;
   soldPrev30: number;
   soldMonth: number;
+  /** Sales of it, as the Sales tab lists them: one per bundle or buy-more group sold together. */
   soldAll: number;
   takings30: number;
   cost30: number;
@@ -229,8 +245,12 @@ export async function bundleFigures(companyId: string, rows: BundleRow[], now: D
   for (const siteId of new Set(rows.map((row) => row.siteId).filter((id): id is string => Boolean(id)))) {
     bySite.set(siteId, await stockOf(companyId, productIds, siteId));
   }
-  const lines = await bundleLines(companyId, rows.map((row) => row.id), null);
   const monthStart = new Date(`${harareMoment(now).day.slice(0, 7)}-01T00:00:00+02:00`);
+  // The figures look back 60 days at most (the month is inside them); the
+  // Sales tab's count is a count, not every line ever sold.
+  const since = new Date(Math.min(now.getTime() - 60 * DAY, monthStart.getTime()));
+  const ids = rows.map((row) => row.id);
+  const [lines, salesCounts] = await Promise.all([bundleLines(companyId, ids, since), bundleSaleCounts(companyId, ids)]);
 
   const out = new Map<string, BundleFigures>();
   for (const row of rows) {
@@ -280,7 +300,7 @@ export async function bundleFigures(companyId: string, rows: BundleRow[], now: D
       sold30: last30.reduce((sum, entry) => sum + entry.bundles, 0),
       soldPrev30: within(60, 30).reduce((sum, entry) => sum + entry.bundles, 0),
       soldMonth: sold.filter((entry) => entry.at >= monthStart).reduce((sum, entry) => sum + entry.bundles, 0),
-      soldAll: sold.reduce((sum, entry) => sum + entry.bundles, 0),
+      soldAll: salesCounts.get(row.id) ?? 0,
       takings30: round2(last30.reduce((sum, entry) => sum + entry.takings, 0)),
       cost30: round2(last30.reduce((sum, entry) => sum + entry.cost, 0)),
     });

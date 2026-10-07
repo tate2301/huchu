@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { createBundle } from "@/lib/retail/bundles/service";
 import { DEVICE_COOKIE } from "@/lib/retail/device-words";
 import { hashDeviceKey } from "@/lib/retail/devices";
+import type { PricingSnapshot } from "@/lib/retail/pricing/engine";
+import { priceSale } from "@/lib/retail/pricing/sale";
 import { createPack } from "@/lib/retail/products/packs";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
@@ -16,7 +18,10 @@ import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/produc
  * lines summing to it and naming it, stock off each; three Savanna come to
  * the buy-more price on their own; a Castle single with none on the shelf
  * opens a case inside the sale, under one BRK reference, with no journal of
- * its own, and the sale's journal balances.
+ * its own, and the sale's journal balances. The till's own sum over what
+ * `pos/catalog` and `pos/pricing` give it comes to what the server stores; a
+ * cashier's discount on a line a deal splits is shared over its pieces; a
+ * sale promotion takes nothing off a bundled unit.
  */
 
 const { validateSessionMock } = vi.hoisted(() => ({ validateSessionMock: vi.fn() }));
@@ -26,6 +31,8 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
   validateSession: validateSessionMock,
 }));
 
+import { GET as CATALOG } from "../catalog/route";
+import { GET as PRICING } from "../pricing/route";
 import { POST as SELL } from "./route";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -35,6 +42,7 @@ let shiftId = "";
 const ids: Record<string, string> = {};
 const items: Record<string, string> = {};
 let braaiId = "";
+let promotionId = "";
 
 beforeAll(async () => {
   shop = await makeTestShop("Sale bundles");
@@ -81,6 +89,16 @@ beforeAll(async () => {
     days: "EVERY_DAY",
     until: null,
   });
+
+  // Savanna may come off at most 30%; a cashier may give up to 40% without a manager.
+  await prisma.product.update({ where: { id: ids.savanna! }, data: { maxDiscountPercent: new Prisma.Decimal(30) } });
+  await prisma.retailTillRules.create({ data: { companyId: shop.companyId, maxCashierDiscountPercent: new Prisma.Decimal(40) } });
+  promotionId = (
+    await prisma.retailPromotion.create({
+      data: { companyId: shop.companyId, promoCode: `TEN-${stamp}`, name: "Ten off", type: "PERCENT", value: new Prisma.Decimal(10) },
+      select: { id: true },
+    })
+  ).id;
 
   const cashierId = (
     await prisma.user.create({
@@ -130,13 +148,15 @@ afterAll(async () => {
   await prisma.retailDevice.deleteMany({ where: { companyId } });
   await prisma.journalEntry.deleteMany({ where: { companyId } });
   await prisma.retailBundle.deleteMany({ where: { companyId } });
+  await prisma.retailPromotion.deleteMany({ where: { companyId } });
+  await prisma.retailTillRules.deleteMany({ where: { companyId } });
   await prisma.productPriceChange.deleteMany({ where: { companyId } });
   await destroyProvisionedTenant(companyId);
 });
 
-type Line = { productId: string; quantity: number; unitPrice: number; bundleId?: string; bundleRef?: string };
+type Line = { productId: string; quantity: number; unitPrice: number; discountAmount?: number; bundleId?: string; bundleRef?: string };
 
-function sell(ref: string, lines: Line[], pay: number) {
+function sell(ref: string, lines: Line[], pay: number, extra: Record<string, unknown> = {}) {
   return SELL(
     new NextRequest("http://pos.test.localtest.me/api/v2/retail/pos/sales", {
       method: "POST",
@@ -147,10 +167,23 @@ function sell(ref: string, lines: Line[], pay: number) {
         idChecked: true,
         items: lines,
         payments: [{ tenderType: "CASH", currency: "USD", amount: pay }],
+        ...extra,
       }),
     }),
   ).then(async (response) => ({ status: response.status, body: (await response.json()) as Record<string, unknown> & { id?: string; totalAmount?: unknown } }));
 }
+
+/** What the till reads: its shelf (`pos/catalog`) and its price snapshot (`pos/pricing`). */
+async function tillReads() {
+  const ask = (path: string) => new NextRequest(`http://pos.test.localtest.me${path}`, { headers: { cookie: `${DEVICE_COOKIE}=${key}` } });
+  const shelf = (await (await CATALOG(ask("/api/v2/retail/pos/catalog?search="))).json()) as {
+    data: Array<{ productId: string; unitPrice: number; taxPercent: number; taxInclusive: boolean }>;
+  };
+  const snapshot = (await (await PRICING(ask("/api/v2/retail/pos/pricing"))).json()) as PricingSnapshot;
+  return { shelf: new Map(shelf.data.map((item) => [item.productId, item])), snapshot };
+}
+
+const totalOf = async (saleId: string) => (await prisma.retailSale.findUniqueOrThrow({ where: { id: saleId }, select: { totalAmount: true } })).totalAmount.toFixed(2);
 
 const onHand = async (code: string) => (await prisma.inventoryItem.findUniqueOrThrow({ where: { id: items[code]! }, select: { currentStock: true } })).currentStock.toNumber();
 
@@ -204,6 +237,91 @@ describe("a sale with bundles", () => {
     const fourth = await prisma.retailSale.findUniqueOrThrow({ where: { id: four.body.id! }, include: { lines: true } });
     expect(fourth.totalAmount.toFixed(2)).toBe("6.85");
     expect(fourth.lines).toHaveLength(3);
+  });
+});
+
+describe("the till and the server come to one total", () => {
+  it("prices a basket with a buy-more deal and a split line as the server stores it", async () => {
+    const { shelf, snapshot } = await tillReads();
+    expect(snapshot.bundles.map((bundle) => bundle.name).sort()).toEqual(["Any 3 ciders", "Braai pack"]);
+    const basket = [
+      { productId: ids.savanna!, quantity: 3, discountAmount: 0 },
+      { productId: ids.hunters!, quantity: 2, discountAmount: 0.3 },
+      { productId: ids.castle!, quantity: 1, discountAmount: 0 },
+    ];
+    // As the till's checkout memo prices it (`components/retail/till/state.tsx`).
+    const till = priceSale({
+      lines: basket.map((item) => {
+        const listed = shelf.get(item.productId)!;
+        return {
+          key: item.productId,
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: listed.unitPrice,
+          taxPercent: listed.taxPercent,
+          taxInclusive: listed.taxInclusive,
+          lineDiscount: item.discountAmount,
+        };
+      }),
+      bundles: snapshot.bundles,
+      at: new Date(),
+      siteId: snapshot.siteId,
+    });
+    if ("error" in till) throw new Error(till.error);
+    expect(till.bundleSaving).toBe(0.55);
+
+    const sold = await sell(
+      "till-total",
+      basket.map((item) => ({ ...item, unitPrice: shelf.get(item.productId)!.unitPrice })),
+      till.checkout.total,
+      { overrideReason: "Dented can" },
+    );
+    expect(sold.status).toBe(201);
+    expect(await totalOf(sold.body.id!)).toBe(till.checkout.total.toFixed(2));
+  });
+});
+
+describe("the cashier's discount on a line a deal splits", () => {
+  it("is judged against the ceiling on the line as rung: US$1.00 off four Savanna sells", async () => {
+    const sold = await sell("savanna-off", [{ productId: ids.savanna!, quantity: 4, unitPrice: 1.85, discountAmount: 1 }], 5.85, {
+      overrideReason: "Dented cans",
+    });
+    expect(sold.status).toBe(201);
+    expect(await totalOf(sold.body.id!)).toBe("5.85");
+  });
+
+  it("is given in full: four Hunter's with US$2.50 off come to US$4.35", async () => {
+    const sold = await sell("hunters-off", [{ productId: ids.hunters!, quantity: 4, unitPrice: 1.85, discountAmount: 2.5 }], 4.35, {
+      overrideReason: "Last of the batch",
+    });
+    expect(sold.status).toBe(201);
+    const sale = await prisma.retailSale.findUniqueOrThrow({ where: { id: sold.body.id! }, include: { lines: { orderBy: { quantity: "asc" } } } });
+    expect(sale.totalAmount.toFixed(2)).toBe("4.35");
+    expect(sale.lines.map((entry) => [entry.quantity.toNumber(), entry.lineTotal.toFixed(2)])).toEqual([
+      [1, "1.23"],
+      [3, "3.12"],
+    ]);
+  });
+});
+
+describe("a sale promotion beside a bundle", () => {
+  it("takes nothing off a Braai pack, and its 10% off the Castle beside it", async () => {
+    const sold = await sell(
+      "braai-promo",
+      [
+        { productId: ids.castle!, quantity: 6, unitPrice: 1.2, bundleId: braaiId, bundleRef: "1" },
+        { productId: ids.ice!, quantity: 1, unitPrice: 1.5, bundleId: braaiId, bundleRef: "1" },
+        { productId: ids.charcoal!, quantity: 1, unitPrice: 3.9, bundleId: braaiId, bundleRef: "1" },
+        { productId: ids.castle!, quantity: 1, unitPrice: 1.2 },
+      ],
+      12.08,
+      { promotionId },
+    );
+    expect(sold.status).toBe(201);
+    const sale = await prisma.retailSale.findUniqueOrThrow({ where: { id: sold.body.id! }, include: { lines: true } });
+    expect(sale.totalAmount.toFixed(2)).toBe("12.08");
+    const inPack = sale.lines.filter((entry) => entry.bundleId === braaiId);
+    expect(inPack.reduce((sum, entry) => sum.plus(entry.lineTotal), new Prisma.Decimal(0)).toFixed(2)).toBe("11.00");
   });
 });
 

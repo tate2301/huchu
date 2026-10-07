@@ -399,7 +399,7 @@ Recorded unit choices:
     printed them already the toast says to take them off the shelf. Undo is written to Activity
     ("Undid 4 prices for 7 Oct 22:00"). Undo stays on the toast only; a Cancel on the product's Price history
     is not added (the board draws none).
-- **PRD-08 departs from packet 21 in seven places.**
+- **PRD-08 departs from packet 21 in ten places.**
   - **A bundle's components keep the shelf price; the bundle's saving is their discount.** Each component line is
     rung at its own price with the bundle's share of the saving as `discountAmount` (shared pro rata to "On their
     own" in whole cents, the cents left to the dearest line), so its `lineTotal` is its share and the lines sum to
@@ -416,8 +416,22 @@ Recorded unit choices:
     names give.
   - **The Kind filter's address key is `of`**, not `kind`: New bundle opens over the list as
     `?sheet=bundle-new&kind=…`, which would otherwise filter the list behind it.
-  - **The buy-more-versus-promotion rule waits for PRD-09**: there is no promotion engine yet, so a buy-more deal
-    applies alone.
+  - **A sale promotion takes nothing off a unit in a bundle or a buy-more deal.** The till's promotion (the legacy
+    `promotionId`, PERCENT or AMOUNT off the sale) is worked out on, and shared over, the units sold at their own
+    price only: a Braai pack with 10% off the sale stays US$11.00, and the 10% comes off whatever else is in the
+    basket. The bundle's saving never doubles with a promotion. PRD-09's per-unit "better of the two" replaces this
+    when its promotion engine lands.
+  - **The till and the server price a sale by one sum** (`lib/retail/pricing/sale.ts`, `priceSale`): bundles over
+    the `pos/pricing` snapshot's `bundles` (kept with the till's offline cache), then the cashier's discount, then
+    the promotion. A buy-more deal comes off at the live till, online and offline, as `pos/sales` stores it, shown as
+    "Buy more, pay less" in the totals. When a deal splits a line, the cashier's discount on it is shared over the
+    pieces by quantity in whole cents (the last piece takes what is left), and a product's discount ceiling is judged
+    on the line as rung.
+  - **Sell by the case takes a live single that is on sale**, refused under Single otherwise; one case of a size per
+    single holds under two "Add the case" at once (the single's row is locked while the case is made); the crate
+    deposit is kept only where empties and deposits are on, and the field shows only there.
+  - **A barcode finds one thing**: a product's barcode is refused when a live bundle has it, and a bundle comes back
+    from the bin only while its barcode is still free.
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

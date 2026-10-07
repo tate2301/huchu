@@ -10,8 +10,9 @@ import { addTestProduct, makeTestShop, type TestShop } from "./test-fixtures";
 /**
  * Sell by the case (PRD-08, W-12) against the test database: a case is made
  * from its single at every site the single is kept, empty, its unit "case",
- * its cost the single's times how many; a second case of that size, and a
- * case of a case, are refused.
+ * its cost the single's times how many; a second case of that size (even
+ * two asked for at once), a case of a case and a single off sale are
+ * refused; the crate deposit is kept only while the shop charges deposits.
  */
 
 let shop: TestShop;
@@ -63,5 +64,34 @@ describe("a case made from its single", () => {
     const theCase = await prisma.product.findFirstOrThrow({ where: { companyId: shop.companyId, packOfId: castle }, select: { id: true } });
     const refused = await createPack(shop.manager(), { singleId: theCase.id, size: 6, price: "120.00", breakAtTill: true }).catch((error: unknown) => error);
     expect(refused).toMatchObject({ status: 400, field: "single", message: "Castle Lager 340ml, case of 24 is a case. Choose the single." });
+  });
+
+  it("makes one case when two ask for the same size at once", async () => {
+    const both = await Promise.allSettled([
+      createPack(shop.manager(), { singleId: castle, size: 12, price: "13.50", breakAtTill: true }),
+      createPack(shop.manager(), { singleId: castle, size: 12, price: "13.50", breakAtTill: true }),
+    ]);
+    expect(both.filter((entry) => entry.status === "fulfilled")).toHaveLength(1);
+    const refused = both.find((entry): entry is PromiseRejectedResult => entry.status === "rejected")!;
+    expect(refused.reason).toMatchObject({ status: 409, message: "Castle Lager 340ml already has a case of 12." });
+    expect(await prisma.product.count({ where: { companyId: shop.companyId, packOfId: castle, packSize: 12, archivedAt: null } })).toBe(1);
+  });
+
+  it("refuses a single that is not on sale", async () => {
+    const off = await addTestProduct(shop.companyId, { name: "Zambezi Lager 340ml", price: "1.10", cost: "0.80" }, { siteId: shop.mainId, onHand: 10 });
+    await prisma.product.update({ where: { id: off.productId }, data: { isActive: false } });
+    const refused = await createPack(shop.manager(), { singleId: off.productId, size: 24, price: "24.00", breakAtTill: true }).catch((error: unknown) => error);
+    expect(refused).toMatchObject({ status: 400, field: "single", message: "Zambezi Lager 340ml is not on sale. Put it on sale first." });
+  });
+
+  it("keeps no crate deposit while empties and deposits are off", async () => {
+    await prisma.retailShopProfile.update({ where: { companyId: shop.companyId }, data: { emptiesAndDeposits: false } });
+    try {
+      const made = await createPack(shop.manager(), { singleId: castle, size: 6, price: "7.00", breakAtTill: false, crateDeposit: "3.00" });
+      const product = await prisma.product.findUniqueOrThrow({ where: { id: made.productId }, select: { returnable: true, depositAmount: true } });
+      expect(product).toEqual({ returnable: false, depositAmount: null });
+    } finally {
+      await prisma.retailShopProfile.update({ where: { companyId: shop.companyId }, data: { emptiesAndDeposits: true } });
+    }
   });
 });

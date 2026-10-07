@@ -506,6 +506,7 @@ function SaleColumn({
     beforeDiscounts,
     vatIncluded,
     lineDiscountTotal,
+    bundleSaving,
     discountAmount,
     depositTotal,
     taxAmount,
@@ -519,7 +520,7 @@ function SaleColumn({
     orderDiscountAmount,
     loyaltyRedemptionPoints,
   } = useTill();
-  const orderOff = Math.max(discountAmount - lineDiscountTotal, 0);
+  const orderOff = Math.max(discountAmount - lineDiscountTotal - bundleSaving, 0);
   // Lines stopped by the licence hours do not sell, so they are not counted.
   const sellingLines = cart.filter((item) => !lineStopped(item));
   const selling = sellingLines.length;
@@ -591,6 +592,12 @@ function SaleColumn({
               <div className="l">
                 <span>Line discount</span>
                 <span className="off-figure">{usd(-lineDiscountTotal)}</span>
+              </div>
+            ) : null}
+            {bundleSaving > 0.004 ? (
+              <div className="l">
+                <span>Buy more, pay less</span>
+                <span className="off-figure">{usd(-bundleSaving)}</span>
               </div>
             ) : null}
             {orderOff > 0.004 ? (
