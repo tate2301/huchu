@@ -339,6 +339,7 @@ model Company {
   retailSalePayments            RetailSalePayment[]
   retailCashMovements           RetailCashMovement[]
   retailZReports                RetailZReport[]
+  retailDayCloses               RetailDayClose[]
   retailTillPins                RetailTillPin[]
   retailTillRules               RetailTillRules?
   retailApprovalSettings        RetailApprovalSettings?
@@ -1159,6 +1160,7 @@ model Site {
   retailShifts          RetailShift[]
   retailSales           RetailSale[]
   retailZReports        RetailZReport[]
+  retailDayCloses       RetailDayClose[]
   retailTransfersOut    RetailStockTransfer[]  @relation("RetailStockTransferFrom")
   retailTransfersIn     RetailStockTransfer[]  @relation("RetailStockTransferTo")
   retailStockCounts     RetailStockCount[]
@@ -1436,6 +1438,7 @@ model User {
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
   retailCashMovementsApproved       RetailCashMovement[]           @relation("RetailCashMovementApprovedBy")
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
+  retailDaysClosed                  RetailDayClose[]               @relation("RetailDayCloseClosedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
   retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
   retailApprovalOwnerOf             RetailApprovalSettings[]       @relation("RetailApprovalOwner")
@@ -5531,6 +5534,42 @@ model RetailTillPin {
 /// and cost four more things to keep in step. Money inside them is written as a
 /// decimal **string** for the reason above. Same bargain as
 /// `RetailCashMovement.denominations`, and the same discipline.
+/// A site's trading day, closed (FLR-07): the figures frozen as they stood, the
+/// Z-reports taken for each till and the cash banked. One close per site per day;
+/// nothing recomputes it afterwards.
+model RetailDayClose {
+  id             String   @id @default(uuid())
+  companyId      String
+  siteId         String
+  /// The trading day (Africa/Harare); shifts belong to the day they opened.
+  businessDate   DateTime @db.Date
+  takings        Decimal  @db.Decimal(14, 2)
+  /// Refunds as a positive magnitude.
+  refunds        Decimal  @db.Decimal(14, 2)
+  /// Σ the day's shift differences (negative = short).
+  cashDifference Decimal  @db.Decimal(14, 2)
+  cashUsd        Decimal  @db.Decimal(14, 2)
+  cashZig        Decimal  @db.Decimal(14, 2)
+  /// `[{ tender, label, currency, amount }]` as it stood.
+  tenders        Json
+  banked         Decimal  @db.Decimal(14, 2)
+  bankAccountId  String?
+  slipUrl        String?
+  fiscalDayNo    Int?
+  zReportIds     String[]
+  closedAt       DateTime @default(now())
+  closedById     String
+  closedByName   String
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site        Site         @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  bankAccount BankAccount? @relation("RetailDayCloseBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+  closedBy    User         @relation("RetailDayCloseClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, siteId, businessDate])
+  @@index([companyId, businessDate])
+}
+
 model RetailZReport {
   id        String @id @default(uuid())
   /// This module's rule: if a query can reach a table, it carries its own tenant.
@@ -6033,6 +6072,7 @@ enum AccountingSourceType {
   RETAIL_PETTY_CASH
   RETAIL_SHIFT_CLOSE
   RETAIL_SHIFT_RECOVERY
+  RETAIL_DAY_BANKED
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
@@ -7124,6 +7164,7 @@ model BankAccount {
   reconciliations    BankReconciliation[]
   crmRequisitions    CrmRequisition[]
   defaultForSettings AccountingSettings[] @relation("DefaultBankAccount")
+  retailDayCloses    RetailDayClose[]     @relation("RetailDayCloseBankAccount")
 
   @@index([companyId, isActive])
   @@index([companyId, showOnDocuments, documentPosition])

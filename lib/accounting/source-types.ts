@@ -33,6 +33,7 @@ export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType
   { value: "RETAIL_PETTY_CASH", label: "Retail petty cash" },
   { value: "RETAIL_SHIFT_CLOSE", label: "Retail shift close to the safe" },
   { value: "RETAIL_SHIFT_RECOVERY", label: "Retail short drawer recovered from the cashier" },
+  { value: "RETAIL_DAY_BANKED", label: "Retail day's cash banked" },
   { value: "GOLD_SHIFT_ALLOCATION_COMPANY", label: "Gold Shift — Company Share (Mdara)" },
   { value: "GOLD_SHIFT_ALLOCATION_WORKER", label: "Gold Shift — Worker Share (Boys)" },
   { value: "GOLD_SHIFT_EXPENSE", label: "Gold Shift Expense" },

@@ -1109,6 +1109,19 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
   {
+    name: "Retail day banked",
+    sourceType: "RETAIL_DAY_BANKED",
+    description: "A closed day's cash taken from the vault to the bank: what the deposit slip says was banked.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountCode: "1010", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / operating bank", sortOrder: 10 },
+      { accountCode: "1005", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / cash vault", sortOrder: 20 },
+    ],
+  },
+  {
     name: "Retail shift close",
     sourceType: "RETAIL_SHIFT_CLOSE",
     description: "A closed drawer's whole count to the vault; the next opening takes its float back out.",
