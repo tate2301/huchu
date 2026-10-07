@@ -2,29 +2,32 @@ import { z } from "zod";
 
 /**
  * The rules of opening a shift that the sheet and the endpoint share
- * (00-foundations 5.7.8): the body's schema, the float's rule and the done
- * sentence. No database here, so the sheet kind can import it.
+ * (00-foundations 5.7.8, FLR-03): the body's schema, the float's rule and the
+ * done sentence. No database here, so the sheet kind can import it; the
+ * opening itself is `lib/retail/floor/shifts.ts`.
  */
 
 /** Two decimals or fewer, zero or more: "100", "100.5", "100.00". */
-const AMOUNT = /^\d+(\.\d{1,2})?$/;
+export const FLOAT_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 export const FLOAT_MESSAGE = "Give the float as an amount, like 100.00.";
 
-/** The opening float as the sheet sends it. */
-export const floatAmount = z.string().trim().regex(AMOUNT, FLOAT_MESSAGE);
+/** A float as the sheet sends it. */
+export const floatAmount = z.string().trim().regex(FLOAT_PATTERN, FLOAT_MESSAGE);
 
+/**
+ * `POST /api/v2/retail/shifts`. The floats are strings and checked by
+ * `openShift`, so a bad one is refused under its own field.
+ */
 export const openShiftSchema = z.object({
   registerId: z.string().uuid(),
   cashierId: z.string().uuid().optional(),
-  openingFloat: z
-    .union([z.number().min(0), floatAmount])
-    .optional()
-    .transform((value) => (value === undefined ? 0 : Number(value))),
+  openingFloat: z.string().max(20),
+  openingFloatZig: z.string().max(20).optional(),
   periodOverrideReason: z.string().max(500).optional().nullable(),
 });
 
-export type OpenShiftInput = z.infer<typeof openShiftSchema>;
+export type OpenShiftBody = z.infer<typeof openShiftSchema>;
 
 /** "Back till" → "the back till"; "Handheld 1" → "Handheld 1". */
 export function tillWords(name: string): string {

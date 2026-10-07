@@ -37,6 +37,7 @@ describe("the shift-open sheet's rules", () => {
       till: null,
       who: { id: "u-1", label: "Tafara Nyathi" },
       float: "",
+      zig: "",
     });
   });
 

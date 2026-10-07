@@ -10,7 +10,7 @@ import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
  * R-5.1. Provisioning a retail tenant created a company, an administrator, a
  * tier, a bundle and a subdomain — and no shop. The first thing a cashier does
  * on their first morning is open a drawer, and
- * `openRetailShiftTransaction` needs a **site** and a **register** to open one
+ * `openShift` (lib/retail/floor/shifts.ts) needs a **site** and a **register** to open one
  * against. Neither existed, so the answer to "can this tenant trade today" was
  * no, and the way you found out was a cashier standing at a till reading
  * *Invalid site*.

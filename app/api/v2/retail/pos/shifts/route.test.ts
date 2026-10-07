@@ -120,8 +120,7 @@ describe("opening a shift on this till", () => {
     const own = await openShift(chipoId, "Chipo Dube", { id: backId, code: "BACK", name: "Back till" });
     signIn(chipoId, "Chipo Dube");
     const refused = await open();
-    expect(refused.status).toBe(409);
-    expect(refused.body.error).toContain("Back till");
+    expect(refused).toMatchObject({ status: 409, body: { error: "Chipo Dube already has a shift open on the back till." } });
     await prisma.retailShift.update({ where: { id: own.id }, data: { status: "CLOSED", closedAt: new Date() } });
   });
 

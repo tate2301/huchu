@@ -33,6 +33,7 @@ export async function GET(
 
   const shift = await loadShiftRecord(session.user.companyId, path.data.id, {
     cashierId: seesEveryDrawer ? undefined : session.user.id,
+    viewer: session,
   });
   if (!shift) {
     return errorResponse("Shift not found", 404);

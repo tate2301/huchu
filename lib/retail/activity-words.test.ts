@@ -141,8 +141,11 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
       what: "Dropped US$200.00 to the safe",
       tone: "hollow",
     });
-    expect(activityWords("RETAIL_CASH.MOVED", { type: "FLOAT_TOP_UP", amount: "50" }).what).toBe("Put US$50.00 in");
+    expect(activityWords("RETAIL_CASH.MOVED", { type: "FLOAT_TOP_UP", amount: "50" }).what).toBe("Put US$50.00 in for change");
     expect(activityWords("RETAIL_CASH.MOVED", { type: "PAYOUT", amount: "20" }).what).toBe("Paid out US$20.00");
+    expect(activityWords("RETAIL_CASH.MOVED", { type: "PAYOUT", reasonCode: "PETTY_CASH", amount: "20" }).what).toBe(
+      "Paid out US$20.00 for petty cash",
+    );
   });
 
   it("sales, refunds and voids", () => {

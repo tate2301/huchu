@@ -141,7 +141,8 @@ export type FieldSpec = {
   /** `lines`: the quantity and cost column labels. */
   ql?: string;
   cl?: string;
-  cur?: SheetCurrency;
+  /** The money prefix: fixed, or as the values say (US$ or ZiG, from a currency segment). */
+  cur?: SheetCurrency | ((values: SheetValues) => SheetCurrency);
   /** `money`: decimals kept, two at least (a rate keeps four). */
   decimals?: number;
   nolabel?: boolean;

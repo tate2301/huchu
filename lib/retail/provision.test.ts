@@ -3,7 +3,7 @@
  *
  * R-5.1. The promise is that a provisioned tenant can trade on the first
  * morning, and for retail that has an exact meaning: a cashier can open a
- * drawer. `openRetailShiftTransaction` needs a site and a register, and a
+ * drawer. `openShift` (lib/retail/floor/shifts.ts) needs a site and a register, and a
  * retail tenant used to be handed over with neither — so the first action of
  * the first day failed with *Invalid site*.
  *

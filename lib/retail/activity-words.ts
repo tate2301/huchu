@@ -128,9 +128,9 @@ function cashMovedWords(payload: Payload): ActivityWords {
     case "DROP_TO_SAFE":
       return { what: `Dropped ${figure} to the safe`, tone: "hollow" };
     case "FLOAT_TOP_UP":
-      return { what: `Put ${figure} in`, tone: "hollow" };
+      return { what: `Put ${figure} in for change`, tone: "hollow" };
     default:
-      return { what: `Paid out ${figure}`, tone: "hollow" };
+      return { what: payload.reasonCode === "PETTY_CASH" ? `Paid out ${figure} for petty cash` : `Paid out ${figure}`, tone: "hollow" };
   }
 }
 

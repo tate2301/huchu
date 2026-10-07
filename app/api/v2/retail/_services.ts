@@ -1,16 +1,10 @@
-import { closeFiscalDayIfLastShift, openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
+import { closeFiscalDayIfLastShift } from "@/lib/retail/fiscal-settings";
 import { assignRetailSaleFiscalDay } from "@/lib/retail/fiscalisation";
-import {
-  Prisma,
-  type RetailCashMovementReason,
-  type RetailCashMovementType,
-  type RetailTenderType,
-} from "@prisma/client";
+import { Prisma, type RetailTenderType } from "@prisma/client";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import {
   ZERO,
-  exceeds,
   money,
   multiplyMoney,
   rate,
@@ -20,13 +14,7 @@ import {
   type MoneyLike,
 } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import type { CashDenominationLine } from "@/lib/retail/cash-movements";
-import {
-  buildCashMovementAmounts,
-  cashMovementDelta,
-  getCashNetFromPayments,
-  totalFromDenominations,
-} from "@/lib/retail/cash-up";
+import { getCashNetFromPayments } from "@/lib/retail/cash-up";
 import { postedChange, reversalSubtotal } from "@/lib/retail/sale-totals";
 import { depositBack } from "@/lib/retail/deposits";
 import {
@@ -58,15 +46,12 @@ import {
 } from "@/lib/retail/z-report";
 import { createApprovalAction } from "@/lib/workflow/approvals";
 import {
-  auditCashMoved,
   auditSalePosted,
   auditSaleReversed,
   auditShiftClosed,
-  auditShiftOpened,
 } from "@/lib/retail/audit";
 import { canRetailRoleDo } from "@/lib/retail/permissions";
 import {
-  ensureRetailRegisterAccess,
   ensureSiteAccess,
   normalizeRetailPostingPayments,
   postRetailJournal,
@@ -276,151 +261,6 @@ async function ensureRetailSaleAccountingPosted(input: {
   });
 }
 
-export async function openRetailShiftTransaction(input: {
-  actor: RetailActorContext;
-  siteId: string;
-  /** The till the shift is on: the device's own at the till (SET-04), the chosen one in the back office. */
-  registerId: string;
-  /** The device it is opened on; null in the back office. */
-  deviceId?: string | null;
-  shiftNo?: string | null;
-  openingFloat?: number;
-  notes?: string | null;
-  periodOverrideReason?: string | null;
-  openedAt?: Date;
-  /**
-   * Whose drawer it is, when a manager opens it for them (FND-07). Left out,
-   * it is the actor's own. The audit event's actor stays the caller.
-   */
-  cashier?: { id: string; name: string };
-}) {
-  const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
-  if (!site) {
-    throw new Error("Invalid site");
-  }
-
-  const cashierId = input.cashier?.id ?? input.actor.userId;
-  // People are not devices: one shift at a time, on one till (10-setup W-04 step 8).
-  const existing = await prisma.retailShift.findFirst({
-    where: {
-      companyId: input.actor.companyId,
-      cashierId,
-      status: "OPEN",
-    },
-    select: { registerName: true },
-  });
-  if (existing) {
-    throw new ShiftElsewhere(existing.registerName);
-  }
-
-  const register = await ensureRetailRegisterAccess({
-    companyId: input.actor.companyId,
-    siteId: site.id,
-    registerId: input.registerId,
-  });
-  if (!register) {
-    throw new Error("Invalid register");
-  }
-
-  const providedCode = input.shiftNo
-    ? normalizeProvidedId(input.shiftNo, "RETAIL_SHIFT")
-    : null;
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const shiftNo =
-      providedCode ??
-      (await reserveIdentifier(prisma, {
-        companyId: input.actor.companyId,
-        entity: "RETAIL_SHIFT",
-        siteId: site.id,
-      }));
-
-    try {
-      /*
-        R-3.3. The create and its audit row go in one transaction. `create`
-        alone was a bare write; wrapping it changes nothing about the shift and
-        means a drawer cannot be opened without the chain recording it.
-      */
-      const shift = await prisma.$transaction(async (tx) => {
-        const created = await tx.retailShift.create({
-        data: {
-          companyId: input.actor.companyId,
-          shiftNo,
-          registerCode: register.code,
-          registerName: register.name,
-          registerId: register.id,
-          deviceId: input.deviceId ?? null,
-          siteId: site.id,
-          cashierId,
-          cashierName: input.cashier?.name ?? resolveCashierName(input.actor),
-          openingFloat: input.openingFloat ?? 0,
-          notes: input.notes?.trim() || null,
-          status: "OPEN",
-          expectedCash: input.openingFloat ?? 0,
-          ...(input.openedAt ? { openedAt: input.openedAt } : {}),
-        },
-        });
-
-        await auditShiftOpened(tx, {
-          actor: input.actor,
-          shiftId: created.id,
-          shiftNo: created.shiftNo,
-          siteId: created.siteId,
-          registerCode: created.registerCode,
-          cashierId: created.cashierId,
-          openingFloat: created.openingFloat,
-        });
-
-        return created;
-      });
-
-      const openingFloat = money(shift.openingFloat);
-      const accounting =
-        exceeds(openingFloat, 0)
-          ? await postRetailJournal({
-              companyId: input.actor.companyId,
-              sourceType: "RETAIL_SHIFT_OPEN",
-              sourceId: shift.id,
-              siteId: shift.siteId,
-              registerCode: shift.registerCode,
-              entryDate: shift.openedAt,
-              description: `Retail shift open ${shift.shiftNo}`,
-              createdById: input.actor.userId,
-              actorRole: input.actor.userRole ?? undefined,
-              periodOverrideReason: input.periodOverrideReason ?? undefined,
-              amount: toNumberOrZero(openingFloat.abs()),
-              netAmount: toNumberOrZero(openingFloat.abs()),
-              taxAmount: 0,
-              grossAmount: toNumberOrZero(openingFloat.abs()),
-            })
-          : ({
-              accountingStatus: "POSTED",
-              accountingError: null,
-              accountingCode: null,
-              journalEntryId: null,
-            } satisfies RetailAccountingResult);
-
-      // The day's first shift opens the shop's fiscal day when none is open (SET-08), so its sales are signed.
-      await openFiscalDayIfNone(input.actor.companyId, shift.openedAt);
-
-      return { shift, accounting };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        if (providedCode) {
-          throw new Error("Shift number already exists");
-        }
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  throw new Error("Unable to generate shift number");
-}
-
 export async function closeRetailShiftTransaction(input: {
   actor: RetailActorContext;
   shiftId: string;
@@ -553,145 +393,6 @@ export async function closeRetailShiftTransaction(input: {
 
   /** `fiscalDayClosed`: the fiscal day's number when this shift closing closed it, so the till can say so. */
   return { shift: updated, accounting, fiscalDayClosed: fiscalDay.closed };
-}
-
-/**
- * Records cash leaving or entering the drawer mid-shift, and moves `expectedCash`
- * with it.
- *
- * S-7.1. This is the fix. Without it a Friday drop to the safe left `expectedCash`
- * counting money that was no longer in the drawer, and the cashier read as short by
- * exactly what had been banked.
- *
- * The row and the increment go in one `$transaction`, guarded on the shift still
- * being `OPEN`, exactly as `createRetailSaleTransaction` does for a sale's net
- * cash. A movement written against a shift that closed underneath it would be a
- * movement nothing ever counts.
- *
- * `baseAmount` is what moves the column, not `amount`: `expectedCash` is
- * denominated in the company's base currency because `openingFloat` is, and a
- * bundle of ZWG notes taken to the safe at 27.5 is not 200 dollars off the drawer.
- */
-export async function recordRetailCashMovementTransaction(input: {
-  actor: RetailActorContext;
-  shiftId: string;
-  type: RetailCashMovementType;
-  amount: number;
-  currency?: string | null;
-  exchangeRate?: number | null;
-  reasonCode: RetailCashMovementReason;
-  reason?: string | null;
-  /**
-   * The bundle as it was counted, when the till could offer a denomination set for
-   * the currency. Optional: a currency with no configured denominations is keyed as
-   * a total, which is what the till did before this ticket.
-   */
-  denominations?: CashDenominationLine[] | null;
-  /**
-   * A cashier moves their own drawer; moving somebody else's is a supervisory act.
-   * The route decides that against `lib/retail/permissions.ts` and says so here, in
-   * the same shape as `allowManagerClose` above.
-   */
-  allowOtherCashiers?: boolean;
-}) {
-  const shift = await prisma.retailShift.findFirst({
-    where: { id: input.shiftId, companyId: input.actor.companyId },
-  });
-  if (!shift) {
-    throw new Error("Shift not found");
-  }
-  if (shift.status !== "OPEN") {
-    throw new Error("Cash can only be moved on an open shift");
-  }
-  if (shift.cashierId !== input.actor.userId && !(input.allowOtherCashiers ?? false)) {
-    throw new Error("Only the shift owner can move cash on this drawer");
-  }
-
-  const reason = input.reason?.trim() || null;
-  // The named reasons stand on their own; `OTHER` is the escape hatch, and an
-  // escape hatch that lets a movement be recorded with no explanation at all is the
-  // unexplained variance this ticket exists to prevent, moved one row over.
-  if (input.reasonCode === "OTHER" && !reason) {
-    throw new Error("Say why the cash moved");
-  }
-
-  const baseCurrency = await getCompanyBaseCurrency(input.actor.companyId);
-  const currency = input.currency?.trim().toUpperCase() || baseCurrency;
-  const amounts = buildCashMovementAmounts({
-    amount: input.amount,
-    // A movement in the company's own currency converts to itself, so a
-    // single-currency shop never has to supply a rate.
-    exchangeRate: currency === baseCurrency ? 1 : (input.exchangeRate ?? 1),
-  });
-  if (amounts.amount.isZero()) {
-    throw new Error("A cash movement needs an amount");
-  }
-
-  // A breakdown that does not add up to the amount is worse than none: the safe log
-  // and the drawer would disagree and the row could not say which was right. The
-  // total is recomputed here rather than trusted, in `Decimal`, and a mismatch is
-  // refused.
-  const countedLines = (input.denominations ?? []).filter((line) => line.count > 0);
-  if (countedLines.length > 0) {
-    const counted = totalFromDenominations(countedLines);
-    if (!counted.equals(amounts.amount)) {
-      throw new Error(
-        `The notes counted come to ${counted.toFixed(2)}, not ${amounts.amount.toFixed(2)}`,
-      );
-    }
-  }
-
-  const delta = cashMovementDelta({ type: input.type, baseAmount: amounts.baseAmount });
-
-  return prisma.$transaction(async (tx) => {
-    const movement = await tx.retailCashMovement.create({
-      data: {
-        companyId: input.actor.companyId,
-        shiftId: shift.id,
-        type: input.type,
-        amount: amounts.amount,
-        currency,
-        exchangeRate: amounts.exchangeRate,
-        baseAmount: amounts.baseAmount,
-        reasonCode: input.reasonCode,
-        reason,
-        // Keyed to this row's own currency, never assumed to be the base one.
-        denominations:
-          countedLines.length > 0 ? { currency, lines: countedLines } : Prisma.DbNull,
-        recordedById: input.actor.userId,
-        recordedByName: resolveCashierName(input.actor),
-      },
-    });
-
-    const updated = await tx.retailShift.updateMany({
-      where: { id: shift.id, companyId: input.actor.companyId, status: "OPEN" },
-      data: { expectedCash: { increment: delta } },
-    });
-    if (updated.count !== 1) {
-      throw new Error("Shift is no longer open.");
-    }
-
-    const refreshed = await tx.retailShift.findFirstOrThrow({
-      where: { id: shift.id, companyId: input.actor.companyId },
-      select: { id: true, shiftNo: true, openingFloat: true, expectedCash: true },
-    });
-
-    // R-3.3. Cash leaving a drawer for the safe is the plainest case for a chain
-    // nobody can edit: the row itself is the only evidence the money moved.
-    await auditCashMoved(tx, {
-      actor: input.actor,
-      movementId: movement.id,
-      shiftId: shift.id,
-      type: movement.type,
-      reasonCode: movement.reasonCode,
-      amount: movement.amount,
-      currency: movement.currency,
-      baseAmount: movement.baseAmount,
-      note: movement.reason,
-    });
-
-    return { movement, shift: refreshed };
-  });
 }
 
 /**

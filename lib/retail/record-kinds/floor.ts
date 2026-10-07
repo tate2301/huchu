@@ -83,6 +83,17 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
   actions: (shift) =>
     shift.status === "OPEN"
       ? [
+          // FLR-03: on a drawer the viewer may move (own `retail.sell`, anybody's with cash control).
+          ...(shift.can.move
+            ? [
+                {
+                  key: "cash-move",
+                  label: "Record cash in or out",
+                  requires: [["retail.sell", "create"], ["retail.cash-control", "update"]],
+                  do: { sheet: "cash-move", id: shift.id },
+                } satisfies RecordAction,
+              ]
+            : []),
           {
             key: "x-report",
             label: "Print X-report",
@@ -99,6 +110,17 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
           },
         ],
   more: (shift) => [
+    // C-06: ADM-02's message sheet, to this shift's cashier.
+    ...(shift.status === "OPEN" && shift.can.message
+      ? [
+          {
+            key: "message",
+            label: "Message the cashier",
+            requires: [["retail.people", "update"]],
+            do: { sheet: "people-message", params: { ids: shift.cashierId } },
+          } satisfies RecordAction,
+        ]
+      : []),
     {
       key: "pdf",
       label: "Export as PDF",
@@ -130,7 +152,13 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
     const moves = cashInOutNote(shift);
     return [
       { label: "Takings", value: formatMoney(shift.takings), lead: formatCount(shift.saleCount), leadTone: "plain", note: salesWords(shift).replace(/^[\d,]+ /, "") },
-      { label: "Opening float", value: formatMoney(shift.openingFloat), lead: formatTime(shift.openedAt), leadTone: "plain", note: "counted in" },
+      {
+        label: "Opening float",
+        value: formatMoney(shift.openingFloat),
+        lead: formatTime(shift.openedAt),
+        leadTone: "plain",
+        note: shift.openingFloatZig > 0 ? `counted in, and ${formatMoney(shift.openingFloatZig, "ZWG")}` : "counted in",
+      },
       { label: "Cash in and out", value: formatMoney(shift.cashMovementNet), lead: moves.lead, leadTone: "plain", note: moves.note },
       { label: "Should be in the drawer", value: formatMoney(shift.expectedCash), lead: formatMoney(shift.cashSales), leadTone: "plain", note: "in cash sales" },
       countedKpi(shift),
@@ -185,7 +213,6 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
     },
     {
       title: "Drawer",
-      // The board's "No-sale opens" row waits until the till records them (98-decisions honest version).
       rows: [
         {
           key: "last-opened",
@@ -193,6 +220,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
           value: shift.lastCashSale ? `${formatTime(shift.lastCashSale.at)}, for ${shift.lastCashSale.saleNo}` : "Not yet",
           muted: !shift.lastCashSale,
         },
+        { key: "no-sale", label: "No-sale opens", value: formatCount(shift.noSaleOpens), mono: true },
       ],
     },
     ...(shift.closedAt

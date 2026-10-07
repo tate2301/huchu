@@ -158,9 +158,9 @@ const shifts: ListSpec = {
     },
   ],
   rowHref: "/retail/shifts/{id}",
-  // The row menu is the floor spec's (C-25, 50-floor 5.4): Open, and the
-  // closed day's Z-report. Its shift actions (cash in or out, count and close,
-  // the X-report, sign-off) arrive with the pages and sheets they open.
+  // The row menu is the floor spec's (C-25, 50-floor 5.4): Open; on an open
+  // shift, Record cash in or out and the X-report (FLR-03); the closed day's
+  // Z-report. Count and close and sign-off arrive with their sheets.
   rowMenu: [
     {
       key: "open",
@@ -170,6 +170,26 @@ const shifts: ListSpec = {
         ["retail.sell", "view"],
       ],
       do: { href: "/retail/shifts/{id}" },
+    },
+    {
+      key: "cash-move",
+      label: "Record cash in or out",
+      requires: [
+        ["retail.cash-control", "update"],
+        ["retail.sell", "create"],
+      ],
+      when: [{ column: "state", op: "is", value: ["Open"] }],
+      do: { href: "/retail/shifts/{id}?sheet=cash-move&id={id}" },
+    },
+    {
+      key: "x-report",
+      label: "Print X-report",
+      requires: [
+        ["retail.cash-control", "view"],
+        ["retail.sell", "open-shift"],
+      ],
+      when: [{ column: "state", op: "is", value: ["Open"] }],
+      do: { open: "/api/v2/retail/records/RetailShift/{id}/pdf?as=x-report" },
     },
     {
       key: "z-report",

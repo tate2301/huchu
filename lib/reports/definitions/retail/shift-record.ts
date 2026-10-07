@@ -49,12 +49,12 @@ const cash: ListSpec = {
     { key: "at", label: "When", kind: "date", cell: "when", width: "150px", align: "start" },
     { key: "what", label: "What", kind: "text", cell: "dot", width: "160px", align: "start" },
     { key: "note", label: "Note", kind: "text", cell: "muted", width: "minmax(0,1fr)", align: "start" },
-    { key: "by", label: "By", kind: "text", cell: "text", width: "140px", align: "start" },
+    { key: "approvedBy", label: "Approved by", kind: "text", cell: "text", width: "150px", align: "start" },
     { key: "amount", label: "Amount", kind: "money", currency: "USD", cell: "diff", diff: "gain", total: "sum", width: "120px", align: "end" },
   ],
   rowHref: "/retail/shifts/{shiftId}",
-  card: { title: "what", figure: "amount", meta: "{by}" },
-  empty: { icon: "Coins", title: "No cash in or out", line: "Drops to the safe, top-ups and payouts on this shift show here." },
+  card: { title: "what", figure: "amount", meta: "{approvedBy}" },
+  empty: { icon: "Coins", title: "No cash in or out", line: "Drops to the safe, petty cash and float top-ups on this shift show here." },
 };
 
 const tenders: ListSpec = {

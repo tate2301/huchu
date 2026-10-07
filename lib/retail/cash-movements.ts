@@ -163,3 +163,15 @@ export function getCashDenominations(
   if (!code) return null;
   return RETAIL_CASH_DENOMINATIONS[code] ?? null;
 }
+
+/**
+ * What a movement was, as the shift's Cash in and out tab and the cash-move
+ * sheet say it (FLR-03): "Drop to the safe", "Petty cash", "Float top-up";
+ * a movement from another reason keeps that reason's label.
+ */
+export function cashMovementWhy(type: RetailCashMovementTypeName, reasonCode: RetailCashMovementReasonCode | null): string {
+  if (type === "DROP_TO_SAFE" && (reasonCode === "CASH_LEVEL_TOO_HIGH" || reasonCode === null)) return "Drop to the safe";
+  if (type === "PAYOUT" && reasonCode === "PETTY_CASH") return "Petty cash";
+  if (type === "FLOAT_TOP_UP" && (reasonCode === "CHANGE_REQUIRED" || reasonCode === null)) return "Float top-up";
+  return reasonCode ? RETAIL_CASH_MOVEMENT_REASON_LABELS[reasonCode] : RETAIL_CASH_MOVEMENT_LABELS[type];
+}

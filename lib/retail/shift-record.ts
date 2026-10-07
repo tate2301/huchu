@@ -1,6 +1,9 @@
 import { money, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { expectedCashForShift, getCashNetFromPayments } from "@/lib/retail/cash-up";
+import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
+import { getCashNetFromPayments, sumCashMovementDeltas } from "@/lib/retail/cash-up";
+import { loadPaymentSettings } from "@/lib/retail/payment-settings";
+import { canRetailSessionDo, type SessionLike } from "@/lib/retail/permission-matrix";
 import { tenderLabel } from "@/lib/retail/words";
 import { DEFAULT_TIME_ZONE, dayKey, formatTime, formatWhen } from "@/lib/workspace/format";
 import { shiftState } from "@/lib/reports/loaders/retail/floor";
@@ -13,9 +16,10 @@ import { shiftState } from "@/lib/reports/loaders/retail/floor";
  *
  * Takings are every sale row on the shift in the base currency: a void is a
  * negative row beside the positive one it cancels, so the rows sum to what the
- * drawer netted. What should be in the drawer is the float, plus cash taken
- * net of change, plus or minus every cash movement, the same sum the close
- * makes (`expectedCashForShift`).
+ * drawer netted. What should be in the drawer is the shift's running
+ * `expectedCash`: the float (dollars, and ZiG at the rate of the morning it
+ * was counted in), plus cash taken net of change, plus or minus every cash
+ * movement — each written as it happens, and what the close counts against.
  */
 export type ShiftRecordView = {
   id: string;
@@ -33,6 +37,8 @@ export type ShiftRecordView = {
   minutesOpen: number;
   notes: string | null;
   openingFloat: number;
+  /** ZiG counted in at opening, in ZiG (FLR-03). */
+  openingFloatZig: number;
   takings: number;
   /** Posted sales; the Sales tab also lists the refunds and voids beside them. */
   saleCount: number;
@@ -50,6 +56,12 @@ export type ShiftRecordView = {
   /** Takings over the time it was open, for the chart: see `takingsOverTime`. */
   takingsOverTime: TakingsOverTime;
   lastCashSale: { saleNo: string; at: string } | null;
+  /** Times the drawer was opened with no sale on this shift (SET-06 records them). */
+  noSaleOpens: number;
+  /** Whether the shop takes ZiG cash, so Cash in or out offers it. */
+  takesZig: boolean;
+  /** What the viewer may do: record cash in or out (open shift, own drawer or cash control), message the cashier. */
+  can: { move: boolean; message: boolean };
 };
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -116,7 +128,13 @@ export function takingsOverTime(
 export async function loadShiftRecord(
   companyId: string,
   id: string,
-  options: { cashierId?: string; now?: Date; timeZone?: string } = {},
+  options: {
+    cashierId?: string;
+    now?: Date;
+    timeZone?: string;
+    /** Who is reading, for `can`; none reads as nobody may act. */
+    viewer?: SessionLike & { user: { id: string } };
+  } = {},
 ): Promise<ShiftRecordView | null> {
   const now = options.now ?? new Date();
   const timeZone = options.timeZone ?? DEFAULT_TIME_ZONE;
@@ -125,7 +143,7 @@ export async function loadShiftRecord(
   });
   if (!shift) return null;
 
-  const [site, sales, movements] = await Promise.all([
+  const [site, sales, movements, noSaleOpens, settings] = await Promise.all([
     prisma.site.findFirst({ where: { id: shift.siteId, companyId }, select: { id: true, name: true } }),
     prisma.retailSale.findMany({
       where: { shiftId: shift.id, companyId },
@@ -147,6 +165,10 @@ export async function loadShiftRecord(
       orderBy: { createdAt: "asc" },
       select: { type: true, baseAmount: true, createdAt: true },
     }),
+    prisma.platformAuditEvent.count({
+      where: { companyId, eventType: RETAIL_AUDIT_EVENTS.drawerOpened, payloadJson: { contains: `"shiftId":"${shift.id}"` } },
+    }),
+    loadPaymentSettings(companyId),
   ]);
 
   const cashSales = sumMoney(
@@ -157,8 +179,7 @@ export async function loadShiftRecord(
       ),
     ),
   );
-  const expected = expectedCashForShift({ openingFloat: shift.openingFloat, cashTakings: cashSales, movements });
-  const movementNet = expected.minus(money(shift.openingFloat)).minus(cashSales);
+  const movementNet = sumCashMovementDeltas(movements);
   const drops = movements.filter((movement) => movement.type === "DROP_TO_SAFE");
 
   const tenders = new Map<string, { amount: number; sales: Set<string> }>();
@@ -192,6 +213,7 @@ export async function loadShiftRecord(
     minutesOpen: Math.max(0, Math.floor((end.getTime() - shift.openedAt.getTime()) / 60_000)),
     notes: shift.notes,
     openingFloat: toNumberOrZero(shift.openingFloat),
+    openingFloatZig: toNumberOrZero(shift.openingFloatZig),
     takings: toNumberOrZero(sumMoney(sales.map((sale) => sale.baseAmount))),
     saleCount: sales.filter((sale) => sale.saleType === "SALE" && sale.status === "POSTED").length,
     refundCount: sales.filter((sale) => sale.saleType === "REFUND").length,
@@ -204,8 +226,7 @@ export async function loadShiftRecord(
       dropTotal: toNumberOrZero(sumMoney(drops.map((drop) => money(drop.baseAmount).abs()))),
       lastDropAt: drops.length ? drops[drops.length - 1]!.createdAt.toISOString() : null,
     },
-    // An open drawer is worked out now; a closed one is what the close stored.
-    expectedCash: status === "OPEN" ? toNumberOrZero(expected) : toNumberOrZero(shift.expectedCash),
+    expectedCash: toNumberOrZero(shift.expectedCash),
     countedCash: shift.countedCash === null ? null : toNumberOrZero(shift.countedCash),
     variance,
     tenders: [...tenders.entries()]
@@ -220,5 +241,16 @@ export async function loadShiftRecord(
     lastCashSale: lastCash
       ? { saleNo: lastCash.saleNo, at: (lastCash.postedAt ?? lastCash.createdAt).toISOString() }
       : null,
+    noSaleOpens,
+    takesZig: settings.tenders.cashZig,
+    can: {
+      move:
+        status === "OPEN" &&
+        Boolean(options.viewer) &&
+        (options.viewer!.user.id === shift.cashierId
+          ? canRetailSessionDo(options.viewer!, "retail.sell", "create")
+          : canRetailSessionDo(options.viewer!, "retail.cash-control", "update")),
+      message: Boolean(options.viewer) && canRetailSessionDo(options.viewer!, "retail.people", "update"),
+    },
   };
 }
