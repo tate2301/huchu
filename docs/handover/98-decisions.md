@@ -290,6 +290,33 @@ Recorded unit choices:
   - **How people paid splits takings, so it leaves out bottle deposits.** A deposit sale's payments hold the deposit
     (the customer paid goods plus deposit) but takings never do; each sale's deposit comes off its largest payments, so
     the tenders sum to the takings they split.
+- **PRD-04 departs from packet 15 in seven places.**
+  - **A category that checks ID checks it for every product in it, at the till too.** `ageCheckFor`
+    (`lib/retail/products/age-check.ts`) now lets the category win over a product's own No, so every till, the shelf
+    listing and the sale routes ask for ID on any product under such a category, whatever the product says. Before,
+    a product's own No beat its 18+ category (PRD-03's "alcohol-free beer under Beer says no for itself"). Both writes
+    refuse No there with "Spirits checks ID for every product in it." under `ageCheck`: the PATCH, and New product
+    (`createProduct`), so no stored No is silently ignored. The Edit sheet's seg still offers No and shows the refusal
+    under the field when it is sent. PRD-03's tests that held the old rule now hold this one:
+    `lib/retail/products/update.test.ts` ("asks ID for every product under a category that checks it, and refuses No
+    there"), `lib/retail/shelf-listing.test.ts` ("asks ID under its 18+ category whatever the product says"),
+    `lib/retail/site-licence-hours.test.ts` ("is always asked under a category that checks"), and
+    `lib/retail/products/create.test.ts` ("refuses No under a category that checks ID, as the PATCH does").
+  - **The chart counts no transfer in as received** (`lib/retail/products/stock-chart.ts`). The packet's received
+    is RECEIVED + TRANSFER_IN + OPENING; a move between two of the shop's sites leaves the product's on hand where
+    it was, so only RECEIVED and OPENING draw a "+24 received" marker and fill the tooltip's received.
+  - **The run-out day is the KPI's cover**: today + `coverDays` (rounded), not today + ceil(on hand ÷ a day's
+    sales), so the chip's "in 6 days" and On hand's "6 days at this rate" never disagree (13 on hand at 64 in 30
+    days is 6.1 days: the board's 6, where ceil would give 7).
+  - **"Most off" leaves the rail.** The board's rail has no such row; the Edit sheet keeps the field.
+  - **Reorder at and Reorder are edited on the record while exactly one site keeps levels for it** and it is the
+    line the record writes (`levelsEditable` in `lib/retail/products/view.ts`); with two or more each reads per site
+    and is changed on its line in On hand. A product stocked at two sites with levels at one stays editable here.
+  - **The Suppliers tab leaves its delivery figures blank until Orders lands.** Deliveries carry no supplier yet
+    (`RetailGoodsReceipt.vendorId` comes with packet 31), so the product's own supplier reads Last delivered, Last
+    cost and Delivered, 12 months empty rather than "0" or "Not delivered yet"; packet 31 fills them.
+  - **The order-by day is a weekday name up to six days ahead and a date from a week on** ("Order 24 by 14
+    October" on a Wednesday 7 October), so the sentence never names today's own weekday for a day a week off.
 
 - **A list's Export stops at 5,000 rows and says so.** The file holds the engine's first 5,000 rows in the list's order
   with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the

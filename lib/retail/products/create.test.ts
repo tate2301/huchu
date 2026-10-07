@@ -43,10 +43,21 @@ async function refusal(promise: Promise<unknown>) {
 
 describe("adding a product", () => {
   it("keeps a product's own ID check and most off when the sheet sends them", async () => {
-    const created = await add({ name: "Savanna Dry Zero 330ml", categoryId: shop.ciderId, price: "1.90", ageCheck: false, maxDiscountPercent: "10" });
+    const created = await add({ name: "Savanna Dry Zero 330ml", price: "1.90", ageCheck: false, maxDiscountPercent: "10" });
     const product = await prisma.product.findUniqueOrThrow({ where: { id: created.productId } });
     expect(product.ageRestricted).toBe(false);
     expect(product.maxDiscountPercent?.toFixed(2)).toBe("10.00");
+  });
+
+  it("refuses No under a category that checks ID, as the PATCH does, and takes Yes", async () => {
+    expect(await refusal(add({ name: "Hunters Dry Zero 330ml", categoryId: shop.ciderId, price: "1.90", ageCheck: false }))).toEqual({
+      status: 400,
+      field: "ageCheck",
+      message: "Ciders and coolers checks ID for every product in it.",
+    });
+    expect(await prisma.product.count({ where: { companyId: shop.companyId, name: "Hunters Dry Zero 330ml" } })).toBe(0);
+    const created = await add({ name: "Hunters Gold 330ml", categoryId: shop.ciderId, price: "1.90", ageCheck: true });
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: created.productId } })).ageRestricted).toBe(true);
   });
 
   it("makes the product, its line at the default site, its price on the default list and its history", async () => {

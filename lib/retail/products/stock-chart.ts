@@ -99,9 +99,9 @@ const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "U
 const DAY_MONTH = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
 const noon = (day: string) => new Date(`${day}T12:00:00Z`);
 
-/** "Monday" within the week, "3 October" further off. */
+/** "Monday" up to six days ahead, "3 October" from a week on: a weekday seven days off would read as today's. */
 export function dayWords(day: string, today: string): string {
-  return daysBetween(today, day) - 1 <= 7 ? WEEKDAY.format(noon(day)) : DAY_MONTH.format(noon(day));
+  return daysBetween(today, day) - 1 < 7 ? WEEKDAY.format(noon(day)) : DAY_MONTH.format(noon(day));
 }
 
 /**

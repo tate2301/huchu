@@ -124,8 +124,8 @@ async function loadPriceHistory(ctx: ReportContext, params: ReportParams) {
 /**
  * The suppliers who deliver it. Deliveries name their supplier once Orders
  * (BUY-02) gives a delivery its `vendorId`; until then the only supplier the
- * product names is its own, so `deliveries` has nothing to group and every
- * figure reads as not delivered yet.
+ * product names is its own, `deliveries` has nothing to group, and its
+ * delivery figures are left blank: not known, rather than none.
  */
 type Delivered = { lastDelivered: Date | null; lastCost: number | null; delivered: number };
 
@@ -149,9 +149,9 @@ async function loadSuppliers(ctx: ReportContext, params: ReportParams) {
         supplierId: vendor.id,
         supplier: vendor.name,
         lastDelivered: figures?.lastDelivered ? dayKey(figures.lastDelivered, ZONE) : null,
-        lastDeliveredText: figures?.lastDelivered ? `Last delivered ${formatMediumDay(figures.lastDelivered, ZONE)}` : "Not delivered yet",
+        lastDeliveredText: figures?.lastDelivered ? `Last delivered ${formatMediumDay(figures.lastDelivered, ZONE)}` : null,
         lastCost: figures?.lastCost ?? null,
-        delivered: figures?.delivered ?? 0,
+        delivered: figures?.delivered ?? null,
         usual: usual ? "Usual" : null,
         usualRank: usual ? 0 : 1,
       };

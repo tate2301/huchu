@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
+import { PRODUCT_REPORTS } from "@/lib/reports/definitions/retail/products";
 import { fetchListPage } from "@/lib/reports/request";
 import type { ListPageResponse } from "@/lib/reports/types";
 import { addTestProduct, defaultListFor, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
@@ -161,15 +162,35 @@ describe("Price history", () => {
 });
 
 describe("Suppliers", () => {
-  it("names its own supplier as the usual one, not delivered yet", async () => {
+  it("names its own supplier as the usual one, its delivery figures blank rather than none", async () => {
     const page = await rows("retail-product-suppliers");
-    expect(page.rows.map((row) => [row.supplier, row.usual, row.delivered, row.lastCost])).toEqual([["Afdis Distillers", "Usual", 0, null]]);
-    expect(page.rows[0]).toMatchObject({ supplierId: afdisId, lastDeliveredText: "Not delivered yet" });
+    expect(page.rows.map((row) => [row.supplier, row.usual, row.delivered, row.lastCost, row.lastDelivered])).toEqual([
+      ["Afdis Distillers", "Usual", null, null, null],
+    ]);
+    expect(page.rows[0]).toMatchObject({ supplierId: afdisId, lastDeliveredText: null });
+    expect(page.totals.delivered ?? null).toBeNull();
   });
 
   it("is refused to roles that may not see what the shop pays, and read by the bookkeeper", async () => {
     expect(await tab("retail-product-suppliers", "CASHIER")).toMatchObject({ status: 403 });
     expect(await tab("retail-product-suppliers", "STOCK_CLERK")).toMatchObject({ status: 403 });
     expect((await rows("retail-product-suppliers", "FINANCE_OFFICER")).total).toBe(1);
+  });
+});
+
+describe("the tabs' columns", () => {
+  // A track's least width: "110px", or the floor of "minmax(80px,1fr)".
+  const least = (width: string | undefined) => Number(/^(?:minmax\()?(\d+)px/.exec(width ?? "")?.[1] ?? 0);
+  const spec = (key: string) => PRODUCT_REPORTS.find((report) => report.key === key)!.list!;
+
+  it("fit the record's main column (776px at 1440), so Total and its Σ are never cut off", () => {
+    for (const key of ["retail-product-sales", "retail-product-price-history", "retail-product-suppliers"]) {
+      const sum = spec(key).columns.reduce((total, column) => total + least(column.width), 0);
+      expect(sum, key).toBeLessThanOrEqual(740);
+    }
+  });
+
+  it("leads nowhere from a price-history row: each is of the product already open", () => {
+    expect(spec("retail-product-price-history").rowHref).toBe("");
   });
 });

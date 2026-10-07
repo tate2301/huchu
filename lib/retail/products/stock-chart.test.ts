@@ -88,6 +88,15 @@ describe("what to order by when", () => {
     });
   });
 
+  it("names the weekday up to six days ahead, and the date from a week on (never today's own weekday)", () => {
+    // Wednesday 7 October.
+    expect(dayWords("2026-10-13", "2026-10-07")).toBe("Tuesday");
+    expect(dayWords("2026-10-14", "2026-10-07")).toBe("14 October");
+    expect(stockAdvice({ perDay: 2, runsOutOn: "2026-10-16", today: "2026-10-07", reorderQty: 24, supplier: afdis })?.sentence).toBe(
+      "Order 24 by 14 October to cover the next two weeks; Afdis delivers in 2 days.",
+    );
+  });
+
   it("without a lead time orders by the run-out day; without a Reorder quantity, two weeks at the rate", () => {
     expect(
       stockAdvice({ perDay: 2.1, runsOutOn: "2026-10-30", today: "2026-10-03", reorderQty: null, supplier: { name: "Delta Beverages", leadTimeDays: null } }),

@@ -8,6 +8,7 @@ import type { ApprovalLimits } from "@/lib/retail/approvals/limits";
 import { defaultPriceList, priceChangeNeedsOwner } from "@/lib/retail/prices/change";
 import { recordOpeningStock } from "@/lib/retail/stock/opening";
 
+import { categoryChecksWords } from "./age-check";
 import { normalizeSku, type ProductInput } from "./input";
 
 /**
@@ -162,6 +163,10 @@ export async function createProduct(
   await lockProductNames(tx, companyId);
   await checkProductUnique(tx, companyId, { name: input.name, barcode: input.barcode ?? null });
   const category = input.categoryId ? await liveCategoryOf(tx, companyId, input.categoryId) : null;
+  // A category that checks ID checks it for every product in it: No is refused here as the PATCH refuses it.
+  if (input.ageCheck === false && category?.ageRestricted) {
+    throw new ProductRefusal(400, categoryChecksWords(category.name), "ageCheck");
+  }
   const supplier = input.supplierId ? await supplierOf(tx, companyId, input.supplierId) : null;
   const site = await stockSiteOf(tx, companyId, input.siteId ?? args.siteId ?? null);
 
