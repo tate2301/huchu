@@ -55,6 +55,38 @@ function stateChip(shift: ShiftRecordView): RecordChip {
   return { label: "Not counted", tone: "warn" };
 }
 
+/** The sign-off's chips (FLR-05): "Signed off", "Recovering US$20.00", or "Being looked into". */
+function signOffChips(shift: ShiftRecordView): RecordChip[] {
+  const decided = shift.signOff;
+  if (!decided) return [];
+  if (decided.outcome === "LOOK_INTO") return [{ label: "Being looked into", tone: "warn" }];
+  if (decided.outcome === "RECOVER") return [{ label: "Signed off", tone: "ok" }, { label: `Recovering ${formatMoney(decided.recover ?? 0)}`, tone: "warn" }];
+  return [{ label: "Signed off", tone: "ok" }];
+}
+
+const SIGN_OFF = ["retail.cash-control", "approve"] as const;
+
+/** "Sign off the difference": the primary and the ⋯ item on a closed drawer that waits for one. */
+const signOffAction = (shift: ShiftRecordView): RecordAction => ({
+  key: "sign-off",
+  label: "Sign off the difference",
+  requires: [[...SIGN_OFF]],
+  do: { sheet: "sign-off", id: shift.id },
+});
+
+function signOffDecision(shift: ShiftRecordView): string {
+  switch (shift.signOff?.outcome) {
+    case "ACCEPT":
+      return "Accepted";
+    case "RECOVER":
+      return `Recovering ${formatMoney(shift.signOff.recover ?? 0)}`;
+    case "LOOK_INTO":
+      return "Being looked into";
+    default:
+      return "Not signed off yet";
+  }
+}
+
 function cashInOutNote(shift: ShiftRecordView): { lead: string; note: string } {
   const { count, drops } = shift.movements;
   if (count === 0) return { lead: "0", note: "none" };
@@ -115,6 +147,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
           },
         ],
   more: (shift) => [
+    ...(shift.needsSignOff ? [signOffAction(shift)] : []),
     // C-06: ADM-02's message sheet, to this shift's cashier.
     ...(shift.status === "OPEN" && shift.can.message
       ? [
@@ -163,9 +196,11 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
           ],
           do: { href: `/retail/shifts/${shift.id}/close` },
         }
-      : null,
+      : shift.needsSignOff
+        ? signOffAction(shift)
+        : null,
   steps,
-  chips: (shift) => [{ label: shift.cashierName, tone: "plain" }, stateChip(shift)],
+  chips: (shift) => [{ label: shift.cashierName, tone: "plain" }, stateChip(shift), ...signOffChips(shift)],
   // A cashier counting her own drawer blind (FLR-04) reads no expected figure: the server sends none.
   figure: (shift) =>
     shift.status === "OPEN"
@@ -272,6 +307,23 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
                 value: shift.close?.toSafe === null || shift.close?.toSafe === undefined ? "—" : formatMoney(shift.close.toSafe),
                 mono: shift.close?.toSafe !== null && shift.close?.toSafe !== undefined,
               },
+            ],
+          },
+        ]
+      : []),
+    ...(shift.signOff || shift.needsSignOff
+      ? [
+          {
+            title: "Sign-off",
+            rows: [
+              { key: "decision", label: "Decision", value: signOffDecision(shift), muted: !shift.signOff },
+              {
+                key: "signed-off-by",
+                label: "By",
+                value: shift.signOff?.by ? `${shift.signOff.by}${shift.signOff.at ? `, ${formatDay(shift.signOff.at)}` : ""}` : "—",
+                muted: !shift.signOff?.by,
+              },
+              { key: "sign-off-note", label: "Note", value: shift.signOff?.note ?? "—", muted: !shift.signOff?.note },
             ],
           },
         ]

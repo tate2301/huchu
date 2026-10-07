@@ -2,6 +2,7 @@ import { fetchJson } from "@/lib/api-client";
 import { approvalWarn } from "@/lib/retail/approver-words";
 import { sentWords } from "@/lib/retail/asks";
 import type { SaleView } from "@/lib/retail/floor/sale-view";
+import { OWN_DRAWER, SIGN_OFF_CARDS, signOffCounted, signOffDay, signOffDifference, signOffDone, signOffTitle } from "@/lib/retail/floor/sign-off-words";
 import type { ShiftRecordView } from "@/lib/retail/shift-record";
 import { floatAmount, shiftOpenedSentence } from "@/lib/retail/shift-open-rules";
 import { formatMoney, formatTime, todayIn, dayKey, formatMediumDay } from "@/lib/workspace/format";
@@ -293,7 +294,71 @@ const saleCustomer: SheetKind = {
   requires: [["retail.sell", "update"]],
 };
 
+/* ── Sign off a short or over drawer (50-floor W-40, SignOff board, FLR-05) ── */
+
+const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
+
+const signOff: SheetKind = {
+  title: (_ctx, values) => String(values._title ?? "Sign off a drawer"),
+  sub: (_ctx, values) => String(values._sub ?? ""),
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        { id: "diff", t: "read", l: "Difference", mono: true, tone: "warn" },
+        { id: "detail", t: "read", l: "Counted" },
+        {
+          id: "do",
+          t: "cards",
+          l: "What happens to it",
+          nolabel: true,
+          cols: 1,
+          o: (values) =>
+            SIGN_OFF_CARDS.filter((card) => card.outcome !== "RECOVER" || values._short === true).map(
+              (card): [string, string] => [card.label, card.sub(String(values._first ?? "the cashier"))],
+            ),
+          needed: "Choose what happens to it.",
+        },
+        { id: "note", t: "area", l: "Note", rows: 2, maxRows: 6, opt: true, optQuiet: true },
+      ],
+    },
+  ],
+  note: (values) => (values._own === true ? OWN_DRAWER : `${String(values._first ?? "The cashier")} sees the sign-off and the note in the app.`),
+  primary: "Sign off",
+  primaryDisabled: (values) => values._own === true,
+  load: async (ctx) => {
+    if (!ctx.id) throw new Error("Open this from a shift.");
+    const shift = (await fetchJson<{ data: ShiftRecordView }>(`/api/v2/retail/shifts/${ctx.id}`)).data;
+    if (!shift.needsSignOff) {
+      throw new Error(shift.signOff ? `${shift.shiftNo} is signed off already.` : `${shift.shiftNo} has nothing to sign off.`);
+    }
+    return {
+      _title: signOffTitle(shift),
+      _sub: [shift.shiftNo, shift.registerName, shift.cashierName, shift.closedAt ? signOffDay(shift.closedAt) : null].filter(Boolean).join(" · "),
+      _short: shift.countedCash !== null && (shift.variance ?? 0) < 0,
+      _first: firstNameOf(shift.cashierName),
+      _cashier: shift.cashierName,
+      _own: shift.cashierId === ctx.user.id && ctx.user.role !== "SUPERADMIN",
+      diff: signOffDifference(shift),
+      detail: signOffCounted(shift),
+    };
+  },
+  done: (result, values) => signOffDone(result as Parameters<typeof signOffDone>[0], String(values._cashier ?? "")),
+  submit: (values, ctx) => {
+    const outcome = SIGN_OFF_CARDS.find((card) => card.label === values.do)?.outcome;
+    const note = typeof values.note === "string" ? values.note.trim() : "";
+    return {
+      method: "POST",
+      url: `/api/v2/retail/shifts/${ctx.id}/sign-off`,
+      body: { ...(outcome ? { outcome } : {}), ...(note ? { note } : {}) },
+    };
+  },
+  invalidate: [["retail-shift"], ["list", "retail-shifts"], ["nav-badges"], ["retail-overview"], ["record-activity"], ["reports"]],
+  requires: [["retail.cash-control", "approve"]],
+};
+
 export const FLOOR_SHEETS: Record<string, SheetKind> = {
+  "sign-off": signOff,
   "shift-open": shiftOpen,
   "cash-move": cashMove,
   "sale-send": saleSend,

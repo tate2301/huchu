@@ -1,5 +1,5 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
-import { formatCount, formatMoney, formatPercent } from "@/lib/workspace/format";
+import { formatCount, formatMoney, formatPercent, formatSigned } from "@/lib/workspace/format";
 
 /**
  * What a record's Activity tab says about each event (00-foundations 5.6.9).
@@ -121,6 +121,14 @@ function shiftClosedWords(payload: Payload): ActivityWords {
   if (variance < 0) return { what: `Counted and closed, short by ${formatMoney(-variance)}`, tone: "bad" };
   if (variance > 0) return { what: `Counted and closed, over by ${formatMoney(variance)}`, tone: "warn" };
   return { what: "Counted and closed, balanced", tone: "ok" };
+}
+
+/** "Signed off: accepted −US$7.15", "Signed off: US$20.00 to recover", "Being looked into" (FLR-05). */
+function shiftSignedOffWords(payload: Payload): ActivityWords {
+  const figure = amount(payload.amount);
+  if (payload.outcome === "RECOVER") return { what: `Signed off: ${formatMoney(Math.abs(figure ?? 0))} to recover`, tone: "warn" };
+  if (payload.outcome === "LOOK_INTO") return { what: "Being looked into", tone: "warn" };
+  return { what: figure === null ? "Signed off: accepted, not counted" : `Signed off: accepted ${formatSigned(figure)}`, tone: "ok" };
 }
 
 function cashMovedWords(payload: Payload): ActivityWords {
@@ -404,6 +412,7 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     tone: "info",
   }),
   [RETAIL_AUDIT_EVENTS.shiftClosed]: shiftClosedWords,
+  [RETAIL_AUDIT_EVENTS.shiftSignedOff]: shiftSignedOffWords,
   // "Opened the drawer without a sale, approved by Tafara Nyathi" (SET-06).
   [RETAIL_AUDIT_EVENTS.drawerOpened]: (payload) => ({
     what: `Opened the drawer without a sale${text(payload.approvedByName) ? `, approved by ${text(payload.approvedByName)}` : ""}`,

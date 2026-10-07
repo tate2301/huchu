@@ -432,6 +432,7 @@ describe("the chain", () => {
       saleVoided: "RETAIL_SALE.VOIDED",
       shiftOpened: "RETAIL_SHIFT.OPENED",
       shiftClosed: "RETAIL_SHIFT.CLOSED",
+      shiftSignedOff: "RETAIL_SHIFT.SIGNED_OFF",
       cashMoved: "RETAIL_CASH.MOVED",
       goodsReceived: "RETAIL_GOODS.RECEIVED",
       movementsReversed: "RETAIL_STOCK.MOVEMENTS_REVERSED",

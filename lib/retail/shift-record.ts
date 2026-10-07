@@ -6,7 +6,7 @@ import { loadPaymentSettings } from "@/lib/retail/payment-settings";
 import { canRetailSessionDo, type SessionLike } from "@/lib/retail/permission-matrix";
 import { tenderLabel } from "@/lib/retail/words";
 import { DEFAULT_TIME_ZONE, dayKey, formatTime, formatWhen } from "@/lib/workspace/format";
-import { shiftState } from "@/lib/reports/loaders/retail/floor";
+import { needsSignOff, shiftState } from "@/lib/reports/loaders/retail/floor";
 
 /**
  * One shift as its record reads it (00-foundations 5.6.10): the drawer's
@@ -55,6 +55,10 @@ export type ShiftRecordView = {
   variance: number | null;
   /** The close (FLR-04): who closed it, what happened, the float left for tomorrow and what went to the safe. */
   close: { byName: string | null; note: string | null; floatLeft: number | null; toSafe: number | null } | null;
+  /** A manager's decision on a drawer that closed out (FLR-05); LOOK_INTO is not final. */
+  signOff: { outcome: "ACCEPT" | "RECOVER" | "LOOK_INTO"; by: string | null; at: string | null; note: string | null; recover: number | null } | null;
+  /** Closed short, over or uncounted, and not yet accepted or recovered. */
+  needsSignOff: boolean;
   tenders: Array<{ tender: string; label: string; amount: number; sales: number }>;
   /** Takings over the time it was open, for the chart: see `takingsOverTime`. */
   takingsOverTime: TakingsOverTime;
@@ -155,7 +159,7 @@ export async function loadShiftRecord(
   const timeZone = options.timeZone ?? DEFAULT_TIME_ZONE;
   const shift = await prisma.retailShift.findFirst({
     where: { id, companyId, ...(options.cashierId ? { cashierId: options.cashierId } : {}) },
-    include: { closedBy: { select: { name: true } } },
+    include: { closedBy: { select: { name: true } }, signedOffBy: { select: { name: true } } },
   });
   if (!shift) return null;
 
@@ -254,6 +258,16 @@ export async function loadShiftRecord(
             toSafe: shift.toSafe === null ? null : toNumberOrZero(shift.toSafe),
           }
         : null,
+    signOff: shift.signOffOutcome
+      ? {
+          outcome: shift.signOffOutcome,
+          by: shift.signedOffBy?.name ?? null,
+          at: shift.signedOffAt?.toISOString() ?? null,
+          note: shift.signOffNote,
+          recover: shift.recoverAmount === null ? null : toNumberOrZero(shift.recoverAmount),
+        }
+      : null,
+    needsSignOff: needsSignOff(shift),
     tenders: [...tenders.entries()]
       .map(([tender, entry]) => ({ tender, label: tenderLabel(tender), amount: cents(entry.amount), sales: entry.sales.size }))
       .sort((a, b) => b.amount - a.amount),

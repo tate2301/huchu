@@ -41,6 +41,8 @@ const shifts: ListSpec = {
         { value: "over", label: "Over", where: [{ column: "state", op: "is", value: ["Over"] }] },
         { value: "not-counted", label: "Not counted", where: [{ column: "state", op: "is", value: ["Not counted"] }] },
         { value: "balanced", label: "Balanced", where: [{ column: "state", op: "is", value: ["Balanced"] }] },
+        // FLR-05: a boolean row value reads "Yes" to the filter engine.
+        { value: "needs-sign-off", label: "Needs sign-off", where: [{ column: "needsSignOff", op: "is", value: ["Yes"] }] },
       ],
     },
     { key: "opened", label: "Opened", type: "period", any: "Any time", column: "openedAt", default: "30d" },
@@ -201,6 +203,13 @@ const shifts: ListSpec = {
       ],
       when: [{ column: "state", op: "is", value: ["Open"] }],
       do: { open: "/api/v2/retail/records/RetailShift/{id}/pdf?as=x-report" },
+    },
+    {
+      key: "sign-off",
+      label: "Sign off the difference",
+      requires: [["retail.cash-control", "approve"]],
+      when: [{ column: "needsSignOff", op: "is", value: ["Yes"] }],
+      do: { href: "/retail/shifts/{id}?sheet=sign-off&id={id}" },
     },
     {
       key: "z-report",

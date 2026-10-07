@@ -83,6 +83,22 @@ export function shiftState(shift: {
   return "Balanced";
 }
 
+/**
+ * Whether a shift waits for a manager's sign-off: closed out (short or over)
+ * or closed without a count, and not yet accepted or recovered.
+ */
+export function needsSignOff(shift: {
+  status: string;
+  countedCash: unknown;
+  variance: { toString(): string } | number | null;
+  signOffOutcome: string | null;
+}): boolean {
+  if (shift.status !== "CLOSED") return false;
+  if (shift.signOffOutcome !== null && shift.signOffOutcome !== "LOOK_INTO") return false;
+  const uncounted = shift.countedCash === null || shift.countedCash === undefined || shift.variance === null;
+  return uncounted || Number(String(shift.variance)) !== 0;
+}
+
 async function loadShifts(ctx: ReportContext, _params: ReportParams, face: "list" | "report" = "list") {
   const now = new Date();
   const timeZone = DEFAULT_TIME_ZONE;
@@ -101,6 +117,7 @@ async function loadShifts(ctx: ReportContext, _params: ReportParams, face: "list
         closedAt: true,
         countedCash: true,
         variance: true,
+        signOffOutcome: true,
         openingFloat: true,
         expectedCash: true,
         siteId: true,
@@ -136,6 +153,8 @@ async function loadShifts(ctx: ReportContext, _params: ReportParams, face: "list
         takings: Math.round((figures.takings.get(shift.id) ?? 0) * 100) / 100,
         variance: state === "Not counted" ? null : variance,
         varianceSize: state === "Not counted" || variance === null ? null : Math.abs(variance),
+        // FLR-05: closed out or uncounted, and not yet accepted or recovered.
+        needsSignOff: needsSignOff(shift),
         // The phone card's last words: how long it has run ("live" while it is
         // still a shift, not a drawer left open from another day), or the day it ran.
         // Reports' face (70-insights-reports 5.14).

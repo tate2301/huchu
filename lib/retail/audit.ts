@@ -69,6 +69,8 @@ export const RETAIL_AUDIT_EVENTS = {
   shiftOpened: "RETAIL_SHIFT.OPENED",
   /** A drawer cashed up. Carries expected, counted and the variance between. */
   shiftClosed: "RETAIL_SHIFT.CLOSED",
+  /** A manager's decision on a drawer that closed out: accepted, to recover from the cashier, or being looked into (FLR-05). */
+  shiftSignedOff: "RETAIL_SHIFT.SIGNED_OFF",
   /** Cash to the safe, a float top-up, or a payout. */
   cashMoved: "RETAIL_CASH.MOVED",
   /** A delivery booked in against a purchase order. */

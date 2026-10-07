@@ -577,7 +577,7 @@ async function tellManagers(companyId: string, closerId: string, shift: ClosingS
     summary: `${shift.registerName} · ${shift.cashierName}. Sign it off on the overview.`,
     entityType: "RETAIL_SHIFT",
     entityId: shift.id,
-    viewPath: `/retail/shifts/${shift.id}`,
+    viewPath: `/retail/shifts/${shift.id}?sheet=sign-off&id=${shift.id}`,
     severity: "WARNING",
   });
 }
