@@ -174,12 +174,19 @@ export type ReportLoader = {
    * The name of the record a `parent` filter scopes the list to ("Amarula Cream 750ml"), and for a
    * page about that record the words under it ("Default price list · all tills · all sites").
    */
-  parentLabel?: (ctx: ReportContext, filters: Record<string, string>) => Promise<string | { label: string; sub: string | null } | null>;
+  parentLabel?: (ctx: ReportContext, filters: Record<string, string>) => Promise<string | ParentNamed | null>;
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
    The view
    ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The record a parent filter scopes a list to, as its loader names it: the
+ * header's title and sub, and `facts` the actions' `whenParent` ask about
+ * ("isDefault": "Yes" hides Remove from this list on the default list).
+ */
+export type ParentNamed = { label: string; sub: string | null; facts?: Record<string, string> };
 
 export const CONDITION_OPS = ["is", "isNot", "contains", "gt", "lt", "between", "empty", "notEmpty"] as const;
 export type ConditionOp = (typeof CONDITION_OPS)[number];
@@ -275,6 +282,11 @@ export type ListColumn = ReportColumn & {
   totalSuffix?: string;
   /** num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target). */
   pillKey?: string;
+  /**
+   * num: worked out again in the browser while the list's edited column is typed: `margin` is
+   * (typed − cost) ÷ typed with its pill tone against the row's target (`lib/reports/margin.ts`).
+   */
+  derive?: { kind: "margin"; from: string; costKey: string; targetKey: string };
   /** num: always signed ("+40", "−1"); `gain` also colours a rise `--ok`, without a pill. */
   sign?: "plain" | "gain";
   /**
@@ -387,12 +399,18 @@ export type ListAction = {
   requires: ListGrant[];
   /** Row menu: only for rows that match. Bulk: only while every ticked row matches ("Switch on" for paused lists). */
   when?: Condition[];
+  /** Only while the record the list is scoped to matches, asked of its `facts` (not on the default price list). */
+  whenParent?: Condition[];
   /** Bulk: only on these tabs ("Sell them again" on Archived). */
   tabs?: string[];
   /** Dropped while the company has one open site ("Move to another site"). */
   sites?: "multi-site";
   do:
-    | { sheet: string }
+    /**
+     * A sheet over the list with the rows' ids; `with` adds to its address, its `{key}` holes filled
+     * from the list's filters (`{ list: "{list}", how: "RAISE" }` on a worksheet).
+     */
+    | { sheet: string; with?: Record<string, string> }
     /**
      * A row's link, or for a bulk action a link built from the ticked rows:
      * `{min:key}` and `{max:key}` are the smallest and largest of that column.
@@ -450,7 +468,7 @@ export type EmptyGuideSpec = {
    * `requires` offers it, as with the list's own primary; a caller with none
    * of them sees the guide without the button.
    */
-  primary?: { label: string; sheet?: string; href?: string; requires: ListGrant[] };
+  primary?: { label: string; sheet?: string; href?: string; requires: ListGrant[]; idFrom?: string };
   secondary?: { label: string; href: string; requires: ListGrant[] };
 };
 
@@ -492,7 +510,8 @@ export type ListSpec = {
   rowHref: RowTemplate;
   rowMenu?: ListAction[];
   bulk?: Array<ListAction | { key: "export" }>;
-  primary?: { label: string; icon?: "plus"; requires: ListGrant[]; sheet?: string; href?: string };
+  /** `idFrom`: the parent filter whose value the sheet opens on (Add products to this list). */
+  primary?: { label: string; icon?: "plus"; requires: ListGrant[]; sheet?: string; href?: string; idFrom?: string };
   /**
    * A link in the header after the title (and the sub): a sheet over the list ("Who can do what").
    * `requires`: drawn only for a caller with any of these. `idFrom`: the parent filter whose
@@ -511,8 +530,27 @@ export type ListSpec = {
     /** A button on the card doing this row menu action ("Restore"), when the row's menu offers it. */
     action?: string;
   };
+  /** The empty guide's title and line may say `{parent}`: the record the list is scoped to ("Nothing is on Wholesale yet"). */
   empty: EmptyGuideSpec;
-  edit?: { column: string; endpoint: string; changedLabel: string; note: string; save: string };
+  /**
+   * A list whose job is typing values (a price list's worksheet, 5.4.10): the column's cells are
+   * inputs for a caller with any of `requires`, and read as money for anyone else. `endpoint` is
+   * PATCHed `{ changes: [{ id, value }] }`; its `{key}` holes are filled from the parent filters.
+   * `done` is the toast: `{n}` the count, `{s}` "s" and `{them}` "them" unless one. `changedColumn` reads "Not saved"
+   * on a row typed in and not yet saved.
+   */
+  edit?: {
+    column: string;
+    endpoint: string;
+    changedLabel: string;
+    note: string;
+    save: string;
+    done: string;
+    changedColumn?: string;
+    /** On a phone the cards carry no inputs: tapping the figure opens this one-field sheet for the row. */
+    sheet?: string;
+    requires: ListGrant[];
+  };
   /** Links under Export's formats, after a separator: other ways in ("Import a spreadsheet"). */
   exportExtras?: Array<{ label: string; href: string; requires: ListGrant[] }>;
   /** Refetched this often while open, for rows whose state changes on its own (a till going offline). */
@@ -524,8 +562,9 @@ export type ListSpec = {
  * scoping rule; only the columns, filters and actions that role has; choice
  * options resolved for the company.
  */
-export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty" | "subLink"> & {
+export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty" | "subLink" | "edit"> & {
   primary: Omit<NonNullable<ListSpec["primary"]>, "requires"> | null;
+  edit?: Omit<NonNullable<ListSpec["edit"]>, "requires">;
   subLink?: Omit<NonNullable<ListSpec["subLink"]>, "requires">;
   empty: EmptyGuidePublic;
   exportExtras?: Array<{ label: string; href: string }>;
@@ -631,7 +670,7 @@ export type ListPageResponse = ListPageResult & {
    * The record a parent filter scopes the list to, named by the loader: the header sub (or, for a
    * page about that record, its title and `sub`), and with `all` the link that clears it.
    */
-  parent: { key: string; label: string; sub: string | null; all: string | null } | null;
+  parent: { key: string; label: string; sub: string | null; all: string | null; facts: Record<string, string> } | null;
   query: ResolvedListQuery;
   size: number;
 };

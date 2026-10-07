@@ -3,7 +3,7 @@
 import type { ListAction, ReportRow } from "@/lib/reports/types";
 import { fillTemplate } from "@/lib/reports/actions";
 
-import { bulkHref } from "./model";
+import { bulkHref, fillFromFilters } from "./model";
 
 /**
  * Doing a row or bulk action (00-foundations 5.4.2 `ListAction`, F-2): the
@@ -78,11 +78,22 @@ export async function runAction(
   action: ListAction,
   ids: string[],
   rows: ReportRow[],
-  where: { pathname: string; search: string },
+  where: { pathname: string; search: string; filters?: Record<string, string> },
 ): Promise<ActionOutcome> {
   const how = action.do;
 
-  if ("sheet" in how) return { kind: "navigate", href: sheetHref(where.pathname, where.search, how.sheet, ids) };
+  if ("sheet" in how) {
+    const href = sheetHref(where.pathname, where.search, how.sheet, ids);
+    if (!how.with) return { kind: "navigate", href };
+    // More of the sheet's address, from the list's own filters (the worksheet's list).
+    const [path, query] = href.split("?");
+    const params = new URLSearchParams(query);
+    for (const [key, template] of Object.entries(how.with)) {
+      const value = fillFromFilters(template, where.filters ?? {});
+      if (value !== null) params.set(key, value);
+    }
+    return { kind: "navigate", href: `${path}?${params.toString()}` };
+  }
 
   if ("href" in how) {
     const template = Array.isArray(how.href) ? how.href[0]! : how.href;

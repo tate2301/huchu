@@ -18,7 +18,7 @@ import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/produc
 let shop: TestShop;
 let listId: string;
 
-const COST_FIELDS = ["cost", "margin", "marginTone", "underCost", "profit", "pricedCost"];
+const COST_FIELDS = ["cost", "margin", "marginTone", "targetMargin", "underCost", "profit", "pricedCost"];
 
 const session = (role: string) =>
   ({

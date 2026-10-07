@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import type { PosDevice } from "@/lib/retail/devices";
+import { formatMoney } from "@/lib/workspace/format";
 
 import { labelData, type Label, type LabelShow, type LabelSize } from "./data";
 import { A4_ON_TILL_MESSAGE, COPIES_MESSAGE, MAX_LABELS, printerName, SHOW_MESSAGE, TOO_MANY_MESSAGE } from "./words";
@@ -27,6 +28,12 @@ export type LabelsInput = {
   show: LabelShow;
   copies: number;
   printer: LabelPrinter;
+  /**
+   * Change many prices (PRD-07): each product's own copies, at the price it
+   * will have, in place of `copies` and today's price. A drop prints today's
+   * price as the was.
+   */
+  lines?: Array<{ productId: string; copies: number; price: number }>;
 };
 
 export const labelsInputSchema = z
@@ -93,7 +100,8 @@ export async function printLabels(actor: RetailAuditActor, input: LabelsInput, n
     throw new LabelRefusal(A4_ON_TILL_MESSAGE, 400, { size: A4_ON_TILL_MESSAGE });
   }
   const till = input.printer === "here" ? null : await tillPrinter(actor.companyId, input.printer);
-  const { labels } = await labelData(actor.companyId, { productIds: input.productIds, show: input.show, copies: input.copies, at: now });
+  const read = await labelData(actor.companyId, { productIds: input.productIds, show: input.show, copies: input.copies, at: now });
+  const labels = input.lines ? asChanged(read.labels, input.lines, input.show) : read.labels;
   if (labels.length === 0) throw new LabelRefusal("Product not found", 404);
   const printer = till?.name ?? "here";
 
@@ -117,13 +125,32 @@ export async function printLabels(actor: RetailAuditActor, input: LabelsInput, n
         eventType: RETAIL_AUDIT_EVENTS.labelsPrinted,
         entityType: "Product",
         entityId: label.productId,
-        payload: { size: input.size, copies: input.copies, printer, jobId: created.id },
+        payload: { size: input.size, copies: label.copies, printer, jobId: created.id },
       });
     }
     return created;
   });
   const unpriced = input.show.price ? labels.filter((label) => label.price === null).map((label) => label.name) : [];
-  return { jobId: job.id, count: labels.length * input.copies, printer, unpriced, notFound: new Set(input.productIds).size - labels.length };
+  const count = labels.reduce((total, label) => total + label.copies, 0);
+  return { jobId: job.id, count, printer, unpriced, notFound: new Set(input.productIds).size - labels.length };
+}
+
+/** The labels at the prices they are changing to, each with its own copies; a line of none prints nothing. */
+function asChanged(labels: Label[], lines: NonNullable<LabelsInput["lines"]>, show: LabelShow): Label[] {
+  const byId = new Map(lines.map((line) => [line.productId, line]));
+  return labels.flatMap((label) => {
+    const line = byId.get(label.productId);
+    if (!line || line.copies <= 0) return [];
+    const today = label.price === null ? null : Number(label.price.replace(/[^\d.]/g, ""));
+    return [
+      {
+        ...label,
+        copies: line.copies,
+        price: show.price ? formatMoney(line.price) : null,
+        was: show.was && today !== null && line.price < today ? label.price : null,
+      },
+    ];
+  });
 }
 
 /**

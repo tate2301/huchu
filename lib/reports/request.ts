@@ -27,6 +27,7 @@ import {
   type ListPageResponse,
   type ListPageResult,
   type ListQuery,
+  type ParentNamed,
   type ListSpec,
   type ReportContext,
   type ReportDefinition,
@@ -125,7 +126,7 @@ type OpenList = {
   resolved: ResolvedListQuery;
   rows: () => Promise<ReportLoadResult>;
   page: ((query: ResolvedListQuery) => Promise<ListPageResult>) | null;
-  parentLabel: ((filters: Record<string, string>) => Promise<string | { label: string; sub: string | null } | null>) | null;
+  parentLabel: ((filters: Record<string, string>) => Promise<string | ParentNamed | null>) | null;
 };
 
 /** Whether a source has a column or filter that only a company with two open sites sees. */
@@ -266,8 +267,8 @@ async function parentOf(opened: OpenList): Promise<ListPageResponse["parent"]> {
   if (!filter || !opened.parentLabel) return null;
   const named = await opened.parentLabel(opened.resolved.filters);
   if (!named) return null;
-  const { label, sub } = typeof named === "string" ? { label: named, sub: null } : named;
-  return { key: filter.key, label, sub, all: filter.all ?? null };
+  const { label, sub, facts } = typeof named === "string" ? { label: named, sub: null, facts: undefined } : named;
+  return { key: filter.key, label, sub, all: filter.all ?? null, facts: facts ?? {} };
 }
 
 /** Every matching id, for "Select all <n>". */

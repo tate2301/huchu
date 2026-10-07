@@ -123,8 +123,11 @@ const priceList: LookupNoun = {
   ],
   async search(ctx, q, context) {
     const needle = q.toLowerCase();
-    const { options } = await priceListOptions(ctx.companyId);
-    const found = options.map((option) => ({ id: option.id, label: option.name, sub: option.sub }));
+    const { options, defaultId } = await priceListOptions(ctx.companyId);
+    // `context.notDefault`: a list products can be added to (Add to a price list); every product is on the default.
+    const found = options
+      .filter((option) => !(context.notDefault === true && option.id === defaultId))
+      .map((option) => ({ id: option.id, label: option.name, sub: option.sub }));
     if (context.withCost === true) found.push({ id: "cost", label: "Cost", sub: "What each product costs" });
     return found.filter((option) => !needle || option.label.toLowerCase().includes(needle));
   },

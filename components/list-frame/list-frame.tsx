@@ -52,6 +52,7 @@ import {
   selectionTotals,
   shownColumns,
 } from "./model";
+import { countTemplate, fillFromFilters, leaveAsk, typedRow } from "./model";
 import { SaveBar } from "./save-bar";
 import { SelectionBar } from "./selection-bar";
 import { TotalsBand } from "./totals-band";
@@ -146,7 +147,16 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   // Nothing from a cache until mounted, so the first render matches the server's.
   const data = address.ready ? listQuery.data : undefined;
   const resolved = data?.query ?? null;
-  const spec = React.useMemo(() => pageSpec(data?.report.list ?? null, rowFilters), [data?.report.list, rowFilters]);
+  const parentFacts = data?.parent?.facts;
+  const spec = React.useMemo(() => {
+    const page = pageSpec(data?.report.list ?? null, rowFilters);
+    if (!page) return page;
+    // Actions offered only while the record the list is scoped to matches (not on the default price list).
+    const facts: ReportRow = { id: "parent", ...(parentFacts ?? {}) };
+    const fits = (action: { whenParent?: ListAction["whenParent"] } | { key: "export" }) =>
+      !("whenParent" in action) || !action.whenParent || rowMatches(facts, [], action.whenParent);
+    return { ...page, rowMenu: page.rowMenu?.filter(fits), bulk: page.bulk?.filter(fits) };
+  }, [data?.report.list, parentFacts, rowFilters]);
   // Columns the page already says (the area of an area page, the grouped column) are not drawn on every row.
   const implied = React.useMemo(() => impliedColumns(spec, resolved), [resolved, spec]);
   const definition = React.useMemo(() => getReportDefinition(source), [source]);
@@ -342,6 +352,12 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
   const editSpec = spec?.edit ?? null;
   const dirty = edits.size > 0;
+  // The rows as typed: the figure, its derived margin and pill, and "Not saved", until saved or discarded.
+  const shownRows = React.useMemo(
+    () => (editSpec && edits.size ? rows.map((row) => typedRow(row, edits.get(row.id), spec?.columns ?? [], editSpec)) : rows),
+    [editSpec, edits, rows, spec?.columns],
+  );
+  const originalRow = React.useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows]);
   React.useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -364,9 +380,11 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
 
   const saveEdits = async () => {
     if (!editSpec) return;
+    const endpoint = fillFromFilters(editSpec.endpoint, resolved?.filters ?? {});
+    if (!endpoint) return;
     setSaving(true);
     try {
-      const response = await fetch(editSpec.endpoint, {
+      const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ changes: [...edits].map(([id, value]) => ({ id, value })) }),
@@ -376,15 +394,14 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
         const body = (await response.json().catch(() => null)) as { error?: string; details?: { rows?: Array<{ id: string; message: string }> } } | null;
         const refused = body?.details?.rows ?? [];
         setRefusedEdits(new Map(refused.map((entry) => [entry.id, entry.message])));
-        toast({
-          title: refused.length ? `${refused.length} ${editSpec.changedLabel.replace(/ changed$/, "")} were not saved.` : (body?.error ?? "Nothing was saved."),
-          variant: "destructive",
-        });
+        // The server's sentence: "1 price was not saved."
+        toast({ title: body?.error ?? "Nothing was saved.", variant: "destructive" });
         return;
       }
+      const count = edits.size;
       setEdits(new Map());
       setRefusedEdits(new Map());
-      toast({ title: "Saved.", variant: "success" });
+      toast({ title: countTemplate(editSpec.done, count), variant: "success" });
       await queryClient.invalidateQueries({ queryKey: ["list", source] });
     } finally {
       setSaving(false);
@@ -402,7 +419,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
     const how = action.do;
     if (!("endpoint" in how)) return;
     const run = "run" in how ? LIST_ACTION_RUNS[how.run] : undefined;
-    const endpoint = runEndpoint(how.endpoint, targetRows);
+    const endpoint = runEndpoint(fillFromFilters(how.endpoint, resolved?.filters ?? {}) ?? how.endpoint, targetRows);
     if (!endpoint) throw new Error("That did not work. Nothing was changed; try again.");
     const response = await fetch(endpoint, {
       method: run?.method ?? "POST",
@@ -445,7 +462,11 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
       return;
     }
     try {
-      const outcome = await runAction(action, ids, targetRows, { pathname, search: searchParams.toString() });
+      const outcome = await runAction(action, ids, targetRows, {
+        pathname,
+        search: searchParams.toString(),
+        filters: resolved?.filters ?? {},
+      });
       if (outcome.kind === "navigate") router.push(outcome.href);
       else if (outcome.kind === "done" && outcome.toast) toast(outcome.toast);
     } catch (error) {
@@ -504,17 +525,24 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
 
   // ── The header ───────────────────────────────────────────────────────
   const primarySpec = spec?.primary ?? null;
+  // A primary about the record the list is scoped to opens its sheet on it (Add products to this list).
+  const primaryId = primarySpec?.idFrom ? (resolved?.filters[primarySpec.idFrom] ?? null) : null;
+  const addressSearch = searchParams.toString();
   const primary = React.useMemo<PagePrimary | null>(
     () =>
       primarySpec
         ? {
             label: primarySpec.label,
             ...(primarySpec.icon ? { icon: primarySpec.icon } : {}),
-            ...(primarySpec.sheet ? { sheet: primarySpec.sheet } : {}),
+            ...(primarySpec.sheet && primaryId
+              ? { href: sheetHref(pathname, addressSearch, primarySpec.sheet, [primaryId]) }
+              : primarySpec.sheet
+                ? { sheet: primarySpec.sheet }
+                : {}),
             ...(primarySpec.href ? { href: primarySpec.href } : {}),
           }
         : null,
-    [primarySpec],
+    [addressSearch, pathname, primaryId, primarySpec],
   );
 
   const refusal = listQuery.error instanceof ApiError && listQuery.error.status === 403;
@@ -566,9 +594,14 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const firstLoad = !data && !listQuery.error;
   const loadError = !data && listQuery.error ? getApiErrorMessage(listQuery.error, "") : null;
   const stale = listQuery.isPlaceholderData || (listQuery.isFetching && !listQuery.isPending);
-  const emptyHref = spec?.empty.primary?.sheet
-    ? sheetHref(pathname, searchParams.toString(), spec.empty.primary.sheet, [])
-    : (spec?.empty.primary?.href ?? null);
+  const emptyPrimary = spec?.empty.primary;
+  const emptyId = emptyPrimary?.idFrom ? (resolved?.filters[emptyPrimary.idFrom] ?? null) : null;
+  const emptyHref = emptyPrimary?.sheet
+    ? sheetHref(pathname, searchParams.toString(), emptyPrimary.sheet, emptyId ? [emptyId] : [])
+    : (emptyPrimary?.href ?? null);
+  // "Nothing is on Wholesale yet": the guide names the record the list is scoped to.
+  const named = (words: string) => words.replace(/\{parent\}/g, parent?.label ?? "this list");
+  const emptyGuide = spec ? { ...spec.empty, title: named(spec.empty.title), line: named(spec.empty.line) } : null;
   const selectedTotals =
     tickCount > 0
       ? { count: tickCount, totals: all ? (data?.totals ?? {}) : selectionTotals(spec?.columns ?? [], selectedRows) }
@@ -655,13 +688,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
       ) : null}
       {leaveTo ? (
         <ConfirmDialog
-          ask={{
-            title: "Leave without saving?",
-            body: `${edits.size} ${edits.size === 1 ? "change" : "changes"} on ${title} are not saved.`,
-            keep: "Keep editing",
-            go: "Discard changes",
-            fill: "bad",
-          }}
+          ask={leaveAsk(edits.size, scope ? (parent?.label ?? title) : title)}
           open
           onOpenChange={(open) => !open && setLeaveTo(null)}
           onConfirm={() => {
@@ -707,7 +734,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
         ) : null}
         {everEmpty && spec ? (
           <div className="cx-lf-cards">
-            <EmptyGuide guide={spec.empty} primaryHref={emptyHref} />
+            <EmptyGuide guide={emptyGuide ?? spec.empty} primaryHref={emptyHref} />
           </div>
         ) : loadError !== null ? (
           <LoadError noun={definition?.list?.noun ?? "rows"} message={loadError} onRetry={() => listQuery.refetch()} />
@@ -716,13 +743,22 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
         ) : spec ? (
           <ListCards
             spec={spec}
-            rows={rows}
+            rows={shownRows}
             groups={data?.groups ?? null}
             groupKey={groupKey}
             ticked={ticked}
             selecting={tickCount > 0}
             onTick={(row) => setTicks([row], !ticked(row.id))}
             onAction={(action, row) => act(action, [row.id], [row])}
+            onFigure={
+              editSpec?.sheet
+                ? (row) => {
+                    // The one-field sheet, on the record the list is scoped to (the price list).
+                    const href = sheetHref(pathname, searchParams.toString(), editSpec.sheet!, [row.id]);
+                    router.push(scope ? `${href}&${scope.key}=${encodeURIComponent(scope.value)}` : href);
+                  }
+                : undefined
+            }
             scrollRef={scrollRef}
             onScroll={onScroll}
           />
@@ -794,7 +830,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
         {stale && !firstLoad ? <div className="cx-lf-progress" aria-hidden="true" /> : null}
         <div className="cx-lf-scroll" ref={scrollRef} onScroll={onScroll}>
           {everEmpty && spec ? (
-            <EmptyGuide guide={spec.empty} primaryHref={emptyHref} />
+            <EmptyGuide guide={emptyGuide ?? spec.empty} primaryHref={emptyHref} />
           ) : (
             <ListTable
               title={title}
@@ -804,7 +840,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
               minWidth={minWidth}
               total={total ?? 0}
               sort={resolved?.sort ?? ""}
-              rows={rows}
+              rows={shownRows}
               groups={data?.groups ?? null}
               groupKey={groupKey}
               folded={folded}
@@ -826,13 +862,14 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
               edit={
                 editSpec
                   ? {
-                      value: (row) => edits.get(row.id) ?? String(row[editSpec.column] ?? ""),
+                      value: (row) => edits.get(row.id) ?? savedValue(originalRow.get(row.id) ?? row, editSpec.column),
                       changed: (row) => edits.has(row.id),
                       refused: (row) => refusedEdits.get(row.id) ?? null,
+                      changedColumn: editSpec.changedColumn,
                       onChange: (row, value) =>
                         setEdits((current) => {
                           const next = new Map(current);
-                          if (value === String(row[editSpec.column] ?? "")) next.delete(row.id);
+                          if (value === savedValue(originalRow.get(row.id) ?? row, editSpec.column)) next.delete(row.id);
                           else next.set(row.id, value);
                           return next;
                         }),
@@ -906,6 +943,12 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
       )}
     </div>
   );
+}
+
+/** A saved figure as its input shows it: "18.25", two decimals for money. */
+function savedValue(row: ReportRow, key: string): string {
+  const value = row[key];
+  return typeof value === "number" ? value.toFixed(2) : String(value ?? "");
 }
 
 /** Before the first answer: the source's own columns, nothing a role might not have. */

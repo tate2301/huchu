@@ -119,7 +119,9 @@ const productSelect = {
 /**
  * Products (PRD-03): live products on sale, by name, code or barcode, an
  * exact barcode first. `context.singles` leaves out cases; `context.listId`
- * leaves out those already on that list. A role that may see cost gets each
+ * leaves out those already on that list, `context.onList` offers only those on
+ * it (Change many prices' add row); `context.ids` offers only those products
+ * (a sheet opened on ticked rows names them). A role that may see cost gets each
  * one's cost. The quick add makes a product on sale with a name and a price
  * at the default site, in no category.
  */
@@ -135,12 +137,17 @@ const product: LookupNoun = {
   async search(ctx, q, context) {
     const needle = q.trim();
     const listId = typeof context.listId === "string" ? context.listId : null;
+    const onList = typeof context.onList === "string" ? context.onList : null;
+    const ids = Array.isArray(context.ids) ? context.ids.filter((id): id is string => typeof id === "string").slice(0, 500) : null;
     const where: Prisma.ProductWhereInput = {
       companyId: ctx.companyId,
       archivedAt: null,
       isActive: true,
       ...(context.singles ? { packOfId: null } : {}),
-      ...(listId ? { prices: { none: { priceListId: listId } } } : {}),
+      ...(ids ? { id: { in: ids } } : {}),
+      ...(listId && onList ? { AND: [{ prices: { none: { priceListId: listId } } }, { prices: { some: { priceListId: onList } } }] } : {}),
+      ...(listId && !onList ? { prices: { none: { priceListId: listId } } } : {}),
+      ...(onList && !listId ? { prices: { some: { priceListId: onList } } } : {}),
       ...(needle
         ? {
             OR: [
@@ -151,7 +158,7 @@ const product: LookupNoun = {
           }
         : {}),
     };
-    const rows = await prisma.product.findMany({ where, orderBy: { name: "asc" }, take: 200, select: productSelect });
+    const rows = await prisma.product.findMany({ where, orderBy: { name: "asc" }, take: ids ? 500 : 200, select: productSelect });
     const lower = needle.toLowerCase();
     const digits = needle.replace(/ /g, "");
     const rank = (row: (typeof rows)[number]) => {

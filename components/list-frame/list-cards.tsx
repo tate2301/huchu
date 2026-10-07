@@ -65,6 +65,7 @@ export function ListCards({
   selecting,
   onTick,
   onAction,
+  onFigure,
   scrollRef,
   onScroll,
 }: {
@@ -79,6 +80,8 @@ export function ListCards({
   onTick: (row: ReportRow) => void;
   /** The card's own button (`card.action`), doing that row menu action. */
   onAction: (action: ListAction, row: ReportRow) => void;
+  /** Tapping the figure: the list's one-field edit sheet for the row (a price on the worksheet). */
+  onFigure?: (row: ReportRow) => void;
   scrollRef: React.Ref<HTMLDivElement>;
   onScroll: () => void;
 }) {
@@ -156,7 +159,23 @@ export function ListCards({
               {figureColumn ? badgeEl : null}
             </span>
             {/* A card without a figure carries its badge at the right instead (People, Tills). */}
-            <span className="cx-lf-card__fig">{figureColumn ? cellText(figureColumn, row) : badgeEl}</span>
+            {onFigure && figureColumn && !selecting ? (
+              <button
+                type="button"
+                className="cx-lf-card__fig cx-lf-card__fig--edit"
+                aria-label={`Change the ${figureColumn.label.toLowerCase()} of ${titleColumn ? cellText(titleColumn, row) : row.id}`}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onFigure(row);
+                }}
+              >
+                {cellText(figureColumn, row)}
+              </button>
+            ) : (
+              <span className="cx-lf-card__fig">{figureColumn ? cellText(figureColumn, row) : badgeEl}</span>
+            )}
             <span className="cx-lf-card__meta">{fillTemplate(spec.card.meta, row, false) ?? ""}</span>
             <span className="cx-lf-card__fig2">
               {figure2Column ? (

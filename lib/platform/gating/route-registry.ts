@@ -462,6 +462,8 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/inventory/locations", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/v2/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/v2/retail/price-lists", featureKey: "retail.promotions" },
+  // Change many prices, its preview and its Undo (PRD-07): the price lists' own.
+  { scope: "api", prefix: "/api/v2/retail/price-changes", featureKey: "retail.promotions" },
   { scope: "api", prefix: "/api/v2/retail/products", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/v2/retail/categories", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/v2/retail/requisitions", featureKey: "retail.purchasing" },

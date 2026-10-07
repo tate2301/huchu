@@ -365,6 +365,24 @@ Recorded unit choices:
     Coca-Cola stays at the boards' 0.75; every other seeded barcode is a 12-digit stand-in and prints as Code 128 of
     the product's code.
 
+- **PRD-07 departs from packet 20 in six places.**
+  - **"Tonight, after closing" is 22:00 on the shop's clock, every day.** The shop keeps no closing times
+    (`RetailShopProfile` has no `weekdayClosesAt`/`sundayClosesAt`; SET-01 left hours to Sites, and Sites keep
+    licence hours, which are when alcohol sells, not when the doors shut), so the packet's own fallback applies:
+    today's 22:00 in Harare, or tomorrow's once it has passed ("4 prices change tomorrow at 22:00.").
+  - **New shelf labels go to the first paired till printer at the list's site, else the shop's own site,** and the
+    toggle is drawn only while the person's own site has one (the printer lookup's default). With none at the
+    list's site the labels print here and the toast's action is "Print labels" (the PDF) instead of "Undo".
+  - **A list that tills charge takes no product under its cost from a manager** (Add products to this list), as
+    PRD-05 settled for switching a list on: "Below cost needs the owner. It costs US$…".
+  - **Removing products from a list cancels what was scheduled for them on it,** so a removed product does not
+    come back onto the list when a batch comes due.
+  - **The seed leaves Savanna Dry 330ml, Hunter's Gold 330ml and the Castle Lager case off Wholesale,** so
+    W-16 ("3 products added to Wholesale.") can be walked on the demo; every other product follows Retail less
+    8% from 6 as before.
+  - **Add to a price list from Products names at most 50 ticked products in its Products field** (the lookup's
+    page); more can be added by search. The field's tags are the products sent.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

@@ -814,7 +814,9 @@ export function publicListSpec(
   const keys = new Set(columns.map((column) => column.key));
   const cost = new Set(spec.columns.filter((column) => !keys.has(column.key)).map((column) => column.key));
   const scope = scopedFor(spec, ctx.role);
-  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, empty, subLink, ...rest } = spec;
+  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, empty, subLink, edit, ...rest } = spec;
+  // The cells are inputs only for a caller who may change the values; anyone else reads them.
+  const editing = edit && edit.requires.some((grant) => ctx.can(grant)) ? edit : null;
   void _read;
   void _scopeOwn;
   const extras = exportExtras
@@ -822,7 +824,21 @@ export function publicListSpec(
     .map((extra) => ({ label: extra.label, href: extra.href }));
   return {
     ...rest,
-    columns,
+    columns: editing ? columns : columns.map((column) => (column.cell === "edit-money" ? { ...column, cell: "money" as const } : column)),
+    ...(editing
+      ? {
+          edit: {
+            column: editing.column,
+            endpoint: editing.endpoint,
+            changedLabel: editing.changedLabel,
+            note: editing.note,
+            save: editing.save,
+            done: editing.done,
+            ...(editing.changedColumn ? { changedColumn: editing.changedColumn } : {}),
+            ...(editing.sheet ? { sheet: editing.sheet } : {}),
+          },
+        }
+      : {}),
     filters: spec.filters
       .filter((filter) => filter.key !== scope?.filter && !("column" in filter && filter.column && cost.has(filter.column)))
       // A choice the company cannot make (one site) is not offered.
@@ -848,6 +864,7 @@ export function publicListSpec(
             ...(primary.icon ? { icon: primary.icon } : {}),
             ...(primary.sheet ? { sheet: primary.sheet } : {}),
             ...(primary.href ? { href: primary.href } : {}),
+            ...(primary.idFrom ? { idFrom: primary.idFrom } : {}),
           }
         : null,
   };
@@ -865,6 +882,7 @@ function publicEmptyGuide(guide: EmptyGuideSpec, ctx: Pick<ListContext, "can">):
             label: primary.label,
             ...(primary.sheet ? { sheet: primary.sheet } : {}),
             ...(primary.href ? { href: primary.href } : {}),
+            ...(primary.idFrom ? { idFrom: primary.idFrom } : {}),
           },
         }
       : {}),

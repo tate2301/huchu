@@ -78,8 +78,28 @@ const listsWord = (count: number, rows: ReportRow[]) => {
   return name ?? `${formatCount(count)} ${count === 1 ? "price list" : "price lists"}`;
 };
 
-/** Price lists' actions that post the ticked ids (PRD-05). */
+/** A worksheet's "Remove from this list" (PRD-07 `removefromlist`): the list and the default it falls back to come with the rows. */
+export function removeFromListAsk(count: number, list: string, defaultName: string): Ask {
+  const products = count === 1 ? "1 product" : `${formatCount(count)} products`;
+  return {
+    title: `Remove ${products} from ${list}?`,
+    body: `Tills charge ${count === 1 ? "it" : "them"} at the ${defaultName} price wherever ${list} applied. ${count === 1 ? "Its" : "Their"} price history stays.`,
+    keep: count === 1 ? "Keep it" : "Keep them",
+    go: `Remove from ${list}`,
+    fill: "bad",
+  };
+}
+
+const rowWord = (rows: ReportRow[], key: string, fallback: string) => (rows[0]?.[key] ? String(rows[0][key]) : fallback);
+
+/** Price lists' actions that post the ticked ids (PRD-05, PRD-07). */
 export const PRICE_LIST_RUNS: Record<string, ListActionRun> = {
+  removefromlist: {
+    ask: (count, rows) => removeFromListAsk(count, rowWord(rows, "listName", "this list"), rowWord(rows, "defaultListName", "Retail")),
+    body: (ids) => ({ productIds: ids }),
+    done: (count, rows) =>
+      `${count === 1 ? (nameOf(rows) ?? "1 product") : `${formatCount(count)} products`} left ${rowWord(rows, "listName", "the list")}.`,
+  },
   pricelistduplicate: {
     done: (count, rows) => (count === 1 && nameOf(rows) ? `${nameOf(rows)} copied. The copy is a draft.` : `${formatCount(count)} price lists copied as drafts.`),
   },

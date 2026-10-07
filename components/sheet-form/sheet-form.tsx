@@ -301,10 +301,27 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       return;
     }
     const href = kind.open?.(result, values) ?? null;
+    const undo = kind.undo?.(result, values) ?? null;
+    const invalidate = () => Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
     toast({
       title: sentence,
       variant: "success",
-      ...(href ? { action: { label: (typeof kind.openLabel === "function" ? kind.openLabel(result, values) : kind.openLabel) ?? "Open", onClick: () => router.push(href) } } : {}),
+      ...(undo
+        ? {
+            action: {
+              label: undo.label,
+              onClick: () => {
+                void send(undo.request).then(async (answer) => {
+                  await invalidate();
+                  const refusal = (answer.payload as { error?: string } | null)?.error;
+                  toast(answer.ok ? { title: undo.done, variant: "success" } : { title: refusal ?? "That did not work. Try again.", variant: "destructive" });
+                });
+              },
+            },
+          }
+        : href
+          ? { action: { label: (typeof kind.openLabel === "function" ? kind.openLabel(result, values) : kind.openLabel) ?? "Open", onClick: () => router.push(href) } }
+          : {}),
     });
     settle(false);
     const next = kind.next?.(result, values) ?? null;

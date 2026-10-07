@@ -1,5 +1,6 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
+import { priceWords, productWords, scheduledActivity } from "@/lib/retail/prices/words";
 import { formatCount, formatMoney, formatPercent, formatSigned } from "@/lib/workspace/format";
 
 /**
@@ -471,6 +472,17 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   },
   [RETAIL_AUDIT_EVENTS.priceListPaused]: () => ({ what: "Paused it", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.priceListResumed]: () => ({ what: "Switched it on", tone: "ok" }),
+  // PRD-07: "Scheduled 4 prices for 3 Oct 22:00", "Added 3 products", "Removed 2 products".
+  [RETAIL_AUDIT_EVENTS.priceScheduled]: (payload) => {
+    const count = amount(payload.count) ?? 0;
+    const at = text(payload.effectiveAt);
+    return { what: at ? scheduledActivity(count, new Date(at)) : `Scheduled ${priceWords(count)}`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.priceListProductsAdded]: (payload) => ({ what: `Added ${productWords(amount(payload.count) ?? 0)}`, tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.priceListProductsRemoved]: (payload) => ({
+    what: `Removed ${productWords(amount(payload.count) ?? 0)}`,
+    tone: "hollow",
+  }),
   // "Sent 540 units to Borrowdale" / "Cancelled: 540 units back at Harare Main Branch" (30-stock 3.3).
   [RETAIL_AUDIT_EVENTS.transferSent]: (payload) => ({
     what: `Sent ${unitWords(amount(payload.units) ?? 0)}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,

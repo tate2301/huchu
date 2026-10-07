@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/workspace/menu";
+import { StateBadge } from "@/components/workspace/state-badge";
 import { ChevronDown, DotsThree } from "@/lib/icons";
 import { fillTemplate } from "@/lib/reports/actions";
 import type {
@@ -15,7 +16,7 @@ import type {
 
 import { GroupHeading } from "./group-heading";
 import { ListCell, cellTitle } from "./list-cell";
-import { alignOf, cellPadding, groupValue, isBlank, rowMatches, sortOf } from "./model";
+import { alignOf, cellPadding, groupValue, isBlank, rowMatches, sortOf, UNSAVED } from "./model";
 
 /**
  * The table (00-foundations 5.4.6): a column head pinned to the top of the
@@ -29,6 +30,8 @@ export type RowEdit = {
   changed: (row: ReportRow) => boolean;
   refused: (row: ReportRow) => string | null;
   onChange: (row: ReportRow, value: string) => void;
+  /** This column reads the warn badge "Not saved" on a row typed in and not saved. */
+  changedColumn?: string;
 };
 
 type Props = {
@@ -152,6 +155,8 @@ export function ListTable(props: Props) {
           >
             {column.cell === "action" ? (
               <RowActionCell column={column} row={row} menu={menu} onRowAction={props.onRowAction} />
+            ) : props.edit && column.key === props.edit.changedColumn && props.edit.changed(row) ? (
+              <StateBadge tone="warn">{UNSAVED}</StateBadge>
             ) : (
               <ListCell
                 column={column}

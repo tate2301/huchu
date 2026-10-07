@@ -82,6 +82,13 @@ export type PriceListView = {
   siteId: string | null;
   siteName: string | null;
   categoryIds: string[];
+  /** The smallest quantity its prices start at (Wholesale from 6). */
+  minQuantity: number;
+  basis: "OWN" | "LIST" | "COST";
+  /** −8 is "less 8%"; null for a list of its own prices. */
+  adjustPercent: number | null;
+  /** The list products are priced from when they are added: its base list, else the default ("Retail"). */
+  baseName: string;
 };
 
 const VIEW_SELECT = {
@@ -145,7 +152,7 @@ export async function loadPriceListViews(companyId: string, ids?: string[]): Pro
   });
   if (rows.length === 0) return [];
   const listIds = rows.map((row) => row.id);
-  const [counts, below, changed] = await Promise.all([
+  const [counts, below, changed, fallback] = await Promise.all([
     prisma.$queryRaw<Array<{ priceListId: string; products: bigint }>>`
       SELECT pp."priceListId", COUNT(DISTINCT pp."productId") AS products
       FROM "ProductPrice" pp JOIN "Product" p ON p."id" = pp."productId"
@@ -162,6 +169,7 @@ export async function loadPriceListViews(companyId: string, ids?: string[]): Pro
       where: { companyId, priceListId: { in: listIds }, appliedAt: { not: null }, product: { archivedAt: null } },
       _max: { appliedAt: true },
     }),
+    prisma.priceList.findFirst({ where: { companyId, isDefault: true, archivedAt: null }, select: { name: true } }),
   ]);
   const productsOf = new Map(counts.map((row) => [row.priceListId, Number(row.products)]));
   const belowOf = new Map(below.map((row) => [row.priceListId, Number(row.below)]));
@@ -189,6 +197,10 @@ export async function loadPriceListViews(companyId: string, ids?: string[]): Pro
       siteId: row.siteId,
       siteName: row.site?.name ?? null,
       categoryIds: row.categories.map((entry) => entry.categoryId),
+      minQuantity: row.minQuantity,
+      basis: row.basis,
+      adjustPercent: row.adjustPercent === null ? null : Number(row.adjustPercent),
+      baseName: (row.basis === "LIST" ? row.basisList?.name : null) ?? fallback?.name ?? row.name,
     };
   });
 }
@@ -230,7 +242,7 @@ type ListActor = RetailAuditActor;
  * product's cost unless the owner puts it there. The first such row's
  * sentence, or null. A draft may hold them; switching it on asks again.
  */
-async function belowCostRefusal(
+export async function belowCostRefusal(
   tx: Tx,
   actor: ListActor,
   rows: Array<{ productId: string; unitPrice: Prisma.Decimal }>,
@@ -417,7 +429,7 @@ export async function createPriceList(actor: ListActor, input: PriceListInput): 
 }
 
 /** Put rows on a list, each with its ADDED history. */
-async function addRows(
+export async function addRows(
   tx: Tx,
   input: {
     companyId: string;

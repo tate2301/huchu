@@ -187,6 +187,21 @@ const products: ListSpec = {
       tabs: ["selling", "low", "all"],
       do: { sheet: "labels" },
     },
+    // W-15 on the default list, and W-16 onto another (PRD-07).
+    {
+      key: "prices",
+      label: "Change prices",
+      requires: [["retail.prices", "update"]],
+      tabs: ["selling", "low", "all"],
+      do: { sheet: "bulk-price", with: { how: "RAISE" } },
+    },
+    {
+      key: "addToList",
+      label: "Add to a price list",
+      requires: [["retail.prices", "update"]],
+      tabs: ["selling", "low", "all"],
+      do: { sheet: "price-list-add" },
+    },
     {
       key: "archive",
       label: "Archive",

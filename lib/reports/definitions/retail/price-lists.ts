@@ -1,15 +1,19 @@
-import type { ListGrant, ListSpec, ReportDefinition } from "@/lib/reports/types";
+import type { Condition, ListGrant, ListSpec, ReportDefinition } from "@/lib/reports/types";
 
 /**
  * Price lists (PRD-05, 20-products 4.4, `PriceLists.png`): every list the
  * till may charge from, when it applies and what its prices are; and one
  * list's worksheet (`retail-prices`), its products at their prices, cost and
- * margin. The worksheet is read-only here; PRD-07 makes its prices editable.
+ * margin. Its prices are typed in place (PRD-07, `PricesList.png`): the save
+ * bar saves them as one batch, the margins follow as they are typed, and the
+ * ticked rows go to Change many prices.
  */
 
 const VIEW: ListGrant[] = [["retail.prices", "view"]];
 const CREATE: ListGrant[] = [["retail.prices", "create"]];
 const UPDATE: ListGrant[] = [["retail.prices", "update"]];
+/** Nothing leaves the default list: a product leaves it by being archived. */
+const NOT_DEFAULT: Condition[] = [{ column: "isDefault", op: "is", value: ["No"] }];
 
 const priceLists: ListSpec = {
   noun: "price lists",
@@ -193,25 +197,67 @@ const prices: ListSpec = {
       total: "avg",
       totalSuffix: "average",
       ratio: { num: "profit", den: "pricedCost" },
+      derive: { kind: "margin", from: "price", costKey: "cost", targetKey: "targetMargin" },
       requires: "view-cost",
       width: "120px",
       align: "end",
       priority: 1,
     },
-    { key: "price", label: "Price", kind: "money", currency: "USD", cell: "money", total: "sum", width: "130px", align: "end", priority: 1 },
+    // An input for whoever may change prices; a figure for everyone else (`edit.requires`).
+    { key: "price", label: "Price", kind: "money", currency: "USD", cell: "edit-money", total: "sum", width: "130px", align: "end", priority: 1 },
     { key: "was", label: "Was", kind: "money", currency: "USD", cell: "zero", width: "90px", align: "end", priority: 3 },
-    { key: "changed", label: "Changed", kind: "text", cell: "text", toneKey: "changedTone", width: "110px", align: "start", priority: 3 },
+    { key: "changed", label: "Changed", kind: "text", cell: "text", toneKey: "changedTone", width: "128px", align: "start", priority: 3 },
     { key: "vat", label: "VAT", kind: "number", cell: "num", percent: true, width: "72px", align: "end", priority: 3 },
     { key: "category", label: "Category", kind: "text", cell: "muted", hidden: true, width: "130px", align: "start", priority: 3 },
     { key: "changedOn", label: "Changed on", kind: "date", cell: "date", hidden: true, width: "110px", align: "start", priority: 3 },
   ],
   rowHref: "/retail/products/{productId}",
   subLink: { label: "Edit the rules", sheet: "price-list-rules", requires: UPDATE, idFrom: "list" },
+  primary: { label: "Add products to this list", icon: "plus", requires: UPDATE, sheet: "price-list-add", idFrom: "list" },
+  rowMenu: [
+    { key: "open", label: "Open the product", requires: VIEW, do: { href: "/retail/products/{productId}" } },
+    { key: "history", label: "Price history", requires: VIEW, do: { href: "/retail/products/{productId}?tab=price-history" } },
+    {
+      key: "remove",
+      label: "Remove from this list",
+      requires: UPDATE,
+      tone: "bad",
+      separated: true,
+      whenParent: NOT_DEFAULT,
+      do: { run: "removefromlist", endpoint: "/api/v2/retail/price-lists/{list}/products/remove" },
+    },
+  ],
+  bulk: [
+    { key: "raise", label: "Raise by a percentage", requires: UPDATE, do: { sheet: "bulk-price", with: { list: "{list}", how: "RAISE" } } },
+    { key: "margin", label: "Set a margin", requires: UPDATE, do: { sheet: "bulk-price", with: { list: "{list}", how: "MARGIN" } } },
+    { key: "round", label: "Round to 5 cents", requires: UPDATE, do: { sheet: "bulk-price", with: { list: "{list}", how: "ROUND" } } },
+    {
+      key: "remove",
+      label: "Remove from this list",
+      requires: UPDATE,
+      tone: "bad",
+      whenParent: NOT_DEFAULT,
+      do: { run: "removefromlist", endpoint: "/api/v2/retail/price-lists/{list}/products/remove" },
+    },
+    { key: "export" },
+  ],
+  edit: {
+    column: "price",
+    endpoint: "/api/v2/retail/price-lists/{list}/prices",
+    changedLabel: "prices changed",
+    note: "The till picks them up the moment you save. Margins update as you type.",
+    save: "Save prices",
+    done: "{n} price{s} saved. The till has {them} now.",
+    changedColumn: "changed",
+    sheet: "price-edit",
+    requires: UPDATE,
+  },
   card: { title: "name", figure: "price", meta: "{cardMeta}" },
   empty: {
     icon: "Tag",
-    title: "No products on this list yet",
-    line: "A list made from another, or from the cost, takes its products when it is added.",
+    title: "Nothing is on {parent} yet",
+    line: "Add products and price them from the Retail list, less or more a percentage.",
+    primary: { label: "Add products to this list", sheet: "price-list-add", requires: UPDATE, idFrom: "list" },
   },
 };
 

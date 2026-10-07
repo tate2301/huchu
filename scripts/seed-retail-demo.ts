@@ -4374,8 +4374,11 @@ async function seedPriceHistory(companyId: string) {
  * TYPED) history on its list's day. "Happy hour (old)" sits in the bin
  * (BinList board). The four are made again on every run; with --reset any
  * other list goes too. Sales seeded before the engine are marked as priced
- * from Retail.
+ * from Retail. Savanna Dry, Hunter's Gold and the Castle case are left off
+ * Wholesale, for "Add products to this list" (PRD-07).
  */
+const NOT_ON_WHOLESALE = new Set(["SAVANNA-330", "HUNTERS-330", "CASTLE-CASE"]);
+
 async function seedPriceLists(input: { companyId: string; borrowdaleId: string; reset: boolean }) {
   const { companyId } = input
   const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true } })
@@ -4450,7 +4453,8 @@ async function seedPriceLists(input: { companyId: string; borrowdaleId: string; 
     on: "2026-09-28",
     minQuantity: 6,
     data: { kind: "WHOLESALE", state: "ON", audience: "ACCOUNT_CUSTOMERS", whenKind: "ALWAYS", minQuantity: 6, basis: "LIST", basisListId: retail.id, adjustPercent: new Prisma.Decimal(-8) },
-    rows: fromRetail(-8, undefined, { "AMARULA-750": "16.90" }),
+    // PRD-07: three products wait to be added (W-16, `AddToList.png`).
+    rows: fromRetail(-8, (product) => !NOT_ON_WHOLESALE.has(codeOf.get(product.id)!), { "AMARULA-750": "16.90" }),
   })
   await make({
     name: "Happy hour",

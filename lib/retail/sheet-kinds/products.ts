@@ -32,7 +32,7 @@ const marginSchema = z
 
 const invalidateCategories = [["list", "retail-categories"], ["lookup", "category"], ["list", "retail-products"]];
 
-async function readJson<T>(url: string): Promise<T> {
+export async function readJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { credentials: "include" });
   const payload = (await response.json().catch(() => null)) as { error?: string; data?: T } | T | null;
   if (!response.ok) {

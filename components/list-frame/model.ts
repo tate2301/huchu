@@ -12,6 +12,7 @@ import type {
   ResolvedListQuery,
   Tone,
 } from "@/lib/reports/types";
+import { marginOf, marginTone } from "@/lib/reports/margin";
 import { filterRows, ratioOf } from "@/lib/reports/view";
 import {
   dayRangeWords,
@@ -267,6 +268,76 @@ export function runEndpoint(endpoint: string, rows: ReportRow[]): string | null 
   if (!endpoint.includes("{")) return endpoint;
   return rows.length === 1 ? fillTemplate(endpoint, rows[0]!) : null;
 }
+
+/** A template's `{key}` holes filled from the list's filters (a worksheet's `{list}`); null while one is not set. */
+export function fillFromFilters(template: string, filters: Record<string, string>): string | null {
+  let complete = true;
+  const filled = template.replace(/\{(\w+)\}/g, (hole, key: string) => {
+    const value = filters[key];
+    if (value === undefined || value === "" || value === "any") {
+      complete = false;
+      return hole;
+    }
+    return value;
+  });
+  return complete ? filled : null;
+}
+
+/** "{n} price{s} saved. The till has {them} now." with the count: `{s}` an "s" and `{them}` "them" unless it is one. */
+export function countTemplate(template: string, n: number): string {
+  return template
+    .replace(/\{n\}/g, formatCount(n))
+    .replace(/\{s\}/g, n === 1 ? "" : "s")
+    .replace(/\{them\}/g, n === 1 ? "it" : "them");
+}
+
+/** A typed figure ("US$ 18.99", "18,99") as a number; null when it is not one. */
+export function typedNumber(typed: string): number | null {
+  const cleaned = typed.replace(/US\$|\$/g, "").replace(/\s/g, "").replace(/,/g, ".");
+  return /^\d+(\.\d+)?$/.test(cleaned) ? Number(cleaned) : null;
+}
+
+/**
+ * A row as it reads while its edited column holds `typed` and is not saved:
+ * the typed figure in the column, every `derive`d figure worked out again from
+ * it (the margin and its pill), and the changed column's flag.
+ */
+export function typedRow(
+  row: ReportRow,
+  typed: string | undefined,
+  columns: ListColumn[],
+  edit: { column: string; changedColumn?: string },
+): ReportRow {
+  if (typed === undefined) return row;
+  const price = typedNumber(typed);
+  const next: ReportRow = { ...row };
+  if (price !== null) next[edit.column] = price;
+  for (const column of columns) {
+    const derive = column.derive;
+    if (!derive || derive.from !== edit.column || price === null) continue;
+    const cost = typeof row[derive.costKey] === "number" ? (row[derive.costKey] as number) : null;
+    const target = typeof row[derive.targetKey] === "number" ? (row[derive.targetKey] as number) : null;
+    const margin = marginOf(price, cost);
+    next[column.key] = margin;
+    if (column.pillKey) next[column.pillKey] = marginTone(margin, target, cost !== null && price < cost);
+  }
+  if (edit.changedColumn) next[edit.changedColumn] = UNSAVED;
+  return next;
+}
+
+/** Leaving a list with typed values not saved (FND's `leaveprices`): "3 changes on Retail are not saved." */
+export function leaveAsk(count: number, title: string) {
+  return {
+    title: "Leave without saving?",
+    body: `${formatCount(count)} ${count === 1 ? "change" : "changes"} on ${title} ${count === 1 ? "is" : "are"} not saved.`,
+    keep: "Keep editing",
+    go: "Discard changes",
+    fill: "bad" as const,
+  };
+}
+
+/** What an edited row's changed column reads until it is saved. */
+export const UNSAVED = "Not saved";
 
 /** The row keys a bulk action reads, so "Select all" can fetch them beside the ids. */
 export function bulkKeys(spec: Pick<ListSpecPublic, "bulk">): string[] {

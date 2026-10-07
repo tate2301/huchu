@@ -177,6 +177,15 @@ export const RETAIL_AUDIT_EVENTS = {
   priceListPaused: "RETAIL_PRICE_LIST.PAUSED",
   /** A paused or draft price list switched on. */
   priceListResumed: "RETAIL_PRICE_LIST.RESUMED",
+  /**
+   * Prices on a list scheduled for later (W-15, PRD-07). Entity `PriceList`; carries the list's name, how many,
+   * when they take effect and the batch, which Undo cancels.
+   */
+  priceScheduled: "RETAIL_PRICE.SCHEDULED",
+  /** Products put on a price list (W-16, PRD-07). Entity `PriceList`; carries how many and their names. */
+  priceListProductsAdded: "RETAIL_PRICE_LIST.PRODUCTS_ADDED",
+  /** Products taken off a price list (PRD-07). Entity `PriceList`; carries how many and their names. */
+  priceListProductsRemoved: "RETAIL_PRICE_LIST.PRODUCTS_REMOVED",
   /** A till made on Pair a till, recorded when Done first saves it (Cancel leaves nothing). Carries its name, site and device. */
   tillCreated: "RETAIL_TILL.CREATED",
   /** A till changed: each field before and after. */

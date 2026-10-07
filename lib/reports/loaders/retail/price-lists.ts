@@ -1,10 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { num, result } from "@/lib/reports/loaders/shared";
+import { marginOf, marginTone } from "@/lib/reports/margin";
 import type { ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow } from "@/lib/reports/types";
 import { canSeeRetailCostPrice } from "@/lib/retail/permission-matrix";
 import { listSub } from "@/lib/retail/price-lists/describe";
 import { loadPriceListViews, type PriceListView } from "@/lib/retail/price-lists/service";
 import { harareMoment } from "@/lib/retail/pricing/engine";
+import { applyDuePriceChanges } from "@/lib/retail/prices/change";
+import { scheduledWords } from "@/lib/retail/prices/words";
 
 /**
  * Price lists (PRD-05, `retail-price-lists`) and one list's worksheet
@@ -53,40 +56,23 @@ async function priceListOptions(ctx: ReportContext): Promise<Record<string, Repo
 }
 
 const LONG_DAY = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Harare", day: "numeric", month: "long", year: "numeric" });
-const SHORT_WHEN = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "Africa/Harare",
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
 
-/** "From 3 Oct 22:00". */
-const scheduledWords = (at: Date) => `From ${SHORT_WHEN.format(at).replace(",", "")}`;
+/** A product with no category target is held to this margin. */
+export const DEFAULT_TARGET_MARGIN = 25;
 
-const round1 = (value: number) => Math.round(value * 10) / 10;
 const round2 = (value: number) => Math.round(value * 100) / 100;
-
-/**
- * Margin tone against the category's target: plain at or over it, warn under
- * it, bad more than five points under it or below cost.
- */
-export function marginTone(margin: number | null, target: number | null, belowCost: boolean): "warn" | "bad" | null {
-  if (belowCost) return "bad";
-  if (margin === null || target === null) return null;
-  if (margin >= target) return null;
-  return target - margin > 5 ? "bad" : "warn";
-}
 
 async function loadPrices(ctx: ReportContext, params: ReportParams) {
   const listId = typeof params.list === "string" ? params.list : null;
   if (!listId) return result([]);
   const list = await prisma.priceList.findFirst({
     where: { id: listId, companyId: ctx.companyId, archivedAt: null },
-    select: { id: true, minQuantity: true },
+    select: { id: true, name: true, minQuantity: true },
   });
   if (!list) return result([]);
+  const fallback = await prisma.priceList.findFirst({ where: { companyId: ctx.companyId, isDefault: true, archivedAt: null }, select: { name: true } });
+  // Changes come due are on the list before it is read (PRD-07), as at the till.
+  await applyDuePriceChanges(ctx.companyId);
 
   const [rows, changes] = await Promise.all([
     prisma.productPrice.findMany({
@@ -134,9 +120,10 @@ async function loadPrices(ctx: ReportContext, params: ReportParams) {
     rows.map((row): ReportRow => {
       const price = num(row.unitPrice) ?? 0;
       const cost = seeCost ? num(row.product.costPrice) : null;
-      const margin = cost !== null && price > 0 ? round1(((price - cost) / price) * 100) : null;
+      const margin = marginOf(price, cost);
       const belowCost = cost !== null && price < cost;
-      const target = num(row.product.retailCategory?.targetMarginPercent ?? null);
+      // The category's target, else the shop's usual 25%.
+      const target = num(row.product.retailCategory?.targetMarginPercent ?? null) ?? DEFAULT_TARGET_MARGIN;
       const last = applied.get(row.productId);
       const next = scheduled.get(row.productId);
       const vat = num(row.product.defaultTaxRate);
@@ -144,6 +131,9 @@ async function loadPrices(ctx: ReportContext, params: ReportParams) {
         id: row.productId,
         productId: row.productId,
         priceListId: list.id,
+        // What "Remove from this list" asks with.
+        listName: list.name,
+        defaultListName: fallback?.name ?? list.name,
         name: row.product.name,
         code: row.product.code,
         barcode: row.product.barcode,
@@ -152,6 +142,7 @@ async function loadPrices(ctx: ReportContext, params: ReportParams) {
               cost,
               margin,
               marginTone: marginTone(margin, target, belowCost),
+              targetMargin: target,
               underCost: belowCost ? "Yes" : "No",
               profit: cost !== null ? round2(price - cost) : 0,
               pricedCost: cost !== null ? price : 0,
@@ -191,7 +182,7 @@ async function priceListName(ctx: ReportContext, filters: Record<string, string>
     where: { id, companyId: ctx.companyId, archivedAt: null },
     select: { name: true, isDefault: true, _count: { select: { entries: { where: { product: { archivedAt: null } } } } } },
   });
-  return list ? { label: list.name, sub: listSub(list, list._count.entries) } : null;
+  return list ? { label: list.name, sub: listSub(list, list._count.entries), facts: { isDefault: list.isDefault ? "Yes" : "No" } } : null;
 }
 
 export const PRICE_LIST_LOADERS: Record<string, ReportLoader> = {

@@ -246,6 +246,12 @@ export type SheetKind = {
   newTab?: { when: (values: SheetValues) => boolean; href: (result: unknown) => string | null };
   /** Where the toast's action goes for a created record. */
   open?: (result: unknown, values: SheetValues) => string | null;
+  /**
+   * The toast's action as a request instead of a link ("Undo" while a price
+   * change waits): sent on the click, then its own toast and the kind's
+   * `invalidate`. Wins over `open`.
+   */
+  undo?: (result: unknown, values: SheetValues) => { label: string; request: SheetRequest; done: string } | null;
   /** The toast action's words, fixed or from the answer ("Count now" on a count that is yours). Default "Open". */
   openLabel?: string | ((result: unknown, values: SheetValues) => string);
   /**
