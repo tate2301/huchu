@@ -1751,6 +1751,7 @@ async function main() {
   await seedFiscal(companyId)
   await seedApprovals(companyId)
   await seedShiftFloor(companyId)
+  await seedShiftCounts(companyId)
   await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
   await seedReportTemplates(companyId)
 
@@ -1781,6 +1782,81 @@ async function seedShiftFloor(companyId: string) {
   console.log(
     `  shift floor: ${open.map((shift) => `${shift.shiftNo} ${shift.registerName} (${shift.cashierName}, ${shift._count.sales} sales, US$${shift.expectedCash.toFixed(2)} in the drawer)`).join("; ")}; ${drops} drops to the safe`,
   )
+}
+
+/**
+ * FLR-04 `seedShiftCounts()`: every closed drawer in the history as Count and
+ * close leaves it. A counted one has its count by note adding up to what was
+ * counted (US$ notes, largest first, the last few dollars as US$1; cents are
+ * not notes, so they stay off the lines and in countedCash), the day's ZiG rate, no ZiG, the float
+ * left for tomorrow (US$100.00, or all of it when less was counted) and the
+ * rest to the safe, closed by its cashier. The three closed without a count
+ * say why: "Device lost, counted next morning".
+ */
+async function seedShiftCounts(companyId: string) {
+  const [shifts, rates] = await Promise.all([
+    prisma.retailShift.findMany({
+      where: { companyId, status: "CLOSED" },
+      select: { id: true, cashierId: true, closedAt: true, countedCash: true },
+    }),
+    prisma.currencyRate.findMany({
+      where: { companyId, baseCurrency: "USD", quoteCurrency: "ZWG" },
+      orderBy: { effectiveDate: "asc" },
+      select: { rate: true, effectiveDate: true },
+    }),
+  ])
+  const NOTES = [100, 50, 20, 10, 5]
+  const rows = shifts.map((shift) => {
+    if (shift.countedCash === null) {
+      return { id: shift.id, closedById: shift.cashierId, closeNote: "Device lost, counted next morning", countedUsd: null, countRate: null, lines: null, floatLeft: null, toSafe: null }
+    }
+    const counted = money(shift.countedCash)
+    let left = Math.floor(counted.toNumber())
+    const lines = NOTES.flatMap((note) => {
+      const count = Math.floor(left / note)
+      left -= count * note
+      return count > 0 ? [{ denomination: String(note), count }] : []
+    })
+    if (left > 0) lines.push({ denomination: "1", count: left })
+    const at = shift.closedAt ?? new Date()
+    const dayRate = [...rates].reverse().find((row) => row.effectiveDate <= at)?.rate ?? null
+    const floatLeft = counted.lessThan(100) ? counted : money("100.00")
+    return {
+      id: shift.id,
+      closedById: shift.cashierId,
+      closeNote: null,
+      countedUsd: counted.toFixed(2),
+      countRate: dayRate ? money(dayRate).toFixed(4) : "1.0000",
+      lines: JSON.stringify({ USD: lines, ZWG: [] }),
+      floatLeft: floatLeft.toFixed(2),
+      toSafe: counted.minus(floatLeft).toFixed(2),
+    }
+  })
+  await prisma.$executeRaw`
+    UPDATE "RetailShift" AS s SET
+      "closedById" = v."closedById",
+      "closeNote" = COALESCE(v."closeNote", s."closeNote"),
+      "countedUsd" = v."countedUsd"::numeric,
+      "countedZig" = CASE WHEN v."countedUsd" IS NULL THEN NULL ELSE 0 END,
+      "countRate" = v."countRate"::numeric,
+      "countLines" = v."lines"::jsonb,
+      "floatLeft" = v."floatLeft"::numeric,
+      "toSafe" = v."toSafe"::numeric
+    FROM (
+      SELECT * FROM unnest(
+        ${rows.map((row) => row.id)}::text[],
+        ${rows.map((row) => row.closedById)}::text[],
+        ${rows.map((row) => row.closeNote)}::text[],
+        ${rows.map((row) => row.countedUsd)}::text[],
+        ${rows.map((row) => row.countRate)}::text[],
+        ${rows.map((row) => row.lines)}::text[],
+        ${rows.map((row) => row.floatLeft)}::text[],
+        ${rows.map((row) => row.toSafe)}::text[]
+      ) AS t("id", "closedById", "closeNote", "countedUsd", "countRate", "lines", "floatLeft", "toSafe")
+    ) AS v
+    WHERE s."id" = v."id"`
+  const uncounted = rows.filter((row) => row.countedUsd === null).length
+  console.log(`  shift counts: ${rows.length - uncounted} closed drawers counted by note, ${uncounted} closed without a count`)
 }
 
 /**
