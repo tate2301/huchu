@@ -23,7 +23,6 @@ import { describe, expect, it } from "vitest";
 import { money, sumMoney } from "@/lib/money";
 import {
   cashMovementDelta,
-  cashVariance,
   expectedCashForShift,
   getCashNetFromPayments,
   shiftOpenPosting,
@@ -73,10 +72,7 @@ describe("the Friday drop — the defect S-7.1 fixes", () => {
     const expectedWithoutTheDrop = sumMoney([OPENING_FLOAT, CASH_TAKINGS]);
     expect(expectedWithoutTheDrop.toFixed(2)).toBe("1556.75");
 
-    const variance = cashVariance({
-      countedCash: COUNTED_CASH,
-      expectedCash: expectedWithoutTheDrop,
-    });
+    const variance = money(COUNTED_CASH).minus(expectedWithoutTheDrop);
 
     // Faith is short on paper by the exact amount her manager banked, and there is
     // nothing on the screen she can point at to say so.
@@ -102,7 +98,7 @@ describe("the Friday drop — the defect S-7.1 fixes", () => {
     // = 1,356.75
     expect(expected.toFixed(2)).toBe("1356.75");
 
-    const variance = cashVariance({ countedCash: COUNTED_CASH, expectedCash: expected });
+    const variance = money(COUNTED_CASH).minus(expected);
     expect(variance.isZero()).toBe(true);
     expect(variance.toFixed(2)).toBe("0.00");
   });
@@ -127,7 +123,7 @@ describe("the Friday drop — the defect S-7.1 fixes", () => {
     });
     expect(doubleCounted.toFixed(2)).toBe("1309.15");
     expect(
-      cashVariance({ countedCash: COUNTED_CASH, expectedCash: doubleCounted }).toFixed(2),
+      money(COUNTED_CASH).minus(doubleCounted).toFixed(2),
     ).toBe("47.60");
   });
 
@@ -187,7 +183,7 @@ describe("a fuller day — a top-up and a payout as well", () => {
       cashTakings: CASH_TAKINGS,
       movements,
     });
-    expect(cashVariance({ countedCash: "1376.35", expectedCash: expected }).toFixed(2)).toBe(
+    expect(money("1376.35").minus(expected).toFixed(2)).toBe(
       "2.00",
     );
   });

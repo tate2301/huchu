@@ -14,7 +14,7 @@ import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { MoneyInput } from "@/components/workspace/fields/money-input";
 import { TextArea } from "@/components/workspace/fields/text-area";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { countDrawer, needsExplaining, rowTotal, type CountCurrency, type CountRow } from "@/lib/retail/floor/count";
+import { countDrawer, floatLeftProblem, needsExplaining, rowTotal, type CountCurrency, type CountRow } from "@/lib/retail/floor/count";
 import type { CountForm } from "@/lib/retail/floor/shifts";
 import type { Ask } from "@/lib/workspace/ask";
 import { formatMoney, formatSigned, formatTime } from "@/lib/workspace/format";
@@ -33,6 +33,8 @@ type Closed = NonNullable<CountForm["closed"]>;
 type CloseAnswer = { data: { shiftNo: string; closedAt: string; difference: string; state: "BALANCED" | "SHORT" | "OVER" } };
 
 const SHOWS_LATER = "Shows when you close";
+/** `leaving` when the browser's Back asked, not a link. */
+const BACK = "back";
 
 const leaveAsk: Ask = {
   title: "Discard this count?",
@@ -114,21 +116,34 @@ function CountAndClose({ form }: { form: CountForm }) {
   const zig = rowsOf(form, "ZWG", counts);
   const zigTyped = zig.some((row) => row.count > 0);
   const expected = form.expected ?? revealed;
+  const floatTyped = /^\d+(\.\d{1,2})?$/.test(floatLeft.trim()) ? floatLeft.trim() : "0";
   const count = countDrawer({
     usd,
     zig: form.rate ? zig : [],
     rate: form.rate,
     expected: expected ?? "0",
-    floatLeft: /^\d+(\.\d{1,2})?$/.test(floatLeft.trim()) ? floatLeft.trim() : "0",
+    floatLeft: floatTyped,
   });
+  // The float comes out of the US$ counted: more than that leaves nothing to say for To the safe.
+  const floatProblem = closed ? null : floatLeftProblem(floatTyped, count.countedUsd);
   const difference = closed ? closed.difference : expected === null ? null : count.difference;
   const typedAny = Object.values(counts).some((value) => Number(value) > 0);
   const dirty = !closed && typedAny;
   const readOnly = Boolean(closed);
 
-  // Leaving with counts typed asks first: a link in the app, or the tab itself.
+  // Leaving with counts typed asks first: a link in the app, the browser's Back, or the tab itself.
+  // Back is held by an extra history entry for this page while the count is dirty; Discard then goes back past it.
+  const discardingBack = React.useRef(false);
   React.useEffect(() => {
     if (!dirty) return;
+    if (!(window.history.state as { cxCount?: boolean } | null)?.cxCount) {
+      window.history.pushState({ ...(window.history.state ?? {}), cxCount: true }, "", window.location.href);
+    }
+    const onPop = () => {
+      if (discardingBack.current) return;
+      window.history.pushState({ ...(window.history.state ?? {}), cxCount: true }, "", window.location.href);
+      setLeaving(BACK);
+    };
     const onClick = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
       const anchor = (event.target as HTMLElement | null)?.closest("a[href]") as HTMLAnchorElement | null;
@@ -142,9 +157,11 @@ function CountAndClose({ form }: { form: CountForm }) {
     const onUnload = (event: BeforeUnloadEvent) => event.preventDefault();
     document.addEventListener("click", onClick, true);
     window.addEventListener("beforeunload", onUnload);
+    window.addEventListener("popstate", onPop);
     return () => {
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("beforeunload", onUnload);
+      window.removeEventListener("popstate", onPop);
     };
   }, [dirty]);
 
@@ -164,6 +181,11 @@ function CountAndClose({ form }: { form: CountForm }) {
   const close = async () => {
     if (busy || closed) return;
     // Out by more than US$1.00, where the difference shows: say what happened first.
+    if (floatProblem) {
+      setErrors((current) => ({ ...current, floatLeft: floatProblem }));
+      setEditingFloat(true);
+      return;
+    }
     if (difference !== null && needsExplaining(difference) && !note.trim()) {
       setErrors((current) => ({ ...current, note: "Say what happened." }));
       noteRef.current?.focus();
@@ -196,8 +218,12 @@ function CountAndClose({ form }: { form: CountForm }) {
       );
     } catch (error) {
       const details = (error instanceof ApiError ? error.details : null) as { difference?: string; fieldErrors?: Record<string, string> } | null;
-      // The blind count's answer: the summary shows, and What happened asks.
-      if (details?.difference !== undefined) setRevealed((Number(count.counted) - Number(details.difference)).toFixed(2));
+      // The blind count's answer: the summary shows, and What happened asks. A manager's summary was
+      // read when the page loaded; a sale since moved what should be there, so it is read again.
+      if (details?.difference !== undefined) {
+        if (form.blind) setRevealed((Number(count.counted) - Number(details.difference)).toFixed(2));
+        else void queryClient.invalidateQueries({ queryKey: ["retail-shift-close", form.shiftId] });
+      }
       const fields = details?.fieldErrors ?? {};
       setErrors(fields);
       if (fields.note) requestAnimationFrame(() => noteRef.current?.focus());
@@ -214,6 +240,8 @@ function CountAndClose({ form }: { form: CountForm }) {
     : { label: "Close the shift", onClick: () => void close() };
 
   const banner = closed ? bannerWords(closed) : null;
+  // Said under the float once notes are typed (before, every float is more than nothing counted), or after a refused close.
+  const floatError = errors.floatLeft || (typedAny ? floatProblem : null);
   const diffTone = difference === null ? null : Number(difference) === 0 ? "ok" : Number(difference) < 0 ? "bad" : "warn";
   const moves = form.parts?.moves ?? null;
   const countedLabel = form.rate ? `Counted, ZiG at ${form.rate}` : "Counted";
@@ -227,7 +255,7 @@ function CountAndClose({ form }: { form: CountForm }) {
         reference={form.sub}
         primary={primary}
       >
-        {closed ? null : (
+        {closed || form.blind ? null : (
           <Button asChild>
             <a href={`/api/v2/retail/records/RetailShift/${form.shiftId}/pdf?as=x-report`} target="_blank" rel="noopener">
               Print X-report
@@ -335,10 +363,11 @@ function CountAndClose({ form }: { form: CountForm }) {
             <section className="cx-sc-group">
               <h2>Not counted, checked</h2>
               {form.checked.map((line) => (
-                <div key={line.label} className="cx-sc-line-row">
+                <div key={line.label} className="cx-sc-check">
                   <span>{line.label}</span>
-                  <span className="cx-sc-mono">
-                    {money(line.amount)} <span className={line.ok ? "cx-sc-ok" : "cx-sc-warn"}>{line.note}</span>
+                  <span className="cx-sc-check__end">
+                    <span className="cx-sc-mono">{money(line.amount)}</span>
+                    <span className={`cx-sc-mono ${line.ok ? "cx-sc-ok" : "cx-sc-warn cx-sc-check__own"}`}>{line.note}</span>
                   </span>
                 </div>
               ))}
@@ -355,23 +384,34 @@ function CountAndClose({ form }: { form: CountForm }) {
                   className="cx-sc-float"
                   value={floatLeft}
                   autoFocus
-                  aria-invalid={errors.floatLeft ? true : undefined}
+                  aria-invalid={floatError ? true : undefined}
+                  aria-describedby={floatError ? "cx-sc-float-error" : undefined}
                   onValueChange={(value) => {
                     setFloatLeft(value);
                     if (errors.floatLeft) setErrors((current) => ({ ...current, floatLeft: "" }));
                   }}
                 />
               ) : (
-                <button type="button" className="cx-sc-mono cx-sc-float-button" disabled={readOnly} onClick={() => setEditingFloat(true)}>
+                <button
+                  type="button"
+                  className={`cx-sc-mono cx-sc-float-button${floatError ? " cx-sc-float-button--bad" : ""}`}
+                  disabled={readOnly}
+                  aria-describedby={floatError ? "cx-sc-float-error" : undefined}
+                  onClick={() => setEditingFloat(true)}
+                >
                   {money(floatLeft || "0")}
                 </button>
               )}
             </div>
-            {errors.floatLeft ? <span className="cx-error">{errors.floatLeft}</span> : null}
+            {floatError ? (
+              <span id="cx-sc-float-error" className="cx-error">
+                {floatError}
+              </span>
+            ) : null}
             <div className="cx-sc-line-row">
               <span>To the safe</span>
               <span className="cx-sc-mono cx-sc-strong">
-                {closed ? (closed.counted === null ? "—" : money(Number(closed.counted) - Number(floatLeft || 0))) : money(count.toSafe)}
+                {closed ? (closed.counted === null ? "—" : money(Number(closed.counted) - Number(floatLeft || 0))) : floatProblem ? "—" : money(count.toSafe)}
               </span>
             </div>
           </section>
@@ -388,7 +428,11 @@ function CountAndClose({ form }: { form: CountForm }) {
             const to = leaving;
             setCounts({});
             setLeaving(null);
-            router.push(to);
+            if (to === BACK) {
+              // Past this page's extra entry and the page itself, to wherever Back was going.
+              discardingBack.current = true;
+              window.history.go(-2);
+            } else router.push(to);
           }}
         />
       ) : null}

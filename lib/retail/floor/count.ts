@@ -12,6 +12,8 @@
  * a difference under US$0.05 is the rounding, not the drawer.
  */
 
+import { formatMoney } from "@/lib/workspace/format";
+
 export const DENOMINATIONS = {
   USD: ["100", "50", "20", "10", "5", "2", "1"],
   ZWG: ["200", "100", "50", "20", "10", "5"],
@@ -121,4 +123,14 @@ export function needsExplaining(difference: DecimalLike): boolean {
 /** Whether `a` is more than `b`, to the cent. */
 export function moreThan(a: DecimalLike, b: DecimalLike): boolean {
   return cents(a) > cents(b);
+}
+
+/**
+ * The float left for tomorrow is US$ notes out of the drawer, so it can be no
+ * more than the US$ counted: the sentence when it is, else null. The server
+ * refuses with it, and the close page and the till say it before posting, so
+ * a blind count never meets it after the difference.
+ */
+export function floatLeftProblem(floatLeft: DecimalLike, countedUsd: DecimalLike): string | null {
+  return moreThan(floatLeft, countedUsd) ? `Only ${formatMoney(Number(countedUsd))} in US$ notes was counted.` : null;
 }

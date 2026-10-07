@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type RetailTenderType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -19,9 +19,11 @@ import { tenderLabel } from "@/lib/retail/words";
 import { shiftState } from "@/lib/reports/loaders/retail/floor";
 import { createApprovalAction } from "@/lib/workflow/approvals";
 import { formatDuration, formatMoney, formatSigned, formatTime } from "@/lib/workspace/format";
-import { postRetailJournal, type RetailAccountingResult } from "@/app/api/v2/retail/_helpers";
+import { postedChange } from "@/lib/retail/sale-totals";
+import { countsBlind } from "@/lib/retail/shift-record";
+import { normalizeRetailPostingPayments, postRetailJournal, type RetailAccountingResult } from "@/app/api/v2/retail/_helpers";
 
-import { countDrawer, DENOMINATIONS, moreThan, needsExplaining, type CountCurrency, type CountRow, type DrawerState } from "./count";
+import { countDrawer, DENOMINATIONS, floatLeftProblem, needsExplaining, type CountCurrency, type CountRow, type DrawerState } from "./count";
 
 /**
  * Opening a shift (50-floor W-37, FLR-03): who may open one for whom, on
@@ -330,7 +332,8 @@ function rowsOf(rows: ReadonlyArray<CountRow> | undefined, currency: CountCurren
   for (const row of rows ?? []) {
     const denomination = row.denomination.trim();
     if (!known.includes(denomination) || seen.has(denomination)) {
-      throw new CloseRefused(400, WHOLE_NOTES, { [key]: `Count ${currency === "USD" ? "US$" : "ZiG"} notes: ${known.join(", ")}.` });
+      const sentence = `Count ${currency === "USD" ? "US$" : "ZiG"} notes: ${known.join(", ")}.`;
+      throw new CloseRefused(400, sentence, { [key]: sentence });
     }
     seen.add(denomination);
     if (row.count > 0) kept.push({ denomination, count: row.count });
@@ -338,15 +341,80 @@ function rowsOf(rows: ReadonlyArray<CountRow> | undefined, currency: CountCurren
   return kept;
 }
 
-const usdWords = (value: string) => formatMoney(Number(value));
+/**
+ * What the shift has put on the ZiG till account (1001), in US$: the ZiG
+ * float at its opening rate, each sale's ZiG cash less the ZiG change it gave
+ * (exactly as its journal debits 1001: `normalizeRetailPostingPayments`, with
+ * a refund or a void taking it back), and every ZiG cash movement. The close
+ * credits 1001 with this, so the ZiG till account is empty after every close.
+ */
+async function zigBooked(db: Prisma.TransactionClient, shift: { id: string; companyId: string; openingFloatZigBase: Prisma.Decimal }): Promise<Prisma.Decimal> {
+  const [sales, movements] = await Promise.all([
+    db.retailSale.findMany({
+      where: { shiftId: shift.id, companyId: shift.companyId },
+      select: {
+        saleType: true,
+        totalAmount: true,
+        depositAmount: true,
+        tenderedAmount: true,
+        changeAmount: true,
+        changeZig: true,
+        payments: { select: { tenderType: true, baseAmount: true, currency: true } },
+      },
+    }),
+    db.retailCashMovement.findMany({ where: { shiftId: shift.id, companyId: shift.companyId, currency: "ZWG" }, select: { type: true, baseAmount: true } }),
+  ]);
+  return sumMoney([money(shift.openingFloatZigBase), ...sales.map(saleZigBooked), sumCashMovementDeltas(movements)]);
+}
+
+/** What one sale's journal puts on the ZiG till account, in US$: its ZiG cash less the change taken off it; a refund or void negative. */
+export function saleZigBooked(sale: Parameters<typeof postedChange>[0] & {
+  payments: Array<{ tenderType: RetailTenderType; baseAmount: Prisma.Decimal.Value; currency: string | null }>;
+}): Prisma.Decimal {
+  const change = postedChange(sale);
+  const kept = normalizeRetailPostingPayments({
+    payments: sale.payments.map((payment) => ({ tenderType: payment.tenderType, amount: toNumberOrZero(money(payment.baseAmount).abs()), currency: payment.currency })),
+    change: { usd: change.usd, zig: change.zig },
+  });
+  const zig = sumMoney(kept.filter((payment) => payment.tenderType === "CASH" && (payment.currency ?? "").toUpperCase() === "ZWG").map((payment) => money(payment.amount)));
+  return sale.saleType === "REFUND" || sale.saleType === "VOID" ? zig.negated() : zig;
+}
+
+/**
+ * The close journal's lines (RETAIL_SHIFT_CLOSE, 98-decisions FLR-04): the
+ * whole count goes to the vault (1005), and the next opening takes its float
+ * back out, as every opening does. Each till account gives up what the shift
+ * booked to it, after the variance: 1001 its ZiG, 1000 the rest of the count.
+ * When the variance took more off a till account than it held, that account
+ * takes the excess back (`usdBack`, `zigBack`), so both read zero afterwards.
+ */
+export function closePosting(input: { counted: Prisma.Decimal.Value; zigBooked: Prisma.Decimal.Value }): {
+  amount: Prisma.Decimal;
+  payload: { usd: number; zig: number; usdBack: number; zigBack: number };
+} {
+  const counted = money(input.counted);
+  const zig = money(input.zigBooked);
+  const usd = counted.minus(zig);
+  const zero = new Prisma.Decimal(0);
+  return {
+    amount: counted,
+    payload: {
+      usd: toNumberOrZero(Prisma.Decimal.max(usd, zero)),
+      zig: toNumberOrZero(Prisma.Decimal.max(zig, zero)),
+      usdBack: toNumberOrZero(Prisma.Decimal.max(usd.negated(), zero)),
+      zigBack: toNumberOrZero(Prisma.Decimal.max(zig.negated(), zero)),
+    },
+  };
+}
 
 /**
  * Count and close a drawer. The count is checked, then — under the shift's
  * row lock, so a sale either lands before and is counted or finds the shift
  * closed — the difference is worked out against what should be there, the
- * shift closes with its count, and after the commit the variance and the cash
- * to the safe post, owners and managers hear of a difference, and the last
- * shift closes the fiscal day. A blind cashier learns the difference from the
+ * shift closes with its count, and after the commit the variance (to the
+ * cent) and the whole count to the vault post, leaving both till accounts at
+ * zero (98-decisions FLR-04), owners and managers hear of a difference, and
+ * the last shift closes the fiscal day. A blind cashier learns the difference from the
  * 400 that asks what happened.
  */
 export async function closeShift(input: {
@@ -361,13 +429,13 @@ export async function closeShift(input: {
   const shift = await shiftToClose(session, input.shiftId);
 
   const usd = rowsOf(body.counts.USD, "USD");
-  const zig = rowsOf(body.counts.ZWG, "ZWG");
+  const zigRows = rowsOf(body.counts.ZWG, "ZWG");
   const settings = await loadPaymentSettings(companyId);
-  if (zig.length > 0 && !settings.tenders.cashZig) {
+  if (zigRows.length > 0 && !settings.tenders.cashZig) {
     throw new CloseRefused(400, "This shop does not take ZiG cash.", { zwg: "This shop does not take ZiG cash." });
   }
   let rate: Prisma.Decimal | null = null;
-  if (zig.length > 0) {
+  if (zigRows.length > 0) {
     const today = await latestZigRate(companyId);
     if (!today) throw new NoZigRate();
     rate = new Prisma.Decimal(today.value);
@@ -378,15 +446,15 @@ export async function closeShift(input: {
   const actor = auditActorOf(session);
   const closedAt = input.now ?? new Date();
 
-  const { closed, count } = await prisma.$transaction(async (tx) => {
+  const { closed, count, raw, zig } = await prisma.$transaction(async (tx) => {
     const [locked] = await tx.$queryRaw<Array<{ status: string; expectedCash: Prisma.Decimal }>>`
       SELECT "status", "expectedCash" FROM "RetailShift" WHERE "id" = ${shift.id} FOR UPDATE`;
     if (!locked || locked.status !== "OPEN") throw new CloseRefused(409, `${shift.shiftNo} is closed already.`);
-    const count = countDrawer({ usd, zig, rate, expected: money(locked.expectedCash).toFixed(2), floatLeft: floatLeft.toFixed(2) });
-    if (moreThan(floatLeft, count.countedUsd)) {
-      const only = `Only ${usdWords(count.countedUsd)} in US$ notes was counted.`;
-      throw new CloseRefused(400, only, { floatLeft: only });
-    }
+    // Under the lock, so no sale or movement lands between what is booked and what is counted.
+    const zig = await zigBooked(tx, shift);
+    const count = countDrawer({ usd, zig: zigRows, rate, expected: money(locked.expectedCash).toFixed(2), floatLeft: floatLeft.toFixed(2) });
+    const only = floatLeftProblem(floatLeft.toFixed(2), count.countedUsd);
+    if (only) throw new CloseRefused(400, only, { floatLeft: only });
     if (needsExplaining(count.difference) && !note) {
       throw new CloseRefused(
         400,
@@ -405,7 +473,7 @@ export async function closeShift(input: {
         countedUsd: count.countedUsd,
         countedZig: count.countedZig,
         countRate: rate ?? new Prisma.Decimal(1),
-        countLines: { USD: usd, ZWG: zig },
+        countLines: { USD: usd, ZWG: zigRows },
         variance: count.difference,
         closeNote: note,
         floatLeft,
@@ -438,7 +506,9 @@ export async function closeShift(input: {
       });
     }
     const closed = await tx.retailShift.findUniqueOrThrow({ where: { id: shift.id } });
-    return { closed, count };
+    // Counted less expected to the cent: the variance books it all, the cents the tolerance calls none included.
+    const raw = new Prisma.Decimal(count.counted).minus(money(locked.expectedCash));
+    return { closed, count, raw, zig };
   });
 
   const journal = {
@@ -452,36 +522,36 @@ export async function closeShift(input: {
     periodOverrideReason: input.periodOverrideReason ?? undefined,
     taxAmount: 0,
   };
-  const difference = new Prisma.Decimal(count.difference);
-  if (!difference.isZero()) {
-    const abs = toNumberOrZero(difference.abs());
+  // The variance moves the till accounts from what was booked to what was counted, cent for cent:
+  // a drawer the tolerance calls balanced still books its stray cent to over/short.
+  if (!raw.isZero()) {
+    const abs = toNumberOrZero(raw.abs());
     await postRetailJournal({
       ...journal,
       sourceType: "RETAIL_SHIFT_VARIANCE",
-      sourceSubtype: difference.isNegative() ? "SHORT" : "OVER",
+      sourceSubtype: raw.isNegative() ? "SHORT" : "OVER",
       description: `Retail shift variance ${closed.shiftNo}`,
       amount: abs,
       netAmount: abs,
       grossAmount: abs,
-      invertDirection: difference.isNegative(),
+      invertDirection: raw.isNegative(),
     });
   }
-  const toSafe = new Prisma.Decimal(count.toSafe);
-  if (exceeds(toSafe, 0)) {
-    // Every ZiG note leaves the ZiG drawer (the float left is US$ only); the rest is dollars, so the two sum to the amount.
-    const zigPart = new Prisma.Decimal(count.zigBase);
-    const usdPart = toSafe.minus(zigPart);
+  // The whole count to the vault, each till account emptied of what the shift booked to it.
+  const toVault = closePosting({ counted: count.counted, zigBooked: zig });
+  if (Object.values(toVault.payload).some((value) => value > 0)) {
     await postRetailJournal({
       ...journal,
       sourceType: "RETAIL_SHIFT_CLOSE",
       description: `Retail shift close ${closed.shiftNo}`,
-      amount: toNumberOrZero(toSafe),
-      netAmount: toNumberOrZero(toSafe),
-      grossAmount: toNumberOrZero(toSafe),
-      payload: { usd: toNumberOrZero(usdPart), zig: toNumberOrZero(zigPart) },
+      amount: toNumberOrZero(toVault.amount),
+      netAmount: toNumberOrZero(toVault.amount),
+      grossAmount: toNumberOrZero(toVault.amount),
+      payload: toVault.payload,
     });
   }
 
+  const difference = new Prisma.Decimal(count.difference);
   if (!difference.isZero()) {
     const words = difference.isNegative() ? `short ${formatMoney(toNumberOrZero(difference.abs()))}` : `over ${formatMoney(toNumberOrZero(difference))}`;
     await tellManagers(companyId, session.user.id, closed, `${closed.shiftNo} is ${words}`);
@@ -610,6 +680,16 @@ async function shiftToRead(session: ShiftSession, shiftId: string): Promise<Clos
 
 const text2 = (value: Prisma.Decimal.Value | null | undefined) => money(value ?? 0).toFixed(2);
 
+/** The float a close leaves by default, on the close page and at the till: what the till's last close left, else this shift's opening float. */
+export async function floatToLeave(shift: { id: string; companyId: string; registerId: string; openingFloat: Prisma.Decimal }): Promise<string> {
+  const last = await prisma.retailShift.findFirst({
+    where: { companyId: shift.companyId, registerId: shift.registerId, status: "CLOSED", floatLeft: { not: null }, id: { not: shift.id } },
+    orderBy: { closedAt: "desc" },
+    select: { floatLeft: true },
+  });
+  return text2(last?.floatLeft ?? shift.openingFloat);
+}
+
 function linesOf(value: Prisma.JsonValue | null): { USD: CountRow[]; ZWG: CountRow[] } | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const read = (rows: unknown): CountRow[] =>
@@ -626,7 +706,8 @@ function linesOf(value: Prisma.JsonValue | null): { USD: CountRow[]; ZWG: CountR
 export async function closeForm(session: ShiftSession, shiftId: string, now: Date = new Date()): Promise<CountForm> {
   const companyId = session.user.companyId;
   const shift = await shiftToRead(session, shiftId);
-  const [settings, zig, sales, movements, lastClose] = await Promise.all([
+  const open = shift.status === "OPEN";
+  const [settings, zig, sales, movements, floatLeft] = await Promise.all([
     loadPaymentSettings(companyId),
     latestZigRate(companyId),
     prisma.retailSale.findMany({
@@ -634,15 +715,10 @@ export async function closeForm(session: ShiftSession, shiftId: string, now: Dat
       select: { changeAmount: true, exchangeRate: true, payments: { select: { tenderType: true, baseAmount: true, reference: true } } },
     }),
     prisma.retailCashMovement.findMany({ where: { shiftId: shift.id, companyId }, select: { type: true, baseAmount: true } }),
-    prisma.retailShift.findFirst({
-      where: { companyId, registerId: shift.registerId, status: "CLOSED", floatLeft: { not: null }, id: { not: shift.id } },
-      orderBy: { closedAt: "desc" },
-      select: { floatLeft: true },
-    }),
+    open ? floatToLeave(shift) : text2(shift.floatLeft ?? 0),
   ]);
 
-  const open = shift.status === "OPEN";
-  const blind = open && shift.cashierId === session.user.id && !canRetailSessionDo(session, "retail.cash-control", "close-shift");
+  const blind = countsBlind(shift, session);
 
   const cashSales = sumMoney(
     sales.map((sale) =>
@@ -673,7 +749,14 @@ export async function closeForm(session: ShiftSession, shiftId: string, now: Dat
     sub: `${shift.registerName} · ${shift.cashierName} · ${open ? `open ${formatDuration(minutes)}` : `closed ${formatTime(shift.closedAt ?? now)}`}`,
     blind,
     denominations: { USD: [...DENOMINATIONS.USD], ZWG: takesZig ? [...DENOMINATIONS.ZWG] : null },
-    rate: takesZig && zig ? zig.rate : open ? null : shift.countRate && !money(shift.countRate).equals(1) ? money(shift.countRate).toFixed(2) : null,
+    // An open drawer counts its ZiG at today's rate; a closed one reads back the rate its count used.
+    rate: open
+      ? takesZig && zig
+        ? zig.rate
+        : null
+      : shift.countRate && !money(shift.countRate).equals(1)
+        ? money(shift.countRate).toFixed(2)
+        : null,
     parts: blind
       ? null
       : {
@@ -690,7 +773,7 @@ export async function closeForm(session: ShiftSession, shiftId: string, now: Dat
         ok: entry.missing === 0,
         note: entry.missing === 0 ? "matches" : `${entry.missing} without a reference`,
       })),
-    floatLeft: open ? text2(lastClose?.floatLeft ?? shift.openingFloat) : text2(shift.floatLeft ?? 0),
+    floatLeft,
     closed: open
       ? null
       : {

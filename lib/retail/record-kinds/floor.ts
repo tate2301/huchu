@@ -133,7 +133,8 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
       do: { download: `/api/v2/retail/records/RetailShift/${shift.id}/pdf` },
     },
     // FLR-04: a drawer nobody can count (a lost handheld) closes Not counted, for a manager to sign off.
-    ...(shift.status === "OPEN"
+    // Cash control's only, who always read what should be in the drawer.
+    ...(shift.status === "OPEN" && shift.expectedCash !== null
       ? [
           {
             key: "close-uncounted",
@@ -143,7 +144,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
             do: {
               post: {
                 url: `/api/v2/retail/shifts/${shift.id}/close-uncounted`,
-                ask: closeUncountedAsk(shift),
+                ask: closeUncountedAsk({ shiftNo: shift.shiftNo, expectedCash: shift.expectedCash }),
                 done: `${shift.shiftNo} closed without a count.`,
               },
             },
@@ -165,11 +166,14 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
       : null,
   steps,
   chips: (shift) => [{ label: shift.cashierName, tone: "plain" }, stateChip(shift)],
+  // A cashier counting her own drawer blind (FLR-04) reads no expected figure: the server sends none.
   figure: (shift) =>
     shift.status === "OPEN"
-      ? { label: "Should be in the drawer", value: formatMoney(shift.expectedCash) }
+      ? shift.expectedCash === null
+        ? { label: "Takings", value: formatMoney(shift.takings) }
+        : { label: "Should be in the drawer", value: formatMoney(shift.expectedCash) }
       : shift.countedCash === null
-        ? { label: "Expected", value: formatMoney(shift.expectedCash) }
+        ? { label: "Expected", value: formatMoney(shift.expectedCash ?? 0) }
         : { label: "Counted", value: formatMoney(shift.countedCash) },
   kpis: (shift) => {
     const moves = cashInOutNote(shift);
@@ -183,7 +187,9 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
         note: shift.openingFloatZig > 0 ? `counted in, and ${formatMoney(shift.openingFloatZig, "ZWG")}` : "counted in",
       },
       { label: "Cash in and out", value: formatMoney(shift.cashMovementNet), lead: moves.lead, leadTone: "plain", note: moves.note },
-      { label: "Should be in the drawer", value: formatMoney(shift.expectedCash), lead: formatMoney(shift.cashSales), leadTone: "plain", note: "in cash sales" },
+      ...(shift.expectedCash === null
+        ? []
+        : [{ label: "Should be in the drawer", value: formatMoney(shift.expectedCash), lead: formatMoney(shift.cashSales), leadTone: "plain" as const, note: "in cash sales" }]),
       countedKpi(shift),
     ];
   },
@@ -225,7 +231,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
         { key: "float", label: "Opening float", value: formatMoney(shift.openingFloat), mono: true },
         { key: "cash-sales", label: "Cash sales", value: formatMoney(shift.cashSales), mono: true },
         { key: "safe", label: "To the safe", value: toTheSafe(shift), mono: shift.movements.drops > 0, muted: shift.movements.drops === 0 },
-        { key: "expected", label: "Expected", value: formatMoney(shift.expectedCash), mono: true },
+        ...(shift.expectedCash === null ? [] : [{ key: "expected", label: "Expected", value: formatMoney(shift.expectedCash), mono: true }]),
         {
           key: "counted",
           label: "Counted",

@@ -193,6 +193,7 @@ const report = buildRetailZReportFigures({
       openingFloat: "150.00",
       openingFloatZigBase: 0,
       countedCash: "394.00",
+      variance: "0.00",
       movements: [
         { type: "FLOAT_TOP_UP", reasonCode: "CHANGE_REQUIRED", baseAmount: "40.00" },
       ],
@@ -213,6 +214,7 @@ const report = buildRetailZReportFigures({
       openingFloat: "100.00",
       openingFloatZigBase: 0,
       countedCash: "38.70",
+      variance: "-0.50",
       movements: [
         { type: "DROP_TO_SAFE", reasonCode: "BANK_DEPOSIT", baseAmount: "200.00" },
         { type: "PAYOUT", reasonCode: "SUPPLIER_PAYOUT", baseAmount: "24.00" },
@@ -500,6 +502,7 @@ describe("a drawer opened with a ZiG float", () => {
         openingFloat: "100.00",
         openingFloatZigBase: "18.66",
         countedCash: "138.66",
+        variance: "0.00",
         movements: [],
         sales: [sale(ringUp([{ product: COKE, quantity: 25 }]), [{ tenderType: "CASH", baseAmount: 20 }])],
       },
@@ -661,6 +664,7 @@ describe("bottle deposits", () => {
         openingFloat: "50.00",
         openingFloatZigBase: 0,
         countedCash: "81.80",
+        variance: "0.00",
         movements: [],
         sales: [withDeposit, crateBack],
       },

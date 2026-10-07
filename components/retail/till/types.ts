@@ -79,6 +79,8 @@ export type CurrentShift = {
   openingFloat: number;
   /** What the drawer should hold now, in `baseCurrency`. The cash drop prompt reads it. */
   expectedCash: number;
+  /** The float the close leaves by default, "100.00": the till's last close's, else this shift's opening float. */
+  floatLeft: string;
   baseCurrency: string;
   actorRole: string;
   netSalesValue: number;

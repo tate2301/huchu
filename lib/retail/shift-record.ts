@@ -49,7 +49,8 @@ export type ShiftRecordView = {
   /** Signed: what the movements did to the drawer. */
   cashMovementNet: number;
   movements: { count: number; drops: number; dropTotal: number; lastDropAt: string | null };
-  expectedCash: number;
+  /** Null while the viewer counts this drawer blind (`countsBlind`): it shows once the close answers. */
+  expectedCash: number | null;
   countedCash: number | null;
   variance: number | null;
   /** The close (FLR-04): who closed it, what happened, the float left for tomorrow and what went to the safe. */
@@ -67,6 +68,18 @@ export type ShiftRecordView = {
 };
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * A cashier counting her own open drawer counts blind (FLR-04): what should
+ * be in it stays hidden, on the close page, the record and the X-report,
+ * until the close answers. Cash control sees it on every drawer.
+ */
+export function countsBlind(
+  shift: { status: string; cashierId: string },
+  viewer: SessionLike & { user: { id: string } },
+): boolean {
+  return shift.status === "OPEN" && viewer.user.id === shift.cashierId && !canRetailSessionDo(viewer, "retail.cash-control", "close-shift");
+}
 
 /** At most this many bars: each stays wide enough to see and to point at. */
 const MAX_BARS = 24;
@@ -229,7 +242,7 @@ export async function loadShiftRecord(
       dropTotal: toNumberOrZero(sumMoney(drops.map((drop) => money(drop.baseAmount).abs()))),
       lastDropAt: drops.length ? drops[drops.length - 1]!.createdAt.toISOString() : null,
     },
-    expectedCash: toNumberOrZero(shift.expectedCash),
+    expectedCash: options.viewer && countsBlind(shift, options.viewer) ? null : toNumberOrZero(shift.expectedCash),
     countedCash: shift.countedCash === null ? null : toNumberOrZero(shift.countedCash),
     variance,
     close:

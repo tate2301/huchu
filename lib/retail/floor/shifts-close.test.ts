@@ -37,10 +37,15 @@ vi.mock("@/lib/retail/fiscal-settings", async (importOriginal) => {
   };
 });
 
+import { GET as currentShiftGet } from "@/app/api/v2/retail/pos/current-shift/route";
+import { POST as posClosePost } from "@/app/api/v2/retail/pos/shifts/[id]/close/route";
 import { GET as formGet, POST as closePost } from "@/app/api/v2/retail/shifts/[id]/close/route";
 import { POST as uncountedPost } from "@/app/api/v2/retail/shifts/[id]/close-uncounted/route";
+import { DEVICE_COOKIE } from "@/lib/retail/device-words";
+import { hashDeviceKey } from "@/lib/retail/devices";
 
-import { closeShift } from "./shifts";
+import { answerCashMove } from "./cash-moves";
+import { closeShift, openShift, saleZigBooked } from "./shifts";
 
 let shop: TestShop;
 let front: string;
@@ -70,8 +75,8 @@ async function call(
   return { status: response.status, body: await response.json() };
 }
 
-/** A drawer open on a till for a cashier, with what should be in it. */
-async function openDrawer(cashier: string, expected: string, till = front) {
+/** A drawer open on a till for a cashier, with what should be in it (and a ZiG float's dollar value, when it had one). */
+async function openDrawer(cashier: string, expected: string, till = front, float: { usd?: string; zig?: string; zigBase?: string } = {}) {
   seq += 1;
   const shift = await prisma.retailShift.create({
     data: {
@@ -83,7 +88,9 @@ async function openDrawer(cashier: string, expected: string, till = front) {
       siteId: shop.mainId,
       cashierId: people[cashier]!.id,
       cashierName: people[cashier]!.name,
-      openingFloat: "100.00",
+      openingFloat: float.usd ?? "100.00",
+      openingFloatZig: float.zig ?? "0",
+      openingFloatZigBase: float.zigBase ?? "0",
       expectedCash: expected,
       openedAt: new Date(Date.now() - 6 * 3600_000),
     },
@@ -152,6 +159,8 @@ afterAll(async () => {
   await prisma.journalEntry.deleteMany({ where: { companyId } });
   await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId } });
   await prisma.approvalAction.deleteMany({ where: { companyId } });
+  await prisma.retailCashMovement.deleteMany({ where: { companyId } });
+  await prisma.retailDevice.deleteMany({ where: { companyId } });
   await prisma.retailShift.deleteMany({ where: { companyId } });
   await destroyProvisionedTenant(companyId);
 });
@@ -184,7 +193,8 @@ describe("a cashier counting her own drawer, blind", () => {
     ]);
     expect(row.countLines).toEqual({ USD: SHORT.USD, ZWG: [] });
 
-    // Short: Dr 5420 / Cr 1000 US$4.50, and US$58.00 from the drawer to the safe.
+    // Short: Dr 5420 / Cr 1000 US$4.50; then the whole US$158.00 counted goes to the vault (98-decisions FLR-04),
+    // though US$58.00 is what leaves the drawer: the next opening takes its float back out.
     const variance = await journal("RETAIL_SHIFT_VARIANCE", shift.id);
     expect(variance).toEqual([
       { code: "1000", debit: 0, credit: 4.5 },
@@ -192,8 +202,8 @@ describe("a cashier counting her own drawer, blind", () => {
     ]);
     const toSafe = await journal("RETAIL_SHIFT_CLOSE", shift.id);
     expect(toSafe).toEqual([
-      { code: "1000", debit: 0, credit: 58 },
-      { code: "1005", debit: 58, credit: 0 },
+      { code: "1000", debit: 0, credit: 158 },
+      { code: "1005", debit: 158, credit: 0 },
     ]);
     expect(balanced(variance)).toBe(0);
     expect(balanced(toSafe)).toBe(0);
@@ -216,11 +226,12 @@ describe("a cashier counting her own drawer, blind", () => {
 });
 
 describe("a manager closing Chipo's drawer with ZiG in it", () => {
-  it("reads the parts, counts the board's notes to US$201.51, balances, and splits the safe journal by currency", async () => {
-    const shift = await openDrawer("chipo", "201.50");
+  it("reads the parts, counts the board's notes to US$201.51, balances, and empties both till accounts to the cent", async () => {
+    // US$167.00 and ZiG 924.60 (US$34.50 at the morning's rate) in the drawer; the board's ZiG 925.00 at 26.80 is US$34.51.
+    const shift = await openDrawer("chipo", "201.50", front, { usd: "167.00", zig: "924.60", zigBase: "34.50" });
     as("manager");
     const form = await call(formGet, shift.id);
-    expect(form.body.data).toMatchObject({ blind: false, expected: "201.50", parts: { openingFloat: "100.00", cashSales: "0.00", moves: null } });
+    expect(form.body.data).toMatchObject({ blind: false, expected: "201.50", parts: { openingFloat: "201.50", cashSales: "0.00", moves: null } });
 
     const closed = await call(closePost, shift.id, { counts: BOARD, floatLeft: "100.00" });
     expect(closed.status).toBe(200);
@@ -231,15 +242,19 @@ describe("a manager closing Chipo's drawer with ZiG in it", () => {
     ]);
     expect(row.closedById).toBe(people.manager!.id);
 
-    // Every ZiG note leaves 1001; the float left is dollars: 101.51 = 67.00 + 34.51.
-    const toSafe = await journal("RETAIL_SHIFT_CLOSE", shift.id);
-    expect(toSafe).toEqual([
-      { code: "1000", debit: 0, credit: 67 },
-      { code: "1001", debit: 0, credit: 34.51 },
-      { code: "1005", debit: 101.51, credit: 0 },
+    // The cent the tolerance calls "None" is still booked, to over/short, so the till accounts end at nothing:
+    // 1001 gives up the US$34.50 the shift booked to it, 1000 the rest of the US$201.51 counted.
+    expect(await journal("RETAIL_SHIFT_VARIANCE", shift.id)).toEqual([
+      { code: "1000", debit: 0.01, credit: 0 },
+      { code: "5420", debit: 0, credit: 0.01 },
     ]);
-    expect(balanced(toSafe)).toBe(0);
-    expect(await journal("RETAIL_SHIFT_VARIANCE", shift.id)).toBeNull();
+    const toVault = await journal("RETAIL_SHIFT_CLOSE", shift.id);
+    expect(toVault).toEqual([
+      { code: "1000", debit: 0, credit: 167.01 },
+      { code: "1001", debit: 0, credit: 34.5 },
+      { code: "1005", debit: 201.51, credit: 0 },
+    ]);
+    expect(balanced(toVault)).toBe(0);
 
     // Balanced: signed off as it closes, and nobody is told.
     expect(await prisma.approvalAction.count({ where: { companyId: shop.companyId, entityId: shift.id, action: "APPROVE", toStatus: "CLOSED" } })).toBe(1);
@@ -288,6 +303,12 @@ describe("refusals", () => {
     expect(await call(closePost, shift.id, { counts: { USD: [{ denomination: "20", count: 1.5 }] }, floatLeft: "0" })).toEqual({
       status: 400,
       body: { error: "Count whole notes.", fieldErrors: { "usd.20": "Count whole notes." } },
+    });
+    // A note the drawer has no row for says which notes there are, above the table and under it alike.
+    const notes = "Count US$ notes: 100, 50, 20, 10, 5, 2, 1.";
+    expect(await call(closePost, shift.id, { counts: { USD: rows({ "3": 1 }) }, floatLeft: "0" })).toEqual({
+      status: 400,
+      body: { error: notes, fieldErrors: { usd: notes } },
     });
     expect(await call(closePost, shift.id, { counts: BOARD, floatLeft: "170.00" })).toEqual({
       status: 400,
@@ -379,5 +400,148 @@ describe("close without counting", () => {
     expect(activityWords("RETAIL_SHIFT.CLOSED", JSON.parse(audit!.payloadJson!))).toEqual({ what: "Closed without a count: The handheld was lost", tone: "warn" });
 
     expect(await call(uncountedPost, shift.id, { reason: "Again" })).toEqual({ status: 409, body: { error: `${shift.shiftNo} is closed already.` } });
+  });
+});
+
+/* ── The books across a close (98-decisions FLR-04) ─────────────────────────── */
+
+/** Each till account and the vault, Σ debit − credit over the journals these rows posted. */
+async function books(sourceIds: string[]) {
+  await runRetailPosting(shop.companyId, "BY_HAND", null);
+  const lines = await prisma.journalLine.findMany({
+    where: { entry: { companyId: shop.companyId, sourceId: { in: sourceIds } }, account: { code: { in: ["1000", "1001", "1005"] } } },
+    select: { debit: true, credit: true, account: { select: { code: true } } },
+  });
+  const sum = (code: string) => Math.round(lines.filter((line) => line.account.code === code).reduce((total, line) => total + line.debit - line.credit, 0) * 100) / 100;
+  return { "1000": sum("1000"), "1001": sum("1001"), "1005": sum("1005") };
+}
+
+describe("the till accounts across a close and the next opening", () => {
+  let side: string;
+  beforeAll(async () => {
+    await prisma.retailShift.updateMany({ where: { companyId: shop.companyId, status: "OPEN" }, data: { status: "CLOSED", closedAt: new Date() } });
+    side = (await prisma.retailRegister.create({ data: { companyId: shop.companyId, siteId: shop.mainId, code: `SIDE-${shop.companyId.slice(0, 6)}`, name: "Side till" }, select: { id: true } })).id;
+  });
+
+  const open = async (usd: string, zig = "0") =>
+    (await openShift({ session: sessionOf("manager"), registerId: side, cashierId: people.kuda!.id, openingFloat: usd, openingFloatZig: zig })).shift;
+
+  it("holds the drawer and no more: the float left is not booked a second time", async () => {
+    const first = await open("100.00");
+    // US$100 counted, US$100 left for tomorrow: nothing leaves the drawer, but the books hand the whole count to the vault.
+    await closeShift({ session: sessionOf("manager"), shiftId: first.id, body: { counts: { USD: rows({ "100": 1 }) }, floatLeft: "100.00" } });
+    expect((await prisma.retailShift.findUniqueOrThrow({ where: { id: first.id } })).toSafe?.toFixed(2)).toBe("0.00");
+    expect(await books([first.id])).toEqual({ "1000": 0, "1001": 0, "1005": 0 });
+
+    const second = await open("100.00");
+    // The drawer holds US$100.00, and so does 1000; the vault gave it once.
+    expect(await books([first.id, second.id])).toEqual({ "1000": 100, "1001": 0, "1005": -100 });
+    await closeShift({ session: sessionOf("manager"), shiftId: second.id, body: { counts: { USD: rows({ "50": 2 }) }, floatLeft: "0" } });
+  });
+
+  it("empties the ZiG till though no ZiG note was counted, and takes back what the variance overdrew", async () => {
+    // US$100.00 and ZiG 268 (US$10.00 at 26.80), half the ZiG dropped to the safe, then counted as US$105.00 alone.
+    const swapped = await open("100.00", "268.00");
+    const drop = await answerCashMove({ session: sessionOf("manager"), shiftId: swapped.id, body: { direction: "OUT", why: "DROP", currency: "ZWG", amount: "134.00" } });
+    expect(drop.status).toBe(201);
+    const dropId = (await drop.json()).data.id as string;
+    expect((await prisma.retailShift.findUniqueOrThrow({ where: { id: swapped.id } })).expectedCash.toFixed(2)).toBe("105.00");
+    const closed = await closeShift({ session: sessionOf("manager"), shiftId: swapped.id, body: { counts: { USD: rows({ "100": 1, "5": 1 }) }, floatLeft: "0" } });
+    expect(closed).toMatchObject({ difference: "0.00", state: "BALANCED" });
+    expect(await journal("RETAIL_SHIFT_CLOSE", swapped.id)).toEqual([
+      { code: "1000", debit: 0, credit: 100 },
+      { code: "1001", debit: 0, credit: 5 },
+      { code: "1005", debit: 105, credit: 0 },
+    ]);
+    expect(await books([swapped.id, dropId])).toEqual({ "1000": 0, "1001": 0, "1005": 0 });
+
+    // Only ZiG in the drawer (US$10.00), and US$5.00 counted: the variance takes US$5.00 off 1000, which takes it back.
+    const zigOnly = await open("0", "268.00");
+    await closeShift({ session: sessionOf("manager"), shiftId: zigOnly.id, body: { counts: { USD: rows({ "5": 1 }) }, floatLeft: "0", note: "Paid a supplier from the drawer" } });
+    expect(await journal("RETAIL_SHIFT_CLOSE", zigOnly.id)).toEqual([
+      { code: "1000", debit: 5, credit: 0 },
+      { code: "1001", debit: 0, credit: 10 },
+      { code: "1005", debit: 5, credit: 0 },
+    ]);
+    expect(await books([zigOnly.id])).toEqual({ "1000": 0, "1001": 0, "1005": -5 });
+  });
+
+  it("books a sale's ZiG as its journal does: ZiG cash less the change taken off it, a void taking it back", () => {
+    // ZiG 536.00 (US$20.00) for US$18.40: change US$1.60 as US$1 and ZiG for the 60c, both off the ZiG cash.
+    const sale = {
+      saleType: "SALE",
+      totalAmount: "18.40",
+      depositAmount: "0",
+      tenderedAmount: "20.00",
+      changeAmount: "1.60",
+      changeZig: "16.08",
+      payments: [{ tenderType: "CASH" as const, baseAmount: "20.00", currency: "ZWG" }],
+    };
+    expect(saleZigBooked(sale).toFixed(2)).toBe("18.40");
+    expect(saleZigBooked({ ...sale, saleType: "VOID", totalAmount: "-18.40", tenderedAmount: "-20.00", changeAmount: "-1.60", changeZig: "-16.08", payments: [{ ...sale.payments[0]!, baseAmount: "-20.00" }] }).toFixed(2)).toBe("-18.40");
+    expect(saleZigBooked({ ...sale, payments: [{ tenderType: "CASH", baseAmount: "20.00", currency: "USD" }] }).toFixed(2)).toBe("0.00");
+  });
+
+  it("reads a closed shift's ZiG back at the rate its count used, not today's", async () => {
+    const shift = await openDrawer("chipo", "201.50", front, { usd: "167.00", zig: "924.60", zigBase: "34.50" });
+    await closeShift({ session: sessionOf("manager"), shiftId: shift.id, body: { counts: BOARD, floatLeft: "100.00" } });
+    const later = await prisma.currencyRate.create({
+      data: { companyId: shop.companyId, baseCurrency: "USD", quoteCurrency: "ZWG", rate: 27.5, effectiveDate: new Date() },
+      select: { id: true },
+    });
+    try {
+      as("manager");
+      expect((await call(formGet, shift.id)).body.data.rate).toBe("26.80");
+    } finally {
+      await prisma.currencyRate.delete({ where: { id: later.id } });
+    }
+  });
+});
+
+/* ── At the till (POST /pos/shifts/[id]/close) ─────────────────────────────── */
+
+describe("closing at a paired till", () => {
+  const key = `close-key-${Date.now()}`;
+  beforeAll(async () => {
+    await prisma.retailShift.updateMany({ where: { companyId: shop.companyId, status: "OPEN" }, data: { status: "CLOSED", closedAt: new Date() } });
+    await prisma.retailDevice.create({
+      data: { companyId: shop.companyId, registerId: front, kind: "BROWSER", label: "Front PC", keyHash: hashDeviceKey(key), pairedById: people.owner!.id },
+    });
+  });
+
+  const till = async (method: "GET" | "POST", path: string, handler: (request: NextRequest, context: { params: Promise<{ id: string }> }) => Promise<Response>, id: string, body?: unknown, cookie = `${DEVICE_COOKIE}=${key}`) => {
+    const request = new NextRequest(`http://pos.test.localtest.me${path}`, {
+      method,
+      headers: { cookie, "content-type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const response = await handler(request, { params: Promise.resolve({ id }) });
+    return { status: response.status, body: await response.json() };
+  };
+  const posClose = (id: string, body: unknown, cookie?: string) => till("POST", `/api/v2/retail/pos/shifts/${id}/close`, posClosePost, id, body, cookie);
+
+  it("checks the device, keeps the count blind, and closes; the next shift leaves what this one left", async () => {
+    // What the last close on this till left, US$60.00, is the next close's float, as on the close page.
+    const earlier = await openDrawer("chipo", "160.00");
+    await closeShift({ session: sessionOf("manager"), shiftId: earlier.id, body: { counts: { USD: rows({ "100": 1, "50": 1, "10": 1 }) }, floatLeft: "60.00" } });
+
+    const shift = await openDrawer("chipo", "162.50");
+    as("chipo");
+    const current = await till("GET", "/api/v2/retail/pos/current-shift", (request) => currentShiftGet(request), shift.id);
+    expect(current.body.data).toMatchObject({ id: shift.id, floatLeft: "60.00" });
+
+    // Not this till: no device cookie, then a shift on another till.
+    expect(await posClose(shift.id, { counts: SHORT, floatLeft: "60.00" }, "")).toMatchObject({ status: 409, body: { code: "NOT_A_TILL" } });
+    const elsewhere = await openDrawer("kuda", "100.00", back);
+    expect(await posClose(elsewhere.id, { counts: SHORT, floatLeft: "60.00" })).toMatchObject({ status: 409, body: { error: "That shift is on Back till.", code: "SHIFT_ELSEWHERE" } });
+
+    // Blind: four-fifty short says so only in the answer, then closes with a note.
+    expect(await posClose(shift.id, { counts: SHORT, floatLeft: "60.00" })).toEqual({
+      status: 400,
+      body: { error: "It is out by −US$4.50. Say what happened, then close.", difference: "-4.50", fieldErrors: { note: "Say what happened." } },
+    });
+    const closed = await posClose(shift.id, { counts: SHORT, floatLeft: "60.00", note: "Gave change for US$20 instead of US$10" });
+    expect(closed).toMatchObject({ status: 200, body: { data: { shiftNo: shift.shiftNo, difference: "-4.50", state: "SHORT" } } });
+    expect((await prisma.retailShift.findUniqueOrThrow({ where: { id: shift.id } })).toSafe?.toFixed(2)).toBe("98.00");
   });
 });

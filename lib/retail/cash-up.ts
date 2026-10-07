@@ -182,20 +182,6 @@ export function shiftOpenPosting(shift: { openingFloat: MoneyLike; openingFloatZ
 }
 
 /**
- * Counted less expected. Over is positive, short is negative.
- *
- * The Z-report's subtraction, exported so the hand-worked test asserts the
- * arithmetic the report runs rather than its own copy of it. (The close itself
- * counts by note through `countDrawer`, FLR-04.)
- */
-export function cashVariance(input: {
-  countedCash: MoneyLike;
-  expectedCash: MoneyLike;
-}): Prisma.Decimal {
-  return money(input.countedCash).minus(money(input.expectedCash));
-}
-
-/**
  * A counted bundle, added up exactly.
  *
  * `3 × $100 + 2 × $20` is $340.00 and no float ever touches it: the denomination is

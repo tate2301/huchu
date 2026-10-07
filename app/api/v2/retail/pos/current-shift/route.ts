@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getCashNetFromPayments } from "@/lib/retail/cash-up";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requirePosDevice } from "@/lib/retail/devices";
+import { floatToLeave } from "@/lib/retail/floor/shifts";
 import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {
@@ -106,6 +107,8 @@ export async function GET(request: NextRequest) {
       // Numbers on the wire, like every figure below: the till does sums with them.
       openingFloat: toNumberOrZero(shift.openingFloat),
       expectedCash: toNumberOrZero(shift.expectedCash),
+      // The close's default float left for tomorrow, the same rule as the back office's close page (FLR-04).
+      floatLeft: await floatToLeave(shift),
       actorRole: session.user.role,
       baseCurrency,
       site,

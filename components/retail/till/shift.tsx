@@ -24,7 +24,7 @@ import {
   type RetailCashMovementReasonCode,
   type RetailCashMovementTypeName,
 } from "@/lib/retail/cash-movements";
-import { DENOMINATIONS, rowTotal, type CountCurrency } from "@/lib/retail/floor/count";
+import { DENOMINATIONS, floatLeftProblem, rowTotal, type CountCurrency } from "@/lib/retail/floor/count";
 import { count, dayMonth, hhmm, pairedWhen, usd, whole } from "./format";
 import { Empty, ErrorLine, GateSide, Keypad, Segmented, TillDialog, useKeypadKeys, useWindowKeys, type KeypadKey } from "./parts";
 import { ManagerFields, useManagerPin } from "./manager-pin";
@@ -533,7 +533,7 @@ function CheckScreen({
   const held = useHeldSummary().count;
   const countedUsd = countedIn(notes, counts, "USD");
   const countedZig = countedIn(notes, counts, "ZWG");
-  const [floatLeft, setFloatLeft] = React.useState(Number(shift.openingFloat).toFixed(2));
+  const [floatLeft, setFloatLeft] = React.useState(shift.floatLeft);
   const [note, setNote] = React.useState("");
   // The difference, once the server has said it: the count is blind until then.
   const [outBy, setOutBy] = React.useState<string | null>(null);
@@ -577,6 +577,16 @@ function CheckScreen({
   });
 
   const out = outBy === null ? 0 : Number(outBy);
+  // The float comes out of the US$ counted: said here, so a blind count never meets it after the difference.
+  const closeNow = () => {
+    const typed = floatLeft.trim() || "0";
+    const tooMuch = /^\d+(\.\d{1,2})?$/.test(typed) ? floatLeftProblem(typed, countedUsd.toFixed(2)) : null;
+    if (tooMuch) {
+      setProblem({ field: "floatLeft", message: tooMuch });
+      return;
+    }
+    close.mutate();
+  };
 
   return (
     <div className="main is-scroll">
@@ -652,7 +662,7 @@ function CheckScreen({
             <ArrowsClockwise className="ic" />
             Count again
           </button>
-          <button type="button" className="btn btn-primary btn-lg" disabled={close.isPending} aria-busy={close.isPending || undefined} onClick={() => close.mutate()}>
+          <button type="button" className="btn btn-primary btn-lg" disabled={close.isPending} aria-busy={close.isPending || undefined} onClick={closeNow}>
             <Check className="ic" />
             Close the shift
           </button>

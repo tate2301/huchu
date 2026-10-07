@@ -1600,6 +1600,7 @@ export async function generateRetailZReportTransaction(input: {
       openingFloat: shift.openingFloat,
       openingFloatZigBase: shift.openingFloatZigBase,
       countedCash: shift.countedCash,
+      variance: shift.variance,
       movements: (movementsByShift.get(shift.id) ?? []).map((movement) => ({
         type: movement.type,
         reasonCode: movement.reasonCode,

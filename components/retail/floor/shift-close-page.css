@@ -92,10 +92,20 @@
 .cx-sc-line-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; color: var(--ink-2); }
 .cx-sc-line-row > span:first-child { white-space: nowrap; }
 .cx-sc-line-row .cx-sc-mono { color: var(--ink); white-space: nowrap; text-align: right; }
+/* A tender checked without counting: the label left, the amount right, "matches" beside the
+   amount as the board draws it, and what is missing ("1 without a reference") on its own line under it. */
+.cx-sc-check { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 12px; min-height: 22px; color: var(--ink-2); }
+.cx-sc-check > span:first-child { white-space: nowrap; }
+.cx-sc-check__end { display: flex; flex-wrap: wrap; justify-content: flex-end; column-gap: 6px; text-align: right; }
+.cx-sc-check__end > .cx-sc-mono { color: var(--ink); white-space: nowrap; }
+.cx-sc-check__end > .cx-sc-ok { color: var(--ok); }
+.cx-sc-check__end > .cx-sc-warn { color: var(--warn); }
+.cx-sc-check__end > .cx-sc-check__own { flex-basis: 100%; white-space: normal; }
 .cx-sc-ok { color: var(--ok); }
 .cx-sc-warn { color: var(--warn); }
 .cx-sc-float-button { padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; text-decoration: underline dotted var(--ink-3); text-underline-offset: 3px; }
 .cx-sc-float-button:disabled { cursor: default; text-decoration: none; }
+.cx-sc-float-button--bad { color: var(--bad); text-decoration-color: var(--bad); }
 .cx-sc-float { width: 140px; }
 
 /* ── Phone ──────────────────────────────────────────────────── */

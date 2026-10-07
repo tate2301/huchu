@@ -1096,16 +1096,19 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
   {
     name: "Retail shift close",
     sourceType: "RETAIL_SHIFT_CLOSE",
-    description: "The cash a closed drawer sends to the safe: what was counted less the float left for tomorrow.",
+    description: "A closed drawer's whole count to the vault; the next opening takes its float back out.",
     priority: 10,
     scopeType: "COMPANY",
     ruleMode: "GUIDED",
     isFallback: true,
     lines: [
-      // FLR-04: the payload's `usd` and `zig` sum to the amount; every ZiG note leaves 1001.
+      // FLR-04 (98-decisions): each till account gives up what the shift booked to it after the variance, so both
+      // read zero; `usd + zig − usdBack − zigBack` is the amount, and a zero line is skipped.
       { accountCode: "1005", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / cash vault", sortOrder: 10 },
       { accountCode: "1000", direction: "CREDIT", basis: "TAX", valuePath: "usd", memoTemplate: "{description} / till cash", sortOrder: 20 },
       { accountCode: "1001", direction: "CREDIT", basis: "TAX", valuePath: "zig", memoTemplate: "{description} / till cash, ZiG", sortOrder: 30 },
+      { accountCode: "1000", direction: "DEBIT", basis: "TAX", valuePath: "usdBack", memoTemplate: "{description} / till cash", sortOrder: 40 },
+      { accountCode: "1001", direction: "DEBIT", basis: "TAX", valuePath: "zigBack", memoTemplate: "{description} / till cash, ZiG", sortOrder: 50 },
     ],
   },
 ];
