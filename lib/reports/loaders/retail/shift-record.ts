@@ -39,6 +39,7 @@ async function loadSales(ctx: ReportContext, params: ReportParams) {
       saleNo: true,
       saleType: true,
       status: true,
+      sourceSaleId: true,
       baseAmount: true,
       postedAt: true,
       createdAt: true,
@@ -54,6 +55,8 @@ async function loadSales(ctx: ReportContext, params: ReportParams) {
         cashierId: shift.cashierId,
         postedAt: (sale.postedAt ?? sale.createdAt).toISOString(),
         saleNo: sale.saleNo,
+        // A void is not a page of its own: its row opens the sale it cancelled.
+        saleId: sale.saleType === "VOID" ? sale.sourceSaleId : sale.id,
         items: sale.lines.reduce((sum, line) => sum + (num(line.quantity) ?? 0), 0),
         // A reversal says so where the tender would be, so the rows add up to
         // the Σ's "17 sales, 1 refund".

@@ -38,6 +38,18 @@ const RECORD_TYPES: Record<string, RecordActivityType> = {
       ];
     },
   },
+  /** A sale, with the refunds and the void rung against it. */
+  RetailSale: {
+    read: ["retail.sell", "view"],
+    exists: async (companyId, id) =>
+      Boolean(await prisma.retailSale.findFirst({ where: { id, companyId, saleType: { not: "VOID" } }, select: { id: true } })),
+    related: async (companyId, id) => [
+      {
+        entityType: "RetailSale",
+        ids: (await prisma.retailSale.findMany({ where: { companyId, sourceSaleId: id }, select: { id: true } })).map((row) => row.id),
+      },
+    ],
+  },
   Product: {
     read: ["retail.catalog", "view"],
     exists: async (companyId, id) =>

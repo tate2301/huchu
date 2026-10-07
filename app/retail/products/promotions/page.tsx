@@ -16,7 +16,7 @@ import {
   StatusDot,
 } from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { retailMoney } from "@/components/retail/sale-detail";
+import { retailMoney } from "@/components/retail/money";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";

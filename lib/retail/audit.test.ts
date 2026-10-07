@@ -490,6 +490,9 @@ describe("the chain", () => {
       supplierStopped: "RETAIL_SUPPLIER.STOPPED",
       supplierResumed: "RETAIL_SUPPLIER.RESUMED",
       suppliersMessaged: "RETAIL_SUPPLIER.MESSAGED",
+      saleReprinted: "RETAIL_SALE.REPRINTED",
+      saleSent: "RETAIL_SALE.SENT",
+      saleReviewed: "RETAIL_SALE.REVIEWED",
     });
   });
 });

@@ -4,6 +4,6 @@
  */
 export type * from "./types";
 export { supplierKind } from "./buying";
-export { shiftKind } from "./floor";
+export { saleKind, shiftKind } from "./floor";
 export { productKind } from "./products";
 export { transferKind } from "./stock";

@@ -100,6 +100,31 @@ export function RecordFrame<R>({
     [refresh, toast],
   );
 
+  // A copy the server logs: the tab opens on the click (so no popup blocker
+  // takes it), the PDF lands in it once the POST answers, then Activity reads again.
+  const print = React.useCallback(
+    async (url: string) => {
+      const tab = window.open("", "_blank");
+      if (tab) tab.opener = null;
+      const response = await fetch(url, { method: "POST" });
+      if (!response.ok) {
+        tab?.close();
+        let message = "That did not work. Try again.";
+        try {
+          message = ((await response.json()) as { error?: string }).error ?? message;
+        } catch {
+          // Not JSON.
+        }
+        throw new Error(message);
+      }
+      const href = URL.createObjectURL(await response.blob());
+      if (tab) tab.location.href = href;
+      else window.location.assign(href);
+      await refresh();
+    },
+    [refresh],
+  );
+
   const run = React.useCallback(
     (action: RecordAction) => {
       if (!record) return;
@@ -113,6 +138,10 @@ export function RecordFrame<R>({
         for (const [key, value] of Object.entries(target.params ?? {})) params.set(key, value);
         router.push(`${pathname}?${params.toString()}`);
       } else if ("open" in target) window.open(target.open, "_blank", "noopener");
+      else if ("print" in target)
+        void print(target.print).catch((error: unknown) =>
+          toast({ title: error instanceof Error ? error.message : "That did not work.", variant: "destructive" }),
+        );
       else if ("download" in target) window.location.assign(target.download);
       else if ("confirm" in target) setAsking(true);
       else if ("post" in target) {
@@ -123,7 +152,7 @@ export function RecordFrame<R>({
           );
       }
     },
-    [record, onEvent, router, searchParams, pathname, post, toast],
+    [record, onEvent, router, searchParams, pathname, post, print, toast],
   );
 
   const title = record ? kind.title(record) : "";
@@ -282,7 +311,17 @@ export function RecordFrame<R>({
           {mainEmpty ? (
             <p className="cx-rf-empty">Your role sees only this record&rsquo;s details.</p>
           ) : (
-            <RecordTabs tabs={tabs} record={record} recordId={id} type={kind.type} canReadActivity={canReadActivity} />
+            <RecordTabs
+              tabs={tabs}
+              record={record}
+              recordId={id}
+              type={kind.type}
+              canReadActivity={canReadActivity}
+              actionFor={(key) => {
+                const action = [...actions, ...more].find((candidate) => candidate.key === key);
+                return action ? () => run(action) : null;
+              }}
+            />
           )}
         </div>
         <DetailsRail

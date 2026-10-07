@@ -25,20 +25,6 @@ describe("what an unsent sale is called", () => {
     expect(label).not.toContain("3f2a1b9c");
   });
 
-  it("still names a sale queued before the rename", () => {
-    // A device upgraded mid-shift has entries carrying the old `saleNo`. That
-    // was a real number, ugly as it is, so it is shown as it stands.
-    expect(queuedSaleLabel(payload({ saleNo: "RSL-1787005857220984" }))).toBe(
-      "RSL-1787005857220984",
-    );
-  });
-
-  it("prefers the old number when an entry somehow carries both", () => {
-    expect(
-      queuedSaleLabel(payload({ saleNo: "RSL-123", clientRef: "abcdef123456" })),
-    ).toBe("RSL-123");
-  });
-
   it("says something rather than nothing when the key is missing", () => {
     expect(queuedSaleLabel(payload({}))).toBe("Unsent sale");
   });

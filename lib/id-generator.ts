@@ -28,6 +28,8 @@ export type ReservableIdEntity =
   | "RETAIL_SHIFT"
   | "RETAIL_HELD_CART"
   | "RETAIL_SALE"
+  | "RETAIL_REFUND"
+  | "RETAIL_VOID"
   | "RETAIL_PROMOTION"
   | "RETAIL_STOCK_ADJUSTMENT"
   | "RETAIL_CASE_BREAK"
@@ -89,7 +91,11 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   // "SH-00243", the number the floor, the boards and the seeded history use.
   RETAIL_SHIFT: { prefix: "SH", requiresSiteId: true, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
-  RETAIL_SALE: { prefix: "RSL", requiresSiteId: true },
+  // "SALE-31866", "RFD-0044", "VOID-0012" (FLR-01): one line of numbers per
+  // company, whichever site rang them. Rows numbered before keep theirs.
+  RETAIL_SALE: { prefix: "SALE", requiresSiteId: false, padWidth: 5 },
+  RETAIL_REFUND: { prefix: "RFD", requiresSiteId: false },
+  RETAIL_VOID: { prefix: "VOID", requiresSiteId: false },
   RETAIL_PROMOTION: { prefix: "RPM", requiresSiteId: false },
   // A stock adjustment and a case break are documents only in name: the number
   // lives on their movements (`StockMovement.reference`), shared by both legs
@@ -412,10 +418,11 @@ async function findEntityMaxExistingCode(
       });
       return extractMaxFromCodes(records.map((record) => record.holdNo), prefix);
     }
-    case "RETAIL_SALE": {
-      if (!siteId) return 0;
+    case "RETAIL_SALE":
+    case "RETAIL_REFUND":
+    case "RETAIL_VOID": {
       const records = await db.retailSale.findMany({
-        where: { companyId, siteId },
+        where: { companyId, saleNo: { startsWith: `${prefix}-` } },
         select: { saleNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.saleNo), prefix);

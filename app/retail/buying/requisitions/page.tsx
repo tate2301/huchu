@@ -7,7 +7,7 @@ import { Skeleton } from "@corelithzw/react";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { ColumnFigure, ColumnList, ColumnName, ColumnText, StatusDot } from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { retailMoney } from "@/components/retail/sale-detail";
+import { retailMoney } from "@/components/retail/money";
 import { fetchJson } from "@/lib/api-client";
 import { requisitionCategoryLabel } from "@/lib/retail/requisition-words";
 import { formatRetailDate, requisitionStatusLabel } from "@/lib/retail/words";

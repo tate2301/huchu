@@ -2,6 +2,8 @@ import { esc } from "@/lib/documents/html-renderer";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { ageCheckWords } from "@/lib/retail/products/age-check";
 import { loadProductView } from "@/lib/retail/products/view";
+import { loadSaleView } from "@/lib/retail/floor/sale-view";
+import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
 import { formatDay, formatMoney, formatSigned, formatTime, formatWhen } from "@/lib/workspace/format";
@@ -95,6 +97,42 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
 <div class="rd-cols">
   <table class="rd-table"><caption>How people paid</caption><tbody>${tenders || rows([["Nobody has paid yet", formatMoney(0)]])}</tbody></table>
   <table class="rd-table"><caption>${takingsTitle(shift.takingsOverTime.hoursEach)}</caption><tbody>${hours}</tbody></table>
+</div>`,
+      };
+    },
+  },
+  /** A sale or a refund: its lines, how it was paid and its fiscal receipt, as the record lists them. */
+  RetailSale: {
+    read: ["retail.sell", "view"],
+    render: async (caller, id) => {
+      const sale = await loadSaleView(caller.companyId, id, { userId: caller.userId, role: caller.role });
+      if (!sale) return null;
+      const lines = sale.lines
+        .map(
+          (line) =>
+            `<tr><td>${esc(line.name)}</td><td class="num mono">${line.quantity}</td><td class="num mono">${esc(formatMoney(Number(line.price)))}</td><td class="num mono">${esc(formatMoney(Number(line.discount)))}</td><td class="num mono">${esc(formatMoney(Number(line.total)))}</td></tr>`,
+        )
+        .join("");
+      const paid = rows([
+        ...sale.payments.map((payment): [string, string] => [payment.label, formatMoney(Number(payment.amount), payment.currency)]),
+        ["Change", formatMoney(Number(sale.change))],
+      ]);
+      const facts = rows([
+        ["Till", sale.till.name],
+        ["Cashier", sale.cashier.name],
+        ["Customer", sale.customer?.name ?? sale.customerName ?? "Walk-in"],
+        ["When", `${formatDay(sale.postedAt)} ${formatTime(sale.postedAt)}`],
+        ["State", saleStateLabel(sale.state)],
+        ["Fiscal receipt", sale.fiscal.receipt ?? "—"],
+      ]);
+      return {
+        ref: sale.saleNo,
+        title: sale.saleNo,
+        subtitle: `${sale.till.name} · ${sale.cashier.name} · ${paidWords(sale)}`,
+        content: `<table class="rd-table"><caption>Lines</caption><thead><tr><th>Product</th><th class="num">Quantity</th><th class="num">Price</th><th class="num">Discount</th><th class="num">Line</th></tr></thead><tbody>${lines}<tr><td><b>Total</b></td><td></td><td></td><td></td><td class="num mono"><b>${esc(formatMoney(Number(sale.total)))}</b></td></tr></tbody></table>
+<div class="rd-cols">
+  <table class="rd-table"><caption>Sale</caption><tbody>${facts}</tbody></table>
+  <table class="rd-table"><caption>Paid</caption><tbody>${paid}</tbody></table>
 </div>`,
       };
     },

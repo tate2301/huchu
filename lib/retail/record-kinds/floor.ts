@@ -1,9 +1,11 @@
 import { fetchJson } from "@/lib/api-client";
+import type { SaleView } from "@/lib/retail/floor/sale-view";
+import { fiscalChip, paidKpi, saleStateChip } from "@/lib/retail/floor/sale-words";
 import type { ShiftRecordView } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
-import { formatDay, formatDuration, formatMoney, formatSigned, formatTime, formatCount } from "@/lib/workspace/format";
+import { formatDay, formatDuration, formatMediumDay, formatMoney, formatSigned, formatTime, formatWhen, formatCount } from "@/lib/workspace/format";
 
-import type { RecordChip, RecordKind, RecordStep } from "./types";
+import type { RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, RecordStep } from "./types";
 
 /**
  * The shift record kind (00-foundations 5.6.10, ShiftRecord board): the
@@ -206,4 +208,216 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
       : []),
   ],
   invalidates: [["retail-shifts"], ["nav-badges"], ["reports"]],
+};
+
+/* ── A sale (50-floor, SaleRecord board) ─────────────────────────────────── */
+
+const SALES_READ: Array<["retail.sell" | "retail.cash-control", "view"]> = [
+  ["retail.sell", "view"],
+  ["retail.cash-control", "view"],
+];
+const SELL_UPDATE = ["retail.sell", "update"] as const;
+
+const usd = (value: string | number) => formatMoney(Number(value));
+const count = (n: number, one: string, many: string) => `${formatCount(n)} ${n === 1 ? one : many}`;
+
+function saleKpis(sale: SaleView): RecordKpi[] {
+  const paid = paidKpi(sale);
+  const discountLines = sale.discountLines;
+  return [
+    { label: "Total", value: usd(sale.total), note: count(sale.items, "item", "items") },
+    {
+      label: "VAT",
+      value: usd(sale.vat),
+      ...(sale.vatRatePct === null ? {} : { lead: `${sale.vatRatePct}%`, leadTone: "plain" as const }),
+      note: "included",
+    },
+    sale.margin
+      ? {
+          label: "Margin",
+          value: usd(sale.margin.value),
+          ...(sale.margin.onCostPct === null ? {} : { lead: `${sale.margin.onCostPct}%`, leadTone: "plain" as const }),
+          note: "on cost",
+        }
+      : { label: "Discount", value: usd(sale.discount), note: count(discountLines, "line", "lines") },
+    { label: "Paid with", value: paid.value, ...(paid.lead ? { lead: paid.lead, leadTone: "plain" as const } : {}), note: paid.note },
+    { label: "When", value: formatTime(sale.postedAt), note: formatMediumDay(sale.postedAt) },
+  ];
+}
+
+function saleRail(sale: SaleView): RailGroup[] {
+  const groups: RailGroup[] = [];
+  if (sale.refund) {
+    groups.push({
+      title: "Refund",
+      rows: [
+        { key: "of", label: "Of", value: sale.source?.saleNo ?? "—", mono: Boolean(sale.source) },
+        { key: "why", label: "Why", value: sale.refund.reason ?? "Not given", muted: !sale.refund.reason },
+        { key: "shelf", label: "Back on the shelf", value: sale.refund.restocked ? "Yes" : "No, written off" },
+        { key: "approved", label: "Approved by", value: sale.refund.approvedBy ?? "Not needed", muted: !sale.refund.approvedBy },
+      ],
+    });
+  }
+  groups.push({
+    title: "Sale",
+    // The board's hint sits here, beside the customer it is for, though Customer is read-only until CUS-02.
+    hint: true,
+    rows: [
+      { key: "till", label: "Till", value: sale.till.name },
+      { key: "cashier", label: "Cashier", value: sale.cashier.name },
+      // Editable once customers land (CUS-02); until then the name as rung.
+      { key: "customer", label: "Customer", value: sale.customer?.name ?? sale.customerName ?? "Walk-in" },
+      { key: "price-list", label: "Price list", value: sale.priceList },
+    ],
+  });
+  groups.push({
+    title: "Paid",
+    rows: [
+      ...sale.payments.flatMap((payment, index) => [
+        {
+          key: `paid-${payment.id}`,
+          label: payment.label,
+          value: formatMoney(Number(payment.amount), payment.currency),
+          mono: true,
+        },
+        ...(payment.tender === "CASH"
+          ? []
+          : [
+              {
+                key: `reference-${payment.id}`,
+                label: sale.payments.length > 1 ? `Reference ${index + 1}` : "Reference",
+                value: payment.reference ?? "None",
+                mono: Boolean(payment.reference),
+                muted: !payment.reference,
+                ...(sale.can.update
+                  ? {
+                      edit: {
+                        field: "paymentReference",
+                        type: "text" as const,
+                        initial: payment.reference ?? "",
+                        mono: true,
+                        parse: (text: string) => {
+                          const reference = text.trim();
+                          if (!reference) throw new Error("Write the reference as the slip shows it.");
+                          if (reference.length > 40) throw new Error("Keep the reference to 40 characters.");
+                          return { paymentId: payment.id, reference };
+                        },
+                        requires: [...SELL_UPDATE] as ["retail.sell", "update"],
+                      },
+                    }
+                  : {}),
+              },
+            ]),
+      ]),
+      { key: "change", label: "Change", value: usd(sale.change), mono: true },
+      ...(Number(sale.deposit) !== 0 ? [{ key: "deposit", label: "Deposit", value: usd(sale.deposit), mono: true }] : []),
+    ],
+  });
+  // Without a fiscal receipt the group keeps only ID checked, where the board puts it.
+  const signs = sale.fiscal.state !== "OFF";
+  groups.push({
+    title: "Fiscal",
+    rows: [
+      ...(signs
+        ? [
+            { key: "receipt", label: sale.saleType === "REFUND" ? "Credit note" : "Receipt", value: sale.fiscal.receipt ?? "Not signed yet", mono: Boolean(sale.fiscal.receipt), muted: !sale.fiscal.receipt },
+            { key: "day", label: "Day", value: sale.fiscal.dayNo === null ? "—" : String(sale.fiscal.dayNo), mono: sale.fiscal.dayNo !== null },
+          ]
+        : []),
+      { key: "id", label: "ID checked", value: sale.idCheckedAt ? `Yes, ${formatTime(sale.idCheckedAt)}` : "Not needed", muted: !sale.idCheckedAt },
+      ...(signs && sale.fiscal.error ? [{ key: "error", label: "Why not", value: sale.fiscal.error }] : []),
+    ],
+  });
+  if (sale.void) {
+    groups.push({
+      title: "Void",
+      rows: [
+        { key: "why", label: "Why", value: sale.void.reason ?? "Not given", muted: !sale.void.reason },
+        { key: "approved", label: "Approved by", value: sale.void.approvedBy ?? "Not needed", muted: !sale.void.approvedBy },
+        { key: "when", label: "When", value: formatWhen(sale.void.at), mono: true },
+      ],
+    });
+  }
+  return groups;
+}
+
+/** "Send on WhatsApp": straight to the customer's number when there is one, else the sheet asks for it. */
+function sendAction(sale: SaleView): RecordAction {
+  return {
+    key: "send",
+    label: "Send on WhatsApp",
+    requires: SALES_READ,
+    do: sale.customer?.phone ? { event: "send" } : { sheet: "sale-send", id: sale.id },
+  };
+}
+
+export const saleKind: RecordKind<SaleView> = {
+  type: "RetailSale",
+  back: { label: "Sales", href: "/retail/sales" },
+  queryKey: (id) => ["retail-sale", id],
+  load: async (id) => (await fetchJson<{ data: SaleView }>(`/api/v2/retail/sales/${id}`)).data,
+  endpoint: (id) => `/api/v2/retail/sales/${id}`,
+  title: (sale) => sale.saleNo,
+  reference: (sale) => `${sale.till.name} · ${sale.cashier.name}`,
+  // Refund and Void join with FLR-02 (packet 56).
+  actions: (sale) => [
+    { key: "reprint", label: "Reprint the receipt", requires: SALES_READ, do: { print: `/api/v2/retail/sales/${sale.id}/receipt` } },
+    sendAction(sale),
+  ],
+  more: (sale) => [
+    { key: "pdf", label: "Export as PDF", requires: SALES_READ, do: { download: `/api/v2/retail/records/RetailSale/${sale.id}/pdf` } },
+    ...(sale.review && !sale.review.reviewedAt
+      ? [
+          {
+            key: "reviewed",
+            label: "Mark as looked at",
+            requires: [[...SELL_UPDATE] as ["retail.sell", "update"]],
+            do: { post: { url: `/api/v2/retail/sales/${sale.id}/reviewed`, done: `${sale.saleNo} looked at.` } },
+          },
+        ]
+      : []),
+  ],
+  chips: (sale) => {
+    const chips: RecordChip[] = [saleStateChip(sale.state)];
+    const fiscal = fiscalChip(sale);
+    if (fiscal) chips.push(fiscal);
+    if (sale.review && !sale.review.reviewedAt) chips.push({ label: "To look at", tone: "warn" });
+    return chips;
+  },
+  figure: (sale) => ({ label: "Total", value: usd(sale.total) }),
+  kpis: saleKpis,
+  chartRanges: {
+    options: [
+      { key: "today", label: "Today" },
+      { key: "week", label: "This week" },
+    ],
+    initial: "today",
+  },
+  chart: (sale, range) => {
+    const week = range === "week";
+    const series = week ? sale.hourly.week : sale.hourly.today;
+    return {
+      title: week ? "This till this week, by day" : "This till today, by hour",
+      unit: week ? "US$, this sale’s day darker" : "US$, this sale’s hour darker",
+      bars: series.labels.map((label, index) => ({ label, value: series.values[index] ?? 0, text: usd(series.values[index] ?? 0) })),
+      tick: (value) => (value === 0 ? "0" : `US$${formatCount(value)}`),
+      mark: series.mark,
+    };
+  },
+  tabs: [
+    {
+      key: "lines",
+      label: "Lines",
+      source: "retail-sale-lines",
+      parent: "sale",
+      allLink: { label: "View the receipt", action: "reprint" },
+      totalsText: (sale) => ({ name: `Σ ${count(sale.lines.length, "line", "lines")}` }),
+    },
+    { key: "payment", label: "Payment", source: "retail-sale-payments", parent: "sale" },
+    { key: "receipt", label: "Receipt", source: "retail-sale-receipt", parent: "sale" },
+    { key: "refunds", label: "Refunds", source: "retail-sale-refunds", parent: "sale", when: (sale) => sale.refunds.length > 0 },
+    { key: "activity", label: "Activity" },
+  ],
+  rail: saleRail,
+  invalidates: [["list", "retail-sales"], ["nav-badges"]],
 };

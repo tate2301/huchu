@@ -54,6 +54,19 @@ export function receiptPrintHtml(doc: ReceiptDoc, copies: number): string {
 }
 
 /**
+ * A receipt printed again from the back office (FLR-01), as an 80 mm PDF:
+ * the word "COPY" above the header, one page as long as the receipt.
+ */
+export function receiptCopyPdfHtml(doc: ReceiptDoc): string {
+  const rows =
+    1 + doc.head.length + doc.numbers.length + doc.lines.length + 1 + doc.tenders.length + doc.foot.length + (doc.fiscal ? 2 : 0);
+  const heightMm = Math.ceil(rows * 4.8 + 3 * 4 + 12 + (doc.logoUrl ? 20 : 0));
+  const copy = receiptCopyHtml(doc).replace('<div class="copy">', '<div class="copy"><div class="c b">COPY</div>');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Receipt copy</title><style>${PAPER_CSS}
+@page { size: 80mm ${heightMm}mm; margin: 0; }</style></head><body>${copy}</body></html>`;
+}
+
+/**
  * Open the print dialog with the receipt, from a hidden frame so the page
  * behind it stays as it is. Resolves once the dialog has closed (or at once
  * where the browser does not say).

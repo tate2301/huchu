@@ -195,6 +195,19 @@ Recorded unit choices:
 - **STK-04 seeds BRK-0012 as Tafara Nyathi on the Castle case's record.** The packet's "Farai Moyo on his open shift" is
   not true on 30 Sep (his open shift began on 4 Oct), and the till's rule needs no singles left. The seed's break is the
   record's: cases 23 → 22, singles 2 → 26.
+- **FLR-01 prints a receipt copy with a POST, not a GET.** The packet's `GET /sales/[id]/receipt?format=pdf` wrote
+  `RETAIL_SALE.REPRINTED` on every fetch, so a prefetch, a reload of the PDF tab or a restored session each logged a
+  reprint. `POST /api/v2/retail/sales/[id]/receipt` answers the 80 mm "Copy" PDF and writes the line; there is no GET.
+  The record's "Reprint the receipt" and the Lines tab's "View the receipt" run the same action (`{ print }` in
+  RecordFrame: the tab opens on the click, the PDF lands in it, then Activity reads again), and the row menu posts the
+  same route.
+- **FLR-01 keeps the seed's other Front till sales today.** `/retail/sales` today lists the boards' six sales among the
+  Front till's others (SALE-31859 to -31868 between them, so every number runs in the order it was rung), and the tab
+  counts are the tenant's real ones, not `SalesList.png`'s 212 · 3 · 1 · 31,870. Before 12:13 the morning is moved back
+  whole so SALE-31870 is three minutes old. Back till still reads Farai Moyo (C-41).
+- **A list's Export stops at 5,000 rows and says so.** The file holds the engine's first 5,000 rows in the list's order
+  with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the
+  filters for the rest."
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

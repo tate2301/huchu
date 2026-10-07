@@ -104,6 +104,24 @@ export const fiscalStatusLabel = (value: string | null | undefined) => lookup(FI
 /** Any other stored constant — a category, a loyalty tier. */
 export const enumLabel = (value: string | null | undefined) => (value ? sentence(value) : "");
 
+/** One way of paying as a person says it: cash taken in ZiG is "ZiG". */
+export function tenderWord(payment: { tenderType: string; currency?: string | null }): string {
+  if (payment.tenderType === "CASH" && (payment.currency ?? "").toUpperCase() === "ZWG") return "ZiG";
+  return tenderLabel(payment.tenderType);
+}
+
+/**
+ * How a sale was paid (50-floor "Paid with"): "Cash", "ZiG", "EcoCash",
+ * "Cash and EcoCash" for two ways, "3 ways" for three or more.
+ */
+export function paidWithLabel(payments: ReadonlyArray<{ tenderType: string; currency?: string | null }>): string {
+  const ways = [...new Set(payments.map(tenderWord))];
+  if (ways.length === 0) return "";
+  if (ways.length === 1) return ways[0]!;
+  if (ways.length === 2) return `${ways[0]} and ${ways[1]}`;
+  return `${ways.length} ways`;
+}
+
 /**
  * A product is on sale or off it. On sale is the ordinary case and draws
  * nothing (contract rule 5); only "Off sale" is ever written down.

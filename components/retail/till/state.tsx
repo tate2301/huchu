@@ -97,7 +97,7 @@ const CASH_ROW: PaymentRow = { tenderType: "CASH", amount: "", reference: "" };
 /** A key for one checkout attempt; the server numbers the receipt. Not a secure context on a dev POS host, hence the fallback. */
 function createSaleClientRef() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  return `RSL-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  return `till-${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
 /** A short tag off a sale's key, for a sale saved on the till: its number comes when it is sent. */

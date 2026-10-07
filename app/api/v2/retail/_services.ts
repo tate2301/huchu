@@ -933,7 +933,6 @@ export async function createRetailSaleTransaction(input: {
       (await reserveIdentifier(prisma, {
         companyId: input.actor.companyId,
         entity: "RETAIL_SALE",
-        siteId: site.id,
       }));
 
     // Cash into the drawer, in base currency on both sides. Declared here and
@@ -1276,8 +1275,7 @@ export async function refundRetailSaleTransaction(input: {
 
   const refundNo = await reserveIdentifier(prisma, {
     companyId: input.actor.companyId,
-    entity: "RETAIL_SALE",
-    siteId: sourceSale.siteId,
+    entity: "RETAIL_REFUND",
   });
   const requestedByLine = input.lines.reduce<Map<string, number>>((accumulator, line) => {
     accumulator.set(line.saleLineId, round((accumulator.get(line.saleLineId) ?? 0) + line.quantity));
@@ -1485,6 +1483,8 @@ export async function refundRetailSaleTransaction(input: {
         exchangeRate: currentSourceSale.exchangeRate,
         baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
         overrideReason: reason,
+        approvedById: approvedBy?.id ?? null,
+        approvedByName: approvedBy?.name ?? null,
         reviewReason: [approvalReview, reasonReview, referenceReview, when.review].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
@@ -1679,8 +1679,7 @@ export async function voidRetailSaleTransaction(input: {
 
   const voidNo = await reserveIdentifier(prisma, {
     companyId: input.actor.companyId,
-    entity: "RETAIL_SALE",
-    siteId: sourceSale.siteId,
+    entity: "RETAIL_VOID",
   });
 
   const { fiscal, ...reversal } = await reversalTransaction(async (tx) => {
@@ -1765,6 +1764,8 @@ export async function voidRetailSaleTransaction(input: {
         ),
         promotionCode: currentSourceSale.promotionCode,
         overrideReason: reason,
+        approvedById: approvedBy?.id ?? null,
+        approvedByName: approvedBy?.name ?? null,
         reviewReason: [approvalReview, reasonReview, when.review].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,

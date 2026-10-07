@@ -29,9 +29,18 @@ const listQuerySchema = z.object({
   hidden: z.array(z.string().max(64)).max(80).optional(),
   /** Reports: the face, the template under the query, "One row for each" and the columns in order. */
   face: z.enum(["list", "report"]).optional(),
-  template: z.string().max(100).optional(),
+  // A list page sends back the query the API resolved, where "none" is null.
+  template: z
+    .string()
+    .max(100)
+    .nullish()
+    .transform((value) => value ?? undefined),
   rows: z.array(z.string().max(64)).max(8).optional(),
-  cols: z.array(z.string().max(64)).max(80).optional(),
+  cols: z
+    .array(z.string().max(64))
+    .max(80)
+    .nullish()
+    .transform((value) => value ?? undefined),
 });
 
 const bodySchema = z
@@ -59,6 +68,8 @@ type Prepared = {
   view: ReportView;
   definition: ReportDefinition;
   rows: number;
+  /** The file stops at the engine's row limit: how many the query found, when the database counted them. */
+  cut: { of: number | null } | null;
 };
 
 /**
@@ -104,7 +115,10 @@ async function prepare(
       conditions: [],
       search: found.resolved.q,
     };
-    return { meta, params, applied: found.applied, view, definition: found.definition, rows: found.ordered.length };
+    const rows = found.ordered.length;
+    // A database-paged source counts every row it matched; a source read in memory only knows it stopped.
+    const cut = body.rowIds ? null : found.result.total > rows ? { of: found.result.total } : found.result.truncated ? { of: null } : null;
+    return { meta, params, applied: found.applied, view, definition: found.definition, rows, cut };
   }
 
   const report = await fetchReport(session, key, body.params);
@@ -119,6 +133,7 @@ async function prepare(
     view: body.view!,
     definition: report.definition,
     rows: applied.rows.length,
+    cut: report.truncated && !wanted ? { of: null } : null,
   };
 }
 
@@ -207,6 +222,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if ("error" in prepared) return errorResponse(prepared.error, prepared.status);
 
     const response = await render(session, key, parsed.data, prepared);
+    // The page says so when the file stops short of what the list found.
+    if (prepared.cut) {
+      response.headers.set("X-Export-Rows", String(prepared.rows));
+      if (prepared.cut.of !== null) response.headers.set("X-Export-Of", String(prepared.cut.of));
+    }
 
     if (prepared.definition.href.startsWith("/retail")) {
       await auditExportDownloaded(prisma, {

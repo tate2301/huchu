@@ -58,6 +58,7 @@ export function BarChart({
   xLabels,
   label,
   emphasiseLast = true,
+  mark,
   tick,
   evenX = false,
   steps,
@@ -67,6 +68,8 @@ export function BarChart({
   xLabels: ReadonlyArray<string>;
   label: string;
   emphasiseLast?: boolean;
+  /** The one bar drawn in `--data` instead of the last (a sale's own hour). */
+  mark?: number | null;
   /** A y label ("US$20"); default the compact figure. */
   tick?: (value: number) => string;
   /** One x label under each bar, centred on it. */
@@ -77,6 +80,7 @@ export function BarChart({
   const [hover, setHover] = React.useState<number | null>(null);
   const scale = niceScale(Math.max(0, ...bars.map((bar) => bar.value)), steps);
   const tip = hover === null ? null : bars[hover];
+  const now = mark ?? (emphasiseLast ? bars.length - 1 : -1);
   return (
     <div className="cx-df-bars">
       <Grid ticks={scale.ticks} format={tick} />
@@ -90,8 +94,8 @@ export function BarChart({
           >
             <span
               data-bar=""
-              data-now={(emphasiseLast && index === bars.length - 1) || undefined}
-              className={cn("cx-df-bars__bar", emphasiseLast && index === bars.length - 1 && "cx-df-bars__bar--now")}
+              data-now={index === now || undefined}
+              className={cn("cx-df-bars__bar", index === now && "cx-df-bars__bar--now")}
               style={{ height: `${((Math.max(bar.value, 0) / scale.top) * 100).toFixed(2)}%` }}
             />
           </span>

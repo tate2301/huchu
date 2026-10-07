@@ -12,7 +12,7 @@ import {
   ColumnName,
   ColumnRowAction,
 } from "@/components/management/ui";
-import { retailMoney } from "@/components/retail/sale-detail";
+import { retailMoney } from "@/components/retail/money";
 import { fetchJson } from "@/lib/api-client";
 import { formatRetailDate } from "@/lib/retail/words";
 

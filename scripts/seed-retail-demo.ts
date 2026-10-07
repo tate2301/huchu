@@ -210,7 +210,80 @@ const VOID_REASONS = [
 const CUSTOMERS = [
   "Rudo Chirwa", "Blessing Ncube", "Tapiwa Marange", "Nyasha Gwenzi",
   "Simba Mutasa", "Kudzai Zhou", "Munashe Chari", "Rutendo Banda",
+  "Farai Chikore", "Tinashe Mavhunga",
 ]
+
+/** FLR-01: the customers' WhatsApp numbers, E.164 (the customers spec's names, C-44). */
+const CUSTOMER_PHONES: Record<string, string> = {
+  "Farai Chikore": "+263775091144",
+  "Tinashe Mavhunga": "+263713308826",
+  "Tapiwa Marange": "+263774123388",
+  "Nyasha Gwenzi": "+263712209014",
+  "Rutendo Banda": "+263783015521",
+}
+
+/**
+ * FLR-01: the SalesList and SaleRecord boards' morning, rung on the two open
+ * drawers (the Front till, Chipo Dube; the stale Back till, Farai Moyo, C-41).
+ * At the board's times once the day has reached them; seeded earlier, the same
+ * morning ends a few minutes before the run. Their units come out of the
+ * window's quotas, so every product's 30-day count still lands; Tinashe's
+ * Jameson comes back with RFD-0044 and the voided Castle with its VOID
+ * document, so neither changes what sold.
+ */
+type FloorSale = {
+  key: "tinashe" | "voided" | "four" | "card" | "chikore" | "last"
+  saleNo?: string
+  at: [number, number]
+  till: "front" | "back"
+  customer?: string
+  lines: Array<{ code: string; units: number; price?: string }>
+  tender: RetailTenderType
+  reference?: string
+}
+const FLOOR_SALES: FloorSale[] = [
+  { key: "tinashe", at: [10, 20], till: "front", customer: "Tinashe Mavhunga", lines: [{ code: "JAMESON-750", units: 1 }], tender: "CASH" },
+  { key: "voided", saleNo: "SALE-31858", at: [10, 58], till: "back", lines: [{ code: "CASTLE-340", units: 1 }], tender: "CASH" },
+  {
+    key: "four",
+    saleNo: "SALE-31862",
+    at: [11, 12],
+    till: "front",
+    lines: [{ code: "TWOKEYS-750", units: 1 }, { code: "COKE-500", units: 2 }, { code: "BERNINI-275", units: 1 }],
+    tender: "CASH",
+  },
+  {
+    key: "card",
+    saleNo: "SALE-31866",
+    at: [11, 40],
+    till: "front",
+    // The board's ice at US$2.20 (the bag before this week's price).
+    lines: [{ code: "BLKLABEL-750", units: 1 }, { code: "ICE-2KG", units: 1, price: "2.20" }],
+    tender: "CARD",
+    reference: "CBZ 4412 0988",
+  },
+  {
+    key: "chikore",
+    saleNo: "SALE-31869",
+    at: [12, 2],
+    till: "back",
+    customer: "Farai Chikore",
+    lines: [{ code: "BERNINI-275", units: 4 }, { code: "CASTLE-340", units: 1 }, { code: "CHIBUKU-1L", units: 1 }],
+    tender: "CASH",
+  },
+  {
+    key: "last",
+    saleNo: "SALE-31870",
+    at: [12, 10],
+    till: "front",
+    lines: [{ code: "CASTLE-340", units: 8 }, { code: "CHARCOAL-4KG", units: 3 }, { code: "ICE-2KG", units: 1 }, { code: "TONIC-200", units: 1 }],
+    tender: "ECOCASH",
+    reference: "EC448120",
+  },
+]
+/** The run's last sale is SALE-31870; RFD-0044 is the 44th refund. */
+const LAST_SALE_NO = 31870
+const FLOOR_REFUND_NO = 44
 
 /** ZiG per US dollar: today's rate on Payments (SET-05), the one the seeded ZiG sales were taken at. */
 const ZWG_RATE = "26.8000"
@@ -618,15 +691,19 @@ async function main() {
   console.log(`  ${CATALOGUE.length} lines on the shelf (4 low, 1 out, 2 archived, Bohlinger’s at Borrowdale)`)
 
   // ── Customers ────────────────────────────────────────────────────────────
+  const customers: Array<{ id: string; name: string }> = []
   for (const name of CUSTOMERS) {
     const existing = await prisma.customer.findFirst({
       where: { companyId, name },
       select: { id: true },
     })
-    if (!existing) {
-      await prisma.customer.create({ data: { companyId, name, isActive: true } })
-    }
+    const phone = CUSTOMER_PHONES[name] ?? null
+    const customer = existing
+      ? await prisma.customer.update({ where: { id: existing.id }, data: { phone, isActive: true }, select: { id: true, name: true } })
+      : await prisma.customer.create({ data: { companyId, name, phone, isActive: true }, select: { id: true, name: true } })
+    customers.push(customer)
   }
+  const customerNamed = (name: string) => customers.find((customer) => customer.name === name)!
 
   // ── Promotions ───────────────────────────────────────────────────────────
   await prisma.retailPromotion.upsert({
@@ -671,7 +748,9 @@ async function main() {
     await prisma.retailShift.deleteMany({ where: { companyId } })
     // The next shift number is worked out again from the history written below
     // (SH-<n> after the last seeded one), not from the run before.
-    await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_SHIFT" } })
+    await prisma.idSequence.deleteMany({
+      where: { companyId, entityKey: { in: ["RETAIL_SHIFT", "RETAIL_SALE", "RETAIL_REFUND", "RETAIL_VOID"] } },
+    })
     console.log(`  reset: cleared ${saleIds.length} previous sale(s) and their shifts`)
   }
 
@@ -705,7 +784,17 @@ async function main() {
   const HOUR_MS = 60 * 60 * 1000
   const staffNamed = (name: string) => tills.find((person) => person.name === name) ?? tills[0]!
   const staleOpenedAt = new Date(now.getTime() - 52 * HOUR_MS)
-  const frontToday = harareTime(0, 7, 58)
+  /*
+    FLR-01: the boards' morning (FLOOR_SALES) at its own times once the day is
+    past 12:13; seeded earlier, moved back whole so SALE-31870 is three minutes
+    old, and the Front till opens in time for the first of them.
+  */
+  const boardLast = harareTime(0, 12, 10)
+  const floorShift = Math.min(0, now.getTime() - 3 * 60 * 1000 - boardLast.getTime())
+  const floorAt = (at: [number, number]) => new Date(harareTime(0, at[0], at[1]).getTime() + floorShift)
+  const floorFirst = floorAt(FLOOR_SALES[0]!.at)
+  const frontOpens = harareTime(0, 7, 58)
+  const frontToday = frontOpens.getTime() < floorFirst.getTime() - 20 * 60 * 1000 ? frontOpens : new Date(floorFirst.getTime() - 20 * 60 * 1000)
   type Slot = {
     register: typeof register
     openedAt: Date
@@ -723,7 +812,7 @@ async function main() {
     if (dayOffset === 0) {
       slots.push({
         register,
-        openedAt: frontToday.getTime() < now.getTime() ? frontToday : new Date(now.getTime() - HOUR_MS),
+        openedAt: frontToday,
         open: true,
         cashier: staffNamed("Chipo Dube"),
         float: "200.00",
@@ -804,16 +893,27 @@ async function main() {
   const windowOpens = now.getTime() - 30 * DAY_MS
   const windowCounts = windowOpens + 6 * HOUR_MS
   const salePlans = slots.map((slot) => {
-    if (slot.saleTimes) return slot.saleTimes.filter((postedAt) => postedAt.getTime() <= now.getTime() && !(postedAt.getTime() >= windowOpens && postedAt.getTime() < windowCounts))
+    // Nothing after the boards' first sale but the boards' morning itself (FLR-01, below).
+    if (slot.saleTimes) return slot.saleTimes.filter((postedAt) => postedAt.getTime() < floorFirst.getTime() && !(postedAt.getTime() >= windowOpens && postedAt.getTime() < windowCounts))
     const count = Math.max(3, Math.round(between(9, 17) * dayBusyness(slot.openedAt)))
     return Array.from(
       { length: count },
       (_, saleIndex) => new Date(slot.openedAt.getTime() + between(5, 6 * 60) * 60 * 1000 + saleIndex * 1000),
     ).filter((postedAt) => {
       const at = postedAt.getTime()
-      return at <= now.getTime() && !(at >= windowOpens && at < windowCounts)
+      return at < floorFirst.getTime() && !(at >= windowOpens && at < windowCounts)
     })
   })
+  /*
+    FLR-01: the Front till's other sales between the boards' (SALE-31859 to
+    -31861, -31863 to -31865, -31867 and -31868), so every number runs in the
+    order it was rung and SALE-31870 is the newest. The last of them is
+    Setup › Receipts' preview sale (SET-07).
+  */
+  const frontSlot = slots.findIndex((slot) => slot.open && slot.register.id === register.id)
+  salePlans[frontSlot]!.push(
+    ...([[11, 0], [11, 4], [11, 8], [11, 20], [11, 27], [11, 33], [11, 46], [11, 56]] as Array<[number, number]>).map(floorAt),
+  )
   let windowSalesLeft = salePlans.flat().filter((postedAt) => postedAt.getTime() >= windowCounts).length
   const quota = new WindowQuota(CATALOGUE.filter((entry) => !entry.soldOutDays))
   /*
@@ -845,6 +945,83 @@ async function main() {
   if (newestSale && newestSale.at >= windowCounts) {
     for (const pickLine of PREVIEW_PICKS) quota.reserve(pickLine.code, pickLine.units)
     windowSalesLeft -= 1
+  }
+  /*
+    FLR-01: refunds are numbered RFD-0001 upwards and the boards' RFD-0044
+    (this morning's) is the newest, so the history holds exactly 43, on
+    closed drawers outside the window's quiet hours.
+  */
+  const refundable = salePlans.flatMap((plan, slotIndex) =>
+    slots[slotIndex]!.open
+      ? []
+      : plan
+          .map((postedAt) => postedAt.getTime())
+          .filter((at) => !(at + 20 * 60 * 1000 >= windowOpens && at + 20 * 60 * 1000 < windowCounts))
+          .map((at) => `${slotIndex}|${at}`),
+  )
+  const refundPicks = new Set<string>()
+  while (refundPicks.size < Math.min(FLOOR_REFUND_NO - 1, refundable.length)) refundPicks.add(pick(refundable))
+
+  /**
+   * A void as the till writes it (FLR-01): the sale VOIDED with its reason, and a
+   * VOID document beside it with every line and payment the other way, so the
+   * day's takings net it to nothing and the stock ledger puts it back.
+   */
+  const voidDocument = (sale: SaleRow, reason: string, approver: { id: string; name: string } | null) => {
+    sale.status = "VOIDED"
+    sale.voidReason = reason
+    const at = new Date((sale.postedAt as Date).getTime() + 1000)
+    const voidId = randomUUID()
+    const negate = (value: unknown) => money(value as Prisma.Decimal).negated()
+    saleRows.push({
+      ...sale,
+      id: voidId,
+      saleNo: `V-${voidId}`,
+      saleType: "VOID",
+      status: "POSTED",
+      sourceSaleId: sale.id,
+      customerId: null,
+      customerName: null,
+      voidReason: null,
+      overrideReason: reason,
+      approvedById: approver?.id ?? null,
+      approvedByName: approver?.name ?? null,
+      subtotal: negate(sale.subtotal),
+      taxAmount: negate(sale.taxAmount),
+      totalAmount: negate(sale.totalAmount),
+      depositAmount: negate(sale.depositAmount ?? 0),
+      tenderedAmount: negate(sale.tenderedAmount ?? 0),
+      baseAmount: negate(sale.baseAmount),
+      postedAt: at,
+      createdAt: at,
+      updatedAt: at,
+    })
+    for (const line of lineRows.filter((row) => row.saleId === sale.id)) {
+      lineRows.push({
+        ...line,
+        id: randomUUID(),
+        saleId: voidId,
+        sourceLineId: line.id as string,
+        quantity: negate(line.quantity),
+        taxAmount: negate(line.taxAmount),
+        lineTotal: negate(line.lineTotal),
+        costTotal: negate(line.costTotal),
+        depositAmount: negate(line.depositAmount ?? 0),
+        createdAt: at,
+      })
+    }
+    let cash = money(0)
+    for (const payment of paymentRows.filter((row) => row.saleId === sale.id)) {
+      paymentRows.push({ ...payment, id: randomUUID(), saleId: voidId, amount: negate(payment.amount), baseAmount: negate(payment.baseAmount), createdAt: at })
+      if (payment.tenderType === "CASH") cash = cash.plus(money(sale.baseAmount as Prisma.Decimal))
+    }
+    voids += 1
+    return cash
+  }
+
+  // FLR-01: the boards' sales that stand take their units out of the window first.
+  for (const floor of FLOOR_SALES.filter((entry) => entry.key !== "tinashe" && entry.key !== "voided")) {
+    for (const line of floor.lines) quota.reserve(line.code, line.units)
   }
   let previewSaleId: string | null = null
   const byCode = new Map(CATALOGUE.map((entry) => [entry.code, entry]))
@@ -958,7 +1135,7 @@ async function main() {
                 ? "CARD"
                 : "TRANSFER"
 
-        const named = !isPreviewSale && Math.random() < 0.22
+        const named = !isPreviewSale && Math.random() < 0.22 ? pick(customers) : null
         saleRows.push({
           id: saleId,
           companyId,
@@ -968,7 +1145,8 @@ async function main() {
           siteId: slotSiteId,
           cashierId: cashier.id,
           cashierName: cashier.name,
-          customerName: named ? pick(CUSTOMERS) : null,
+          customerId: named?.id ?? null,
+          customerName: named?.name ?? null,
           saleType: "SALE",
           status: "POSTED",
           subtotal,
@@ -1005,7 +1183,7 @@ async function main() {
         // landing in the window's quiet first hours; one inside the window
         // puts its units back to be sold again, so the quotas still net out.
         const refundAt = postedAt.getTime() + 20 * 60 * 1000
-        if (Math.random() < 0.02 && !isOpenShift && !(refundAt >= windowOpens && refundAt < windowCounts)) {
+        if (refundPicks.has(`${slotIndex}|${postedAt.getTime()}`)) {
           saleSeq += 1
           refunds += 1
           const refundId = randomUUID()
@@ -1107,9 +1285,7 @@ async function main() {
           )
 
         if (candidate) {
-          candidate.status = "VOIDED"
-          candidate.voidReason = pick(VOID_REASONS)
-          voids += 1
+          cashTaken = cashTaken.minus(voidDocument(candidate, pick(VOID_REASONS), null))
           // A voided sale in the window sold nothing: its units go back.
           if ((candidate.postedAt as Date).getTime() >= windowCounts) {
             for (const line of lineRows.filter((row) => row.saleId === candidate.id)) {
@@ -1144,6 +1320,179 @@ async function main() {
         updatedAt: closedAt ?? openedAt,
       })
     }
+  }
+
+  // ── FLR-01: the boards' morning, then every number ──────────────────────
+  {
+    const front = shiftRows.find((row) => row.status === "OPEN" && row.registerCode === register.code)!
+    const back = shiftRows.find((row) => row.status === "OPEN" && row.registerCode === backRegister.code)!
+    const approver = staff.find((person) => person.name === "Tafara Nyathi") ?? null
+    const written = new Map<FloorSale["key"], SaleRow>()
+    for (const floor of FLOOR_SALES) {
+      const shift = floor.till === "front" ? front : back
+      const at = floorAt(floor.at)
+      const saleId = randomUUID()
+      const lines: LineRow[] = floor.lines.map((line) => {
+        const product = byCode.get(line.code)!
+        const target = stocked.get(line.code)!
+        const units = rate(String(line.units))
+        const price = line.price ?? product.price
+        const gross = multiplyMoney(units, price)
+        return {
+          id: randomUUID(),
+          companyId,
+          saleId,
+          inventoryItemId: target.inventoryItemId,
+          productId: target.productId,
+          itemName: product.name,
+          quantity: units,
+          unitPrice: money(price),
+          discountAmount: money(0),
+          taxAmount: gross.minus(netOfInclusiveTax(gross, VAT_PERCENT)),
+          lineTotal: gross,
+          costUnit: money(product.cost),
+          costTotal: multiplyMoney(units, product.cost),
+          depositAmount: money(0),
+          createdAt: at,
+        }
+      })
+      const total = sumMoney(lines.map((line) => line.lineTotal as Prisma.Decimal))
+      const tax = sumMoney(lines.map((line) => line.taxAmount as Prisma.Decimal))
+      const customer = floor.customer ? customerNamed(floor.customer) : null
+      const row: SaleRow = {
+        id: saleId,
+        companyId,
+        saleNo: floor.saleNo ?? `F-${saleId}`,
+        shiftId: shift.id as string,
+        registerId: shift.registerId,
+        siteId: shift.siteId,
+        cashierId: shift.cashierId,
+        cashierName: shift.cashierName,
+        customerId: customer?.id ?? null,
+        customerName: customer?.name ?? null,
+        saleType: "SALE",
+        status: "POSTED",
+        subtotal: total.minus(tax),
+        discountAmount: money(0),
+        taxAmount: tax,
+        totalAmount: total,
+        depositAmount: money(0),
+        tenderedAmount: total,
+        changeAmount: money(0),
+        currency: "USD",
+        exchangeRate: rate("1"),
+        baseAmount: total,
+        // Johnnie Walker is age-checked: the ID a minute before the card went through.
+        idCheckedAt: floor.key === "card" ? new Date(at.getTime() - 60 * 1000) : null,
+        postedAt: at,
+        createdAt: at,
+        updatedAt: at,
+      }
+      saleRows.push(row)
+      lineRows.push(...lines)
+      paymentRows.push({
+        id: randomUUID(),
+        companyId,
+        saleId,
+        tenderType: floor.tender,
+        amount: total,
+        currency: "USD",
+        exchangeRate: rate("1"),
+        baseAmount: total,
+        reference: floor.reference ?? null,
+        createdAt: at,
+      })
+      if (floor.tender === "CASH") shift.expectedCash = money(shift.expectedCash as Prisma.Decimal).plus(total)
+      written.set(floor.key, row)
+    }
+
+    // SALE-31858 rung up wrong on the Back till; Tafara Nyathi approved the void.
+    const voided = written.get("voided")!
+    back.expectedCash = money(back.expectedCash as Prisma.Decimal).minus(voidDocument(voided, "Rang up wrong", approver))
+
+    // RFD-0044: Tinashe Mavhunga brought the Jameson back; the shelf takes it again.
+    const sold = written.get("tinashe")!
+    const soldLine = lineRows.find((line) => line.saleId === sold.id)!
+    const refundAt = floorAt([11, 51])
+    const refundId = randomUUID()
+    const negate = (value: unknown) => money(value as Prisma.Decimal).negated()
+    saleRows.push({
+      ...sold,
+      id: refundId,
+      saleNo: `R-${refundId}`,
+      saleType: "REFUND",
+      sourceSaleId: sold.id,
+      subtotal: negate(sold.subtotal),
+      taxAmount: negate(sold.taxAmount),
+      totalAmount: negate(sold.totalAmount),
+      tenderedAmount: negate(sold.tenderedAmount),
+      baseAmount: negate(sold.baseAmount),
+      overrideReason: "Changed mind",
+      restocked: true,
+      postedAt: refundAt,
+      createdAt: refundAt,
+      updatedAt: refundAt,
+    })
+    lineRows.push({
+      ...soldLine,
+      id: randomUUID(),
+      saleId: refundId,
+      sourceLineId: soldLine.id as string,
+      quantity: negate(soldLine.quantity),
+      taxAmount: negate(soldLine.taxAmount),
+      lineTotal: negate(soldLine.lineTotal),
+      costTotal: negate(soldLine.costTotal),
+      createdAt: refundAt,
+    })
+    paymentRows.push({
+      id: randomUUID(),
+      companyId,
+      saleId: refundId,
+      tenderType: "CASH",
+      amount: negate(sold.totalAmount),
+      currency: "USD",
+      exchangeRate: rate("1"),
+      baseAmount: negate(sold.baseAmount),
+      reference: null,
+      createdAt: refundAt,
+    })
+    front.expectedCash = money(front.expectedCash as Prisma.Decimal).minus(money(sold.baseAmount as Prisma.Decimal))
+
+    // Three sales of the last few days wait for a manager to look at them (W-44).
+    const flaggable = saleRows
+      .filter((row) => row.saleType === "SALE" && row.status === "POSTED" && ![...written.values()].includes(row))
+      .filter((row) => (row.postedAt as Date).getTime() > now.getTime() - 4 * DAY_MS && (row.postedAt as Date).getTime() < floorFirst.getTime())
+      .slice(-3)
+    const why = ["Discount over the till's limit.", "Price changed at the till.", "Sold after licence hours."]
+    flaggable.forEach((row, index) => {
+      row.reviewReason = why[index]
+    })
+
+    // Numbers in the order they were rung: sales up to SALE-31870, refunds and voids from 1.
+    const byTime = (a: SaleRow, b: SaleRow) => (a.postedAt as Date).getTime() - (b.postedAt as Date).getTime()
+    const rung = saleRows.filter((row) => row.saleType === "SALE").sort(byTime)
+    rung.forEach((row, index) => {
+      row.saleNo = `SALE-${String(LAST_SALE_NO - (rung.length - 1 - index)).padStart(5, "0")}`
+    })
+    for (const floor of FLOOR_SALES) {
+      const got = written.get(floor.key)!.saleNo
+      if (floor.saleNo && got !== floor.saleNo) console.warn(`  the boards' ${floor.saleNo} came out as ${got}`)
+    }
+    saleRows
+      .filter((row) => row.saleType === "REFUND")
+      .sort(byTime)
+      .forEach((row, index) => {
+        row.saleNo = `RFD-${String(index + 1).padStart(4, "0")}`
+      })
+    saleRows
+      .filter((row) => row.saleType === "VOID")
+      .sort(byTime)
+      .forEach((row, index) => {
+        row.saleNo = `VOID-${String(index + 1).padStart(4, "0")}`
+      })
+    const refundNo = saleRows.find((row) => row.id === refundId)!.saleNo
+    if (refundNo !== `RFD-${String(FLOOR_REFUND_NO).padStart(4, "0")}`) console.warn(`  the boards' refund is ${refundNo}, not RFD-0044`)
+    console.log(`  the boards' morning: SALE-31858 to SALE-31870, ${refundNo}, ${flaggable.length} sales to look at`)
   }
 
   if (quota.left + soldOutQuota.left > 0) {
@@ -2169,7 +2518,7 @@ async function seedRecordActivity(input: {
 
   // Every open drawer's sales, so each open shift's Activity tab reads like its Sales tab.
   for (const shift of shiftRows.filter((row) => row.status === "OPEN" && written.has(row.id as string))) {
-    for (const sale of saleRows.filter((row) => row.shiftId === shift.id)) {
+    for (const sale of saleRows.filter((row) => row.shiftId === shift.id && row.saleType === "SALE")) {
       await auditSalePosted(prisma, {
         actor: actorOf(shift),
         saleId: sale.id as string,
@@ -3978,7 +4327,8 @@ async function seedFiscal(companyId: string) {
       data: {
         companyId,
         retailSaleId: sale.id,
-        receiptNumber: sale.saleNo,
+        // "FDMS 0441-2209 / 31866": the device and the sale's number, as the SaleRecord board prints it.
+        receiptNumber: `FDMS ${provider.deviceId} / ${sale.saleNo.replace(/^\D+-0*/, "")}`,
         fiscalNumber: `${provider.deviceId}/214/${counter}`,
         status: "SUCCESS",
         issuedAt: sale.postedAt,

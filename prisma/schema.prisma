@@ -1449,6 +1449,7 @@ model User {
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
   retailDevicesUnpaired             RetailDevice[]                 @relation("RetailDeviceUnpairedBy")
   retailSalesReviewed               RetailSale[]                   @relation("RetailSaleReviewedBy")
+  retailSalesApproved               RetailSale[]                   @relation("RetailSaleApprovedBy")
   retailPairingCodesCreated         RetailPairingCode[]            @relation("RetailPairingCodeCreatedBy")
   retailDeviceMessagesSent          RetailDeviceMessage[]          @relation("RetailDeviceMessageSentBy")
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
@@ -5633,6 +5634,13 @@ model RetailSale {
   cashierId      String?
   cashierName    String?
   customerName   String?
+  /// FLR-01: who the sale was rung for; `customerName` stays the printed name.
+  customerId     String?
+  /// FLR-01: the manager who approved a refund or void (PIN or own session).
+  approvedById   String?
+  approvedByName String?
+  /// FLR-01: a refund's goods went back on the shelf; false = written off instead.
+  restocked      Boolean   @default(true)
   saleType       RetailSaleType @default(SALE)
   subtotal       Decimal @default(0) @db.Decimal(14, 2)
   discountAmount Decimal @default(0) @db.Decimal(14, 2)
@@ -5711,6 +5719,8 @@ model RetailSale {
   register   RetailRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
   device     RetailDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   reviewedBy User?           @relation("RetailSaleReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  customer   Customer?       @relation("RetailSaleCustomer", fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvedBy User?           @relation("RetailSaleApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
@@ -5718,6 +5728,8 @@ model RetailSale {
   @@index([shiftId])
   @@index([companyId, registerId, postedAt])
   @@index([companyId, fiscalWaitsSince])
+  @@index([companyId, customerId])
+  @@index([companyId, saleType, postedAt])
 }
 
 model RetailSaleLine {
@@ -6572,6 +6584,7 @@ model Customer {
   invoices        SalesInvoice[]
   quotations      SalesQuotation[]
   crmClients      CrmClient[]
+  retailSales     RetailSale[]     @relation("RetailSaleCustomer")
 
   @@index([companyId, isActive])
 }

@@ -258,11 +258,17 @@ export type ReceiptRecipient = { phone: string | null; email: string | null };
  */
 export async function queueSaleReceipt(
   tx: Prisma.TransactionClient,
-  input: { companyId: string; saleId: string; to: ReceiptRecipient | null; createdById: string | null },
+  input: {
+    companyId: string;
+    saleId: string;
+    to: ReceiptRecipient | null;
+    createdById: string | null;
+    /** Sent by hand ("Send on WhatsApp", FLR-01): this way, whatever the shop sends by itself. */
+    channel?: "WHATSAPP";
+  },
 ): Promise<{ id: string } | null> {
-  const settings = await loadReceiptSettings(input.companyId, tx);
-  if (settings.alsoSendBy === "NOTHING" || !input.to) return null;
-  const channel = settings.alsoSendBy;
+  const channel = input.channel ?? (await loadReceiptSettings(input.companyId, tx)).alsoSendBy;
+  if (channel === "NOTHING" || !input.to) return null;
   // A phone as Meta takes it, Zimbabwe when no country is typed ("0772 123 456" → "+263772123456").
   const to = channel === "WHATSAPP" ? normalizePhoneE164(input.to.phone, "263") : input.to.email?.trim();
   if (!to) return null;

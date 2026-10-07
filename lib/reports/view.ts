@@ -266,7 +266,7 @@ export function totalsFor(rows: ReportRow[], columns: ReportColumn[], view: Repo
   for (const [key, fn] of Object.entries(view.totals)) {
     const column = byKey.get(key);
     if (column?.ratio && fn === "avg") totals[key] = ratioOf(rows, column.ratio);
-    else if (column) totals[key] = aggregate(rows, column, fn);
+    else if (column) totals[key] = aggregate(rows, column.totalOf ? { ...column, key: column.totalOf } : column, fn);
   }
   return totals;
 }

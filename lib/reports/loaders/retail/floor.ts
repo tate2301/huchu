@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { FLOOR_SALES_LOADERS } from "@/lib/reports/loaders/retail/floor-sales";
 import { num, result, TAKE } from "@/lib/reports/loaders/shared";
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import type { ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow } from "@/lib/reports/types";
@@ -186,4 +187,5 @@ async function shiftOptions(ctx: ReportContext): Promise<Record<string, ReportOp
 
 export const FLOOR_LOADERS: Record<string, ReportLoader> = {
   "retail-shifts": { load: loadShifts, options: shiftOptions },
+  ...FLOOR_SALES_LOADERS,
 };

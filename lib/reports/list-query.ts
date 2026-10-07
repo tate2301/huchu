@@ -54,6 +54,8 @@ export type ListContext = {
   can: (grant: ListGrant) => boolean;
   /** Whether this caller may see what the shop paid (`view-cost`). */
   seeCost: boolean;
+  /** The site this caller's floor pages open on: what a `defaultFrom: "default-site"` filter starts at. */
+  defaultSite?: string | null;
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -257,6 +259,15 @@ function choiceOptions(
   return filter.options ?? loaded[filter.key] ?? [];
 }
 
+/** A choice filter's default for this caller: their own site for `defaultFrom: "default-site"`. */
+function choiceDefault(
+  filter: Extract<ListSpec["filters"][number], { type: "choice" }>,
+  ctx: Pick<ListContext, "defaultSite">,
+): string {
+  if (filter.defaultFrom === "default-site" && ctx.defaultSite) return ctx.defaultSite;
+  return filter.default ?? "any";
+}
+
 /** A named sort's key, or `<column>:asc|desc` for a sortable column. */
 function sortRules(spec: ListSpec, sort: string, columns: ListColumn[]): SortRule[] | null {
   const named = spec.sorts.find((candidate) => candidate.key === sort);
@@ -310,7 +321,7 @@ export function resolveListQuery(
   spec: ListSpec,
   query: ListQuery,
   loadedOptions: Record<string, ListOption[]>,
-  ctx: Pick<ListContext, "role" | "seeCost">,
+  ctx: Pick<ListContext, "role" | "seeCost" | "defaultSite">,
 ): ResolvedListQuery {
   const rows = isFace(spec) ? rollupKeys(spec, query.rows) : [];
   const shape = shapeOf(spec, rows);
@@ -348,7 +359,7 @@ export function resolveListQuery(
       filters[filter.key] = given && isPeriodValue(given) ? given : fallback;
       continue;
     }
-    const fallback = filter.default ?? "any";
+    const fallback = choiceDefault(filter, ctx);
     if (scope?.filter === filter.key) {
       filters[filter.key] = "any";
       continue;
@@ -793,7 +804,7 @@ function allowed(action: ListAction, ctx: Pick<ListContext, "can">): boolean {
  */
 export function publicListSpec(
   spec: ListSpec,
-  ctx: Pick<ListContext, "role" | "can" | "seeCost">,
+  ctx: Pick<ListContext, "role" | "can" | "seeCost" | "defaultSite">,
   loaded: Record<string, ListOption[]>,
 ): ListSpecPublic {
   const columns = listColumnsFor(spec, ctx.seeCost);
@@ -813,7 +824,11 @@ export function publicListSpec(
       .filter((filter) => filter.key !== scope?.filter && !("column" in filter && filter.column && cost.has(filter.column)))
       // A choice the company cannot make (one site) is not offered.
       .filter((filter) => filter.type !== "choice" || !filter.hideBelow || choiceOptions(filter, loaded).length >= filter.hideBelow)
-      .map((filter) => (filter.type === "choice" ? { ...filter, options: choiceOptions(filter, loaded) } : filter)),
+      .map((filter) =>
+        filter.type === "choice"
+          ? { ...filter, options: choiceOptions(filter, loaded), ...(filter.defaultFrom ? { default: choiceDefault(filter, ctx) } : {}) }
+          : filter,
+      ),
     groups: spec.groups?.filter((key) => keys.has(key)),
     sorts: spec.sorts.filter((sort) => sort.rules.every((rule) => !cost.has(rule.column))),
     rowMenu: spec.rowMenu?.filter((action) => allowed(action, ctx)),
