@@ -12,7 +12,7 @@ import { STOCK_LEVEL_LABEL, STOCK_LEVEL_TONE } from "@/lib/retail/stock/levels";
 const VIEW: ListGrant[] = [["retail.stock", "view"]];
 const UPDATE: ListGrant[] = [["retail.stock", "update"]];
 const COUNT: ListGrant[] = [["retail.counts", "create"]];
-const level = (key: keyof typeof STOCK_LEVEL_LABEL) => [{ column: "level", op: "is" as const, value: [STOCK_LEVEL_LABEL[key]] }];
+const level = (...keys: Array<keyof typeof STOCK_LEVEL_LABEL>) => [{ column: "level", op: "is" as const, value: keys.map((key) => STOCK_LEVEL_LABEL[key]) }];
 
 const onHand: ListSpec = {
   noun: "stock",
@@ -20,7 +20,7 @@ const onHand: ListSpec = {
   search: { placeholder: "Name, code or barcode", keys: ["product", "code", "barcode"] },
   tabs: [
     { key: "all", label: "All", where: [] },
-    { key: "low", label: "Low", where: level("LOW") },
+    { key: "below", label: "Below level", where: level("LOW", "OUT") },
     { key: "out", label: "Out", where: level("OUT") },
     { key: "toomuch", label: "Too much", where: level("TOO_MUCH") },
   ],

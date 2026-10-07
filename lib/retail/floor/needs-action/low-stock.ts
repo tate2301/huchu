@@ -30,7 +30,7 @@ export function lowStockRow(lines: ReadonlyArray<StockLine>): NeedsActionRow | n
     meta: stockLeftWords(low[0]!),
     figure: String(low.length),
     figureTone: "ink",
-    href: "/retail/stock?tab=low",
+    href: "/retail/stock?tab=below",
   };
 }
 

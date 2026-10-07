@@ -127,14 +127,14 @@ describe("tabs and totals", () => {
   it("counts every tab over the whole shelf, whatever the search and filters", async () => {
     const all = await page(shop, "SUPERADMIN");
     const narrowed = await page(shop, "SUPERADMIN", { q: "Gordon", filters: { category: shop.ciderId } });
-    expect(all.tabs).toEqual({ all: 6, low: 1, out: 1, toomuch: 2 });
+    expect(all.tabs).toEqual({ all: 6, below: 2, out: 1, toomuch: 2 });
     expect(narrowed.tabs).toEqual(all.tabs);
     expect(narrowed.total).toBe(1);
   });
 
-  it("agrees with the panel badge: Low and Out", async () => {
+  it("agrees with the panel badge: Below level holds Low and Out", async () => {
     const all = await page(shop, "SUPERADMIN");
-    expect(await countLowLines(shop.companyId)).toBe((all.tabs?.low ?? 0) + (all.tabs?.out ?? 0));
+    expect(await countLowLines(shop.companyId)).toBe(all.tabs?.below);
   });
 
   it("totals the value at cost over the rows shown", async () => {

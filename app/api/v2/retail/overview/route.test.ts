@@ -4,7 +4,8 @@ import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { destroySalesShop, makeSalesShop, type SalesShop } from "@/lib/retail/floor/test-fixtures";
+import { addTestSale, destroySalesShop, makeSalesShop, type SalesShop } from "@/lib/retail/floor/test-fixtures";
+import { addTestProduct } from "@/lib/retail/products/test-fixtures";
 
 /**
  * `GET /api/v2/retail/overview` (FLR-08) as the browser calls it: who may
@@ -48,9 +49,33 @@ beforeAll(async () => {
     const user = await prisma.user.create({ data: { companyId: shop.companyId, name: key, role, email: `${key}-${shop.companyId}@overview.test` }, select: { id: true } });
     people[key] = { id: user.id, role };
   }
+  // Something for every kind of Needs-action row: a drawer left open, a product under its level, a receipt waiting on ZIMRA.
+  await prisma.retailShift.create({
+    data: {
+      companyId: shop.companyId,
+      shiftNo: `SH-${Date.now()}`,
+      registerCode: "FRONT",
+      registerName: "Front till",
+      registerId: shop.frontTill,
+      siteId: shop.mainId,
+      cashierId: shop.chipo,
+      cashierName: "Chipo Dube",
+      openedAt: new Date(Date.now() - 20 * 3_600_000),
+    },
+  });
+  const low = await addTestProduct(shop.companyId, { name: "Jaggermeister 750ml", price: "30.00", cost: "20.00" }, { onHand: 2, reorderAt: 12 });
+  const waiting = await addTestSale(shop, {
+    saleNo: "SALE-OVERVIEW-1",
+    at: new Date(Date.now() - 60_000),
+    lines: [{ item: low, name: "Jaggermeister 750ml", quantity: 1, price: "8.70", cost: "5.00" }],
+    deposit: "0.60",
+    payments: [{ tender: "ECOCASH", amount: "9.30" }],
+  });
+  await prisma.retailSale.update({ where: { id: waiting.id }, data: { fiscalWaitsSince: new Date(Date.now() - 120_000) } });
 }, 60_000);
 
 afterAll(async () => {
+  await prisma.retailShift.deleteMany({ where: { companyId: shop.companyId } });
   await destroySalesShop(shop);
 });
 
@@ -76,6 +101,34 @@ describe("GET /overview", () => {
     expect(body.data.can.openShift).toBe(false);
     expect(body.data.site).toBeNull();
     expect(body.data.tiles.takings.label).toBe("Takings this month");
+  });
+
+  it("opens on the caller's own site, and on every site when asked", async () => {
+    as("manager");
+    const own = (await get()).body.data;
+    expect(own.site).toEqual({ id: shop.mainId, name: expect.any(String) });
+    expect((await get("?siteId=all")).body.data.site).toBeNull();
+    const second = (await get(`?siteId=${shop.secondId}`)).body.data;
+    expect(second.site.id).toBe(shop.secondId);
+  });
+
+  it("gives each reader only the Needs-action rows they can act on", async () => {
+    as("owner");
+    const keys = (await get()).body.data.tiles.needsAction.map((row: { key: string }) => row.key);
+    expect(keys).toEqual(["stale-shift", "low-stock", "not-fiscalised"]);
+    as("manager");
+    expect((await get()).body.data.tiles.needsAction.map((row: { key: string }) => row.key)).toEqual(keys);
+    as("books");
+    const { body } = await get();
+    expect(body.data.tiles.needsAction.map((row: { key: string }) => row.key)).toEqual(["low-stock", "not-fiscalised"]);
+  });
+
+  it("splits takings by tender without the bottle deposit", async () => {
+    as("owner");
+    const { tiles } = (await get()).body.data;
+    const paid = tiles.paid.reduce((sum: number, part: { value: string }) => sum + Number(part.value), 0);
+    expect(paid).toBeCloseTo(Number(tiles.takings.value), 2);
+    expect(tiles.takings.value).toBe("8.70");
   });
 
   it("refuses the cashier and the stock clerk", async () => {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { answerClose, answerCloseForm } from "@/lib/retail/floor/shifts";
+import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -14,6 +16,10 @@ import { requireRetailSession } from "../../../_helpers";
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
+  // The cashier's own drawer or cash control's view of anybody's; the page's own rule narrows it to the shift.
+  if (!canRetailSessionDo(session, "retail.sell", "close-shift") && !canRetailSessionDo(session, "retail.cash-control", "view")) {
+    return requireRetailPermission(session, "retail.sell", "close-shift") as NextResponse;
+  }
   const path = await parseRetailParams(params, retailIdParams);
   if (path.response) return path.response;
   return answerCloseForm(session, path.data.id);
@@ -22,6 +28,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
+  if (!canRetailSessionDo(session, "retail.sell", "close-shift") && !canRetailSessionDo(session, "retail.cash-control", "close-shift")) {
+    return requireRetailPermission(session, "retail.sell", "close-shift") as NextResponse;
+  }
   const path = await parseRetailParams(params, retailIdParams);
   if (path.response) return path.response;
   const body = await request.json().catch(() => null);

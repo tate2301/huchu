@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { answerCloseDay } from "@/lib/retail/floor/day-close";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 /**
@@ -11,5 +12,7 @@ import { requireRetailSession } from "../../_helpers";
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
+  const refused = requireRetailPermission(session, "retail.end-of-day", "create");
+  if (refused) return refused;
   return answerCloseDay({ session, body: await request.json().catch(() => null) });
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { fieldErrorResponse, successResponse } from "@/lib/api-response";
 import { closeRefusal, closeUncounted } from "@/lib/retail/floor/shifts";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -16,6 +17,8 @@ const body = z.object({ reason: z.string() });
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
+  const refused = requireRetailPermission(session, "retail.cash-control", "close-shift");
+  if (refused) return refused;
   const path = await parseRetailParams(params, retailIdParams);
   if (path.response) return path.response;
   const parsed = body.safeParse(await request.json().catch(() => null));

@@ -68,6 +68,11 @@ const GUARD_MARKERS = [
    */
   "requireRetailPermission",
   /**
+   * The matrix's own refusal text, for handlers that build their own 403
+   * (`retailPermissionDenial` is what `requireRetailPermission` calls).
+   */
+  "retailPermissionDenial",
+  /**
    * The same matrix read as a boolean, for handlers that answer "may this caller
    * do it *or* has a manager approved it here" rather than simply refusing.
    */

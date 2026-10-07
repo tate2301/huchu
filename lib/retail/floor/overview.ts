@@ -491,6 +491,30 @@ export function sharesTo100(values: ReadonlyArray<number>): number[] {
   return shares;
 }
 
+/**
+ * What each tender took towards takings. A deposit-bearing sale's payments
+ * hold the bottle deposit too (the customer paid goods plus deposit) but
+ * takings never do (decision 10), so each sale's deposit comes off its
+ * largest payments first and the tenders sum to the takings they split.
+ * Refunds and voids carry their deposit negative, so the same sum holds.
+ */
+export function paymentsTowardsTakings(
+  payments: ReadonlyArray<{ saleId: string; depositCents: number; tenderType: string; currency: string | null; cents: number }>,
+): Array<{ tenderType: string; currency: string | null; cents: number }> {
+  const bySale = new Map<string, typeof payments[number][]>();
+  for (const payment of payments) bySale.set(payment.saleId, [...(bySale.get(payment.saleId) ?? []), payment]);
+  const net: Array<{ tenderType: string; currency: string | null; cents: number }> = [];
+  for (const group of bySale.values()) {
+    let deposit = group[0]!.depositCents;
+    for (const payment of [...group].sort((a, b) => Math.abs(b.cents) - Math.abs(a.cents))) {
+      const take = deposit === 0 || Math.sign(deposit) !== Math.sign(payment.cents) ? 0 : Math.sign(deposit) * Math.min(Math.abs(deposit), Math.abs(payment.cents));
+      deposit -= take;
+      net.push({ tenderType: payment.tenderType, currency: payment.currency, cents: payment.cents - take });
+    }
+  }
+  return net;
+}
+
 export function paidTile(payments: ReadonlyArray<{ tenderType: string; currency: string | null; cents: number }>): PaidPart[] {
   const totals = new Map<PaidKey, number>([
     ["cash", 0],
@@ -596,8 +620,8 @@ export type OverviewTill = {
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
 /**
- * The tills at the site with an open shift, an offline device or a sale
- * today: open first, then a drawer open more than 12 hours, then offline,
+ * The tills at the site with an open shift, an offline device, a shift closed
+ * today or a sale today (an offline till names its open shift): open first, then a drawer open more than 12 hours, then offline,
  * then closed, each by name (the Floor board's order). Figures are the open shift's, else today's
  * on that till.
  */
@@ -617,11 +641,11 @@ export function tillsNowTile(input: {
     const open = input.shifts.find((shift) => shift.status === "OPEN" && shift.registerId === till.id) ?? null;
     const todays = input.rows.filter((row) => row.registerId === till.id && within(row.at, startToday, now));
     const state = tillState({ device: till.device, shiftOpen: open !== null }, now).state;
-    if (!open && state !== "OFFLINE" && todays.length === 0) continue;
     const lastClosed =
       input.shifts
         .filter((shift) => shift.registerId === till.id && shift.status === "CLOSED" && shift.closedAt !== null && shift.closedAt >= startToday)
         .sort((a, b) => b.closedAt!.getTime() - a.closedAt!.getTime())[0] ?? null;
+    if (!open && !lastClosed && state !== "OFFLINE" && todays.length === 0) continue;
     const stale = open !== null && isStale(open, now);
     const kind: TillNow["state"] = stale ? "STALE" : state === "OFFLINE" ? "OFFLINE" : open ? "OPEN" : "CLOSED";
     const seen = till.device?.lastSeenAt ?? null;
@@ -632,7 +656,11 @@ export function tillsNowTile(input: {
         : kind === "STALE"
           ? `${open!.cashierName} · since ${formatWhen(open!.openedAt)} · needs closing`
           : kind === "OFFLINE"
-            ? [person ? firstName(person) : null, `last seen ${seen ? (dayKey(seen, ZONE) === input.today ? formatTime(seen) : formatWhen(seen)) : "never"}`]
+            ? [
+                person ? firstName(person) : null,
+                open ? `open since ${dayKey(open.openedAt, ZONE) === input.today ? formatTime(open.openedAt) : formatWhen(open.openedAt)}` : null,
+                `last seen ${seen ? (dayKey(seen, ZONE) === input.today ? formatTime(seen) : formatWhen(seen)) : "never"}`,
+              ]
                 .filter(Boolean)
                 .join(" · ")
             : lastClosed
@@ -809,7 +837,7 @@ export async function loadOverview(
     }),
     prisma.retailSalePayment.findMany({
       where: { companyId, sale: { ...takingsWhere({ companyId, from: window.from, to: now }), ...inSites } },
-      select: { tenderType: true, currency: true, baseAmount: true },
+      select: { saleId: true, tenderType: true, currency: true, baseAmount: true, sale: { select: { depositAmount: true } } },
     }),
     prisma.retailRegister.findMany({
       where: { companyId, isActive: true, ...inSites },
@@ -880,7 +908,17 @@ export async function loadOverview(
         now,
       }),
       byDay: byDayTile(rows, window.today, now),
-      paid: paidTile(payments.map((payment) => ({ tenderType: payment.tenderType, currency: payment.currency, cents: cents(payment.baseAmount) }))),
+      paid: paidTile(
+        paymentsTowardsTakings(
+          payments.map((payment) => ({
+            saleId: payment.saleId,
+            depositCents: cents(payment.sale.depositAmount ?? 0),
+            tenderType: payment.tenderType,
+            currency: payment.currency,
+            cents: cents(payment.baseAmount),
+          })),
+        ),
+      ),
       topProducts: topProductsTile(lines, window.from, window.to),
       ...(onHand ? { toReorder: toReorderTile(onHand) } : {}),
       cashiers: cashiersTile(shiftRows, figures, weekStart),

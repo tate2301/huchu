@@ -283,6 +283,13 @@ Recorded unit choices:
   - **The response carries `can.openShift` and the sparkline's point `labels`** beside 50-floor §4.1's fields: the page
     draws "+ Open shift" from the first, and the chart's tooltips name each hour or day from the second.
   - The setup checklist does not lead the grid: SET-13's endpoint does not exist yet.
+  - **Stock links open On hand's "Below level" tab**, which holds Low and Out together (it replaces the Low tab; Out
+    stays beside it), so the Needs-action row's count and the Stock to reorder panel's lines are the list they open.
+  - **An offline till with an open shift names it**: "Chipo · open since 07:58 · last seen 13:35". A till that closed a
+    shift today stays in Tills now as Closed even when it sold nothing.
+  - **How people paid splits takings, so it leaves out bottle deposits.** A deposit sale's payments hold the deposit
+    (the customer paid goods plus deposit) but takings never do; each sale's deposit comes off its largest payments, so
+    the tenders sum to the takings they split.
 
 - **A list's Export stops at 5,000 rows and says so.** The file holds the engine's first 5,000 rows in the list's order
   with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the

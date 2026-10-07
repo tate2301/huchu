@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { successResponse } from "@/lib/api-response";
 import { DayRefused, dayRefusalResponse, endOfDayView } from "@/lib/retail/floor/day-close";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../_helpers";
 
 /**
@@ -13,6 +14,8 @@ import { requireRetailSession } from "../_helpers";
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
+  const refused = requireRetailPermission(session, "retail.end-of-day", "view");
+  if (refused) return refused;
   const params = new URL(request.url).searchParams;
   try {
     return successResponse({ data: await endOfDayView(session, { siteId: params.get("siteId"), date: params.get("date") }) });

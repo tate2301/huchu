@@ -307,7 +307,7 @@ function Tiles({ view }: { view: OverviewResponse }) {
           span={4}
           title="Stock to reorder"
           qualifier="below level"
-          link={{ href: "/retail/stock?tab=low", label: "Stock" }}
+          link={{ href: "/retail/stock?tab=below", label: "Stock" }}
           empty={tiles.toReorder.length === 0 ? "Nothing is low." : null}
         >
           <RankList

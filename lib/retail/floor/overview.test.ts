@@ -40,6 +40,7 @@ import {
   marginPct,
   overviewWindow,
   paidTile,
+  paymentsTowardsTakings,
   salesTiles,
   sharesTo100,
   takingsTile,
@@ -175,7 +176,7 @@ describe("Needs action", () => {
       title: "Two products below reorder level",
       meta: "Jameson 750ml has 9 left, about 2 days",
       figure: "2",
-      href: "/retail/stock?tab=low",
+      href: "/retail/stock?tab=below",
     });
     expect(lowStockRow([line("Jaggermeister 750ml", 0, null, "OUT")])?.meta).toBe("Jaggermeister 750ml is out");
     const offline = { name: "Handheld 1", device: { kind: "KORA" as const, lastSeenAt: harare("2026-10-03T13:58:00") }, shiftOpen: true };
@@ -231,6 +232,20 @@ describe("tiles", () => {
     expect(paidTile([]).map((part) => part.key)).toEqual(["cash", "ecocash", "card", "zig"]);
   });
 
+  it("takes a sale's deposit off its payments so the tenders sum to takings", () => {
+    const pay = (saleId: string, depositCents: number, tenderType: string, cents: number) => ({ saleId, depositCents, tenderType, currency: "USD", cents });
+    const net = paymentsTowardsTakings([
+      pay("a", 60, "ECOCASH", 930), // 8.70 of goods and 0.60 of deposit
+      pay("b", 100, "CASH", 500), // split sale: the deposit comes off the larger part
+      pay("b", 100, "CARD", 700),
+      pay("c", -60, "ECOCASH", -930), // its refund
+      pay("d", 0, "CASH", 1000),
+    ]);
+    expect(net.reduce((sum, payment) => sum + payment.cents, 0)).toBe(870 + 1100 - 870 + 1000);
+    expect(net.find((payment) => payment.tenderType === "ECOCASH")?.cents).toBe(870);
+    expect(net.filter((payment) => payment.cents === 600 || payment.cents === 500)).toHaveLength(2);
+  });
+
   it("works margin off the standing sales net of refunds", () => {
     const line = (saleType: LineRow["saleType"], status: LineRow["status"], total: number, tax: number, cost: number): LineRow => ({
       at: harare("2026-10-03T10:00:00"),
@@ -257,6 +272,8 @@ describe("tiles", () => {
       shift({ id: "back", cashierName: "Farai Moyo", status: "OPEN", closedAt: null, countedCash: null, variance: null, registerId: "back", registerName: "Back till", openedAt: harare("2026-10-01T10:18:00") }),
       shift({ id: "hand", cashierName: "Tendai Mhlanga", status: "OPEN", closedAt: null, countedCash: null, variance: null, registerId: "hand", registerName: "Handheld 1", openedAt: harare("2026-10-03T10:05:00") }),
       shift({ id: "spare", cashierName: "Tafara Nyathi", registerId: "spare", registerName: "Spare till", openedAt: harare("2026-10-03T08:00:00"), closedAt: harare("2026-10-03T12:30:00") }),
+      shift({ id: "cold", cashierName: "Rudo Chari", registerId: "cold", registerName: "Cold room till", openedAt: harare("2026-10-03T09:30:00"), closedAt: harare("2026-10-03T11:00:00") }),
+      shift({ id: "yesterday", cashierName: "Old Shift", registerId: "idle", registerName: "Idle till", openedAt: harare("2026-10-02T09:30:00"), closedAt: harare("2026-10-02T17:00:00") }),
     ];
     const rows: TakingsRow[] = [{ at: harare("2026-10-03T09:00:00"), cents: 1250, saleType: "SALE", status: "POSTED", registerId: "spare", shiftId: "spare" }];
     const tills = tillsNowTile({
@@ -266,6 +283,7 @@ describe("tiles", () => {
         { id: "front", name: "Front till", device: { kind: "COUNTER_MINI", lastSeenAt: NOW } },
         { id: "back", name: "Back till", device: { kind: "BROWSER", lastSeenAt: NOW } },
         { id: "cold", name: "Cold room till", device: null },
+        { id: "idle", name: "Idle till", device: null },
       ],
       shifts,
       figures: new Map([
@@ -280,7 +298,8 @@ describe("tiles", () => {
     expect(tills.map((till) => [till.name, till.stateLabel, till.meta, till.takings, till.sales])).toEqual([
       ["Front till", "Open", "Chipo Dube · since 07:58 · float US$200.00", "842.15", 91],
       ["Back till", "Open 52h", "Farai Moyo · since 1 Oct 10:18 · needs closing", "72.95", 11],
-      ["Handheld 1", "Offline", "Tendai · last seen 13:58", "369.50", 40],
+      ["Handheld 1", "Offline", "Tendai · open since 10:05 · last seen 13:58", "369.50", 40],
+      ["Cold room till", "Closed", "Closed at 11:00 · Rudo Chari", "0.00", 0],
       ["Spare till", "Closed", "Closed at 12:30 · Tafara Nyathi", "12.50", 1],
     ]);
     expect(tills[0]!.href).toBe("/retail/shifts/front");
